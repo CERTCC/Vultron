@@ -521,6 +521,17 @@ class VultronWiringError(VultronError):
     """
 
 
+class VultronConfigScopeLostError(VultronWiringError):
+    """Raised when ``get_config()`` runs outside the app scope it needs.
+
+    An app holding its own config runs in the process, and the caller is in
+    no app's scope, so the process-wide config is not its node's (ADR-0206).
+    A background boundary that logs one actor's failure and goes on re-raises
+    this one: a lost scope is every actor's failure.  Any other
+    ``VultronWiringError`` stays one actor's failure there, as before.
+    """
+
+
 class VultronConfigError(VultronError):
     """Raised when the node's configuration cannot be used as given.
 

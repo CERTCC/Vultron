@@ -13,13 +13,15 @@ description: >
   annotations on Python 3.14 (`signature_of`, `own_annotations`), an
   in-process pass that hides what each node holds on its own,
   measuring effective markers rather than declarations,
-  `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
+  `filterwarnings` precedence and the thread-unsafe `catch_warnings` that
+  drops a library's own `ignore`, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, in-memory SQLite stores sharing state per actor_id,
   why a status fixture may not encode a state the CS
   invariants forbid and where the guard for that reaches,
-  why a lifespan task that outlives its test segfaults a later worker (and
-  the guard that fails one draining in the wrong namespace),
+  why a lifespan task that outlives its test segfaults a later worker or
+  leaks a connection (and the guards that fail one draining in the wrong
+  namespace or reusing a disposed store),
   py_trees test patterns, running each use case and tree as one act through
   the test act runner, CoreObject subclass isolation, a signal test's ready
   marker,
@@ -283,6 +285,16 @@ A test asserting the list position cannot catch this, because `pytest.warns` and
 `test/metadata/specs/test_spec_marker_gate.py::TestWarningIsNotEscalated` does
 (SR-05-016).
 
+### A Library's `catch_warnings` Is Not Thread-Safe Under `"error"`
+
+Without context-aware warnings (`sys.flags.context_aware_warnings == 0`),
+`warnings.catch_warnings()` saves and restores the process-global filter list.
+A library that hides a warning that way on a `TestClient` portal thread can
+lose its `ignore` to another portal thread's restore, and `"error"` then fails
+a request at random. Ignore that one message in the ini list, after `"error"`,
+and test it by making the library's suppression a no-op rather than by racing
+threads: `test/demo/test_actor_dl_override_warning.py` does both (#6039).
+
 ### `caplog` Captures Fixture-Setup-Phase Records
 
 `caplog.set_level()` in a fixture also captures records other fixtures emit
@@ -459,8 +471,9 @@ read past red, so the next real failure is read past too. Two shapes of it:
 
 ### A Lifespan Task That Outlives Its Test Segfaults a Later Worker
 
-A fixture that keeps the production lifespan open past one test MUST stop its
-background work on the app's loop, and wait for it, before the test ends. The
+A fixture that keeps a lifespan that starts background work (the production
+app's, or a `create_app(config=...)` app's, ADR-0206) open past one test MUST
+stop that work on the app's loop, and wait for it, before the test ends. The
 root conftest closes the actor stores after every test, and closing a SQLite
 connection while another thread reads it segfaults the xdist worker: the run
 reports `node down` with an innocent test as the victim (#6148). Stop by
@@ -473,6 +486,15 @@ fails its own test with `HoldTimerLeakedError`. A lifespan task that resolves
 hosted actors in the configured namespace opens a `testserver` actor's store
 under a second id; `no_store_shared_across_authorities()`
 (`test/support/store_sharing.py`) fails every `client` test that does (#6085).
+
+The same work, left running, also leaks connections. A `SqliteDataLayer` held
+across a disposal and used again opens a fresh connection on the disposed
+engine, which nothing closes; its `ResourceWarning` later fails whichever test
+the garbage collector lands in (#6001). Per-test disposal closes every such
+connection on an in-memory store and fails the test it opened in with
+`OrphanStoreConnectionError`, naming the opening stack
+(`test/support/orphan_store_connections.py`). Fix the holder, not the guard:
+take a fresh store after a reset, or stop the work before the test ends.
 
 ### In-Memory Stores Share by Actor
 
@@ -769,10 +791,12 @@ so it cannot drift out of the branch. See
   two-node Announce). A green in-process suite does not count as coverage.
 - **Why.** In-process topologies share what Docker keeps apart. They seed the case,
   its participants and its embargo into every node's store before one protocol
-  step runs, so a receiver never depends on what the wire carried. Every node also
-  reads one process-global `get_config()`, so a CaseActor that reads its own
-  configuration for another actor's facts gets the right answer. Only the Docker
-  demos bootstrap from delivered activities, with one configuration per container.
+  step runs, so a receiver never depends on what the wire carried. A node built
+  without its own config (`create_app(config=None)`, still every demo node)
+  reads the process-global `get_config()`, so a CaseActor that reads its own
+  configuration for another actor's facts gets the right answer; give the node
+  its own config to close that gap (ADR-0206). Only the Docker demos bootstrap
+  from delivered activities, with one configuration per container.
 - **Symptom.** The suite is green, and the Docker demo fails with a "missing
   object" error on the receiving side (`no VulnerabilityCase for report`, `Invalid
   RM transition START → …`, `no routable recipients`) or a role error from a

@@ -57,6 +57,7 @@ from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
 )
 from vultron.adapters.media_types import AS2_CONTENT_TYPE
+from vultron.config import AppConfig
 from vultron.core.models.object_fetch import ObjectReference
 
 logger = logging.getLogger(__name__)
@@ -295,6 +296,8 @@ class IsolatedActorApp:
             to. Exposed so a test can address it without rebuilding the URL.
         db_url: This node's storage-deployment template, private to it the way a
             container's volume is (see :func:`node_db_url`).
+        config: This node's own config, as its container's would be, or
+            ``None`` when the node reads the process-wide config (ADR-0206).
     """
 
     app: FastAPI
@@ -302,6 +305,7 @@ class IsolatedActorApp:
     base_url: str
     actor_id: str
     db_url: str = "sqlite:///:memory:"
+    config: AppConfig | None = None
 
     @property
     def dl(self) -> SqliteDataLayer:
@@ -355,6 +359,7 @@ def create_isolated_actor_app(
     base_url: str,
     router: InProcessRouter,
     actor_slug: str = "primary",
+    config: AppConfig | None = None,
 ) -> IsolatedActorApp:
     """Create an isolated FastAPI app for a single actor in tests.
 
@@ -379,6 +384,13 @@ def create_isolated_actor_app(
             ``dl`` MUST pass the slug it creates its actor under. Routing does not
             depend on it — every actor gets its own store via the per-actor
             override below — but ``dl`` has to name one of them.
+        config: This node's own config, passed to :func:`create_app`, so the
+            node reads its settings as its container would rather than the
+            process-wide config every other node reads (ADR-0206).  A node
+            given a config also runs its container's background work (the
+            outbox monitor, startup inbox replay, ledger position statements
+            and sender-sequence hold timer) on its own stores.  ``None``
+            keeps the process-wide config and starts none of that work.
 
     Returns:
         An :class:`IsolatedActorApp` whose ``client`` context manager has
@@ -411,7 +423,12 @@ def create_isolated_actor_app(
             db_url=db_url,
         )
 
-    app = create_app(docs_url=None, openapi_url=None, node_base_url=node_root)
+    app = create_app(
+        docs_url=None,
+        openapi_url=None,
+        node_base_url=node_root,
+        config=config,
+    )
     app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl
     # Declared on the app, not only wired into the override: routes whose subject
     # actor is named in the request body (actor creation) have no path segment to
@@ -442,6 +459,7 @@ def create_isolated_actor_app(
         base_url=base_url,
         actor_id=own_actor_id,
         db_url=db_url,
+        config=config,
     )
 
 

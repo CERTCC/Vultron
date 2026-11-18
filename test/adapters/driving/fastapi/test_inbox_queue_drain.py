@@ -34,6 +34,7 @@ from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
 from test.support.objects import authored_at, make
+from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import (
     inbox_queue_drain as drain,
@@ -667,7 +668,6 @@ def _serve_once(
 
     from vultron.adapters.driving.fastapi import (
         app as app_module,
-        inbox_startup_replay as startup,
     )
     from vultron.adapters.driving.fastapi.app import _make_lifespan
 
@@ -678,9 +678,11 @@ def _serve_once(
         return use_case(event, dl)
 
     monkeypatch.setattr(
-        startup.actor_hosts, "hosted_actor_ids", lambda: [_RECEIVER]
+        actor_hosts, "hosted_actor_ids", lambda *_node: [_RECEIVER]
     )
-    monkeypatch.setattr(startup, "get_datalayer", lambda _actor_id: dl)
+    monkeypatch.setattr(
+        actor_hosts, "get_datalayer", lambda _actor_id, db_url=None: dl
+    )
     monkeypatch.setattr(ports, "dispatch", _dispatch)
     # The lifespan also states the hosted actors' ledger positions
     # (SYNC-17-007), which drains their outboxes too; these tests count only
@@ -763,9 +765,13 @@ def test_a_startup_replay_that_raises_does_not_stop_the_next_actor(
             raise RuntimeError("store fault")
 
     monkeypatch.setattr(
-        startup.actor_hosts, "hosted_actor_ids", lambda: list(stores)
+        actor_hosts, "hosted_actor_ids", lambda *_node: list(stores)
     )
-    monkeypatch.setattr(startup, "get_datalayer", stores.__getitem__)
+    monkeypatch.setattr(
+        actor_hosts,
+        "get_datalayer",
+        lambda actor_id, db_url=None: stores[actor_id],
+    )
     monkeypatch.setattr(startup, "replay_inbox_queue", _replay)
 
     with caplog.at_level(logging.ERROR, logger=startup.__name__):

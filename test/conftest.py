@@ -42,6 +42,9 @@ os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 import py_trees
 import pytest
 
+from test.support.orphan_store_connections import (
+    install_orphan_connection_watch,
+)
 from test.support.received import reset_test_sender_numbers
 from test.support.xdist_workers import worker_count
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -197,7 +200,10 @@ def cleanup_test_datalayer():
     """Reset all cached DataLayer instances before and after the session.
 
     Ensures no stale in-memory database state leaks between test modules.
+    Also installs, once per process, the connection watch that
+    ``_dispose_actor_stores_between_tests`` reads (#6001).
     """
+    install_orphan_connection_watch()
     reset_datalayer()
     yield
     reset_datalayer()
@@ -253,11 +259,47 @@ def _dispose_actor_stores_between_tests():
     first, and the test fails with
     :class:`~test.support.hold_timers.HoldTimerLeakedError` once the stores
     are disposed.
+
+    A connection that a disposed in-memory store opened during the test is
+    then closed, and the test fails with
+    :class:`~test.support.orphan_store_connections.OrphanStoreConnectionError`
+    naming the stack that opened it: left to the garbage collector, its
+    ``ResourceWarning`` would fail whichever later test was running (#6001).
     """
     yield
     from test.support.hold_timers import dispose_actor_stores_between_tests
 
     dispose_actor_stores_between_tests()
+
+
+@pytest.fixture(autouse=True)
+def _no_app_config_hold_outlives_its_test() -> Iterator[None]:
+    """Fail a test that leaves an app holding its own config running.
+
+    While an app made by ``create_app(config=...)`` runs, ``get_config()`` in
+    no app scope raises ``VultronWiringError`` for the whole process
+    (ADR-0206).  A ``TestClient`` the test never exits would keep that
+    refusal on for every later test on the worker, failing them far from the
+    cause.  So every hold started during the test and still running is
+    released, and this test fails instead.  Holds running before the test
+    are left alone, so a module-scoped app a test declares (pytest sets it up
+    before this fixture) is not mistaken for a leak.  One the test first
+    starts itself, through ``request.getfixturevalue``, is reported as this
+    test's; releasing it is harmless when its fixture later exits it.
+    """
+    from test.support.app_configs import (
+        held_app_configs,
+        release_leaked_app_config_holds,
+    )
+
+    before = held_app_configs()
+    yield
+    leaked = release_leaked_app_config_holds(before)
+    if leaked:
+        pytest.fail(
+            f"{leaked} app(s) holding their own AppConfig were left running "
+            "(a TestClient never exited); see ADR-0206"
+        )
 
 
 @pytest.fixture(autouse=True)

@@ -79,6 +79,7 @@ uv run pytest test/test_config.py --tb=short
 - **Isolation guarantee**: per-actor in-memory stores are named shared-cache SQLite URLs, so the root conftest's autouse `_dispose_actor_stores_between_tests` fixture calls `reset_datalayer()` and `reset_store_claimants()` after every test (ADR-0073); without it, two tests using the same actor id would share rows.
   It never disposes under a running sender-sequence hold timer, because closing a store under the timer's read segfaults the worker (#6148).
   A timer the test left running is stopped first, and the test then fails with `HoldTimerLeakedError`.
+  The fixture then closes each connection that a disposed in-memory store opened during the test, and fails that test with `OrphanStoreConnectionError`, which names the opening stack (`test/support/orphan_store_connections.py`, #6001).
   Every test that uses the demo `client` fixture also fails if it opens an actor's store under a second authority, the engine's "shared by two distinct actor ids" warning (`test/support/store_sharing.py`, #6085).
 - **Common failure mode**: tests that import `vultron.*` before `os.environ["VULTRON_DATABASE__DB_URL"]` is set will bind to the on-disk default — prevented by conftest import ordering
 

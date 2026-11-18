@@ -35,7 +35,9 @@ from test.measure.history.builders import (
     seat_unnotified_vendor,
     seat_vendor,
     status,
+    two_vendors_ledger,
 )
+from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM, EM_Trigger
 from vultron.measure.advice import (
     BAND_ORDER,
@@ -74,29 +76,9 @@ def _one_vendor() -> Ledger:
     return ledger
 
 
-def _two_vendors() -> Ledger:
-    """No embargo; a vendor with its fix ready and the report accepted, and
-    a second vendor aware at RM Received with no fix."""
-    ledger = Ledger()
-    ledger.genesis(
-        [
-            participant(
-                OWNER,
-                [status("owner-r", OWNER, "RECEIVED")],
-                roles=("CASE_OWNER",),
-            )
-        ],
-        with_embargo=False,
-    )
-    seat_vendor(ledger, VENDOR, "VF")
-    ledger.add_status(VENDOR, status("vendor-a", VENDOR, "ACCEPTED", vf="VF"))
-    seat_vendor(ledger, VENDOR_2, "Vf")
-    return ledger
-
-
 @pytest.fixture(scope="module")
 def two_vendors() -> CaseAdvice:
-    return case_advice(case_standing(_two_vendors().case_ledger()))
+    return case_advice(case_standing(two_vendors_ledger().case_ledger()))
 
 
 def _move(advice: CaseAdvice, participant: str, name: str) -> AdvisedMove:
@@ -297,6 +279,28 @@ def test_moves_that_are_not_steps_are_listed_with_why(two_vendors):
     assert "moves no vendor's state" in owner.reason
     banded = {(m.move.participant, m.move.name) for m in two_vendors.moves}
     assert not banded & set(reasons)
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_a_move_that_rests_on_an_unobservable_event_has_no_band():
+    """The standing's reason for such a move is the advice's (#6563)."""
+    record = case_standing(
+        two_vendors_ledger().case_ledger(), frozenset({CSEvent.D})
+    )
+    advice = case_advice(record)
+    reasons = {(u.move.participant, u.move.name): u for u in advice.unbanded}
+    deploy = reasons[(VENDOR, "cs.fix_is_deployed")]
+    assert "cannot observe D" in deploy.reason
+    banded = {(m.move.participant, m.move.name) for m in advice.moves}
+    assert (VENDOR, "cs.fix_is_deployed") not in banded
+    unscored = {
+        (m.move.participant, m.move.name): m.unscored
+        for m in record.moves
+        if m.unscored is not None
+    }
+    assert {k: u.reason for k, u in reasons.items() if k in unscored} == (
+        unscored
+    )
 
 
 def test_a_move_that_keeps_every_state_has_no_band():

@@ -78,10 +78,24 @@ A node that is not in prototype run mode does not serve that endpoint, so the to
 The page shows the case as it stands at its last ledger entry.
 
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
-- **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳).
+- **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳), and of those it cannot know (❔) when the source cannot observe an event.
 - **Desiderata** lists each of the twelve desiderata in words, with one column for each Vendor.
-- **Open moves** lists each move a participant can make from here, and its effect for each Vendor: how many desiderata it makes likelier (▲) or less likely (▼) to be met than leaving the case to chance.
-  The tool never adds the Vendors' effects into one score.
+- **Move advice** puts each open move in one of three bands, by the method that [Move Bands Against Pathology Cases](../topics/measuring_cvd/move_bands.md) tests.
+  A move's band is set by its end desiderata, or by its embargo desiderata when it changes no end desideratum.
+  A **Harm-free** move raises at least one Vendor above the chance value and lowers none.
+  A **Trade-off** move raises one Vendor at another's cost.
+  An **Unhelpful** move raises no Vendor; its band is closed until you open it.
+- In the harm-free and trade-off bands, each move's row is shaded by its layer, with layer 1 the darkest.
+  Layer 1 holds the moves that no other open move beats, and each move in a lighter layer is beaten by a move in a darker one.
+  A ⭐ marks a top move: a harm-free or trade-off move in layer 1.
+  A 👉 marks a coordinator's move that none of the coordinator's other moves beats.
+  Choose the darkest move in the highest band that has one.
+- **Harms by vendor** lists each Vendor that a move leaves below the chance value, in its end or its embargo desiderata, with how far below.
+  A harm-free move can still harm a Vendor's embargo desiderata when its end desiderata decide its band.
+  A negative value means worse than the chance value, not a broken desideratum.
+  A trade-off move that a harm-free move beats says so under **Dominated by**.
+- **Moves with no band** lists each other move a participant can make, with the reason it has no band.
+  The tool never adds the Vendors' values into one score, and never ranks the moves by one.
 
 A ledger with a missing entry shows the missing entry instead of a standing, because a measure over a history with a gap is wrong.
 
@@ -106,6 +120,9 @@ Development work, including Coding Agent sessions, uses a test VINCE instance wi
 
 The **Not translated** panel lists each fact the connector read and could not translate, with the reason.
 The **Not observable** panel lists what the outside system never records; read each one as unknown, not as false.
+Its **Reads as unknown** column names the case-state events each fact covers.
+Each desideratum that orders one of those events shows as unknown (❔), never as met or broken.
+Each move whose change in outcome rests on one of those events goes under **Moves with no band**, with that reason.
 
 ---
 

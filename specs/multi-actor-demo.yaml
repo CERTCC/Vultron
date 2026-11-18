@@ -119,6 +119,39 @@ groups:
       delivery path: objects created by Actor A become immediately visible to Actor B
       without any delivery occurring. This makes integration tests unreliable and hides
       real cross-actor delivery bugs.
+  - id: DEMOMA-01-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Each co-located app MUST resolve its own `AppConfig`, shared with no other app in
+      its process. The app's requests read that config, and so does the work it runs
+      outside a request. That work is `BackgroundTasks`, outbox delivery, the
+      sender-sequence hold timer, the ledger position statements and the startup inbox
+      replay.
+    rationale: >-
+      In Docker each container is one node with its own config. When every app in one
+      process read one config, a node that read its own config for another actor's
+      fact passed in process and failed only in Docker (#1876). A config per app makes
+      the in-process suite fail where Docker fails. A read that lost its app's scope
+      raises `VultronWiringError`, so a dropped scope fails loudly instead of reading
+      the wrong node's settings.
+    verification: >-
+      `test/adapters/driving/fastapi/test_app_own_config.py::test_two_apps_in_one_process_each_read_their_own_config`
+      runs two apps with different configs and shows each request reads only its own.
+      In `test/adapters/driving/fastapi/test_app_own_config_background_work.py`,
+      `test_background_tasks_read_their_own_apps_config`,
+      `test_outbox_monitor_drains_its_own_nodes_stores_in_its_own_scope`,
+      `test_hold_timer_reads_its_own_apps_hold_in_its_worker_thread`,
+      `test_position_statements_read_their_own_apps_interval` and
+      `test_startup_replay_reads_its_own_apps_retry_budget` do the same for each path
+      run outside a request, and
+      `test_lifespan_work_that_lost_its_scope_raises_at_shutdown` shows a path that
+      lost its scope raises.
+    relationships:
+    - rel_type: extends
+      spec_id: DEMOMA-01-004
+    adr:
+    - ADR-0206
 - id: DEMOMA-02
   title: Container Orchestration
   specs:

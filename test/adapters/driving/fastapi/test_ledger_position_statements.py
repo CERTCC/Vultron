@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes._embargo_gate_support import (
     seed_ledger,
 )
 from test.support.objects import authored_at
+from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import ledger_position_statements as lps
@@ -64,9 +65,13 @@ def hosted(monkeypatch: pytest.MonkeyPatch, participant_dl) -> list[str]:
 
     monkeypatch.setattr(io, "outbox_handler", _drain)
     monkeypatch.setattr(
-        lps.actor_hosts, "hosted_actor_ids", lambda: [SIGNATORY_ID]
+        actor_hosts, "hosted_actor_ids", lambda *_node: [SIGNATORY_ID]
     )
-    monkeypatch.setattr(lps, "get_datalayer", lambda _actor_id: participant_dl)
+    monkeypatch.setattr(
+        actor_hosts,
+        "get_datalayer",
+        lambda _actor_id, db_url=None: participant_dl,
+    )
     return drains
 
 
@@ -103,8 +108,14 @@ def test_one_actor_failing_does_not_stop_the_round(
 ) -> None:
     broken = "https://example.org/actors/broken"
     stores = {broken: None, SIGNATORY_ID: participant_dl}
-    monkeypatch.setattr(lps.actor_hosts, "hosted_actor_ids", lambda: [*stores])
-    monkeypatch.setattr(lps, "get_datalayer", stores.__getitem__)
+    monkeypatch.setattr(
+        actor_hosts, "hosted_actor_ids", lambda *_node: [*stores]
+    )
+    monkeypatch.setattr(
+        actor_hosts,
+        "get_datalayer",
+        lambda actor_id, db_url=None: stores[actor_id],
+    )
 
     assert asyncio.run(lps.state_hosted_ledger_positions()) == 1
 
@@ -150,7 +161,7 @@ def test_with_no_interval_the_statements_run_once(
 ) -> None:
     rounds: list[int] = []
 
-    async def _round(emitter: object = None) -> int:
+    async def _round(emitter: object = None, **_node: object) -> int:
         rounds.append(1)
         return 0
 
@@ -174,7 +185,7 @@ def test_a_configured_interval_repeats_until_shutdown(
     rounds: list[int] = []
     second = asyncio.Event()
 
-    async def _round(emitter: object = None) -> int:
+    async def _round(emitter: object = None, **_node: object) -> int:
         rounds.append(1)
         if len(rounds) == 2:
             second.set()
@@ -218,7 +229,9 @@ def test_the_server_lifespan_starts_and_finishes_the_statements(
     events: list[str] = []
     handle = object()
 
-    def _start(emitter: object, after: object = None) -> object:
+    def _start(
+        emitter: object, after: object = None, **_node: object
+    ) -> object:
         events.append("start")
         assert after is not None  # it waits for the startup replay
         return handle
@@ -245,7 +258,7 @@ def test_the_first_round_waits_for_the_startup_replay(
     """A participant states its tail only after its queue has been applied."""
     order: list[str] = []
 
-    async def _round(emitter: object = None) -> int:
+    async def _round(emitter: object = None, **_node: object) -> int:
         order.append("statements")
         return 0
 
@@ -274,7 +287,7 @@ def test_a_shutdown_during_the_startup_replay_states_nothing(
     """A server told to stop while its queue replays sends no statements."""
     order: list[str] = []
 
-    async def _round(emitter: object = None) -> int:
+    async def _round(emitter: object = None, **_node: object) -> int:
         order.append("statements")
         return 0
 
@@ -303,7 +316,7 @@ def test_a_round_that_raises_neither_ends_the_loop_nor_the_shutdown(
     rounds: list[int] = []
     second = asyncio.Event()
 
-    async def _round(emitter: object = None) -> int:
+    async def _round(emitter: object = None, **_node: object) -> int:
         rounds.append(1)
         if len(rounds) == 2:
             second.set()

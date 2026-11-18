@@ -158,3 +158,26 @@ stack and imports neither core nor config.
   node that reads its own config for a fact about another actor then fails in
   the suite as it does in Docker, as the CaseActor's read of its own
   `default_case_roles` for a proposer did only in Docker (#1876, ADR-0133).
+- **An app's config is a context scope, so work it starts off-request must
+  carry it.** `create_app(config=...)` enters `app_config_scope()` for each
+  request and for the lifespan; an `asyncio` task inherits it, but a thread
+  does not, so start one with `contextvars.copy_context().run`. While such an
+  app runs, `get_config()` in no scope raises `VultronWiringError`, never the
+  process-wide config (ADR-0206). `reload_config()` and `config_override()` act
+  on the process-wide config only.
+- **A background boundary re-raises `VultronConfigScopeLostError`, and only
+  it.** The lifespan's per-actor and per-round `except Exception` boundaries
+  (startup replay, position statements, hold timer, outbox monitor) log one
+  actor's failure and go on; a lost scope is every actor's failure, so each
+  re-raises that subclass first and the lifespan's shutdown surfaces it. Any
+  other `VultronWiringError` stays one actor's failure, as in production
+  before ADR-0206. Add the same re-raise to a new boundary
+  (`test_app_own_config_background_work.py`).
+- **An app holding its own config runs a node's background work.** Its
+  lifespan starts the outbox monitor, startup replay, position statements and
+  hold timer on its own deployment (`deps.app_node_deployment`), as its
+  container would; an app with no config starts none (DEMOMA-01-007). A harness
+  whose tests count outbox traffic stops what it does not want.
+- **Build an app's own config with `AppConfig().model_copy(update=...)`.**
+  `AppConfig(...)` keyword arguments are not a settings source and are dropped
+  without error (`settings_customise_sources`).
