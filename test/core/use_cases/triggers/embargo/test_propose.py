@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from test.support.act_runner import FixedClock, run_in_act
-from test.support.ledger import committed_semantic_types
+from test.support.ledger import committed_semantic_types, ledger_entries
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -15,6 +15,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_SEMANTIC_TYPE
+from vultron.core.models.events import MessageSemantics
 from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.embargo import SvcProposeEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
@@ -24,6 +25,8 @@ from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronValidationError,
 )
+from vultron.semantic_registry import find_matching_semantics
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
@@ -100,6 +103,52 @@ def test_propose_embargo_updates_case_state_via_bt_path(
         finder_dl, case.id_
     )
     assert not activity_of(result).get("to")
+
+
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("VAM-05-005")
+def test_the_case_managers_own_proposal_names_it_in_target(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The CASE_MANAGER's ledgered proposal is an embargo Invite (ADR-0205).
+
+    It is addressed to nobody, since the relay asks each participant, so its
+    ``target`` names the CASE_MANAGER; the committed entry's payload still
+    classifies as the semantic type it is ledgered under (ADR-0140).
+    """
+    finder, finder_dl = finder_actor_and_dl
+    case = _build_unbound_case_with_case_manager(finder_dl, finder.id_)
+    request = ProposeEmbargoTriggerRequest(
+        actor_id=finder.id_,
+        case_id=case.id_,
+        end_time=datetime.now(tz=UTC) + timedelta(days=7),
+    )
+
+    result = run_in_act(
+        SvcProposeEmbargoUseCase(
+            finder_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+            sync_port=SyncActivityAdapter(finder_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
+
+    sent = activity_of(result)
+    assert sent["target"] == finder.id_
+    assert not sent.get("to")
+    (entry,) = [
+        e
+        for e in ledger_entries(finder_dl, case.id_)
+        if e.semantic_type == EMBARGO_INVITE_SEMANTIC_TYPE
+    ]
+    snapshot = entry.payload_snapshot
+    assert snapshot["target"] == finder.id_
+    assert (
+        find_matching_semantics(parse_activity(snapshot))
+        == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    )
 
 
 @pytest.mark.spec("CS-13-002")

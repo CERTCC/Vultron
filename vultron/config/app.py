@@ -26,9 +26,11 @@ from __future__ import annotations
 import functools
 import logging
 import os
+import threading
 from collections.abc import Generator
 from contextlib import contextmanager
-from enum import StrEnum
+from contextvars import ContextVar
+from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Any, Literal
 
@@ -47,6 +49,7 @@ from vultron.config.ledger import LedgerConfig
 from vultron.config.secrets import refuse_secrets_in_file
 from vultron.config.shadow import ShadowConfig
 from vultron.config.vince import VinceConfig
+from vultron.errors import VultronConfigScopeLostError
 
 logger = logging.getLogger(__name__)
 
@@ -249,19 +252,141 @@ class AppConfig(BaseSettings):
         return (env_settings, YamlConfigSource(settings_cls))
 
 
-@functools.cache
-def get_config() -> AppConfig:
-    """Return the cached :class:`AppConfig` instance.
+class _ProcessWide(Enum):
+    """Marks a scope whose app holds no config of its own (ADR-0206)."""
 
-    Loads configuration on first call, then returns the same instance for
-    all subsequent calls.  The cache is owned by ``functools.cache`` rather
-    than a module global; use :func:`clear_config_cache` to drop it (the next
-    call reloads) or :func:`reload_config` to drop it and reload at once.
+    CONFIG = "process-wide"
+
+
+_PROCESS_WIDE = _ProcessWide.CONFIG
+
+# The config of the app whose work is running in this context, or
+# ``_PROCESS_WIDE`` for an app that holds none.  ``None`` means no app scope
+# is entered at all.  A context variable, so concurrent requests to two apps
+# in one process each see their own, and an ``asyncio`` task or a
+# ``contextvars.copy_context()`` run inherits the scope it was started in.
+_APP_CONFIG_SCOPE: ContextVar[AppConfig | _ProcessWide | None] = ContextVar(
+    "vultron_app_config_scope", default=None
+)
+
+
+# The running apps that hold their own config in this process.  While any
+# is, the process-wide config is no node's config, so a read made in no app
+# scope is a path that lost its app's config and raises (ADR-0206).
+class _HeldAppConfigs:
+    """A thread-safe record of the running apps that hold their own config.
+
+    Each hold is a token rather than a count, so releasing one is idempotent:
+    a hold released twice (a test's leak guard drops it, then its lifespan
+    exits) cannot leave the record short and the refusal stuck on.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._holds: set[object] = set()
+
+    def __bool__(self) -> bool:
+        return bool(self._holds)
+
+    def snapshot(self) -> frozenset[object]:
+        """Return the holds running now."""
+        with self._lock:
+            return frozenset(self._holds)
+
+    def hold(self) -> object:
+        """Record a new hold and return its token."""
+        token = object()
+        with self._lock:
+            self._holds.add(token)
+        return token
+
+    def release(self, token: object) -> None:
+        """Drop the hold *token*; a token already dropped is ignored."""
+        with self._lock:
+            self._holds.discard(token)
+
+
+_HELD_APP_CONFIGS = _HeldAppConfigs()
+
+
+@functools.cache
+def _process_config() -> AppConfig:
+    return AppConfig()
+
+
+def get_config() -> AppConfig:
+    """Return the :class:`AppConfig` of the app this code runs for.
+
+    Inside :func:`app_config_scope` for an app that holds its own config,
+    that config is returned (ADR-0206).  Otherwise the process-wide config is
+    returned: loaded on first call, then the same instance for all later
+    calls.  That cache is owned by ``functools.cache`` rather than a module
+    global; use :func:`clear_config_cache` to drop it (the next call reloads)
+    or :func:`reload_config` to drop it and reload at once.
 
     Returns:
         The active :class:`AppConfig` instance.
+
+    Raises:
+        VultronConfigScopeLostError: the call is in no app scope while an app holding
+            its own config runs in this process (:func:`holding_app_config`).
+            The caller lost its app's scope, and the process-wide config is
+            not its node's config, so it is never returned in its place.
     """
-    return AppConfig()
+    scoped = _APP_CONFIG_SCOPE.get()
+    if isinstance(scoped, AppConfig):
+        return scoped
+    if scoped is None and _HELD_APP_CONFIGS:
+        raise VultronConfigScopeLostError(
+            "get_config() was called in no app scope while an app holding "
+            "its own AppConfig runs in this process, so the process-wide "
+            "config is not this caller's node config. Run the work inside "
+            "its app's app_config_scope() (copy the context into a thread "
+            "or task it starts) (ADR-0206)."
+        )
+    return _process_config()
+
+
+@contextmanager
+def app_config_scope(config: AppConfig | None) -> Generator[None]:
+    """Run the body as work of an app whose config is *config*.
+
+    Inside the body, :func:`get_config` and :func:`load_actor_config` return
+    *config*.  With ``None`` the body is work of an app that holds no config
+    of its own, and they return the process-wide config.  Scopes nest; the
+    previous scope is restored on exit, even when the body raises.
+
+    Args:
+        config: The app's own config, or ``None`` for an app that has none.
+    """
+    token = _APP_CONFIG_SCOPE.set(
+        config if config is not None else _PROCESS_WIDE
+    )
+    try:
+        yield
+    finally:
+        _APP_CONFIG_SCOPE.reset(token)
+
+
+@contextmanager
+def holding_app_config(config: AppConfig) -> Generator[None]:
+    """Run an app that holds its own *config* for the body's duration.
+
+    Enters :func:`app_config_scope` for *config* and, until exit, counts the
+    app as running.  While any such app runs, :func:`get_config` in no app
+    scope raises :class:`~vultron.errors.VultronConfigScopeLostError` instead of
+    returning the process-wide config (ADR-0206).  An app's lifespan wraps
+    itself in this.
+
+    Args:
+        config: The app's own config.
+    """
+    hold = _HELD_APP_CONFIGS.hold()
+    try:
+        with app_config_scope(config):
+            yield
+    finally:
+        _HELD_APP_CONFIGS.release(hold)
 
 
 def clear_config_cache() -> None:
@@ -270,16 +395,18 @@ def clear_config_cache() -> None:
     The next :func:`get_config` call reloads from the environment as it stands
     then.  This is the test-teardown form (CFG-06-003): unlike
     :func:`reload_config`, it does not read the environment while a test's
-    ``monkeypatch`` changes are still in force.
+    ``monkeypatch`` changes are still in force.  An app's own config is not
+    cached here and is not dropped.
     """
-    get_config.cache_clear()
+    _process_config.cache_clear()
 
 
 def load_actor_config() -> ActorConfig:
     """Return the local actor's policy :class:`~vultron.config.actor.ActorConfig`.
 
     Delegates to :func:`get_config` so actor policy is read from the same
-    unified config as all other application settings (CFG-07-005).
+    unified config as all other application settings (CFG-07-005), and from
+    the app's own config inside its :func:`app_config_scope` (ADR-0206).
 
     Configuration sources, in decreasing priority:
 
@@ -300,14 +427,16 @@ def load_actor_config() -> ActorConfig:
 def reload_config() -> AppConfig:
     """Clear the cached config and return a freshly loaded :class:`AppConfig`.
 
-    Call this in test teardown fixtures (or ``autouse`` fixtures) to ensure
-    each test starts with a clean configuration state.
+    This is the process-wide config, whatever app scope the caller is in; an
+    app's own config is not reloaded.  Call this in test teardown fixtures
+    (or ``autouse`` fixtures) to ensure each test starts with a clean
+    configuration state.
 
     Returns:
         A newly loaded :class:`AppConfig` instance.
     """
     clear_config_cache()
-    return get_config()
+    return _process_config()
 
 
 @contextmanager
@@ -318,6 +447,10 @@ def config_override(**env_updates: str) -> Generator[AppConfig]:
     config cache, yields the updated :class:`AppConfig`, then restores the
     original environment values and reloads again in a ``finally`` block so
     that the restore always happens even when the body raises (CFG-06-006).
+
+    It acts on the process-wide config only: the yielded config is the
+    process-wide one, and an app holding its own config (ADR-0206) keeps
+    reading that config inside its scope, unaffected by the override.
 
     This makes the incorrect ``monkeypatch.undo()``-after-``reload_config()``
     ordering impossible by construction (CONCERN-2323).
@@ -340,8 +473,7 @@ def config_override(**env_updates: str) -> Generator[AppConfig]:
     for key, value in env_updates.items():
         os.environ[key] = value
     try:
-        reload_config()
-        yield get_config()
+        yield reload_config()
     finally:
         for key, original in originals.items():
             if original is None:

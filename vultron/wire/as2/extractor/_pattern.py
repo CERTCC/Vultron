@@ -20,6 +20,7 @@ from vultron.wire.as2.enums import (
 from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
+    class_named_by,
     is_case_reference,
     is_of_kind,
     is_previewed_reference,
@@ -28,6 +29,7 @@ from vultron.wire.as2.typed_reference import (
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 
@@ -295,12 +297,17 @@ def _match_activity_field(
     if isinstance(activity_field, str):
         return not strict
     # A typed reference routes by the class its ``type`` names, as a whole
-    # object routes by its own (MV-10-011, ADR-0198).
-    kind: type | None = (
-        referenced_class(activity_field)
-        if isinstance(activity_field, as_TypedReference)
-        else type(activity_field)
-    )
+    # object routes by its own (MV-10-011, ADR-0198).  So does an object
+    # held only as the generic ``as_Object``, as a nested slot of a plain
+    # activity is: an actor in an embargo Invite's ``target`` (ADR-0205)
+    # still routes as an actor.
+    kind: type | None
+    if isinstance(activity_field, as_TypedReference):
+        kind = referenced_class(activity_field)
+    elif type(activity_field) is as_Object:
+        kind = class_named_by(activity_field.type_)
+    else:
+        kind = type(activity_field)
     if (
         pattern_field == AOtype.ACTOR
         and kind is not None

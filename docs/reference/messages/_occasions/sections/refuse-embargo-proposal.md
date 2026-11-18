@@ -7,7 +7,7 @@ Records the sender's own refusal of the proposed terms. The proposal is rejected
 === "Details"
 
     - **When…** a Participant refuses proposed embargo terms
-    - **Send:** `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])`
+    - **Send:** `Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Distinguished by:** EM state `PROPOSED`

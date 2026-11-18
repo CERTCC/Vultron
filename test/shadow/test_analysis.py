@@ -68,29 +68,35 @@ def test_a_reading_with_no_entry_has_no_standing_but_keeps_its_report():
     assert analysis.reading.untranslated == (fact,)
 
 
-@pytest.mark.spec("CRD-02-005")
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CRD-02-005: a desideratum that orders an event the reading declares"
-        " unobservable must read as unknown, not met or broken. Tracked by"
-        " #6563."
-    ),
-)
-def test_a_desideratum_over_an_unobservable_event_is_not_scored():
-    """A recorded case whose reader declares Fix Deployed unobservable: its
-    ``D ≺ P`` reads broken today, where it must read unknown."""
+def _recorded_with(*unobservable: UnobservableFact) -> CaseReading:
+    """The recorded case, read from a source that declares *unobservable*."""
     recorded = VultronCaseReader(root=RECORDINGS_DIR).read_case(
         str(_RECORDING)
     )
-    reading = CaseReading(
+    return CaseReading(
         ledger=recorded.ledger,
         citations=recorded.citations,
-        unobservable=(
-            UnobservableFact(
-                fact="Fix Deployed (D)", why="The source has no such field."
-            ),
-        ),
+        unobservable=unobservable,
+    )
+
+
+_NO_FIX = UnobservableFact(
+    fact="Fix ready (F), fix deployed (D)",
+    why="The source has no such field.",
+    events=frozenset({CSEvent.F, CSEvent.D}),
+)
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_a_desideratum_over_an_unobservable_event_is_not_scored():
+    """A recorded case whose reader declares Fix Deployed unobservable: its
+    ``D ≺ P`` reads unknown, never met or broken."""
+    reading = _recorded_with(
+        UnobservableFact(
+            fact="Fix Deployed (D)",
+            why="The source has no such field.",
+            events=frozenset({CSEvent.D}),
+        )
     )
     standing = analyse(reading).standing
     assert standing is not None
@@ -105,3 +111,35 @@ def test_a_desideratum_over_an_unobservable_event_is_not_scored():
         d.status not in (DesideratumStatus.MET, DesideratumStatus.BROKEN)
         for d in over_d
     )
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_no_desideratum_about_the_fix_is_broken_when_fix_readiness_is_unseen():
+    standing = analyse(_recorded_with(_NO_FIX)).standing
+    assert standing is not None
+    for p in standing.participants:
+        for d in p.desiderata:
+            fix = {CSEvent.F, CSEvent.D} & {d.before, d.after}
+            unknown = d.status is DesideratumStatus.UNKNOWN
+            assert unknown == bool(fix), d.notation
+
+
+def test_a_fact_that_names_no_event_leaves_the_standing_as_it_was():
+    plain = analyse(_recorded_with()).standing
+    log_only = UnobservableFact(fact="The activity log", why="Not exposed.")
+    assert analyse(_recorded_with(log_only)).standing == plain
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_a_move_that_rests_on_an_unobservable_event_has_a_reason_not_a_number():
+    plain = analyse(_recorded_with()).standing
+    unseen = analyse(_recorded_with(_NO_FIX)).standing
+    assert plain is not None and unseen is not None
+    pairs = list(zip(plain.moves, unseen.moves, strict=True))
+    newly = [
+        u for p, u in pairs if p.changes is not None and u.changes is None
+    ]
+    assert newly
+    for move in newly:
+        assert move.unscored is not None
+        assert "cannot observe" in move.unscored

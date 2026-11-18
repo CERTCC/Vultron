@@ -971,6 +971,9 @@ class TestInboundRsvpWindows:
             ),
             "actor": SENDER_ID,
             "published": published,
+            # The invitee, named in target (ADR-0205).
+            "to": [CASE_OWNER_ID],
+            "target": CASE_OWNER_ID,
         }
         if end_time is not None:
             kwargs["end_time"] = end_time

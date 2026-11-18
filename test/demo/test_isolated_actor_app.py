@@ -20,10 +20,16 @@ reads the node's ``dl``.
 
 import pytest
 
+from test.support.app_configs import own_app_config
 from vultron.adapters.driven.datalayer_sqlite.engine import (
     open_memory_store_slugs,
 )
-from vultron.demo.in_process import InProcessRouter, create_isolated_actor_app
+from vultron.config import AppConfig, config_override, get_config
+from vultron.demo.in_process import (
+    InProcessRouter,
+    IsolatedActorApp,
+    create_isolated_actor_app,
+)
 
 _BASE = "http://harness-node.test"
 
@@ -75,3 +81,36 @@ def test_close_disposes_every_store_the_node_opened():
     iso.close()
 
     assert open_memory_store_slugs(iso.db_url) == set()
+
+
+def _probed_node(config: AppConfig | None) -> IsolatedActorApp:
+    iso = create_isolated_actor_app(_BASE, InProcessRouter(), config=config)
+
+    @iso.app.get("/probe")
+    def _probe() -> int:
+        return get_config().max_inbox_retry_attempts
+
+    return iso
+
+
+def test_node_given_a_config_reads_it_in_its_requests():
+    """AC-4 of #6537: the harness passes a node's config to ``create_app``."""
+    own = own_app_config(max_inbox_retry_attempts=2)
+    iso = _probed_node(own)
+    assert iso.config is own
+    try:
+        with iso.client as client:
+            assert client.get("/probe").json() == 2
+    finally:
+        iso.close()
+
+
+def test_node_without_a_config_reads_the_process_wide_config():
+    with config_override(VULTRON_MAX_INBOX_RETRY_ATTEMPTS="13"):
+        iso = _probed_node(None)
+        assert iso.config is None
+        try:
+            with iso.client as client:
+                assert client.get("/probe").json() == 13
+        finally:
+            iso.close()

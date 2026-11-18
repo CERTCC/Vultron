@@ -6,7 +6,7 @@
   ],
   "type": "Accept",
   "id": "urn:uuid:b87bd5e5-e4c3-46dc-ab5b-bb0cea856ce9",
-  "name": "https://vultron.example/organizations/vendorco Accept https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",
+  "name": "https://vultron.example/organizations/vendorco Accept https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601 to https://vultron.example/case-actors/vendorco-case-actor",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "inReplyTo": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/2",
   "published": "2026-06-01T19:12:00.000000+00:00",
@@ -16,12 +16,16 @@
   "object": {
     "type": "Invite",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/2",
-    "name": "https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",
+    "name": "https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601 to https://vultron.example/case-actors/vendorco-case-actor",
     "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "summary": "We propose to extend the embargo on case 1 to 120 days.",
+    "to": [
+      "https://vultron.example/case-actors/vendorco-case-actor"
+    ],
     "actor": "https://vultron.example/organizations/vendorco",
+    "target": "https://vultron.example/case-actors/vendorco-case-actor",
     "object": {
       "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-09-29T00:00:00+00:00",
       "type": "EmbargoEvent",
@@ -45,6 +49,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5L1Wp8BYUzHL6Pf8jaAsKvzJRgDA6vnqSUAt6oWo2wjScBJRxXHHjYRZDwkocdF2fHgBpe4bcMSJVar3Z7pXQL5V"
+    "proofValue": "zAZLAytcYfxXJDm7oAvFcgbQ24xyR9WHf3qv91TXJ9je8Ryoa8AXzBJPPcDUig5JVSfk6nfT1TdkNRuJJwdroQzc"
   }
 }

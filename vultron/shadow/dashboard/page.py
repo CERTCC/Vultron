@@ -17,7 +17,8 @@
 
 :func:`render` asks the analyst for a case, reads it through the one
 :class:`~vultron.core.ports.case_reader.CaseReader` it is given, and shows
-the case's level 1 standing as a scoreboard.  Beside the analysis it always
+the case's level 1 standing as a scoreboard, with its open moves in the
+bands of the case's move advice (ADR-0200).  Beside the analysis it always
 shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
@@ -36,13 +37,15 @@ only, and nothing of it is written to disk (SHD-01-003).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
+import pandas as pd
 import streamlit as st
 
 from vultron.core.models.case_reading import CaseReading
 from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import VultronError
+from vultron.measure.advice import CaseAdvice, case_advice
 from vultron.shadow.analysis import CaseAnalysis, analyse
 from vultron.shadow.dashboard import view
 from vultron.shadow.readers.following import CaseFollower
@@ -139,8 +142,49 @@ def _show_standing(analysis: CaseAnalysis) -> None:
         view.desiderata_rows(standing.participants, names),
         "No vendor has a case-state history to score yet.",
     )
-    st.subheader("Open moves")
-    _table(view.move_rows(standing.moves, names), "No move is open.")
+    _show_advice(case_advice(standing), names)
+
+
+def _shaded_table(band: view.BandView) -> None:
+    """*band*'s moves, each row filled with its shade."""
+    styles = [s.css for s in band.shades]
+    # Each column takes the rows' styles in row order.
+    styler = pd.DataFrame(list(band.rows)).style.apply(
+        lambda _column: styles, axis=0
+    )
+    st.dataframe(styler, hide_index=True, width="stretch")
+
+
+def _show_band(band: view.BandView) -> None:
+    if not band.rows:
+        st.caption(band.empty)
+    elif band.shaded:
+        _shaded_table(band)
+    else:
+        _table(band.rows, band.empty)
+
+
+def _show_advice(advice: CaseAdvice, names: Mapping[str, str]) -> None:
+    """The open moves in their bands, and the moves with no band (ADR-0200).
+
+    The page lays out what :func:`case_advice` returns and computes nothing
+    of its own: no combined score orders any move (SHD-03-002).
+    """
+    st.subheader("Move advice")
+    st.caption(advice.help_text)
+    st.caption(advice.harm_note)
+    for band in view.band_views(advice, names):
+        if band.collapsed:
+            with st.expander(f"{band.title} ({len(band.rows)})"):
+                _show_band(band)
+        else:
+            st.markdown(f"**{band.title}**")
+            _show_band(band)
+    st.subheader("Moves with no band")
+    _table(
+        view.unbanded_rows(advice, names),
+        "None: every allowed move is in a band.",
+    )
 
 
 def _show_reader_report(reading: CaseReading) -> None:

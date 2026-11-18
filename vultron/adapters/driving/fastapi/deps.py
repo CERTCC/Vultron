@@ -60,10 +60,13 @@ that actor's own store.  The ``{actor_id}`` path parameter is no longer
 import threading
 from typing import cast
 
-from fastapi import Depends, Path, Request
+from fastapi import Depends, FastAPI, Path, Request
 
 from vultron.adapters.driven import actor_hosts
-from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.actor_hosts import (
+    NodeDeployment,
+    canonical_actor_uri,
+)
 from vultron.adapters.driven.clock import act_clock
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite.engine import actor_slug
@@ -107,8 +110,7 @@ def node_base_url(request: Request | None) -> str | None:
     """
     if request is None:
         return None
-    value = getattr(request.app.state, "node_base_url", None)
-    return value if isinstance(value, str) and value else None
+    return _declared_state_str(request.app.state, "node_base_url")
 
 
 def node_db_url_template(request: Request | None) -> str | None:
@@ -135,8 +137,31 @@ def node_db_url_template(request: Request | None) -> str | None:
     """
     if request is None:
         return None
-    value = getattr(request.app.state, "db_url", None)
+    return _declared_state_str(request.app.state, "db_url")
+
+
+def _declared_state_str(state: object, name: str) -> str | None:
+    """Return the non-empty string *state* declares as *name*, or ``None``."""
+    value = getattr(state, name, None)
     return value if isinstance(value, str) and value else None
+
+
+def app_node_deployment(application: FastAPI) -> NodeDeployment:
+    """Return the node *application* serves: its declared template and base.
+
+    The same two values :func:`node_db_url_template` and
+    :func:`node_base_url` read for a request, read from the app itself for
+    work it runs outside a request.  An app that declares neither is on
+    configuration (``CONFIGURED_NODE``), the one-node-per-process case.
+    The app's store registry, when it keeps one, is shared, so its routes
+    and its background work use one store instance per actor.
+    """
+    registry = getattr(application.state, "actor_dls", None)
+    return NodeDeployment(
+        db_url=_declared_state_str(application.state, "db_url"),
+        base_url=_declared_state_str(application.state, "node_base_url"),
+        opened=registry if isinstance(registry, dict) else None,
+    )
 
 
 def get_actor_dl(

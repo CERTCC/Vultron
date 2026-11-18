@@ -43,3 +43,30 @@ def test_root_lifespan_starts_the_outbox_monitor_and_stops_it_on_shutdown():
         task = monitor._task
         assert task is not None and not task.done()
     assert getattr(app.state, "outbox_monitor", None) is None
+
+
+def test_production_lifespan_restores_dispatcher_and_emitter_slots(
+    monkeypatch,
+):
+    """Shutdown puts back the dispatcher and emitter that startup replaced.
+
+    Startup installs a process-wide inbox dispatcher and default emitter. Left
+    installed, they changed how a later test's inbox answered a post in the
+    same process: a refusal instead of the fault its sender expected (#5874).
+    """
+    from vultron.adapters.driving.fastapi import inbox_handler
+    from vultron.adapters.driving.fastapi.app import app_v2
+    from vultron.adapters.driving.fastapi.outbox_handler import drain
+
+    dispatcher_before = object()
+    monkeypatch.setattr(
+        inbox_handler._DISPATCHER_SLOT, "value", dispatcher_before
+    )
+    monkeypatch.setattr(drain._DEFAULT_EMITTER_SLOT, "value", None)
+
+    with TestClient(app_v2):
+        assert inbox_handler._DISPATCHER_SLOT.value is not dispatcher_before
+        assert drain._DEFAULT_EMITTER_SLOT.value is not None
+
+    assert inbox_handler._DISPATCHER_SLOT.value is dispatcher_before
+    assert drain._DEFAULT_EMITTER_SLOT.value is None

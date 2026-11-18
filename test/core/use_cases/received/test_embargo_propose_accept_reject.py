@@ -27,6 +27,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.future_dates import days_from_now
+from test.support.misrouted_invite import readdressed
 from test.support.objects import authored_at, make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import assert_held_only_as_received
@@ -454,6 +455,7 @@ class TestEmbargoProposalLifecycle:
             embargo,
             context="https://example.org/cases/case_em4",
             actor="https://example.org/users/vendor",
+            invitee="https://example.org/users/vendor",
             id_="https://example.org/cases/case_em4/embargo_proposals/1",
             at=authored_at(),
         )
@@ -517,6 +519,7 @@ class TestEmbargoProposalLifecycle:
             embargo,
             context=case.id_,
             actor=actor.id_,
+            invitee=actor.id_,
             id_="https://example.org/cases/case_eval_invalid/proposals/p1",
             at=authored_at(),
         )
@@ -623,9 +626,13 @@ def _make_pxa_case(
         context=case.id_,
         actor=coordinator_id,
         id_=f"{case_id}/proposals/p1",
-        to=to if to is not None else [coordinator_id],
+        to=to if to is not None and len(to) == 1 else [coordinator_id],
         at=authored_at(),
     )
+    if to is not None and len(to) != 1:
+        # No factory builds a misrouted Invite (EP-09-010); its target still
+        # names the coordinator, so it is an embargo Invite (VAM-05-005).
+        proposal = readdressed(proposal, to)
     # The case's CASE_MANAGER is the coordinator: the role is never unfilled
     # (CM-02-014), and a participant's Reject goes to it (PCR-08-001).
     from vultron.wire.as2.vocab.objects.case_participant import (

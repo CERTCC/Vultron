@@ -265,6 +265,26 @@ EXTENDED: tuple[Desideratum, ...] = (
 """The extended desiderata of ``process_model_desiderata.md``, in page order."""
 
 
+_CS_KINDS: Mapping[EventKind, CSEvent] = MappingProxyType(
+    {event.kind: cs for event, cs in JOINT_TO_CS.items()}
+)
+
+
+def ordered_cs_events(desideratum: Desideratum) -> frozenset[CSEvent]:
+    """The case-state events *desideratum* orders, whichever vendor's.
+
+    ``V_i ≺ F_j`` orders V and F; ``Ac_i ≺ P`` orders P alone, since report
+    acceptance is no case-state event.  The events that only scope a
+    desideratum, such as ``Va_i``, are not ordered by it.
+    """
+    return frozenset(
+        _CS_KINDS[event.kind]
+        for ordering in desideratum.query.orderings
+        for event in (ordering.before, ordering.after)
+        if event.kind in _CS_KINDS
+    )
+
+
 def case_state_query(query: Query) -> OrderingQuery[CSEvent]:
     """*query* restated over the six-event model's events.
 
