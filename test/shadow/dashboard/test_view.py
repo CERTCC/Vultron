@@ -23,7 +23,7 @@ from vultron.core.models.case_reading import (
     UntranslatedFact,
     UntranslatedReason as Reason,
 )
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS, CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -78,6 +78,18 @@ def test_every_state_and_status_has_a_badge():
     assert set(view.EVENT_LABELS) == set(CSEvent)
 
 
+def test_each_vendor_fix_path_state_reads_in_words():
+    """AC-3: a fix path reads as words, never as its compound state's
+    name."""
+    assert set(view.VFD_BADGES) == {
+        (s.value.vf_state, s.value.d_state) for s in CS
+    }
+    assert view.vfd_badge(CS.VFdPXa) == "🩹 Fix ready"
+    assert view.vfd_badge(CS.vfdpxa) == "⚪ Vendor unaware"
+    for state in CS:
+        assert state.name not in view.vfd_badge(state)
+
+
 def test_the_public_state_reads_as_three_badges():
     assert view.public_badges(CS_pxa.pxa) == (
         "🤫 Not public",
@@ -105,7 +117,7 @@ def test_a_desideratum_reads_in_words_and_in_event_letters():
     )
 
 
-def test_participant_rows_show_report_state_case_state_and_tally():
+def test_participant_rows_show_report_state_fix_path_and_tally():
     analysis = _analysis()
     assert analysis.standing is not None
     rows = view.participant_rows(
@@ -113,11 +125,11 @@ def test_participant_rows_show_report_state_case_state_and_tally():
     )
     vendor = next(r for r in rows if r["Participant"] == "Vendor")
     assert vendor["Report"] == view.RM_BADGES[RM.CLOSED]
-    assert vendor["Case state"] == "VFdPxa"
+    assert vendor["Fix path"] == view.VFD_BADGES[(CS_vf.VF, CS_d.d)]
     assert str(vendor["Desiderata"]).startswith("✅ ")
     assert vendor["Not scored because"] == ""
     manager = next(r for r in rows if "CASE_MANAGER" in str(r["Roles"]))
-    assert manager["Case state"] == "—"
+    assert manager["Fix path"] == "—"
     assert manager["Not scored because"]
 
 

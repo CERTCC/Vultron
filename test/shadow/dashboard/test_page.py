@@ -28,6 +28,8 @@ from vultron.measure.advice import (
     HELP_TEXT,
     Band,
 )
+from vultron.shadow.analysis import analyse
+from vultron.shadow.dashboard import minimap
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
     HEARTBEAT_KEY,
@@ -44,7 +46,7 @@ from vultron.shadow.dashboard.view import (
     RM_BADGES,
     TOP_MARK,
 )
-from vultron.shadow.readers import CaseSource
+from vultron.shadow.readers import CaseSource, VultronCaseReader
 
 #: Seconds one script run may take; the first run imports the measures.
 _TIMEOUT = 60
@@ -182,7 +184,7 @@ _COLUMNS = {
         "Roles",
         "Joined",
         "Report",
-        "Case state",
+        "Fix path",
         "Desiderata",
         "Not scored because",
         "Actor",
@@ -291,6 +293,35 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
     assert _texts(unhelpful.caption) == [BAND_EMPTY[Band.UNHELPFUL]]
     # The recording ends on the CASE_MANAGER's closure: nothing follows.
     assert not any("moved on" in c for c in _texts(at.caption))
+
+
+def test_each_state_is_shown_on_its_machines_map(recordings_app):
+    """#6674 AC-1: the case's EM and public state, then each participant's
+    RM and fix path in its own tab, each on its map with its state marked."""
+    case = "rcvv-embargo/case-actor.jsonl"
+    at = recordings_app.run()
+    at.selectbox[0].select(case).run()
+    assert not at.exception
+    analysis = analyse(
+        VultronCaseReader(root=RECORDINGS_DIR).read_case(
+            str(RECORDINGS_DIR / case)
+        )
+    )
+    standing = analysis.standing
+    assert standing is not None and standing.case is not None
+    participants = minimap.participant_minimaps(
+        standing.participants, analysis.actor_names
+    )
+    expected = list(minimap.case_minimaps(standing.case))
+    for p in participants:
+        expected.extend(m for m in (p.rm, p.vfd) if m is not None)
+    charts = at.get("graphviz_chart")
+    assert [c.proto.spec for c in charts] == [m.dot for m in expected]
+    assert [t.label for t in at.tabs] == [p.label for p in participants]
+    captions = _texts(at.caption)
+    assert all(m.caption in captions for m in expected)
+    assert any(p.vfd is None for p in participants)
+    assert minimap.NO_FIX_PATH in captions
 
 
 @pytest.fixture(scope="module")

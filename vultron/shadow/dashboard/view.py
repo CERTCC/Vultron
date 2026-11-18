@@ -38,11 +38,14 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from vultron.core.models.case_reading import CaseReading
 from vultron.core.states.cs import (
+    CS,
     AttackObservation,
+    CS_d,
+    CS_vf,
     ExploitPublication,
     PublicAwareness,
 )
-from vultron.core.states.cs_invariants import CSEvent
+from vultron.core.states.cs_invariants import CSEvent, cs_dimensions
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.measure.advice import (
@@ -95,6 +98,16 @@ RM_BADGES: Mapping[RM, str] = {
     RM.CLOSED: "⏹️ Closed",
 }
 
+#: A participant's Vendor Fix Path state, a ``(vf, d)`` pair, as an icon
+#: and words.  A fix is deployed only once it is ready, so the compound case
+#: states allow four of the six pairs.
+VFD_BADGES: Mapping[tuple[CS_vf, CS_d], str] = {
+    (CS_vf.vf, CS_d.d): "⚪ Vendor unaware",
+    (CS_vf.Vf, CS_d.d): "👀 Vendor aware",
+    (CS_vf.VF, CS_d.d): "🩹 Fix ready",
+    (CS_vf.VF, CS_d.D): "✅ Fix deployed",
+}
+
 #: The case's embargo-management state as an icon and a word.
 EM_BADGES: Mapping[EM, str] = {
     EM.NONE: "➖ No embargo",
@@ -128,6 +141,12 @@ def desideratum_code(desideratum: DesideratumStanding) -> str:
     return f"{desideratum.before.value} ≺ {desideratum.after.value}"
 
 
+def vfd_badge(state: CS) -> str:
+    """The Vendor Fix Path of compound case state *state*, in words."""
+    vf, d, _ = cs_dimensions(state)
+    return VFD_BADGES[(vf, d)]
+
+
 def public_badges(pxa: PxaName) -> tuple[str, str, str]:
     """The case's public state as three badges: public, exploit, attacks."""
     state = pxa.value
@@ -158,7 +177,7 @@ def _tally(desiderata: Sequence[DesideratumStanding]) -> str:
 def participant_rows(
     participants: Sequence[ParticipantStanding], names: Mapping[str, str]
 ) -> list[Row]:
-    """One row per participant: roles, report state, case state, tally."""
+    """One row per participant: roles, report state, fix path, tally."""
     rows: list[Row] = []
     for p in participants:
         rows.append(
@@ -167,7 +186,7 @@ def participant_rows(
                 "Roles": ", ".join(p.roles) or "—",
                 "Joined": "✔️ joined" if p.joined else "✉️ invited",
                 "Report": RM_BADGES[p.rm],
-                "Case state": p.case_state.name
+                "Fix path": vfd_badge(p.case_state)
                 if p.case_state is not None
                 else "—",
                 "Desiderata": _tally(p.desiderata) if p.desiderata else "—",
@@ -554,6 +573,7 @@ __all__ = [
     "NOT_TRANSLATED_NOTE",
     "RM_BADGES",
     "UNOBSERVABLE_NOTE",
+    "VFD_BADGES",
     "Row",
     "desiderata_rows",
     "desideratum_code",
@@ -568,4 +588,5 @@ __all__ = [
     "public_badges",
     "unobservable_rows",
     "untranslated_rows",
+    "vfd_badge",
 ]
