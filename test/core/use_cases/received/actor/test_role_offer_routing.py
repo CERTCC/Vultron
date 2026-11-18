@@ -58,10 +58,7 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.role_offer import role_offer_forward_id
-from vultron.core.services.received_activity import (
-    held_received_record,
-    sealed_body_of,
-)
+from vultron.core.services.received_activity import held_received_body
 from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
     AcceptCaseParticipantRoleReceivedUseCase,
     RejectCaseParticipantRoleReceivedUseCase,
@@ -727,7 +724,7 @@ def test_target_answer_embeds_the_forward_as_received(make_payload):
 
     _deliver_offer(dl, make_payload, _forward())
 
-    held = json.loads(sealed_body_of(held_received_record(dl, _FORWARD_ID)))
+    held = held_received_body(dl, _FORWARD_ID)
     (answer_id,) = [
         item.id_
         for item in _queued(dl)

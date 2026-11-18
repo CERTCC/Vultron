@@ -20,10 +20,7 @@ import pytest
 from test.support.objects import authored_at, make
 from test.support.received import archive_received
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.services.received_activity import (
-    held_received_record,
-    sealed_body_of,
-)
+from vultron.core.services.received_activity import held_received_body
 from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -426,9 +423,7 @@ class TestReplyToReceivedOffer:
     ):
         """The embedded Offer is the archived body, ``published`` included."""
         offer_id, report_id = _received_offer(dl)
-        archived = json.loads(
-            sealed_body_of(held_received_record(dl, offer_id))
-        )
+        archived = held_received_body(dl, offer_id)
 
         _, blob = reply(adapter, offer_id, report_id)
 
