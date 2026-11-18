@@ -63,8 +63,7 @@ from vultron.adapters.connectors.vince.crosswalk import VINCE_UNOBSERVABLE
 from vultron.adapters.connectors.vince.records import READS
 from vultron.adapters.connectors.vince.translate import translate_case
 from vultron.config import get_config
-from vultron.config.env_names import env_var_name
-from vultron.config.vince import VinceConfig
+from vultron.config.vince import VINCE_BASE_URL_ENV_VAR, VinceConfig
 from vultron.core.models._helpers.clock import now_utc
 from vultron.core.models.case_reading import CaseReading, UnobservableFact
 from vultron.errors import (
@@ -90,9 +89,6 @@ _CASE_ID = re.compile(r"(?:VU#)?([0-9]+)")
 
 #: A ``Retry-After`` value in its delay-seconds form: ASCII digits only.
 _DELAY_SECONDS = re.compile(r"[0-9]+")
-
-#: The setting the VINCE API base URL is read from.
-_BASE_URL_ENV_VAR = env_var_name(("vince", "base_url"))
 
 
 def _vuid(case_id: str) -> str:
@@ -138,20 +134,20 @@ def _api_url(config: VinceConfig) -> str:
     if config.base_url is None:
         raise VultronConfigError(
             "the VINCE API base URL is not set, so no VINCE case can be"
-            f" read; set {_BASE_URL_ENV_VAR}"
+            f" read; set {VINCE_BASE_URL_ENV_VAR}"
         )
     api_url = config.base_url.rstrip("/")
     parts = urlsplit(api_url)
     if parts.scheme.lower() == "http" and not _is_loopback(parts.hostname):
         raise VultronConfigError(
-            f"{_BASE_URL_ENV_VAR} uses the http scheme for the host"
+            f"{VINCE_BASE_URL_ENV_VAR} uses the http scheme for the host"
             f" {parts.hostname!r}, which is not loopback; the VINCE API"
             " credential is sent only over https, or over http to"
             " localhost, 127.0.0.0/8 or ::1"
         )
     if not api_url.endswith("/api"):
         raise VultronConfigError(
-            f"{_BASE_URL_ENV_VAR} must be the VINCE Comm API root, ending in"
+            f"{VINCE_BASE_URL_ENV_VAR} must be the VINCE Comm API root, ending in"
             " /api, such as https://kb.cert.org/vince/comm/api"
         )
     return api_url

@@ -84,8 +84,11 @@ def _node(
     try:
         path_segment(config.node_actor_id)
     except ValueError as exc:
+        # The reader's reason quotes the id, so it is not passed on: a
+        # refusal never quotes the value it refused (VSD-01-005).
         raise VultronConfigError(
-            f"{actor_name} names no actor on the node: {exc}"
+            f"{actor_name} names no actor on the node: it is empty, . or"
+            " .., or it carries a query or a fragment"
         ) from exc
     return VultronNode(config.node_url, config.node_actor_id)
 

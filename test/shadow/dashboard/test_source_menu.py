@@ -17,6 +17,8 @@ from test.support.case_reader import (
     fake_case_records,
 )
 from vultron.config import clear_config_cache, config_override
+from vultron.config.app import AppConfig
+from vultron.config.shadow import ShadowConfig
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.shadow.dashboard.app import APP_PATH, NO_SOURCE_NOTE
 from vultron.shadow.dashboard.page import CASE_KEY, LAST_READING_KEY
@@ -25,6 +27,7 @@ from vultron.shadow.dashboard.source_menu import (
     NODE_URL_KEY,
     SOURCE_LABELS,
     VINCE_NOT_SET_UP,
+    source_label,
 )
 from vultron.shadow.readers import CaseSource, selection
 
@@ -206,7 +209,11 @@ def test_settings_that_name_a_node_still_open_on_the_recordings():
         ("http://user:secret@case-actor:7999/api", "case-actor", "API root"),
         ("case-actor:7999", "case-actor", "http:// or https://"),
         ("http://case-actor:7999/api/v2", "", "enter both"),
-        ("http://case-actor:7999/api/v2", "a?b", "names no actor"),
+        (
+            "http://case-actor:7999/api/v2",
+            "acct?token=secret",
+            "names no actor",
+        ),
     ],
     ids=["userinfo", "no-scheme", "no-actor", "bad-actor"],
 )
@@ -228,3 +235,32 @@ def test_a_typed_node_the_settings_refuse_is_refused_unread(
     assert "secret" not in error
     assert NO_SOURCE_NOTE in _texts(at.info)
     assert CASE_KEY not in {box.key for box in at.text_input}
+
+
+def test_switching_nodes_drops_the_reading_kept_for_the_first(
+    app, monkeypatch
+):
+    """AC-2: one node's reading is never shown as another node's."""
+    monkeypatch.setattr(
+        selection,
+        "VultronNodeCaseReader",
+        lambda _url, _actor: FakeCaseReader({FAKE_CASE: fake_case_records()}),
+    )
+    at = _choose(app.run(), CaseSource.NODE)
+    at.text_input(key=NODE_URL_KEY).input("http://node-one:7999/api/v2")
+    at.text_input(key=NODE_ACTOR_KEY).input("case-actor").run()
+    at.text_input(key=CASE_KEY).input(FAKE_CASE).run()
+    assert "Participants" in _texts(at.subheader)
+    at.session_state[LAST_READING_KEY] = (FAKE_CASE, None)
+    at.text_input(key=NODE_URL_KEY).input("http://node-two:7999/api/v2").run()
+    assert not at.exception
+    assert LAST_READING_KEY not in at.session_state
+    assert at.text_input(key=CASE_KEY).value == ""
+    assert "Participants" not in _texts(at.subheader)
+
+
+def test_another_connector_is_offered_by_its_name():
+    config = AppConfig().model_copy(
+        update={"shadow": ShadowConfig(connector="acme")}
+    )
+    assert source_label(CaseSource.OUTSIDE, config) == "Outside system (acme)"

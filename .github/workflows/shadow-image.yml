@@ -26,12 +26,20 @@ on:
       - .dockerignore
       # The tool itself, and the dependencies and console script it is
       # installed with. The tool also imports much of the rest of `vultron/`
-      # (config, core, wire, adapters); those paths are left out on purpose,
+      # (config, core, wire, adapters); those paths, apart from the ones the
+      # live-read step runs (below), are left out on purpose,
       # because this job checks what the image holds and how the container is
       # wired, not whether the code imports. An import that breaks the start is
       # caught by test/shadow/, which runs the real script and the
       # `vultron-shadow` command in python-app.yml on every `vultron/**` change.
       - vultron/shadow/**
+      # The live-read step also runs the shadow tool's own settings, and the
+      # node's code it reads from: the seed command, the create-case trigger
+      # and the demo ledger routes.
+      - vultron/config/shadow.py
+      - vultron/demo/cli/seed_command.py
+      - vultron/adapters/driving/fastapi/routers/trigger_case.py
+      - vultron/adapters/driving/fastapi/routers/demo_triggers/**
       - pyproject.toml
       - uv.lock
       # This workflow and the code it runs, so the pull request that changes
@@ -47,6 +55,10 @@ on:
       - docker/**
       - .dockerignore
       - vultron/shadow/**
+      - vultron/config/shadow.py
+      - vultron/demo/cli/seed_command.py
+      - vultron/adapters/driving/fastapi/routers/trigger_case.py
+      - vultron/adapters/driving/fastapi/routers/demo_triggers/**
       - pyproject.toml
       - uv.lock
       - .github/workflows/shadow-image.yml
@@ -194,7 +206,7 @@ jobs:
           answer=$("${compose[@]}" exec -T case-actor curl --silent --show-error \
             --fail --max-time 30 -X POST -H 'Content-Type: application/json' \
             -d "$CASE_BODY" "$CREATE_CASE_URL")
-          case_id=$(jq -r '.activity.object.id // empty' <<<"$answer")
+          case_id=$(jq -r '.case_id // empty' <<<"$answer")
           if [ -z "$case_id" ]; then
             echo "::error::The node created no case: $answer"
             exit 1

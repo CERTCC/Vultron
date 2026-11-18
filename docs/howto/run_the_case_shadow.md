@@ -138,7 +138,7 @@ A ledger with a missing entry shows the missing entry instead of a standing, bec
 
 VINCE reaches the tool through a connector: an installed package that implements a case reader.
 The VINCE connector is installed with the tool.
-The **Source** menu offers **VINCE** only when these environment variables are set in the shell that starts the tool:
+The **Source** menu always lists **VINCE**, and you can choose it only when these environment variables are set in the shell that starts the tool:
 
 | Variable | Value |
 |---|---|

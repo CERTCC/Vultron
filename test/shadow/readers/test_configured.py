@@ -288,7 +288,7 @@ def test_a_typed_node_is_checked_and_trimmed():
         ("case-actor:7999", "case-actor", "http:// or https://"),
         ("http://user:secret@case-actor/api", "case-actor", "API root"),
         (_URL + "?token=secret", "case-actor", "API root"),
-        (_URL, "a?b", "names no actor"),
+        (_URL, "acct?token=secret", "names no actor"),
     ],
     ids=[
         "blank",

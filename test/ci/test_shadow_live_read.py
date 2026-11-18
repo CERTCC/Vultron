@@ -91,6 +91,36 @@ def test_no_entry_by_the_deadline_fails_with_the_last_reason(capsys):
     assert "HTTP 404" in out
 
 
+def test_a_quiet_case_stops_at_the_deadline(capsys):
+    """A stream that only keeps alive is stopped by its heartbeat."""
+
+    class Quiet:
+        def follow_case(self, case_id, *, heartbeat):
+            while True:
+                clock.now += 1.0
+                heartbeat()
+                yield from ()
+
+    clock = _Clock()
+    status = _live.main(
+        [NODE, ACTOR, _CASE, "--deadline", "5"],
+        reader_for=lambda _node: Quiet(),
+        clock=clock,
+        pause=clock.pause,
+    )
+    assert status == 1
+    assert "timed out" in capsys.readouterr().out
+    assert clock.now == 5.0
+
+
+def test_a_node_reader_that_cannot_follow_is_refused(monkeypatch):
+    monkeypatch.setattr(
+        _live, "configured_case_reader", lambda *_a, **_k: object()
+    )
+    with pytest.raises(TypeError, match="cannot follow"):
+        _live.page_reader(_live.typed_node(NODE, ACTOR))
+
+
 def test_a_refused_node_sends_no_request(capsys):
     script = ScriptedStream()
     clock = _Clock()
