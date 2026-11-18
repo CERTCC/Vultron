@@ -816,7 +816,7 @@ class LedgerReadError(VultronError):
 class CaseLedgerFileError(CarriesViolations, VultronError):
     """Raised when a case reader cannot read a case from a case-ledger file.
 
-    Raised by the case shadow's Vultron case reader
+    Raised by the case shadow tool's Vultron case reader
     (:mod:`vultron.shadow.readers.vultron_ledger`) for a file that is missing,
     unreadable, empty, or holds a row that is not a valid ledger entry.
     Unlike the measure layer, which degrades a malformed row (CEH-02-008),

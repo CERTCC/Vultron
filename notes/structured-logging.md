@@ -88,7 +88,7 @@ naming either field.
 **A rule that must hold for records a handler you do not own writes goes in
 the log record factory, not a filter.** Streamlit writes its own records
 through handlers it replaces when it reads its config, so a handler filter
-misses them. The case shadow wraps `logging.setLogRecordFactory`, which sees
+misses them. The case shadow tool wraps `logging.setLogRecordFactory`, which sees
 every record when it is made, and restores the previous factory on exit; a
 fault there writes a fixed placeholder, never raises into the log call
 (`vultron/shadow/log_content/records.py`, VSD-01-003).

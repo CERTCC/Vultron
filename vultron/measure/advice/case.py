@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The move advice for one case, as the case shadow shows it (ADR-0200).
+"""The move advice for one case, as the case shadow tool shows it (ADR-0200).
 
 :func:`case_advice` reads a :class:`~vultron.measure.standing.StandingRecord`
 and puts each of its open moves in a band, with its layer, its marks and its

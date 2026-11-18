@@ -138,7 +138,7 @@ class CorrelationFormatter(logging.Formatter):
     before any traceback the base class appends.
 
     An entry point with record attributes of its own to print, such as the
-    case shadow's case id, subclasses this and extends :attr:`fields`.
+    case shadow tool's case id, subclasses this and extends :attr:`fields`.
     """
 
     #: The record attributes printed after the message, in print order.

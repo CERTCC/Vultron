@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The case shadow's log records carry ids, never case content (VSD-01-003).
+"""The case shadow tool's log records carry ids, never case content (VSD-01-003).
 
 Logs are copied into issues, CI artifacts and agent sessions, so a log record
 is a publication path (ADR-0189).  While :func:`withheld_case_content` is

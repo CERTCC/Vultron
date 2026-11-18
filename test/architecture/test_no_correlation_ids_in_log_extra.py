@@ -18,7 +18,7 @@
 ``activity_id`` and ``actor_id`` reach a record as attributes copied from
 ambient context by :class:`vultron.logging_correlation.CorrelationFilter`,
 never per call: a per-call ``extra=`` repeats the value at every site, and a
-site that omits it writes a record with no correlation.  The case shadow's
+site that omits it writes a record with no correlation.  The case shadow tool's
 ``case_id`` and ``case_reference`` come from its case context the same way
 (:mod:`vultron.shadow.log_content`).  Its record factory sets them before
 ``makeRecord`` applies ``extra=``, so a per-call key would also raise

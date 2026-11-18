@@ -157,7 +157,7 @@ class ShadowFormatter(CorrelationFormatter):
 def shadow_logging(
     level: int = logging.INFO, stream: TextIO | None = None
 ) -> Generator[logging.Handler]:
-    """The case shadow's logging, for the length of the block.
+    """The case shadow tool's logging, for the length of the block.
 
     Cleans every record (:func:`withheld_case_content`), and writes the
     root logger's records at *level* and above to *stream* (standard error
