@@ -492,7 +492,7 @@ class TestNodesCall:
             return {"q": q}
 
         with TestClient(app) as client:
-            yield runner._Nodes(clients={"http://vendor:7999": client})
+            yield runner.ScenarioNodes(clients={"http://vendor:7999": client})
 
     @pytest.fixture
     def client(self):
@@ -501,7 +501,7 @@ class TestNodesCall:
     def test_a_host_no_role_names_is_refused(self, client):
         elsewhere = DataLayerClient(base_url="http://elsewhere:7999/api/v2")
         with pytest.raises(DemoRecordingError, match="elsewhere"):
-            runner._Nodes().call(elsewhere, "GET", "/actors/")
+            runner.ScenarioNodes().call(elsewhere, "GET", "/actors/")
 
     def test_an_error_status_raises_as_the_real_client_does(
         self, nodes, client
@@ -557,7 +557,7 @@ class TestScenarioNodes:
     def test_the_default_emitter_is_restored_on_exit(self):
         slot = outbox_drain._DEFAULT_EMITTER_SLOT
         before = slot.value
-        with runner._scenario_nodes([], load_topology()):
+        with runner.scenario_nodes([], load_topology()):
             assert isinstance(slot.value, InProcessRouter)
         assert slot.value is before
 
@@ -566,7 +566,7 @@ class TestScenarioNodes:
         before = slot.value
         with (
             pytest.raises(RuntimeError),
-            runner._scenario_nodes([], load_topology()),
+            runner.scenario_nodes([], load_topology()),
         ):
             raise RuntimeError("scenario failed")
         assert slot.value is before
@@ -580,7 +580,7 @@ class TestScenarioNodes:
         registry = py_trees.blackboard.Blackboard.clients
         py_trees.blackboard.Client(name="left over by an earlier run")
         assert registry
-        with runner._scenario_nodes([], load_topology()):
+        with runner.scenario_nodes([], load_topology()):
             assert not registry
             py_trees.blackboard.Client(name="drawn during the run")
             assert registry
@@ -591,7 +591,7 @@ class TestScenarioNodes:
         registry = py_trees.blackboard.Blackboard.clients
         with (
             pytest.raises(RuntimeError),
-            runner._scenario_nodes([], load_topology()),
+            runner.scenario_nodes([], load_topology()),
         ):
             py_trees.blackboard.Client(name="drawn before the failure")
             raise RuntimeError("scenario failed")
