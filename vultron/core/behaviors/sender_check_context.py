@@ -257,19 +257,37 @@ class ClosedSenderCheck:
     """A door guard: the case must not record the sender's closure (CM-23-018).
 
     The receive-tree factory builds it on the tree's case, after the
-    post-close boundary and before the sender guard, for a tree whose act may
-    close its sender.
+    post-close boundary and before the sender guard, for a tree whose sender
+    may already be closed on the case.
 
     Attributes:
         sender_id: The activity's sender.
+        closes: The act would close its sender (a ``Leave``, a ``Reject`` of
+            a stub or full-case Invite), so one from a sender already closed
+            repeats it and is ``SKIPPED`` (ID-05-003).  Any other act of a
+            closed sender is refused, and the door declares that refusal
+            (CM-23-018, HP-01-003).
         case_owner_completes: The act closes the case as well, so a Case
             Owner whose own closure is recorded on a case that is not fully
             closed is not repeating it: its Leave runs to close the case
-            (CM-23-002), and the check passes for it.
+            (CM-23-002), and the check passes for it.  Only an act that
+            closes its sender closes the case.
+
+    Raises:
+        ValueError: *case_owner_completes* is set on an act that does not
+            close its sender.
     """
 
     sender_id: str
+    closes: bool
     case_owner_completes: bool = False
+
+    def __post_init__(self) -> None:
+        if self.case_owner_completes and not self.closes:
+            raise ValueError(
+                "ClosedSenderCheck: case_owner_completes needs closes — only"
+                " an act that closes its sender closes the case (CM-23-002)"
+            )
 
 
 def embargo_sender_context(

@@ -20,7 +20,8 @@ import pytest
 from test.support.objects import authored_at, make
 from test.support.received import archive_received
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.errors import VultronAlreadyExistsError
+from vultron.core.services.received_activity import held_received_body
+from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -415,11 +416,27 @@ class TestReplyToReceivedOffer:
         assert body["object"]["object"]["id"] == report_id
         assert dl.read(offer_id) is None
 
+    @pytest.mark.spec("DL-06-004")
     @pytest.mark.parametrize(("reply", "verb"), _REPLIES)
-    def test_with_no_offer_held_the_offer_record_rebuilds_it(
+    def test_the_reply_embeds_the_received_offer_as_received(
         self, adapter, dl, reply, verb
     ):
-        """No archive and no own copy: the Offer comes from its record."""
+        """The embedded Offer is the archived body, ``published`` included."""
+        offer_id, report_id = _received_offer(dl)
+        archived = held_received_body(dl, offer_id)
+
+        _, blob = reply(adapter, offer_id, report_id)
+
+        embedded = json.loads(blob)["object"]
+        assert embedded == archived
+        assert embedded["published"] == archived["published"]
+
+    @pytest.mark.spec("AKM-02-006")
+    @pytest.mark.parametrize(("reply", "verb"), _REPLIES)
+    def test_an_offer_not_held_is_refused_not_rebuilt(
+        self, adapter, dl, reply, verb
+    ):
+        """Only a record of the Offer is held: nothing is rebuilt from it."""
         report = _make_report(dl)
         offer_id = "https://example.org/activities/offer-known-by-record"
         dl.create(
@@ -431,8 +448,7 @@ class TestReplyToReceivedOffer:
             )
         )
 
-        _, blob = reply(adapter, offer_id, report.id_)
+        with pytest.raises(VultronNotFoundError):
+            reply(adapter, offer_id, report.id_)
 
-        body = json.loads(blob)
-        assert body["type"] == verb
-        assert body["object"]["object"]["id"] == report.id_
+        assert list(dl.list_objects(verb)) == []

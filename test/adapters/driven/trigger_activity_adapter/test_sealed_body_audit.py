@@ -258,6 +258,19 @@ class _World:
         self.deliver(_ACTOR, invite_id, _PEER)
         return invite_id
 
+    def role_offer_id(self) -> str:
+        """A role Offer, as its target received it (archived by intake)."""
+        offer_id, _ = self.adapter.offer_case_participant_role(
+            case_id=self.case_id,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            actor=_ACTOR,
+            to=[_CASE_ACTOR],
+            at=authored_at(),
+        )
+        self.deliver(_ACTOR, offer_id, _CASE_ACTOR)
+        return offer_id
+
     def recommendation_id(self) -> str:
         """The peer's recommendation, as the coordinator received it."""
         rec_id, _ = self.adapter_as(_PEER).suggest_actor_to_case(
@@ -776,11 +789,7 @@ RECIPES: dict[str, Recipe] = {
     "accept_case_participant_role": lambda w: w.adapter_as(
         _CASE_ACTOR
     ).accept_case_participant_role(
-        offer_id="https://example.org/offers/role-1",
-        case_id=w.case_id,
-        role=CVDRole.CASE_MANAGER,
-        target_actor_id=_CASE_ACTOR,
-        vendor_id=_ACTOR,
+        offer_id=w.role_offer_id(),
         actor=_CASE_ACTOR,
         to=[_ACTOR],
         at=authored_at(),
@@ -788,11 +797,7 @@ RECIPES: dict[str, Recipe] = {
     "reject_case_participant_role": lambda w: w.adapter_as(
         _CASE_ACTOR
     ).reject_case_participant_role(
-        offer_id="https://example.org/offers/role-2",
-        case_id=w.case_id,
-        role=CVDRole.CASE_MANAGER,
-        target_actor_id=_CASE_ACTOR,
-        vendor_id=_ACTOR,
+        offer_id=w.role_offer_id(),
         actor=_CASE_ACTOR,
         to=[_ACTOR],
         at=authored_at(),

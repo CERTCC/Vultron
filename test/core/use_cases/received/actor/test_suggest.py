@@ -366,7 +366,7 @@ class TestOfferActorToCaseReceivedUseCase:
             seed_case_manager, make_payload
         )
         monkeypatch.setattr(
-            emit_response, "held_received_record", lambda *_: None
+            emit_response, "holds_received_body", lambda *_: False
         )
 
         with pytest.raises(VultronBTInternalError, match="not held"):

@@ -94,6 +94,17 @@ def holds_received_activity(dl: CasePersistence, activity_id: str) -> bool:
     return held_received_record(dl, activity_id) is not None
 
 
+def holds_received_body(dl: CasePersistence, activity_id: str) -> bool:
+    """Whether this actor holds a body for the received *activity_id*.
+
+    For a reply that embeds the activity as it arrived (DL-06-004): a
+    receipt stub gave its body up when the message was refused
+    (CLP-10-018), so it holds nothing to embed.
+    """
+    record = held_received_record(dl, activity_id)
+    return record is not None and not record.is_receipt_stub
+
+
 def sealed_body_of(record: ReceivedActivityRecord) -> str:
     """The sealed received body *record* holds, as the parser sealed it.
 
@@ -230,6 +241,7 @@ __all__ = [
     "held_received_record",
     "holds_activity",
     "holds_received_activity",
+    "holds_received_body",
     "read_held_activity",
     "read_received_activity",
     "sealed_body_of",

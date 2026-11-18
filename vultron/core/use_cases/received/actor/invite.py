@@ -156,8 +156,10 @@ class AcceptInviteActorToCaseReceivedUseCase:
         # An invitee the case already records as closed (its stub Reject was
         # applied) may act on nothing further: its Accept would join a
         # participant whose RM is terminal.  The tree's closed-sender door
-        # stops it as REFUSED, with nothing committed or sent (CM-23-018,
-        # CM-11-015, RMB-14-006).
+        # stops it, with nothing committed or sent, and declares the refusal
+        # (CM-23-018, CM-11-015, RMB-14-006, HP-01-003).  A joined invitee's
+        # redelivered Accept is a repeat its guard declares, so the runner
+        # reads it SKIPPED (CLP-13-001); no handler reader is passed.
         # Admitting the invitee is the CASE_MANAGER's job alone: the tree
         # declares the manager path only, so the path stage refuses any
         # other receiver (HP-01-005, HP-01-039).
@@ -169,9 +171,6 @@ class AcceptInviteActorToCaseReceivedUseCase:
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            # A joined invitee's redelivered Accept is a repeat its guard
-            # declares, so the runner reads it SKIPPED (CLP-13-001).
-            reader=closed_sender_reader(closes=False),
         )
 
 
@@ -230,5 +229,5 @@ class RejectInviteActorToCaseReceivedUseCase:
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            reader=closed_sender_reader(closes=True),
+            reader=closed_sender_reader,
         )

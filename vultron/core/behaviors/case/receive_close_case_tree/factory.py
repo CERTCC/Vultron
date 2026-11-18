@@ -307,7 +307,7 @@ def create_close_case_received_tree(
         # Case Owner's Leave also closes the case, so while the case is not
         # fully closed its Leave runs to close it (CM-23-018, CM-23-002).
         closed_sender=ClosedSenderCheck(
-            sender_id=sender_actor_id, case_owner_completes=True
+            sender_id=sender_actor_id, closes=True, case_owner_completes=True
         ),
         sender_rule=sender_rule,
         # The owner's Leave closes the case, so its CASE_OWNER standing is

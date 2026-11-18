@@ -22,7 +22,7 @@ from typing import Any
 from vultron.adapters.received_archive import read_held_as_received
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
+from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
     rm_invalidate_report_activity,
@@ -43,56 +43,6 @@ from ._base import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _reconstitute_offer(
-    offer_id: str, dl: CaseOutboxPersistence, *, at: datetime
-) -> Any | None:
-    """Reconstitute a wire Offer from VultronOfferRecord + VulnerabilityReport.
-
-    Per ADR-0035 DL-06-004: the adapter layer MAY read stored activity only
-    via the wire/adapter-owned seam that never interprets it (for wire envelope
-    reconstitution).  When the wire Offer is absent (e.g. for invite-path
-    actors who never received it directly), the domain facts recorded in
-    VultronOfferRecord are sufficient to reconstitute the Offer envelope.
-
-    Uses rm_submit_report_activity (AF-03-001) to stay within the factory
-    boundary — passing id_=offer_id preserves the original offer's identity.
-
-    Returns None if the necessary records are not available.
-    """
-    offer_record = dl.read(VultronOfferRecord.build_id(offer_id))
-    if not isinstance(offer_record, VultronOfferRecord):
-        return None
-    report = _to_wire(dl.read(offer_record.report_id), as_VulnerabilityReport)
-    if report is None:
-        logger.debug(
-            "_reconstitute_offer: report '%s' not found in DataLayer"
-            " — cannot reconstitute offer '%s'",
-            offer_record.report_id,
-            offer_id,
-        )
-        return None
-    to = (
-        offer_record.offer_to[0]
-        if offer_record.offer_to
-        else offer_record.offer_actor_id
-    )
-    try:
-        return rm_submit_report_activity(
-            report=report,
-            to=to,
-            actor=offer_record.offer_actor_id,
-            id_=offer_id,
-            at=at,
-        )
-    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
-        logger.warning(
-            "_reconstitute_offer: failed to reconstitute offer '%s': %s",
-            offer_id,
-            exc,
-        )
-        return None
 
 
 class _ReportsMixin:
@@ -171,21 +121,22 @@ class _ReportsMixin:
                 raise
             return _seal(self._dl, activity)
 
-    def _resolve_offer(self, offer_id: str, *, at: datetime) -> Any:
-        """Read the Offer as this actor holds it; else rebuild it from its record.
+    def _resolve_offer(self, offer_id: str) -> Any:
+        """Read the Offer as this actor holds it, received or sent.
 
         A received Offer is parsed from the body its intake recorded, never
         read under the id its sender chose (DL-06-006), so the reply embeds
         it as the Reporter sent it (DL-06-004); an Offer this actor sent is
-        held under its own id (:func:`read_held_as_received`).  When neither
-        is held, the Offer is reconstituted from its ``VultronOfferRecord``.
+        held under its own id (:func:`read_held_as_received`).  An Offer
+        that is neither is not rebuilt from what this actor knows of it: the
+        rebuild would quote an Offer nobody sent (AKM-02-006).
+
+        Raises:
+            VultronNotFoundError: when this actor holds no such Offer.
         """
-        try:
-            return read_held_as_received(
-                self._dl, offer_id, "Offer(VulnerabilityReport)"
-            )
-        except VultronNotFoundError:
-            return _reconstitute_offer(offer_id, self._dl, at=at)
+        return read_held_as_received(
+            self._dl, offer_id, "Offer(VulnerabilityReport)"
+        )
 
     def validate_report(
         self,
@@ -197,7 +148,7 @@ class _ReportsMixin:
         at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer)`` validate-report activity."""
-        offer = self._resolve_offer(offer_id, at=at)
+        offer = self._resolve_offer(offer_id)
         activity = rm_validate_report_activity(
             offer=offer, actor=actor, to=to, at=at
         )
@@ -213,7 +164,7 @@ class _ReportsMixin:
         at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Offer)`` Report Closed (RC) activity."""
-        offer = self._resolve_offer(offer_id, at=at)
+        offer = self._resolve_offer(offer_id)
         activity = rm_close_report_activity(
             offer=offer, actor=actor, to=to, at=at
         )
@@ -228,7 +179,7 @@ class _ReportsMixin:
         at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``TentativeReject(Offer)`` activity."""
-        offer = self._resolve_offer(offer_id, at=at)
+        offer = self._resolve_offer(offer_id)
         activity = rm_invalidate_report_activity(
             offer=offer, actor=actor, to=to, at=at
         )
@@ -246,7 +197,7 @@ class _ReportsMixin:
         """Create and persist a ``Read(Offer(VulnerabilityReport))`` ack-report
         activity.
         """
-        offer = self._resolve_offer(offer_id, at=at)
+        offer = self._resolve_offer(offer_id)
         activity = rm_read_report_activity(
             offer, actor=actor, to=to, content=content, at=at
         )

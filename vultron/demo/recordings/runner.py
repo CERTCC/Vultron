@@ -28,9 +28,6 @@ from urllib.parse import urlparse
 from fastapi.testclient import TestClient
 
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
-from vultron.adapters.driven.trigger_activity_adapter.proposals import (
-    _ProposalsMixin,
-)
 from vultron.adapters.driving.fastapi.outbox_handler import (
     drain as outbox_drain,
 )
@@ -38,7 +35,7 @@ from vultron.adapters.driving.fastapi.outbox_lanes import (
     RowOutcome,
     StallOrder,
 )
-from vultron.config import config_override
+from vultron.config import app_config_scope, config_override, get_config
 from vultron.core.models.pending_assertion import (
     reset_pending_assertion_stores,
 )
@@ -51,6 +48,7 @@ from vultron.demo.helpers.actor_roles import ActorRole
 from vultron.demo.helpers.cast import cast_member_name
 from vultron.demo.in_process import (
     InProcessRouter,
+    IsolatedActorApp,
     create_isolated_actor_app,
     response_value,
 )
@@ -72,16 +70,22 @@ from vultron.demo.utils.check_tree import (
 from vultron.errors import DemoRecordingError
 
 
-def _node_base(url: str) -> str:
+def node_base(url: str) -> str:
     """Return ``scheme://host:port`` of *url*."""
     parsed = urlparse(url)
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
 @dataclass
-class _Nodes:
-    """The entered test clients of one scenario run, keyed by node base."""
+class ScenarioNodes:
+    """The in-process containers of one scenario run, keyed by node base.
 
+    Attributes:
+        apps: Each node's app, built with its container's own config.
+        clients: Each node's entered test client.
+    """
+
+    apps: dict[str, IsolatedActorApp] = field(default_factory=dict)
     clients: dict[str, TestClient] = field(default_factory=dict)
 
     def call(
@@ -104,7 +108,7 @@ class _Nodes:
         """
         url = f"{client.base_url}{path}"
         parsed = urlparse(url)
-        node = self.clients.get(_node_base(url))
+        node = self.clients.get(node_base(url))
         if node is None:
             raise DemoRecordingError(
                 f"no in-process container serves {url!r}; the scenario "
@@ -118,7 +122,7 @@ class _Nodes:
         return response_value(response, method, url)
 
 
-def _routed_call(nodes: _Nodes) -> Callable[..., Any]:
+def _routed_call(nodes: ScenarioNodes) -> Callable[..., Any]:
     """Return a ``DataLayerClient.call`` replacement that routes via *nodes*.
 
     A plain function, so it binds the client instance as a method does.
@@ -133,10 +137,23 @@ def _routed_call(nodes: _Nodes) -> Callable[..., Any]:
 
 
 @contextlib.contextmanager
-def _scenario_nodes(
+def scenario_nodes(
     bases: Sequence[str], topology: ContainerTopology
-) -> Generator[_Nodes]:
+) -> Generator[ScenarioNodes]:
     """Host one in-process app per node base, with fresh stores.
+
+    Each node gets the config its container has (ADR-0206,
+    :meth:`ContainerTopology.config_for`), so a node that reads its own
+    config for a fact about another actor fails here as it fails in Docker.
+    The body runs in the demo runner's own config scope, as the
+    ``demo-runner`` container reads its own: while a node holds its config,
+    a read in no app scope is refused (DEMOMA-01-007).
+
+    No node runs its background work (``background_work=False``): the
+    outbox monitor and the hold timer act on the clock, not on the
+    scenario, and the monitor's drains alone made two runs of ``rv`` in one
+    process record different times.  A scenario about restart recovery
+    would need them on.
 
     Restores the default emitter and drops every cached store on exit, so a
     later run in the same process starts empty.  The router is installed as
@@ -151,28 +168,47 @@ def _scenario_nodes(
     scenario, so a pending ask the previous run left behind suppresses the
     same ask in this one and the recording depends on which scenario ran
     first (#5591).
+
+    Args:
+        bases: The ``scheme://host:port`` of each node to host.
+        topology: The container layout the nodes' configs are read from.
+
+    Raises:
+        DemoRecordingError: When a base names no compose service.
     """
     reset_datalayer()
     reset_blackboard()
     reset_pending_assertion_stores()
     router = InProcessRouter()
-    nodes = _Nodes()
+    nodes = ScenarioNodes()
     try:
-        with (
-            config_override(
-                VULTRON_DATABASE__DB_URL="sqlite:///:memory:",
-                VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=topology.case_actor_service_url,
-            ),
-            # Patched on the slot, as its docstring prescribes, so exit puts
-            # back exactly what was installed, including nothing at all;
-            # `get_default_emitter()` would hand back a fresh adapter instead.
-            patch.object(outbox_drain._DEFAULT_EMITTER_SLOT, "value", router),
-            contextlib.ExitStack() as stack,
-        ):
-            for base in bases:
-                isolated = create_isolated_actor_app(base, router)
-                nodes.clients[base] = stack.enter_context(isolated.client)
-            yield nodes
+        with config_override(VULTRON_DATABASE__DB_URL="sqlite:///:memory:"):
+            run_config = get_config()
+            configs = {
+                base: topology.config_for(base, run_config) for base in bases
+            }
+            runner_config = topology.runner_config(run_config)
+            with (
+                # Patched on the slot, as its docstring prescribes, so exit
+                # puts back exactly what was installed, including nothing at
+                # all; `get_default_emitter()` would hand back a fresh
+                # adapter instead.
+                patch.object(
+                    outbox_drain._DEFAULT_EMITTER_SLOT, "value", router
+                ),
+                contextlib.ExitStack() as stack,
+            ):
+                for base in bases:
+                    isolated = create_isolated_actor_app(
+                        base,
+                        router,
+                        config=configs[base],
+                        background_work=False,
+                    )
+                    nodes.apps[base] = isolated
+                    nodes.clients[base] = stack.enter_context(isolated.client)
+                with app_config_scope(runner_config):
+                    yield nodes
     finally:
         reset_datalayer()
         reset_blackboard()
@@ -260,16 +296,7 @@ def record_scenario(
     module = importlib.import_module(spec.module_name)
     roles: list[ActorRole] = module.ROLES
     urls = {role: topology.url_for(role) for role in roles}
-    bases = sorted({_node_base(url) for url in urls.values()})
-    real_create_case_proposal = _ProposalsMixin.create_case_proposal
-
-    def create_case_proposal(
-        self: _ProposalsMixin, actor: str, *args: Any, **kwargs: Any
-    ) -> tuple[str, str]:
-        # The proposer's own container settings, not this process's (CP-01-013).
-        kwargs["proposer_case_roles"] = topology.case_roles_for(actor)
-        return real_create_case_proposal(self, actor, *args, **kwargs)
-
+    bases = sorted({node_base(url) for url in urls.values()})
     with tempfile.TemporaryDirectory(prefix="vultron-recording-") as devlogs:
         with (
             # One seed for the whole tree, not this scenario's name, so
@@ -277,15 +304,12 @@ def record_scenario(
             # (DEMOCI-11-025, DEMOCI-11-018).
             deterministic_run(seed=TREE_RECORDING_SEED),
             recording_checks() as checks,
-            _scenario_nodes(bases, topology) as nodes,
+            scenario_nodes(bases, topology) as nodes,
             patch.dict(os.environ, {"DEVLOGS_DIR": devlogs}),
             patch.object(
                 DataLayerClient,
                 "call",
                 _routed_call(nodes),
-            ),
-            patch.object(
-                _ProposalsMixin, "create_case_proposal", create_case_proposal
             ),
             patch.object(
                 outbox_drain,

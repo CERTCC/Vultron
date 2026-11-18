@@ -33,6 +33,7 @@ from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from fastapi.testclient import TestClient
 
+from test.support.app_configs import node_work, own_app_config
 from test.support.objects import with_times
 from vultron.adapters.driving.fastapi.outbox_handler import (
     drain as outbox_drain,
@@ -42,6 +43,8 @@ from vultron.adapters.driving.fastapi.outbox_lanes import (
     StallOrder,
     deliver_batch,
 )
+from vultron.config import AppConfig, get_config
+from vultron.config.actor import ActorConfig
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.demo.determinism import TREE_RECORDING_SEED
 from vultron.demo.helpers.actor_roles import ActorRole
@@ -54,7 +57,7 @@ from vultron.demo.helpers.cast import (
     ContainerSlot,
 )
 from vultron.demo.helpers.harness import StepMark
-from vultron.demo.in_process import InProcessRouter
+from vultron.demo.in_process import InProcessRouter, node_app_config
 from vultron.demo.recordings import (
     cli,
     layout,
@@ -68,7 +71,9 @@ from vultron.demo.recordings.layout import (
     write_recording,
 )
 from vultron.demo.recordings.topology import (
+    CARRIED_IN_PROCESS,
     REPO_ROOT,
+    ContainerSettings,
     ContainerTopology,
     load_topology,
 )
@@ -163,7 +168,8 @@ class TestLoadTopology:
         assert REPORTER_SLOT.name not in topology.case_roles
         for slot in CHARACTER_SLOTS:
             assert slot.name not in topology.case_roles
-        assert topology.case_actor_service_url == CASE_ACTOR.compose_url
+        runner_settings = topology.settings["demo-runner"]
+        assert runner_settings.case_actor_service_url == CASE_ACTOR.compose_url
 
     def test_case_roles_are_looked_up_by_the_actors_host(self):
         topology = load_topology()
@@ -179,9 +185,7 @@ class TestLoadTopology:
         )
 
     def test_an_unknown_slot_is_refused(self):
-        topology = ContainerTopology(
-            slot_urls={}, case_roles={}, case_actor_service_url="http://x"
-        )
+        topology = ContainerTopology(slot_urls={}, case_roles={})
         role = ActorRole(
             name="reporter",
             slot=ContainerSlot(name="nowhere", port=1),
@@ -245,6 +249,176 @@ class TestLoadTopology:
         )
         with pytest.raises(DemoRecordingError, match="wizard"):
             load_topology(compose)
+
+
+class TestContainerConfig:
+    """Each in-process node's ``AppConfig`` is its compose service's (ADR-0206)."""
+
+    def _base(self) -> AppConfig:
+        return own_app_config(
+            actor=ActorConfig(default_case_roles=[CVDRole.DEPLOYER])
+        )
+
+    def test_a_container_gets_its_services_settings(self):
+        config = load_topology().config_for(
+            VENDOR_SLOT.compose_url, self._base()
+        )
+        assert config.actor.default_case_roles == [CVDRole.VENDOR]
+        assert config.server.base_url.rstrip("/") == VENDOR_SLOT.compose_url
+        assert (
+            str(config.actor.case_actor_service_url).rstrip("/")
+            == CASE_ACTOR.compose_url
+        )
+
+    def test_a_container_that_declares_no_roles_has_none(self):
+        """Not the base's roles: a container's config is its own."""
+        config = load_topology().config_for(
+            CASE_ACTOR.compose_url, self._base()
+        )
+        assert config.actor.default_case_roles == []
+
+    def test_settings_the_container_does_not_set_come_from_the_base(self):
+        base = own_app_config(max_inbox_retry_attempts=7)
+        config = load_topology().config_for(VENDOR_SLOT.compose_url, base)
+        assert config.max_inbox_retry_attempts == 7
+
+    def test_the_runner_has_no_server_url_of_its_own(self):
+        base = self._base()
+        config = load_topology().runner_config(base)
+        assert config.server.base_url == base.server.base_url
+        assert config.actor.default_case_roles == []
+        assert (
+            str(config.actor.case_actor_service_url).rstrip("/")
+            == CASE_ACTOR.compose_url
+        )
+
+    def _compose(self, tmp_path: Path, vendor_env: str) -> Path:
+        compose = tmp_path / "compose.yml"
+        compose.write_text(
+            "services:\n"
+            "  demo-runner:\n"
+            "    environment:\n"
+            "      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://ca/api/v2\n"
+            "  vendor:\n"
+            f"    environment: {vendor_env}\n",
+            encoding="utf-8",
+        )
+        return compose
+
+    def test_a_service_that_sets_nothing_carried_still_has_a_config(
+        self, tmp_path
+    ):
+        """No CaseActor URL, as Docker gives it, even when *base* has one."""
+        topology = load_topology(self._compose(tmp_path, "[]"))
+        base = own_app_config(
+            actor=ActorConfig.model_validate(
+                {
+                    "default_case_roles": [CVDRole.DEPLOYER],
+                    "case_actor_service_url": "http://elsewhere/api/v2",
+                }
+            )
+        )
+        config = topology.config_for("http://vendor:7999/api/v2", base)
+        assert config.actor.case_actor_service_url is None
+        assert config.actor.default_case_roles == []
+        assert config.server.base_url == base.server.base_url
+
+    def test_an_empty_carried_setting_is_refused(self, tmp_path):
+        compose = self._compose(
+            tmp_path, "['VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=']"
+        )
+        with pytest.raises(DemoRecordingError, match="empty value"):
+            load_topology(compose)
+
+    def test_an_unknown_host_is_refused(self):
+        with pytest.raises(DemoRecordingError, match="elsewhere"):
+            load_topology().config_for("http://elsewhere", self._base())
+
+    def test_an_uncarried_setting_is_refused(self, tmp_path):
+        compose = self._compose(
+            tmp_path, "['VULTRON_ACTOR__AUTO_CREATE_CASE=false']"
+        )
+        with pytest.raises(DemoRecordingError, match="AUTO_CREATE_CASE"):
+            load_topology(compose)
+
+    #: A value for each carried setting that differs from :meth:`_base`'s.
+    _CARRIED_SAMPLES: dict[str, str] = {
+        "VULTRON_SERVER__BASE_URL": "http://vendor:7999/api/v2",
+        "VULTRON_ACTOR__DEFAULT_CASE_ROLES": '["vendor"]',
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL": "http://ca:7999/api/v2",
+    }
+
+    def test_every_carried_setting_has_a_sample(self):
+        """A newly carried setting needs a sample, so the test below runs it."""
+        assert set(self._CARRIED_SAMPLES) == CARRIED_IN_PROCESS
+
+    @pytest.mark.parametrize("key", sorted(CARRIED_IN_PROCESS))
+    def test_a_carried_setting_reaches_the_nodes_config(self, tmp_path, key):
+        """Listing a setting as carried without applying it is caught here."""
+        base = own_app_config(
+            actor=ActorConfig.model_validate(
+                {
+                    "default_case_roles": [CVDRole.DEPLOYER],
+                    "case_actor_service_url": "http://elsewhere/api/v2",
+                }
+            )
+        )
+        unset = load_topology(self._compose(tmp_path, "[]"))
+        compose = self._compose(
+            tmp_path, json.dumps({key: self._CARRIED_SAMPLES[key]})
+        )
+        with_key = load_topology(compose)
+        url = "http://vendor:7999/api/v2"
+        assert (
+            with_key.config_for(url, base).model_dump()
+            != unset.config_for(url, base).model_dump()
+        ), f"{key} is listed as carried but does not change the node's config"
+
+    def test_differing_log_levels_are_refused(self, tmp_path):
+        compose = tmp_path / "compose.yml"
+        compose.write_text(
+            "services:\n"
+            "  demo-runner:\n"
+            "    environment:\n"
+            "      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://ca/api/v2\n"
+            "      - VULTRON_SERVER__LOG_LEVEL=INFO\n"
+            "  vendor:\n"
+            "    environment:\n"
+            "      - VULTRON_SERVER__LOG_LEVEL=DEBUG\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(DemoRecordingError, match="LOG_LEVEL"):
+            load_topology(compose)
+
+    def test_a_node_config_keeps_what_it_is_not_given(self):
+        """No roles or server URL given: the base's stay (ad-hoc nodes)."""
+        base = self._base()
+        config = node_app_config(
+            base, case_actor_service_url="http://ca.test/api/v2"
+        )
+        assert config.actor.default_case_roles == [CVDRole.DEPLOYER]
+        assert config.server.base_url == base.server.base_url
+        assert (
+            str(config.actor.case_actor_service_url).rstrip("/")
+            == "http://ca.test/api/v2"
+        )
+
+    def test_a_blank_container_setting_is_refused(self):
+        with pytest.raises(ValueError, match="base_url"):
+            ContainerSettings(base_url="  ")
+
+    def test_scenario_nodes_hold_their_containers_configs(self):
+        bases = [runner.node_base(VENDOR_SLOT.compose_url)]
+        with runner.scenario_nodes(bases, load_topology()) as nodes:
+            config = nodes.apps[bases[0]].config
+            assert config is not None
+            assert config.actor.default_case_roles == [CVDRole.VENDOR]
+            # The body reads the demo runner's own config, never no scope.
+            assert get_config().actor.default_case_roles == []
+            # A recording node runs none of its background work, which acts
+            # on the clock rather than on the scenario.
+            work = node_work(nodes.apps[bases[0]].app)
+            assert all(started is None for started in work.values()), work
 
 
 class _StopBeforeTheRun(Exception):
@@ -492,7 +666,7 @@ class TestNodesCall:
             return {"q": q}
 
         with TestClient(app) as client:
-            yield runner._Nodes(clients={"http://vendor:7999": client})
+            yield runner.ScenarioNodes(clients={"http://vendor:7999": client})
 
     @pytest.fixture
     def client(self):
@@ -501,7 +675,7 @@ class TestNodesCall:
     def test_a_host_no_role_names_is_refused(self, client):
         elsewhere = DataLayerClient(base_url="http://elsewhere:7999/api/v2")
         with pytest.raises(DemoRecordingError, match="elsewhere"):
-            runner._Nodes().call(elsewhere, "GET", "/actors/")
+            runner.ScenarioNodes().call(elsewhere, "GET", "/actors/")
 
     def test_an_error_status_raises_as_the_real_client_does(
         self, nodes, client
@@ -557,7 +731,7 @@ class TestScenarioNodes:
     def test_the_default_emitter_is_restored_on_exit(self):
         slot = outbox_drain._DEFAULT_EMITTER_SLOT
         before = slot.value
-        with runner._scenario_nodes([], load_topology()):
+        with runner.scenario_nodes([], load_topology()):
             assert isinstance(slot.value, InProcessRouter)
         assert slot.value is before
 
@@ -566,7 +740,7 @@ class TestScenarioNodes:
         before = slot.value
         with (
             pytest.raises(RuntimeError),
-            runner._scenario_nodes([], load_topology()),
+            runner.scenario_nodes([], load_topology()),
         ):
             raise RuntimeError("scenario failed")
         assert slot.value is before
@@ -580,7 +754,7 @@ class TestScenarioNodes:
         registry = py_trees.blackboard.Blackboard.clients
         py_trees.blackboard.Client(name="left over by an earlier run")
         assert registry
-        with runner._scenario_nodes([], load_topology()):
+        with runner.scenario_nodes([], load_topology()):
             assert not registry
             py_trees.blackboard.Client(name="drawn during the run")
             assert registry
@@ -591,7 +765,7 @@ class TestScenarioNodes:
         registry = py_trees.blackboard.Blackboard.clients
         with (
             pytest.raises(RuntimeError),
-            runner._scenario_nodes([], load_topology()),
+            runner.scenario_nodes([], load_topology()),
         ):
             py_trees.blackboard.Client(name="drawn before the failure")
             raise RuntimeError("scenario failed")

@@ -156,6 +156,9 @@ def pxa_invite_refusal(
             " rejected",
         ),
         effects=tuple(effects),
+        # The refusal stands whether or not its Reject goes out (HP-01-003).
+        refuses=True,
+        refuses_unanswered=True,
     )
 
 
@@ -197,6 +200,9 @@ def pxa_accept_refusal(
                 ),
             )
         ),
+        # The refusal stands whether or not its Reject goes out (HP-01-003).
+        refuses=True,
+        refuses_unanswered=True,
     )
 
 

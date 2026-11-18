@@ -73,10 +73,12 @@ from test.demo._helpers import (
     patch_chain_shared,
     story_state,
 )
+from test.demo.conftest import node_config
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make, with_times
 from test.support.received import received_of_type
+from vultron.config import app_config_scope
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
@@ -1437,7 +1439,6 @@ def _otc_ownership_transferred(
         configure_default_emitter,
         get_default_emitter,
     )
-    from vultron.config import config_override
     from vultron.wire.as2.factories.case import (
         accept_case_ownership_transfer_activity,
         propose_case_ownership_transfer_activity,
@@ -1446,10 +1447,12 @@ def _otc_ownership_transferred(
         as_CaseParticipant,
     )
 
-    with config_override(
-        VULTRON_SERVER__BASE_URL=f"{_OTC_COORDINATOR_BASE}/api/v2",
-        VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OTC_COORDINATOR_BASE}/api/v2",
-    ):
+    # Each node holds its own config (ADR-0206); the Coordinator is the
+    # CaseActor service, and the body runs in its config scope as the driver.
+    coordinator_config = node_config(
+        _OTC_COORDINATOR_BASE, _OTC_COORDINATOR_BASE
+    )
+    with app_config_scope(coordinator_config):
         # `actor_slug` decides which actor's store `iso.dl` is. These actors
         # are created under the module slugs below, and a store belongs to
         # exactly one actor (ADR-0073), so leaving the default `"primary"`
@@ -1459,16 +1462,22 @@ def _otc_ownership_transferred(
             base_url=_OTC_VENDOR_BASE,
             router=router,
             actor_slug=_OTC_VENDOR_SLUG,
+            config=node_config(_OTC_VENDOR_BASE, _OTC_COORDINATOR_BASE),
+            background_work=False,
         )
         coordinator_iso = create_isolated_actor_app(
             base_url=_OTC_COORDINATOR_BASE,
             router=router,
             actor_slug=_OTC_COORDINATOR_SLUG,
+            config=coordinator_config,
+            background_work=False,
         )
         reporter_iso = create_isolated_actor_app(
             base_url=_OTC_REPORTER_BASE,
             router=router,
             actor_slug=_OTC_REPORTER_SLUG,
+            config=node_config(_OTC_REPORTER_BASE, _OTC_COORDINATOR_BASE),
+            background_work=False,
         )
 
         previous_emitter = get_default_emitter()

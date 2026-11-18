@@ -328,7 +328,7 @@ def closed_sender_stage(
             f"create_receive_activity_tree({name}): closed_sender needs the"
             " tree's case_id or manager_case_id (CM-23-018)"
         )
-    return closed_sender_door(case_id, check)
+    return closed_sender_door(case_id, check, name)
 
 
 def case_resolution_stage(
