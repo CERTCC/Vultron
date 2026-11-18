@@ -43,7 +43,7 @@ To run the tool without Docker, run `uv run vultron-shadow` from the repository 
 It listens on `127.0.0.1:8501`; `--port` changes the port.
 
 The tool writes its log to standard error, at `INFO` and above; `--log-level DEBUG` adds a record for each ledger entry it reads.
-A log record names the case, its activity and actor ids, and the case's tracker reference, such as its VINCE case URL.
+A log record names the case, its activity and actor ids, and the case's tracker reference, such as its Vulnerability Information and Coordination Environment (VINCE) case URL.
 The tool removes the case's content, such as a title, a description, or a contact name, from each log record.
 It removes a whole value, or a whole line of a value, wherever a record quotes it.
 You can share the log records to report a problem.
@@ -60,7 +60,7 @@ When you choose another source, or type another node, the page drops the case yo
 | Source | What the tool reads |
 |---|---|
 | **Recorded demo cases** | Vultron case-ledger files, such as the committed demo recordings. |
-| **VINCE** | Cases in the Vulnerability Information and Coordination Environment (VINCE), through its connector. See [Step 5](#step-5-read-a-case-from-vince). |
+| **VINCE** | Cases in VINCE, through its connector. See [Step 5](#step-5-read-a-case-from-vince). |
 | **A running Vultron node** | A case's ledger on a running Vultron node, followed live. See [Read a case from a running Vultron node](#read-a-case-from-a-running-vultron-node). |
 
 ---
