@@ -24,7 +24,8 @@ from test.support.act_runner import run_tree
 from test.support.ledger import (
     committed_semantic_types,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
+from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -40,6 +41,7 @@ from vultron.core.behaviors.case.nodes.delegation import (
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import offer_case_participant_role_activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -108,12 +110,26 @@ def _answer_node(node_cls, **overrides):
     kwargs = {
         "offer_id": OFFER_ID,
         "case_id": CASE_ID,
-        "role": CVDRole.CASE_MANAGER,
         "target_actor_id": ACTOR_ID,
-        "vendor_id": VENDOR_ID,
         **overrides,
     }
     return node_cls(**kwargs)
+
+
+def _receive_role_offer(dl) -> None:
+    """Hold the role Offer in *dl* as the target's intake recorded it."""
+    archive_received(
+        dl,
+        offer_case_participant_role_activity(
+            role=CVDRole.CASE_MANAGER,
+            target_actor=ACTOR_ID,
+            case=CASE_ID,
+            id_=OFFER_ID,
+            actor=VENDOR_ID,
+            to=[ACTOR_ID],
+            at=authored_at(),
+        ),
+    )
 
 
 #: Both arms of the AcceptOrReject Selector, with the ledger semantic_type and
@@ -155,6 +171,7 @@ class TestAnswerNodeInputs:
         assert dl.outbox_list() == []
 
     def test_failure_when_factory_raises(self, dl, node_cls, semantic_type):
+        _receive_role_offer(dl)
         mock_factory = MagicMock()
         getattr(mock_factory, semantic_type).side_effect = RuntimeError(
             "factory error"
@@ -184,8 +201,27 @@ class TestAnswerNodeInputs:
         assert result.status == Status.FAILURE
         assert dl.outbox_list() == []
 
+    @pytest.mark.spec("DL-06-004")
+    @pytest.mark.spec("ARCH-15-001")
+    def test_an_offer_not_held_is_an_internal_error_not_a_rebuild(
+        self, node_cls, semantic_type
+    ):
+        """Nothing to embed: the node escapes, so no arm answers instead."""
+        dl = _participant_store(receive_offer=False)
+        bridge = BTBridge(
+            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        )
 
-def _participant_store() -> SqliteDataLayer:
+        result = run_tree(
+            bridge, tree=_answer_node(node_cls), actor_id=ACTOR_ID
+        )
+
+        assert result.internal_error
+        assert dl.outbox_list() == []
+        assert list(dl.list_objects(semantic_type.split("_")[0].title())) == []
+
+
+def _participant_store(*, receive_offer: bool = True) -> SqliteDataLayer:
     """ACTOR_ID's store: a case MANAGER_ID manages, ACTOR_ID a participant."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
     dl.create(
@@ -198,6 +234,8 @@ def _participant_store() -> SqliteDataLayer:
     )
     _seed_participant(dl, MANAGER_ID, [CVDRole.CASE_MANAGER])
     _seed_participant(dl, ACTOR_ID, [CVDRole.REPORTER])
+    if receive_offer:
+        _receive_role_offer(dl)
     return dl
 
 
@@ -229,6 +267,7 @@ class TestAnswerGoesToTheCaseManager:
     ):
         """No CASE_MANAGER resolves: nothing is sent, so the Selector fails."""
         _seed_participant(dl, ACTOR_ID, [CVDRole.REPORTER])
+        _receive_role_offer(dl)
 
         result = run_tree(
             bridge, tree=_answer_node(node_cls), actor_id=ACTOR_ID

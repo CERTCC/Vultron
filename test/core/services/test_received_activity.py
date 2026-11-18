@@ -35,6 +35,7 @@ from vultron.core.services.received_activity import (
     held_received_record,
     holds_activity,
     holds_received_activity,
+    holds_received_body,
     read_held_activity,
     read_received_activity,
     sealed_body_of,
@@ -263,3 +264,28 @@ def test_a_receipt_stub_has_no_body_to_hand_out(dl) -> None:
 
     with pytest.raises(VultronWiringError, match="receipt stub"):
         held_received_body(dl, "urn:uuid:refused-one")
+
+
+@pytest.mark.spec("DL-06-004")
+@pytest.mark.spec("CLP-10-018")
+def test_only_a_record_with_a_body_holds_one_to_embed(dl) -> None:
+    """An archived or deferred body is there to embed; a stub's is gone."""
+    received = _invite(_PEER, _ME)
+    archive_received(dl, received)
+    deferred = _deferred_add(dl)
+    dl.create(
+        ReceivedActivityRecord(
+            activity_id="urn:uuid:refused-two",
+            stage=ReceivedStage.REFUSED,
+            sender_id=_PEER,
+            refusal_reason="not a to recipient",
+            body_hash="abc123",
+            received_at=ACT_AT,
+        )
+    )
+
+    assert holds_received_body(dl, received.id_)
+    assert holds_received_body(dl, deferred.id_)
+    assert holds_received_activity(dl, "urn:uuid:refused-two")
+    assert not holds_received_body(dl, "urn:uuid:refused-two")
+    assert not holds_received_body(dl, "urn:uuid:never-held")

@@ -18,7 +18,6 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 from datetime import datetime
-from typing import cast
 
 from vultron.core.models._helpers import authored_times
 from vultron.core.models.actor import CoreActor
@@ -29,6 +28,7 @@ from vultron.wire.as2.factories._context import (
     case_uri_of,
     with_case_context,
 )
+from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.vocab.activities.case.roles import (
     _AcceptCaseParticipantRoleActivity,
     _OfferCaseParticipantRoleActivity,
@@ -109,11 +109,14 @@ def accept_case_participant_role_activity(
 ) -> as_Accept:
     """Build an Accept(_OfferCaseParticipantRoleActivity) (ADR-0039).
 
-    The ``offer`` MUST be an ``_OfferCaseParticipantRoleActivity`` (i.e., the
-    value returned by :func:`offer_case_participant_role_activity`).
+    The ``offer`` is the role Offer as the answerer holds it: one it received
+    is validated as a role Offer and embedded as received
+    (:func:`as_answered`), with its ``published`` and every other field as
+    sent; anything else must already be the value
+    :func:`offer_case_participant_role_activity` returns.
 
     Args:
-        offer: The ``_OfferCaseParticipantRoleActivity`` being accepted.
+        offer: The role Offer being accepted.
         **kwargs: Optional AS2 fields (e.g. ``actor``).
 
     Returns:
@@ -127,7 +130,7 @@ def accept_case_participant_role_activity(
         _AcceptCaseParticipantRoleActivity,
         at,
         lambda: {
-            "object_": cast(_OfferCaseParticipantRoleActivity, offer),
+            "object_": as_answered(_OfferCaseParticipantRoleActivity, offer),
             **with_case_context(kwargs, getattr(offer, "context", None)),
         },
     )
@@ -141,11 +144,11 @@ def reject_case_participant_role_activity(
 ) -> as_Reject:
     """Build a Reject(_OfferCaseParticipantRoleActivity) (ADR-0039).
 
-    The ``offer`` MUST be an ``_OfferCaseParticipantRoleActivity`` (i.e., the
-    value returned by :func:`offer_case_participant_role_activity`).
+    The ``offer`` is the role Offer as the answerer holds it, embedded as for
+    :func:`accept_case_participant_role_activity`.
 
     Args:
-        offer: The ``_OfferCaseParticipantRoleActivity`` being rejected.
+        offer: The role Offer being rejected.
         **kwargs: Optional AS2 fields (e.g. ``actor``).
 
     Returns:
@@ -159,7 +162,7 @@ def reject_case_participant_role_activity(
         _RejectCaseParticipantRoleActivity,
         at,
         lambda: {
-            "object_": cast(_OfferCaseParticipantRoleActivity, offer),
+            "object_": as_answered(_OfferCaseParticipantRoleActivity, offer),
             **with_case_context(kwargs, getattr(offer, "context", None)),
         },
     )

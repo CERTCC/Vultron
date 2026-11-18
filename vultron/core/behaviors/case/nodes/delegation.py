@@ -53,7 +53,9 @@ from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_offer import role_offer_forward_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
+from vultron.core.services.received_activity import holds_received_body
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError
 
 logger = logging.getLogger(__name__)
 
@@ -202,17 +204,18 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
     receipt and announces the entry (CM-33-006, CM-33-019,
     ``vultron.core.behaviors.case.role_offer_answer_tree``).
 
+    The answer embeds the Offer as this actor received it (DL-06-004), read
+    from the body intake recorded ahead of this node.  An Offer that is not
+    held is a broken precondition, not an arm to skip: a FAILURE would let
+    the Selector try the other answer, so it escapes to ``BTBridge`` as an
+    internal error (ARCH-15-001).
+
     The outbox write is not caught: once the answer is queued a FAILURE would
     let the Selector send the contradictory answer after it, so a fault
     escapes to ``BTBridge`` as an internal error (BT-14-001, ARCH-15-001).
     Only a missing input, a case this store does not hold, a case that names
     no CASE_MANAGER, or a factory error returns FAILURE, before anything is
     written.
-
-    ``vendor_id`` is the sender of the Offer being answered, which the port
-    rebuilds as the ``actor`` of the Offer the answer carries.  At the target
-    that sender is the CASE_MANAGER whose forward it answers (CM-33-004), not
-    the Case Owner that made the Offer; the name is the port's.
 
     Subclasses set ``_SEMANTIC_TYPE`` (the kind label of the derived id) and
     ``_ANSWER`` (for logs), and implement :meth:`_factory_method`.
@@ -225,17 +228,13 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
         self,
         offer_id: str,
         case_id: str,
-        role: CVDRole,
         target_actor_id: str,
-        vendor_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name)
         self.offer_id = offer_id
         self.case_id = case_id
-        self.role = role
         self.target_actor_id = target_actor_id
-        self.vendor_id = vendor_id
         self._case_manager_id: str | None = None
 
     def _factory_method(self) -> Callable[..., tuple[str, str]]:
@@ -249,10 +248,6 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
         )  # resolved by _validate_context
         return self._factory_method()(
             offer_id=self.offer_id,
-            case_id=self.case_id,
-            role=self.role,
-            target_actor_id=self.target_actor_id,
-            vendor_id=self.vendor_id,
             actor=self.actor_id,
             to=[self._case_manager_id],
             id_=derived_activity_id(
@@ -310,9 +305,21 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
             self._case_manager_id,
         )
 
+    def _require_offer_held(self) -> None:
+        """Raise unless this store holds the received Offer to embed."""
+        if not holds_received_body(
+            cast(CasePersistence, self.datalayer), self.offer_id
+        ):
+            raise VultronBTInternalError(
+                f"{self.name}: role offer '{self.offer_id}' is not held, so"
+                " there is nothing to embed in the answer (DL-06-004)"
+            )
+
     def update(self) -> Status:
         if (f := self._validate_context()) is not None:
             return f
+        # Not caught: see the class docstring.
+        self._require_offer_held()
         try:
             activity_id, activity_blob = self._call_factory()
         except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
