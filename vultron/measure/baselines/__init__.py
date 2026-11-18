@@ -59,6 +59,7 @@ from vultron.measure.baselines.desiderata import (
     baseline,
     case_state_query,
     implications,
+    ordered_cs_events,
 )
 from vultron.measure.baselines.joint import (
     ONE_VENDOR_MODEL,
@@ -144,6 +145,7 @@ __all__ = [
     "implies",
     "reachable_ends",
     "implications",
+    "ordered_cs_events",
     "ordering",
     "outcome_change",
     "prefix_probability",

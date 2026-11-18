@@ -81,6 +81,7 @@ DESIDERATUM_BADGES: Mapping[DesideratumStatus, str] = {
     DesideratumStatus.MET: "✅ met",
     DesideratumStatus.BROKEN: "❌ broken",
     DesideratumStatus.OPEN: "⏳ open",
+    DesideratumStatus.UNKNOWN: "❔ unknown",
 }
 
 #: A report-management state as an icon and a word.
@@ -144,10 +145,13 @@ def public_badges(pxa: PxaName) -> tuple[str, str, str]:
 
 
 def _tally(desiderata: Sequence[DesideratumStanding]) -> str:
+    """Each status's count; unknown only when a desideratum is unknown, so a
+    source that observes every event shows no empty unknown count."""
     counts = Counter(d.status for d in desiderata)
     return "  ".join(
         f"{DESIDERATUM_BADGES[status].split()[0]} {counts[status]}"
         for status in DesideratumStatus
+        if counts[status] or status is not DesideratumStatus.UNKNOWN
     )
 
 
@@ -519,9 +523,20 @@ def inference_rows(reading: CaseReading) -> list[Row]:
 
 
 def unobservable_rows(reading: CaseReading) -> list[Row]:
-    """One row per fact the source never records (CRD-02-005)."""
+    """One row per fact the source never records, with the case-state
+    events it makes the page read as unknown (CRD-02-005)."""
     return [
-        {"Fact": fact.fact, "Why": fact.why} for fact in reading.unobservable
+        {
+            "Fact": fact.fact,
+            "Why": fact.why,
+            "Reads as unknown": ", ".join(
+                EVENT_LABELS[event]
+                for event in CSEvent
+                if event in fact.events
+            )
+            or "—",
+        }
+        for fact in reading.unobservable
     ]
 
 

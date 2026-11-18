@@ -47,6 +47,7 @@ from vultron.core.behaviors.sync.nodes.replay_held import INBOX_REPLAY_KEY
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +59,16 @@ def _resolve_actor_config() -> ActorConfig | None:
     ``VULTRON_ACTOR__*`` env vars (CFG-07-005).  Returns ``None`` on any
     load error so callers fall through to the always-create default
     (CM-15-001).
+
+    Raises:
+        VultronWiringError: the read lost its app's config scope while an app
+            holding its own config runs.  That is a wiring fault, not a load
+            error, so it is never answered with the default (ADR-0206).
     """
     try:
         return load_actor_config()
+    except VultronWiringError:
+        raise
     except Exception:
         logger.debug(
             "_resolve_actor_config: load_actor_config failed — "

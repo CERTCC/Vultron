@@ -148,7 +148,7 @@ _COLUMNS = {
     ],
     "Not translated": ["Source record", "Fact", "Why"],
     "Inferred": ["Entry", "Rule", "Caveat"],
-    "Not observable": ["Fact", "Why"],
+    "Not observable": ["Fact", "Why", "Reads as unknown"],
 }
 
 

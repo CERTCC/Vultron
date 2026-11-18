@@ -1243,3 +1243,21 @@ def test_a_queue_holding_no_activity_does_not_expire():
         case_id=case_id, queue_dl=queue_dl, timeout_seconds=60, at=now_utc()
     )
     assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is not None
+
+
+def test_resolve_actor_config_raises_when_the_app_scope_is_lost():
+    """A lost app config scope is a wiring fault, never the default (ADR-0206).
+
+    The load-error fallback to ``None`` (auto-create default) must not
+    swallow the ``VultronWiringError`` a scope-less read raises while an app
+    holding its own config runs.
+    """
+    import contextvars
+
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.config import AppConfig, holding_app_config
+    from vultron.errors import VultronWiringError
+
+    with holding_app_config(AppConfig()):
+        with pytest.raises(VultronWiringError):
+            contextvars.Context().run(pf._resolve_actor_config)
