@@ -76,8 +76,9 @@ class ActKeyScope(py_trees.decorators.Decorator):
             by name whether or not a node in it is seeded.
 
     Raises:
-        ValueError: *seeds* is empty; a scope that seeds nothing is a
-            composition fault, and :func:`with_act_keys` never builds one.
+        ValueError: *seeds* is empty, or a value is ``None`` or ``""``; a
+            scope that seeds nothing is a composition fault, and
+            :func:`with_act_keys` never builds one.
         TypeError: A key is not a key of the vocabulary (BTND-03-022).
 
     """
@@ -92,6 +93,14 @@ class ActKeyScope(py_trees.decorators.Decorator):
         if not seeds:
             raise ValueError(f"{where}: an ActKeyScope must seed a key")
         checked = {require_act_key(key, where): v for key, v in seeds.items()}
+        empty = sorted(
+            k.path for k, v in checked.items() if v is None or v == ""
+        )
+        if empty:
+            raise ValueError(
+                f"{where}: {', '.join(empty)} would be seeded with no value;"
+                " with_act_keys leaves such a key unseeded (CS-08-002)"
+            )
         super().__init__(name=where, child=child)
         self._seeds: Mapping[ActKey, object] = MappingProxyType(checked)
 

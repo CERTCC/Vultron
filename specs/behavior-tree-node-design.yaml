@@ -110,10 +110,10 @@ groups:
       unchanged, and a reader can state its logic as "given these inputs, do this"
       (ADR-0207).
     verification: >-
-      `test/architecture/test_per_act_parameter_ratchet.py` reads every class
-      constructor under `vultron/core/behaviors/` and fails on a parameter that
-      names a per-act value and is not in its list of known sites, each tagged
-      with the Task that removes it. The list only shrinks and ends empty.
+      `test/architecture/test_per_act_parameter_ratchet.py` reads the `__init__`
+      of every top-level class under `vultron/core/behaviors/` and fails on a
+      parameter that names a per-act value and is not in its list of known
+      sites, each tagged with the Task that removes it. The list only shrinks and ends empty.
     relationships:
     - rel_type: extends
       spec_id: BTND-01-006

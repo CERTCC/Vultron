@@ -50,23 +50,31 @@ from vultron.core.behaviors.act_keys import ACT_KEYS
 
 _BEHAVIORS = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 
-#: A parameter name ending in one of these names an id, a list of ids, a URI
-#: or a carried object (``case_id``, ``report_ids``, ``owner_uri``,
-#: ``case_obj``).
-_PER_ACT_SUFFIX = re.compile(r"_(?:id|ids|uri|obj)$")
+#: A parameter name ending in one of these names an id, a list of ids, a URI,
+#: a carried object or its content (``case_id``, ``report_ids``,
+#: ``owner_uri``, ``case_obj``, ``note_content``).
+_PER_ACT_SUFFIX = re.compile(r"_(?:id|ids|uri|obj|content)$")
 
 #: Further names that carry a per-act value: the act itself, a carried
-#: object or record, or a time the act names.
+#: object, record or field of one, or a time the act names.  A bare domain
+#: name (``case``, ``participant``, ``status``) is not listed: it is most
+#: often a record a node read at tick time and hands to a helper, which no
+#: tree builds in.
 _PER_ACT_NAMES: frozenset[str] = frozenset(
     {
         "activity",
         "attributed_to",
+        "case_name",
         "content",
         "embargo",
+        "embargo_data",
         "end_time",
         "entry",
         "in_reply_to",
-        "offer_content",
+        "inline_report",
+        "note",
+        "note_name",
+        "object_data",
         "proposal_dict",
         "refused_entry",
         "request",
@@ -208,6 +216,9 @@ _EXAMPLE = """
 def factory(case_id, name, *args, report_ids=(), **kwargs):
     pass
 
+async def positional_only(owner_uri, /, child, *, note_content):
+    pass
+
 class Node:
     def __init__(self, invitee_id, child, case_obj, request):
         pass
@@ -226,6 +237,8 @@ def test_the_reading_covers_every_parameter_kind() -> None:
     assert per_act_sites_in(module, "p.py") == {
         "p.py::factory::case_id",
         "p.py::factory::report_ids",
+        "p.py::positional_only::owner_uri",
+        "p.py::positional_only::note_content",
         "p.py::Node::invitee_id",
         "p.py::Node::case_obj",
         "p.py::Node::request",

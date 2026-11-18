@@ -256,6 +256,12 @@ def test_a_key_outside_the_vocabulary_is_refused() -> None:
         ActKeyScope(_Fixed("Node"), {impostor: "https://example.org/r/1"})
 
 
+@pytest.mark.parametrize("missing", [None, ""])
+def test_a_scope_built_with_no_value_is_refused(missing: str | None) -> None:
+    with pytest.raises(ValueError, match="no value"):
+        ActKeyScope(_Fixed("Node"), {CASE_ID: _CASE, INVITEE_ID: missing})
+
+
 def test_an_empty_scope_is_refused() -> None:
     with pytest.raises(ValueError, match="must seed a key"):
         ActKeyScope(_Fixed("Node"), {})
