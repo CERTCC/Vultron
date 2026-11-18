@@ -40,7 +40,7 @@ def closed_sender_guard(
     itself (HP-01-007).  It is not a kind: :func:`closed_sender_door` wraps
     it as the door guard the receive-tree factory places, giving it the
     tree's name (*refusal_label*) for an act that would not close the sender,
-    so the guard declares the refusal of any act of a closed sender
+    so the guard declares the refusal of that act from a closed sender
     (``REFUSED``); a repeated closing act's door declares none, and the
     handler reads it ``SKIPPED``.  The ``CASE_OWNER`` kind's guard composes
     it too, with no label, so a closed owner is refused for that guard's

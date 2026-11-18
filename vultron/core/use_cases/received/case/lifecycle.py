@@ -194,12 +194,12 @@ def _read_close() -> OutcomeReader:
 
     A sender already closed repeats a closing act: its effect is in place,
     so it is ``SKIPPED`` whatever its activity id, with nothing committed or
-    sent (CM-23-018, ID-05-003).  Every other run is the runner's to read: a sender guard
-    refusal (HP-01-006) and a refused close, such as the CM-23-011 refusal
-    of the Case Owner's close while its embargo is in force, are refused for
-    the failing node's reason (BT-13-001), whether or not the refusal notice
-    that answers it could be sent, since the refusal effects never fail the
-    run.
+    sent (CM-23-018, ID-05-003).  Every other run is the runner's to read:
+    a sender guard refusal (HP-01-006) and a refused close, such as the
+    CM-23-011 refusal of the Case Owner's close while its embargo is in
+    force, are refused for the failing node's reason (BT-13-001), whether
+    or not the refusal notice that answers it could be sent, since the
+    refusal effects never fail the run.
     """
 
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:

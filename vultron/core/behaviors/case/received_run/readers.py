@@ -15,7 +15,8 @@
 
 """Handler-specific readings of a finished received tree run (ADR-0195).
 
-Each builds an :data:`~vultron.core.behaviors.case.received_run.reading.OutcomeReader`
+Each is, or builds, an
+:data:`~vultron.core.behaviors.case.received_run.reading.OutcomeReader`
 that a handler passes to the runner.  A reader receives only the finished
 run, so it can read only what the tree's nodes recorded; the generic
 readings it stands in front of are in
