@@ -49,6 +49,7 @@ from test.support.sender_guard import (
 )
 from test.support.signatures import signature_of
 from vultron.core.behaviors import sender_entitlement
+from vultron.core.behaviors.act_key_scope import ActKeyScope
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.leave_case_trigger_tree import (
     create_leave_case_trigger_tree,
@@ -65,7 +66,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case_id_scope import (
-    CaseIdScope,
+    seeded_case_id,
     unscoped,
     with_case_id,
 )
@@ -298,7 +299,8 @@ def test_same_kinds_on_both_case_sides_compose_without_a_side_check() -> None:
         SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
     )
     role = _owner_role_check(guard)
-    assert isinstance(role, CaseIdScope) and role.case_id == CASE_ID
+    assert isinstance(role, ActKeyScope)
+    assert seeded_case_id(unscoped(role)) == CASE_ID
     assert isinstance(unscoped(role), SenderIsCaseOwnerNode)
 
 

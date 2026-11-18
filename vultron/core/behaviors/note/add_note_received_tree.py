@@ -84,7 +84,7 @@ def create_add_note_to_case_received_tree(
         │   └── CarriedObjectInTargetCaseNode(note)    # guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)  # commit
         │   ├── SkipIfNotCaseManager
-        │   └── CaseIdScope(case_id) → CommitCaseLedgerEntryNode
+        │   └── ActKeyScope(case_id) → CommitCaseLedgerEntryNode
         └── GuardedAttachNoteBT (Selector)             # effect
             ├── SkipIfNotCaseManager
             └── Sequence

@@ -34,8 +34,9 @@ Selector(
 ```
 
 Both nodes read `case_id` only from their `/case_id` port, which
-`with_case_id` (`vultron/core/behaviors/case_id_scope.py`) seeds for the
-node's own tick (BTND-01-006).
+`with_case_id` (`vultron/core/behaviors/case_id_scope.py`, the interim key
+seeder of `act_key_scope.py` called for `/case_id`) seeds for the node's own
+tick (BTND-01-006).
 
 `CheckIsCaseManagerNode` resolves the case's `CVDRole.CASE_MANAGER`
 participant and compares it against the *actor active for this invocation* —
