@@ -87,6 +87,31 @@ PATH_ANSWER_READS: frozenset[_Finding] = frozenset(
 )
 
 
+#: The handling-node reads of a door-written key that predate this check,
+#: each owned by the open issue that removes it.  Shrink-only: the test
+#: fails on a new finding and on a listed one that is gone, so delete an
+#: entry when its finding goes.
+# owner: #6476
+KNOWN_DOOR_KEY_READS: frozenset[tuple[tuple[str, str], _Finding]] = frozenset(
+    {
+        # The Invalidate tree's RM write reads the /case_id its
+        # RequireCaseForReport door published; #6476 moves the lookup into
+        # the tree.
+        (
+            (
+                "vultron/core/behaviors/report/received_report_trees/verdicts.py",
+                "create_invalidate_report_received_tree",
+            ),
+            (
+                "CreateParticipantStatusNode",
+                "/case_id",
+                "RequireCaseForReport",
+            ),
+        ),
+    }
+)
+
+
 def _nodes_in(value: object, depth: int = 0) -> Iterator[object]:
     """Every BT node *value* holds, reached through collections or closures."""
     if isinstance(value, py_trees.behaviour.Behaviour):
@@ -162,9 +187,17 @@ def reference_findings(tree: ReceivedActivityTree) -> set[_Finding]:
 
 
 def _keys(node: py_trees.behaviour.Behaviour, *, written: bool) -> set[str]:
+    """The blackboard paths *node* reads or writes, after port remapping.
+
+    A port is registered under its own name and remapped to the path it
+    reads or writes, so the path is the remapped one: a port named
+    ``case_id`` remapped to ``/ledger_position/case_id`` writes no
+    ``/case_id``.
+    """
     keys: set[str] = set()
     for client in getattr(node, "blackboards", []):
-        keys |= (client.write | client.exclusive) if written else client.read
+        names = (client.write | client.exclusive) if written else client.read
+        keys |= {client.remappings.get(name, name) for name in names}
     return keys
 
 
@@ -251,7 +284,12 @@ def test_no_handling_node_reads_a_key_a_door_wrote(set_up_trees) -> None:
         for tree in _received_trees(root)
         for finding in key_findings(tree)
     }
-    assert found == set(), sorted(found)
+    assert found == KNOWN_DOOR_KEY_READS, (
+        "a handling-tree node reads a key a door wrote; read the record or"
+        " the store instead (ADR-0154): new"
+        f" {sorted(found - KNOWN_DOOR_KEY_READS)}; listed but no longer"
+        f" found (delete the entry): {sorted(KNOWN_DOOR_KEY_READS - found)}"
+    )
 
 
 class _Leaf(py_trees.behaviour.Behaviour):
