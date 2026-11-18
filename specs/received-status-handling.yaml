@@ -71,7 +71,7 @@ groups:
       confirm that an adopted status records the post-adoption `CaseStatus`, and that a
       refused adoption leaves the case's PXA state unchanged.
     adr:
-    - ADR-0046
+    - ADR-0210
     - ADR-0108
     stories:
     - story_2026_041
@@ -98,7 +98,7 @@ groups:
       adopted report adds each P, X or A it newly sets, and that a report omitting a
       latch the case sets keeps it.
     adr:
-    - ADR-0046
+    - ADR-0210
     - ADR-0108
     stories:
     - story_2026_041
@@ -125,9 +125,8 @@ groups:
       (`TestAdoptedThreatTeardown`) confirms the adopted status is committed
       before the teardown.
     adr:
-    - ADR-0046
+    - ADR-0210
     - ADR-0108
-    - ADR-0166
     relationships:
     - rel_type: uses_definition
       spec_id: RSH-01-003
@@ -284,7 +283,7 @@ groups:
       canonical case state (ADR-0046, CLP-09). Allowing participants to emit
       Add(CaseStatus) directly would bypass the adoption authorization model.
     adr:
-    - ADR-0046
+    - ADR-0210
     - ADR-0108
     verification: >-
       Inspection of `vultron/core/behaviors/status/` confirms only the CASE_MANAGER
@@ -313,7 +312,7 @@ groups:
       participant reporting public awareness queues exactly one activity, whose
       object is a `ParticipantStatus`.
     adr:
-    - ADR-0046
+    - ADR-0210
     - ADR-0108
     stories:
     - story_2026_059
@@ -339,7 +338,7 @@ groups:
     verification: '`test/architecture/test_vfd_rm_pxa_write_sites.py` confirms every BT node that mutates EM state is
       immediately followed by a `CaseStatus` ledger write, with no uncovered write sites allowed.'
     adr:
-    - ADR-0046
+    - ADR-0210
     stories:
     - story_2026_041
     see_also:
@@ -363,7 +362,7 @@ groups:
       `test/core/behaviors/status/test_add_participant_status_bt.py::TestAdoptedPxaReachesTheCaseStatus::test_an_owners_public_awareness_is_adopted`
       confirms an adopted P change commits one `CaseStatus` ledger entry carrying it.
     adr:
-    - ADR-0046
+    - ADR-0210
     stories:
     - story_2026_041
     - story_2022_081
@@ -380,7 +379,7 @@ groups:
       announced entry, so the record is a committed entry that the CASE_MANAGER
       announces.
     adr:
-    - ADR-0046
+    - ADR-0210
     - ADR-0108
     verification: >-
       `test/core/behaviors/status/nodes/test_case_status.py` shows an EM change after a
@@ -411,7 +410,7 @@ groups:
       confirms the tree writes the status through `EmitCaseStatusUpdateNode` and holds no
       node that sends the CASE_MANAGER its own `Add(CaseStatus)`.
     adr:
-    - ADR-0046
+    - ADR-0210
     - ADR-0108
     stories:
     - story_2026_059
@@ -533,7 +532,7 @@ groups:
     - rel_type: refines
       spec_id: HP-01-006
     adr:
-    - ADR-0046
+    - ADR-0210
     - ADR-0108
     - ADR-0115
     stories:
@@ -845,7 +844,7 @@ groups:
     adr:
     - ADR-0076
     - ADR-0080
-    - ADR-0166
+    - ADR-0210
     stories:
     - story_2022_081
   - id: RSH-07-006
@@ -864,7 +863,7 @@ groups:
       canonical `CaseStatus` with no authorization recorded
       (`TestAdoptedPxaReachesTheCaseStatus::test_an_owners_public_awareness_is_adopted`).
     adr:
-    - ADR-0046
+    - ADR-0210
     - ADR-0076
     stories:
     - story_2022_081
@@ -931,7 +930,7 @@ groups:
       `CallOutBackendFactory`-conformant backend is also valid (ADR-0076). The
       delegation covers the teardown, which adoption authorizes (ADR-0166).
     adr:
-    - ADR-0046
+    - ADR-0210
     - ADR-0076
   - id: RSH-07-007
     priority: MUST

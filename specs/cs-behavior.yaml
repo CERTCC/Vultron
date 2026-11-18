@@ -450,7 +450,7 @@ groups:
       with EM Active or Revise ends the embargo in the same act.
     testable: true
     adr:
-    - ADR-0166
+    - ADR-0210
     relationships:
     - rel_type: refines
       spec_id: CSB-12-001
@@ -749,7 +749,7 @@ groups:
       with EM Active or Revise ends the embargo in the same act.
     testable: true
     adr:
-    - ADR-0166
+    - ADR-0210
     relationships:
     - rel_type: refines
       spec_id: CSB-13-002
@@ -1083,7 +1083,7 @@ groups:
       with EM Active or Revise ends the embargo in the same act.
     testable: true
     adr:
-    - ADR-0166
+    - ADR-0210
     relationships:
     - rel_type: refines
       spec_id: CSB-14-001
@@ -1440,7 +1440,7 @@ groups:
       transition before the teardown.
     adr:
     - ADR-0118
-    - ADR-0166
+    - ADR-0210
     verification: >-
       Unit tests marked CSB-12-001 in
       `test/core/behaviors/status/test_add_participant_status_bt.py`
@@ -1491,7 +1491,7 @@ groups:
       ADR-0166). Participants message only the CASE_MANAGER (PCR-08-001).
     adr:
     - ADR-0118
-    - ADR-0166
+    - ADR-0210
     verification: >-
       Tests marked CSB-12-005 in
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
@@ -1701,7 +1701,7 @@ groups:
       transition before the teardown.
     adr:
     - ADR-0118
-    - ADR-0166
+    - ADR-0210
     verification: >-
       Unit tests marked CSB-13-002 in
       `test/core/behaviors/status/test_add_participant_status_bt.py`
@@ -1753,7 +1753,7 @@ groups:
       Participants message only the CASE_MANAGER (PCR-08-001).
     adr:
     - ADR-0118
-    - ADR-0166
+    - ADR-0210
     verification: >-
       Tests marked CSB-13-005 in
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
@@ -1858,7 +1858,7 @@ groups:
       A non-manager Participant reports A instead (CSB-14-006).
     adr:
     - ADR-0118
-    - ADR-0166
+    - ADR-0210
     verification: >-
       Unit tests marked CSB-14-001 in
       `test/core/behaviors/status/test_add_participant_status_bt.py`
@@ -1910,7 +1910,7 @@ groups:
       (VP-11-006).
     adr:
     - ADR-0118
-    - ADR-0166
+    - ADR-0210
     verification: >-
       Tests marked CSB-14-006 in
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
@@ -3049,7 +3049,7 @@ groups:
       Call violation_pxa_em_entailment(pxa, em) for each participant; assert
       None is returned for all valid combined states.
     adr:
-    - ADR-0166
+    - ADR-0210
     stories:
     - story_2026_033
   - id: CSB-18-003
@@ -3074,7 +3074,7 @@ groups:
       Call violation_pxa_em_entailment(pxa, em) for each participant; assert
       None is returned for all valid combined states.
     adr:
-    - ADR-0166
+    - ADR-0210
     relationships:
     - rel_type: derives_from
       spec_id: CSB-18-002
@@ -3101,7 +3101,7 @@ groups:
       Call violation_pxa_em_entailment(pxa, em) for each participant; assert
       None is returned for all valid combined states.
     adr:
-    - ADR-0166
+    - ADR-0210
     relationships:
     - rel_type: extends
       spec_id: CSB-18-002

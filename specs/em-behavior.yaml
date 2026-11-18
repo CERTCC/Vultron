@@ -1035,7 +1035,7 @@ groups:
       Restated to match the received EC tree, which refuses the activation in
       `OwnerMayActivateEmbargoNode` (maintainer decision, #5325).
     adr:
-    - ADR-0166
+    - ADR-0210
     verification: >-
       `test/core/use_cases/received/test_embargo_owner_decision.py::test_an_accepted_revision_with_pxa_set_is_refused_without_et`
       confirms that, with P, X or A set, the CASE_MANAGER refuses the Case
