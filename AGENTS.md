@@ -200,7 +200,7 @@ entry vs. both.
    whole suite: the first push (PAD-18-001/008), a fix commit (PAD-18-002/003),
    a conflict merge (PAD-18-012/015). Read `exit:`. An overlap runs no local test
    (PAD-18-024). Every push runs `prepush-ci-mirror` last (PAD-18-021/023,
-   ADR-0173). An implementation PR opens as a draft; `pr-ship` marks it ready
+   ADR-0209). An implementation PR opens as a draft; `pr-ship` marks it ready
    once CI's run on its head passes (PAD-18-028/029).
 3. `build-docs` if `docs/` modified; `check-docs-sync` runs regardless (PD-03-008)
 4. `commit` skill — include Co-authored-by trailer

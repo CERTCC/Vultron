@@ -10,7 +10,7 @@ Detailed criteria consumed during execution. Referenced from SKILL.md.
 informational for execute. The local gate's scope comes from `targeted-tests`
 (SKILL.md Phase 5 Step 3), which gates these integration-bearing paths by
 their importers, integration-marked ones included, and never escalates on
-them (PAD-18-012, ADR-0143):
+them (PAD-18-012, ADR-0209):
 
 - `vultron/demo/` — any demo script or orchestration file
 - `integration_tests/` — any integration test file
@@ -197,9 +197,9 @@ reports `BEHIND` is updated on GitHub with `gh pr update-branch`, a clean
 merge no agent has to test. Otherwise the branch is left behind its base, even
 when the base changed files the PR also changes: CI already tests the PR
 merged into its base on every push, no repository rule requires up-to-date
-branches (ADR-0126), and the merger refreshes an overlapping PR on GitHub
+branches (ADR-0209), and the merger refreshes an overlapping PR on GitHub
 right before merging it, so CI tests it against the base it lands on
-(PAD-18-009, ADR-0138).
+(PAD-18-009, ADR-0209).
 
 The check runs after all fixes, before the local gate. Three reasons:
 
@@ -212,7 +212,7 @@ The check runs after all fixes, before the local gate. Three reasons:
    it, and its importers and mirror tests run. The rest of the merge changed no
    line the PR wrote; CI on the push runs both suites against the merged
    tree. A semantic conflict between files neither side shares is not caught
-   here either; CI on `main` catches it after merge (ADR-0126, ADR-0138).
+   here either; CI on `main` catches it after merge (ADR-0209).
 
 ### Merge, do not rewrite
 

@@ -2634,8 +2634,7 @@ groups:
     specs:
       - id: PAD-18-001
         adr:
-        - ADR-0126
-        - ADR-0179
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2658,7 +2657,7 @@ groups:
           spec_id: PAD-18-002
       - id: PAD-18-010
         adr:
-        - ADR-0126
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2677,8 +2676,7 @@ groups:
           type.
       - id: PAD-18-002
         adr:
-        - ADR-0126
-        - ADR-0143
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2708,8 +2706,7 @@ groups:
             never binds one, so PAD-18-015 supersedes nothing it requires
       - id: PAD-18-011
         adr:
-        - ADR-0126
-        - ADR-0143
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2733,9 +2730,7 @@ groups:
           spec_id: PAD-18-002
       - id: PAD-18-003
         adr:
-        - ADR-0126
-        - ADR-0143
-        - ADR-0179
+        - ADR-0209
         priority: MUST_NOT
         kind: process
         statement: >-
@@ -2762,9 +2757,7 @@ groups:
           spec_id: PAD-18-002
       - id: PAD-18-012
         adr:
-        - ADR-0126
-        - ADR-0143
-        - ADR-0179
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2795,8 +2788,7 @@ groups:
           spec_id: PAD-18-002
       - id: PAD-18-013
         adr:
-        - ADR-0126
-        - ADR-0143
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2813,9 +2805,7 @@ groups:
           spec_id: PAD-18-002
       - id: PAD-18-004
         adr:
-        - ADR-0126
-        - ADR-0138
-        - ADR-0143
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2846,9 +2836,7 @@ groups:
             all (on conflict only).
       - id: PAD-18-014
         adr:
-        - ADR-0126
-        - ADR-0138
-        - ADR-0143
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2867,10 +2855,7 @@ groups:
           spec_id: PAD-18-004
       - id: PAD-18-015
         adr:
-        - ADR-0126
-        - ADR-0138
-        - ADR-0143
-        - ADR-0179
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2892,7 +2877,7 @@ groups:
           spec_id: PAD-18-004
       - id: PAD-18-005
         adr:
-        - ADR-0126
+        - ADR-0209
         priority: MUST_NOT
         kind: process
         statement: >-
@@ -2921,7 +2906,7 @@ groups:
           spec_id: PAD-18-004
       - id: PAD-18-006
         adr:
-        - ADR-0126
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2937,8 +2922,7 @@ groups:
           `.agents/skills/pr-execute/REFERENCE.md` specifies the line.
       - id: PAD-18-016
         adr:
-        - ADR-0126
-        - ADR-0179
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -2966,7 +2950,7 @@ groups:
           spec_id: PAD-18-001
       - id: PAD-18-007
         adr:
-        - ADR-0126
+        - ADR-0209
         priority: SHOULD
         kind: process
         statement: >-
@@ -2986,8 +2970,7 @@ groups:
           spec_id: PAD-18-006
       - id: PAD-18-008
         adr:
-        - ADR-0126
-        - ADR-0179
+        - ADR-0209
         priority: MUST_NOT
         kind: process
         statement: >-
@@ -3017,7 +3000,7 @@ groups:
           spec_id: PAD-18-001
       - id: PAD-18-017
         adr:
-        - ADR-0126
+        - ADR-0209
         priority: MUST_NOT
         kind: process
         statement: >-
@@ -3035,7 +3018,7 @@ groups:
           spec_id: PAD-18-008
       - id: PAD-18-009
         adr:
-        - ADR-0138
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -3050,7 +3033,7 @@ groups:
           Request about to merge. None of them runs a test.
       - id: PAD-18-018
         adr:
-        - ADR-0138
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -3067,7 +3050,7 @@ groups:
           spec_id: PAD-18-009
       - id: PAD-18-019
         adr:
-        - ADR-0138
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -3090,7 +3073,7 @@ groups:
           spec_id: PAD-18-009
       - id: PAD-18-020
         adr:
-        - ADR-0138
+        - ADR-0209
         priority: MUST_NOT
         kind: process
         statement: >-
@@ -3108,7 +3091,7 @@ groups:
           spec_id: PAD-18-009
       - id: PAD-18-021
         adr:
-        - ADR-0173
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -3134,7 +3117,7 @@ groups:
           spec_id: PAD-18-002
       - id: PAD-18-022
         adr:
-        - ADR-0173
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -3155,8 +3138,7 @@ groups:
           spec_id: PAD-18-021
       - id: PAD-18-023
         adr:
-        - ADR-0173
-        - ADR-0179
+        - ADR-0209
         priority: MUST_NOT
         kind: process
         statement: >-
@@ -3180,8 +3162,7 @@ groups:
           spec_id: PAD-18-021
       - id: PAD-18-024
         adr:
-        - ADR-0173
-        - ADR-0179
+        - ADR-0209
         priority: MUST_NOT
         kind: process
         statement: >-
@@ -3201,8 +3182,7 @@ groups:
           each block that builds a checkout.
       - id: PAD-18-025
         adr:
-        - ADR-0173
-        - ADR-0179
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -3226,7 +3206,7 @@ groups:
           spec_id: PAD-18-004
       - id: PAD-18-026
         adr:
-        - ADR-0179
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -3241,7 +3221,7 @@ groups:
           and `mypy`.
       - id: PAD-18-027
         adr:
-        - ADR-0179
+        - ADR-0209
         priority: MUST_NOT
         kind: process
         statement: >-
@@ -3258,7 +3238,7 @@ groups:
           spec_id: PAD-18-026
       - id: PAD-18-028
         adr:
-        - ADR-0179
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -3280,7 +3260,7 @@ groups:
           spec_id: PAD-18-008
       - id: PAD-18-029
         adr:
-        - ADR-0179
+        - ADR-0209
         priority: MUST
         kind: process
         statement: >-
@@ -3307,7 +3287,7 @@ groups:
           spec_id: PAD-18-028
       - id: PAD-18-030
         adr:
-        - ADR-0179
+        - ADR-0209
         priority: MUST_NOT
         kind: process
         statement: >-
@@ -3330,7 +3310,7 @@ groups:
           spec_id: PAD-18-028
       - id: PAD-18-031
         adr:
-        - ADR-0179
+        - ADR-0209
         priority: MUST_NOT
         kind: process
         statement: >-

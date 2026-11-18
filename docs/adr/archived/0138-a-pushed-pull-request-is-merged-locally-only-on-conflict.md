@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-10-15
 created: 2026-10-15
 updated: 2026-10-15
@@ -15,7 +15,12 @@ partially_supersedes:
 partially_superseded_by:
   - 0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
   - 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
+superseded_by: 0209-a-local-gate-runs-only-what-answers-before-the-required-ci-gate-and-the-base-is-merged-locally-only-on-conflict.md
 ---
+
+> **Superseded by [ADR-0209](../0209-a-local-gate-runs-only-what-answers-before-the-required-ci-gate-and-the-base-is-merged-locally-only-on-conflict.md).**
+> ADR-0209 states the local gates, the CI-only checks and the rule for merging the base as one decision, consolidating ADR-0126, ADR-0138, ADR-0143, ADR-0173 and ADR-0179.
+> This record is kept as it stood when it was superseded.
 
 # A Pushed Pull Request Is Merged Locally Only on Conflict
 
