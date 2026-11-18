@@ -287,3 +287,321 @@ groups:
       reading, shows the error, and then marks the reading as no longer live. A
       second run whose connection drops without a close event asserts the page
       keeps the last accepted reading and marks it as no longer live.
+- id: SHD-05
+  title: Action Rules
+  specs:
+  - id: SHD-05-001
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      An action rule MUST read one vendor's position. The position is the vendor's
+      RM, CS and PEC states and the case's EM state.
+    rationale: >-
+      Move advice scores each move for one vendor's scope, read from that
+      vendor's own projection (SHD-03-001). A rule that reads the same position
+      can be checked against that advice. A rule over CS alone cannot say that a
+      move suits an RM or EM state. The PEC states are the vendor's consent to
+      the embargo in force and to an open proposal.
+    verification: >-
+      A test builds a rule for each of the four parts and asserts that each one
+      matches a position that holds the named state and no position that does
+      not.
+  - id: SHD-05-002
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      An action rule for a role other than the vendor MUST match once for each
+      vendor whose position matches it, and name that vendor.
+    rationale: >-
+      A rule is advice and fires nothing, so it does not need a threshold over
+      the vendors. Naming the vendor tells the analyst which vendor the advice is
+      about, and the trigger that acts on it still aggregates over the
+      participants.
+    verification: >-
+      A test gives a coordinator rule a case with two vendors, of which one
+      matches, and asserts one match that names the matching vendor.
+  - id: SHD-05-003
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The case shadow tool MUST treat a rule as undecided where it constrains a
+      part of the position that the case reading does not hold.
+    rationale: >-
+      A reading that records no state for a part, such as no embargo consent,
+      says nothing about it. A rule shown as matched or unmatched there would
+      read an unknown as false, which CRD-02-005 rules out for the facts a case
+      reader declares unobservable.
+    verification: >-
+      A test gives a rule with a PEC part a reading that holds no consent state,
+      and asserts the rule is undecided, neither matched nor unmatched.
+  - id: SHD-05-004
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      Each action rule MUST name its acting CVD role, one action, and at least
+      one desideratum that the action serves. Each desideratum comes from the
+      move-advice desiderata list.
+    rationale: >-
+      A reason that names desiderata tells the analyst what the rule is for, and
+      lets the comparison check the rule against the advice. A tag such as
+      "Exit criteria met" names no desideratum.
+    verification: >-
+      A test constructs a rule with no role, with no action, and with no
+      desideratum, and asserts each is refused; a second test asserts that every
+      desideratum each authored rule names is in the move-advice desiderata list.
+  - id: SHD-05-005
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      An action rule whose action is a move MUST name the move as move advice
+      names it, by its state machine and its trigger.
+    rationale: >-
+      The comparison joins a rule and the advice for the same move on one name.
+      A second name for a move would leave the two unjoined, and the rule would
+      read as unscored.
+    verification: >-
+      A test asserts that the move name of each authored rule whose action is a
+      move is the name of a move that move advice can list.
+  - id: SHD-05-006
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The authored action-rule table MUST hold exactly one CS-only rule for each
+      pattern and action pair of `CS_ACTION_RULES`.
+    rationale: >-
+      The CS action rules are held equal to the legacy test oracle over the 32
+      valid compound states (CSB-17-001). An authored table that drops or adds
+      a CS pair would give advice that the oracle no longer checks.
+    verification: >-
+      A test compares the set of pattern and action pairs of the authored
+      table's CS-only rules with the set that `CS_ACTION_RULES` holds, and
+      asserts they are equal.
+  - id: SHD-05-007
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      Each generated action rule MUST take its verdict from move advice as the
+      move's band for one vendor. That band is harm-free when the vendor's
+      deciding part is positive, and unhelpful otherwise.
+    rationale: >-
+      The generated rules are the evidence that an authored rule is checked
+      against. A second scorer could drift from the advice. The deciding part is
+      the vendor's end part, or its embargo part when the end part is zero, as
+      the bands use, and the band combines no vendors' scores (SHD-03-002).
+    verification: >-
+      A test asserts that the generated verdict at each valid position of one
+      vendor equals the band that move advice gives the move in a case where
+      that vendor is the only scope.
+  - id: SHD-05-008
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      This codebase MUST provide one command that rebuilds the generated action
+      rules and their docs page.
+    rationale: >-
+      A person who edits the rules by hand could hide a blind spot of the
+      chance model. One command makes the generated rules follow the advice.
+    verification: >-
+      A test runs the command into a temporary directory and asserts it writes
+      the generated rules and the docs page.
+  - id: SHD-05-009
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      A check MUST fail when the committed generated action rules or their docs
+      page differ from what the command builds from the current move advice.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SHD-05-008
+    rationale: >-
+      A change to move advice that leaves the generated rules unchanged would
+      compare the authored rules with advice that no longer holds.
+    verification: >-
+      A currency test builds the generated rules and the page and asserts they
+      equal the committed files.
+  - id: SHD-05-010
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The comparison MUST give one of five results for each matching rule and
+      verdict at a position. The results are agreement, rule disagreement,
+      misplaced rule, unclaimed move and unscored rule.
+    rationale: >-
+      An agreement is an authored claim on a move that is harm-free for the
+      vendor, and a rule disagreement one on a move that is unhelpful for it. A
+      misplaced rule names a move the state machines do not allow there. An
+      unclaimed move is harm-free and named by no rule. An unscored rule names
+      an action with no band. Each result tells the analyst something
+      different, so none may fold into another.
+    verification: >-
+      A test builds one position for each of the five results and asserts the
+      comparison gives that result there, and that an unhelpful move no rule
+      names gives no result.
+  - id: SHD-05-011
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The comparison MUST join an authored rule to move advice on the move name
+      and on the participant the move is for.
+    rationale: >-
+      A move name carries no participant. For an RM or CS move the participant
+      is the matched vendor whose state the move changes; for an EM move it is
+      the participant in the rule's role that move advice lists as able to make
+      it. Without the participant, a rule about one vendor could join the advice
+      for another.
+    verification: >-
+      A test gives a case with two vendors the same move for each, with
+      different bands, and asserts each rule joins the band of its own vendor.
+  - id: SHD-05-012
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      Each agreement and each rule disagreement MUST carry the deciding part of
+      the vendor's shift and the change in each desideratum the rule names.
+    rationale: >-
+      The verdict is a band from all of the vendor's desiderata. A rule that
+      names an end desideratum can agree with a move whose band comes from its
+      embargo part only, and these two values let the analyst see that.
+    verification: >-
+      A test asserts that an agreement carries the deciding part and one change
+      for each desideratum its rule names.
+  - id: SHD-05-013
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The comparison MUST NOT change an authored action rule or a generated
+      action rule.
+    rationale: >-
+      Neither the rules nor the chance model is ground truth. A rule
+      disagreement marks a wrong rule or a blind spot of the model, and only a
+      person can tell which, so a comparison that resolved it would hide one
+      of the two.
+    verification: >-
+      A test runs the comparison over a table with a known rule disagreement and
+      asserts both tables are unchanged afterwards.
+  - id: SHD-05-014
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      Each rule disagreement of an authored rule that cites a chance-model blind
+      spot MUST carry the issue that the rule cites.
+    rationale: >-
+      A person who judges a disagreement a blind spot of the model keeps it
+      shown, with the issue that tracks the blind spot, so the analyst sees
+      that it is known and why.
+    verification: >-
+      A test pins the embargo-extension disagreement of #6492: an authored rule
+      that serves `D ≺ P` by an extension, citing #6492, against the unhelpful
+      band move advice gives it, and asserts the disagreement carries #6492.
+- id: SHD-06
+  title: Action Rules on the Page
+  specs:
+  - id: SHD-06-001
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The case shadow tool MUST show the authored rules that match each vendor's
+      position beside the move bands. The position is the one at the point the
+      analyst looks at.
+    rationale: >-
+      The analyst reads a person's claim beside the model's evidence. A rule that
+      is not on the page cannot be checked against the bands it sits next to.
+    verification: >-
+      A dashboard test opens a case at a point where a known rule matches and
+      asserts the page shows that rule, for its vendor, beside the bands.
+  - id: SHD-06-002
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The case shadow tool MUST compare each rule it shows with the move's band
+      for the matched vendor, read from the case's own outcome shifts.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SHD-05-007
+    rationale: >-
+      A live case can have vendors that a move helps and vendors that it harms.
+      Comparing with the matched vendor's own band shows a trade-off move as an
+      agreement for one vendor and a rule disagreement for another.
+    verification: >-
+      A dashboard test opens a two-vendor case with a trade-off move that a rule
+      claims for both vendors, and asserts one agreement and one rule
+      disagreement.
+  - id: SHD-06-003
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The case shadow tool MUST flag each rule disagreement and each misplaced
+      rule it shows.
+    rationale: >-
+      A disagreement marks a wrong rule or a blind spot of the model, and a
+      misplaced rule marks an authoring error. Either one, left unflagged, reads
+      as advice that agrees with the bands.
+    verification: >-
+      A dashboard test opens a case at the #6492 extension position and asserts
+      the page flags the rule disagreement.
+  - id: SHD-06-004
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The measuring-CVD docs MUST hold a generated page that lists the generated
+      action rules and the comparison's result at every valid position of one
+      vendor.
+    rationale: >-
+      The page states move advice as rules that a person can review one by one,
+      and shows every disagreement in one place, not only the ones a live case
+      reaches. The command of SHD-05-008 builds it.
+    verification: >-
+      The currency test of SHD-05-009 asserts the committed page equals the one
+      the command builds, and `docs-links` checks it is in the built site.
+  - id: SHD-06-005
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The CVD action rules page `docs/topics/other_uses/action_rules.md` MUST
+      name, for each rule, the desiderata that the authored table names for it.
+    rationale: >-
+      The page is the source the authored rules were carried from. If it kept
+      its tags while the authored table named desiderata, the two tables would
+      disagree about why each rule exists.
+    verification: >-
+      A test reads `docs/topics/other_uses/action_rules.md` and asserts that the
+      desiderata in each rule's reason equal the ones the authored table names for
+      that rule.

@@ -171,9 +171,11 @@ PEC moves in move advice are #6677, consent as part of a participant's status is
 The CS action rules and their legacy oracle are [ADR-0060](0060-re-express-legacy-cs-invariants.md).
 The case shadow tool is [ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md), and the bands are [ADR-0200](0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md).
 
-The spec groups that will carry these rules are in `specs/case-shadow.yaml`, beside the move advice group SHD-03:
+The spec groups that carry these rules are in `specs/case-shadow.yaml`, beside the move advice group SHD-03:
 
 - **SHD-05 Action Rules**: the pattern, role, action and reason of a rule (rule 1 to rule 3), the authored table and the CS carry-over (rule 4), the generated rules and their rebuild and staleness check (rule 5), and the comparison and its five results (rule 6).
 - **SHD-06 Action Rules on the Page**: the case shadow tool's display of the matching authored rules beside the bands, with each rule disagreement flagged (rule 7), and the generated docs page (rule 8).
 
 CSB-17 keeps the CS validity rules that the CS part of a pattern reads. AR-07 and CM-07 do not change (rule 9).
+
+Generated spec requirements: `case-shadow.yaml` SHD-05-001 through SHD-05-014 and SHD-06-001 through SHD-06-005.
