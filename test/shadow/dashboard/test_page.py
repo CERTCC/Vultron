@@ -307,7 +307,12 @@ def test_the_bands_are_shown_in_order_with_the_unhelpful_one_collapsed(
     """AC-1: harm-free, trade-off, then the unhelpful band as a closed
     group the analyst can open."""
     at = advice_app
-    assert _texts(at.markdown)[:2] == ["**Harm-free**", "**Trade-off**"]
+    # Band titles appear in markdown, with legends between them
+    markdowns = _texts(at.markdown)
+    band_titles = [
+        m for m in markdowns if m.startswith("**") and m.endswith("**")
+    ]
+    assert band_titles[:2] == ["**Harm-free**", "**Trade-off**"]
     (unhelpful,) = at.expander
     assert unhelpful.label.startswith("Unhelpful (")
     assert unhelpful.proto.expanded is False
