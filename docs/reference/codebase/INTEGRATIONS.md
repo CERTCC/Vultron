@@ -58,7 +58,7 @@ stakeholder_type: [project-contributor]
 
 - **Logging around external calls**: `logging.getLogger(__name__)` is used throughout; delivery success logs at INFO, retries at WARNING and terminal failures at ERROR in `http_delivery.py`
 - **Metrics/tracing**: no dedicated metrics or distributed tracing framework observed (no Prometheus, OpenTelemetry, Datadog)
-- **Correlation ids**: `vultron/logging_correlation.py` defines the context, filter and formatter that put `activity_id` and `actor_id` on every record inside a processing boundary (SL-02-003), but no entry point installs it and no boundary enters it yet (#3992), so log lines still carry no correlation ids
+- **Correlation ids**: `vultron/logging_correlation.py` defines the context, filter and formatter that put `activity_id` and `actor_id` on every record inside a processing boundary (SL-02-003). The case shadow installs it and enters it per ledger entry (`vultron/shadow/log_content/`); the server, the demo and their boundaries do not yet (#3992), so their log lines still carry no correlation ids
 - **Missing visibility gaps**: no health-check metrics for outbound delivery failures beyond the dead-letter store
 
 ### 6) Evidence

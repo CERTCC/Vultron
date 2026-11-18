@@ -232,6 +232,7 @@ def test_the_launcher_turns_streamlit_usage_statistics_off():
         "--browser.gatherUsageStats": "false",
         "--browser.serverAddress": "127.0.0.1",
         "--logger.hideWelcomeMessage": "true",
+        "--logger.enableRich": "false",
         "--global.developmentMode": "false",
     }
 

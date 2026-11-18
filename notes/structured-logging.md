@@ -6,13 +6,15 @@ tags: [logging, observability, debugging]
 description: >
   Log-call shape (SL-01-005: literal template plus lazy positional args, never an
   f-string), how correlation fields reach a record (SL-02-003: boundary filter,
-  not per-call `extra=`), narrative log template (SL-04-006), infrastructure
+  not per-call `extra=`; a record factory for handlers an entry point does not
+  own), narrative log template (SL-04-006), infrastructure
   demotion list (SL-04-007), why only the received runner logs a refusal
   (SL-03-002) while nodes log facts at DEBUG (SL-03-003) without the `REFUSED`
   group (SL-03-004) while a fault keeps WARNING (`fail_with_fault`), why a role read that picks an arm is not a sender check,
   and where new narrative lines go so INFO logs read as a CVD protocol story.
 related_specs:
   - specs/structured-logging.yaml
+  - specs/vince-shadow-data.yaml
 related_notes:
   - notes/codebase-structure.md
   - notes/bt-integration.md
@@ -82,6 +84,14 @@ the plain-text formatter on the handlers it owns. Put the filter on handlers,
 not loggers: a logger's filters skip records propagated from its children.
 `test/architecture/test_no_correlation_ids_in_log_extra.py` fails on an `extra=`
 naming either field.
+
+**A rule that must hold for records a handler you do not own writes goes in
+the log record factory, not a filter.** Streamlit writes its own records
+through handlers it replaces when it reads its config, so a handler filter
+misses them. The case shadow wraps `logging.setLogRecordFactory`, which sees
+every record when it is made, and restores the previous factory on exit; a
+fault there writes a fixed placeholder, never raises into the log call
+(`vultron/shadow/log_content/records.py`, VSD-01-003).
 
 ---
 
