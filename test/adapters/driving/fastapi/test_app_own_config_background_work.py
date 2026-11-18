@@ -277,6 +277,44 @@ def test_an_app_with_no_config_starts_no_background_work() -> None:
         assert app.state.startup_inbox_replay is None
 
 
+def _node_work(app: FastAPI) -> dict[str, object]:
+    """Each of the four kinds of node work the app's lifespan started."""
+    return {
+        "outbox monitor": getattr(app.state, "outbox_monitor", None),
+        "hold timer": app.state.sender_sequence_hold_timer,
+        "position statements": app.state.ledger_position_statements,
+        "startup replay": app.state.startup_inbox_replay,
+    }
+
+
+def test_an_app_with_its_own_config_starts_all_four_by_default() -> None:
+    """A config-holding app is a full node unless it opts out (ADR-0206)."""
+    app = create_app(config=own_app_config())
+    with TestClient(app):
+        work = _node_work(app)
+    assert all(started is not None for started in work.values()), work
+
+
+def test_background_work_false_starts_none_of_the_four() -> None:
+    """The harness opt-out keeps every kind of node work from starting."""
+    app = create_app(config=own_app_config(), background_work=False)
+    with TestClient(app):
+        work = _node_work(app)
+    assert all(started is None for started in work.values()), work
+
+
+def test_the_harness_passes_the_opt_out_to_its_app() -> None:
+    iso = create_isolated_actor_app(
+        "http://quiet-node.test",
+        InProcessRouter(),
+        config=own_app_config(),
+        background_work=False,
+    )
+    with iso.client:
+        work = _node_work(iso.app)
+    assert all(started is None for started in work.values()), work
+
+
 # ---------------------------------------------------------------------------
 # AC-3: a path that loses its app's scope raises, never falls back
 # ---------------------------------------------------------------------------

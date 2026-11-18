@@ -332,7 +332,10 @@ def _in_config_scope(
 
 
 def _make_lifespan(
-    *, configure_globals: bool = True, config: AppConfig | None = None
+    *,
+    configure_globals: bool = True,
+    config: AppConfig | None = None,
+    background_work: bool = True,
 ):
     """Return a lifespan context manager for a FastAPI Vultron application.
 
@@ -357,6 +360,9 @@ def _make_lifespan(
             (:func:`~vultron.adapters.driving.fastapi.deps.app_node_deployment`),
             with its own dispatcher, and installs no global.  With neither,
             none of that work starts.
+        background_work: When ``False``, an app with its own *config*
+            starts none of that node work (see :func:`create_app`).  It has
+            no effect on the production singleton, which always runs it.
     """
 
     @asynccontextmanager
@@ -393,7 +399,9 @@ def _make_lifespan(
         # is: it runs the work a node runs outside a request, on its own
         # deployment's stores and in its own config scope (ADR-0206).  A
         # ``create_app`` app with no config runs none of it, as before.
-        runs_node_work = configure_globals or config is not None
+        runs_node_work = configure_globals or (
+            config is not None and background_work
+        )
         node = (
             CONFIGURED_NODE
             if configure_globals
@@ -406,7 +414,7 @@ def _make_lifespan(
             application.state.emitter = emitter
             undo_global_installs.append(configure_default_emitter(emitter))
             monitor = OutboxMonitor()
-        elif config is not None:
+        elif runs_node_work:
             # Node-scoped, so it never drains another node's outbox in the
             # process (DL-07-011).  The emitter is the one a host set on the
             # app, else the process default, as the app's routes use.
@@ -543,6 +551,8 @@ def create_app(
     openapi_url: str | None = "/openapi/v2.json",
     node_base_url: str | None = None,
     config: AppConfig | None = None,
+    *,
+    background_work: bool = True,
 ) -> FastAPI:
     """Factory that creates a fresh, isolated FastAPI application instance.
 
@@ -600,6 +610,18 @@ def create_app(
             or its lifespan raises ``VultronWiringError``.  Leave ``None``
             to read the process-wide config, as one node per process does;
             such an app starts none of that work.
+        background_work: ``False`` keeps an app given a *config* from
+            starting that node work: the outbox monitor, the startup inbox
+            replay, the ledger position statements and the sender-sequence
+            hold timer.  For a harness node whose test or recording is
+            driven by the scenario alone.  The monitor and the hold timer act
+            on the clock, not on the scenario, so their drains race the
+            scenario's own inline drains and make a recording or an
+            assertion depend on timing (the hold timer did, #6085, #6148).
+            Each of the four has its own tests, and a scenario about restart
+            recovery can leave this ``True``.  Default ``True``: an app with
+            its own config is a full node.  No effect when *config* is
+            ``None``, since such an app starts none of that work.
 
     Returns:
         A new :class:`FastAPI` instance with the Vultron router included.
@@ -609,7 +631,11 @@ def create_app(
         version=version,
         docs_url=docs_url,
         openapi_url=openapi_url,
-        lifespan=_make_lifespan(configure_globals=False, config=config),
+        lifespan=_make_lifespan(
+            configure_globals=False,
+            config=config,
+            background_work=background_work,
+        ),
     )
     application.add_middleware(AppConfigScopeMiddleware, config=config)
     application.state.node_base_url = node_base_url

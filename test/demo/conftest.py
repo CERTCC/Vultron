@@ -14,8 +14,9 @@
 """Shared fixtures and helpers for demo tests."""
 
 import asyncio
+import contextlib
 import logging
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -44,11 +45,14 @@ from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import (
     get_default_emitter,
 )
+from vultron.demo.helpers.cast import ContainerSlot
 from vultron.demo.helpers.invite_chain import (
     chain as invite_runs,
     links as invite_links,
 )
 from vultron.demo.in_process import InProcessObjectFetcher, InProcessRouter
+from vultron.demo.recordings.runner import ScenarioNodes, scenario_nodes
+from vultron.demo.recordings.topology import load_topology
 from vultron.wire.as2.factories import parse_submit_report_offer
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -505,6 +509,40 @@ def client():
             setattr(
                 app_v2.state, ACTOR_PROFILE_FETCHER_STATE, previous_fetcher
             )
+
+
+#: Starts the named cast containers in process; see :func:`container_nodes`.
+StartContainers = Callable[..., ScenarioNodes]
+
+
+@pytest.fixture
+def container_nodes() -> Iterator[StartContainers]:
+    """Start cast containers in process, each with its container's config.
+
+    Call the yielded function with the :class:`ContainerSlot` of each
+    container to run.  Each node is served at the slot's compose URL and
+    holds the ``AppConfig`` its service in
+    ``docker/docker-compose-multi-actor.yml`` gives it (ADR-0206,
+    :meth:`~vultron.demo.recordings.topology.ContainerTopology.config_for`).
+    So the case-actor node's ``default_case_roles`` differ from the report
+    receiver's, and a node that reads its own config for another actor's
+    fact fails here as it fails in Docker (#1876).
+
+    Built on :func:`~vultron.demo.recordings.runner.scenario_nodes`, as the
+    in-process recordings are, so the nodes run no background work and the
+    test body runs in the demo runner's own config scope: while a node holds
+    its config, a config read in no app's scope is refused (DEMOMA-01-007).
+    The nodes stop when the test ends.
+    """
+    with contextlib.ExitStack() as stack:
+
+        def start(*slots: ContainerSlot) -> ScenarioNodes:
+            bases = [
+                slot.compose_url.removesuffix("/api/v2") for slot in slots
+            ]
+            return stack.enter_context(scenario_nodes(bases, load_topology()))
+
+        yield start
 
 
 @pytest.fixture(autouse=True)

@@ -360,6 +360,8 @@ def create_isolated_actor_app(
     router: InProcessRouter,
     actor_slug: str = "primary",
     config: AppConfig | None = None,
+    *,
+    background_work: bool = True,
 ) -> IsolatedActorApp:
     """Create an isolated FastAPI app for a single actor in tests.
 
@@ -391,6 +393,9 @@ def create_isolated_actor_app(
             outbox monitor, startup inbox replay, ledger position statements
             and sender-sequence hold timer) on its own stores.  ``None``
             keeps the process-wide config and starts none of that work.
+        background_work: ``False`` keeps a node given a *config* from
+            starting that background work, for a test or recording driven by
+            the scenario alone (see :func:`create_app`).
 
     Returns:
         An :class:`IsolatedActorApp` whose ``client`` context manager has
@@ -428,6 +433,7 @@ def create_isolated_actor_app(
         openapi_url=None,
         node_base_url=node_root,
         config=config,
+        background_work=background_work,
     )
     app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl
     # Declared on the app, not only wired into the override: routes whose subject

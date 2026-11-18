@@ -153,6 +153,12 @@ def scenario_nodes(
     ``demo-runner`` container reads its own: while a node holds its config,
     a read in no app scope is refused (DEMOMA-01-007).
 
+    No node runs its background work (``background_work=False``): the
+    outbox monitor and the hold timer act on the clock, not on the
+    scenario, and the monitor's drains alone made two runs of ``rv`` in one
+    process record different times.  A scenario about restart recovery
+    would need them on.
+
     Restores the default emitter and drops every cached store on exit, so a
     later run in the same process starts empty.  The router is installed as
     the default emitter because the routes of an isolated app fall back to it.
@@ -200,7 +206,10 @@ def scenario_nodes(
             ):
                 for base in bases:
                     isolated = create_isolated_actor_app(
-                        base, router, config=configs[base]
+                        base,
+                        router,
+                        config=configs[base],
+                        background_work=False,
                     )
                     nodes.apps[base] = isolated
                     nodes.clients[base] = stack.enter_context(isolated.client)

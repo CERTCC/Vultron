@@ -98,7 +98,7 @@ branch-point table". Read the tree there, not from a copy here.
   `activate_embargo_on_case` entry 80 ms later than any later one (#5591).
   **Anything else that survives a scenario run brings the dependence back**:
   a process-global store a run writes must be dropped in
-  `vultron.demo.recordings.runner._scenario_nodes`, beside the DataLayer, the
+  `vultron.demo.recordings.runner.scenario_nodes`, beside the DataLayer, the
   py_trees blackboard and the pending-assertion registry.
 
 ## Names
@@ -163,6 +163,10 @@ recordings.
   default case roles (CP-01-013), which is why only the three fixed-role slots
   declare any: a case owner holds the same roles in every sibling, or the first
   entry already differs.
+- **A recording node runs no background work.** `scenario_nodes` builds each
+  node with its container's config and `background_work=False`: the outbox
+  monitor drains on the clock, not on the scenario, and with it on two `rv`
+  runs in one process recorded different times (#6538).
 - The check reads where each branch point falls from the step marks, and the
   marks come only from the runner: `run_story` calls
   `harness.reach_step(branch_point, choice, by=actor_id)` as it passes each
@@ -397,7 +401,7 @@ vendor-first half, whose Reporter tells a Vendor.
   either rule first: an act on a thread racing a trigger moves the two
   recordings apart by a varying amount, and a process-global store a run
   writes carries one scenario's rows into the next. A store a run writes is
-  dropped in `vultron.demo.recordings.runner._scenario_nodes`, beside the
+  dropped in `vultron.demo.recordings.runner.scenario_nodes`, beside the
   DataLayer, the py_trees blackboard and the pending-assertion registry.
 - **Key a composed view on the scenario and the case, never the case alone.**
   One seed also means every scenario draws the *same* case id, which is what
