@@ -45,6 +45,8 @@ door.
 import pytest
 
 from test.demo.conftest import (
+    UNSERVED_CASE_ACTOR_BASE,
+    node_config,
     submit_report_through_reporter,
 )
 from test.support.case_manager import add_case_manager_participant
@@ -52,6 +54,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
 from test.support.received import delivered_body, refused_received
 from test.support.signing import post_delivered, serve_published_profiles
+from vultron.config import app_config_scope
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
@@ -108,9 +111,14 @@ def participant_setup():
     )
 
     router = InProcessRouter()
+    participant_config = node_config(
+        _PARTICIPANT_BASE, UNSERVED_CASE_ACTOR_BASE
+    )
     participant_isolated = create_isolated_actor_app(
         base_url=_PARTICIPANT_BASE,
         router=router,
+        config=participant_config,
+        background_work=False,
     )
     # No app serves the owner here, so its profile is answered as its own
     # server would publish it, and the participant verifies its proofs.
@@ -119,7 +127,10 @@ def participant_setup():
     )
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]
-    with participant_isolated.client as participant_tc:
+    with (
+        app_config_scope(participant_config),
+        participant_isolated.client as participant_tc,
+    ):
         yield participant_isolated, participant_tc
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
     participant_isolated.close()
@@ -139,9 +150,12 @@ def two_app_setup():
       2. Configures the module-level default emitter to the shared router so
          all outbox_handler deliveries POST to each target TestClient inbox
          instead of making real HTTP requests (ADR-0042).
-      3. Registers the config-default base_url with the router so that
-         deliveries to the CaseActor (whose ID uses that URL) are routed
-         correctly.
+      3. Gives each node its own config (ADR-0206, ``node_config``).  The
+         CaseActor service is one no node serves
+         (``UNSERVED_CASE_ACTOR_BASE``), so the owner's ``Create(CaseProposal)``
+         is dropped and the test plays the CaseActor's part with
+         ``trigger/create-case``.  The test body runs in the owner's config
+         scope, as the driver.
       4. Yields the two ``IsolatedActorApp`` instances and their test clients.
       5. On teardown restores the previous default emitter and closes DLs.
 
@@ -152,23 +166,21 @@ def two_app_setup():
         configure_default_emitter,
         get_default_emitter,
     )
-    from vultron.config import get_config
 
+    owner_config = node_config(_OWNER_BASE, UNSERVED_CASE_ACTOR_BASE)
     router = InProcessRouter()
     owner_iso = create_isolated_actor_app(
         base_url=_OWNER_BASE,
         router=router,
+        config=owner_config,
+        background_work=False,
     )
     participant_iso = create_isolated_actor_app(
         base_url=_PARTICIPANT_BASE,
         router=router,
+        config=node_config(_PARTICIPANT_BASE, UNSERVED_CASE_ACTOR_BASE),
+        background_work=False,
     )
-
-    # Register the config-default base_url (e.g. http://localhost:7999) with
-    # the router so that deliveries to CaseActor IDs (which use this URL)
-    # are routed to the owner's TestClient inbox.
-    config_base_url = get_config().server.base_url.rstrip("/")
-    router.register(config_base_url, owner_iso.client)
 
     # Replace the module-level default emitter so outbox_handler calls from
     # trigger endpoints use the router instead of HttpDeliveryAdapter (real
@@ -176,9 +188,10 @@ def two_app_setup():
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]
 
-    with owner_iso.client as owner_tc:
-        with participant_iso.client as participant_tc:
-            yield owner_iso, participant_iso, owner_tc, participant_tc
+    with app_config_scope(owner_config):
+        with owner_iso.client as owner_tc:
+            with participant_iso.client as participant_tc:
+                yield owner_iso, participant_iso, owner_tc, participant_tc
 
     # Restore previous emitter to avoid polluting other tests.
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]

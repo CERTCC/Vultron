@@ -188,6 +188,11 @@ stack and imports neither core nor config.
   actors. A new per-container `AppConfig` env var must be added to
   `CARRIED_IN_PROCESS` or `NOT_CARRIED_IN_PROCESS`, or `load_topology()`
   refuses it, so no per-container setting stays silently shared.
+- **An ad-hoc in-process node holds its own config too.** A test running
+  nodes on made-up hosts builds each with `node_config()`
+  (`test/demo/conftest.py`), passes `background_work=False`, and runs its
+  body in a driver's `app_config_scope`. A test that plays the CaseActor
+  itself names `UNSERVED_CASE_ACTOR_BASE`, never its own node (#6538).
 - **Build an app's own config with `AppConfig().model_copy(update=...)`.**
   `AppConfig(...)` keyword arguments are not a settings source and are dropped
   without error (`settings_customise_sources`).

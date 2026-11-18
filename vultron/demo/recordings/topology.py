@@ -21,9 +21,8 @@ from urllib.parse import urlparse
 import yaml
 
 from vultron.config import AppConfig
-from vultron.config.actor import ActorConfig
-from vultron.config.app import ServerConfig
 from vultron.demo.helpers.actor_roles import ActorRole
+from vultron.demo.in_process import node_app_config
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoRecordingError
 from vultron.primitives import require_non_empty
@@ -147,23 +146,12 @@ class ContainerTopology:
                 f"{url!r} names host {host!r}, which is no service in "
                 f"{COMPOSE_PATH.name}."
             )
-        # Validated rather than copied with ``model_copy(update=...)``, which
-        # skips validation and would store the role names and URL as strings.
-        actor = ActorConfig.model_validate(
-            base.actor.model_dump()
-            | {
-                "default_case_roles": self.case_roles_for(url),
-                "case_actor_service_url": own.case_actor_service_url,
-            }
+        return node_app_config(
+            base,
+            case_actor_service_url=own.case_actor_service_url,
+            base_url=own.base_url,
+            default_case_roles=self.case_roles_for(url),
         )
-        update: dict[str, object] = {"actor": actor}
-        if own.base_url is not None:
-            update["server"] = ServerConfig.model_validate(
-                base.server.model_dump() | {"base_url": own.base_url}
-            )
-        # ``AppConfig(...)`` keyword arguments are no settings source, so the
-        # node's config is a copy of *base* (notes/configuration.md).
-        return base.model_copy(update=update)
 
     def runner_config(self, base: AppConfig) -> AppConfig:
         """Return the ``AppConfig`` of the service that drives a scenario."""

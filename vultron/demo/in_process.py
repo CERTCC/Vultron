@@ -26,7 +26,7 @@ recording runs on the same harness the tests trust.
 import functools
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -58,11 +58,55 @@ from vultron.adapters.driving.fastapi.deps import (
 )
 from vultron.adapters.media_types import AS2_CONTENT_TYPE
 from vultron.config import AppConfig
+from vultron.config.actor import ActorConfig
+from vultron.config.app import ServerConfig
 from vultron.core.models.object_fetch import ObjectReference
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
 _NODE_NAME_UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def node_app_config(
+    base: AppConfig,
+    *,
+    case_actor_service_url: str | None,
+    base_url: str | None = None,
+    default_case_roles: Sequence[CVDRole] | None = None,
+) -> AppConfig:
+    """Return *base* with one in-process node's own settings (ADR-0206).
+
+    The settings a container sets for itself: the CaseActor service it
+    proposes to (``None`` when it names none), its server base URL when
+    given, and its default case roles when given (else *base*'s).  Each
+    section is validated rather than set with ``model_copy(update=...)``,
+    which would store the URL and role names as plain strings, and the
+    result is a copy of *base*, since ``AppConfig(...)`` keyword arguments
+    are no settings source.
+
+    Args:
+        base: The config the node's settings are applied to.
+        case_actor_service_url: The CaseActor service URL the node holds.
+        base_url: The node's server base URL, or ``None`` to keep *base*'s.
+        default_case_roles: The node's default case roles, or ``None`` to
+            keep *base*'s.
+    """
+    actor_settings: dict[str, object] = {
+        "case_actor_service_url": case_actor_service_url
+    }
+    if default_case_roles is not None:
+        actor_settings["default_case_roles"] = list(default_case_roles)
+    update: dict[str, object] = {
+        "actor": ActorConfig.model_validate(
+            base.actor.model_dump() | actor_settings
+        )
+    }
+    if base_url is not None:
+        update["server"] = ServerConfig.model_validate(
+            base.server.model_dump() | {"base_url": base_url}
+        )
+    return base.model_copy(update=update)
 
 
 def node_db_url(base_url: str) -> str:

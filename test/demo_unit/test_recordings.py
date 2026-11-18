@@ -57,7 +57,7 @@ from vultron.demo.helpers.cast import (
     ContainerSlot,
 )
 from vultron.demo.helpers.harness import StepMark
-from vultron.demo.in_process import InProcessRouter
+from vultron.demo.in_process import InProcessRouter, node_app_config
 from vultron.demo.recordings import (
     cli,
     layout,
@@ -389,6 +389,19 @@ class TestContainerConfig:
         )
         with pytest.raises(DemoRecordingError, match="LOG_LEVEL"):
             load_topology(compose)
+
+    def test_a_node_config_keeps_what_it_is_not_given(self):
+        """No roles or server URL given: the base's stay (ad-hoc nodes)."""
+        base = self._base()
+        config = node_app_config(
+            base, case_actor_service_url="http://ca.test/api/v2"
+        )
+        assert config.actor.default_case_roles == [CVDRole.DEPLOYER]
+        assert config.server.base_url == base.server.base_url
+        assert (
+            str(config.actor.case_actor_service_url).rstrip("/")
+            == "http://ca.test/api/v2"
+        )
 
     def test_a_blank_container_setting_is_refused(self):
         with pytest.raises(ValueError, match="base_url"):
