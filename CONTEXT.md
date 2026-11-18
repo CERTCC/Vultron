@@ -385,14 +385,16 @@ names.
 
 **Generated action rule**:
 An action rule read off move advice: the positions of one vendor in which a move gets
-the same band, grouped into one pattern. It is the evidence, rebuilt by a command and
-not edited by hand.
+the same band for that vendor, grouped into one or more patterns. It is the evidence,
+rebuilt by a command and not edited by hand.
 *Avoid*: computed rule, learned rule
 
 **Rule disagreement**:
-A position at which an authored action rule claims a move serves the vendor and move
-advice puts the move in the unhelpful band for that vendor. It marks a wrong rule or a
-chance-model blind spot, and it is shown, not resolved.
+A position at which an authored action rule claims a move serves the vendor and the
+move's band for that vendor is unhelpful: the band its deciding part (the vendor's end
+part, or its embargo part when the end part is zero) gives in that vendor's scope
+alone. It marks a wrong rule or a chance-model blind spot, and it is shown, not
+resolved.
 *Avoid*: conflict, rule error
 
 ---

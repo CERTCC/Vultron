@@ -148,13 +148,14 @@ it, so closing a report from RM Received came out harm-free and top (user decisi
 on #6369; ADR-0200). Case scoring of a history is unchanged: a scope never entered
 still counts as met there.
 
-Read a generated action rule's verdict from the move advice's own band for one
-vendor, never from a second scoring of the move, and compare it with the authored
-rules position by position, never pattern by pattern; show each rule disagreement
-and leave both tables as they are. Reason: the generated rules are the evidence an
-authored rule is checked against, so a second scorer could drift from the advice,
-and a disagreement marks a wrong rule or a chance-model blind spot only a person can
-tell apart (ADR-0216).
+Read a generated action rule's verdict from move advice's own shift, as the move's
+band for one vendor: harm-free when that vendor's deciding part (its end part, or its
+embargo part when the end part is zero) is positive, unhelpful otherwise. Never score
+the move a second time. Compare the verdicts with the authored rules position by
+position, never pattern by pattern; show each rule disagreement and leave both tables
+as they are. Reason: the generated rules are the evidence an authored rule is checked
+against, so a second scorer could drift from the advice, and a disagreement marks a
+wrong rule or a chance-model blind spot only a person can tell apart (ADR-0216).
 
 Score a complete history with `vultron.measure.scoring.history_score`, never
 `CVDmodel.score_hist`: it is the same `Σ (1 − f_d)` over the twelve original
