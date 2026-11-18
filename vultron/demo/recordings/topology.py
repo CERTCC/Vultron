@@ -26,6 +26,7 @@ from vultron.config.app import ServerConfig
 from vultron.demo.helpers.actor_roles import ActorRole
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoRecordingError
+from vultron.primitives import require_non_empty
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_PATH = REPO_ROOT / "docker" / "docker-compose-multi-actor.yml"
@@ -36,6 +37,7 @@ RUNNER_SERVICE = "demo-runner"
 _CASE_ROLES_ENV = "VULTRON_ACTOR__DEFAULT_CASE_ROLES"
 _CASE_ACTOR_SERVICE_ENV = "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL"
 _SERVER_BASE_URL_ENV = "VULTRON_SERVER__BASE_URL"
+_LOG_LEVEL_ENV = "VULTRON_SERVER__LOG_LEVEL"
 
 #: The ``AppConfig`` settings a compose service may set that an in-process
 #: node does not take from it, each with the reason.  Every other
@@ -47,8 +49,9 @@ NOT_CARRIED_IN_PROCESS: dict[str, str] = {
         "an in-process node already has its own in-memory storage deployment "
         "(vultron.demo.in_process.node_db_url), the stand-in for the volume"
     ),
-    "VULTRON_SERVER__LOG_LEVEL": (
-        "one process has one root logger; every container sets the same level"
+    _LOG_LEVEL_ENV: (
+        "one process has one root logger, so the services must all set the "
+        "same level, which load_topology() checks"
     ),
 }
 
@@ -75,6 +78,15 @@ class ContainerSettings:
 
     base_url: str | None = None
     case_actor_service_url: str | None = None
+
+    def __post_init__(self) -> None:
+        """Refuse a blank setting: if present, then non-empty (CS-08-002)."""
+        if self.base_url is not None:
+            require_non_empty(self.base_url, "base_url")
+        if self.case_actor_service_url is not None:
+            require_non_empty(
+                self.case_actor_service_url, "case_actor_service_url"
+            )
 
 
 @dataclass(frozen=True)
@@ -225,6 +237,7 @@ def load_topology(compose_path: Path = COMPOSE_PATH) -> ContainerTopology:
                 f"{_CASE_ROLES_ENV}={raw!r}, which is not a JSON list of CVD "
                 f"role names: {exc}"
             ) from exc
+    _refuse_differing_log_levels(services, compose_path)
     return ContainerTopology(
         slot_urls=slot_urls,
         case_roles=case_roles,
@@ -279,4 +292,30 @@ def _refuse_uncarried_settings(
             "an in-process node neither carries into its own config nor "
             "lists as skipped; add each to CARRIED_IN_PROCESS (and to "
             "ContainerTopology.config_for) or to NOT_CARRIED_IN_PROCESS."
+        )
+
+
+def _refuse_differing_log_levels(
+    services: dict[str, object], compose_path: Path
+) -> None:
+    """Refuse services that set different log levels.
+
+    In process every node shares one root logger, so a per-container level
+    cannot be carried (:data:`NOT_CARRIED_IN_PROCESS`).  That skip is only
+    sound while the services agree.
+
+    Raises:
+        DemoRecordingError: When two services set
+            ``VULTRON_SERVER__LOG_LEVEL`` to different values.
+    """
+    levels = {
+        name: env[_LOG_LEVEL_ENV]
+        for name, service in services.items()
+        if _LOG_LEVEL_ENV in (env := _service_env(service))
+    }
+    if len(set(levels.values())) > 1:
+        raise DemoRecordingError(
+            f"services in {compose_path.name} set {_LOG_LEVEL_ENV} to "
+            f"different values {levels}; one in-process root logger cannot "
+            "hold more than one level."
         )

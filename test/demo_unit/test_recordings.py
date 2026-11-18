@@ -33,7 +33,7 @@ from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from fastapi.testclient import TestClient
 
-from test.support.app_configs import own_app_config
+from test.support.app_configs import node_work, own_app_config
 from test.support.objects import with_times
 from vultron.adapters.driving.fastapi.outbox_handler import (
     drain as outbox_drain,
@@ -71,7 +71,9 @@ from vultron.demo.recordings.layout import (
     write_recording,
 )
 from vultron.demo.recordings.topology import (
+    CARRIED_IN_PROCESS,
     REPO_ROOT,
+    ContainerSettings,
     ContainerTopology,
     load_topology,
 )
@@ -309,9 +311,11 @@ class TestContainerConfig:
         """No CaseActor URL, as Docker gives it, even when *base* has one."""
         topology = load_topology(self._compose(tmp_path, "[]"))
         base = own_app_config(
-            actor=ActorConfig(
-                default_case_roles=[CVDRole.DEPLOYER],
-                case_actor_service_url="http://elsewhere/api/v2",
+            actor=ActorConfig.model_validate(
+                {
+                    "default_case_roles": [CVDRole.DEPLOYER],
+                    "case_actor_service_url": "http://elsewhere/api/v2",
+                }
             )
         )
         config = topology.config_for("http://vendor:7999/api/v2", base)
@@ -331,19 +335,64 @@ class TestContainerConfig:
             load_topology().config_for("http://elsewhere", self._base())
 
     def test_an_uncarried_setting_is_refused(self, tmp_path):
+        compose = self._compose(
+            tmp_path, "['VULTRON_ACTOR__AUTO_CREATE_CASE=false']"
+        )
+        with pytest.raises(DemoRecordingError, match="AUTO_CREATE_CASE"):
+            load_topology(compose)
+
+    #: A value for each carried setting that differs from :meth:`_base`'s.
+    _CARRIED_SAMPLES: dict[str, str] = {
+        "VULTRON_SERVER__BASE_URL": "http://vendor:7999/api/v2",
+        "VULTRON_ACTOR__DEFAULT_CASE_ROLES": '["vendor"]',
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL": "http://ca:7999/api/v2",
+    }
+
+    def test_every_carried_setting_has_a_sample(self):
+        """A newly carried setting needs a sample, so the test below runs it."""
+        assert set(self._CARRIED_SAMPLES) == CARRIED_IN_PROCESS
+
+    @pytest.mark.parametrize("key", sorted(CARRIED_IN_PROCESS))
+    def test_a_carried_setting_reaches_the_nodes_config(self, tmp_path, key):
+        """Listing a setting as carried without applying it is caught here."""
+        base = own_app_config(
+            actor=ActorConfig.model_validate(
+                {
+                    "default_case_roles": [CVDRole.DEPLOYER],
+                    "case_actor_service_url": "http://elsewhere/api/v2",
+                }
+            )
+        )
+        unset = load_topology(self._compose(tmp_path, "[]"))
+        compose = self._compose(
+            tmp_path, json.dumps({key: self._CARRIED_SAMPLES[key]})
+        )
+        with_key = load_topology(compose)
+        url = "http://vendor:7999/api/v2"
+        assert (
+            with_key.config_for(url, base).model_dump()
+            != unset.config_for(url, base).model_dump()
+        ), f"{key} is listed as carried but does not change the node's config"
+
+    def test_differing_log_levels_are_refused(self, tmp_path):
         compose = tmp_path / "compose.yml"
         compose.write_text(
             "services:\n"
             "  demo-runner:\n"
             "    environment:\n"
             "      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://ca/api/v2\n"
+            "      - VULTRON_SERVER__LOG_LEVEL=INFO\n"
             "  vendor:\n"
             "    environment:\n"
-            "      - VULTRON_ACTOR__AUTO_CREATE_CASE=false\n",
+            "      - VULTRON_SERVER__LOG_LEVEL=DEBUG\n",
             encoding="utf-8",
         )
-        with pytest.raises(DemoRecordingError, match="AUTO_CREATE_CASE"):
+        with pytest.raises(DemoRecordingError, match="LOG_LEVEL"):
             load_topology(compose)
+
+    def test_a_blank_container_setting_is_refused(self):
+        with pytest.raises(ValueError, match="base_url"):
+            ContainerSettings(base_url="  ")
 
     def test_scenario_nodes_hold_their_containers_configs(self):
         bases = [runner.node_base(VENDOR_SLOT.compose_url)]
@@ -353,6 +402,10 @@ class TestContainerConfig:
             assert config.actor.default_case_roles == [CVDRole.VENDOR]
             # The body reads the demo runner's own config, never no scope.
             assert get_config().actor.default_case_roles == []
+            # A recording node runs none of its background work, which acts
+            # on the clock rather than on the scenario.
+            work = node_work(nodes.apps[bases[0]].app)
+            assert all(started is None for started in work.values()), work
 
 
 class _StopBeforeTheRun(Exception):
