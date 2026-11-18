@@ -56,6 +56,7 @@ def _announce_embargo(end_time: str) -> dict[str, Any]:
         "published": "2026-03-04T05:06:07+00:00",
         "object": {
             "type": "EmbargoEvent",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": EMBARGO_ID,
             "context": CASE_ID,
             "endTime": end_time,

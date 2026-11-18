@@ -15,7 +15,7 @@
 
 """Domain representation of an EmbargoPolicy."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, Literal, cast
 
 import isodate  # type: ignore[import-untyped]
@@ -96,6 +96,10 @@ class EmbargoPolicy(CoreObject):
     Per specs/embargo-policy.yaml EP-01-001 through EP-01-004 and
     specs/duration.yaml DUR-01-001, DUR-05-001, DUR-05-002.
     """
+
+    # Every author states it (ADR-0176), and a receiver refuses a received
+    # one without it (CLP-15-011).
+    published: datetime
 
     type_: Literal["EmbargoPolicy"] = Field(
         default="EmbargoPolicy",

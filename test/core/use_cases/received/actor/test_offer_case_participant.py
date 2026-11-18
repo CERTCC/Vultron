@@ -39,7 +39,11 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
-from test.support.received import received_event, settle_as_the_inbox
+from test.support.received import (
+    archive_received,
+    received_event,
+    settle_as_the_inbox,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -77,6 +81,7 @@ from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
     offer_case_participant_activity,
+    recommend_actor_activity,
     reject_case_participant_offer_activity,
     rm_accept_invite_to_case_activity,
 )
@@ -187,6 +192,20 @@ def _record_recommendation(
             recommender_id=recommender_id,
         )
     )
+    # The recommendation as it arrived, which the answer embeds (DL-06-004);
+    # a second recording of the same recommendation keeps the first.
+    if dl.read(ReceivedActivityRecord.build_id(RECOMMENDATION_ID)) is None:
+        archive_received(
+            dl,
+            recommend_actor_activity(
+                RECOMMENDED_ID,
+                target=case_id,
+                id_=RECOMMENDATION_ID,
+                actor=recommender_id,
+                to=[CASE_ACTOR_ID],
+                at=authored_at(),
+            ),
+        )
 
 
 def _record_offer(dl: SqliteDataLayer) -> None:
@@ -2108,6 +2127,51 @@ class TestActorSuggestionFlowRecordsEachMessageAfterItIsSent:
         _assert_each_send_follows_its_queueing(
             self.events, {"reject_actor_recommendation"}
         )
+
+
+@pytest.mark.spec("CM-16-006")
+@pytest.mark.spec("DL-06-004")
+@pytest.mark.parametrize("verb", ["accept", "reject"])
+def test_the_deferred_answer_embeds_the_recommendation_as_received(verb):
+    """After the Case Owner decides, the CASE_MANAGER's answer to the
+    recommender embeds the recommendation exactly as it arrived (CM-16-006
+    step 3, DL-06-004), never a rebuild of it."""
+    import json
+
+    from vultron.adapters.outbox_sealed_body import read_sealed_body
+
+    dl, _ = _seed_dl_for_case_actor()
+    if verb == "accept":
+        use_case_class: Any = AcceptOfferCaseParticipantReceivedUseCase
+        event = TestAcceptOfferCaseParticipantReceivedUseCase()._event_with_stored_offer(
+            dl
+        )
+    else:
+        use_case_class = RejectOfferCaseParticipantReceivedUseCase
+        event = TestRejectOfferCaseParticipantReceivedUseCase()._event(at=dl)
+    archived = dl.read(ReceivedActivityRecord.build_id(RECOMMENDATION_ID))
+    assert isinstance(archived, ReceivedActivityRecord)
+
+    result = run_in_act(
+        use_case_class(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
+    assert result.disposition is HandlerDisposition.APPLIED, result
+
+    embedded = [
+        body["object"]
+        for activity_id in dl.outbox_list()
+        if (sealed := read_sealed_body(dl, activity_id)) is not None
+        and isinstance((body := json.loads(sealed.body)).get("object"), dict)
+        and body["object"].get("id") == RECOMMENDATION_ID
+    ]
+    assert archived.received_body is not None
+    assert embedded == [json.loads(archived.received_body)]
 
 
 class TestActorSuggestionAnswersAreSentOnceOnRetry:

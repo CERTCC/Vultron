@@ -133,7 +133,7 @@ policy), then hands the result to `commit_and_apply_embargo_entries()`
    carries (`ACTIVATE` includes the supersede, `TERMINATE` the cancels), or,
    for a participant's `Accept`/`Reject(Invite(EmbargoEvent))`, the row the
    answer states (`ConsentRowChange.answer()`: that entry is the row's entry,
-   and no second one records it, ADR-0212), and
+   and no second one records it, ADR-0215), and
    whose `commit` queues and commits the act; `commit=None` when the guarded
    commit already committed it (a received act, same transaction).
 2. One `consent_row_entry()` per consent row the act changes.
@@ -150,7 +150,7 @@ node that commits a consequence of the act (`ReissueStubInvitesNode`, a
 `RelayEmbargoInviteToEachNode`) must run with the act's commit node in one
 `ActTransaction` (`core/behaviors/act_transaction.py`): a trigger arm passes
 `as_one_act=True` to `create_case_manager_gated_tree`; every received tree that
-commits to a case gets one by default, holding its own commit too (ADR-0208),
+commits to a case gets one by default, holding its own commit too (ADR-0214),
 and only a registered `OneActExemption` opts it out.
 Call it from a node's `update()`, never from `execute()`. The replica slot
 for the same entry subclasses `ApplyEmbargoChangeFromLedgerNode`

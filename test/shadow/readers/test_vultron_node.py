@@ -12,8 +12,7 @@ CRD-01-001, CRD-01-003, CRD-01-004, CRD-02-001, CRD-02-004.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterator
-from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 import httpx2 as httpx
@@ -21,19 +20,18 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from test.support.act_clock import ACT_AT
+from test.shadow.readers.conftest import RECORDING
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.case_reader import projected_history
+from test.support.ledger_stream import ledger_entry_row, recording_rows
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
-    reset_datalayer,
 )
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import demo_triggers
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_reader import CaseReader
-from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.errors import VultronError, VultronNodeCaseReadError
 from vultron.shadow.readers import (
     VultronNodeCaseReader,
@@ -42,39 +40,20 @@ from vultron.shadow.readers import (
 )
 from vultron.shadow.readers.ledger_reading import NO_ENTRY, ledger_reading
 from vultron.shadow.readers.vultron_node import path_segment
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-_RECORDING = RECORDINGS_DIR / "rv" / "case-actor.jsonl"
 _NODE = "http://node.test/api/v2"
 _ACTOR = "case-actor"
 _CASE = "urn:uuid:case-1"
 _LOG_PATH = "/api/v2/actors/case-actor/demo/cases/case-1/log"
 
 
-def _rows(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text().splitlines() if line]
-
-
 def _ndjson(rows: list[dict[str, Any] | str]) -> str:
     return "\n".join(
         row if isinstance(row, str) else json.dumps(row) for row in rows
     )
-
-
-def _entry_row(case_id: str, log_index: int) -> dict[str, Any]:
-    entry = make(
-        CaseLedgerEntry,
-        case_id=case_id,
-        log_index=log_index,
-        log_object_id=f"{case_id}/objects/{log_index}",
-        semantic_type=f"test_event_{log_index}",
-        received_at=ACT_AT,
-        published=ACT_AT,
-    )
-    return entry.model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
 class _Recorder:
@@ -118,18 +97,6 @@ def _forwarding(client: TestClient) -> _Recorder:
     return _Recorder(forward)
 
 
-@pytest.fixture
-def node_dl() -> Iterator[SqliteDataLayer]:
-    actor = make(as_Service, name="Case Actor")
-    reset_datalayer(actor.id_)
-    store = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
-    store.clear_all()
-    store.create(actor)
-    yield store
-    store.close()
-    reset_datalayer(actor.id_)
-
-
 def _node_app(dl: SqliteDataLayer | None) -> TestClient:
     """A node app; with *dl*, one serving the demo ledger endpoints."""
     app = FastAPI()
@@ -137,24 +104,6 @@ def _node_app(dl: SqliteDataLayer | None) -> TestClient:
         app.include_router(demo_triggers.router, prefix="/api/v2")
         app.dependency_overrides[get_trigger_dl] = lambda: dl
     return TestClient(app)
-
-
-@pytest.fixture
-def demo_case(node_dl: SqliteDataLayer) -> str:
-    """The rv recording's case and ledger, held by the node."""
-    rows = _rows(_RECORDING)
-    case_id = str(rows[0]["caseId"])
-    node_dl.create(
-        make(
-            as_VulnerabilityCase,
-            id_=case_id,
-            attributed_to=CASE_OWNER_ID,
-            name="RV-DEMO",
-        )
-    )
-    for row in reversed(rows):  # stored out of order, served in order
-        node_dl.save(CaseLedgerEntry.model_validate(row))
-    return case_id
 
 
 @pytest.mark.spec("CRD-01-001")
@@ -178,7 +127,9 @@ def test_a_demo_case_reads_back_every_entry_in_log_index_order(
     case_id = demo_case.removeprefix("urn:uuid:") if short else demo_case
     reading = _reader(recorder).read_case(case_id)
 
-    expected = [CaseLedgerEntry.model_validate(r) for r in _rows(_RECORDING)]
+    expected = [
+        CaseLedgerEntry.model_validate(r) for r in recording_rows(RECORDING)
+    ]
     assert list(reading.ledger) == expected
     assert [e.log_index for e in reading.ledger] == sorted(
         e.log_index for e in expected
@@ -218,7 +169,7 @@ def test_the_reader_sends_only_one_get_of_the_ledger_list(node_dl, demo_case):
 
 
 def test_a_full_actor_id_is_sent_as_its_short_segment():
-    recorder = _answering(body=_ndjson([_entry_row(_CASE, 0)]))
+    recorder = _answering(body=_ndjson([ledger_entry_row(_CASE, 0)]))
     VultronNodeCaseReader(
         _NODE + "/",
         "http://case-actor:7999/api/v2/actors/case-actor/",
@@ -330,7 +281,7 @@ def test_any_other_answer_raises_the_domain_error_with_its_status(status):
 
 @pytest.mark.spec("SHD-04-004")
 def test_a_row_that_is_not_a_ledger_entry_refuses_the_reading_whole():
-    body = _ndjson([_entry_row(_CASE, 0), {"type": "CaseLedgerEntry"}])
+    body = _ndjson([ledger_entry_row(_CASE, 0), {"type": "CaseLedgerEntry"}])
     with pytest.raises(VultronNodeCaseReadError) as caught:
         _reader(_answering(body=body)).read_case(_CASE)
     _assert_names_node_and_case(caught.value)
@@ -340,7 +291,7 @@ def test_a_row_that_is_not_a_ledger_entry_refuses_the_reading_whole():
 
 @pytest.mark.spec("SHD-04-004")
 def test_every_bad_row_is_named_in_line_order():
-    body = _ndjson(["not json", _entry_row(_CASE, 0), "[1]", {"x": 1}])
+    body = _ndjson(["not json", ledger_entry_row(_CASE, 0), "[1]", {"x": 1}])
     with pytest.raises(VultronNodeCaseReadError) as caught:
         _reader(_answering(body=body)).read_case(_CASE)
     lines = [v.message for v in caught.value.violations]
@@ -352,7 +303,7 @@ def test_every_bad_row_is_named_in_line_order():
 
 
 def test_entries_out_of_log_index_order_are_refused():
-    body = _ndjson([_entry_row(_CASE, 1), _entry_row(_CASE, 0)])
+    body = _ndjson([ledger_entry_row(_CASE, 1), ledger_entry_row(_CASE, 0)])
     with pytest.raises(VultronNodeCaseReadError, match="log-index order"):
         _reader(_answering(body=body)).read_case(_CASE)
 
@@ -376,7 +327,7 @@ def test_a_case_with_no_entry_is_refused_rather_than_shown_empty(
 )
 def test_a_ledger_of_another_case_than_the_one_asked_for_is_refused(case_id):
     """A full id must match whole; the node's answer must be that case."""
-    body = _ndjson([_entry_row(_CASE, 0)])
+    body = _ndjson([ledger_entry_row(_CASE, 0)])
     with pytest.raises(VultronNodeCaseReadError) as caught:
         _reader(_answering(body=body)).read_case(case_id)
     assert [v.message for v in caught.value.violations] == [
@@ -395,7 +346,7 @@ def test_a_ledger_of_another_case_than_the_one_asked_for_is_refused(case_id):
     ids=["query", "fragment", "bare-urn", "no-segment"],
 )
 def test_a_served_case_id_that_names_no_case_refuses_a_short_id(served):
-    body = _ndjson([_entry_row(served, 0)])
+    body = _ndjson([ledger_entry_row(served, 0)])
     with pytest.raises(VultronNodeCaseReadError) as caught:
         _reader(_answering(body=body)).read_case("case-1")
     assert caught.value.case_id == "case-1"
@@ -406,6 +357,6 @@ def test_a_served_case_id_that_names_no_case_refuses_a_short_id(served):
 
 
 def test_a_short_case_id_matches_the_served_cases_last_segment():
-    body = _ndjson([_entry_row(_CASE, 0)])
+    body = _ndjson([ledger_entry_row(_CASE, 0)])
     reading = _reader(_answering(body=body)).read_case("case-1")
     assert reading.ledger[0].case_id == _CASE

@@ -1655,7 +1655,7 @@ groups:
     replaying it, in hash-chain order, once the entry that closes the gap is committed.
     What is held and replayed is the Announce that was received, never one the replica
     builds. Rationale: ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md),
-    ADR-0135.
+    ADR-0214.
   specs:
   - id: SYNC-14-001
     priority: MUST
@@ -1674,7 +1674,7 @@ groups:
       replay that the next delivery may lose again.
     adr:
     - ADR-0037
-    - ADR-0208
+    - ADR-0214
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that a forward-gap
       Announce(CaseLedgerEntry) is held as the body intake archived, with no ledger
@@ -1704,7 +1704,7 @@ groups:
       spec_id: SYNC-14-001
     adr:
     - ADR-0037
-    - ADR-0208
+    - ADR-0214
     stories:
     - story_2026_048
   - id: SYNC-14-002
@@ -1820,7 +1820,7 @@ groups:
       would run several trees in one delivery. A drain inside the tree would run one
       tree inside another, and an internal error in the inner tree would then not be
       reported. A delivery of its own goes through the same path as in-order delivery
-      (SYNC-14-008, ADR-0135).
+      (SYNC-14-008, ADR-0214).
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that committing an
       entry whose successor's Announce is held replays that Announce and runs no
@@ -1839,7 +1839,7 @@ groups:
     - rel_type: uses_definition
       spec_id: IO-02-003
     adr:
-    - ADR-0208
+    - ADR-0214
   - id: SYNC-14-015
     priority: MUST
     kind: project
@@ -1861,7 +1861,7 @@ groups:
     - rel_type: refines
       spec_id: VM-08-008
     adr:
-    - ADR-0208
+    - ADR-0214
   - id: SYNC-14-016
     priority: MUST_NOT
     kind: project
@@ -1879,7 +1879,7 @@ groups:
     - rel_type: extends
       spec_id: SYNC-14-009
     adr:
-    - ADR-0208
+    - ADR-0214
   - id: SYNC-14-005
     priority: MUST_NOT
     kind: project

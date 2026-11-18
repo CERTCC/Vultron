@@ -26,6 +26,7 @@ from vultron.wire.as2.extractor._builders.fields import (
     _get_id,
     _get_id_list,
     _get_timestamp,
+    _required_published,
 )
 from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
@@ -47,7 +48,7 @@ def _build_report_object(obj: object) -> dict[str, Any]:
                 media_type=getattr(obj, "media_type", None),
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 context=_get_id(getattr(obj, "context", None)),
-                published=_get_timestamp(obj, "published"),
+                published=_required_published(obj),
                 updated=_get_timestamp(obj, "updated"),
                 # Carried as received, so the stored report keeps the
                 # documents it came with, a CSAF document among them
@@ -198,7 +199,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 content=getattr(obj, "content", None),
                 url=_get_id(getattr(obj, "url", None)),
                 attributed_to=owner_id,
-                published=_get_timestamp(obj, "published"),
+                published=_required_published(obj),
                 updated=_get_timestamp(obj, "updated"),
                 case_participants=participants,
                 actor_participant_index=actor_participant_index,
@@ -243,7 +244,7 @@ def _build_embargo_event_object(
                 name=getattr(obj, "name", None),
                 start_time=_get_timestamp(obj, "start_time"),
                 end_time=end_time,
-                published=_get_timestamp(obj, "published"),
+                published=_required_published(obj),
                 updated=_get_timestamp(obj, "updated"),
                 context=embargo_context,
             )
@@ -324,7 +325,7 @@ def _build_note_object(obj: object) -> dict[str, Any]:
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 context=_get_id(getattr(obj, "context", None)),
                 in_reply_to=_get_id(getattr(obj, "in_reply_to", None)),
-                published=_get_timestamp(obj, "published"),
+                published=_required_published(obj),
                 updated=_get_timestamp(obj, "updated"),
             )
         }

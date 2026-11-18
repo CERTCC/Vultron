@@ -24,6 +24,7 @@ when :attr:`LedgerFile.unusable_rows` is non-empty.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -112,6 +113,54 @@ def read_ledger_file(path: Path) -> LedgerFile:
     return parse_ledger_text(text, path)
 
 
+def parse_ledger_row(
+    text: str, path: Path, line: int
+) -> LedgerRow | UnusableRow:
+    """Parse one non-blank case-ledger row, read from *line* of *path*.
+
+    The one row parser of :func:`parse_ledger_text`, for a caller that
+    receives rows one at a time, such as the live Vultron case reader over
+    a node's event stream.
+
+    Args:
+        text: The row: one JSON object.
+        path: Where the row was read from, quoted in its description.
+        line: The row's 1-based position in *path*.
+
+    Returns:
+        The parsed row, or the row reported as unusable when it is not a
+        JSON object (CEH-02-008).
+    """
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return UnusableRow(path=path, line=line, reason=f"Parse error: {exc}")
+    if not isinstance(parsed, dict):
+        return UnusableRow(
+            path=path,
+            line=line,
+            reason=(
+                "Parse error: a ledger row must be a JSON object, "
+                f"not {type(parsed).__name__}"
+            ),
+        )
+    return LedgerRow(path=path, line=line, data=parsed)
+
+
+def ledger_from_rows(
+    path: Path, parsed: Iterable[LedgerRow | UnusableRow]
+) -> LedgerFile:
+    """The ledger *parsed* rows make, each sorted into rows or unusable."""
+    rows: list[LedgerRow] = []
+    unusable: list[UnusableRow] = []
+    for row in parsed:
+        if isinstance(row, LedgerRow):
+            rows.append(row)
+        else:
+            unusable.append(row)
+    return LedgerFile(path=path, rows=rows, unusable_rows=unusable)
+
+
 def parse_ledger_text(text: str, path: Path) -> LedgerFile:
     """Parse case-ledger JSONL *text*, tolerating malformed rows.
 
@@ -125,32 +174,11 @@ def parse_ledger_text(text: str, path: Path) -> LedgerFile:
         path: Where the text was read from, quoted in each row's
             description: a file, or the path of the endpoint that served it.
     """
-    rows: list[LedgerRow] = []
-    unusable: list[UnusableRow] = []
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        try:
-            parsed = json.loads(stripped)
-        except json.JSONDecodeError as exc:
-            unusable.append(
-                UnusableRow(
-                    path=path, line=lineno, reason=f"Parse error: {exc}"
-                )
-            )
-            continue
-        if not isinstance(parsed, dict):
-            unusable.append(
-                UnusableRow(
-                    path=path,
-                    line=lineno,
-                    reason=(
-                        "Parse error: a ledger row must be a JSON object, "
-                        f"not {type(parsed).__name__}"
-                    ),
-                )
-            )
-            continue
-        rows.append(LedgerRow(path=path, line=lineno, data=parsed))
-    return LedgerFile(path=path, rows=rows, unusable_rows=unusable)
+    return ledger_from_rows(
+        path,
+        (
+            parse_ledger_row(line.strip(), path, lineno)
+            for lineno, line in enumerate(text.splitlines(), start=1)
+            if line.strip()
+        ),
+    )

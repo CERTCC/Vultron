@@ -52,7 +52,11 @@ def _build_active_embargo_case(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
     )
     proposal = em_propose_embargo_activity(
-        embargo, context=case.id_, actor=owner_id, at=authored_at()
+        embargo,
+        context=case.id_,
+        actor=owner_id,
+        invitee=owner_id,
+        at=authored_at(),
     )
 
     owner_participant = make(
@@ -315,7 +319,11 @@ def _case_with_open_proposal(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
     )
     proposal = em_propose_embargo_activity(
-        embargo, context=case.id_, actor=owner_id, at=authored_at()
+        embargo,
+        context=case.id_,
+        actor=owner_id,
+        invitee=owner_id,
+        at=authored_at(),
     )
     dl.create(embargo)
     dl.create(proposal)
@@ -343,7 +351,11 @@ def _open_revision(
         as_EmbargoEvent, context=case_id, end_time=days_from_now(90)
     )
     proposal = em_propose_embargo_activity(
-        revision, context=case_id, actor=owner_id, at=authored_at()
+        revision,
+        context=case_id,
+        actor=owner_id,
+        invitee=owner_id,
+        at=authored_at(),
     )
     propose(case, revision.id_)
     case.pending_embargo_proposal_index[revision.id_] = proposal.id_
@@ -381,7 +393,11 @@ def _case_owned_by_non_manager(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
     )
     proposal = em_propose_embargo_activity(
-        embargo, context=case.id_, actor=manager_id, at=authored_at()
+        embargo,
+        context=case.id_,
+        actor=manager_id,
+        invitee=manager_id,
+        at=authored_at(),
     )
     owner_participant = make(
         VendorParticipant,

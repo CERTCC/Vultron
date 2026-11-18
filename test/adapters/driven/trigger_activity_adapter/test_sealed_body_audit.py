@@ -1104,32 +1104,35 @@ def test_a_uri_only_peer_record_travels_as_a_reference(world):
     assert actor == {"id": _CASE_ACTOR, "type": "Actor"}
 
 
-@pytest.mark.spec("AKM-02-006")
+@pytest.mark.spec("DL-06-004")
 @pytest.mark.spec("OX-06-002")
+@pytest.mark.spec("CLP-15-011")
 @pytest.mark.parametrize(
     "method",
     ["emit_accept_actor_recommendation", "emit_reject_actor_recommendation"],
 )
-def test_a_rebuilt_recommendation_is_the_same_on_every_build(
+def test_the_answer_embeds_the_recommendation_as_received(
     world, method, monkeypatch
 ):
-    """The CASE_MANAGER's rebuild of the recommendation reads no clock.
+    """The CASE_MANAGER embeds the recommendation it holds, never a rebuild.
 
-    Two builds from one store, an hour apart, embed the same recommendation:
-    nothing in it is minted from this actor's clock (AKM-02-006), so every
-    rebuild under the recommendation's id carries the same body (OX-06-002).
+    The answer carries the recommender's Offer as it arrived, its
+    ``published`` included (CLP-15-011), so the recommender does not refuse
+    it.  Two builds an hour apart embed the same Offer, since nothing in it
+    is minted from this actor's clock (OX-06-002).
     """
     from datetime import timedelta
 
     from vultron.core.models._helpers import clock as helpers_clock, now_utc
     from vultron.demo.determinism import SteppingClock
 
+    recommendation_id = world.recommendation_id()
     emit = getattr(world.adapter, method)
 
     def embedded() -> dict[str, Any]:
         _, blob = emit(
             recommender_id=_PEER,
-            recommendation_id="https://example.org/activities/recommendation",
+            recommendation_id=recommendation_id,
             recommended_id=_PEER,
             case_id=world.case_id,
             actor=_ACTOR,
@@ -1147,6 +1150,84 @@ def test_a_rebuilt_recommendation_is_the_same_on_every_build(
     )
     second = embedded()
 
-    assert "published" not in first
-    assert "updated" not in first
+    sent = read_sealed_body(world.store(_PEER), recommendation_id)
+    assert sent is not None
+    assert first == json.loads(sent.body), (
+        "embedded as the recommender sent it"
+    )
+    assert first["published"]
     assert first == second
+
+
+@pytest.mark.spec("DL-06-004")
+@pytest.mark.parametrize(
+    "method",
+    ["emit_accept_actor_recommendation", "emit_reject_actor_recommendation"],
+)
+def test_an_answer_to_a_recommendation_never_received_is_refused(
+    world, method
+):
+    """With no recommendation held there is nothing to embed, and nothing
+    is rebuilt in its place."""
+    from vultron.errors import VultronNotFoundError
+
+    with pytest.raises(VultronNotFoundError):
+        getattr(world.adapter, method)(
+            recommender_id=_PEER,
+            recommendation_id="https://example.org/activities/never-held",
+            recommended_id=_PEER,
+            case_id=world.case_id,
+            actor=_ACTOR,
+            to=[_PEER],
+            at=authored_at(),
+        )
+
+
+def _answer_held(world, activity_id: str) -> None:
+    world.adapter.emit_accept_actor_recommendation(
+        recommender_id=_PEER,
+        recommendation_id=activity_id,
+        recommended_id=_PEER,
+        case_id=world.case_id,
+        actor=_ACTOR,
+        to=[_PEER],
+        at=authored_at(),
+    )
+
+
+@pytest.mark.spec("DL-06-004")
+def test_an_answer_to_a_held_activity_that_is_no_offer_is_refused(world):
+    """An activity held under the recommendation's id that is not an Offer
+    is no recommendation, so there is nothing to embed."""
+    from vultron.errors import VultronValidationError
+
+    announce_id = world.adapter_as(_PEER).announce_vulnerability_case(
+        case_id=world.case_id,
+        actor=_PEER,
+        context_id=world.case_id,
+        to=[_ACTOR],
+        at=authored_at(),
+    )
+    world.deliver(_PEER, announce_id, _ACTOR)
+
+    with pytest.raises(VultronValidationError, match="not as an Offer"):
+        _answer_held(world, announce_id)
+
+
+@pytest.mark.spec("DL-06-004")
+def test_an_answer_to_a_held_offer_that_recommends_no_actor_is_refused(world):
+    """An Offer of another kind (an Invite) is no recommendation either: the
+    factory refuses to embed it as one."""
+    from vultron.errors import VultronActivityConstructionError
+
+    invite_id, _ = world.adapter_as(_PEER).invite_actor_to_case(
+        invitee_id=_ACTOR,
+        case_id=world.case_id,
+        actor=_PEER,
+        to=[_ACTOR],
+        at=authored_at(),
+    )
+    world.deliver(_PEER, invite_id, _ACTOR)
+
+    with pytest.raises(VultronActivityConstructionError):
+        _answer_held(world, invite_id)

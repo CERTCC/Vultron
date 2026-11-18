@@ -7,7 +7,7 @@ Records the sender's own consent to the revision. The revision replaces the acti
 === "Details"
 
     - **When…** a Participant agrees to a proposed embargo revision
-    - **Send:** `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`
+    - **Send:** `Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Distinguished by:** EM state `REVISE`

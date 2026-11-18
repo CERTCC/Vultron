@@ -80,6 +80,10 @@ class VultronActivity(CoreObject):
     to ``populate_by_name=True`` on ``CoreRecord``.
     """
 
+    # Every author states it (ADR-0176), and a receiver refuses a received
+    # one without it (CLP-15-011).
+    published: datetime
+
     type_: NonEmptyString = Field(  # pyright: ignore[reportGeneralTypeIssues]
         validation_alias="type", serialization_alias="type"
     )

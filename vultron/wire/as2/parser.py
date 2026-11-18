@@ -17,10 +17,7 @@ from vultron.core.models.sender_sequence import is_sender_sequence
 from vultron.wire.as2.case_proposal_envelope import (
     refuse_malformed_case_proposal_envelope,
 )
-from vultron.wire.as2.case_reference_placement import (
-    refuse_misplaced_case_preview,
-    refuse_misplaced_case_reference,
-)
+from vultron.wire.as2.case_reference_placement import refuse_misplaced_forms
 from vultron.wire.as2.context_agreement import refuse_context_disagreement
 from vultron.wire.as2.errors import (
     VultronParseError,
@@ -48,8 +45,9 @@ logger = logging.getLogger(__name__)
 
 
 #: Marks every ``model_validate`` call in this module as reading inbound data,
-#: which is what tells ``as_Base`` to read an absent required timestamp as
-#: ``None``, the sender claiming no time (ISSUE-3257, CLP-15-007).  It belongs
+#: which is what tells a class to refuse a whole object with no ``published``
+#: (CLP-15-011) and to read any other absent time as ``None``, the sender
+#: claiming none (ISSUE-3257, CLP-15-007).  It belongs
 #: only where a peer's body is read (here, and the fetch edge): a caller
 #: *authoring* an object states the act's instant (ADR-0176), and passing this
 #: context for one would hide its omission.
@@ -109,7 +107,7 @@ def _expand_inline_value(value: object, path: str = "") -> object:
     try:
         return inline_cls.model_validate(expanded, context=_INBOUND_CONTEXT)
     except Exception as exc:
-        _refuse_missing_claimed_time(exc, path)
+        refuse_missing_claimed_time(exc, path)
         where = f" at {path!r}" if path else ""
         raise VultronParseValidationError(
             f"Inline {inline_cls.__name__} object{where} is malformed:"
@@ -124,19 +122,20 @@ def _expand_inline_object(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _refuse_missing_claimed_time(
+def refuse_missing_claimed_time(
     exc: Exception, path: str, prefix: str = ""
 ) -> None:
     """Re-raise a nested object's missing ``published`` as that refusal.
 
-    A ``CaseStatus`` must carry its sender's time at any depth (CLP-15-010),
-    and its own validator says so with :class:`MissingClaimedTimeError`.
-    Pydantic buries that cause in a ``ValidationError``; finding it here lets
-    the sender read the same refusal CLP-15-008 gives a top-level activity,
-    with the position of every untimed object.  Any other fault in the same
-    error is named too, so the sender learns of every violation at once
-    (EH-07-001).  Returns when *exc* holds no such cause, leaving the caller's
-    schema-fault refusal to run.
+    A received whole object must carry its author's time at any depth
+    (CLP-15-011), and its class's inbound validator says so with
+    :class:`MissingClaimedTimeError`.  Pydantic buries that cause in a
+    ``ValidationError``; finding it here lets the sender read the same
+    refusal CLP-15-008 gives a top-level activity, with the position of every
+    untimed object.  The fetch edge reads a fetched body's the same way.  Any
+    other fault in the same error is named too, so the sender learns of every
+    violation at once (EH-07-001).  Returns when *exc* holds no such cause,
+    leaving the caller's schema-fault refusal to run.
 
     Args:
         exc: The exception validation raised.
@@ -162,7 +161,8 @@ def _refuse_missing_claimed_time(
             others.append(f"{where or 'the activity'}: {error['msg']}")
     if not missing:
         return
-    named = [repr(where) for where in missing if where]
+    # Each union member a value failed reports the same position; name it once.
+    named = [repr(where) for where in dict.fromkeys(missing) if where]
     location = f" at {', '.join(named)}" if named else ""
     also = f"; also refused: {'; '.join(others)}" if others else ""
     raise VultronParseMissingPublishedError(
@@ -267,8 +267,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     Raises:
         VultronParseMissingTypeError: If the `type` field is absent or blank.
         VultronParseMissingPublishedError: If the `published` field is absent
-            or blank, or a ``CaseStatus`` anywhere in the activity carries none
-            (CLP-15-010).
+            or blank, or a whole object anywhere in the activity carries none,
+            other than an actor profile or a collection (CLP-15-011).
         VultronParseUnknownTypeError: If the `type` value is not in the
             vocabulary: a string it does not hold, a list naming no type it
             holds or two unrelated ones (VM-03-006), or any other value.
@@ -329,10 +329,10 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # message-validity failure, not something to correct downstream
     # (ADR-0032: validate at the edge).
     #
-    # Scoped to the top-level activity: nested objects legitimately omit
-    # ``published`` and may be bare ID strings.  Their absence is kept as
-    # absence by ``as_Base.carry_absent_times_on_inbound`` instead, which the
-    # ``_INBOUND_CONTEXT`` below switches on (ISSUE-3257).
+    # Scoped to the top-level activity: a nested whole object's absent
+    # ``published`` is refused by its class's inbound validator, which the
+    # ``_INBOUND_CONTEXT`` below switches on, and is named by its position
+    # (CLP-15-011).  A nested reference, URI or ``Link`` carries no time.
     #
     # A present-but-blank value carries no claimed time either, so it is refused
     # the same way.  Asking only whether the *key* was absent let ``""`` reach
@@ -385,7 +385,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         # the nested type that failed; re-wrapping would bury it.
         raise
     except Exception as exc:
-        _refuse_missing_claimed_time(exc, "", _named(body))
+        refuse_missing_claimed_time(exc, "", _named(body))
         # Named, so a refusal of a field such as ``ledgerPosition`` says which
         # activity it refused (SYNC-18-015).
         raise VultronParseValidationError(f"{_named(body)}{exc}") from exc
@@ -393,10 +393,10 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # A schema-valid envelope can still be one this receiver cannot act on;
     # the Create(CaseProposal) checks are the CP-01-010 refusals.
     refuse_malformed_case_proposal_envelope(activity)
-    # A case reference names the case only where an act may (AKM-03-004).
-    refuse_misplaced_case_reference(activity)
-    # A case preview stands for the case only in a stub Invite (MV-10-002).
-    refuse_misplaced_case_preview(activity)
+    # A case reference names the case only where an act may (AKM-03-004), a
+    # case preview stands for the case only in a stub Invite (MV-10-002), and
+    # a marker withholds a value only in a preview's field (MV-12-002).
+    refuse_misplaced_forms(activity)
     # An activity and the objects it carries name one case (HP-08-015).
     refuse_context_disagreement(activity)
 

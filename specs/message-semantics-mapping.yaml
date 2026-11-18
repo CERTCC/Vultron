@@ -224,7 +224,7 @@ groups:
     statement: >-
       Protocol shorthand `EP` (Embargo Proposed) MUST have the semantic type
       `INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form is
-      `Invite(EmbargoEvent)[context=VulnerabilityCase]` per VAM-05-005.
+      `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]` per VAM-05-005.
     rationale: >-
       Proposing an embargo asks each participant to consent to the proposed terms, which
       is what `Invite` expresses; the `Event` is the proposed embargo. The `context`
@@ -233,7 +233,7 @@ groups:
     verification: >-
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE` is paired with an `ActivityPattern`
-      matching `Invite(EmbargoEvent)[context=VulnerabilityCase]` in
+      matching `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]` in
       `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: uses_definition
@@ -267,7 +267,7 @@ groups:
     - rel_type: uses_definition
       spec_id: MSM-07-008
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
     - story_2022_023
@@ -276,7 +276,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Protocol shorthand `EV` (Embargo Revision Proposed) MUST dispatch as `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE`;
-      its AS2 wire form is `Invite(EmbargoEvent)[context=VulnerabilityCase]` per
+      its AS2 wire form is
+      `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]` per
       VAM-05-005 — identical to `EP`. The revision context
       is inferred from the presence of an active embargo.
     rationale: EV, EJ, and EC are aliases for EP, ER, and EA at the wire layer (`vultron/bt/messaging/states.py`). The distinction
@@ -340,7 +341,7 @@ groups:
     - rel_type: uses_definition
       spec_id: MSM-07-008
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
     - story_2022_023
@@ -353,7 +354,8 @@ groups:
       `Reject(EmbargoEvent)[target=VulnerabilityCase]` per VAM-05-009, for the Case Owner's
       decision that rejects a proposal, and the semantic type
       `REJECT_INVITE_TO_EMBARGO_ON_CASE`, with AS2 wire form
-      `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])` per VAM-05-007, for the
+      `Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])` per
+      VAM-05-007, for the
       CASE_MANAGER's abandonment of a proposal (EMB-16-001); either moves EM from
       PROPOSED to NONE once no other proposal is open.
     rationale: >-
@@ -369,7 +371,8 @@ groups:
       `MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE` is paired with an
       `ActivityPattern` matching `Reject(EmbargoEvent)[target=VulnerabilityCase]` and
       `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE` with one matching
-      `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])` in `SEMANTIC_REGISTRY`;
+      `Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])` in
+      `SEMANTIC_REGISTRY`;
       `test/core/behaviors/embargo/nodes/test_abandon.py` asserts the CASE_MANAGER's
       abandonment.
     relationships:
@@ -454,8 +457,9 @@ groups:
     statement: >-
       An implementation MUST NOT apply the EM transition of EA, EC, ER or EJ on
       receipt of a Participant's
-      `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` or
-      `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])`, because that activity
+      `Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])` or
+      `Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])`, because
+      that activity
       is the
       sender's consent to one embargo (MSM-07-003, MSM-07-004), and the transition is
       made only by the activity MSM-02-002, MSM-02-004, MSM-02-005 or MSM-02-006 maps the
@@ -474,7 +478,7 @@ groups:
       changes only the sender's consent row and moves no register entry, both for a
       first proposal (EM PROPOSED) and for a proposed revision (EM REVISE).
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
     relationships:
@@ -1249,7 +1253,8 @@ groups:
     kind: protocol
     statement: >-
       The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
-      Invite(EmbargoEvent)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger
+      Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]) MUST apply the PEC
+      INVITE trigger
       to the
       invited participant's row for the invited embargo, advancing it from UNINVITED, DECLINED
       or TIMED_OUT to INVITED.
@@ -1278,7 +1283,8 @@ groups:
     kind: protocol
     statement: >-
       The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (wire form:
-      Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])) is always its sender's own
+      Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])) is always
+      its sender's own
       consent, the Case Owner's included. An actor applying it MUST apply the PEC AGREE
       trigger to the sender's row for the accepted embargo. The row advances from
       UNINVITED, INVITED, DECLINED or TIMED_OUT to AGREED. The accepted embargo may be
@@ -1312,7 +1318,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_001
     see_also:
@@ -1323,7 +1329,8 @@ groups:
     kind: protocol
     statement: >-
       The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (wire form:
-      Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])) is its sender's own consent
+      Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])) is its
+      sender's own consent
       whenever a participant sends it, the Case Owner included. Unless MSM-07-014
       refuses it, an actor applying it MUST apply the PEC DECLINE trigger to the
       sender's row for the rejected embargo. DECLINE is valid from UNINVITED, INVITED,
@@ -1348,7 +1355,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_001
   - id: MSM-07-005
@@ -1386,7 +1393,7 @@ groups:
       spec_id: EMB-18-005
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_001
   - id: MSM-07-020
@@ -1414,7 +1421,7 @@ groups:
       spec_id: CM-18-001
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_089
   - id: MSM-07-021
@@ -1434,7 +1441,7 @@ groups:
       proposal changes no participant's consent to the embargo in force.
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_089
   - id: MSM-07-022
@@ -1455,7 +1462,7 @@ groups:
       spec_id: MSM-07-021
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_089
   - id: MSM-07-023
@@ -1480,7 +1487,7 @@ groups:
       spec_id: EP-05-003
     adr:
     - ADR-0124
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_089
   - id: MSM-07-024
@@ -1531,7 +1538,7 @@ groups:
       spec_id: MSM-02-007
     adr:
     - ADR-0118
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_095
   - id: MSM-07-025
@@ -1559,7 +1566,7 @@ groups:
       spec_id: MSM-07-006
     adr:
     - ADR-0118
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_095
     see_also:
@@ -1651,7 +1658,7 @@ groups:
     - rel_type: uses_definition
       spec_id: VAM-05-008
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-027
@@ -1673,7 +1680,7 @@ groups:
     - rel_type: refines
       spec_id: HP-01-006
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-028
@@ -1698,7 +1705,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-18-003
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-037
@@ -1727,7 +1734,7 @@ groups:
     - rel_type: refines
       spec_id: MSM-07-028
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-038
@@ -1753,7 +1760,7 @@ groups:
       spec_id: MSM-07-004
     adr:
     - ADR-0152
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-029
@@ -1778,7 +1785,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-02-002
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-009
@@ -1810,7 +1817,7 @@ groups:
     - rel_type: uses_definition
       spec_id: EMB-18-005
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-030
@@ -1832,7 +1839,7 @@ groups:
     - rel_type: refines
       spec_id: HP-01-006
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-031
@@ -1852,7 +1859,7 @@ groups:
     - rel_type: extends
       spec_id: MSM-07-009
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-032
@@ -1885,7 +1892,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-04-002
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_033
   - id: MSM-07-033
@@ -1905,7 +1912,7 @@ groups:
     - rel_type: extends
       spec_id: MSM-07-009
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-010
@@ -1935,7 +1942,7 @@ groups:
       spec_id: VP-13-017
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_090
   - id: MSM-07-034
@@ -1961,7 +1968,7 @@ groups:
       spec_id: EP-08-004
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_090
   - id: MSM-07-035
@@ -1980,7 +1987,7 @@ groups:
       withdrawer holds no AGREED row for an open revision afterwards.
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_090
   - id: MSM-07-036
@@ -2005,7 +2012,7 @@ groups:
       spec_id: MSM-07-010
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_090
     see_also:
@@ -2029,7 +2036,7 @@ groups:
     - rel_type: extends
       spec_id: MSM-07-003
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-012
@@ -2070,7 +2077,7 @@ groups:
       spec_id: CLP-05-001
     adr:
     - ADR-0065
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_064
   - id: MSM-07-039
@@ -2126,7 +2133,7 @@ groups:
     - rel_type: extends
       spec_id: MSM-07-004
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
   - id: MSM-07-014
@@ -2153,7 +2160,7 @@ groups:
       spec_id: MSM-07-004
       note: In the case it names, the refusal replaces the DECLINE
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_090
     see_also:
@@ -2188,7 +2195,7 @@ groups:
       spec_id: MSM-07-004
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_090
   - id: MSM-07-016

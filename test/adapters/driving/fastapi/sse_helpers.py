@@ -28,27 +28,43 @@ from vultron.core.ports.datalayer import DataLayer
 
 
 def parse_sse_fields(lines: Iterable[str]) -> dict[str, str]:
-    """Map each ``name: value`` line of one event to its field."""
+    """Map each ``name: value`` line of one event to its field.
+
+    A comment line (one starting with ``:``, such as the stream's
+    keepalive) is skipped, as a client skips it.
+    """
     fields: dict[str, str] = {}
     for line in lines:
+        if line.startswith(":"):
+            continue
         name, _, value = line.partition(": ")
         fields[name] = value
     return fields
 
 
 def parse_sse_body(body: str) -> list[dict[str, str]]:
-    """Split a complete SSE body into one field map per event."""
-    return [
+    """Split a complete SSE body into one field map per event.
+
+    A block of comments alone, such as a keepalive, is no event.
+    """
+    events = (
         parse_sse_fields(block.split("\n"))
         for block in body.split("\n\n")
         if block.strip()
-    ]
+    )
+    return [fields for fields in events if fields]
 
 
 def read_sse_event(lines: Iterator[str]) -> dict[str, str]:
-    """Read lines from an open stream up to the blank line ending one event."""
+    """Read lines from an open stream up to the blank line ending one event.
+
+    Comment lines, such as the stream's keepalive, are skipped, so a quiet
+    stream on a slow machine is not read as an event.
+    """
     block: list[str] = []
     for line in lines:
+        if line.startswith(":"):
+            continue
         if line == "":
             if block:
                 return parse_sse_fields(block)

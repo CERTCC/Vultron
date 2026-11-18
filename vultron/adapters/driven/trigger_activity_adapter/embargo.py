@@ -87,8 +87,14 @@ class _EmbargoMixin:
         min_rsvp_window: timedelta | None = None,
         *,
         at: datetime,
+        invitee: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]``.
+        """Create and persist an
+        ``Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]``.
+
+        Its ``target`` is the invitee: the one actor ``to`` names, or
+        *invitee* for an Invite addressed to nobody, which is the
+        CASE_MANAGER's own ledgered proposal (EP-09-010, ADR-0205).
 
         ``attributed_to`` names the proposer of a relayed proposal (CM-24-002);
         it is forwarded only when given so a participant's own proposal keeps
@@ -106,6 +112,7 @@ class _EmbargoMixin:
                 ("id_", activity_id),
                 ("rsvp_deadline", rsvp_deadline),
                 ("min_rsvp_window", min_rsvp_window),
+                ("invitee", invitee),
             )
             if value is not None
         }

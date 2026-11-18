@@ -46,7 +46,7 @@ groups:
       holds domain logic, a change of wire format must also change that logic, and core
       then does not own its own rules. The wire layer may name core types in its
       annotations (ARCH-22-001), because AS2 is a serialization of the core model
-      (ADR-0099). The rule thus limits what wire code does, not what it imports.
+      (ADR-0211). The rule thus limits what wire code does, not what it imports.
     adr:
     - ADR-0211
     - ADR-0009
@@ -170,7 +170,7 @@ groups:
       format changes only that module. If a second module also does the mapping, the two
       can disagree, and one message can mean different things in different parts of the
       code. The semantic extractor reads the AS2 form, so it is in `vultron/wire/`,
-      which may import core models (ARCH-22-001, ADR-0099).
+      which may import core models (ARCH-22-001, ADR-0211).
     verification: Inspection of `vultron/wire/` confirms that AS2-to-domain vocabulary mapping logic appears only in
       the semantic extractor module and in no other location.
     adr:
@@ -434,7 +434,7 @@ groups:
   title: Core Object Hierarchy
   rationale: >-
     The core classes are the object model, and AS2 is a serialization of them
-    (ADR-0099). Core and the wire layer thus have separate roots, and each root holds
+    (ADR-0211). Core and the wire layer thus have separate roots, and each root holds
     only what its own branch needs. Two class hierarchies for one concept need
     translation code, and translation code drifts. These rules keep one class for each
     domain concept.
@@ -443,19 +443,20 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A wire-branch class MUST NOT inherit from a core class. `as_Base` stands on
-      `pydantic.BaseModel` directly, so the wire branch inherits no core field, configuration,
-      or registration hook. A domain type's `as_*` name is an alias of its core class
-      (ARCH-25-003), not a subclass of it.
+      A wire-branch class MUST NOT inherit from a core class, other than one of core's AS2
+      base classes (ARCH-25-034). `as_Base` stands on `pydantic.BaseModel` directly, so the
+      wire branch inherits no core field, configuration, or registration hook. A domain
+      type's `as_*` name is an alias of its core class (ARCH-25-003), not a subclass of it.
     rationale: >-
       If a wire class inherits from a core class, it also inherits core configuration
       and registration. A wire type can then register in a core registry, and the core
       root must stay lenient so that the wire class can parse loose inbound data. The
       wire base describes AS2 vocabulary that core does not model, and everything that
-      core does model is the core class itself (ARCH-25-003). The two branches thus have
-      nothing to share.
+      core does model is the core class itself (ARCH-25-003). Core's AS2 base classes,
+      AS2 models with no Vultron property, are the one exception (ADR-0208).
     adr:
     - ADR-0211
+    - ADR-0208
     verification: >-
       `test_wire_vocabulary_inherits_nothing_from_core` in
       `test/architecture/test_hierarchy_invariants.py` asserts no `VOCABULARY` class has a
@@ -467,6 +468,8 @@ groups:
     see_also:
     - spec_id: ARCH-25-003
       reason: 'context for the reader'
+    - spec_id: ARCH-25-034
+      reason: 'names the core classes the exception admits'
   - id: ARCH-12-002
     priority: MUST
     kind: project
@@ -793,7 +796,7 @@ groups:
       `VultronService`, `VultronApplication` and `VultronGroup`.
     rationale: >-
       With the actor classes in core, core code uses them with no wire import, and the
-      AS2 form of an actor is the serialization of its class (ADR-0099).
+      AS2 form of an actor is the serialization of its class (ADR-0211).
     verification: >-
       Inspection confirms that `VultronPerson`, `VultronOrganization`, `VultronService`,
       `VultronApplication` and `VultronGroup` are defined in
@@ -1344,8 +1347,9 @@ groups:
     Governs how core domain objects are rendered into wire-shaped (AS2 camelCase) JSON. Core
     legitimately needs a wire representation in one place — the `CaseLedgerEntry.payloadSnapshot`,
     which CLP-07-011 requires to be receiver-reconstitutable AS2 — and this group makes a driven
-    port the single seam that produces it. Under one object model (ADR-0099) the spelling lives
-    on the core class (ARCH-25-002) and a dimension serializes to a bare state value (ARCH-25-005), so
+    port the single seam that produces it. Under one object model (ADR-0211) the spelling
+    lives on the core class (ARCH-25-002) and a dimension serializes to a bare state value
+    (ARCH-25-005), so
     the port's adapter is a plain `by_alias` dump of the core object; what the group still
     guards is that core code reaches that dump only through the port.
   rationale: >-
@@ -1353,7 +1357,7 @@ groups:
     output, that output is a second translation beside the spelling of the class, and
     the two can drift. A driven port is the remedy that ARCH-01-004 prescribes for each
     core need for a wire form, and it gives one place that decides what goes on the
-    wire. See ADR-0063 and ADR-0099.
+    wire. See ADR-0063 and ADR-0211.
   specs:
   - id: ARCH-20-001
     priority: MUST
@@ -1938,7 +1942,7 @@ groups:
       If a wire class and a core class register under the same key, a lookup by that key
       can return the wrong class, and stored or received data can be rebuilt as a wire
       object. Disjoint keys keep each lookup unambiguous. They also stop a new wire
-      class from shadowing a core type with no notice. See ADR-0099.
+      class from shadowing a core type with no notice. See ADR-0211.
     verification: >-
       A test forces full registration first — registration is a submodule import side effect
       (VM-01-005), so it walks every submodule of the wire vocabulary package and of the core
@@ -2419,7 +2423,7 @@ groups:
     statement it refines names it.
   rationale: >-
     The rules in this group are direct consequences of one decision: the core classes
-    are the object model, and AS2 is a serialization of them (ADR-0099). They are kept
+    are the object model, and AS2 is a serialization of them (ADR-0211). They are kept
     together so that a reader can see that decision in one place. Each requirement that
     refines one of them names the rule that it refines. A spec, not a decision record,
     holds a constraint that future code must obey (ADR-0127).
@@ -2630,19 +2634,25 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      The wire and core hierarchies MUST NOT share a root. ARCH-12-001 refines this.
+      The wire and core hierarchies MUST NOT share a root, other than one of core's AS2
+      base classes (ARCH-25-034). ARCH-12-001 refines this.
     rationale: >-
       A shared root makes the wire branch inherit core configuration and registration.
       It also forces the core root to stay lenient so that the wire branch can parse
       loose inbound data. The wire and core branches have nothing to share
       (ARCH-12-001). Separate roots let core stay strict while inbound wire data stays
-      lenient.
+      lenient. Core's AS2 base classes are the one shared ground: they are AS2 models
+      that both layers use (ADR-0208).
     verification: >-
       `test_wire_vocabulary_inherits_nothing_from_core` in
       `test/architecture/test_hierarchy_invariants.py` asserts no wire class inherits
       from either core root.
     adr:
     - ADR-0211
+    - ADR-0208
+    see_also:
+    - spec_id: ARCH-25-034
+      reason: 'names the core classes the exception admits'
   - id: ARCH-25-018
     priority: MUST
     kind: project
@@ -2832,6 +2842,61 @@ groups:
       spec_id: ARCH-25-007
     adr:
     - ADR-0211
+  - id: ARCH-25-034
+    priority: MUST
+    kind: project
+    statement: >-
+      Each AS2 base data class that core holds (an AS2 base type such as `Object` or
+      `Collection`) MUST be defined in `vultron/core/models/` and registered in
+      `AS2_BASE_CLASSES`; the wire's name for it is an alias of the core class or a thin
+      subclass of it.
+    rationale: >-
+      Core owns the AS2 base vocabulary, so a core rule about an AS2 type reads that type's
+      own class, and no copy of its names or fields is kept elsewhere. Core still never
+      imports the wire (ARCH-01-001); the wire imports core's models (ARCH-22-001).
+    verification: >-
+      `test_the_wire_registers_a_base_class_under_its_type` in
+      `test/architecture/test_core_as2_base_conformance.py` asserts the wire resolves
+      each registered base class's `type` to that class, and
+      `test_ordered_collection_is_one_class_for_core_and_wire` in
+      `test/wire/as2/vocab/base/test_registry.py` that core and the wire hold one
+      collection class.
+    adr:
+    - ADR-0208
+  - id: ARCH-25-035
+    priority: MUST
+    kind: project
+    statement: >-
+      Each class in `AS2_BASE_CLASSES` MUST model an AS2 type as the AS2 Activity
+      Vocabulary defines it: its `type` value and serialized property names are AS2's,
+      each property is one the AS2 ontology allows on that type, it carries no Vultron
+      property, and on receipt it requires nothing AS2 does not require beyond the
+      recorded Vultron receive rules (OID-01-013, CLP-15-011).
+    rationale: >-
+      The base classes are shared by core and the wire only while they stay AS2 models.
+      A Vultron property, a renamed property or an extra requirement on one would reach
+      every peer, and a valid AS2 object from a peer would no longer validate.
+    verification: >-
+      `test/architecture/test_core_as2_base_conformance.py` checks every registered base
+      class against the pinned AS2 ontology, read with its recorded departures by
+      `test/support/as2_ontology.py`: its type, each serialized property, the absence of
+      a Vultron-marked field, and that an object carrying only its type and the recorded
+      receive departures validates, each departure still binding. It reads the registry,
+      so a base class added later is checked too.
+    lint_suppress:
+    # compound_statement: the clauses are the one conformance property, checked
+    # together by one test module.
+    - compound_statement
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-25-034
+    see_also:
+    - spec_id: OID-01-013
+      reason: 'a recorded receive departure the check allows'
+    - spec_id: CLP-15-011
+      reason: 'a recorded receive departure the check allows'
+    adr:
+    - ADR-0208
   - id: ARCH-25-024
     priority: MUST
     kind: project

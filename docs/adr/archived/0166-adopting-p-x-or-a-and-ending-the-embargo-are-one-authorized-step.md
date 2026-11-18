@@ -12,10 +12,10 @@ consulted: >-
 informed: []
 partially_supersedes: 0046-received-status-authorization.md
 stakeholder_type: [project-contributor]
-superseded_by: 0210-a-reported-p-x-or-a-value-is-adopted-through-one-gate-and-its-adoption-ends-the-embargo-in-the-same-act.md
+superseded_by: 0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md
 ---
 
-> **Superseded by [ADR-0210](../0210-a-reported-p-x-or-a-value-is-adopted-through-one-gate-and-its-adoption-ends-the-embargo-in-the-same-act.md).**
+> **Superseded by [ADR-0210](../0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md).**
 > ADR-0210 states the status adoption gate and the teardown that adoption makes as one decision, consolidating ADR-0046 and ADR-0166.
 > This record is kept as it stood when it was superseded.
 

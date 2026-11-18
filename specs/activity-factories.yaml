@@ -64,7 +64,7 @@ groups:
       embargo state decides whether `activeEmbargo` appears in
       the stub.
     rationale: >-
-      The core class is its own wire form (ARCH-25-003, ADR-0099), and ARCH-22-001 lets
+      The core class is its own wire form (ARCH-25-003, ADR-0211), and ARCH-22-001 lets
       the wire layer import it. The factory thus needs no separate wire copy of the
       object, and it can read every field the object has.
     verification: >-

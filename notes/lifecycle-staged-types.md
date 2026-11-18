@@ -76,7 +76,7 @@ rehydrate to the base type and re-validate to its staged type without loss
 Advancing a case goes through the write path that already owns the data: an
 embargo becomes active through an `EmbargoLifecycle` register step, and
 `active_embargo` is a read-only view of the register's `ACTIVE` entry
-(ADR-0212). Do not add transition constructors such as
+(ADR-0215). Do not add transition constructors such as
 `case.to_embargoed(embargo)`: a second write path would diverge from the
 existing one (ADR-0033, CONCERN-1912). Reopen only on **two or more distinct
 classes of write error** observed at promotion sites (for example, promoting to

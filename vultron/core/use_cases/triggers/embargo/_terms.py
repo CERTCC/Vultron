@@ -86,6 +86,9 @@ class SvcOfferEmbargoTermsBase(SvcEmbargoTriggerBase):
                 actor=self._actor_id,
                 to=to,
                 at=self._at,
+                # The CASE_MANAGER's own proposal is ledgered, not sent, so
+                # it names the CASE_MANAGER as its invitee (ADR-0205).
+                invitee=None if to else self._actor_id,
             )
             self._captured["activity"] = json.loads(proposal_blob)
             return proposal_id, proposal_blob

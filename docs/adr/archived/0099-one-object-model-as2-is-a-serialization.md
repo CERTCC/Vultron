@@ -15,10 +15,11 @@ partially_supersedes:
   - 0074-wire-activity-artifact-immutability.md
 partially_superseded_by:
   - 0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md
-superseded_by: 0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
+  - 0208-core-owns-the-as2-base-vocabulary.md
+superseded_by: 0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md
 ---
 
-> **Superseded by [ADR-0211](../0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md).**
+> **Superseded by [ADR-0211](../0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md).**
 > ADR-0211 states the one object model, its two serializations and the unknown-key rule as one decision, folding in ADR-0099's amendments and ADR-0175's former-name rule.
 > This record is kept as it stood when it was superseded.
 

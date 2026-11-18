@@ -217,7 +217,8 @@ def test_the_archive_is_the_body_the_parser_sealed(scenario):
         ' "id": "https://example.org/activities/sealed-1",'
         f' "actor": "{SENDER}", "target": "{CASE_ID}",'
         ' "object": {"type": "Note", "id": "https://example.org/notes/s-1",'
-        ' "content": "caf\u00e9"}, "fooBar": [1, 2]'
+        ' "published": "2026-01-01T00:00:00+00:00", "content": "caf\u00e9"},'
+        ' "fooBar": [1, 2]'
     )
     # The sender signs what it sends (SIG-01-001); the context the proof
     # names and the proof are written into the request bytes, so they stay

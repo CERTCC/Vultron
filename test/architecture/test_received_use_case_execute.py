@@ -30,7 +30,8 @@ transitive walk the CLP-10-005 and CLP-10-020 ratchets use
   (``UnknownUseCase``) is outside this rule and is named in CLP-10-005's
   exact ``RUNS_NO_TREE`` set instead.
   A refusal a nested reader returns after the run is read from the run and
-  is not this rule's (#6494 turns those into node declarations).
+  is not this rule's: ``test_received_readers_return_no_refusal.py`` holds
+  those to the listed set (#6494).
 """
 
 from collections.abc import Mapping

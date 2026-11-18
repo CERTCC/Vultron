@@ -442,7 +442,7 @@ groups:
       records the P/X/A status (RSH-03-001, EP-09-008); it can be the Case
       Owner itself. A non-manager Participant reports the CS change and emits
       no ET (EMB-03-003, ADR-0118). Adopting P also authorizes the
-      termination, so no second approval is asked (ADR-0166).
+      termination, so no second approval is asked (ADR-0210).
     verification: >-
       Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
       (`TestAdoptedThreatTeardown`) confirm that, with the default
@@ -741,7 +741,7 @@ groups:
       records the P/X/A status (RSH-03-001, EP-09-008); it can be the Case
       Owner itself. A non-manager Participant reports the CS change and emits
       no ET (EMB-03-003, ADR-0118). Adopting X also authorizes the
-      termination, so no second approval is asked (ADR-0166).
+      termination, so no second approval is asked (ADR-0210).
     verification: >-
       Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
       (`TestAdoptedThreatTeardown`) confirm that, with the default
@@ -1075,7 +1075,7 @@ groups:
       records the P/X/A status (RSH-03-001, EP-09-008); it can be the Case
       Owner itself. A non-manager Participant reports the CS change and emits
       no ET (EMB-03-003, ADR-0118). Adopting A also authorizes the
-      termination, so no second approval is asked (ADR-0166).
+      termination, so no second approval is asked (ADR-0210).
     verification: >-
       Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
       (`TestAdoptedThreatTeardown`) confirm that, with the default
@@ -1435,7 +1435,7 @@ groups:
       disclosure. Ending an embargo is the Case Owner's decision, and only
       the CASE_MANAGER writes shared EM state; it can be the Case Owner itself
       (EMB-03-003, ADR-0118). Adopting P also authorizes the termination
-      (ADR-0166). A non-manager Participant reports P instead (CSB-12-005),
+      (ADR-0210). A non-manager Participant reports P instead (CSB-12-005),
       and CSB-04-007 covers a received CP. CSB-12-004 orders the CS
       transition before the teardown.
     adr:
@@ -1488,7 +1488,7 @@ groups:
       decision, carried out by the CASE_MANAGER (EMB-03-003, ADR-0118,
       VP-11-012), so the Participant's part is the report. The CASE_MANAGER
       then ends the embargo in the act that adopts the P value (CSB-12-001,
-      ADR-0166). Participants message only the CASE_MANAGER (PCR-08-001).
+      ADR-0210). Participants message only the CASE_MANAGER (PCR-08-001).
     adr:
     - ADR-0118
     - ADR-0210
@@ -1696,7 +1696,7 @@ groups:
       publication. Ending an embargo is the Case Owner's decision, and only
       the CASE_MANAGER writes shared EM state; it can be the Case Owner itself
       (EMB-03-003, ADR-0118). Adopting X also authorizes the termination
-      (ADR-0166). A non-manager Participant reports X instead (CSB-13-005),
+      (ADR-0210). A non-manager Participant reports X instead (CSB-13-005),
       and CSB-05-008 covers a received CX. CSB-13-004 orders the CS
       transition before the teardown.
     adr:
@@ -1749,7 +1749,7 @@ groups:
       embargo termination. Ending the embargo is the Case Owner's decision,
       carried out by the CASE_MANAGER (EMB-03-003, ADR-0118, VP-11-012), so
       the Participant's part is the report. The CASE_MANAGER then ends the
-      embargo in the act that adopts the X value (CSB-13-002, ADR-0166).
+      embargo in the act that adopts the X value (CSB-13-002, ADR-0210).
       Participants message only the CASE_MANAGER (PCR-08-001).
     adr:
     - ADR-0118
@@ -3040,7 +3040,7 @@ groups:
       misstates the case to every participant that reads it. The emit path does not
       refuse a P report while an embargo is active, because that report is what causes
       the embargo to end. The rule is judged per act, not per entry
-      (ADR-0166): the adopting act writes its snapshot before the teardown
+      (ADR-0210): the adopting act writes its snapshot before the teardown
       (RSH-01-004).
     testable: true
     preconditions:
@@ -3066,7 +3066,7 @@ groups:
       protects users. An embargo that stays ACTIVE or REVISE after X tells participants
       to keep a secret that attackers already have. It also holds back information that
       defenders need now, and it misstates the case to every participant that reads it.
-      It is judged when an act commits, as CSB-18-002 is (ADR-0166).
+      It is judged when an act commits, as CSB-18-002 is (ADR-0210).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
@@ -3093,7 +3093,7 @@ groups:
       ACTIVE or REVISE after A holds back the information that defenders need to protect
       themselves while the attacks go on. It also misstates the case to every
       participant that reads it. It is judged when an act commits, as CSB-18-002
-      is (ADR-0166).
+      is (ADR-0210).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case

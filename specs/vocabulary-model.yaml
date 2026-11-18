@@ -802,12 +802,12 @@ groups:
     statement: >-
       A wire-branch caller that resolves an AS2 `type` value MUST use a lookup that
       returns only classes the wire registry holds. Those are `as_Base` subclasses, and
-      classes registered in `WIRE_TYPE_MAP` as their own wire form (ADR-0099).
+      classes registered in `WIRE_TYPE_MAP` as their own wire form (ADR-0211).
     rationale: >-
       A core-map hit for a wire-branch caller is a coincidence of names, not a wire
       counterpart (ARCH-23-002). Registry membership, not `as_Base` ancestry, is the
       test: the canonical `VulnerabilityCase` is a core class registered as its own wire
-      form (ADR-0099).
+      form (ADR-0211).
     verification: >-
       A test asserts that the wire-branch lookup raises for a name registered only in
       `CORE_TYPE_MAP`, and that the inbox re-parse path does not produce a core
@@ -1061,7 +1061,7 @@ groups:
       carrying it as evidence claims exactly the event that arrived first. The repeat
       guards then decide, so a committed act is a repeat and an act that never
       committed, such as a failed one, runs as a first delivery and records that body
-      (ADR-0151). A resend of a different body under a held id is refused, not routed
+      (ADR-0214). A resend of a different body under a held id is refused, not routed
       (IE-10-002), so an id's evidence has one answer.
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_received_evidence.py` asserts that a

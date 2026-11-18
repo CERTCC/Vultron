@@ -1779,3 +1779,107 @@ def test_bare_case_uri_in_target_or_context_satisfies_the_pattern(
     qualifiers = [activity.target, activity.context]
     assert any(isinstance(q, str) for q in qualifiers)
     assert find_matching_semantics(activity) == expected
+
+
+@pytest.mark.spec("VAM-05-005")
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.parametrize(
+    "example", ["propose_embargo", "relay_embargo_proposal"]
+)
+def test_an_embargo_invite_names_its_invitee_in_target(example: str) -> None:
+    """An embargo Invite's ``target`` is the one actor it is sent to (ADR-0205)."""
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    invite = getattr(examples, example)()
+
+    assert invite.target is not None
+    assert invite.to == [invite.target]
+    assert (
+        find_matching_semantics(invite)
+        == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    )
+
+
+@pytest.mark.spec("VAM-05-005")
+def test_an_embargo_invite_without_a_target_is_not_an_embargo_invite() -> None:
+    """The old form, the invitee only in ``to``, matches no embargo pattern.
+
+    Pre-1.0 the form is replaced outright (ADR-0205): a receiver reads the
+    invitee from ``target``, so an Invite without one is not recognized.
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    invite = examples.propose_embargo().model_copy(update={"target": None})
+    accept = examples.accept_embargo()
+    accepted = accept.object_
+    assert isinstance(accepted, as_Activity)
+    old_accept = accept.model_copy(
+        update={"object_": accepted.model_copy(update={"target": None})}
+    )
+
+    assert (
+        find_matching_semantics(invite)
+        != MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    )
+    assert (
+        find_matching_semantics(old_accept)
+        != MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
+    )
+
+
+@pytest.mark.spec("VAM-05-005")
+def test_an_actor_target_held_as_a_generic_object_routes_as_an_actor() -> None:
+    """A nested slot of a plain activity holds its object as ``as_Object``.
+
+    An Accept carries the Invite it answers as a plain ``Invite``, whose
+    ``target`` is then a generic object of an actor ``type``; it still
+    routes as an actor, as a typed reference does (MV-10-011, ADR-0205).
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+    from vultron.wire.as2.extractor._instances import (
+        InviteToEmbargoOnCasePattern,
+    )
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+    invite = examples.relay_embargo_proposal()
+    generic = as_Object.model_construct(
+        id_=str(invite.target), type_="Organization"
+    )
+    assert InviteToEmbargoOnCasePattern.match(
+        invite.model_copy(update={"target": generic})
+    )
+    # A core class name is not an AS2 type, so a received one names no
+    # actor (VM-06-013); nor does a non-actor type or an unknown one.
+    for type_ in ("CoreActor", "VultronPerson", "Note", "NoSuchType"):
+        not_an_actor = as_Object.model_construct(
+            id_=str(invite.target), type_=type_
+        )
+        assert not InviteToEmbargoOnCasePattern.match(
+            invite.model_copy(update={"target": not_an_actor})
+        ), type_
+
+
+@pytest.mark.spec("VM-06-013")
+@pytest.mark.parametrize("type_", ["CoreActor", "VultronPerson"])
+def test_a_received_core_class_name_in_target_routes_as_no_actor(
+    type_: str,
+) -> None:
+    """A received ``target`` typed with a core class name is not an actor.
+
+    ``CoreActor`` and ``VultronPerson`` name core classes, not AS2 types, so
+    the parse keeps the target a generic object and the wire-only matcher
+    finds no actor in it: the embargo Invite does not route (VM-06-013).
+    The same body with an AS2 actor type routes.
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    invite = examples.relay_embargo_proposal()
+    body = invite.model_dump(by_alias=True, mode="json", exclude_none=True)
+    invitee = body["target"]
+
+    def routed(target_type: str) -> MessageSemantics:
+        received = {**body, "target": {"id": invitee, "type": target_type}}
+        return find_matching_semantics(parse_activity(received))
+
+    assert routed("Organization") == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    assert routed(type_) == MessageSemantics.UNKNOWN

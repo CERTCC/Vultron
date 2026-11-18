@@ -435,6 +435,7 @@ def test_a_proposers_profile_is_handed_to_the_proposal_and_never_stored():
                     EmbargoPolicy,
                     {
                         "type": "EmbargoPolicy",
+                        "published": _PUBLISHED,
                         "actorId": _REPLICA,
                         "inbox": f"{_REPLICA}/inbox",
                         "preferredDuration": "P45D",
@@ -451,10 +452,12 @@ def test_a_proposers_profile_is_handed_to_the_proposal_and_never_stored():
         "to": [_CASE_ACTOR],
         "object": {
             "type": "CaseProposal",
+            "published": _PUBLISHED,
             "id": "https://example.org/proposals/p-1",
             "attributedTo": _REPLICA,
             "object": {
                 "type": "VulnerabilityReport",
+                "published": _PUBLISHED,
                 "id": "https://example.org/reports/r-1",
                 "name": "A report",
                 "content": "Details",
@@ -554,7 +557,12 @@ def test_a_fetched_activity_is_never_kept_under_its_own_id():
         "id": activity_id,
         "published": _PUBLISHED,
         "actor": CASE_MANAGER_ID,
-        "object": {"type": "Note", "id": "urn:uuid:n-1", "content": "x"},
+        "object": {
+            "type": "Note",
+            "published": _PUBLISHED,
+            "id": "urn:uuid:n-1",
+            "content": "x",
+        },
         "target": case.id_,
         "context": case.id_,
     }
@@ -907,7 +915,11 @@ def test_a_handed_off_body_that_is_not_a_core_object_is_unreadable():
             "fetched_body": json.dumps(
                 # An Article has no core class; an Image now does
                 # (AttachedImage, CSAF-01-001).
-                {"type": "Article", "id": "urn:uuid:img"}
+                {
+                    "type": "Article",
+                    "id": "urn:uuid:img",
+                    "published": "2026-01-01T00:00:00+00:00",
+                }
             ),
         }
     )

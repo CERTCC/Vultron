@@ -78,6 +78,7 @@ def _make_participant_status_snapshot(
     obj: dict = {
         "id": status_id,
         "type": "ParticipantStatus",
+        "published": "2026-01-01T00:00:00+00:00",
         "vfState": vf_state,
         "rmState": rm_state,
         "context": CASE_ID,
@@ -471,24 +472,26 @@ class TestEmitImpossibleStateFaultNode:
 
 
 @pytest.mark.spec("CLP-15-007")
-def test_replicated_status_carries_no_time_rather_than_the_replica_clock(
+@pytest.mark.spec("CLP-15-011")
+def test_a_replicated_status_without_a_time_is_never_given_the_replica_clock(
     bridge, datalayer, case_actor, participant
 ):
-    """A rebuilt status keeps an absent time absent (ISSUE-3257).
+    """A snapshot status with no ``published`` is not applied (ISSUE-3257).
 
-    A payload snapshot is dumped with ``exclude_none=True``, so a status whose
-    ``published`` was carried as absent has no key at all in the snapshot.
-    Validating that dict straight into ``ParticipantStatus`` let the core
-    ``default_factory`` stamp *this replica's* clock, which is the fabrication
-    the wire parser refuses one boundary earlier: the asserting actor's copy
-    sorted the status last (no time) while every replica sorted it first
-    (a time seconds old), so the two disagreed about which status was current.
+    A payload snapshot is the body as received, and a received status carries
+    its author's time (CLP-15-011), so a snapshot without one holds a status
+    no conformant sender made.  Rebuilding it once let the core
+    ``default_factory`` stamp *this replica's* clock, so the asserting actor
+    and every replica disagreed about which status was current.  Now no time
+    is supplied at all: the node skips the malformed snapshot, as it skips
+    any other, and the record is unchanged.
     """
     entry = _make_status_entry(
         status_id=f"urn:uuid:{uuid.uuid4()}",
         participant_id=participant.id_,
     )
-    assert "published" not in entry.payload_snapshot["object"]
+    entry.payload_snapshot["object"].pop("published")
+    before = cast(as_CaseParticipant, datalayer.read(participant.id_))
 
     result = run_tree(
         bridge,
@@ -499,8 +502,6 @@ def test_replicated_status_carries_no_time_rather_than_the_replica_clock(
         activity=_make_event(entry, actor_id=case_actor.id_),
     )
 
-    assert result.status == Status.SUCCESS
-    updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
-    new_status = cast(ParticipantStatus, updated.participant_statuses[-1])
-    assert new_status.published is None
-    assert new_status.updated is None
+    assert result.internal_error is False
+    after = cast(as_CaseParticipant, datalayer.read(participant.id_))
+    assert after.participant_statuses == before.participant_statuses

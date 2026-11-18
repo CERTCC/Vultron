@@ -44,7 +44,7 @@ groups:
       `CaseOwnerApprovesStatusUpdate` Evaluator call-out point.
     rationale: >
       CASE_OWNER reports are authoritative by definition (gospel bypass).
-      Non-owner reports pass through a configurable approval gate per ADR-0046.
+      Non-owner reports pass through a configurable approval gate per ADR-0210.
     verification: Inspection of `vultron/core/behaviors/status/` confirms `StatusAdoptionGate` is a Fallback node with
       `CheckIsCaseOwnerNode` as first child and `CaseOwnerApprovesStatusUpdate` as second child.
     relationships:
@@ -114,7 +114,7 @@ groups:
       signals as its cause, and lets every replica replay the cause before its
       effect. The adoption also authorizes the teardown the adopted value calls
       for, so no second gate sits between the write and the teardown, and both
-      run in one CASE_MANAGER act (ADR-0166).
+      run in one CASE_MANAGER act (ADR-0210).
     verification: >-
       `test/core/behaviors/status/test_status_authorization_bundle.py`
       (`test_teardown_follows_the_canonical_write_with_no_second_gate`)
@@ -280,7 +280,7 @@ groups:
     rationale: >
       CaseStatus encodes shared EM and PXA state for the entire case. The
       CASE_MANAGER is the authoritative writer of
-      canonical case state (ADR-0046, CLP-09). Allowing participants to emit
+      canonical case state (ADR-0210, CLP-09). Allowing participants to emit
       Add(CaseStatus) directly would bypass the adoption authorization model.
     adr:
     - ADR-0210
@@ -819,7 +819,7 @@ groups:
   description: >
     Adopting a non-owner's reported P, X or A value waits by default for the
     Case Owner's authorization, which also authorizes the embargo teardown the
-    adopted value calls for (ADR-0166). A permissive policy is a deployment's
+    adopted value calls for (ADR-0210). A permissive policy is a deployment's
     explicit choice. Derived from CONCERN-2092 and ADR-0076; the mechanism is amended by
     ADR-0080 (CONCERN-2812, CONCERN-2809) — see RSH-07-004.
   specs:
@@ -835,7 +835,7 @@ groups:
       sentinel included, force PXA adoption and start the embargo teardown with no
       Case Owner confirmation. So the default is conservative, and permissive
       behavior needs an explicit opt-in (ADR-0076). The authorization also
-      covers the teardown the adopted value calls for (ADR-0166). The rule says
+      covers the teardown the adopted value calls for (ADR-0210). The rule says
       what a receiver does with a reported status, so every CASE_MANAGER obeys
       it. The Case Owner's own report is RSH-07-006.
     verification: >
@@ -928,7 +928,7 @@ groups:
       keeping the authority (VP-11-006), configured and documented by the
       operator (RSH-07-007). Role-differentiated, probabilistic or any
       `CallOutBackendFactory`-conformant backend is also valid (ADR-0076). The
-      delegation covers the teardown, which adoption authorizes (ADR-0166).
+      delegation covers the teardown, which adoption authorizes (ADR-0210).
     adr:
     - ADR-0210
     - ADR-0076
@@ -1585,7 +1585,7 @@ groups:
     - story_2026_039
     adr:
     - ADR-0107
-    - ADR-0212
+    - ADR-0215
   - id: RSH-09-006
     priority: MUST_NOT
     kind: protocol

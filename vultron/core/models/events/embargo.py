@@ -227,31 +227,42 @@ class InviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         return list(dict.fromkeys(canonical))
 
     @property
-    def invitee_id(self) -> str | None:
-        """The Invite's sole distinct ``to`` recipient; ``None`` otherwise.
+    def target_invitee_id(self) -> str | None:
+        """The actor the Invite's ``target`` names, canonically spelled.
 
-        The invitee of an ``Invite(EmbargoEvent)`` is its sole ``to``
-        recipient (EP-09-010).  This is a *different* question from
+        An embargo Invite names its invitee in ``target`` (ADR-0205).
+        ``None`` when the Invite has no ``target``.
+        """
+        target_id = self.target_id
+        return normalise_actor_id(target_id) if target_id else None
+
+    @property
+    def invitee_id(self) -> str | None:
+        """The Invite's ``target``, when it is its sole ``to`` recipient.
+
+        An ``Invite(EmbargoEvent)[target=Actor]`` names its invitee in
+        ``target`` (ADR-0205), and the invitee is the one actor it is
+        addressed to (EP-09-010).  This is a *different* question from
         ``receiving_actor_id``, the actor whose replica the message is being
         applied to: per ADR-0022 the invitee is leaf-node data read from the
         message, never inferred from which store the message landed in.
 
-        ``None`` means the Invite is a misrouting — no recipient (an
-        OX-08-001 violation upstream) or several — and callers MUST NOT
+        ``None`` means the Invite is a misrouting: no ``target``, no
+        recipient (an OX-08-001 violation upstream) or several, or a
+        ``target`` that is not its recipient (EP-09-026).  Callers MUST NOT
         substitute another identity.  Received-side callers use
         ``vultron.core.use_cases.received.embargo.resolve_invitee_id()``,
-        which refuses such an Invite with the recipient count.
+        which refuses such an Invite and says which.
 
         Note this is *not* the same derivation as
-        ``AcceptInviteActorToCaseReceivedEvent.invitee_id``, which reads the
-        accepted Invite's ``object`` (``inner_object_id``).  An
-        ``Invite(EmbargoEvent)[context=VulnerabilityCase]`` carries the embargo as
-        its ``object`` and the case as its ``context``, so ``to:`` is the only place the
-        invited actor appears.
+        ``AcceptInviteActorToCaseReceivedEvent.invitee_id``: a case Invite
+        and an embargo Invite carry different objects, and the embargo
+        Invite's case is its ``context``.
         """
         recipients = self.to_recipients
-        if len(recipients) == 1:
-            return recipients[0]
+        target = self.target_invitee_id
+        if len(recipients) == 1 and target == recipients[0]:
+            return target
         return None
 
 

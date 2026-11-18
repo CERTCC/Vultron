@@ -19,7 +19,7 @@ supersedes:
 stakeholder_type: [project-contributor]
 ---
 
-# A Received Delivery Is One Tree in Fixed Stages, and Its Outcome Decides What Is Kept
+# How a Received Message Is Checked, Applied and Kept
 
 ## Context and Problem Statement
 
@@ -41,12 +41,15 @@ What does a received delivery run, in what order, and what does the receiver kee
 
 ## Decision Drivers
 
-- **Logic outside a tree is invisible.** The decision to run a step belongs in the tree, where the ratchets and a reader can see it (ADR-0022, BT-06-001). Two trees that must both run are one tree that has not been written yet.
-- **Receipt is a fact; acceptance is a verdict.** The receiver must be able to say what it received, from whom, when, and why it declined it, whatever the verdict (CLP-04-007, CLP-05-002).
-- **A message not for the receiver is not the receiver's record** (HP-01-005, HP-10-001). An early answer must spare the later work and the write.
+- **Logic outside a tree is invisible.** The decision to run a step belongs in the tree, where the ratchets and a reader can see it (ADR-0022, BT-06-001).
+  Two trees that must both run are one tree that has not been written yet.
+- **Receipt is a fact; acceptance is a verdict.** The receiver must be able to say what it received, from whom, when, and why it declined it, whatever the verdict (CLP-04-007).
+- **A message not for the receiver is not the receiver's record** (HP-01-005, HP-10-001).
+  An early answer must spare the later work and the write.
 - **The archive is the received body as the parser sealed it** (ADR-0107, ADR-0149).
 - **A sender's content must not seed the receiver's records ahead of the trust checks** (PCR-03-004, CBT-01-005).
-- **An act succeeds or fails as a whole.** No repair pass, later run or redelivery finishes an act (ADR-0146). A received act and a trigger act follow the same rule.
+- **An act succeeds or fails as a whole.** No repair pass, later run or redelivery finishes an act (ADR-0146).
+  A received act and a trigger act follow the same rule.
 - **A crash must not lose a message, nor apply it twice.**
 - **A sender with no standing must never make the CASE_MANAGER write** (HP-01-006).
 
@@ -80,7 +83,7 @@ It is the only option under which every delivery is one tree that a reader can s
    6. The commit of the received activity's own entry (detail 4).
    7. The protocol effects.
 
-   The doors only read, so nothing is written before intake, and a message a door rules out costs one read and one receipt stub (CLP-10-010).
+   The doors only read, so nothing is written before intake but the post-close reply, an emit-only answer at the CASE_MANAGER to a late activity the boundary refused (CM-23-057), and a message a door rules out costs one read and one receipt stub (CLP-10-010).
    The post-close boundary sits beside the sender guard, because whether a closed case takes the write is a question about the case, asked once the message is known to be for the receiver.
 
 3. **Intake writes the message's one staged record, and nothing else.**
@@ -90,6 +93,7 @@ It is the only option under which every delivery is one tree that a reader can s
    An inlined case, note or status is a message shaped like the object, and storing it at intake would let any sender seed a case replica ahead of the trust checks.
    An effect node writes the core record after the guards, from the copy the event carries (CLP-10-039).
    Intake is the only path that stores the received body (CLP-10-019).
+   The stub Invite's trust anchor (`case_actor_id`, `invite_anchored`, `invite_accepted`) outlives the pending-case queue and is not part of the record.
    The record stays in holding while the message is judged, and rests only where time can pass: waiting for its case, for a ledger gap to fill, or for a local decision.
 
 4. **The commit records the received activity when its `(type, object)` pair is a canonical signature.**
@@ -102,12 +106,15 @@ It is the only option under which every delivery is one tree that a reader can s
    A new ownership Offer that arrives after the open one's deadline is the example: the expiry must close the old Offer before the one-open-Offer guard can admit the new one.
    So a clock decision runs only at the CASE_MANAGER, and commits only the CASE_MANAGER's own entries and the case-file changes they record, one entry for each AS2 activity it needs (CLP-10-050, CLP-10-052).
    It takes its evidence from the CASE_MANAGER's clock, its local policy and the case's ledger and file, never from the received activity, which may only prompt it (CLP-10-054, CLP-10-055).
+   It orders its entries so that no prefix of them leaves an embargo register entry `TERMINATED` while another is `PROPOSED` (CLP-10-053).
+   An entry may carry the received activity's claimed `published` time as received; that time decides nothing (CLP-10-056).
    One with nothing to record succeeds; one whose commit the ledger refuses logs a warning and does not end the tree, because the guards still refuse what the unrecorded decision forbids; an internal error ends the tree as an internal error (CLP-10-057 to CLP-10-060).
    The embargo end-time check is a decision about the case, not about one activity, so every received tree that names a case and has both the sender guard and the post-close boundary takes it, and no dispatcher hook runs it ahead of the tree (CLP-10-051).
    A case-scoped trigger composes the same CASE_MANAGER-gated stage as the first step of its own tree, so that it does not act on an embargo whose end has passed (BT-15-003).
+   The terminate-embargo trigger is the one exception: its own tree takes the end-time path once the end time has passed.
 
 6. **A refusal commits nothing, and may answer the sender.**
-   The factory adds the refusal notice, a `Reject` of the refused activity, as the first refusal effect of every tree that commits to a case (ADR-0141, CLP-10-022).
+   The factory adds the refusal notice, a `Refuse` of the refused activity (CLP-05-001), as the first refusal effect of every tree that commits to a case (ADR-0141, CLP-10-022).
    A tree passes any further answer it owes as `refusal_effects`; they run only when a precondition guard refuses, only at the CASE_MANAGER, and never for a door's refusal, a repeat, a diversion or a redelivery (CLP-10-041 to CLP-10-044, CLP-10-070).
    A refusal effect only emits; the CASE_MANAGER's own note is the one exception, and commits itself as its own entry (CLP-10-048).
    The tree still fails with the guard's refusal, and the handler reports `REFUSED` for the guard's reason (CLP-10-046).
@@ -127,16 +134,19 @@ It is the only option under which every delivery is one tree that a reader can s
    - No verdict, because the dispatch raised or returned no result: the record stays in holding with its sealed body (CLP-10-074).
 
    A refused message's body is kept only in the process log.
+   A node in the run that embeds or reads the body of the message being handled, such as the refusal notice and the late-accept acknowledgement, reads it from the holding record; a reader after the run reads the archive or the stub.
    A message waiting for its case, a duplicate and a crash recovery all use this one record, not three mechanisms.
    An addressed `Offer(Report)` takes the ordinary order; declining to create a case is still an applied outcome, so the report is archived and CM-15-002 holds, while a `cc`-only copy is refused at the addressee door (HP-10-001).
 
 9. **A resend is answered from what was recorded.**
    A resend whose digest matches a receipt stub is `REFUSED` again with the stub's reason, and nothing is re-run: a refusal is whole and final for that activity.
    A resend whose digest differs from what the receiver holds is refused as a reused id (IE-10-002).
-   A resend of an applied message, or of one still in holding, is `SKIPPED`, and no refusal notice is sent again.
+   A resend of an applied message, or of one whose body is still owed to a replay, is `SKIPPED`, and no refusal notice is sent again.
+   A resend of a record in holding that owes no replay runs again from its door guards (detail 11, CLP-10-074, CLP-10-080).
 
 10. **A failed act is answered with a fault, and runs again from the held body.**
     A child that raises is an internal error: the act rolls back, and the record stays in holding.
+    An effect that returns failure without raising is read as the handler's verdict on that failure, `REFUSED` by default.
     The inbox answers the sender with one `Create(ProcessingFault)` of the internal-error class, sent after the rollback, with no diagnostics, and with an id derived from the activity and the failure class, so a second failure builds no second fault (ASK-07-006, ASK-07-010).
     A fault whose own handling fails is not answered with another.
     A later delivery of the activity, or a re-run, runs the act with the held body, never with the later delivery's body; a redelivery of an act that committed is `SKIPPED`.
@@ -165,7 +175,7 @@ It is the only option under which every delivery is one tree that a reader can s
 - Bad, because the fault tells the sender only that processing failed, not why, so it cannot tell a transient failure from one that will repeat.
 - Bad, because every handling tree must be shown to tolerate a re-run, and a new tree carries that obligation.
 
-### Confirmation
+## Validation
 
 - `test/architecture/test_single_bt_execution_received_side.py` counts tree runs through helpers.
 - `test/architecture/test_no_dl_mutations_in_execute.py` counts DataLayer writes through helpers.
@@ -227,4 +237,4 @@ Related:
 - [ADR-0207](0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md) (proposed) extends one tree per delivery from the use case down into the nodes.
 - #6402 asks whether the whole delivery, doors and guards included, runs in one transaction.
 
-Requirements: `case-ledger-processing.yaml` CLP-07-015 and CLP-10; `handler-protocol.yaml` HP-01-005, HP-01-012 and HP-10-001; `inbox-endpoint.yaml` IE-10; `sync-ledger-replication.yaml` SYNC-14-009; `behavior-tree-integration.yaml` BT-15-003.
+Generated spec requirements: `case-ledger-processing.yaml` CLP-07-015 and CLP-10; `handler-protocol.yaml` HP-01-005, HP-01-012 and HP-10-001; `inbox-endpoint.yaml` IE-10; `sync-ledger-replication.yaml` SYNC-14-009; `behavior-tree-integration.yaml` BT-15-003.

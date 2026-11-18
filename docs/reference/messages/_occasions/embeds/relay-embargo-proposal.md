@@ -5,7 +5,7 @@
     Asks one participant to accept or reject proposed embargo terms, or a proposed revision. The CASE_MANAGER sends one to each participant other than the proposer, naming the proposer in `attributedTo`, and the participant's answer names this Invite.
 
     - **When…** the CASE_MANAGER asks a Participant to answer embargo terms another Participant proposed
-    - **Send:** `Invite(EmbargoEvent)[context=VulnerabilityCase]`
+    - **Send:** `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]`
     - **Send to:** a participant
     - **Sent by:** the CASE_MANAGER
     - **Reference:** [Ask a participant about proposed embargo terms](../../em.md#relay-embargo-proposal)

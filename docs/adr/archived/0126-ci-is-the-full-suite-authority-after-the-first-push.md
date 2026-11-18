@@ -14,10 +14,10 @@ partially_superseded_by:
   - 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
   - 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
   - 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
-superseded_by: 0209-a-local-gate-runs-only-what-answers-before-the-required-ci-gate-and-the-base-is-merged-locally-only-on-conflict.md
+superseded_by: 0209-which-checks-run-locally-which-run-only-in-ci-and-when-to-merge-the-base-branch.md
 ---
 
-> **Superseded by [ADR-0209](../0209-a-local-gate-runs-only-what-answers-before-the-required-ci-gate-and-the-base-is-merged-locally-only-on-conflict.md).**
+> **Superseded by [ADR-0209](../0209-which-checks-run-locally-which-run-only-in-ci-and-when-to-merge-the-base-branch.md).**
 > ADR-0209 states the local gates, the CI-only checks and the rule for merging the base as one decision, consolidating ADR-0126, ADR-0138, ADR-0143, ADR-0173 and ADR-0179.
 > This record is kept as it stood when it was superseded.
 

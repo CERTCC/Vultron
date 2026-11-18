@@ -27,6 +27,7 @@ import pytest
 
 from test.adapters.driving.fastapi.sse_helpers import (
     parse_sse_body,
+    read_sse_event,
     save_ledger_entry,
 )
 from test.support.case_owner import CASE_OWNER_ID
@@ -36,14 +37,17 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.adapters.driving.fastapi.ledger_stream import (
+    KEEPALIVE_SECONDS,
     case_ledger_entries,
     format_close_event,
     format_entry_event,
+    format_keepalive_comment,
     install_shutdown_signal_hook,
     ledger_entry_payload,
     resolve_resume_index,
     stream_case_ledger,
 )
+from vultron.shadow.readers.vultron_node import DEFAULT_READ_TIMEOUT
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -210,6 +214,78 @@ class TestStreamCaseLedger:
         assert [_parse(f).get("id") for f in frames[:2]] == ["0", "1"]
         assert frames[2:] == [format_close_event()]
 
+    def test_a_quiet_stream_sends_a_keepalive_comment(self, dl, case):
+        """A follower reading with a timeout sees a quiet case as live."""
+        save_ledger_entry(dl, case.id_, 0)
+        shutdown = threading.Event()
+
+        async def scenario() -> list[str]:
+            stream = stream_case_ledger(
+                dl,
+                case.id_,
+                actor_id=ACTOR,
+                after_index=None,
+                poll_seconds=POLL,
+                is_disconnected=_never_disconnected,
+                shutdown=shutdown,
+                keepalive_seconds=POLL,
+            )
+            frames = [await anext(stream)]
+            frames.append(await asyncio.wait_for(anext(stream), 5))
+            shutdown.set()
+            frames.extend([f async for f in stream])
+            return frames
+
+        frames = asyncio.run(scenario())
+        assert _parse(frames[0]).get("id") == "0"
+        assert frames[1] == format_keepalive_comment()
+        assert frames[1].startswith(":")
+        assert frames[-1] == format_close_event()
+
+    def test_the_test_readers_skip_a_keepalive_as_a_client_does(self):
+        """A keepalive between two events is read as no event at all."""
+        body = format_keepalive_comment() + format_close_event()
+        assert parse_sse_body(body) == [{"event": "close", "data": ""}]
+        lines = iter(body.split("\n"))
+        assert read_sse_event(lines) == {"event": "close", "data": ""}
+
+    def test_the_keepalive_comes_after_its_quiet_polls_counted_from_an_entry(
+        self, dl, case
+    ):
+        """Three quiet polls after the entry, never in the poll after it."""
+        save_ledger_entry(dl, case.id_, 0)
+        shutdown = threading.Event()
+        polls: list[None] = []
+
+        async def counting() -> bool:
+            polls.append(None)
+            return False
+
+        async def scenario() -> list[tuple[str, int]]:
+            stream = stream_case_ledger(
+                dl,
+                case.id_,
+                actor_id=ACTOR,
+                after_index=None,
+                poll_seconds=POLL,
+                is_disconnected=counting,
+                shutdown=shutdown,
+                keepalive_seconds=3 * POLL,
+            )
+            frames = []
+            for _ in range(2):
+                frame = await asyncio.wait_for(anext(stream), 5)
+                frames.append((frame, len(polls)))
+            shutdown.set()
+            rest = [f async for f in stream]
+            assert rest[-1] == format_close_event()
+            return frames
+
+        (entry, at_entry), (keepalive, at_keepalive) = asyncio.run(scenario())
+        assert _parse(entry).get("id") == "0"
+        assert keepalive == format_keepalive_comment()
+        assert at_keepalive - at_entry == 3
+
     def test_disconnect_ends_the_stream_without_a_close_event(
         self, dl, case, caplog
     ):
@@ -325,3 +401,8 @@ class TestInstallShutdownSignalHook:
         thread.start()
         thread.join()
         assert result == [before]
+
+
+def test_the_keepalive_is_well_inside_the_shadow_readers_read_timeout():
+    """A quiet followed case keeps its connection (#6531)."""
+    assert 2 * KEEPALIVE_SECONDS <= DEFAULT_READ_TIMEOUT

@@ -2630,7 +2630,7 @@ groups:
       the base branch into a PR. CI on `pull_request` runs the full suite
       against the PR merged into its base as of the push, and GitHub refuses a
       merge while that run is red or has not run. So a local check is worth its
-      cost only when it answers before CI would (ADR-0179).
+      cost only when it answers before CI would (ADR-0209).
     specs:
       - id: PAD-18-001
         adr:
@@ -2693,7 +2693,7 @@ groups:
           targeted set catches a broken fix first, at a fraction of that cost.
           The checks in `test/architecture/` and `test/metadata/` read the
           tree, not an imported symbol, and nearly every red local full run
-          failed there (ADR-0143). The import index cannot reach a changed test
+          failed there (ADR-0209). The import index cannot reach a changed test
           file: no `vultron` symbol changed, and the mirror lookup covers only
           `vultron/` paths.
         verification: >-
@@ -3082,7 +3082,7 @@ groups:
         rationale: >-
           A sweep of every open Pull Request after each merge makes every merge
           invalidate every other ready Pull Request. CI on `main` catches a semantic
-          conflict between files that neither side shares (ADR-0126).
+          conflict between files that neither side shares (ADR-0209).
         verification: >-
           Inspection: `work-epic-tasks` step 4 has no post-merge sweep of other
           Pull Requests.

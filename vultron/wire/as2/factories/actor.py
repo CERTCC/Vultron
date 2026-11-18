@@ -23,7 +23,6 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 from datetime import datetime
-from typing import cast
 
 from vultron.core.models._helpers import authored_times
 from vultron.core.models.actor import CoreActor
@@ -35,6 +34,7 @@ from vultron.wire.as2.factories._context import (
     with_case_context,
 )
 from vultron.wire.as2.factories._held import (
+    as_answered,
     embedded_as_received,
     validated_as,
 )
@@ -111,9 +111,11 @@ def accept_actor_recommendation_activity(
     """Build an Accept(_RecommendActorActivity).
 
     Accepts a recommendation to add an actor to the case.  The
-    ``offer`` MUST be the value returned by
-    :func:`recommend_actor_activity`; a plain ``as_Offer`` will fail
-    validation.  This MUST be followed by an
+    ``offer`` is the recommendation as the sender holds it: one it received
+    is validated as a recommendation and embedded as received
+    (:func:`as_answered`), with its ``published`` and every other field as
+    sent; anything else must already be the value
+    :func:`recommend_actor_activity` returns.  This MUST be followed by an
     :func:`vultron.wire.as2.factories.case.rm_invite_to_case_activity`
     targeted at the recommended actor.
 
@@ -135,7 +137,7 @@ def accept_actor_recommendation_activity(
         _AcceptActorRecommendationActivity,
         at,
         lambda: {
-            "object_": cast(_RecommendActorActivity, offer),
+            "object_": as_answered(_RecommendActorActivity, offer),
             "target": case_target_ref(target),
             **with_case_context(kwargs, target),
         },
@@ -151,10 +153,9 @@ def reject_actor_recommendation_activity(
 ) -> as_Reject:
     """Build a Reject(_RecommendActorActivity).
 
-    Rejects a recommendation to add an actor to the case.  The
-    ``offer`` MUST be the value returned by
-    :func:`recommend_actor_activity`; a plain ``as_Offer`` will fail
-    validation.
+    Rejects a recommendation to add an actor to the case.  The ``offer``
+    is the recommendation as the sender holds it, embedded as for
+    :func:`accept_actor_recommendation_activity`.
 
     Args:
         offer: The ``_RecommendActorActivity`` being rejected.
@@ -174,7 +175,7 @@ def reject_actor_recommendation_activity(
         _RejectActorRecommendationActivity,
         at,
         lambda: {
-            "object_": cast(_RecommendActorActivity, offer),
+            "object_": as_answered(_RecommendActorActivity, offer),
             "target": case_target_ref(target),
             **with_case_context(kwargs, target),
         },

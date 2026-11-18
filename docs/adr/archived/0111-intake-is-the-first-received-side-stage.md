@@ -17,11 +17,11 @@ partially_superseded_by:
   - 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
   - 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 stakeholder_type: [project-contributor]
-superseded_by: 0208-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md
+superseded_by: 0214-how-a-received-message-is-checked-applied-and-kept.md
 ---
 
-> **Superseded by [ADR-0208](../0208-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md).**
-> ADR-0208 states the received-side stage order, the staged record, the atomic act and what the receiver keeps as one decision, consolidating ADR-0111, ADR-0135, ADR-0151 and ADR-0154.
+> **Superseded by [ADR-0214](../0214-how-a-received-message-is-checked-applied-and-kept.md).**
+> ADR-0214 states the received-side stage order, the staged record, the atomic act and what the receiver keeps as one decision, consolidating ADR-0111, ADR-0135, ADR-0151 and ADR-0154.
 > This record is kept as it stood when it was superseded.
 
 # Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It

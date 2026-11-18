@@ -13,7 +13,7 @@ consulted: >-
 informed: []
 partially_superseded_by:
   - docs/adr/0122-per-embargo-participant-consent.md
-  - 0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
+  - 0215-how-embargo-status-and-participant-consent-are-recorded.md
 stakeholder_type: [project-contributor]
 ---
 

@@ -14,7 +14,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Annotated, Any, TypeAlias
+from typing import Annotated, Any, ClassVar, TypeAlias
 
 from pydantic import Field, ValidationInfo, field_validator
 
@@ -42,6 +42,10 @@ class as_Actor(as_Object):
     The actor may be specified using an indirect Link or as an embedded Object.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-actor>
     """
+
+    #: A profile describes an actor, not an act made at a moment, and many
+    #: servers serve one without ``published`` (CLP-15-011).
+    _received_without_published: ClassVar[bool] = True
 
     # todo: collections should be internally represented as lists but dumped as collections
     # Absent unless the profile states it: an endpoint derived from ``id_``

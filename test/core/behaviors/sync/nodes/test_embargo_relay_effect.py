@@ -79,6 +79,7 @@ def _embargo_snapshot(embargo_id: str = REVISION_ID) -> dict[str, Any]:
     """The inline ``EmbargoEvent`` a canonical entry carries (CLP-10-017)."""
     return {
         "type": "EmbargoEvent",
+        "published": "2026-01-01T00:00:00+00:00",
         "id": embargo_id,
         "context": CASE_ID,
         "endTime": _iso(60),
@@ -95,6 +96,7 @@ def _invite_snapshot(
 ) -> dict[str, Any]:
     snapshot: dict[str, Any] = {
         "type": "Invite",
+        "published": "2026-01-01T00:00:00+00:00",
         "id": INVITE_ID,
         "actor": actor,
         "to": to if to is not None else [PARTICIPANT_ACTOR_ID],
@@ -111,6 +113,7 @@ def _invite_snapshot(
 def _proposal_snapshot(embargo: Any = None) -> dict[str, Any]:
     return {
         "type": "Invite",
+        "published": "2026-01-01T00:00:00+00:00",
         "id": PROPOSAL_ID,
         "actor": PROPOSER_ACTOR_ID,
         "to": [MANAGER_ACTOR_ID],

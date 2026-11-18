@@ -18,7 +18,7 @@ related_specs:
   - specs/em-behavior.yaml (EMB-13-005)
   - specs/sync-ledger-replication.yaml (SYNC-16-005)
   - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010,
-    ARCH-12-014, ARCH-14-001, ARCH-20-002, ARCH-23-002, ARCH-25-003)
+    ARCH-12-014, ARCH-14-001, ARCH-20-002, ARCH-23-002, ARCH-25-003, ARCH-25-034)
   - specs/docs-build-workflow.yaml (DOCBW-03-005)
   - specs/message-validation.yaml (MV-04-003, MV-10-011)
   - specs/case-ledger-processing.yaml (CLP-05-001)
@@ -264,9 +264,10 @@ tree is rejected by the parent's field type, so the fallback degrades the parent
 instead of resolving the child. A hit there is a coincidence of naming, not a
 wire counterpart. See [wire-core-boundary](wire-core-boundary.md).
 
-A core collection model MUST NOT be reintroduced: `CoreActor.inbox` and
-`.outbox` are URL strings (ARCH-12-006), and a core class declaring
-`type_: Literal["OrderedCollection"]` squats the wire name in `CORE_TYPE_MAP`.
+The AS2 collection types are core's (ADR-0208, ARCH-25-034): `as_Collection`
+and `as_OrderedCollection` alias the core classes, so `CORE_TYPE_MAP` and
+`WIRE_TYPE_MAP` hold the one class, never a second. `CoreActor.inbox` and
+`.outbox` stay URL strings (ARCH-12-006).
 
 ## Actor Overrides Keep `"Actor"`
 
@@ -280,12 +281,12 @@ unreachable.
 Wire classes use the `as_` prefix (ARCH-14-001), but for a *domain* type the
 prefixed name is an alias of the core class (ARCH-25-003) and holds no
 `VOCABULARY` key. The prefix still marks a real wire class for unpaired AS2
-vocabulary (`as_Link`, `as_Collection`, …).
+vocabulary (`as_Link`, `as_Tombstone`, …).
 
 | Registry | Key | Example | Spec |
 |---|---|---|---|
-| `VOCABULARY` | full `as_*` class name | `"as_Collection"` | VM-01-004 |
-| `WIRE_TYPE_MAP` | emitted wire `type` value | `"Collection"` | VM-01-008 |
+| `VOCABULARY` | full `as_*` class name | `"as_Link"` | VM-01-004 |
+| `WIRE_TYPE_MAP` | emitted wire `type` value | `"Link"` | VM-01-008 |
 
 Only `WIRE_TYPE_MAP` answers a `type` lookup: `find_in_vocabulary()` never
 consults `VOCABULARY`, so an inbound `"type": "as_Activity"` is an unknown type

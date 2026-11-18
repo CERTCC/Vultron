@@ -327,7 +327,7 @@ groups:
       because the consent already given to its terms stays valid (ADR-0130). Revise
       records both facts. The ledger commit of the EA acknowledges it.
     adr:
-    - ADR-0212
+    - ADR-0215
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EA in EM PROPOSED
       with CS matching ...pxa and no other open proposal transitions EM to ACTIVE
@@ -415,7 +415,7 @@ groups:
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_033
     see_also:
@@ -779,7 +779,7 @@ groups:
       change, so no separate EK message is necessary (ADR-0113).
     adr:
     - ADR-0113
-    - ADR-0212
+    - ADR-0215
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
       with CS matching ...pxa and no other open proposal transitions EM back to
@@ -832,7 +832,7 @@ groups:
       (`test_rejecting_one_of_two_open_revisions_stays_in_revise`) confirms rejecting
       one of two open revisions leaves EM in REVISE.
     adr:
-    - ADR-0212
+    - ADR-0215
     testable: true
     preconditions:
     - em_state:
@@ -868,7 +868,7 @@ groups:
       emits no ET (EP-09-008, EMB-03-003, ADR-0118). While another revision is
       open, the rejection leaves EM in Revise and ends nothing (EP-08-001).
       Adopting P, X or A ends the embargo and cancels its proposals in the same
-      act (ADR-0166, EP-08-004), so this rule's start state follows only a
+      act (ADR-0210, EP-08-004), so this rule's start state follows only a
       failed teardown (CSB-18-004).
     verification: >-
       `test/core/use_cases/received/test_embargo_ending_notices.py`
@@ -942,7 +942,7 @@ groups:
       (ADR-0113).
     adr:
     - ADR-0113
-    - ADR-0212
+    - ADR-0215
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
       with CS matching ...pxa and no other open proposal transitions EM back to
@@ -1000,7 +1000,7 @@ groups:
       confirms accepting one of two open revisions leaves EM in REVISE with the
       accepted revision in force.
     adr:
-    - ADR-0212
+    - ADR-0215
     testable: true
     preconditions:
     - em_state:
@@ -1028,7 +1028,7 @@ groups:
       (EMB-02-002), before the commit (CLP-10-009). A refusal is not an act,
       so it carries no ET. The P/X/A fact causes the termination, not the EC
       (EMB-03-003): the act that adopts P, X or A ends the embargo (RSH-03-001,
-      ADR-0166). EJ differs (EMB-04-002): it is committed, so its act can end
+      ADR-0210). EJ differs (EMB-04-002): it is committed, so its act can end
       the embargo.
     note: >-
       Restated to match the received EC tree, which refuses the activation in
@@ -1099,7 +1099,7 @@ groups:
       case. While another proposal is open, EM stays in Proposed, because that proposal
       still waits for an answer (ADR-0130). The ledger commit of the ER acknowledges it.
     adr:
-    - ADR-0212
+    - ADR-0215
     verification: >-
       Integration tests in `test/demo/` confirm that receiving ER in EM PROPOSED
       with no other open proposal transitions EM to NONE with no EK message
@@ -1689,7 +1689,7 @@ groups:
       derived from the case, so it is not copied onto each participant record.
     adr:
     - ADR-0118
-    - ADR-0212
+    - ADR-0215
     testable: true
     preconditions:
     - em_state:
@@ -1740,7 +1740,7 @@ groups:
       covers the lazy check, the outside request, the order of the two, a
       race between them, an early request after the end time, and the lazy
       check composed into the one tree that handles a participant's received
-      activity or a case-scoped trigger (CLP-10-025, ADR-0135), including an
+      activity or a case-scoped trigger (CLP-10-025, ADR-0214), including an
       accept of a pending revision that cannot extend the expired embargo;
       `test/core/use_cases/received/test_termination_reason.py`
       covers the refusal of an early `END_TIME_REACHED` at the CASE_MANAGER and
@@ -1759,7 +1759,7 @@ groups:
         END_TIME_REACHED, every open proposal CANCELLED, EM EXITED, and the
         teardown announced
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2022_010
     - story_2022_026
@@ -1782,7 +1782,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-003
@@ -1806,7 +1806,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-003
@@ -1840,7 +1840,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-003
@@ -1871,7 +1871,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2022_080
     - story_2022_026
@@ -1895,7 +1895,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-004
@@ -1932,7 +1932,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-004
@@ -1962,7 +1962,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-010
@@ -1994,7 +1994,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: uses_definition
       spec_id: EMB-13-010
@@ -2022,7 +2022,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-005
@@ -2048,7 +2048,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-005
@@ -2076,7 +2076,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-005
@@ -2100,7 +2100,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2022_080
     - story_2022_026
@@ -2127,7 +2127,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-005
@@ -2152,7 +2152,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0212
+    - ADR-0215
     relationships:
     - rel_type: extends
       spec_id: EMB-13-016
@@ -2208,7 +2208,7 @@ groups:
     runs `ResolveCaseManagerNode` before the state mutation) and is authorised by
     the Case Owner by default (CM-02-005). A teardown that a received P, X or A
     report calls for is authorised by the Case Owner's adoption of that value,
-    with no second gate (RSH-07-001, ADR-0166). A non-manager Participant
+    with no second gate (RSH-07-001, ADR-0210). A non-manager Participant
     that wishes to end an embargo does not run this trigger to write canonical
     state; it initiates termination by reporting the condition or notifying intent
     (VP-11-003, VP-13-017/018), and terminates only its own compliance. See
@@ -2452,7 +2452,8 @@ groups:
     must decide how to respond. Two overture flows are distinguished: (Flow A)
     an EM-level embargo proposal (EP) proposing terms, whose acceptance moves
     the shared EM state; and (Flow B) a PEC-level invitation
-    (Invite(EmbargoEvent)[context=VulnerabilityCase]) asking the actor to become
+    (Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]) asking the actor to
+    become
     a signatory to an embargo, whose acceptance advances that participant's
     Participant Embargo Consent (PEC) state. The pre-PEC simulator conflated
     these into a single _ChooseEmProposedResponse fallback; the production
@@ -2723,7 +2724,7 @@ groups:
       (`test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_declines`)
       confirms the owner's Reject of an Invite declines only its own row.
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
     relationships:
@@ -2874,7 +2875,7 @@ groups:
         EM state is NONE; the abandonment is committed; proposed embargo
         abandoned
     adr:
-    - ADR-0212
+    - ADR-0215
     - ADR-0152
     stories:
     - story_2022_080
@@ -2898,7 +2899,7 @@ groups:
     - rel_type: extends
       spec_id: EMB-16-001
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2022_080
     - story_2022_023
@@ -2924,7 +2925,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-07-015
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2022_080
     - story_2022_023
@@ -3660,7 +3661,7 @@ groups:
       and the shared starting-state and EM checks. Also, the EM value the register
       derives overwrites a status EM that a path assigns directly.
     adr:
-    - ADR-0212
+    - ADR-0215
     - ADR-0124
     see_also:
     - spec_id: CM-23-016
@@ -3681,7 +3682,7 @@ groups:
     - rel_type: derives_from
       spec_id: EMB-18-001
     adr:
-    - ADR-0212
+    - ADR-0215
     - ADR-0124
   - id: EMB-18-002
     priority: MUST_NOT
@@ -3901,7 +3902,7 @@ groups:
       transitions: `test_every_register_step_moves_em_along_an_em_transition`
       in `test/core/states/test_em_transition_table.py`.
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_086
     testable: true
@@ -3924,7 +3925,7 @@ groups:
       `test/core/states/test_em_transition_table.py` asserts the table is
       declared.
     adr:
-    - ADR-0212
+    - ADR-0215
     testable: true
     relationships:
     - rel_type: implements
@@ -3945,7 +3946,7 @@ groups:
       `test_a_refused_em_move_leaves_the_case_unchanged` that the refusal writes
       nothing to the case.
     adr:
-    - ADR-0212
+    - ADR-0215
     testable: true
     relationships:
     - rel_type: extends
