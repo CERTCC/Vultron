@@ -36,7 +36,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
 )
 from test.support.act_runner import run_tree
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
     DiversionStage,
@@ -60,6 +60,10 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.case.receive_stages.tree import (
     ReceivedActivityTree,
 )
+from vultron.core.behaviors.case.received_run.reading import (
+    ReceivedOutcome,
+    read_outcome,
+)
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.idempotency import (
@@ -71,6 +75,7 @@ from vultron.core.behaviors.replica_emit_exemptions import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes.chain import CreateLogEntryNode
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronWiringError
 
@@ -229,6 +234,27 @@ class TestDiversionStageDeclaredRefusal:
         _, stage, _, _ = _stage(Status.SUCCESS, reason="why")
 
         assert stage.declared_refusal is None
+
+    @pytest.mark.spec("HP-01-003")
+    def test_the_runner_reports_the_declared_refusal(self) -> None:
+        """With no handler reader, the run is ``REFUSED`` for exactly the
+        condition's reason (ADR-0195)."""
+        root, _, _, _ = _stage(
+            Status.SUCCESS, refuses=True, reason="embargo 'e' ended (X-1)"
+        )
+        result = BTExecutionResult(
+            status=Status.FAILURE,
+            feedback_message=BTBridge.get_failure_reason(root),
+        )
+
+        verdict = read_outcome(
+            ReceivedOutcome.of(
+                root, result, "ProbeBT", receiving_actor_id=CASE_MANAGER_ACTOR
+            )
+        )
+
+        assert verdict.disposition is HandlerDisposition.REFUSED
+        assert verdict.reason == "embargo 'e' ended (X-1)"
 
     @pytest.mark.spec("HP-01-003")
     def test_the_factory_carries_the_declaration_to_the_stage(self) -> None:

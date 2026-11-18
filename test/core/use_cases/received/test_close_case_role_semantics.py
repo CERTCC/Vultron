@@ -2646,6 +2646,33 @@ class TestOwnerLeaveDuringActiveEmbargo:
             "The case must not close while embargoed (CM-23-011)"
         )
 
+    @pytest.mark.spec("HP-01-003")
+    def test_owner_leave_during_embargo_is_refused_for_the_guards_reason(
+        self,
+    ):
+        """The runner reads the close's refusal from the failing guard, with
+        the tree's label ahead of it; no handler reading decides it
+        (ADR-0195)."""
+        dl = _make_full_dl()
+        _seed_active_embargo(dl, em_state=EM.ACTIVE)
+
+        result = run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == (
+            f"CloseCaseBT: close of case '{CASE_ID}' refused: its embargo is"
+            f" active; the Case Owner '{OWNER_ID}' must terminate the embargo"
+            " first, then send Leave again (CM-23-011)"
+        )
+
     @pytest.mark.spec("CM-23-011")
     @pytest.mark.spec("CLP-02-005")
     @pytest.mark.spec("CLP-05-001")

@@ -203,6 +203,40 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             isinstance(n, ActivityIncompleteNode) for n in tree.iterate()
         )
 
+    @pytest.mark.spec("HP-01-005")
+    def test_an_unaddressed_offer_naming_no_case_is_refused_at_the_door(
+        self, make_payload
+    ):
+        """The addressee door runs ahead of the incomplete-activity guard: a
+        copy not addressed to the receiver is refused there, and intake
+        records nothing (HP-01-005, CLP-10-010)."""
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+        dl = self._store(self._CASE_ACTOR_URI)
+        offer = offer_case_participant_role_activity(
+            role=CVDRole.COORDINATOR,
+            target_actor=make(as_Actor, id_=self._TARGET_URI),
+            case=self._CASE_URI,
+            actor=self._VENDOR_URI,
+            to=[self._TARGET_URI],
+            at=authored_at(),
+        )
+        event = make_payload(
+            offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
+        )
+        event = event.model_copy(
+            update={
+                "activity": event.activity.model_copy(update={"context": None})
+            }
+        )
+
+        result = self._execute_at_case_manager(dl, event)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "is neither the sender nor a recipient of" in result.reason
+        assert not _archived_by_intake(dl, offer.id_)
+
     def test_offer_case_participant_role_uses_store_owner_when_no_receiving_actor(
         self, make_payload
     ):

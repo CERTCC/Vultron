@@ -23,10 +23,13 @@ run is the failing node's to declare instead
 reads that declaration (HP-01-003).
 
 A *reader* here is any function under ``vultron/core/use_cases/received/``
-that takes a ``ReceivedOutcome``, together with each function it is nested
-in (a factory whose refusal the reader returns) and each function of the
-same module that any of these calls by name.  An entry is ``path::qualified.name``, and it
-counts the ``HandlerResult.refused(...)`` calls in that function's own body.
+that takes a ``ReceivedOutcome`` or is passed as ``reader=``, together with
+the functions it is nested in (a factory whose refusal the reader returns)
+and the same-module functions any of these calls.  An entry is
+``path::qualified.name``, and it counts the refusals
+(``HandlerResult.refused(...)``, or a ``HandlerResult`` built ``REFUSED``) in
+that function's own body.  The shared readers in
+``vultron/core/behaviors/case/received_run/readers.py`` are outside the scan.
 
 The set is exact.  A new reader refusal fails, and so does a listed one that
 is gone, so the list holds only the readings that still refuse.
@@ -73,37 +76,64 @@ KNOWN_READER_REFUSALS: dict[str, tuple[int, str]] = {
     ),
 }
 
-#: Readers whose refusals another issue removes, with the issue.
+#: Reader refusals another issue removes, with their counts.
 # owner: #6499
-_MOVED_EXEMPTIONS: dict[str, str] = {
-    "fault/responses.py::_unnamed_entry_refusal": "#6499",
-    "fault/responses.py::_reseed_verdict.read": "#6499",
+_MOVED_EXEMPTIONS: dict[str, int] = {
+    "fault/responses.py::_unnamed_entry_refusal": 1,
+    "fault/responses.py::_reseed_verdict.read": 1,
 }
-
-
-def _is_refused_call(node: ast.AST) -> bool:
-    return (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "refused"
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "HandlerResult"
-    )
-
 
 _Function = ast.FunctionDef | ast.AsyncFunctionDef
 _FUNCTION_TYPES = (ast.FunctionDef, ast.AsyncFunctionDef)
 
 
+def _result_names(tree: ast.AST) -> frozenset[str]:
+    """The names ``HandlerResult`` goes by in *tree*, aliases included."""
+    names = {"HandlerResult"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            names |= {
+                a.asname
+                for a in node.names
+                if a.name == "HandlerResult" and a.asname is not None
+            }
+    return frozenset(names)
+
+
+def _is_refusal(node: ast.AST, names: frozenset[str]) -> bool:
+    """A ``HandlerResult.refused(...)`` call, or a ``REFUSED`` construction."""
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    if (
+        isinstance(func, ast.Attribute)
+        and func.attr == "refused"
+        and isinstance(func.value, ast.Name)
+        and func.value.id in names
+    ):
+        return True
+    return (
+        isinstance(func, ast.Name)
+        and func.id in names
+        and any(
+            isinstance(v, ast.Attribute) and v.attr == "REFUSED"
+            for v in (*node.args, *(k.value for k in node.keywords))
+        )
+    )
+
+
 def _own_nodes(fn: _Function) -> Iterator[ast.AST]:
-    """The nodes of *fn*'s body, not of a function or lambda nested in it."""
-    nested = (*_FUNCTION_TYPES, ast.Lambda)
-    stack: list[ast.AST] = [n for n in fn.body if not isinstance(n, nested)]
+    """The nodes of *fn*'s body, a lambda's included, not a nested def's."""
+    stack: list[ast.AST] = [
+        n for n in fn.body if not isinstance(n, _FUNCTION_TYPES)
+    ]
     while stack:
         node = stack.pop()
         yield node
         stack += [
-            c for c in ast.iter_child_nodes(node) if not isinstance(c, nested)
+            c
+            for c in ast.iter_child_nodes(node)
+            if not isinstance(c, _FUNCTION_TYPES)
         ]
 
 
@@ -131,32 +161,96 @@ def _takes_outcome(fn: _Function) -> bool:
     )
 
 
+def _scope_of(name: str) -> str:
+    return name.rpartition(".")[0]
+
+
+def _resolve(called: str, caller: str, functions: set[str]) -> str | None:
+    """The function *caller* names *called*: in its scopes, innermost first."""
+    scope = caller
+    while True:
+        candidate = f"{scope}.{called}" if scope else called
+        if candidate in functions:
+            return candidate
+        if not scope:
+            return None
+        scope = _scope_of(scope)
+
+
+def _called(node: ast.Call, caller: str, functions: set[str]) -> str | None:
+    """The same-module function *node* calls, by name or as ``self.x``."""
+    func = node.func
+    if isinstance(func, ast.Name):
+        return _resolve(func.id, caller, functions)
+    if (
+        isinstance(func, ast.Attribute)
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "self"
+    ):
+        # A method of the class the caller is defined in.
+        scope = caller
+        while scope:
+            scope = _scope_of(scope)
+            if f"{scope}.{func.attr}" in functions:
+                return f"{scope}.{func.attr}"
+    return None
+
+
+def _passed_readers(
+    name: str, fn: _Function, functions: set[str]
+) -> Iterator[str]:
+    """The functions *fn* passes as a ``reader=``, and itself for a lambda."""
+    for node in _own_nodes(fn):
+        if not isinstance(node, ast.Call):
+            continue
+        for kw in node.keywords:
+            if kw.arg != "reader":
+                continue
+            for part in ast.walk(kw.value):
+                if isinstance(part, ast.Lambda):
+                    yield name
+                elif isinstance(part, ast.Name) and (
+                    found := _resolve(part.id, name, functions)
+                ):
+                    yield found
+
+
 def reader_refusals(tree: ast.AST, rel: str) -> dict[str, int]:
-    """The refusal count of each reader of module *rel*, and its helpers."""
+    """The refusal count of each reader of module *rel*, and its helpers.
+
+    A reader takes a ``ReceivedOutcome`` or is passed as ``reader=``; a
+    ``reader=`` lambda counts toward the function that holds it.  Each
+    function a reader is nested in, every function nested in a reader
+    factory passed as ``reader=``, and each same-module function any of
+    these calls (by name or as ``self.x``) is reached too.
+    """
     functions = dict(_functions(tree))
-    top_level = {name for name in functions if "." not in name}
-    readers = [name for name, fn in functions.items() if _takes_outcome(fn)]
-    # A reader nested in a factory may return a refusal the factory built.
-    enclosing = {
-        ".".join(parts[:i])
-        for parts in (name.split(".") for name in readers)
-        for i in range(1, len(parts))
-    }
-    reached = set(readers) | (enclosing & set(functions))
+    known = set(functions)
+    names = _result_names(tree)
+    readers = {name for name, fn in functions.items() if _takes_outcome(fn)}
+    for name, fn in functions.items():
+        readers |= set(_passed_readers(name, fn, known))
+    # A reader nested in a factory may return a refusal the factory built,
+    # and a factory passed as reader= holds its reader nested in it.
+    reached = set(readers)
+    for name in readers:
+        parts = name.split(".")
+        reached |= {".".join(parts[:i]) for i in range(1, len(parts))} & known
+        reached |= {f for f in known if f.startswith(f"{name}.")}
     pending = list(reached)
     while pending:
-        for node in _own_nodes(functions[pending.pop()]):
+        caller = pending.pop()
+        for node in _own_nodes(functions[caller]):
             if (
                 isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id in top_level
-                and node.func.id not in reached
+                and (target := _called(node, caller, known)) is not None
+                and target not in reached
             ):
-                reached.add(node.func.id)
-                pending.append(node.func.id)
+                reached.add(target)
+                pending.append(target)
     found: dict[str, int] = {}
     for name in sorted(reached):
-        count = sum(map(_is_refused_call, _own_nodes(functions[name])))
+        count = sum(_is_refusal(n, names) for n in _own_nodes(functions[name]))
         if count:
             found[f"{rel}::{name}"] = count
     return found
@@ -165,7 +259,7 @@ def reader_refusals(tree: ast.AST, rel: str) -> dict[str, int]:
 def _received_reader_refusals() -> dict[str, int]:
     found: dict[str, int] = {}
     for path, tree in _corpus.files_mentioning(
-        "ReceivedOutcome", under=RECEIVED_ROOT
+        "ReceivedOutcome", "reader=", under=RECEIVED_ROOT
     ):
         found |= reader_refusals(
             tree, path.relative_to(RECEIVED_ROOT).as_posix()
@@ -175,33 +269,35 @@ def _received_reader_refusals() -> dict[str, int]:
 
 @pytest.mark.spec("HP-01-003")
 def test_received_readers_return_only_the_listed_refusals() -> None:
-    """Every reader refusal is listed, and every listed one still exists."""
-    found = {
-        key: count
-        for key, count in _received_reader_refusals().items()
-        if key not in _MOVED_EXEMPTIONS
+    """Every reader refusal is listed with its count, and every listed one
+    still exists."""
+    found = _received_reader_refusals()
+    assert found, "corpus drifted: no received reader returns a refusal"
+    expected = {k: count for k, (count, _) in KNOWN_READER_REFUSALS.items()}
+    expected |= _MOVED_EXEMPTIONS
+    new = {k: v for k, v in found.items() if k not in expected}
+    changed = {
+        k: (expected[k], v)
+        for k, v in found.items()
+        if k in expected and expected[k] != v
     }
-    known = {key: count for key, (count, _) in KNOWN_READER_REFUSALS.items()}
-    new = {k: v for k, v in found.items() if known.get(k) != v}
-    gone = sorted(set(known) - set(found))
+    gone = sorted(set(expected) - set(found))
     assert not new, (
-        "received readers returning HandlerResult.refused(...) after the"
-        " run: make the failing guard declare the refusal"
-        " (DeclaredRefusalMixin._refuse, ReportsRefusal) and delete the"
-        " reader's arm (ADR-0195, #6494):\n"
+        "received readers returning a refusal after the run: make the"
+        " failing guard declare it (DeclaredRefusalMixin._refuse,"
+        " ReportsRefusal) and delete the reader's arm (ADR-0195, #6494):\n"
         + "\n".join(f"  {k}: {v}" for k, v in sorted(new.items()))
+    )
+    assert not changed, (
+        "listed reader refusals whose count changed (listed, found); a new"
+        " refusal in a listed reader is a node's to declare, and one removed"
+        " lowers the count:\n"
+        + "\n".join(f"  {k}: {v}" for k, v in sorted(changed.items()))
     )
     assert not gone, (
         "listed reader refusals that no longer exist; drop them from"
-        f" KNOWN_READER_REFUSALS: {gone}"
+        f" KNOWN_READER_REFUSALS or _MOVED_EXEMPTIONS: {gone}"
     )
-
-
-def test_the_moved_exemptions_are_still_reader_refusals() -> None:
-    """An exemption another issue owns names a refusal the scan still finds."""
-    found = _received_reader_refusals()
-    stale = sorted(key for key in _MOVED_EXEMPTIONS if key not in found)
-    assert not stale, f"drop these from _MOVED_EXEMPTIONS: {stale}"
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +350,52 @@ def test_the_moved_exemptions_are_still_reader_refusals() -> None:
             "    return read\n",
             {"m.py::make": 1},
             id="refusal-the-enclosing-factory-built",
+        ),
+        pytest.param(
+            "def _read(outcome):\n"
+            "    return HandlerResult.refused('x')\n"
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        return run_received_tree(t, reader=_read)\n",
+            {"m.py::_read": 1},
+            id="unannotated-reader-passed-as-reader",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        return run_received_tree(\n"
+            "            t, reader=lambda o: HandlerResult.refused('x')\n"
+            "        )\n",
+            {"m.py::UC.execute": 1},
+            id="lambda-reader",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def _no(self):\n"
+            "        return HandlerResult.refused('x')\n"
+            "    def execute(self):\n"
+            "        def read(outcome: ReceivedOutcome):\n"
+            "            return self._no()\n"
+            "        return run_received_tree(t, reader=read)\n",
+            {"m.py::UC._no": 1},
+            id="self-method-helper",
+        ),
+        pytest.param(
+            "from vultron.core.models.use_case_result import (\n"
+            "    HandlerResult as HR,\n"
+            ")\n"
+            "def read(outcome: ReceivedOutcome):\n"
+            "    return HR.refused('x')\n",
+            {"m.py::read": 1},
+            id="aliased-import",
+        ),
+        pytest.param(
+            "def read(outcome: ReceivedOutcome):\n"
+            "    return HandlerResult(\n"
+            "        disposition=HandlerDisposition.REFUSED, reason='x'\n"
+            "    )\n",
+            {"m.py::read": 1},
+            id="refused-construction",
         ),
         pytest.param(
             "def _unrelated():\n"
