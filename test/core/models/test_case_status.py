@@ -18,6 +18,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.states.cs import CS_pxa
 
 CASE_ID = "https://example.org/cases/1"
+STATUS_ID = f"{CASE_ID}/statuses/1"
 _INBOUND = {INBOUND_CONTEXT_KEY: True}
 
 
@@ -84,7 +85,11 @@ def test_inbound_case_status_without_published_is_refused(
 
     ``None`` here leaves the key out of the payload altogether.
     """
-    data: dict[str, object] = {"type": "CaseStatus", "context": CASE_ID}
+    data: dict[str, object] = {
+        "type": "CaseStatus",
+        "id": STATUS_ID,
+        "context": CASE_ID,
+    }
     if published is not None:
         data["published"] = published
     with pytest.raises(ValidationError) as caught:
@@ -96,7 +101,12 @@ def test_inbound_case_status_without_published_is_refused(
 def test_inbound_case_status_with_explicit_null_published_is_refused():
     with pytest.raises(ValidationError) as caught:
         CaseStatus.model_validate(
-            {"type": "CaseStatus", "context": CASE_ID, "published": None},
+            {
+                "type": "CaseStatus",
+                "id": STATUS_ID,
+                "context": CASE_ID,
+                "published": None,
+            },
             context=_INBOUND,
         )
     assert isinstance(_cause(caught.value), MissingClaimedTimeError)
@@ -123,5 +133,7 @@ def test_authored_case_status_outside_inbound_path_is_refused_as_required():
     """Outside the inbound path a missing time is a required field left out,
     not a sender's missing claim, and nothing supplies it (ADR-0176)."""
     with pytest.raises(ValidationError) as info:
-        CaseStatus.model_validate({"type": "CaseStatus", "context": CASE_ID})
+        CaseStatus.model_validate(
+            {"type": "CaseStatus", "id": STATUS_ID, "context": CASE_ID}
+        )
     assert [e["type"] for e in info.value.errors()] == ["missing"]

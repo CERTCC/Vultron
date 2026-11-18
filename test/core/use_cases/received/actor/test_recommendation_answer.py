@@ -32,7 +32,11 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
-from test.support.received import extract_stamped, settle_as_the_inbox
+from test.support.received import (
+    archive_received,
+    extract_stamped,
+    settle_as_the_inbox,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -56,6 +60,7 @@ from vultron.core.use_cases.received.actor.recommendation_answer import (
     RejectActorRecommendationReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import recommend_actor_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -92,15 +97,31 @@ _SEMANTICS = {
 }
 
 
+def recommendation() -> as_Activity:
+    """The recommender's ``Offer(Actor)``, as it sent it."""
+    return recommend_actor_activity(
+        recommended=RECOMMENDED_ID,
+        target=CASE_ID,
+        id_=RECOMMENDATION_ID,
+        actor=RECOMMENDER_ID,
+        to=[CASE_ACTOR_ID],
+        at=authored_at(),
+    )
+
+
 def _answer(
     verb: Verb,
     sender_id: str = CASE_ACTOR_ID,
     to: list[str] | None = None,
 ) -> as_Activity:
-    """The answer as the CASE_MANAGER's adapter builds it (CM-16-006/007)."""
-    builder = TriggerActivityAdapter(
-        SqliteDataLayer("sqlite:///:memory:", actor_id=sender_id)
-    )
+    """The answer as the CASE_MANAGER's adapter builds it (CM-16-006/007).
+
+    The adapter embeds the recommendation as the CASE_MANAGER received it,
+    so its store holds the recommender's Offer first.
+    """
+    store = SqliteDataLayer("sqlite:///:memory:", actor_id=sender_id)
+    archive_received(store, recommendation())
+    builder = TriggerActivityAdapter(store)
     emit = (
         builder.emit_accept_actor_recommendation
         if verb == "accept"

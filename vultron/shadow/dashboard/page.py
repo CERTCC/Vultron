@@ -22,6 +22,20 @@ bands of the case's move advice (ADR-0200).  Beside the analysis it always
 shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
+A reader that can follow a case
+(:class:`~vultron.shadow.readers.following.CaseFollower`), the live Vultron
+case reader, is followed instead of read once: the page shows the case's new
+standing after each ledger entry arrives (#6531).  The last accepted reading
+is kept in session state.  A reading the reader refuses shows its error
+above that reading, and a follow that ends marks it as no longer live; the
+reading stays on the page either way (SHD-04-005).
+
+Each case is handled inside :func:`~vultron.shadow.log_content.case_log_context`,
+so its log records name the case and its tracker reference and never carry
+its content (VSD-01-003).  Each ledger entry's record carries the entry's
+activity id as its correlation id.  A followed case withholds each reading
+it accepts.
+
 The page only reads: it holds the reader and nothing that can send or write
 (SHD-01-001, SHD-01-002).  A case it reads lives in the process's memory
 only, and nothing of it is written to disk (SHD-01-003).
@@ -29,6 +43,7 @@ only, and nothing of it is written to disk (SHD-01-003).
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 
 import pandas as pd
@@ -37,15 +52,46 @@ import streamlit as st
 from vultron.core.models.case_reading import CaseReading
 from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import VultronError
+from vultron.logging_correlation import correlation_context
 from vultron.measure.advice import CaseAdvice, case_advice
 from vultron.shadow.analysis import CaseAnalysis, analyse
 from vultron.shadow.dashboard import view
+from vultron.shadow.log_content import CaseLog, case_log_context
+from vultron.shadow.readers.following import CaseFollower
+
+logger = logging.getLogger(__name__)
 
 #: The page's title, also the browser tab's.
 TITLE = "Case shadow"
 
 #: The widget key of the case the analyst enters.
 CASE_KEY = "case_id"
+
+#: The session-state key of a followed case's last accepted reading, kept
+#: with the case id it is a reading of.
+LAST_READING_KEY = "last_accepted_reading"
+
+#: What the page says of a followed case while it is live, and once not.
+LIVE_NOTE = (
+    "Live: the page follows the case and shows its new standing as each"
+    " ledger entry arrives."
+)
+NOT_LIVE_NOTE = (
+    "No longer live: the case's stream has ended. The page shows the case's"
+    " last accepted reading."
+)
+WAITING_NOTE = "Live: waiting for the case's first ledger entry."
+RECONNECTING_NOTE = (
+    "Reconnecting: the page shows the case's last accepted reading until"
+    " the case's stream sends it again."
+)
+NO_ENTRY_NOTE = (
+    "No longer live: the case's stream ended before it sent any ledger"
+    " entry, so there is no standing to show."
+)
+
+#: The session-state key counting the follow's heartbeats.
+HEARTBEAT_KEY = "follow_heartbeats"
 
 
 def _table(rows: Sequence[view.Row], empty: str) -> None:
@@ -171,6 +217,35 @@ def _show_reader_report(reading: CaseReading) -> None:
     )
 
 
+def _log_reading(case_id: str, reading: CaseReading) -> None:
+    """Log what was read: the case, then each entry and its source record."""
+    logger.info(
+        "Read case %s: %d ledger entries, %d inferences, %d untranslated"
+        " facts",
+        case_id,
+        len(reading.ledger),
+        len(reading.inferences),
+        len(reading.untranslated),
+    )
+    sources = {c.entry_id: c.source_record for c in reading.citations}
+    for entry in reading.ledger:
+        with correlation_context(activity_id=entry.log_object_id):
+            logger.debug(
+                "Case %s entry %s (%s) translates source record %s",
+                case_id,
+                entry.id_,
+                entry.semantic_type,
+                sources[entry.id_],
+            )
+    for fact in reading.untranslated:
+        logger.debug(
+            "Case %s source record %s not translated: %s",
+            case_id,
+            fact.source_record,
+            fact.reason,
+        )
+
+
 def render(reader: CaseReader, suggestions: Sequence[str] = ()) -> None:
     """Draw the page for the case the analyst enters, read through *reader*.
 
@@ -188,15 +263,110 @@ def render(reader: CaseReader, suggestions: Sequence[str] = ()) -> None:
     if case_id is None:
         st.info("Enter a case to see where it stands.")
         return
-    try:
-        reading = reader.read_case(case_id)
-    except VultronError as exc:
-        # A refusal that carries several problems names them all in str()
-        # (EH-07-003), so the analyst sees every reason at once.
-        st.error(str(exc))
-        return
+    with case_log_context(case_id) as case_log:
+        if isinstance(reader, CaseFollower):
+            _follow(reader, case_id, case_log)
+            return
+        try:
+            reading = reader.read_case(case_id)
+        except VultronError as exc:
+            # A refused read is the analyst's to fix, not a fault: WARNING
+            # (EH-06-001).
+            logger.warning("Could not read case %s: %s", case_id, exc)
+            # A refusal that carries several problems names them all in
+            # str() (EH-07-003), so the analyst sees every reason at once.
+            st.error(str(exc))
+            return
+        _accept(case_log, case_id, reading)
+        _show_reading(reading)
+
+
+def _accept(case_log: CaseLog, case_id: str, reading: CaseReading) -> None:
+    """Withhold *reading*'s content from the case's records, then log it."""
+    case_log.withhold(reading)
+    _log_reading(case_id, reading)
+
+
+def _show_reading(reading: CaseReading) -> None:
     _show_standing(analyse(reading))
     _show_reader_report(reading)
 
 
-__all__ = ["CASE_KEY", "TITLE", "render"]
+def _follow(follower: CaseFollower, case_id: str, case_log: CaseLog) -> None:
+    """Show *case_id*'s standing anew after each reading the follow yields.
+
+    The script runs for as long as the follow does.  Each accepted reading
+    replaces the one shown and is kept in session state; a refusal shows
+    above the last accepted reading, which stays; once the follow ends, the
+    reading is marked as no longer live (SHD-04-005).  A rerun of the page
+    for the same case shows the kept reading until the follow's replay
+    reaches it, so the standing never steps back.
+    """
+    notice = st.empty()
+    problem = st.empty()
+    body = st.empty()
+    kept = st.session_state.get(LAST_READING_KEY)
+    last: CaseReading | None = None
+    if kept is not None and kept[0] == case_id:
+        kept_reading: CaseReading = kept[1]
+        last = kept_reading
+        case_log.withhold(kept_reading)
+        notice.info(RECONNECTING_NOTE)
+        with body.container():
+            _show_reading(kept_reading)
+    else:
+        st.session_state.pop(LAST_READING_KEY, None)
+        notice.info(WAITING_NOTE)
+
+    def heartbeat() -> None:
+        # Streamlit checks for a stop or rerun request at each use of
+        # session state, so counting a beat there lets it stop a run whose
+        # page was left or asked to rerun while the case is quiet.
+        st.session_state[HEARTBEAT_KEY] = (
+            st.session_state.get(HEARTBEAT_KEY, 0) + 1
+        )
+
+    refused = False
+    # A rerun's follow replays the case from its first entry, so a kept
+    # reading stays until the replay reaches it rather than stepping back.
+    catching_up = last is not None
+    for item in follower.follow_case(case_id, heartbeat=heartbeat):
+        if isinstance(item, CaseReading):
+            if (
+                catching_up
+                and last is not None
+                and len(item.ledger) < len(last.ledger)
+            ):
+                continue
+            catching_up = False
+            last = item
+            _accept(case_log, case_id, item)
+            st.session_state[LAST_READING_KEY] = (case_id, item)
+            notice.caption(LIVE_NOTE)
+            problem.empty()
+            refused = False
+            with body.container():
+                _show_reading(item)
+        else:
+            refused = True
+            problem.error(str(item))
+    if last is not None:
+        notice.warning(NOT_LIVE_NOTE)
+    elif refused:
+        notice.empty()
+    else:
+        notice.warning(NO_ENTRY_NOTE)
+
+
+__all__ = [
+    "CASE_KEY",
+    "HEARTBEAT_KEY",
+    "LAST_READING_KEY",
+    "LIVE_NOTE",
+    "NOT_LIVE_NOTE",
+    "NO_ENTRY_NOTE",
+    "RECONNECTING_NOTE",
+    "TITLE",
+    "WAITING_NOTE",
+    "render",
+]

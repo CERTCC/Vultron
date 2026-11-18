@@ -340,6 +340,7 @@ def test_a_generic_event_shaped_proposal_is_projected_to_embargo_terms() -> (
         _wire(_offer(report)),
         proposedEmbargo={
             "type": "Event",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": f"{report.id_}/embargo_proposals/generic",
             "context": report.id_,
             "endTime": _END.isoformat(),

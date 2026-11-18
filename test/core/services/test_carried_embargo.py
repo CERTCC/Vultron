@@ -195,6 +195,7 @@ def _snapshot(**overrides: object) -> dict[str, object]:
     embargo = _embargo()
     return {
         "type": "EmbargoEvent",
+        "published": "2026-01-01T00:00:00+00:00",
         "id": embargo.id_,
         "context": _CASE,
         "endTime": embargo.end_time.isoformat(),

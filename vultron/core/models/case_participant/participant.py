@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import (
@@ -72,6 +73,17 @@ def _canonical_actor(value: Any) -> Any:
     return normalise_actor_id(value) if isinstance(value, str) else value
 
 
+def carries_published(cls: type[BaseModel], data: dict[str, Any]) -> bool:
+    """Whether *data* states a participant's ``published`` (CS-08-001).
+
+    A participant's first status is authored at the participant's own time
+    (:func:`first_status`), so a participant without one seeds no status: the
+    participant's own required ``published`` names the fault instead, and a
+    received one is refused as a whole object with no time (CLP-15-011).
+    """
+    return blank_as_none(first_input(data, cls, "published")) is not None
+
+
 def first_status(
     cls: type[BaseModel], data: dict[str, Any], id_val: str, **dims: Any
 ) -> ParticipantStatus:
@@ -110,6 +122,10 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
     ``type_`` value ``"CaseParticipant"`` because they carry no additional
     wire-level type discrimination.
     """
+
+    # Every author states it (ADR-0176), and a receiver refuses a received
+    # one without it (CLP-15-011).
+    published: datetime
 
     type_: Literal["CaseParticipant"] = Field(
         default="CaseParticipant",
@@ -257,7 +273,9 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
         """
         if not isinstance(data, dict):
             return data
-        if any(key in data for key in input_keys(cls, "participant_statuses")):
+        if any(
+            key in data for key in input_keys(cls, "participant_statuses")
+        ) or not carries_published(cls, data):
             return data
         data = dict(data)
         id_val = first_input(data, cls, "id_")

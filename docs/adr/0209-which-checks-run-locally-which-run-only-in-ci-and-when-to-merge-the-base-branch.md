@@ -19,7 +19,7 @@ supersedes:
 stakeholder_type: [project-contributor]
 ---
 
-# A Local Gate Runs Only What Answers Before the Required CI Gate, and the Base Is Merged Locally Only on Conflict
+# Which Checks Run Locally, Which Run Only in CI, and When to Merge the Base Branch
 
 ## Context and Problem Statement
 
@@ -44,7 +44,9 @@ Which checks earn a local run, and when does an agent merge the base into a Pull
 - **Never merge on red.** Only a check that GitHub enforces may be left to CI alone (`completeness-doctrine.md`).
 - **A local check is worth its cost only when it answers before CI would.** A local run that repeats a CI run that is about to happen buys the same answer later.
 - **CI on `pull_request` runs the full suite on the Pull Request merged into its base**, and finishes sooner than the same suite on a 2-CPU slot.
-- **Parallel agents share one host.** A heavy local run slows every other agent on it; a CI run slows none of them. Memory kills, per-test timeouts and hung runs came mostly from the heavy local jobs (#3156).
+- **Parallel agents share one host.**
+  A heavy local run slows every other agent on it; a CI run slows none of them.
+  Memory kills, per-test timeouts and hung runs came mostly from the heavy local jobs (#3156).
 - **A CI round still costs a push, a wait and a review of the fix**, so a cheap local check that finds the most frequent push failures keeps its place.
 - **The cost must not grow with fan-out.** A rule that restarts work each time `main` moves gets worse as throughput rises.
 - **The local gate must not drift from CI.** A list of checks kept by hand falls behind the workflows.
@@ -129,7 +131,7 @@ Chosen option: **"CI is the full-suite authority"**, because it removes the loca
 - Bad, because the merger's update is the only check of an overlapping Pull Request against its base before merge, so a merger that skips it ships an untested overlap.
 - Bad, because every push waits for the mirror.
 
-### Confirmation
+## Validation
 
 - PAD-18 in `specs/parallel-development.yaml` carries each rule with a `verification:` clause naming the skill step or command that implements it.
 - `test/metadata/test_targeted_tests.py` covers the targeted set, the always-selected directories, and the shared-test-infrastructure paths.
@@ -184,4 +186,4 @@ Related:
 - #5945 is the ruleset that requires the CI gate before a merge into `main`, the precondition of detail 1.
 - Concern #4015, issues #4699 and #5580, and Epic #5944 carry the measurements behind the five records.
 
-Requirements: `specs/parallel-development.yaml` PAD-18.
+Generated spec requirements: `specs/parallel-development.yaml` PAD-18.

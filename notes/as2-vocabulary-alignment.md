@@ -182,10 +182,10 @@ ground truth. Plan it as an Idea to be grilled before any build.
   carried participant is covered without answering. After the split the two
   embargoes evolve independently (the VP-10 family notice rules still apply).
 
-**Today.** CM-18 and ADR-0212 record consent as one row per (participant, register
+**Today.** CM-18 and ADR-0215 record consent as one row per (participant, register
 entry), starting `UNINVITED`, changed only by an answer to that entry.
 
-**Touches.** CM-18, ADR-0212, CM-13, the EM formal model
+**Touches.** CM-18, ADR-0215, CM-13, the EM formal model
 (`docs/topics/process_models/em/formal_model.md` § "Why the shortest proposal
 wins"), § "Split Carries Participants and Things".
 
@@ -239,8 +239,8 @@ them apart by `object_form` (SE-01-009). The stub has no `caseId` and no `/stub`
 See `vultron/wire/as2/extractor/_instances.py` and
 [stub-objects.md](stub-objects.md).
 
-**To build (embargo Invite).** `Invite(EmbargoEvent)[target=Actor]`, adding the
-`target` it lacks (the invitee is only in `to` today). Owner: #6498.
+**Built (embargo Invite).** `Invite(EmbargoEvent)[target=Actor]` names the invitee
+in `target` as well as `to` (#6498).
 
 **AS2 basis.** VOC Invite: object is the event, target the invitees ("Sally invited
 John and Lisa to a party"); issue #619 confirms Invite is the one verb whose `target`
@@ -353,19 +353,19 @@ the semantic registry, `vultron/wire/as2/vocab/examples/participant.py`,
 
 ## Embargo End Is an Update With a Termination Object
 
-Issue: #6246. Records: ADR-0201, ADR-0212.
+Issue: #6246. Records: ADR-0201, ADR-0215.
 
 **Decision.**
 
 - **The embargo is its own wire type.** `"type": ["EmbargoEvent", "Event"]`, a
   Vultron subtype of AS2 `Event` read like ADR-0196's `Refuse`; every added field
   gets a JSON-LD term (ADR-0201).
-- **The embargo stores its own state.** `EmbargoEvent` gains `status` (ADR-0212's
+- **The embargo stores its own state.** `EmbargoEvent` gains `status` (ADR-0215's
   statuses), `replaces` and, once terminated, its termination: the cause kind
   (`END_TIME_REACHED`, `THREAT_SIGNAL` with its P/X/A signals, `FIX_READY`,
   `FIX_DEPLOYED`, `OTHER`), the causing act's id when known, and the human reason in
-  `summary`. The case's register becomes its ordered list of embargoes; ADR-0212's
-  statuses, triggers and invariants range over the embargoes' own fields (ADR-0212).
+  `summary`. The case's register becomes its ordered list of embargoes; ADR-0215's
+  statuses, triggers and invariants range over the embargoes' own fields (ADR-0215).
   The termination is a field of the embargo, with no id of its own: a later dispute
   names the `Update` act.
 - **The end is `Update(EmbargoEvent)`** setting `status` terminated and the
@@ -374,7 +374,7 @@ Issue: #6246. Records: ADR-0201, ADR-0212.
   Its own endings (end time, threat signal) are its own `Update`; the Case
   Owner's early ending is its own `Update(EmbargoEvent)`, which the CASE_MANAGER
   refuses (a `THREAT_SIGNAL` cause from the Owner) or admits as the ledger entry
-  (ADR-0199 revision 2, ADR-0212).
+  (ADR-0199 revision 2, ADR-0215).
 - **Every signatory is told by `Announce(<the Update>)`**, sent to every active
   participant and every signatory the ledger fan-out skips. It keeps the teardown
   notice's purpose (everyone the embargo may have bound learns it ended) and replaces
@@ -406,7 +406,7 @@ ratchet, so the entry keeps an open owner. Planning this section adopts #6421
 for that field rather than filing a second Task.
 
 **Touches.** EMB-07, EMB-13 (003, 004, 005, 009 to 014), EMB-19, CM-31-009,
-CM-31-030, CM-31-031, CM-31-042, EP-08-004, ADR-0212, ADR-0213, every reader of a
+CM-31-030, CM-31-031, CM-31-042, EP-08-004, ADR-0215, ADR-0213, every reader of a
 register entry (`vultron/core/models/embargo_register/`), the `terminationCause`
 JSON-LD term (`docs/ns/`), `REMOVE_EMBARGO_EVENT_FROM_CASE`, and every note and docs
 page that names `Remove(EmbargoEvent)` or `terminationCause`: among them
@@ -421,7 +421,7 @@ fragments, `docs/howto/activitypub/activities/manage_embargo.md`, and the
 
 ## The Owner Decides an Embargo Proposal With an Update
 
-Issues: #6487, #6625. Records: ADR-0199 revision 2 and ADR-0212.
+Issues: #6487, #6625. Records: ADR-0199 revision 2 and ADR-0215.
 
 **Decision.**
 
@@ -431,7 +431,7 @@ Issues: #6487, #6625. Records: ADR-0199 revision 2 and ADR-0212.
 - **Activation is `Update(EmbargoEvent{id, status: ACTIVE})`**, for a first proposal
   (EA) and a revision (EC) alike, with `inReplyTo` naming the proposal's
   `Invite(EmbargoEvent)`. The proposal already put the embargo on the register
-  (ADR-0212), so `Add` to the case is no longer true. It replaces
+  (ADR-0215), so `Add` to the case is no longer true. It replaces
   `Add(EmbargoEvent)[target=VulnerabilityCase]`.
 - **Rejection is `Update(EmbargoEvent{id, status: REJECTED})`** (ER, EJ), with the
   same `inReplyTo`. It replaces `Reject(EmbargoEvent)[target=VulnerabilityCase]`,

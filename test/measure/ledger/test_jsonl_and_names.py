@@ -19,9 +19,12 @@ import pytest
 
 from vultron.errors import LedgerReadError
 from vultron.measure.ledger import (
+    LedgerRow,
     UnusableRow,
     collect_actor_names,
     friendly_actor_name,
+    ledger_from_rows,
+    parse_ledger_row,
     read_ledger_file,
 )
 
@@ -71,6 +74,21 @@ def test_a_non_utf8_file_raises(tmp_path):
 def test_an_unusable_row_describes_itself(tmp_path):
     row = UnusableRow(path=tmp_path / "f.jsonl", line=3, reason="bad")
     assert row.describe() == f"{tmp_path / 'f.jsonl'} line 3: bad"
+
+
+def test_rows_parsed_one_at_a_time_make_the_same_ledger(tmp_path):
+    """A row received alone, as from an event stream, parses the same way."""
+    path = tmp_path / "stream"
+    parsed = [
+        parse_ledger_row(text, path, line)
+        for line, text in enumerate(['{"logIndex": 0}', "{bad", '"x"'], 1)
+    ]
+    assert isinstance(parsed[0], LedgerRow)
+    assert [type(row) for row in parsed[1:]] == [UnusableRow, UnusableRow]
+    ledger = ledger_from_rows(path, parsed)
+    assert ledger.entries == [{"logIndex": 0}]
+    assert [r.line for r in ledger.unusable_rows] == [2, 3]
+    assert "must be a JSON object, not str" in ledger.unusable_rows[1].reason
 
 
 class TestDisplayNames:

@@ -170,9 +170,11 @@ def taken_diversion(
     """The diversion stage *name* when it diverted the delivery, else ``None``.
 
     See :class:`~vultron.core.behaviors.case.nodes.diversion_stage.DiversionStage`
-    (CLP-10-026): a taken diversion answered the delivery itself, so the
-    tree's ``FAILURE`` is not a refusal of its own and the handler reads the
-    stage instead.
+    (CLP-10-026): a taken diversion answered the delivery itself.  A stage
+    built ``refuses`` declares its refusal, which the runner reads
+    (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`); for any
+    other stage the tree's ``FAILURE`` is not a refusal of its own, and the
+    handler reads the stage instead.
     """
     for node in _root(tree).iterate():
         if (

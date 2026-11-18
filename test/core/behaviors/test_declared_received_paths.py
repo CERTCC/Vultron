@@ -165,12 +165,12 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     (
         f"{_C}/offer_case_participant_role_received_tree.py",
         "create_offer_case_participant_role_received_tree",
-        1,
+        0,
     ): frozenset({CM, PR}),
     (
         f"{_C}/offer_case_participant_role_received_tree.py",
         "create_offer_case_participant_role_received_tree",
-        2,
+        1,
     ): frozenset({CM, PR}),
     (
         f"{_C}/role_offer_answer_tree.py",
@@ -490,13 +490,6 @@ UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
         "create_intake_only_received_tree",
         0,
     ): "intake-only archive of an activity with nothing to apply",
-    # Same shape, inline in the tree factory: the activity names no case, so
-    # the tree is the archive and the refusal.
-    (
-        f"{_C}/offer_case_participant_role_received_tree.py",
-        "create_offer_case_participant_role_received_tree",
-        0,
-    ): "the Offer names no case, so the tree archives and refuses it",
     (
         f"{_C}/receive_close_case_tree/factory.py",
         "create_close_case_received_tree",

@@ -15,7 +15,7 @@ The answers explain why a protocol that coordinates participants matters: left u
 The triple $(q^{rm}, q^{em}, q^{cs})$ is how the formal model describes one participant.
 In the protocol today, some parts of the triple belong to the case, not to the participant:
 
-- The EM state and the public part of the CS state (PXA) are participant-agnostic. The case holds one copy of each. The case derives its EM state from its embargo register (ADR-0212).
+- The EM state and the public part of the CS state (PXA) are participant-agnostic. The case holds one copy of each. The case derives its EM state from its embargo register (ADR-0215).
 - The RM state, the vendor fix path (VF), and the deployment state (D) are participant-specific. Each participant holds its own copy (SDO-03-002, ADR-0075).
 
 Each participant also holds one Participant Embargo Consent (PEC) row for every embargo in the register (CM-18-001).
@@ -629,7 +629,7 @@ Two parts of the state belong to the case, not to a Participant:
     Only the CASE_MANAGER writes the PXA state of the case, when it adopts a report from a Participant (RSH-04-001, RSH-04-003).
 
 2. The five EM states are also participant-agnostic.
-    The case derives one EM state from its embargo register (ADR-0212).
+    The case derives one EM state from its embargo register (ADR-0215).
 
 Those Participant-agnostic terms can therefore be pulled out of the state calculations for individual Participants,
 

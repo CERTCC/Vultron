@@ -610,6 +610,7 @@ class TestVerifyCaseClosed:
             index[actor]: {
                 "id": index[actor],
                 "type": "CaseParticipant",
+                "published": "2026-01-01T00:00:00+00:00",
                 "attributedTo": actor,
                 "context": _CASE,
                 "joined": True,
@@ -617,6 +618,7 @@ class TestVerifyCaseClosed:
                     {
                         "id": f"{index[actor]}/status",
                         "type": "ParticipantStatus",
+                        "published": "2026-01-01T00:00:00+00:00",
                         "attributedTo": actor,
                         "context": _CASE,
                         "rmState": rm,

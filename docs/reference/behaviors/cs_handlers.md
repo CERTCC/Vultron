@@ -59,7 +59,7 @@ A participant replica refuses it at the path stage, because a replica takes part
 The tree is built on the case the status's own `context` names.
 A door refuses a target participant the receiver holds no record of (HP-08-014), or one recorded in another case than the status names (HP-08-013), before the sender guard runs.
 An `Add` whose activity `context` names a different case than its status never reaches the tree: the parser refuses it, as it refuses any activity whose parts name different cases (HP-08-015).
-Implements the StatusAdoptionGate workflow (ADR-0046, RSH-01): verifies the sender is a participant, appends the raw peer status, then gates adoption through the adoption call-out; an adopted P, X or A ends an active embargo in the same act, because the adoption also authorizes the teardown (ADR-0166).
+Implements the StatusAdoptionGate workflow (ADR-0210, RSH-01): verifies the sender is a participant, appends the raw peer status, then gates adoption through the adoption call-out; an adopted P, X or A ends an active embargo in the same act, because the adoption also authorizes the teardown (ADR-0166).
 An adopted P, X or A reaches the case status here, and nowhere else on the received side (RSH-01-003).
 Constructed from
 `vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_tree`.

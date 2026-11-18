@@ -32,6 +32,10 @@ class EmbargoEvent(CoreObject):
     and to auto-register this class in :data:`CORE_VOCABULARY`.
     """
 
+    # Every author states it (ADR-0176), and a receiver refuses a received
+    # one without it (CLP-15-011).
+    published: datetime
+
     type_: Literal["EmbargoEvent"] = Field(
         default="EmbargoEvent",
         validation_alias="type",

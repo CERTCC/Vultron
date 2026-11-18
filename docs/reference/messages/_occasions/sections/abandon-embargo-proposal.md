@@ -7,7 +7,7 @@ Cancels the proposal for the case. The CASE_MANAGER then withdraws each Invite i
 === "Details"
 
     - **When…** the CASE_MANAGER abandons an open embargo proposal it received once the case is public, an exploit is public or attacks are observed
-    - **Send:** `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])`
+    - **Send:** `Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])`
     - **Send to:** a participant
     - **Sent by:** the CASE_MANAGER
     - **Formal definition:** [Embargo Proposal Rejection (ER)](../../../formal_protocol/messages.md#em-message-types)

@@ -28,7 +28,7 @@ partially_supersedes:
 stakeholder_type: [project-contributor]
 ---
 
-# Each Embargo Carries Its Own Status, Each Participant Holds a Consent Row per Embargo, and EM Is Computed From Them
+# How Embargo Status and Participant Consent Are Recorded
 
 ## Context and Problem Statement
 
@@ -239,7 +239,7 @@ Chosen option: **option 1**, because it is the only option in which every state 
 - Bad, because the derivation, the EM table and the register's own steps are three related tables to keep consistent; the every-change check makes a mismatch fail loudly.
 - Bad, because the wire format and the stored case change, with no compatibility kept before 1.0.
 
-### Confirmation
+## Validation
 
 - `test/core/states/test_participant_embargo_consent.py` drives the consent row machine through every legal trigger and refuses every illegal one.
 - `test/core/states/test_embargo_register.py` and `test/core/models/test_embargo_register.py` hold the register steps and invariants.
@@ -328,4 +328,4 @@ Related:
 - [ADR-0201](0201-an-embargoevent-is-a-vultron-extension-type-and-a-subtype-of-event.md): the embargo's wire type.
 - [ADR-0056](archived/0056-embargo-adherence-computed-field.md), superseded by ADR-0122, stays retired.
 
-Requirements: `case-management.yaml` CM-10, CM-18 and CM-31; `message-semantics-mapping.yaml` MSM-07; `embargo-policy.yaml` EP-05, EP-08 and EP-09; `em-behavior.yaml` EMB-13, EMB-16, EMB-17, EMB-18 and EMB-19.
+Generated spec requirements: `case-management.yaml` CM-10, CM-18 and CM-31; `message-semantics-mapping.yaml` MSM-07; `embargo-policy.yaml` EP-05, EP-08 and EP-09; `em-behavior.yaml` EMB-13, EMB-16, EMB-17, EMB-18 and EMB-19.

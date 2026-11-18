@@ -15,7 +15,7 @@ partially_superseded_by:
   - 0172-an-active-participant-is-not-closed.md
   - 0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md
   - 0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md
-  - 0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
+  - 0215-how-embargo-status-and-participant-consent-are-recorded.md
 stakeholder_type: [project-contributor]
 superseded_by: 0213-how-a-participant-joins-becomes-active-and-is-removed.md
 ---

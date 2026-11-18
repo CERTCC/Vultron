@@ -7,7 +7,7 @@ Proposes embargo terms, such as an end date and time.
 === "Details"
 
     - **When…** a Participant proposes embargo terms for a case with no active embargo
-    - **Send:** `Invite(EmbargoEvent)[context=VulnerabilityCase]`
+    - **Send:** `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the CASE_MANAGER or an active participant
     - **Distinguished by:** EM state `NONE` or `PROPOSED`

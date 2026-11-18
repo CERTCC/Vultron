@@ -217,11 +217,12 @@ adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md
 adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md
 adr/0206-each-app-resolves-its-own-configuration.md
 adr/0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md
-adr/0208-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md
-adr/0209-a-local-gate-runs-only-what-answers-before-the-required-ci-gate-and-the-base-is-merged-locally-only-on-conflict.md
-adr/0210-a-reported-p-x-or-a-value-is-adopted-through-one-gate-and-its-adoption-ends-the-embargo-in-the-same-act.md
-adr/0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
-adr/0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
+adr/0208-core-owns-the-as2-base-vocabulary.md
+adr/0209-which-checks-run-locally-which-run-only-in-ci-and-when-to-merge-the-base-branch.md
+adr/0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md
+adr/0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md
+adr/0214-how-a-received-message-is-checked-applied-and-kept.md
+adr/0215-how-embargo-status-and-participant-consent-are-recorded.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md

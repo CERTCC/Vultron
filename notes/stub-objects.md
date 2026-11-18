@@ -73,7 +73,7 @@ A stub is accepted only as the `preview` of a case reference that is an
 `Reject`, or in a refusal notice quoting such a reply. The parser refuses it
 anywhere else, an `Invite`'s `target` and an embargo invitation included, because
 only the stub Invite asks the question the stub answers (MV-10-002,
-`refuse_misplaced_case_preview`).
+`refuse_misplaced_forms`).
 
 That reference is read as received (MV-10-013): rehydration, the stored row and
 the inbox never put the held case in its place or fetch the case, and only a
@@ -98,7 +98,8 @@ with `previewed_case_id`, never from the stub.
 - The stub's `caseStatus` is built for the stub, not read from the case, and
   serializes only its identity, its `published` and `emState` (CM-17-013). A
   `pxaState` on the wire would state a PXA value nobody observed; `published`
-  stays because a receiver refuses a status without one (CLP-15-010).
+  stays because a receiver refuses a status without one (CLP-15-010,
+  CLP-15-011). The stub itself carries none: CM-17-010 fixes its keys.
 - "In force" means the register holds an `ACTIVE` entry: EM `ACTIVE` or `REVISE`,
   never the exact EM state alone. Gate on `case.embargo_in_force`, which reads
   `active_embargo_id`, the embargo the consent row and the Accept's signing name

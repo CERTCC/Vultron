@@ -42,6 +42,12 @@ The tool holds a case only in memory, and it removes its temporary files when it
 To run the tool without Docker, run `uv run vultron-shadow` from the repository root.
 It listens on `127.0.0.1:8501`; `--port` changes the port.
 
+The tool writes its log to standard error, at `INFO` and above; `--log-level DEBUG` adds a record for each ledger entry it reads.
+A log record names the case, its activity and actor ids, and the case's tracker reference, such as its VINCE case URL.
+The tool removes the case's content, such as a title, a description, or a contact name, from each log record.
+It removes a whole value, or a whole line of a value, wherever a record quotes it.
+You can share the log records to report a problem.
+
 ---
 
 ## Step 2: Read a Vultron case
@@ -68,8 +74,26 @@ Set these environment variables in the shell that starts the tool:
 
 Set both variables, or neither.
 With both set and no connector set, type the case's id on that node in the **Case** box.
-For each read, the tool sends the node one request only: a `GET` of the case's demo ledger endpoint.
+The tool then follows the case live: the page shows the case's new standing each time the node adds an entry to the case's ledger.
+The tool sends the node only `GET` requests of the case's demo ledger event-stream endpoint.
+When the connection drops, the tool connects again and asks only for the entries after the last one it received.
 A node that is not in prototype run mode does not serve that endpoint, so the tool shows an error that names the node and the case.
+
+If the node sends an entry that is not a valid ledger entry, the page shows an error that names the entry.
+The page keeps the case's last accepted standing below the error.
+When the node stops, or the tool cannot connect to it again, the page marks that standing as no longer live.
+
+To follow a case on the demo stack, start the stack in `docker/docker-compose-multi-actor.yml` as `docker/README.md` describes.
+Then, from the `docker/` directory, start the tool with the node variables set:
+
+```bash
+VULTRON_SHADOW__NODE_URL=http://case-actor:7999/api/v2 \
+VULTRON_SHADOW__NODE_ACTOR_ID=case-actor \
+docker compose up shadow
+```
+
+The `shadow` service joins the demo stack's network, so it reaches the Case Manager by its service name.
+It still has no volume, and it still publishes its port on the loopback interface only.
 
 ---
 

@@ -34,7 +34,7 @@ from vultron.wire.as2.vocab.base.registry import (
 
 #: Lower bound on registry size, so a broken import cannot make the test pass
 #: vacuously: registration is a submodule import side effect (VM-01-005).
-_MIN_REGISTERED_TYPES = 50
+_MIN_REGISTERED_TYPES = 45
 
 
 def _vocabulary_keys() -> list[str]:

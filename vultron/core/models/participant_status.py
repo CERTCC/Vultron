@@ -15,6 +15,7 @@
 
 """Domain representation of a participant RM-state status record."""
 
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import (
@@ -92,6 +93,10 @@ class ParticipantStatus(CoreObject):
     non-None for DEPLOYER participants; a participant with both roles carries
     both.
     """
+
+    # Every author states it (ADR-0176), and a receiver refuses a received
+    # one without it (CLP-15-011).
+    published: datetime
 
     type_: Literal["ParticipantStatus"] = Field(
         default="ParticipantStatus",

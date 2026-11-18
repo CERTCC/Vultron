@@ -42,8 +42,14 @@ class TriggerEmbargoPort(Protocol):
         min_rsvp_window: timedelta | None = None,
         *,
         at: datetime,
+        invitee: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]``.
+        """Create and persist an
+        ``Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]``.
+
+        Its ``target`` is the invitee: the one actor ``to`` names, or
+        *invitee* for an Invite addressed to nobody, which is the
+        CASE_MANAGER's own ledgered proposal (EP-09-010, ADR-0205).
 
         The Invite is the embargo proposal.
 

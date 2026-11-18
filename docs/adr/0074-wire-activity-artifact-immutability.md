@@ -10,7 +10,7 @@ informed: specs/vocabulary-model.yaml
 stakeholder_type: [project-contributor]
 partially_superseded_by:
   - 0099-one-object-model-as2-is-a-serialization.md
-  - 0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
+  - 0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md
 ---
 
 # Treat Wire Activities as Immutable Artifacts; Freeze at Receipt and at Factory Seal

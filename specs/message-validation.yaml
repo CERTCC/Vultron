@@ -785,7 +785,7 @@ groups:
       class of its object. A core class with `extra="forbid"` (ARCH-12-003) refuses the
       key with a 422 status. A wire class with the Pydantic default `extra="ignore"`
       drops the key silently. Neither result is a decision of the receiver. Under one
-      object model (ADR-0099), the parser is the inbound point where wire data becomes
+      object model (ADR-0211), the parser is the inbound point where wire data becomes
       core data (ADR-0032: validate at the edge; ARCH-21-002: inbound wire data stays
       lenient).
     verification: >-
@@ -930,7 +930,7 @@ groups:
       The normalization is shallow on purpose. AS2 has many property names of two or
       three letters that are one character apart, so an edit-distance model gives many
       false matches. A wider definition of "near" is not worth its cost (ARCH-25-008;
-      ADR-0099).
+      ADR-0211).
     verification: >-
       `test_no_similarity_helper_in_the_parse_edge` in
       `test/wire/as2/test_unknown_key_disposition.py` asserts that no module under
@@ -1122,13 +1122,12 @@ groups:
       requires a marker in each of several declared fields of an inline case to be
       refused, the reason naming the field;
       `test_a_marker_in_a_case_stub_identifying_field_is_refused` requires the same of
-      the stub's `id`; and `test_a_marker_in_an_activity_slot_is_refused` and
-      `test_a_marker_with_an_id_in_an_activity_slot_is_refused` in the same file
-      require a marker as an activity's `object` or `target` to be refused, with and
-      without an `id`.
-      `test_a_marker_of_only_id_and_type_in_an_activity_slot_is_refused` requires the
-      same of a marker with no `summary`; it is a strict `xfail` until #6372 refuses
-      that typed reference shape.
+      the stub's `id`; `test_a_marker_in_an_activity_slot_is_refused` in the same
+      file requires a marker in each free-form activity slot to be refused, with a
+      `summary`, with an `id`, and with only `id` and `type`; and
+      `test_a_marker_in_a_full_case_free_form_field_is_refused` and
+      `test_a_marker_in_a_case_preview_free_form_field_is_refused` require a marker
+      in a field that admits any embedded object to be refused, naming its path.
     relationships:
     - rel_type: constrains
       spec_id: MV-12-001
@@ -1151,8 +1150,9 @@ groups:
       requires the marker type to refuse a marker carrying `content`, `id` or `name`.
       `test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
       requires a case stub with a clean marker to parse and one whose marker carries the
-      withheld value to be refused; it is a strict `xfail` until #6372 opens a case
-      preview field to the marker.
+      withheld value to be refused; it is a strict `xfail`, held for Concern #6641,
+      which moves the leaky-marker rule to the sender and keeps the receiver's
+      MV-11-003 unknown-key handling.
     relationships:
     - rel_type: refines
       spec_id: MV-12-001
@@ -1194,8 +1194,9 @@ groups:
     verification: >-
       `test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
       requires a case stub with a clean marker to parse and one whose marker carries the
-      withheld value to be refused; it is a strict `xfail` until #6372 opens a case
-      preview field to the marker.
+      withheld value to be refused; it is a strict `xfail`, held for Concern #6641,
+      which moves the leaky-marker rule to the sender and keeps the receiver's
+      MV-11-003 unknown-key handling.
     relationships:
     - rel_type: constrains
       spec_id: MV-12-003

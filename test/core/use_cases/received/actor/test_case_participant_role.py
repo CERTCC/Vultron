@@ -160,6 +160,113 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         # The path stage, a door, refused it before intake (CLP-10-010).
         assert not _archived_by_intake(dl, offer.id_)
 
+    @pytest.mark.spec("CLP-10-018")
+    @pytest.mark.spec("HP-01-003")
+    def test_an_offer_naming_no_case_is_refused_by_its_guard(
+        self, make_payload
+    ):
+        """Intake records an Offer that names no case, and the tree's
+        incomplete-activity guard refuses it; no handler reading decides
+        it (ADR-0195)."""
+        from vultron.core.behaviors.case.nodes.incomplete_activity import (
+            ActivityIncompleteNode,
+        )
+        from vultron.core.behaviors.case.offer_case_participant_role_received_tree import (
+            create_offer_case_participant_role_received_tree,
+        )
+
+        dl = self._store(self._CASE_ACTOR_URI)
+        offer = self._make_offer()
+        event = make_payload(
+            offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
+        )
+        event = event.model_copy(
+            update={
+                "activity": event.activity.model_copy(update={"context": None})
+            }
+        )
+
+        result = self._execute_at_case_manager(dl, event)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason == "Offer(CaseParticipantRole) names no case"
+        assert _archived_by_intake(dl, offer.id_)
+        tree = create_offer_case_participant_role_received_tree(
+            offer_id=offer.id_,
+            case_id=None,
+            role=CVDRole.COORDINATOR,
+            target_actor_id=self._TARGET_URI,
+            sender_id=self._VENDOR_URI,
+            sender_rule=OfferCaseParticipantRoleReceivedUseCase.sender_entitlement,
+        )
+        assert any(
+            isinstance(n, ActivityIncompleteNode) for n in tree.iterate()
+        )
+
+    @pytest.mark.spec("HP-01-003")
+    def test_an_offer_naming_no_case_that_intake_cannot_record_is_refused(
+        self, make_payload
+    ):
+        """The incomplete-activity tree judges its delivery like every other
+        user of it: a copy intake cannot record is refused for intake's
+        reason, never read as a local fault (ADR-0195)."""
+        dl = self._store(self._CASE_ACTOR_URI)
+        offer = self._make_offer()
+        event = make_payload(
+            offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
+        )
+        event = event.model_copy(
+            update={
+                "activity": event.activity.model_copy(
+                    update={"context": None}
+                ),
+                "received_evidence": None,
+            }
+        )
+
+        result = self._execute_at_case_manager(dl, event)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason == (
+            f"OfferCaseParticipantRoleReceivedBT: activity '{offer.id_}'"
+            " carries no received body to record (VM-08-002, ARCH-15-001)"
+        )
+        assert not _archived_by_intake(dl, offer.id_)
+
+    @pytest.mark.spec("HP-01-005")
+    def test_an_unaddressed_offer_naming_no_case_is_refused_at_the_door(
+        self, make_payload
+    ):
+        """The addressee door runs ahead of the incomplete-activity guard: a
+        copy not addressed to the receiver is refused there, and intake
+        records nothing (HP-01-005, CLP-10-010)."""
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+        dl = self._store(self._CASE_ACTOR_URI)
+        offer = offer_case_participant_role_activity(
+            role=CVDRole.COORDINATOR,
+            target_actor=make(as_Actor, id_=self._TARGET_URI),
+            case=self._CASE_URI,
+            actor=self._VENDOR_URI,
+            to=[self._TARGET_URI],
+            at=authored_at(),
+        )
+        event = make_payload(
+            offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
+        )
+        event = event.model_copy(
+            update={
+                "activity": event.activity.model_copy(update={"context": None})
+            }
+        )
+
+        result = self._execute_at_case_manager(dl, event)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "is neither the sender nor a recipient of" in result.reason
+        assert not _archived_by_intake(dl, offer.id_)
+
     def test_offer_case_participant_role_uses_store_owner_when_no_receiving_actor(
         self, make_payload
     ):

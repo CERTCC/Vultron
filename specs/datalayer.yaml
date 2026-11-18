@@ -426,7 +426,7 @@ groups:
       `outbox_append` queues an activity, and `outbox_list` reads which are pending.
       Neither takes an actor id, since that would allow a write to the queue of
       another actor (DL-07-001). A received tree emits through this port in its
-      effects stage (ADR-0111).
+      effects stage (ADR-0214).
     adr:
     - ADR-0073
   - id: DL-04-005
@@ -641,7 +641,7 @@ groups:
       Wire and core registry keys are disjoint (ARCH-23-002), so no wire class can
       shadow a core type, and the list is always empty. A check over an empty list
       can never fail. It gives false confidence, so the list and its test must not
-      exist (ADR-0099).
+      exist (ADR-0211).
     verification: >-
       `test_retired_wire_normalisation_mechanisms_are_not_reintroduced` in
       `test/architecture/test_core_extra_forbid.py` asserts that

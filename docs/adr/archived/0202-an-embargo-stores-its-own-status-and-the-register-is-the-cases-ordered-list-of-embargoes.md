@@ -13,11 +13,11 @@ informed: []
 partially_supersedes:
   - 0122-per-embargo-participant-consent.md
 stakeholder_type: [project-contributor]
-superseded_by: 0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
+superseded_by: 0215-how-embargo-status-and-participant-consent-are-recorded.md
 ---
 
-> **Superseded by [ADR-0212](../0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md).**
-> ADR-0212 states the embargo register, the per-embargo consent rows, the EM derivation, the owner's decisions and an embargo's end as one decision, consolidating ADR-0122, ADR-0130, ADR-0180, ADR-0202 and ADR-0203.
+> **Superseded by [ADR-0215](../0215-how-embargo-status-and-participant-consent-are-recorded.md).**
+> ADR-0215 states the embargo register, the per-embargo consent rows, the EM derivation, the owner's decisions and an embargo's end as one decision, consolidating ADR-0122, ADR-0130, ADR-0180, ADR-0202 and ADR-0203.
 > This record is kept as it stood when it was superseded.
 
 # An Embargo Stores Its Own Status, and the Register Is the Case's Ordered List of Embargoes

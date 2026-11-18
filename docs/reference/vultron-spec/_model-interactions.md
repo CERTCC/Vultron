@@ -239,7 +239,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
     including reports about other participants.
 
 !!! info "See also"
-    - [ADR-0210: A Reported P, X or A Value Is Adopted Through One Gate, and Its Adoption Ends the Embargo in the Same Act](../../adr/0210-a-reported-p-x-or-a-value-is-adopted-through-one-gate-and-its-adoption-ends-the-embargo-in-the-same-act.md)
+    - [ADR-0210: How the Case Manager Accepts a Reported P, X or A Value](../../adr/0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md)
     - [ADR-0076: Security-Significant Gates Default to Require Case Owner Approval](../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)
     - [ADR-0080: Protocol Asks, Not Suspended Behaviors](../../adr/0080-protocol-asks-not-suspended-behaviors.md)
 

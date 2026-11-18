@@ -28,6 +28,8 @@ EmitRejectActorRecommendationNode (CM-16-007).
 
 from typing import ClassVar, NamedTuple, cast
 
+from py_trees.common import Status
+
 from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
     RecordedOfferAnswerInputMixin,
 )
@@ -36,6 +38,8 @@ from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.services.received_activity import held_received_record
+from vultron.errors import VultronBTInternalError
 
 
 class RecommendationAnswerSubject(NamedTuple):
@@ -185,6 +189,30 @@ class EmitAcceptActorRecommendationNode(_AnswerRecommenderNode):
             recommendation_id=self.recommendation_id,
             recommended_id=self.recommended_id,
         )
+
+    def update(self) -> Status:
+        """Answer, unless the recommendation is not held, which escapes.
+
+        The answer embeds the recommendation as it arrived (DL-06-004), and
+        this node runs in an arm of the duplicate-or-fresh selector.  A
+        recommendation that is not held is a broken precondition, not an
+        arm to skip: a ``FAILURE`` would let the selector fall through to an
+        arm that forwards the recommendation or invites the actor, a second,
+        contradictory answer.  So it escapes as an internal error
+        (BT-14-001, ARCH-15-001).
+        """
+        if self.datalayer is not None:
+            record = held_received_record(
+                cast(CaseOutboxPersistence, self.datalayer),
+                self.recommendation_id,
+            )
+            if record is None or record.is_receipt_stub:
+                raise VultronBTInternalError(
+                    f"{self.name}: recommendation '{self.recommendation_id}'"
+                    " is not held, so there is nothing to embed in the"
+                    " answer (DL-06-004)"
+                )
+        return super().update()
 
 
 class EmitAcceptRecordedRecommendationNode(_AnswerOnRecordNode):

@@ -62,10 +62,43 @@ from vultron.wire.as2.parser import parse_received_body
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
+    class_named_by,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 logger = logging.getLogger(__name__)
+
+
+def _is_stageable(nested: object) -> bool:
+    """Whether *nested*, an inbox activity's ``object_``, is an object to stage."""
+    if nested is None or isinstance(nested, str):
+        return False
+    type_ = getattr(nested, "type_", None)
+    if not hasattr(nested, "id_") or type_ is None or type_.startswith("as_"):
+        return False
+    if type_ == "CaseLedgerEntry":
+        return False
+    if isinstance(nested, as_TypedReference):
+        # A reference names an object and is no object to stage: the case is
+        # read from the receiver's store or not at all (ADR-0165), and any
+        # other object is the one the receiver holds, or fetches before a
+        # handler reads it (MV-10-011, AKM-05-007).
+        return False
+    if type(nested) is as_Object and class_named_by(type_) is None:
+        # A type the wire vocabulary does not name is no object the parse
+        # could read (VM-06-013).  Staged, a core class name such as
+        # ``CoreActor`` would be read back as that core class, and the
+        # store would hand the activity an actor no sender stated.  Left
+        # unstaged, the object stays a bare id, which no pattern's object_
+        # accepts (SE-01-006).
+        logger.debug(
+            "Not staging inline object %s: its type %r names no wire class.",
+            getattr(nested, "id_", "<no id>"),
+            type_,
+        )
+        return False
+    return True
 
 
 def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
@@ -92,22 +125,7 @@ def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
         activity: The parsed AS2 activity whose ``object_`` to stage.
     """
     nested = getattr(activity, "object_", None)
-    if nested is None or isinstance(nested, str):
-        return
-    if not (
-        hasattr(nested, "id_")
-        and hasattr(nested, "type_")
-        and nested.type_ is not None
-        and not nested.type_.startswith("as_")
-    ):
-        return
-    if nested.type_ == "CaseLedgerEntry":
-        return
-    if isinstance(nested, as_TypedReference):
-        # A reference names an object and is no object to stage: the case is
-        # read from the receiver's store or not at all (ADR-0165), and any
-        # other object is the one the receiver holds, or fetches before a
-        # handler reads it (MV-10-011, AKM-05-007).
+    if nested is None or not _is_stageable(nested):
         return
 
     typed_nested = cast(PersistableModel, nested)

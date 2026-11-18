@@ -75,7 +75,7 @@ and the held fault) (IE-06-005).
   from (DL-06-006). Committed one by one, a stop after the pop or the delete leaves
   nothing queued or nothing held, and no sender is answered (ASK-07-010).
 - **Nesting is the point.** The act's `ActTransaction` becomes a savepoint inside the
-  attempt's block, so a failed act still keeps nothing (ADR-0208) while the
+  attempt's block, so a failed act still keeps nothing (ADR-0214) while the
   settlement that follows it commits with the pop.
 - **Surviving is not recovering.** A surviving item waits for the next delivery to
   that actor unless the startup drain replays it (IE-06-006).

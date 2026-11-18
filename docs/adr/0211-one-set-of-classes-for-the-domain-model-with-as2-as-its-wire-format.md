@@ -7,7 +7,7 @@ revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0099 (the record this one consolidates); ADR-0175;
-  ADR-0063, ADR-0074, ADR-0107, ADR-0149; specs/architecture.yaml ARCH-25;
+  ADR-0063, ADR-0074, ADR-0107, ADR-0149, ADR-0208; specs/architecture.yaml ARCH-25;
   specs/message-validation.yaml MV-11
 informed: []
 supersedes:
@@ -18,7 +18,7 @@ partially_supersedes:
 stakeholder_type: [project-contributor]
 ---
 
-# The Core Classes Are the One Object Model, and AS2 Is Their Serialization
+# One Set of Classes for the Domain Model, with AS2 as Its Wire Format
 
 ## Context and Problem Statement
 
@@ -79,8 +79,9 @@ Chosen option: **"One object model; AS2 is a serialization of it"**, because the
    A core class that never appears in a message is not constrained by AS2.
    With one class there is nothing to project, and core does not look for a `to_core()` (ARCH-25-017).
 
-4. **Wire and core share no root.**
+4. **Wire and core share no root, apart from core's AS2 base classes.**
    `as_Base` stands on `pydantic.BaseModel` and carries the AS2 envelope fields (ARCH-25-004, ARCH-25-018).
+   The one shared ground is the AS2 base vocabulary that core holds, such as the collection types: core defines each such class, kept an AS2 model with no Vultron property, and the wire's name for it is an alias or a thin subclass of it (ARCH-25-034, ARCH-25-035, ADR-0208).
    Core has two roots: a record base carrying identity only, for records that are not AS2 objects, and one object root carrying the AS2 object fields, `@context` and required timestamps (ARCH-25-019).
 
 5. **A status dimension writes itself as its bare value.**
@@ -129,13 +130,14 @@ Chosen option: **"One object model; AS2 is a serialization of it"**, because the
 - Good, because conflating a wire object with a core object is structurally impossible for a domain type: there is one class per concept.
 - Good, because the wire-to-core boundary is one allow-list test.
 - Good, because an inbound unknown key has one disposition wherever it arrives, chosen for inbound data rather than left to class ancestry.
-- Bad, because core classes carry AS2 aliases, so the domain model is visibly shaped by AS2. Many core fields already carried one, so the separation given up was never real.
+- Bad, because core classes carry AS2 aliases, so the domain model is visibly shaped by AS2.
+  Many core fields already carried one, so the separation given up was never real.
 - Bad, because a core class that can appear in a message is constrained by AS2.
 - Bad, because a `frozen` envelope does not freeze the mutable core objects nested in it, so the received evidence is kept as the sealed received body instead (ADR-0074, ADR-0149).
 - Bad, because a peer that still sends a former field name gets no refusal: its key is set aside and the activity proceeds without it (ADR-0175).
 - Neutral, because the AS2 wire form did not change.
 
-### Confirmation
+## Validation
 
 Each detail is restated as requirements in ARCH-25 of `specs/architecture.yaml` and MV-11 of `specs/message-validation.yaml`, each with a verification clause naming its test.
 The principal checks:
@@ -191,6 +193,9 @@ It carries forward ADR-0099's partial supersession of two live records:
 - [ADR-0063](0063-wire-rendering-port-for-core-objects.md): rendering core objects behind a driven port stands; its mechanism and its removal of the alias generator from core do not (details 1 and 2).
 - [ADR-0074](0074-wire-activity-artifact-immutability.md): a received activity is immutable evidence; its `frozen` mechanism no longer reaches the nested core objects, so the evidence is sealed as text at parse (VM-08-002).
 
+ADR-0099 was also partially superseded by [ADR-0208](0208-core-owns-the-as2-base-vocabulary.md), which moved the AS2 base vocabulary into core.
+Detail 4 here carries that narrowing, and ADR-0208 stays the record of that decision.
+
 [ADR-0017](archived/0017-domain-wire-object-separation.md) and [ADR-0082](archived/0082-wire-core-boundary-pairing-registry.md), which ADR-0099 retired, stay retired.
 
 Related:
@@ -204,4 +209,4 @@ Related:
 - [ADR-0175](0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md): before 1.0, a former field name is an unknown key.
 - #2947 evaluated a third-party AS2 hierarchy and was closed as not planned.
 
-Requirements: `specs/architecture.yaml` ARCH-25; `specs/message-validation.yaml` MV-11.
+Generated spec requirements: `specs/architecture.yaml` ARCH-25; `specs/message-validation.yaml` MV-11.

@@ -23,6 +23,7 @@ CVE JSON schema reference tags written as RFC 8288 link relation types
 (``notes/as2-vocabulary-alignment.md`` § "CaseReference Holds a Link").
 """
 
+from datetime import datetime
 from types import MappingProxyType
 from typing import Literal
 
@@ -228,6 +229,10 @@ class CaseReference(CoreObject):
         url: Required ``as:Link`` to the referenced resource (CM-05-005).
         name: Optional human-readable title for the reference.
     """
+
+    # Every author states it (ADR-0176), and a receiver refuses a received
+    # one without it (CLP-15-011).
+    published: datetime
 
     type_: Literal["CaseReference"] = Field(
         default="CaseReference",

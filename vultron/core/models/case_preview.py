@@ -29,7 +29,7 @@ and what the invitee decides on from the preview.
 """
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import (
     Field,
@@ -119,6 +119,12 @@ class CasePreview(CoreObject):
              "summary": "A remote code execution vulnerability in widget."}}
     """
 
+    #: The fields a ``Redacted`` marker may stand in (MV-12-001, ADR-0193),
+    #: by Python field name, not wire key.
+    #: None yet: which case fields the preview may redact is Concern #6641's
+    #: to decide, so a marker anywhere in a preview is refused (MV-12-002).
+    redactable_fields: ClassVar[frozenset[str]] = frozenset()
+
     # Pinned: the type alone identifies the case's preview (MV-10-012), so a
     # preview that claims any other type is refused rather than relabelled.
     type_: Literal["CasePreview"] = Field(
@@ -127,8 +133,12 @@ class CasePreview(CoreObject):
         serialization_alias="type",
     )
     # A preview states no time of its own; absent unless its sender gave one.
+    # It is a projection of the case its typed reference names (ADR-0205), so
+    # a received one is not refused for lacking one (CLP-15-011, MV-10-011);
+    # the embargo and status it carries are whole objects and carry theirs.
     published: datetime | None = None
     updated: datetime | None = None
+    _received_without_published: ClassVar[bool] = True
     active_embargo: EmbargoEvent | NonEmptyString | None = Field(
         default=None,
         json_schema_extra=vultron_property(

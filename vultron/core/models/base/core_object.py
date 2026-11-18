@@ -56,6 +56,7 @@ from vultron.core.models._helpers import (
     refuse_absent_id,
     refuse_absent_published,
 )
+from vultron.core.models.as2_base import as2_base_class
 from vultron.core.models.base._computed import (
     check_computed_field_inputs,
     computed_field_spellings,
@@ -78,6 +79,7 @@ from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.primitives import NonEmptyString
 
 
+@as2_base_class
 class CoreObject(CoreRecord):
     """The one AS2 object root of the Vultron core domain model.
 
@@ -159,16 +161,21 @@ class CoreObject(CoreRecord):
     end_time: datetime | None = None
 
     # Required, with no default: an object this process authors states the
-    # instant of the act that made it (ADR-0176), and an object it *receives*
-    # carries the sender's time, which AS2 lets the sender omit, so a received
-    # omission is read as ``None`` (``_carry_absent_times_on_inbound``) rather
-    # than becoming the receiver's clock (ISSUE-3257).  Decisions that need
-    # the time refuse its absence at the wire edge, not here.
+    # instant of the act that made it (ADR-0176), and a received whole object
+    # carries its author's time, so ``_carry_absent_times_on_inbound`` refuses
+    # one without it (CLP-15-011).  A class every author stamps narrows it to
+    # ``datetime``.  The base admits ``None`` for the classes that keep it:
+    # an actor profile (exempt, ``_received_without_published``), the bare
+    # reference the extractor wraps an unmodelled object in (no whole object),
+    # a case preview (a projection of the object it names), an embargo consent
+    # row (copied,
+    # never stamped, CM-23-044), and an attachment read before the act that
+    # authors it opens.
     published: datetime | None
     updated: datetime | None
-    #: Set by a subclass whose received ``published`` a decision reads, so
-    #: :meth:`_carry_absent_times_on_inbound` refuses its absence (CLP-15-010).
-    _inbound_requires_published: ClassVar[bool] = False
+    #: Set on a kind received without a ``published``, which every subclass
+    #: inherits (``received_without_published``, CLP-15-011).
+    _received_without_published: ClassVar[bool] = False
 
     content: NonEmptyString | None = None
     summary: NonEmptyString | None = None
@@ -290,11 +297,11 @@ class CoreObject(CoreRecord):
         key, which ``parse_activity`` sets and Pydantic propagates to nested
         models.
 
-        A class whose ``published`` a decision reads sets
-        ``_inbound_requires_published``, and a received instance without one
-        is refused here with :class:`MissingClaimedTimeError` rather than
-        read as ``None`` (CLP-15-007, CLP-15-010).  A received instance
-        without an ``id`` is refused too, never given a minted one
+        A received whole object without a ``published`` is refused here with
+        :class:`MissingClaimedTimeError` rather than read as ``None``, unless
+        its kind is exempt (``received_without_published``, CLP-15-011).  An
+        absent ``updated`` is still read as ``None`` (CLP-15-007).  A received
+        instance without an ``id`` is refused too, never given a minted one
         (OID-01-013, OID-01-014).
         """
         if not isinstance(data, dict):
@@ -304,9 +311,12 @@ class CoreObject(CoreRecord):
             INBOUND_CONTEXT_KEY
         ):
             return data
-        if cls._inbound_requires_published:
-            refuse_absent_published(cls, data)
+        # The id first, as the wire twin does: an object with neither is
+        # refused for the id it lacks before its time (OID-01-013).
         refuse_absent_id(cls, data)
+        type_ = data.get("type", data.get("type_"))
+        named = CORE_TYPE_MAP.get(type_) if isinstance(type_, str) else None
+        refuse_absent_published(cls, data, named)
         return absent_times_as_none(cls, blank_times_as_none(cls, dict(data)))
 
     @field_validator("context_")

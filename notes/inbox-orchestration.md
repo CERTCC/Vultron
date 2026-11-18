@@ -13,7 +13,7 @@ description: >
   when the per-case expiry window restarts,
   the internal-error fault for a raised dispatch,
   the queue replay's bounded retry and held fault, why a run starts over and
-  the one input each stage boundary hands over (ADR-0153, ADR-0208), how a
+  the one input each stage boundary hands over (ADR-0153, ADR-0214), how a
   re-run is told from a first run by the record and finished on restart within the
   inbox retry budget, the
   sender-sequence hold that returns a record to HELD (ADR-0178),
@@ -160,21 +160,21 @@ dropped; and a second refusal, which leaves the first reason standing.
 **No verdict is not an outcome** (CLP-10-074). A dispatch that raised and one that
 returned no `HandlerResult` leave the record exactly as it is, in holding (`HELD` or
 `HANDLED`) with its body:
-the act rolled back keeping nothing (ADR-0208), so the resend or re-run must be able to
+the act rolled back keeping nothing (ADR-0214), so the resend or re-run must be able to
 run it again from that body. The outcome stage tells them apart by the disposition
 `DispatchNode` publishes, which is written only when a verdict came back. A semantic
 type no use case handles is not one of them: it is `REFUSED`, so it leaves a stub,
 because a body kept for it would let any sender make the receiver store whatever it
-liked by choosing a type the receiver does not handle (ADR-0208).
+liked by choosing a type the receiver does not handle (ADR-0214).
 
-**The doors run before anything is written, in ADR-0208's order** (CLP-10-010):
+**The doors run before anything is written, in ADR-0214's order** (CLP-10-010):
 addressed to me, seen before, which path, open to writes and the sender entitled
 (the post-close boundary beside the closed-sender door and the sender guard), then
 intake, then the handling tree. A message a door turns away costs one read and a
 receipt stub. Never place a writer, or a reader of what intake wrote, ahead of the
 last door.
 
-**A resend is answered from its record, never re-run** (ADR-0208). The seen-before
+**A resend is answered from its record, never re-run** (ADR-0214). The seen-before
 door (`case/nodes/seen_before.py`) reads the one record and its stage only: a stub is
 `REFUSED` again with its reason, an archive is `SKIPPED`, a record owed a replay is
 `SKIPPED`, and nothing after the door runs, so no refusal notice goes out again. A
@@ -185,7 +185,7 @@ inner one) has no door of its own (`nested=True`). The door compares no
 bodies: ingress does that once, so a reused id never reaches it (IE-10-002). Handlers
 read its answer through `door_refusal`, which may now return `SKIPPED`.
 
-**One message, one record** (ADR-0208). An activity the inbox defers is held on its
+**One message, one record** (ADR-0214). An activity the inbox defers is held on its
 own `ReceivedActivityRecord`, the same row intake records to, under the key the
 receiver derives. `DeferredInboxActivity` and the `VultronPendingCaseInbox` activity
 list are retired into it. The record carries two facts, and both values of the flag
@@ -265,7 +265,7 @@ one (DL-06-006).
 record routes the held copy, without received evidence, and keeps it for the
 replay; a record owing nothing routes the held body's parse, carrying that body as
 its evidence, because it is the first delivery's sealed body (VM-08-009, VM-08-010). The
-tree's seen-before door then answers it from the record's stage (ADR-0208). Never
+tree's seen-before door then answers it from the record's stage (ADR-0214). Never
 route the redelivered body.
 
 **Compare the body before you route the held copy** (IE-10-002): only a resend
@@ -288,7 +288,7 @@ door. `CommitCaseLedgerEntryNode` keeps the first entry when the ledger already
 records the activity as the same semantic, which covers a tree whose own repeat
 guard sits after the commit: RM engage guards only its CASE_MANAGER effects, so
 the commit's equivalence check is what keeps that entry single (#5006). Add no
-repair pass and no "redelivered, so skip" shortcut at ingress (ADR-0208,
+repair pass and no "redelivered, so skip" shortcut at ingress (ADR-0214,
 `test_failed_act_redelivery.py`).
 
 **A raised dispatch is answered with a fault** (ASK-07-010, ASK-07-011):
@@ -320,7 +320,7 @@ a resend of it routes the held copy as a redelivery (IE-10-001) and does not rel
 delivery whose run ended with no verdict runs again from its door guards, never from a
 later stage (CLP-10-083), so no stage depends on what a lost run held in memory. Add no
 receiver-role gate outside the path stage. A handling-tree node reads no in-memory state
-a door left except the path the path stage resolved (CLP-10-084, ADR-0208): an act that
+a door left except the path the path stage resolved (CLP-10-084, ADR-0214): an act that
 changes who the CASE_MANAGER is mid-run would make a second role read disagree with the
 door (HP-01-036).
 
@@ -329,7 +329,7 @@ message `HELD` and moves a `HELD` record an earlier run left to `HANDLED`, so a 
 after intake asks `began_in_an_earlier_run(..., intake_ran=True)` and reads `HANDLED`.
 A stage before intake (the post-close stage) asks with `intake_ran=False`: a record in
 holding owed no replay. Only intake may write the mark. A later write leaves a crash
-window in which a re-run reads as a first run (ADR-0208,
+window in which a re-run reads as a first run (ADR-0214,
 `test_received_stages_read_the_record.py`). A received tree nested inside another for
 one delivery is built `nested=True` and runs no door or intake of its own. A second
 intake would read the first run as a re-run. At startup, `rerun_left_in_holding` runs

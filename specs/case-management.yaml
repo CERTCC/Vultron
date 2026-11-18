@@ -657,7 +657,7 @@ groups:
       register, so the derived EM state advances.
     adr:
     - ADR-0108
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_087
     - story_2022_023
@@ -1277,7 +1277,7 @@ groups:
       model for CVD objects
     rationale: >-
       Wire shape, domain rules and storage change for different reasons. There is one
-      object model, and AS2 is its serialization (ADR-0099). Thus, the separation is at
+      object model, and AS2 is its serialization (ADR-0211). Thus, the separation is at
       the edges: the parse edge, the rendering port and the store. A new storage backend
       or an AS2 rendering detail then changes one edge and does not change the domain
       rules.
@@ -1290,7 +1290,7 @@ groups:
     statement: >-
       A core domain class in this codebase MUST NOT inherit directly from an
       ActivityStreams base type. Its AS2 serialization goes through the rendering port
-      (ARCH-20-001, ADR-0099).
+      (ARCH-20-001, ADR-0211).
     rationale: >-
       The two branches stay distinct type hierarchies, so neither branch imports the
       other. The rendering port gives core a wire form without core code building it
@@ -1419,7 +1419,7 @@ groups:
       spec_id: CM-18-001
     adr:
     - ADR-0093
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_001
     - story_2022_023
@@ -1483,8 +1483,8 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-31-001
     adr:
-    - ADR-0212
     - ADR-0213
+    - ADR-0215
     stories:
     - story_2022_023
     - story_2022_025
@@ -3367,7 +3367,7 @@ groups:
       condition node in the behavior tree. A short-circuit in the use case must store
       the report and the Offer before it returns. That is a store path outside the tree,
       which CLP-10-019 forbids. The tree stores the report and the Offer for every
-      addressed inbound `Offer(VulnerabilityReport)` (ADR-0111, ADR-0154). Thus a gate
+      addressed inbound `Offer(VulnerabilityReport)` (ADR-0214). Thus a gate
       outside the tree has nothing to do.
     verification: A received-side handler test posts an `Offer(VulnerabilityReport)`
       to a receiver with `auto_create_case=False`, asserts the disposition is
@@ -3376,7 +3376,7 @@ groups:
       `test/architecture/test_no_dl_mutations_in_execute.py` (CLP-10-020) fails if
       `SubmitReportReceivedUseCase.execute()` reaches a store helper.
     adr:
-    - ADR-0208
+    - ADR-0214
     see_also:
     - spec_id: CLP-10-019
       reason: 'context for the reader'
@@ -4520,7 +4520,7 @@ groups:
     - ADR-0091
     - ADR-0093
     - ADR-0118
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2022_023
     - story_2026_001
@@ -4542,7 +4542,7 @@ groups:
     - rel_type: implements
       spec_id: CM-18-001
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2022_023
     - story_2026_001
@@ -4565,7 +4565,7 @@ groups:
     - rel_type: implements
       spec_id: CM-18-001
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2022_023
     - story_2026_001
@@ -4588,7 +4588,7 @@ groups:
     - rel_type: extends
       spec_id: CM-18-001
     adr:
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2022_023
     - story_2026_001
@@ -4656,7 +4656,7 @@ groups:
     adr:
     - ADR-0093
     - ADR-0118
-    - ADR-0212
+    - ADR-0215
     - ADR-0065
     stories:
     - story_2022_027
@@ -4764,7 +4764,7 @@ groups:
     - ADR-0048
     - ADR-0093
     - ADR-0118
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_001
   - id: CM-18-004
@@ -4788,7 +4788,7 @@ groups:
     adr:
     - ADR-0093
     - ADR-0118
-    - ADR-0212
+    - ADR-0215
     stories:
     - story_2026_001
   - id: CM-18-005
@@ -4820,7 +4820,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0048
-    - ADR-0212
+    - ADR-0215
     - ADR-0124
   - id: CM-18-024
     priority: MUST
@@ -4840,7 +4840,7 @@ groups:
       spec_id: CM-18-005
     adr:
     - ADR-0048
-    - ADR-0212
+    - ADR-0215
   - id: CM-18-025
     priority: MUST
     kind: project
@@ -4888,7 +4888,7 @@ groups:
       spec_id: CM-18-005
     adr:
     - ADR-0048
-    - ADR-0212
+    - ADR-0215
   - id: CM-18-006
     priority: MUST
     kind: project
@@ -4907,7 +4907,7 @@ groups:
       CASE_MANAGER.
     adr:
     - ADR-0048
-    - ADR-0212
+    - ADR-0215
   - id: CM-18-007
     priority: MUST
     kind: project
@@ -4929,7 +4929,7 @@ groups:
       each initial participant record carries the correct rows.
     adr:
     - ADR-0048
-    - ADR-0212
+    - ADR-0215
   - id: CM-18-009
     priority: MUST
     kind: project
@@ -4992,7 +4992,7 @@ groups:
     - rel_type: refines
       spec_id: CM-18-001
     adr:
-    - ADR-0212
+    - ADR-0215
     see_also:
     - spec_id: EP-05-003
       reason: 'context for the reader'
@@ -9216,8 +9216,8 @@ groups:
       spec_id: MSM-07-009
     adr:
     - ADR-0118
-    - ADR-0208
-    - ADR-0212
+    - ADR-0214
+    - ADR-0180
     stories:
     - story_2026_092
     - story_2022_027
@@ -9250,7 +9250,7 @@ groups:
       The CASE_MANAGER MUST run the CM-28-015 sweep only after the door guards admit
       the activity, its sender gate (HP-01-006) included.
     rationale: >-
-      The sweep is a clock decision (CLP-10-025, ADR-0135). Running it after the
+      The sweep is a clock decision (CLP-10-025, ADR-0214). Running it after the
       door guards means a sender with no standing makes the CASE_MANAGER write
       nothing.
     verification: >-
@@ -9264,7 +9264,7 @@ groups:
     - rel_type: uses_definition
       spec_id: HP-01-006
     adr:
-    - ADR-0208
+    - ADR-0214
     stories:
     - story_2026_092
     - story_2022_027
@@ -9278,7 +9278,7 @@ groups:
     rationale: >-
       An overdue row is a fact from the CASE_MANAGER's clock, not evidence from the
       activity. Sweeping before the activity's own refusals records the expiries
-      even when the activity is then refused (ADR-0135).
+      even when the activity is then refused (ADR-0214).
     verification: >-
       `test_a_decision_on_no_open_proposal_is_refused_after_the_expiry` in
       `test/core/use_cases/received/test_embargo_overdue_invite_sweep.py` delivers
@@ -9290,7 +9290,7 @@ groups:
     - rel_type: uses_definition
       spec_id: MSM-07-008
     adr:
-    - ADR-0208
+    - ADR-0214
     stories:
     - story_2026_092
     - story_2022_027
@@ -9317,7 +9317,7 @@ groups:
       spec_id: CM-28-015
     adr:
     - ADR-0118
-    - ADR-0208
+    - ADR-0214
     stories:
     - story_2026_092
     - story_2022_027
@@ -9344,7 +9344,7 @@ groups:
     - rel_type: extends
       spec_id: CM-28-015
     adr:
-    - ADR-0208
+    - ADR-0214
     stories:
     - story_2026_092
     - story_2022_027
@@ -11103,7 +11103,7 @@ groups:
       spec_id: CM-32-011
     adr:
     - ADR-0125
-    - ADR-0212
+    - ADR-0215
   - id: CM-32-026
     priority: MUST
     kind: protocol
@@ -11123,7 +11123,7 @@ groups:
       spec_id: CM-32-007
     adr:
     - ADR-0125
-    - ADR-0212
+    - ADR-0215
   - id: CM-32-027
     priority: MUST_NOT
     kind: protocol
@@ -11143,7 +11143,7 @@ groups:
       spec_id: CM-32-007
     adr:
     - ADR-0125
-    - ADR-0212
+    - ADR-0215
   - id: CM-32-028
     priority: MUST_NOT
     kind: protocol

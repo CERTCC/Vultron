@@ -79,6 +79,7 @@ def sample_proposal(sample_embargo) -> as_Invite:
         embargo=sample_embargo,
         context=_CASE_URI,
         actor=_ACTOR_URI,
+        invitee=_ACTOR_URI,
         at=authored_at(),
     )
 
@@ -93,14 +94,20 @@ def sample_proposal(sample_embargo) -> as_Invite:
 @pytest.mark.spec("MSM-02-001")
 def test_em_propose_embargo_returns_invite(sample_embargo):
     result = em_propose_embargo_activity(
-        embargo=sample_embargo, actor=_ACTOR_URI, at=authored_at()
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        invitee=_ACTOR_URI,
+        at=authored_at(),
     )
     assert isinstance(result, as_Invite)
 
 
 def test_em_propose_embargo_object_is_embargo(sample_embargo):
     result = em_propose_embargo_activity(
-        embargo=sample_embargo, actor=_ACTOR_URI, at=authored_at()
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        invitee=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.object_ == sample_embargo
 
@@ -110,9 +117,131 @@ def test_em_propose_embargo_context_is_set(sample_embargo):
         embargo=sample_embargo,
         context=_CASE_URI,
         actor=_ACTOR_URI,
+        invitee=_ACTOR_URI,
         at=authored_at(),
     )
     assert result.context == _CASE_URI
+
+
+_INVITEE_URI = "https://example.org/actors/bob"
+
+
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("VAM-05-005")
+def test_an_embargo_invite_names_its_invitee_in_target(sample_embargo):
+    """The Invite's ``target`` is the one actor it is addressed to (ADR-0205)."""
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        context=_CASE_URI,
+        actor=_ACTOR_URI,
+        to=[_INVITEE_URI],
+        at=authored_at(),
+    )
+    assert result.target == _INVITEE_URI
+    assert result.to == [_INVITEE_URI]
+    wire = result.model_dump(by_alias=True, exclude_none=True)
+    assert wire["target"] == _INVITEE_URI
+
+
+@pytest.mark.spec("EP-09-010")
+def test_two_spellings_of_one_invitee_are_one_target(sample_embargo):
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        to=[_INVITEE_URI, _INVITEE_URI + "/"],
+        at=authored_at(),
+    )
+    assert result.target == _INVITEE_URI
+
+
+def test_an_unaddressed_embargo_invite_has_no_target(sample_embargo):
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo, actor=_ACTOR_URI, at=authored_at()
+    )
+    assert result.target is None
+
+
+@pytest.mark.spec("EP-09-010")
+def test_an_embargo_invite_to_several_actors_is_refused(sample_embargo):
+    """An embargo Invite names one invitee, so it has one recipient."""
+    with pytest.raises(VultronActivityConstructionError, match="names 2"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            actor=_ACTOR_URI,
+            to=[_INVITEE_URI, "https://example.org/actors/carol"],
+            at=authored_at(),
+        )
+
+
+def test_an_embargo_invite_target_is_not_the_callers_to_give(sample_embargo):
+    """``target`` is derived from ``to``, so the two cannot disagree."""
+    with pytest.raises(VultronActivityConstructionError, match="target"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            actor=_ACTOR_URI,
+            to=[_INVITEE_URI],
+            target="https://example.org/actors/carol",
+            at=authored_at(),
+        )
+
+
+def test_one_recipient_given_alone_or_as_an_object_is_the_target(
+    sample_embargo,
+):
+    """``to`` may name its recipient bare or as an object (AS2 allows both)."""
+    from vultron.wire.as2.vocab.base.objects.actors import as_Person
+
+    bare = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        to=_INVITEE_URI,
+        at=authored_at(),
+    )
+    inline = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        to=[make(as_Person, id_=_INVITEE_URI)],
+        at=authored_at(),
+    )
+    assert bare.target == _INVITEE_URI
+    assert inline.target == _INVITEE_URI
+
+
+@pytest.mark.spec("EP-09-010")
+def test_an_invite_addressed_to_nobody_names_the_invitee_it_is_given(
+    sample_embargo,
+):
+    """The CASE_MANAGER's own ledgered proposal names it in ``target``."""
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        invitee=_ACTOR_URI,
+        at=authored_at(),
+    )
+    assert result.target == _ACTOR_URI
+    assert result.to is None
+
+
+def test_an_invitee_that_is_the_recipient_is_accepted(sample_embargo):
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        to=[_INVITEE_URI],
+        invitee=_INVITEE_URI + "/",
+        at=authored_at(),
+    )
+    assert result.target == _INVITEE_URI
+
+
+def test_an_invitee_other_than_the_recipient_is_refused(sample_embargo):
+    with pytest.raises(VultronActivityConstructionError, match="invitee"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            actor=_ACTOR_URI,
+            to=[_INVITEE_URI],
+            invitee="https://example.org/actors/carol",
+            at=authored_at(),
+        )
 
 
 @pytest.mark.spec("AF-04-001")
@@ -131,6 +260,7 @@ def test_em_propose_embargo_refuses_terms_by_uri():
         em_propose_embargo_activity(
             embargo="https://example.org/embargoes/1",  # type: ignore[arg-type]
             actor=_ACTOR_URI,
+            invitee=_ACTOR_URI,
             at=authored_at(),
         )
     assert "EmbargoEvent" in str(exc_info.value)
@@ -151,6 +281,7 @@ def test_em_propose_embargo_rsvp_deadline_sets_end_time(sample_embargo):
         rsvp_deadline=deadline,
         at=_PUBLISHED,
         actor=_ACTOR_URI,
+        invitee=_ACTOR_URI,
     )
     assert result.end_time == deadline
 
@@ -162,6 +293,7 @@ def test_em_propose_embargo_no_rsvp_deadline_end_time_is_none(sample_embargo):
     result = em_propose_embargo_activity(
         embargo=sample_embargo,
         actor=_ACTOR_URI,
+        invitee=_ACTOR_URI,
         at=authored_at(),
     )
     assert result.end_time is None
@@ -177,6 +309,7 @@ def test_em_propose_embargo_rsvp_below_min_window_raises(sample_embargo):
             rsvp_deadline=deadline,
             at=_PUBLISHED,
             actor=_ACTOR_URI,
+            invitee=_ACTOR_URI,
         )
 
 
@@ -192,6 +325,7 @@ def test_em_propose_embargo_naive_deadline_raises(sample_embargo):
             rsvp_deadline=naive_deadline,
             at=_PUBLISHED,
             actor=_ACTOR_URI,
+            invitee=_ACTOR_URI,
         )
 
 
@@ -206,6 +340,7 @@ def test_em_propose_embargo_custom_min_window_respected(sample_embargo):
             at=_PUBLISHED,
             min_rsvp_window=timedelta(days=2),
             actor=_ACTOR_URI,
+            invitee=_ACTOR_URI,
         )
 
 
@@ -222,6 +357,7 @@ def test_em_propose_embargo_rsvp_deadline_overrides_caller_end_time(
         at=_PUBLISHED,
         end_time=raw_end_time,
         actor=_ACTOR_URI,
+        invitee=_ACTOR_URI,
     )
     assert result.end_time == rsvp
 
@@ -240,6 +376,7 @@ def test_em_propose_embargo_deadline_after_embargo_end_raises():
             rsvp_deadline=embargo.end_time + timedelta(seconds=1),
             at=_PUBLISHED,
             actor=_ACTOR_URI,
+            invitee=_ACTOR_URI,
         )
 
 
@@ -257,6 +394,7 @@ def test_em_propose_embargo_minimum_is_remaining_embargo_when_shorter():
         rsvp_deadline=embargo.end_time,
         at=_PUBLISHED,
         actor=_ACTOR_URI,
+        invitee=_ACTOR_URI,
     )
     assert result.end_time == embargo.end_time
 
@@ -271,6 +409,7 @@ def test_em_propose_embargo_minimum_measured_from_published(sample_embargo):
             rsvp_deadline=published + timedelta(hours=71),
             at=published,
             actor=_ACTOR_URI,
+            invitee=_ACTOR_URI,
         )
 
 
@@ -283,6 +422,7 @@ def test_em_propose_embargo_published_is_the_act_instant(sample_embargo):
         embargo=sample_embargo,
         rsvp_deadline=at + timedelta(days=5),
         actor=_ACTOR_URI,
+        invitee=_ACTOR_URI,
         at=at,
     )
     assert invite.published == at
@@ -307,6 +447,7 @@ def test_em_propose_embargo_naive_published_datetime_is_read_as_utc(
             rsvp_deadline=published.replace(tzinfo=UTC) + timedelta(hours=71),
             at=published,
             actor=_ACTOR_URI,
+            invitee=_ACTOR_URI,
         )
 
 
@@ -325,6 +466,7 @@ def test_em_propose_embargo_naive_embargo_end_is_read_as_utc():
             rsvp_deadline=aware_end + timedelta(seconds=1),
             at=_PUBLISHED,
             actor=_ACTOR_URI,
+            invitee=_ACTOR_URI,
         )
 
 

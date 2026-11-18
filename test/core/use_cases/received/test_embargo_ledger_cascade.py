@@ -238,6 +238,7 @@ class TestEmbargoLogEntryCascade:
             embargo,
             context=case_id,
             actor=author_id,
+            invitee=author_id,
             id_=f"{case_id}/embargo_proposals/1",
             at=authored_at(),
         )
