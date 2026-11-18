@@ -149,18 +149,16 @@ class _Repeat(SilentIdempotencyGuardMixin, py_trees.behaviour.Behaviour):
         )
 
 
-def _stage(
+def _stage_with(
     condition_status: Status,
-    effects_status: Status = Status.SUCCESS,
+    effects: py_trees.behaviour.Behaviour,
     *,
     refuses: bool = False,
     refuses_unanswered: bool = False,
     reason: str = "",
-    effects: py_trees.behaviour.Behaviour | None = None,
-):
+) -> tuple[py_trees.composites.Sequence, DiversionStage, _Counted]:
+    """Tick a stage over *effects*; the root, the stage and its successor."""
     condition = _Reasoned("Condition", condition_status, reason)
-    if effects is None:
-        effects = _Counted("Effects", effects_status)
     after = _Counted("After")
     stage = DiversionStage(
         "Probe",
@@ -173,6 +171,25 @@ def _stage(
         name="Root", memory=False, children=[stage, after]
     )
     _tick(root)
+    return root, stage, after
+
+
+def _stage(
+    condition_status: Status,
+    effects_status: Status = Status.SUCCESS,
+    *,
+    refuses: bool = False,
+    refuses_unanswered: bool = False,
+    reason: str = "",
+):
+    effects = _Counted("Effects", effects_status)
+    root, stage, after = _stage_with(
+        condition_status,
+        effects,
+        refuses=refuses,
+        refuses_unanswered=refuses_unanswered,
+        reason=reason,
+    )
     return root, stage, effects, after
 
 
@@ -357,12 +374,12 @@ class TestDiversionStageRefusalStandingUnanswered:
     def test_an_answer_that_stopped_as_a_repeat_declares_no_refusal(
         self,
     ) -> None:
-        _, stage, _, _ = _stage(
+        _, stage, _ = _stage_with(
             Status.SUCCESS,
+            _Repeat(name="AlreadySent"),
             refuses=True,
             refuses_unanswered=True,
             reason="why",
-            effects=_Repeat(name="AlreadySent"),
         )
 
         assert stage.taken and not stage.effects_succeeded
