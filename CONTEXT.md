@@ -372,6 +372,29 @@ A mark on a coordinator's harm-free or trade-off move that none of the coordinat
 other open moves dominates, shown inside its band.
 *Avoid*: your best move, your strongest move
 
+**Action rule**:
+A pattern over one vendor's position (its RM, CS and PEC states and the case's EM
+state), the CVD role that takes an action there, the action, and the desiderata the
+action serves. It names a possibility, not a duty.
+*Avoid*: potential action, policy, heuristic
+
+**Authored action rule**:
+An action rule a person writes: the claim that its action serves the desiderata it
+names.
+*Avoid*: manual rule, hand rule
+
+**Generated action rule**:
+An action rule read off move advice: the positions of one vendor in which a move gets
+the same band, grouped into one pattern. It is the evidence, rebuilt by a command and
+not edited by hand.
+*Avoid*: computed rule, learned rule
+
+**Rule disagreement**:
+A position at which an authored action rule claims a move serves the vendor and move
+advice puts the move in the unhelpful band for that vendor. It marks a wrong rule or a
+chance-model blind spot, and it is shown, not resolved.
+*Avoid*: conflict, rule error
+
 ---
 
 ## SSVC

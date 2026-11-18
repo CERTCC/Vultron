@@ -305,6 +305,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0204 The Case Ledger and Status Histories Are Named Ordered Collections](0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md) — partially supersedes 0137-case-records-are-attached-by-one-message-never-created-first.md, 0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md
 - [ADR-0207 A Tree Has a Fixed Shape, and Every Act Runs One](0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md) *(revision 2)*
 - [ADR-0208 Core Owns the AS2 Base Vocabulary](0208-core-owns-the-as2-base-vocabulary.md) — partially supersedes 0099-one-object-model-as2-is-a-serialization.md
+- [ADR-0216 Action Rules Span CS, RM, EM and PEC, and Authored Rules Are Compared With Rules Generated From Move Advice](0216-action-rules-span-cs-rm-em-and-pec-and-authored-rules-are-compared-with-rules-generated-from-move-advice.md)
 
 ## Rejected ADRs
 

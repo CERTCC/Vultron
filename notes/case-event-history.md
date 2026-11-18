@@ -23,6 +23,7 @@ related_adrs:
   - docs/adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md
   - docs/adr/0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md
   - docs/adr/0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md
+  - docs/adr/0216-action-rules-span-cs-rm-em-and-pec-and-authored-rules-are-compared-with-rules-generated-from-move-advice.md
   - docs/adr/0075-split-vfd-state-machine.md
   - docs/adr/0060-re-express-legacy-cs-invariants.md
 relevant_packages:
@@ -146,6 +147,14 @@ gets it. Reason: counting the closed scope as met would credit the move for leav
 it, so closing a report from RM Received came out harm-free and top (user decision
 on #6369; ADR-0200). Case scoring of a history is unchanged: a scope never entered
 still counts as met there.
+
+Read a generated action rule's verdict from the move advice's own band for one
+vendor, never from a second scoring of the move, and compare it with the authored
+rules position by position, never pattern by pattern; show each rule disagreement
+and leave both tables as they are. Reason: the generated rules are the evidence an
+authored rule is checked against, so a second scorer could drift from the advice,
+and a disagreement marks a wrong rule or a chance-model blind spot only a person can
+tell apart (ADR-0216).
 
 Score a complete history with `vultron.measure.scoring.history_score`, never
 `CVDmodel.score_hist`: it is the same `Σ (1 − f_d)` over the twelve original
