@@ -7116,7 +7116,7 @@ groups:
     - rel_type: extends
       spec_id: DEMOMA-27-001
     adr:
-    - ADR-0114
+    - ADR-0213
     tags:
     - demo
   - id: DEMOMA-27-006
@@ -7133,7 +7133,7 @@ groups:
     - rel_type: extends
       spec_id: DEMOMA-27-002
     adr:
-    - ADR-0114
+    - ADR-0213
     tags:
     - demo
   - id: DEMOMA-27-007
@@ -7151,7 +7151,7 @@ groups:
     - rel_type: extends
       spec_id: DEMOMA-27-002
     adr:
-    - ADR-0114
+    - ADR-0213
     tags:
     - demo
   - id: DEMOMA-27-008
@@ -7168,7 +7168,7 @@ groups:
     - rel_type: extends
       spec_id: DEMOMA-27-002
     adr:
-    - ADR-0114
+    - ADR-0213
     tags:
     - demo
   - id: DEMOMA-27-009
@@ -7185,7 +7185,7 @@ groups:
     - rel_type: extends
       spec_id: DEMOMA-27-002
     adr:
-    - ADR-0114
+    - ADR-0213
     tags:
     - demo
   - id: DEMOMA-27-010
@@ -7203,7 +7203,7 @@ groups:
     - rel_type: extends
       spec_id: DEMOMA-27-002
     adr:
-    - ADR-0114
+    - ADR-0213
     tags:
     - demo
   - id: DEMOMA-27-003

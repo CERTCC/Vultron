@@ -164,7 +164,7 @@ It sends its own request to the CASE_MANAGER, and the CASE_MANAGER sends the inv
 ### Who receives a broadcast
 
 Being on the participant list does not entitle a participant to the case content.
-The CASE_MANAGER sends case content only to **active participants** ([CM-10-004](../../reference/vultron-spec/requirements/case-management.md#cm-10-004), [ADR-0114](../../adr/0114-joining-a-case-stub-invite-inert-participant.md)).
+The CASE_MANAGER sends case content only to **active participants** ([CM-10-004](../../reference/vultron-spec/requirements/case-management.md#cm-10-004), [ADR-0213](../../adr/0213-a-participant-is-created-by-its-invite-is-active-only-while-entitled-and-is-removed-by-withdrawing-entitlement.md)).
 
 An active participant was seated when the case was created or accepted its invitation, and has not been removed.
 While an embargo is active, it has also agreed to that embargo.

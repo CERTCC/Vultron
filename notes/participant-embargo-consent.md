@@ -309,7 +309,7 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   entry that would change nothing. So is a refused entry the case file is
   already past (`case_file_is_past()`): a joiner's seed is taken after entries
   it then replays from genesis, so replay moves forward only (CM-23-016,
-  ADR-0114). A missing register entry, participant or row stays a refusal.
+  ADR-0213). A missing register entry, participant or row stays a refusal.
 - **Decide on a stage, record by diff** (#4715). An arm whose decision is an
   existing `EmbargoLifecycle` operation runs it on a `StagedCasePersistence`
   and lets `decided_entries.py` turn what it would have written into the

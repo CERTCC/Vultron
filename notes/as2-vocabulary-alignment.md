@@ -406,11 +406,10 @@ ratchet, so the entry keeps an open owner. Planning this section adopts #6421
 for that field rather than filing a second Task.
 
 **Touches.** EMB-07, EMB-13 (003, 004, 005, 009 to 014), EMB-19, CM-31-009,
-CM-31-030, CM-31-031, CM-31-042, EP-08-004, ADR-0116 (partially
-superseded by ADR-0212), every reader of a register entry
-(`vultron/core/models/embargo_register/`), the `terminationCause` JSON-LD term
-(`docs/ns/`), `REMOVE_EMBARGO_EVENT_FROM_CASE`, and every note and docs page that
-names `Remove(EmbargoEvent)` or `terminationCause`: among them
+CM-31-030, CM-31-031, CM-31-042, EP-08-004, ADR-0212, ADR-0213, every reader of a
+register entry (`vultron/core/models/embargo_register/`), the `terminationCause`
+JSON-LD term (`docs/ns/`), `REMOVE_EMBARGO_EVENT_FROM_CASE`, and every note and docs
+page that names `Remove(EmbargoEvent)` or `terminationCause`: among them
 `notes/embargo-lifecycle.md`, `notes/received-status-authorization.md`,
 `notes/case-joining.md`, `notes/case-event-history.md`,
 `notes/message-occasion-table.md`, `notes/sync-ledger-replication.md`,

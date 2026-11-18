@@ -167,7 +167,7 @@ groups:
       every trigger-port activity's `target`: a case there is a URI.
     adr:
     - ADR-0205
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_053
     - story_2022_024
@@ -192,7 +192,7 @@ groups:
     - rel_type: derives_from
       spec_id: AKM-02-003
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_053
   - id: AKM-02-005

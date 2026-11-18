@@ -450,7 +450,7 @@ groups:
       finds the declared closing replies and stale expiry.
     adr:
     - ADR-0080
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_032
     - story_2022_074

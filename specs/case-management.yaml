@@ -1158,7 +1158,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-10-004
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_043
     - story_2022_098
@@ -1232,7 +1232,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-10-004
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_041
     - story_2022_083
@@ -1351,7 +1351,7 @@ groups:
     scope:
     - production
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_033
     - story_2022_024
@@ -1387,7 +1387,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-11-013
     adr:
-    - ADR-0114
+    - ADR-0213
 - id: CM-10
   title: Per-Participant Embargo Acceptance
   specs:
@@ -1483,9 +1483,8 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-31-001
     adr:
-    - ADR-0114
-    - ADR-0116
     - ADR-0212
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_025
@@ -1558,7 +1557,7 @@ groups:
       caught up at that point too. The trigger is the active check itself, not any one message
       (ADR-0116).
     adr:
-    - ADR-0116
+    - ADR-0213
     verification: >-
       A received-side test confirms that when a participant accepts the active embargo, the
       CASE_MANAGER's outbox holds an `Announce(CaseLedgerEntry)` addressed to it for each entry committed
@@ -1596,8 +1595,7 @@ groups:
     - rel_type: implements
       spec_id: CM-10-004
     adr:
-    - ADR-0114
-    - ADR-0116
+    - ADR-0213
     see_also:
     - spec_id: CM-31-009
       reason: 'scope boundary: the notice is not case content'
@@ -1622,7 +1620,7 @@ groups:
     - rel_type: extends
       spec_id: CM-10-007
     adr:
-    - ADR-0114
+    - ADR-0213
     see_also:
     - spec_id: CM-31-013
       reason: 'context for the reader'
@@ -1665,7 +1663,7 @@ groups:
     - rel_type: extends
       spec_id: BT-10-005
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0121
     stories:
     - story_2022_013
@@ -1755,7 +1753,7 @@ groups:
       the case reference that is the nested Invite's `object`.
     adr:
     - ADR-0205
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2026_016
   - id: CM-11-006
@@ -1776,7 +1774,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-10-004
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
     - story_2022_061
@@ -1800,7 +1798,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-006
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
     - story_2022_061
@@ -1829,7 +1827,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-07-021
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_052
@@ -1851,7 +1849,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-023
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_052
@@ -1880,7 +1878,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-11-024
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_052
@@ -1902,7 +1900,7 @@ groups:
       `test/core/use_cases/received/actor/test_case_joining_replies.py` drives the
       stub Reject and checks the participant record.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
     - story_2022_006
@@ -1932,7 +1930,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-007
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_052
@@ -1954,7 +1952,7 @@ groups:
     - rel_type: derives_from
       spec_id: CM-11-007
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-11-008
@@ -1978,7 +1976,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-10-004
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2026_055
@@ -1992,7 +1990,7 @@ groups:
       Any reply is evidence the vendor is aware of the case.
     verification: Tests confirm each stub reply sets a vendor's VF to `V`.
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0121
     stories:
     - story_2022_061
@@ -2265,7 +2263,7 @@ groups:
       `CasePreview` preview.
     adr:
     - ADR-0205
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-11-038
@@ -2290,7 +2288,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-11-013
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-11-014
@@ -2306,7 +2304,7 @@ groups:
       `test/core/use_cases/triggers/test_stub_invite_lifetime.py` finds the stub
       Invite's deadline.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
     - story_2022_006
@@ -2328,7 +2326,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-014
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-11-040
@@ -2351,7 +2349,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-039
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0121
     stories:
     - story_2022_052
@@ -2378,7 +2376,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-14-001
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_006
   - id: CM-11-015
@@ -2396,7 +2394,7 @@ groups:
       `test/core/use_cases/triggers/test_case_joining_trigger.py` confirms a
       re-invite reuses the existing record with a new deadline.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-11-042
@@ -2418,7 +2416,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-015
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-11-043
@@ -2445,7 +2443,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-015
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0085
     stories:
     - story_2022_052
@@ -2476,7 +2474,7 @@ groups:
       embargo while a stub Invite is outstanding and find a replacement stub Invite
       with the current terms and a new deadline.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2026_097
     - story_2022_023
@@ -2499,7 +2497,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-016
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2026_097
   - id: CM-11-045
@@ -2519,7 +2517,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-016
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2026_097
   - id: CM-11-046
@@ -2538,7 +2536,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-016
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2026_097
   - id: CM-11-017
@@ -2616,7 +2614,7 @@ groups:
     - rel_type: supersedes
       spec_id: CM-11-007
     adr:
-    - ADR-0114
+    - ADR-0213
   - id: CM-11-021
     priority: MUST
     kind: protocol
@@ -2644,7 +2642,7 @@ groups:
     - rel_type: supersedes
       spec_id: CM-11-001
     adr:
-    - ADR-0114
+    - ADR-0213
   - id: CM-11-052
     priority: MUST_NOT
     kind: protocol
@@ -2667,7 +2665,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-021
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-11-019
@@ -2685,7 +2683,7 @@ groups:
     stories:
     - story_2022_052
     adr:
-    - ADR-0114
+    - ADR-0213
   - id: CM-11-048
     priority: MUST
     kind: protocol
@@ -2704,7 +2702,7 @@ groups:
     - rel_type: implements
       spec_id: CM-11-019
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-11-049
@@ -2726,7 +2724,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-019
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-11-050
@@ -2750,7 +2748,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-019
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-11-020
@@ -3458,7 +3456,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-10-004
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2026_075
     - story_2022_053
@@ -3594,7 +3592,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-17-001
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_054
     - story_2022_052
@@ -3623,7 +3621,7 @@ groups:
     - rel_type: supersedes
       spec_id: CM-16-006
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_054
   - id: CM-16-007
@@ -3899,7 +3897,7 @@ groups:
       spec_id: CM-11-013
     adr:
     - ADR-0205
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_053
     - story_2022_054
@@ -3996,7 +3994,7 @@ groups:
     - rel_type: extends
       spec_id: CM-17-001
     adr:
-    - ADR-0114
+    - ADR-0213
   - id: CM-17-004
     priority: MUST
     kind: protocol
@@ -4024,7 +4022,7 @@ groups:
       commit and fan-out, the CM-11-001 record update, full case snapshot and ledger
       replay, and the full-case Invite.
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0121
     relationships:
     - rel_type: uses_definition
@@ -4057,7 +4055,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-10-004
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_023
     see_also:
@@ -4236,7 +4234,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-006
     adr:
-    - ADR-0114
+    - ADR-0213
     see_also:
     - spec_id: CM-16-003
       reason: 'context for the reader'
@@ -4274,7 +4272,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-10-004
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_052
     - story_2026_056
@@ -4316,7 +4314,7 @@ groups:
     - story_2026_097
     adr:
     - ADR-0205
-    - ADR-0114
+    - ADR-0213
   - id: CM-17-020
     priority: MAY
     kind: protocol
@@ -5432,7 +5430,7 @@ groups:
       spec_id: PCR-08-001
     adr:
     - ADR-0053
-    - ADR-0114
+    - ADR-0213
     - ADR-0148
     stories:
     - story_2022_050
@@ -6500,7 +6498,7 @@ groups:
       spec_id: CM-23-021
     adr:
     - ADR-0108
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_066
@@ -6539,7 +6537,7 @@ groups:
     - rel_type: refines
       spec_id: CM-23-016
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_066
@@ -6563,7 +6561,7 @@ groups:
     - rel_type: extends
       spec_id: CM-23-021
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_066
@@ -6663,7 +6661,7 @@ groups:
     - ADR-0050
     - ADR-0051
     - ADR-0085
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_066
     - story_2022_067
@@ -6831,7 +6829,7 @@ groups:
     - rel_type: extends
       spec_id: CM-10-004
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0050
     stories:
     - story_2022_068
@@ -6870,7 +6868,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-23-022
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0050
     stories:
     - story_2022_068
@@ -6892,7 +6890,7 @@ groups:
     - rel_type: extends
       spec_id: CM-23-031
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0050
     stories:
     - story_2022_068
@@ -7249,7 +7247,7 @@ groups:
     adr:
     - ADR-0050
     - ADR-0121
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_066
   - id: CM-23-013
@@ -7513,7 +7511,7 @@ groups:
     adr:
     - ADR-0108
     - ADR-0124
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_066
   - id: CM-23-044
@@ -7723,7 +7721,7 @@ groups:
       spec_id: HP-01-006
     adr:
     - ADR-0085
-    - ADR-0114
+    - ADR-0213
     - ADR-0115
     stories:
     - story_2022_066
@@ -7758,7 +7756,7 @@ groups:
       spec_id: CM-23-031
     adr:
     - ADR-0085
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_066
     see_also:
@@ -8441,7 +8439,7 @@ groups:
       case only via the standard `Invite`/`Accept` flow defined in CM-17.
     adr:
     - ADR-0057
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_053
     - story_2022_054
@@ -8467,7 +8465,7 @@ groups:
       spec_id: CM-10-004
     adr:
     - ADR-0057
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_063
     - story_2022_082
@@ -8541,7 +8539,7 @@ groups:
       spec_id: CM-17-003
     adr:
     - ADR-0057
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_053
     - story_2022_063
@@ -8564,7 +8562,7 @@ groups:
       spec_id: CM-25-006
     adr:
     - ADR-0057
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_063
     see_also:
@@ -9738,7 +9736,7 @@ groups:
       Owner's `Remove(CaseParticipant)` at the CASE_MANAGER and assert the record
       carries the removal fact.
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
   - id: CM-31-015
@@ -9759,7 +9757,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-001
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
   - id: CM-31-016
@@ -9781,7 +9779,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-001
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
   - id: CM-31-017
@@ -9804,7 +9802,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-10-004
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
   - id: CM-31-002
@@ -9827,7 +9825,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-10-004
     adr:
-    - ADR-0116
+    - ADR-0213
   - id: CM-31-018
     priority: MUST_NOT
     kind: architecture
@@ -9845,7 +9843,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-002
     adr:
-    - ADR-0116
+    - ADR-0213
   - id: CM-31-019
     priority: MUST_NOT
     kind: architecture
@@ -9863,7 +9861,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-002
     adr:
-    - ADR-0116
+    - ADR-0213
   - id: CM-31-003
     priority: MUST
     kind: protocol
@@ -9883,7 +9881,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-31-002
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
   - id: CM-31-020
@@ -9903,7 +9901,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-003
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
   - id: CM-31-021
@@ -9924,7 +9922,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-003
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     see_also:
@@ -9967,7 +9965,7 @@ groups:
       Received-side tests assert a removal from a non-owner, of the CASE_MANAGER, and of the Case
       Owner is refused, and a removal from the Case Owner is applied.
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
   - id: CM-31-022
@@ -9990,7 +9988,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-004
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
   - id: CM-31-023
@@ -10010,7 +10008,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-004
     adr:
-    - ADR-0116
+    - ADR-0213
     - ADR-0108
     stories:
     - story_2022_023
@@ -10030,7 +10028,7 @@ groups:
       that an accepted removal grows the ledger by an entry whose snapshot is the
       Case Owner's activity.
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_052
@@ -10056,7 +10054,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_052
@@ -10077,7 +10075,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_052
@@ -10100,7 +10098,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_052
@@ -10120,7 +10118,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-006
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_052
@@ -10142,7 +10140,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_052
@@ -10164,7 +10162,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_052
@@ -10181,7 +10179,7 @@ groups:
       A test announces a removal entry to a replica and asserts the participant's record remains,
       carries the removal fact, and is not active on the replica.
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_052
@@ -10205,7 +10203,7 @@ groups:
     - rel_type: refines
       spec_id: RSH-08-003
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_052
@@ -10224,7 +10222,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-001
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2026_096
     - story_2022_023
@@ -10254,7 +10252,7 @@ groups:
     - rel_type: supersedes
       spec_id: CM-23-004
     adr:
-    - ADR-0116
+    - ADR-0213
     - ADR-0093
     stories:
     - story_2026_096
@@ -10284,7 +10282,7 @@ groups:
     - rel_type: supersedes
       spec_id: CM-23-004
     adr:
-    - ADR-0116
+    - ADR-0213
     - ADR-0093
     stories:
     - story_2026_096
@@ -10308,7 +10306,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-030
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2026_096
   - id: CM-31-010
@@ -10340,7 +10338,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-31-030
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2026_096
   - id: CM-31-032
@@ -10361,7 +10359,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-010
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2026_096
     see_also:
@@ -10387,7 +10385,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-010
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2026_096
     see_also:
@@ -10427,7 +10425,7 @@ groups:
     - rel_type: refines
       spec_id: CM-31-010
     adr:
-    - ADR-0116
+    - ADR-0213
     - ADR-0161
     stories:
     - story_2026_096
@@ -10454,7 +10452,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-31-004
     adr:
-    - ADR-0116
+    - ADR-0213
     - ADR-0199
     stories:
     - story_2022_052
@@ -10548,7 +10546,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-011
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-31-035
@@ -10568,7 +10566,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-011
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-31-036
@@ -10591,8 +10589,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-011
     adr:
-    - ADR-0116
-    - ADR-0114
+    - ADR-0213
     - ADR-0199
     stories:
     - story_2022_052
@@ -10617,7 +10614,7 @@ groups:
     - rel_type: constrains
       spec_id: CM-17-004
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_052
   - id: CM-31-041
@@ -10645,7 +10642,7 @@ groups:
     - rel_type: refines
       spec_id: CM-11-009
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_052
@@ -10672,7 +10669,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-31-012
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_052
@@ -10695,7 +10692,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-18-003
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_052
@@ -10717,7 +10714,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-037
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0124
     stories:
     - story_2022_052
@@ -10739,7 +10736,7 @@ groups:
       `test/core/use_cases/received/test_participant_removal_planned.py` assert the
       Invite recipient selection excludes a removed participant.
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     see_also:
@@ -10766,7 +10763,7 @@ groups:
     - rel_type: extends
       spec_id: CM-31-011
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_023
     - story_2022_052
@@ -11346,7 +11343,7 @@ groups:
       spec_id: CM-14-001
     adr:
     - ADR-0125
-    - ADR-0114
+    - ADR-0213
     see_also:
     - spec_id: CM-14-010
       reason: 'context for the reader'
@@ -11397,7 +11394,7 @@ groups:
       spec_id: CM-14-009
     adr:
     - ADR-0125
-    - ADR-0114
+    - ADR-0213
   - id: CM-32-036
     priority: MUST_NOT
     kind: protocol
@@ -11437,7 +11434,7 @@ groups:
       spec_id: CM-14-007
     adr:
     - ADR-0125
-    - ADR-0114
+    - ADR-0213
   - id: CM-32-012
     priority: MUST_NOT
     kind: protocol
@@ -11454,7 +11451,7 @@ groups:
     - story_2022_104
     adr:
     - ADR-0125
-    - ADR-0114
+    - ADR-0213
   - id: CM-32-038
     priority: MUST_NOT
     kind: protocol
@@ -11475,7 +11472,7 @@ groups:
       spec_id: CM-10-007
     adr:
     - ADR-0125
-    - ADR-0114
+    - ADR-0213
   - id: CM-32-039
     priority: MUST_NOT
     kind: protocol
@@ -11495,7 +11492,7 @@ groups:
       spec_id: CM-10-004
     adr:
     - ADR-0125
-    - ADR-0114
+    - ADR-0213
   - id: CM-32-013
     priority: MUST
     kind: protocol

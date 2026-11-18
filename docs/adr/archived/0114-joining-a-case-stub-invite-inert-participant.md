@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-10-01
 created: 2026-10-01
 updated: 2026-10-09
@@ -16,7 +16,12 @@ partially_superseded_by:
   - 0172-an-active-participant-is-not-closed.md
   - 0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md
 stakeholder_type: [project-contributor]
+superseded_by: 0213-a-participant-is-created-by-its-invite-is-active-only-while-entitled-and-is-removed-by-withdrawing-entitlement.md
 ---
+
+> **Superseded by [ADR-0213](../0213-a-participant-is-created-by-its-invite-is-active-only-while-entitled-and-is-removed-by-withdrawing-entitlement.md).**
+> ADR-0213 states how a participant joins, when it is active, and what removal changes as one decision, consolidating ADR-0114, ADR-0116 and ADR-0172.
+> This record is kept as it stood when it was superseded.
 
 # Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*
 
@@ -419,6 +424,6 @@ The 2026-10-01 text of ADR-0070 and ADR-0084 that this ADR cites is now ADR-0121
 
 Allen D. Householder decided the closure semantics on 2026-10-12 (CM-23-002, CM-23-013, CM-23-014).
 The Ratification above left them open; this note records that they are now decided.
-[ADR-0085](0085-case-lifecycle-boundaries.md) sets the owner-close write boundary.
-[ADR-0131](0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md) sets the CM-23-013 reply to late traffic: by default the CASE_MANAGER drops it, and it may answer only a late Leave with a Reject (#4065).
+[ADR-0085](../0085-case-lifecycle-boundaries.md) sets the owner-close write boundary.
+[ADR-0131](../0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md) sets the CM-23-013 reply to late traffic: by default the CASE_MANAGER drops it, and it may answer only a late Leave with a Reject (#4065).
 CM-23-014, which expires every pending embargo Invite before case_fully_closed, is implemented by #4066 (PR #4489).

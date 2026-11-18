@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-10-01
 created: 2026-10-01
 updated: 2026-10-09
@@ -17,7 +17,12 @@ partially_superseded_by:
   - 0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md
   - 0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
 stakeholder_type: [project-contributor]
+superseded_by: 0213-a-participant-is-created-by-its-invite-is-active-only-while-entitled-and-is-removed-by-withdrawing-entitlement.md
 ---
+
+> **Superseded by [ADR-0213](../0213-a-participant-is-created-by-its-invite-is-active-only-while-entitled-and-is-removed-by-withdrawing-entitlement.md).**
+> ADR-0213 states how a participant joins, when it is active, and what removal changes as one decision, consolidating ADR-0114, ADR-0116 and ADR-0172.
+> This record is kept as it stood when it was superseded.
 
 # Removing a Participant Withdraws Entitlement, Not Membership
 

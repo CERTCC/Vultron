@@ -317,7 +317,7 @@ It carries forward the partial supersession of five live records:
 - [ADR-0091](0091-rename-pec-no-embargo-to-unbound.md): `UNBOUND` is no longer a state.
 - [ADR-0093](0093-signatory-declined-pec-transition.md): `DECLINE` from a signatory stands as `DECLINE` from an `AGREED` row caused by `Leave(EmbargoEvent)`, and its "lapse at activation, never at proposal" rule stands as the lapsed read.
 - [ADR-0118](0118-pec-expired-and-unbound-exited-states.md): its unbound-exited state is replaced, because termination is the register's fact; its expired state stands as `TIMED_OUT`.
-- [ADR-0116](0116-removing-a-participant-withdraws-entitlement-not-membership.md): its embargo-change notices to a removed participant are replaced by detail 8.
+- [ADR-0116](archived/0116-removing-a-participant-withdraws-entitlement-not-membership.md): its embargo-change notices to a removed participant are replaced by detail 8.
 
 Related:
 

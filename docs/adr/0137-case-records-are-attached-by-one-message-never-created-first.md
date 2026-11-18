@@ -22,7 +22,7 @@ The sender can send one `Add` that carries the object.
 As an alternative, the sender can send a `Create` that mints the object, and then an `Add` that attaches it.
 
 The reference implementation attaches a case status and a participant status with one `Add`, and it carries a proposed embargo event on the `Invite` that proposes it.
-A participant record comes into existence only as a consequence of an act the CASE_MANAGER records: the creation of the case, or the `Invite` that brings an invitee into the case ([ADR-0114](0114-joining-a-case-stub-invite-inert-participant.md)).
+A participant record comes into existence only as a consequence of an act the CASE_MANAGER records: the creation of the case, or the `Invite` that brings an invitee into the case ([ADR-0114](archived/0114-joining-a-case-stub-invite-inert-participant.md)).
 Its inbox refuses a received `Create` of any of these objects as an unrecognized activity (#4598).
 That was recorded as a choice of the prototype, and the question of what the protocol allows stayed open (#4635, #4676).
 

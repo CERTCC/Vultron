@@ -673,7 +673,7 @@ groups:
     - rel_type: extends
       spec_id: CM-11-006
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0121
     verification: >-
       `test_seats_inert_vendor_invitee_at_rm_received` in

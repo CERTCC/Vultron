@@ -712,7 +712,7 @@ groups:
       `Announce(VulnerabilityCase)` seeds its replica with no
       `Create(VulnerabilityCase)` received.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_054
     - story_2026_055

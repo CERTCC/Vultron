@@ -267,7 +267,7 @@ and seeds no case.
   withholds, or one the Case Owner removed (CM-31-001).
   `inactive_joined_participants()` names them and the collectors publish them as
   `fanout_withheld`. A participant that has not joined is inert and gets its case
-  through the join path (ADR-0114); no pause record is created for it.
+  through the join path (ADR-0213); no pause record is created for it.
 - **The pause** is `VultronReplicationState.embargo_paused_from_index`, the first
   withheld `log_index`; a later withheld entry keeps the earlier index. Helpers:
   `sync/nodes/embargo_pause.py`.
