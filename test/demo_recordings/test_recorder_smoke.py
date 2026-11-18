@@ -102,7 +102,7 @@ def test_two_runs_of_one_unchanged_tree_compare_equal():
     that form stubs ``record_scenario`` out, so this is the only place the
     claim is made against the real recorder: a process-global the recorder
     forgets to reset would otherwise break the command with no failing test
-    (the class of defect ``_scenario_nodes``' blackboard reset exists for).
+    (the class of defect ``scenario_nodes``' blackboard reset exists for).
     """
     spec = next(s for s in discover_scenarios() if s.name == _SMOKE_SCENARIO)
 

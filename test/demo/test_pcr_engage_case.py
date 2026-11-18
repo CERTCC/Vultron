@@ -41,9 +41,11 @@ import asyncio
 import pytest
 
 from test.demo.conftest import (
+    node_config,
     submit_report_through_reporter,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.config import app_config_scope
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.demo.in_process import (
@@ -75,16 +77,15 @@ def two_app_setup():
     outbox → inbox → inbox-handler chain is exercised without real HTTP.
 
     Lifecycle:
-      1. Patches ``VULTRON_SERVER__BASE_URL`` to ``{_OWNER_BASE}/api/v2``
-         and reloads the config cache so IDs minted from the server base
-         URL use the owner's routable base URL (not the default
-         ``http://localhost:7999``, which lacks the ``/api/v2/`` prefix and
-         therefore gets a 404 from the owner's ASGI app).
+      1. Gives each node its own config, whose server base URL is the
+         node's own ``{base}/api/v2``, so IDs minted from it are routable
+         (not the default ``http://localhost:7999``, which lacks the
+         ``/api/v2/`` prefix and therefore gets a 404 from the ASGI app).
       2. Enters both TestClient contexts (triggers lifespan startup).
       3. Configures the module-level default emitter to the shared router so
          all outbox_handler deliveries POST to each target TestClient inbox
          instead of making real HTTP requests (ADR-0042).
-      4. Registers the patched base URL with the router so that CaseActor
+      4. Registers the owner's configured base URL with the router so that CaseActor
          deliveries are routed to the owner's app correctly.
 
     Yields:
@@ -94,43 +95,41 @@ def two_app_setup():
         configure_default_emitter,
         get_default_emitter,
     )
-    from vultron.config import config_override
 
-    # config_override atomically sets env vars, reloads the cache, and
-    # restores both on exit — the ordering footgun (#2086) is impossible
-    # by construction (CFG-06-006).
-    with config_override(
-        # Patch the server base URL so IDs minted from it are routable to the
-        # owner's app.  Without this the default http://localhost:7999 yields
-        # IDs under http://localhost:7999/actors/... and the owner's app
-        # returns 404 for /actors/ paths (it expects /api/v2/actors/).
-        VULTRON_SERVER__BASE_URL=f"{_OWNER_BASE}/api/v2",
-        # case_actor_identity() reads case_actor_service_url from ActorConfig
-        # (CP-08-002); in this single-owner test setup the owner IS the
-        # case-actor service, so we point it at the same base URL.
-        VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OWNER_BASE}/api/v2",
-    ) as cfg:
-        router = InProcessRouter()
-        owner_iso = create_isolated_actor_app(
-            base_url=_OWNER_BASE, router=router
-        )
-        reporter_iso = create_isolated_actor_app(
-            base_url=_REPORTER_BASE, router=router
-        )
+    # Each node holds its own config (ADR-0206, ``node_config``): its own
+    # server base URL, so IDs minted from it are routable to its app, and the
+    # owner as the CaseActor service, since in this single-owner setup the
+    # owner IS the case-actor service (``case_actor_identity()`` reads
+    # ``case_actor_service_url``, CP-08-002).  The body runs in the owner's
+    # config scope, as the driver.
+    owner_config = node_config(_OWNER_BASE, _OWNER_BASE)
+    router = InProcessRouter()
+    owner_iso = create_isolated_actor_app(
+        base_url=_OWNER_BASE,
+        router=router,
+        config=owner_config,
+        background_work=False,
+    )
+    reporter_iso = create_isolated_actor_app(
+        base_url=_REPORTER_BASE,
+        router=router,
+        config=node_config(_REPORTER_BASE, _OWNER_BASE),
+        background_work=False,
+    )
 
-        config_base_url = cfg.server.base_url.rstrip("/")
-        router.register(config_base_url, owner_iso.client)
+    router.register(owner_config.server.base_url.rstrip("/"), owner_iso.client)
 
-        previous_emitter = get_default_emitter()
-        configure_default_emitter(router)  # type: ignore[arg-type]
+    previous_emitter = get_default_emitter()
+    configure_default_emitter(router)  # type: ignore[arg-type]
 
+    with app_config_scope(owner_config):
         with owner_iso.client as owner_tc:
             with reporter_iso.client as reporter_tc:
                 yield (owner_iso, reporter_iso, owner_tc, reporter_tc)
 
-        configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-        owner_iso.close()
-        reporter_iso.close()
+    configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+    owner_iso.close()
+    reporter_iso.close()
 
 
 # ---------------------------------------------------------------------------

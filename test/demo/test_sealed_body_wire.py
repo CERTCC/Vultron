@@ -47,6 +47,7 @@ from urllib.parse import urlparse
 import pytest
 
 from test.demo._helpers import make_testclient_call
+from test.demo.conftest import node_config
 from test.demo.test_remote_case_actor_invite import (
     _bootstrap,
     _invite,
@@ -54,9 +55,11 @@ from test.demo.test_remote_case_actor_invite import (
 )
 from test.support.objects import make
 from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.config import app_config_scope
 from vultron.demo.helpers.seeding import seed_case_actor_peers
 from vultron.demo.in_process import (
     InProcessRouter,
+    IsolatedActorApp,
     create_isolated_actor_app,
 )
 from vultron.demo.utils import DataLayerClient, seed_peer
@@ -118,26 +121,33 @@ def recorded_topology(request):
 
     tag = _UNSAFE_IN_HOST.sub("-", request.node.name.lower()).strip("-")
     router = _RecordingRouter()
+    ca_base = f"http://ca-host-{tag}.test"
+
+    def node(base: str, slug: str) -> IsolatedActorApp:
+        # Each node holds its own config, with the CaseActor's host as the
+        # CaseActor service (ADR-0206, ``node_config``).
+        return create_isolated_actor_app(
+            base_url=base,
+            router=router,
+            actor_slug=slug,
+            config=node_config(base, ca_base),
+            background_work=False,
+        )
+
     topo = _Topology(
-        ca_host=create_isolated_actor_app(
-            base_url=f"http://ca-host-{tag}.test",
-            router=router,
-            actor_slug="case-actor",
-        ),
-        owner=create_isolated_actor_app(
-            base_url=f"http://owner-{tag}.test",
-            router=router,
-            actor_slug="owner",
-        ),
-        invitee=create_isolated_actor_app(
-            base_url=f"http://invitee-{tag}.test",
-            router=router,
-            actor_slug="invitee",
-        ),
+        ca_host=node(ca_base, "case-actor"),
+        owner=node(f"http://owner-{tag}.test", "owner"),
+        invitee=node(f"http://invitee-{tag}.test", "invitee"),
     )
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]
-    with topo.ca_host.client, topo.owner.client, topo.invitee.client:
+    # The body drives the scenario in the CaseActor host's config scope.
+    with (
+        app_config_scope(topo.ca_host.config),
+        topo.ca_host.client,
+        topo.owner.client,
+        topo.invitee.client,
+    ):
         yield topo, router
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
 

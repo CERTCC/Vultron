@@ -14,8 +14,9 @@
 """Shared fixtures and helpers for demo tests."""
 
 import asyncio
+import contextlib
 import logging
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -26,6 +27,7 @@ import vultron.demo.utils as demo_utils
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
+from test.support.app_configs import own_app_config
 from test.support.hold_timers import stop_hold_timer_from_another_thread
 from test.support.store_sharing import no_store_shared_across_authorities
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
@@ -44,11 +46,23 @@ from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import (
     get_default_emitter,
 )
+from vultron.config import AppConfig
+from vultron.demo.helpers.cast import ContainerSlot
 from vultron.demo.helpers.invite_chain import (
     chain as invite_runs,
     links as invite_links,
 )
-from vultron.demo.in_process import InProcessObjectFetcher, InProcessRouter
+from vultron.demo.in_process import (
+    InProcessObjectFetcher,
+    InProcessRouter,
+    node_app_config,
+)
+from vultron.demo.recordings.runner import (
+    ScenarioNodes,
+    node_base,
+    scenario_nodes,
+)
+from vultron.demo.recordings.topology import load_topology
 from vultron.wire.as2.factories import parse_submit_report_offer
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -134,6 +148,11 @@ def pytest_collection_modifyitems(
 #:
 #: Tests using ``create_isolated_actor_app`` override this with their own host.
 _CASE_ACTOR_SERVICE_URL = "http://testserver/api/v2"
+
+#: A CaseActor service no in-process node serves: a node configured with it
+#: proposes cases that the router drops, so a test can play the CaseActor's
+#: part itself (``trigger/create-case``).  See :func:`node_config`.
+UNSERVED_CASE_ACTOR_BASE = _CASE_ACTOR_SERVICE_URL.removesuffix("/api/v2")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -505,6 +524,69 @@ def client():
             setattr(
                 app_v2.state, ACTOR_PROFILE_FETCHER_STATE, previous_fetcher
             )
+
+
+def node_config(base: str, case_actor_base: str) -> AppConfig:
+    """The ``AppConfig`` an ad-hoc in-process node on *base* holds (ADR-0206).
+
+    For a test that runs its own nodes on made-up hosts rather than the
+    compose cast (:func:`container_nodes`): the node's server base URL is
+    its own ``{base}/api/v2`` and it proposes cases to the CaseActor service
+    on *case_actor_base*.  Every other setting is the process-wide config's.
+    Pass it as ``config=`` with ``background_work=False`` to
+    :func:`~vultron.demo.in_process.create_isolated_actor_app`, and run the
+    test body in a driver's :func:`~vultron.config.app_config_scope`: while
+    a node holds its config, a read in no app scope is refused
+    (DEMOMA-01-007).
+    """
+    return node_app_config(
+        own_app_config(),
+        base_url=f"{base.rstrip('/')}/api/v2",
+        case_actor_service_url=f"{case_actor_base.rstrip('/')}/api/v2",
+    )
+
+
+#: Starts the named cast containers in process; see :func:`container_nodes`.
+StartContainers = Callable[..., ScenarioNodes]
+
+
+@pytest.fixture
+def container_nodes() -> Iterator[StartContainers]:
+    """Start cast containers in process, each with its container's config.
+
+    Call the yielded function with the :class:`ContainerSlot` of each
+    container to run.  Each node is served at the slot's compose URL and
+    holds the ``AppConfig`` its service in
+    ``docker/docker-compose-multi-actor.yml`` gives it (ADR-0206,
+    :meth:`~vultron.demo.recordings.topology.ContainerTopology.config_for`).
+    So the case-actor node's ``default_case_roles`` differ from the report
+    receiver's, and a node that reads its own config for another actor's
+    fact fails here as it fails in Docker (#1876).
+
+    Built on :func:`~vultron.demo.recordings.runner.scenario_nodes`, as the
+    in-process recordings are, so the nodes run no background work and the
+    test body runs in the demo runner's own config scope: while a node holds
+    its config, a config read in no app's scope is refused (DEMOMA-01-007).
+    The nodes stop when the test ends.  Call it once per test: a second
+    call would reset the stores of the nodes the first one started, so it is
+    refused.
+    """
+    with contextlib.ExitStack() as stack:
+        started: list[ScenarioNodes] = []
+
+        def start(*slots: ContainerSlot) -> ScenarioNodes:
+            if started:
+                raise RuntimeError(
+                    "container_nodes was already started in this test; "
+                    "start every container in one call."
+                )
+            bases = [node_base(slot.compose_url) for slot in slots]
+            started.append(
+                stack.enter_context(scenario_nodes(bases, load_topology()))
+            )
+            return started[0]
+
+        yield start
 
 
 @pytest.fixture(autouse=True)
