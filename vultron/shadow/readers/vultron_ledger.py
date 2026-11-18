@@ -57,7 +57,7 @@ class VultronCaseReader:
     """A ``CaseReader`` over a Vultron case-ledger JSONL file.
 
     The case id it is given is the file's path.  It reads the file on every
-    request and keeps nothing between requests (SHD-01-003).
+    request and leaves nothing on the host after its process exits (SHD-01-003).
 
     Args:
         root: The directory every requested file must resolve inside,

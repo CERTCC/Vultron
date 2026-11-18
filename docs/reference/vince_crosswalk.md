@@ -13,7 +13,7 @@ subject: neutral
 
 This page maps each field of a case in the Vulnerability Information and Coordination Environment (VINCE) onto a Vultron [case](glossary.md#core-cvd-concepts).
 The CERT Coordination Center (CERT/CC) runs VINCE.
-This page is for readers who build or check the VINCE case reader, and for analysts who want to know where a state on the case shadow came from.
+This page is for readers who build or check the VINCE case reader, and for analysts who want to know where a state on the case shadow tool came from.
 The VINCE case reader follows these rows.
 Each row has a stable identifier, and every inference the reader makes names the row that produced it.
 
@@ -224,5 +224,5 @@ The reader declares them in every case reading, and the analysis reads each one 
 ## Further reading
 
 - [ADR-0191](../adr/0191-an-outside-system-reaches-the-core-through-a-read-only-case-reader-port.md) decides the read-only case reader port.
-- [ADR-0190](../adr/0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md) decides the case shadow.
+- [ADR-0190](../adr/0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md) decides the case shadow tool.
 - The [VINCE API documentation](https://certcc.github.io/VINCE-docs/VINCE-API/){:target="_blank"} describes the endpoints.

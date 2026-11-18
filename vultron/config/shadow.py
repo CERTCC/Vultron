@@ -64,10 +64,10 @@ class ShadowConfig(BaseModel):
 
     Attributes:
         connector: The name of the connector entry point, in the
-            ``vultron.connectors`` group, whose case reader the case shadow
-            tool's outside-system source reads cases through.  When it is
-            ``None`` that source is VINCE, through the ``vince`` connector
-            (:data:`VINCE_CONNECTOR`).  Default ``None``.
+            ``vultron.connectors`` group, whose case reader the case
+            shadow tool's outside-system source reads cases through.
+            When it is ``None`` that source is VINCE, through the ``vince``
+            connector (:data:`VINCE_CONNECTOR`).  Default ``None``.
         ledger_dir: The directory the Vultron case reader reads case-ledger
             files from.  A case is then named by its file's path relative to
             this directory, and a path outside it is refused.  When it is

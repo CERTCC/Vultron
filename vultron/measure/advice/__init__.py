@@ -16,7 +16,7 @@
 :mod:`.shifts` reads each vendor's outcome shift from the walk of ADR-0182;
 :mod:`.bands` puts the moves in bands and layers and marks them; and
 :mod:`.case` reads a case's standing record into the typed
-:class:`CaseAdvice` the case shadow shows (ADR-0190).  The advice ranks no
+:class:`CaseAdvice` the case shadow tool shows (ADR-0190).  The advice ranks no
 move by one case score.
 """
 

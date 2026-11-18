@@ -27,7 +27,7 @@ system (CRD-01-002), so a reader cannot write whatever its adapter does.  A
 read-write port for the later gateway is a separate interface.
 
 This is a connector direction: a connector plugin implements it to serve
-the case shadow (ARCH-05-004).  The core declares it here and never imports
+the case shadow tool (ARCH-05-004).  The core declares it here and never imports
 a connector (ARCH-05-001).  The one implementer outside
 ``vultron/adapters/connectors/`` is the shadow's own Vultron case reader
 (``vultron/shadow/readers/``), which reads through the measure layer that no

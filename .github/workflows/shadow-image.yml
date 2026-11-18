@@ -14,7 +14,7 @@
 #   beside it on the Compose network, the shadow image's own live reader
 #   reads a case created on the node (.github/scripts/shadow_live_read.py).
 
-name: Case shadow image
+name: Case shadow tool image
 
 on:
   push:
@@ -79,7 +79,7 @@ concurrency:
 
 jobs:
   shadow-image:
-    name: Case shadow image
+    name: Case shadow tool image
     runs-on: ubuntu-latest
     # A cold build installs every locked dependency, a few minutes; the
     # service start, the layer search and the live read take a few minutes

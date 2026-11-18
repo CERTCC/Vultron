@@ -30,7 +30,7 @@ plugin is not a :class:`~vultron.adapters.connectors.base.ConnectorPlugin`
 :data:`~vultron.adapters.connectors.base.CONNECTOR_PORTS` (ARCH-05-006).
 It also refuses two entry points that share one name, because neither can
 then be chosen by it.  A caller that selects a connector, such as the
-case shadow, calls the loader once at its own start, so a bad package stops
+case shadow tool, calls the loader once at its own start, so a bad package stops
 that start rather than a later case.  Each refusal names its entry point, and one
 :class:`ConnectorRefusedError` reports every refusal at once, so an operator
 fixes every bad package in one pass.

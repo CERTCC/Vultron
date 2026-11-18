@@ -62,7 +62,7 @@ from vultron.shadow.readers.following import CaseFollower
 logger = logging.getLogger(__name__)
 
 #: The page's title, also the browser tab's.
-TITLE = "Case shadow"
+TITLE = "Case shadow tool"
 
 #: The widget key of the case the analyst enters.
 CASE_KEY = "case_id"

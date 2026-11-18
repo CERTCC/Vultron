@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The case shadow: a standalone, read-only advisor over one case (ADR-0190).
+"""The case shadow tool: a standalone, read-only advisor over one case (ADR-0190).
 
 The shadow uses the Vultron core as a library.  It hosts no actor and has no
 inbox, outbox or activity delivery (SHD-01-001); it reads a case only through

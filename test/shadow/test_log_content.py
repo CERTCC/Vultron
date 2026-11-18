@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The case shadow's log records carry ids, never case content.
+"""The case shadow tool's log records carry ids, never case content.
 
 The page runs headless under Streamlit's ``AppTest`` over a fake case
 reader whose case holds a marker string in its title, description, a
