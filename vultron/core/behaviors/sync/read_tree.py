@@ -6,6 +6,8 @@ case's ledger up to the entry it names (ADR-0155).  The tree here answers it
 at the CASE_MANAGER; ``state_positions_tree`` sends one (SYNC-17-007).
 """
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -78,6 +80,7 @@ def create_read_log_entry_tree(
         sender_id: The ``Read``'s ``actor``.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
+    keys = {CASE_ID: case_id, SENDER_ID: sender_id}
     return create_receive_activity_tree(
         name="ReadLogEntryReceivedBT",
         case_id=None,
@@ -104,16 +107,14 @@ def create_read_log_entry_tree(
             CheckStatedPositionInLedgerNode(
                 name="CheckStatedPositionInLedger"
             ),
-            ResendOwedInvitesNode(
-                case_id=case_id,
-                sender_id=sender_id,
-                name="ResendOwedInvites",
+            with_act_keys(
+                ResendOwedInvitesNode(name="ResendOwedInvites"), keys
             ),
-            PeerActiveParticipantNode(
-                case_id=case_id,
-                sender_id=sender_id,
-                active=True,
-                name="SenderIsActiveParticipant",
+            with_act_keys(
+                PeerActiveParticipantNode(
+                    active=True, name="SenderIsActiveParticipant"
+                ),
+                keys,
             ),
             UpdateReplicationStateNode(name="UpdateReplicationState"),
             ReplayMissingEntriesNode(name="ReplayMissingEntries"),

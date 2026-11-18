@@ -23,6 +23,12 @@ SYNC-03-010).
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    ANNOUNCE_ID,
+    REFUSED_ENTRY,
+    SENDER_ID,
+)
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -85,8 +91,13 @@ def create_hash_mismatch_fault_tree(
             sender_id=sender_id, case_id=case_id
         ),
         manager_effects=[
-            ReportHashMismatchNode(
-                refused_entry, peer_id=sender_id, announce_id=announce_id
+            with_act_keys(
+                ReportHashMismatchNode(),
+                {
+                    REFUSED_ENTRY: refused_entry,
+                    SENDER_ID: sender_id,
+                    ANNOUNCE_ID: announce_id,
+                },
             ),
         ],
         manager_case_id=case_id,

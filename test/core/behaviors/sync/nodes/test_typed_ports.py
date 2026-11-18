@@ -39,6 +39,9 @@ from test.core.behaviors.port_contract import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.objects import make
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sync.nodes.chain import (
     PersistLogEntryNode,
     UpdateReplicationStateNode,
@@ -71,12 +74,8 @@ LEDGER_PORTS: dict[str, str] = {
 #: new node must be registered here; the coverage test below fails otherwise,
 #: so it cannot be silently dropped from the enforcement tests.
 LEDGER_NODE_KWARGS: dict[str, dict[str, Any]] = {
-    "CollectLogEntryRecipientsNode": {"case_id": LEDGER_CASE_ID},
-    "CreateLogEntryNode": {
-        "case_id": LEDGER_CASE_ID,
-        "object_id": "https://example.org/activities/act-001",
-        "semantic_type": "close_case",
-    },
+    "CollectLogEntryRecipientsNode": {},
+    "CreateLogEntryNode": {"semantic_type": "close_case"},
     "PersistLogEntryNode": {"name": "PersistLogEntry"},
     "SendLogEntryToEachNode": {},
 }
@@ -273,7 +272,9 @@ class TestCollectLogEntryRecipientsNodeOutputPorts:
             published=ACT_AT,
         )
         result = bt_scenario.run(
-            CollectLogEntryRecipientsNode(case_id=case_id),
+            with_act_keys(
+                CollectLogEntryRecipientsNode(), {act_keys.CASE_ID: case_id}
+            ),
             actor_id=ACTOR_ID,
             log_entry=entry,
         )
@@ -317,7 +318,7 @@ class TestFanoutCollectorsRequireCase:
             published=ACT_AT,
         )
         result = bt_scenario.run(
-            node_cls(case_id=case_id),
+            with_case_id(node_cls(), case_id),
             actor_id=ACTOR_ID,
             log_entry=entry,
         )

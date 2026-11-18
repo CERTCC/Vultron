@@ -31,6 +31,7 @@ from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
@@ -52,7 +53,7 @@ def embargo_admission_backfill_nodes(
     RSVP window; ``None`` applies the ``ActorConfig`` defaults.
     """
     return [
-        BackfillAdmittedParticipantsNode(case_id=case_id),
+        with_case_id(BackfillAdmittedParticipantsNode(), case_id),
         ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
     ]
 

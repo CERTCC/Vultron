@@ -55,6 +55,12 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.config.app import get_config
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import SENDER_ID
 from vultron.core.behaviors.case.nodes.addressee import named_in_to
 from vultron.core.behaviors.case.nodes.case_lookup import (
     CaseIdInputPortMixin,
@@ -138,27 +144,29 @@ class ClassifySequenceNumberNode(
 
     The node reads the order record and the ledger and writes nothing; it
     always succeeds.  :attr:`standing`, :attr:`order` and :attr:`number`
-    are what the arms after it act on.  The case is read from the
-    ``/case_id`` port, which the stage builder seeds (BTND-01-006).
+    are what the arms after it act on.  The case and the sender are read
+    from the ``/case_id`` and ``/sender_id`` ports, which the stage builder
+    seeds (BTND-01-006, BTND-01-008).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(SENDER_ID),
         "activity": PortInformation(data_type=object, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {**super()._domain_port_remappings(), "activity": "/activity"}
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(SENDER_ID),
+            "activity": "/activity",
+        }
 
-    def __init__(
-        self,
-        sender_id: str,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id: str | None = None
-        self.sender_id = sender_id
+        self._sender_id: str | None = None
         self.activity: object | None = None
         self.standing: SequenceStanding = SequenceStanding.NOT_NUMBERED
         self.order: SenderSequenceOrder | None = None
@@ -166,6 +174,9 @@ class ClassifySequenceNumberNode(
 
     def initialise(self) -> None:
         super().initialise()
+        # Kept for the arms after this node, which read it once the seeding
+        # scope has ended (BT-17-007).
+        self._sender_id = optional_act_value(self, SENDER_ID, str)
         self.activity = self.get_input("activity")
         self.standing = SequenceStanding.NOT_NUMBERED
         self.order = None
@@ -190,6 +201,21 @@ class ClassifySequenceNumberNode(
                 " sequence stage (BTND-01-006)"
             )
         return self._case_id
+
+    @property
+    def sender_id(self) -> str:
+        """The sender whose number the stage judges, read from ``/sender_id``.
+
+        Raises:
+            VultronWiringError: Nothing seeded the port; the stage builder
+                always does (BTND-01-008).
+        """
+        if not self._sender_id:
+            raise VultronWiringError(
+                f"{self.name}: no sender seeded on /sender_id for the sender"
+                " sequence stage (BTND-01-008)"
+            )
+        return self._sender_id
 
     def _takes_a_number(self, dl: CasePersistence) -> bool:
         event = self.activity

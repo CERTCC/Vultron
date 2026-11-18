@@ -20,6 +20,8 @@ from test.support.act_runner import run_tree
 from test.support.objects import authored_at, make, with_times
 from test.support.received import extract_stamped, peer_position
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.sync.nodes import (
     CollectAndSortCaseLedgerEntriesNode,
     CollectLogEntryRecipientsNode,
@@ -402,7 +404,7 @@ def test_fanout_log_entry_node_announces_only_an_entry_newly_recorded():
 
     Otherwise it collects the recipients, then sends to each.
     """
-    tree = FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry")
+    tree = FanOutLogEntryNode(name="FanOutLogEntry")
     assert isinstance(tree, py_trees.composites.Selector)
     skip, announce = tree.children
     assert isinstance(skip, LogEntryCommittedBeforeNode)
@@ -472,7 +474,10 @@ def test_fanout_log_entry_node_sends_to_active_participants(bridge, datalayer):
 
     result = run_tree(
         bridge,
-        tree=FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry"),
+        tree=with_act_keys(
+            FanOutLogEntryNode(name="FanOutLogEntry"),
+            {act_keys.CASE_ID: CASE_ID},
+        ),
         actor_id=OWNER_ACTOR_ID,
         log_entry=entry,
         sync_port=sync_port,
@@ -500,7 +505,10 @@ def test_fanout_log_entry_node_without_sync_port_is_a_wiring_fault(
 
     result = run_tree(
         bridge,
-        tree=FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry"),
+        tree=with_act_keys(
+            FanOutLogEntryNode(name="FanOutLogEntry"),
+            {act_keys.CASE_ID: CASE_ID},
+        ),
         actor_id=OWNER_ACTOR_ID,
         log_entry=_make_entry(0),
     )

@@ -33,6 +33,8 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
     sorted_case_ledger_entries,
 )
 from vultron.core.behaviors.sync.nodes.replay_case import (
+    NAMED_CASE_PORTS,
+    NAMED_CASE_REMAPPINGS,
     CaseNamedReplayNode,
     scoped_keys,
 )
@@ -56,7 +58,8 @@ class FindCaseActorNode(CaseNamedReplayNode):
     whose ``context`` is the case (ARCH-24-004).  This node resolves an
     *address*; it does not decide authority, which is the CASE_MANAGER gate
     the factory wraps around the effects (ARCH-24-005).  The case is
-    *case_id* when the tree names it, else the activity's ``replay_case_id``.
+    ``/case_id`` when the tree seeds it, else the activity's
+    ``replay_case_id``.
 
     ``case_id`` is an output so a later node can read the case from the
     blackboard (CLP-09); ``CheckIsCaseManagerNode`` reads it there when no
@@ -69,6 +72,7 @@ class FindCaseActorNode(CaseNamedReplayNode):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        **NAMED_CASE_PORTS,
         "activity": PortInformation(data_type=object, required=True),
     }
 
@@ -81,6 +85,7 @@ class FindCaseActorNode(CaseNamedReplayNode):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
+            **NAMED_CASE_REMAPPINGS,
             "activity": "/activity",
             "case_actor_id": "/case_actor_id",
             "case_id": "/case_id",
@@ -90,10 +95,9 @@ class FindCaseActorNode(CaseNamedReplayNode):
         self,
         name: str | None = None,
         *,
-        case_id: str | None = None,
         scope: str | None = None,
     ) -> None:
-        super().__init__(name=name, case_id=case_id)
+        super().__init__(name=name)
         self.scope = scope
 
     def _instance_port_remappings(self) -> dict[str, str]:
@@ -132,11 +136,13 @@ class FindCaseActorNode(CaseNamedReplayNode):
 class CollectAndSortCaseLedgerEntriesNode(CaseNamedReplayNode):
     """Publish the case's sorted ledger and the peer (the activity's sender).
 
-    The case is *case_id* when given, else the activity's ``replay_case_id``.
+    The case is ``/case_id`` when the tree seeds it, else the activity's
+    ``replay_case_id``.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        **NAMED_CASE_PORTS,
         "activity": PortInformation(data_type=object, required=True),
     }
 
@@ -151,6 +157,7 @@ class CollectAndSortCaseLedgerEntriesNode(CaseNamedReplayNode):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
+            **NAMED_CASE_REMAPPINGS,
             "activity": "/activity",
             "replay_case_id": "/replay_case_id",
             "replay_peer_id": "/replay_peer_id",

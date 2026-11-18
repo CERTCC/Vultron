@@ -46,8 +46,15 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, REFUSED_ENTRY, SENDER_ID
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
@@ -185,7 +192,10 @@ def announced_ledger_entry(
 
 
 class ReseedPeerNode(_EmitSingleActivityBase):
-    """Send *peer_id* ``Announce(VulnerabilityCase)`` of *case_id*, rate-bounded.
+    """Send the peer ``Announce(VulnerabilityCase)`` of its case, rate-bounded.
+
+    The case is ``/case_id`` and the peer is ``/sender_id``, the sender of
+    the received activity the re-seed answers (BTND-01-008).
 
     Returns SUCCESS whether or not it sends, and says which it was:
     ``withheld`` when the peer is not an active participant, so it is sent
@@ -207,12 +217,20 @@ class ReseedPeerNode(_EmitSingleActivityBase):
     Spec: SYNC-16-003, SYNC-16-004, PCR-02-001.
     """
 
-    def __init__(
-        self, case_id: str, peer_id: str, name: str | None = None
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_EmitSingleActivityBase.INPUT_PORTS,
+        **act_key_ports(CASE_ID, SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(CASE_ID, SENDER_ID),
+        }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.peer_id = peer_id
         self.reseeded = False
         """True when the last run queued the case copy."""
         self.withheld = False
@@ -225,6 +243,8 @@ class ReseedPeerNode(_EmitSingleActivityBase):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.actor_id is not None
+        self.case_id = act_value(self, CASE_ID, str)
+        self.peer_id = act_value(self, SENDER_ID, str)
         datalayer = cast(CasePersistence, self.datalayer)
         at = self._require_act_instant()
         try:
@@ -302,8 +322,9 @@ class ReseedPeerNode(_EmitSingleActivityBase):
 class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
     """Log a divergence the last re-seed's copy already reflected.
 
-    *refused_entry* is the entry the peer's divergence fault reports
-    refusing.  When the peer's last re-seed named a ledger position at or
+    The case is ``/case_id``, the peer is ``/sender_id`` (the fault's
+    sender), and *refused_entry*, read from ``/refused_entry``, is the entry
+    the peer's divergence fault reports refusing (BTND-01-008).  When the peer's last re-seed named a ledger position at or
     after it, the copy the peer was sent already reflected that entry.
 
     - If the peer's acknowledged position (``last_acknowledged_hash``) is at
@@ -331,19 +352,22 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
     Spec: SYNC-16-008.
     """
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, SENDER_ID, REFUSED_ENTRY),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, SENDER_ID, REFUSED_ENTRY)
+
     def __init__(
         self,
-        case_id: str,
-        peer_id: str,
-        refused_entry: CaseLedgerEntry,
         *,
         fault_published: datetime | None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.peer_id = peer_id
-        self.refused_entry = refused_entry
         self.fault_published = as_utc(fault_published)
         """The ``published`` time the peer claims for its fault, if any."""
         self.repeated = False
@@ -360,6 +384,9 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
         self.repeated = self.stale = self.unconfirmed = False
         if (f := self._require_datalayer()) is not None:
             return f
+        self.case_id = act_value(self, CASE_ID, str)
+        self.peer_id = act_value(self, SENDER_ID, str)
+        self.refused_entry = act_value(self, REFUSED_ENTRY, CaseLedgerEntry)
         datalayer = cast(CasePersistence, self.datalayer)
         state = read_replication_state(
             datalayer, case_id=self.case_id, peer_id=self.peer_id

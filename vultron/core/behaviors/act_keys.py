@@ -52,10 +52,12 @@ from types import MappingProxyType
 
 from vultron.core.behaviors.bridge.act_instant import ACT_INSTANT_KEY
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_event import EmbargoEvent
 
 __all__ = [
     "ACT_KEYS",
+    "ANNOUNCE_ID",
     "CASE_ACTOR_ID",
     "CASE_ID",
     "CASE_MANAGER_ID",
@@ -69,6 +71,7 @@ __all__ = [
     "OWNER_PROFILE",
     "PARTICIPANT_ID",
     "PROPOSAL_ID",
+    "REFUSED_ENTRY",
     "REPORT_ID",
     "RUN_KEYS",
     "SENDER_ID",
@@ -161,6 +164,12 @@ PROPOSAL_ID = _act_key(
     "The id of the proposal (a case proposal, an embargo proposal or a"
     " case-ownership-transfer proposal) the act answers or names.",
 )
+ANNOUNCE_ID = _act_key(
+    "announce_id",
+    str,
+    "The id of the Announce activity the act answers or names, such as the"
+    " Announce(CaseLedgerEntry) a replica's processing fault refers to.",
+)
 PARTICIPANT_ID = _act_key(
     "participant_id",
     str,
@@ -176,6 +185,14 @@ OBJECT_ID = _act_key(
     str,
     "The id of the object the act carries or names.  Every received event"
     " seeds it; a tree reads a narrower key above when one names the value.",
+)
+
+REFUSED_ENTRY = _act_key(
+    "refused_entry",
+    CaseLedgerEntry,
+    "The ledger entry a replica's processing fault reports it refused: the"
+    " entry the fault's Announce(CaseLedgerEntry) carried (SYNC-03-007,"
+    " SYNC-16-008).",
 )
 
 # --- Who takes part in the act ------------------------------------------------

@@ -52,6 +52,8 @@ no ledger entry: a position statement changes nothing in the case file
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
     create_case_manager_gated_tree,
@@ -111,6 +113,11 @@ def create_ledger_position_stage(
     order, whose record was released, from the sender's order record
     (SYNC-21-018).  A resend never reaches this stage: the door answered it.
     """
+    # The answer's nodes read the case and the sender from ``/case_id`` and
+    # ``/sender_id``, seeded here with the values the tree names
+    # (BTND-01-008).
+    keys = {CASE_ID: case_id, SENDER_ID: sender_id}
+    case_key = {CASE_ID: case_id}
     replay_a_lag = py_trees.composites.Selector(
         name="ReplayIfLagging",
         memory=False,
@@ -120,15 +127,19 @@ def create_ledger_position_stage(
                 name="Replay",
                 memory=False,
                 children=[
-                    FindCaseActorNode(
-                        name="FindCaseActor",
-                        case_id=case_id,
-                        scope=LEDGER_POSITION_SCOPE,
+                    with_act_keys(
+                        FindCaseActorNode(
+                            name="FindCaseActor",
+                            scope=LEDGER_POSITION_SCOPE,
+                        ),
+                        case_key,
                     ),
-                    ReplayMissingEntriesNode(
-                        name="ReplayMissingEntries",
-                        case_id=case_id,
-                        scope=LEDGER_POSITION_SCOPE,
+                    with_act_keys(
+                        ReplayMissingEntriesNode(
+                            name="ReplayMissingEntries",
+                            scope=LEDGER_POSITION_SCOPE,
+                        ),
+                        case_key,
                     ),
                 ],
             ),
@@ -138,11 +149,10 @@ def create_ledger_position_stage(
         name="RecordAndReplay",
         memory=False,
         children=[
-            PeerActiveParticipantNode(
-                case_id=case_id, sender_id=sender_id, active=True
-            ),
-            UpdateReplicationStateNode(
-                name="UpdateReplicationState", case_id=case_id
+            with_act_keys(PeerActiveParticipantNode(active=True), keys),
+            with_act_keys(
+                UpdateReplicationStateNode(name="UpdateReplicationState"),
+                case_key,
             ),
             replay_a_lag,
         ],
@@ -157,19 +167,15 @@ def create_ledger_position_stage(
                 memory=False,
                 children=[
                     LedgerPositionIsNode(expect=HELD),
-                    ResendOwedInvitesNode(
-                        case_id=case_id,
-                        sender_id=sender_id,
-                        name="ResendOwedInvites",
+                    with_act_keys(
+                        ResendOwedInvitesNode(name="ResendOwedInvites"), keys
                     ),
                     py_trees.composites.Selector(
                         name="RecordAndReplayIfActive",
                         memory=False,
                         children=[
-                            PeerActiveParticipantNode(
-                                case_id=case_id,
-                                sender_id=sender_id,
-                                active=False,
+                            with_act_keys(
+                                PeerActiveParticipantNode(active=False), keys
                             ),
                             record_and_replay,
                         ],
@@ -181,9 +187,7 @@ def create_ledger_position_stage(
                 memory=False,
                 children=[
                     _is(PositionStanding.SPLIT),
-                    ReseedPeerNode(
-                        case_id=case_id, peer_id=sender_id, name="ReseedPeer"
-                    ),
+                    with_act_keys(ReseedPeerNode(name="ReseedPeer"), keys),
                 ],
             ),
         ],
@@ -192,10 +196,8 @@ def create_ledger_position_stage(
         name="AnswerLedgerPosition",
         memory=False,
         children=[
-            ClassifyLedgerPositionNode(
-                case_id=case_id,
-                sender_id=sender_id,
-                name="ClassifyLedgerPosition",
+            with_act_keys(
+                ClassifyLedgerPositionNode(name="ClassifyLedgerPosition"), keys
             ),
             by_standing,
         ],

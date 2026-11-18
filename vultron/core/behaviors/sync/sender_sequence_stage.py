@@ -40,6 +40,8 @@ A held activity is judged later, as a delivery of its own, once it is due
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.act_transaction import RefusalActTransaction
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
@@ -94,12 +96,10 @@ def create_sender_sequence_stage(
     activity a run left in holding from the message's record; a resend never
     reaches this stage (ADR-0154).
     """
-    # The stage's case-scoped nodes read ``/case_id``, seeded here with the
-    # case the tree names (BTND-01-006).
-    classify = ClassifySequenceNumberNode(
-        sender_id=sender_id,
-        name="ClassifySenderSequence",
-    )
+    # The stage's case-scoped nodes read ``/case_id``, and the classifier
+    # ``/sender_id``, seeded here with the values the tree names
+    # (BTND-01-006, BTND-01-008).
+    classify = ClassifySequenceNumberNode(name="ClassifySenderSequence")
     answer = py_trees.composites.Selector(
         name="AnswerBySenderSequence",
         memory=False,
@@ -144,7 +144,7 @@ def create_sender_sequence_stage(
         name="SenderSequenceOrder",
         memory=False,
         children=[
-            with_case_id(classify, case_id),
+            with_act_keys(classify, {CASE_ID: case_id, SENDER_ID: sender_id}),
             answer,
             SequenceAdmitsNode(classify, name="SenderSequenceAdmits"),
         ],

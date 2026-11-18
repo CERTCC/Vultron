@@ -23,11 +23,18 @@ slots (SYNC-18-007).  Split out of ``replay`` (BTND-07-004).
 
 from typing import Any
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.act_key_ports import optional_act_value
+from vultron.core.behaviors.act_keys import CASE_ID
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.errors import VultronError
 
 __all__ = [
+    "NAMED_CASE_PORTS",
+    "NAMED_CASE_REMAPPINGS",
     "CaseNamedReplayNode",
     "replay_case_id",
     "require_rejected_entry",
@@ -80,15 +87,37 @@ def scoped_keys(scope: str | None, *keys: str) -> dict[str, str]:
     return {key: f"/{scope}/{key}" for key in keys}
 
 
-class CaseNamedReplayNode(DataLayerActionWithPorts):
-    """A replay node whose case the tree may name: *case_id*, else the
-    activity's ``replay_case_id`` (SYNC-17-004, SYNC-18-007)."""
+#: The input port a :class:`CaseNamedReplayNode` reads the tree's case on.
+#: Not named ``case_id``: :class:`~.replay.divergence.FindCaseActorNode`
+#: publishes the case it resolves on an output port of that name.
+_NAMED_CASE_PORT = "named_case_id"
 
-    def __init__(
-        self, name: str | None = None, *, case_id: str | None = None
-    ) -> None:
+#: The port every :class:`CaseNamedReplayNode` subclass adds to its
+#: ``INPUT_PORTS``, and its binding to ``/case_id`` (BTND-01-008).
+NAMED_CASE_PORTS: dict[str, PortInformation] = {
+    _NAMED_CASE_PORT: PortInformation(data_type=object, required=False),
+}
+NAMED_CASE_REMAPPINGS: dict[str, str] = {_NAMED_CASE_PORT: CASE_ID.path}
+
+
+class CaseNamedReplayNode(DataLayerActionWithPorts):
+    """A replay node whose case the tree may name: ``/case_id``, else the
+    activity's ``replay_case_id`` (SYNC-17-004, SYNC-18-007).
+
+    A subclass adds :data:`NAMED_CASE_PORTS` to its ``INPUT_PORTS`` and
+    :data:`NAMED_CASE_REMAPPINGS` to its ``_domain_port_remappings()``.  A
+    tree that names the case seeds ``/case_id`` with
+    :func:`~vultron.core.behaviors.act_key_scope.with_act_keys`.
+    """
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str | None = optional_act_value(
+            self, CASE_ID, str, port=_NAMED_CASE_PORT
+        )
 
     def replay_case(self, activity: Any) -> str:
         return self.case_id or replay_case_id(activity, self.name)

@@ -41,6 +41,8 @@ from test.support.broken_ledger_entry import (
     broken_entries,
     tampered,
 )
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
     BackfillCanonicalLedgerToInviteeNode,
@@ -263,7 +265,7 @@ def test_an_intact_replay_clears_an_admitted_peers_pause(
 def _fan_out(bridge: BTBridge, entry: CaseLedgerEntry, sync_port):
     return run_tree(
         bridge,
-        tree=FanOutLogEntryNode(case_id=CASE_ID),
+        tree=with_act_keys(FanOutLogEntryNode(), {act_keys.CASE_ID: CASE_ID}),
         actor_id=MANAGER_ID,
         log_entry=entry,
         sync_port=sync_port,
@@ -388,7 +390,9 @@ def test_a_commit_stands_when_a_peers_catch_up_is_held_back(
 def _admission_backfill(bridge: BTBridge, sync_port):
     return run_tree(
         bridge,
-        tree=BackfillAdmittedParticipantsNode(case_id=CASE_ID),
+        tree=with_act_keys(
+            BackfillAdmittedParticipantsNode(), {act_keys.CASE_ID: CASE_ID}
+        ),
         actor_id=MANAGER_ID,
         sync_port=sync_port,
     )

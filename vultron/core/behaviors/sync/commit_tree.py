@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, OBJECT_ID
 from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case_id_scope import with_case_id
@@ -91,18 +93,22 @@ def create_commit_log_entry_tree(
                     # that cannot be announced is a silent fork (#4113).
                     RequireSyncPortNode(name="RequireSyncPort"),
                     *freshness,
-                    ReconstructChainTailNode(
-                        case_id=case_id, name="ReconstructChainTail"
+                    with_case_id(
+                        ReconstructChainTailNode(name="ReconstructChainTail"),
+                        case_id,
                     ),
-                    CreateLogEntryNode(
-                        case_id=case_id,
-                        object_id=object_id,
-                        semantic_type=semantic_type,
-                        payload_snapshot=payload_snapshot,
-                        name="CreateLogEntry",
+                    with_act_keys(
+                        CreateLogEntryNode(
+                            semantic_type=semantic_type,
+                            payload_snapshot=payload_snapshot,
+                            name="CreateLogEntry",
+                        ),
+                        {CASE_ID: case_id, OBJECT_ID: object_id},
                     ),
                     PersistLogEntryNode(name="PersistLogEntry"),
-                    FanOutLogEntryNode(case_id=case_id, name="FanOutLogEntry"),
+                    with_case_id(
+                        FanOutLogEntryNode(name="FanOutLogEntry"), case_id
+                    ),
                 ],
             ),
         ],

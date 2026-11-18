@@ -53,6 +53,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sender_check_context import SenderCheckContext
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sync.nodes.replay_held import (
@@ -175,8 +176,9 @@ def create_announce_vulnerability_case_received_tree(
             # own (SYNC-15-005, SYNC-14-009).  After a replacement, an entry
             # held because the old case refused it extends the chain too, and
             # is stored as a no-op if the copy reflects it (SYNC-16-023).
-            ReplayHeldSuccessorNode(
-                case_id=case_id, name="ReplayHeldPreGenesisEntry"
+            with_case_id(
+                ReplayHeldSuccessorNode(name="ReplayHeldPreGenesisEntry"),
+                case_id,
             ),
             # Last, so a failed statement leaves every other effect done.
             StateSeededLedgerPositionNode(case_id=case_id),
