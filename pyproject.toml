@@ -393,6 +393,21 @@ filterwarnings = [
     # test_spec_marker_gate.py::TestWarningIsNotEscalated.
     "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "always::vultron.metadata.specs.SpecRegistryUnavailableWarning",
+    # FastAPI builds each parameter's field (ModelField.__post_init__ in
+    # fastapi/_compat/v2.py) inside warnings.catch_warnings() to hide this
+    # pydantic warning about the alias it sets on every parameter. Without
+    # context-aware warnings, catch_warnings edits the process-global filter
+    # list, so two TestClient portal threads building routes at once can drop
+    # each other's "ignore" and fail an in-process delivery (#6039). This entry
+    # ignores only the 'alias' message of that category, but anywhere in the
+    # process: an alias misuse in our own code is hidden too. pydantic warns
+    # with no stacklevel, so the module is its own and cannot scope the entry
+    # to FastAPI. test_actor_dl_override_warning.py pins both the entry and
+    # its narrowness. Reported upstream as symptom 3 of
+    # https://github.com/fastapi/fastapi/discussions/15914 (still present in
+    # FastAPI 0.162.2); drop this entry once FastAPI stops suppressing the
+    # warning with catch_warnings.
+    "ignore:The 'alias' attribute with value:pydantic.warnings.UnsupportedFieldAttributeWarning",
 ]
 # An `xfail` that omits `strict` is strict anyway (TB-17-001).  This is the
 # run-time half of the rule `test_every_xfail_is_strict` enforces over the

@@ -364,6 +364,31 @@ def seat_unnotified_vendor(ledger: Ledger, actor: str) -> int:
     )
 
 
+def two_vendors_ledger() -> Ledger:
+    """No embargo; a vendor with its fix ready and the report accepted, and
+    a second vendor aware at RM Received with no fix.
+
+    Its open moves fall in every advice band: the fix is harm-free, the
+    publication a trade-off a harm-free move dominates, and the second
+    vendor's validation unhelpful (``test/measure/advice/test_case.py``).
+    """
+    ledger = Ledger()
+    ledger.genesis(
+        [
+            participant(
+                OWNER,
+                [status("owner-r", OWNER, "RECEIVED")],
+                roles=("CASE_OWNER",),
+            )
+        ],
+        with_embargo=False,
+    )
+    seat_vendor(ledger, VENDOR, "VF")
+    ledger.add_status(VENDOR, status("vendor-a", VENDOR, "ACCEPTED", vf="VF"))
+    seat_vendor(ledger, VENDOR_2, "Vf")
+    return ledger
+
+
 def publish(ledger: Ledger, pxa: str) -> int:
     """The CASE_MANAGER adopts public state *pxa*."""
     return ledger.add(

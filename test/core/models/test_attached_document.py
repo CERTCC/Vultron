@@ -60,6 +60,7 @@ def test_a_received_reports_attachments_are_core_documents() -> None:
         [
             {
                 "type": "Document",
+                "published": "2026-01-01T00:00:00+00:00",
                 "id": f"{_REPORT_ID}/csaf",
                 "mediaType": "application/json",
                 "content": '{"document": {}}',
@@ -80,12 +81,14 @@ def test_a_reports_attachments_survive_save_and_read_unchanged() -> None:
         [
             {
                 "type": "Document",
+                "published": "2026-01-01T00:00:00+00:00",
                 "id": f"{_REPORT_ID}/csaf",
                 "mediaType": "application/json",
                 "content": '{"document": {}}',
             },
             {
                 "type": "Document",
+                "published": "2026-01-01T00:00:00+00:00",
                 "id": f"{_REPORT_ID}/notes",
                 "content": "a second document",
             },
@@ -112,6 +115,7 @@ def test_a_report_without_attachments_publishes_none() -> None:
 
 _CSAF_ATTACHMENT = {
     "type": "Document",
+    "published": "2026-01-01T00:00:00+00:00",
     "id": f"{_REPORT_ID}/csaf",
     "mediaType": "application/json",
     "content": '{"document": {}}',
@@ -124,6 +128,7 @@ _CSAF_ATTACHMENT = {
     [
         {
             "type": "Note",
+            "published": "2026-01-01T00:00:00.000000+00:00",
             "id": "https://x.example/notes/1",
             "content": "Steps to reproduce.",
         },
@@ -187,6 +192,7 @@ def test_a_report_keeps_a_file_attached_beside_its_documents(
             {
                 "type": type_,
                 "id": "https://x.example/files/1",
+                "published": "2026-01-01T00:00:00+00:00",
                 "url": "https://x.example/f",
                 "mediaType": "a/b",
             }

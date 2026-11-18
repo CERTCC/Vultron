@@ -63,7 +63,11 @@ from vultron.core.models.object_fetch import ObjectFetchSource, ObjectReference
 from vultron.errors import VultronValidationError
 from vultron.primitives import same_actor_id
 from vultron.wire.as2 import signing
-from vultron.wire.as2.errors import VultronParseError
+from vultron.wire.as2.errors import (
+    VultronParseError,
+    VultronParseMissingPublishedError,
+)
+from vultron.wire.as2.parser import refuse_missing_claimed_time
 from vultron.wire.as2.unknown_keys import (
     partition_unknown_keys,
     report_set_aside,
@@ -335,6 +339,9 @@ def parse_fetched_body(
     property (MV-11-004).  *document* itself is not modified.
 
     Raises:
+        VultronParseMissingPublishedError: When a whole object in the body,
+            other than an actor profile or a collection, carries no
+            ``published`` (CLP-15-011).
         VultronValidationError: When the body names no type the vocabulary
             knows, carries a near miss of a declared spelling, does not
             validate as its type, or is not the object *object_id* names.
@@ -356,12 +363,21 @@ def parse_fetched_body(
         report_set_aside(
             set_aside, {"object_id": object_id, "actor_id": holder_id}
         )
-        # A fetched body is received data: a time it omits is the holder
-        # claiming none, read as ``None``, never this node's clock (ADR-0103,
-        # ADR-0176).
-        parsed = cls.model_validate(
-            declared, context={INBOUND_CONTEXT_KEY: True}
-        )
+        # A fetched body is received data: a whole object in it that omits
+        # its ``published`` is refused, naming where it sat (CLP-15-011), and
+        # any other time it omits is the holder claiming none, read as
+        # ``None``, never this node's clock (ADR-0103, ADR-0176).
+        try:
+            parsed = cls.model_validate(
+                declared, context={INBOUND_CONTEXT_KEY: True}
+            )
+        except ValueError as exc:
+            refuse_missing_claimed_time(
+                exc, "", f"the fetched body for {object_id!r}: "
+            )
+            raise
+    except VultronParseMissingPublishedError:
+        raise
     except (KeyError, ValueError, VultronParseError) as exc:
         raise VultronValidationError(
             f"the fetched body for {object_id!r} is not a valid"

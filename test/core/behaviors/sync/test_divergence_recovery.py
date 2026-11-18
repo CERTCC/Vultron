@@ -317,7 +317,15 @@ def _chain(
 def _store_chain(dl: SqliteDataLayer, length: int) -> list[CaseLedgerEntry]:
     """Store a chain of *length* entries for the case, as a replica holds it."""
     entries = _chain(
-        dl, [{"type": "Add", "index": index} for index in range(length)]
+        dl,
+        [
+            {
+                "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
+                "index": index,
+            }
+            for index in range(length)
+        ],
     )
     for entry in entries:
         store_ledger_entry(entry, dl)
@@ -656,9 +664,16 @@ def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
     with pytest.raises(VultronParseValidationError, match="names no object"):
         parse_activity(untargeted)
     with pytest.raises(VultronParseValidationError, match="names no object"):
-        parse_activity({**body, "type": "TentativeReject"})
+        parse_activity(
+            {
+                **body,
+                "type": "TentativeReject",
+                "published": "2026-01-01T00:00:00+00:00",
+            }
+        )
     note = {
         "type": "Note",
+        "published": "2026-01-01T00:00:00+00:00",
         "id": f"{_CASE_ID}/notes/not-a-case",
         "content": "not a case",
     }
@@ -672,7 +687,17 @@ def test_storing_an_entry_behind_the_case_position_leaves_it() -> None:
     """A case a copy put ahead of its chain stays at the copy's position
     while the entries it reflects are stored; the next one moves it on."""
     dl = _replica_holding("replaced replica")
-    entries = _chain(dl, [{"type": "Add", "index": i} for i in range(4)])
+    entries = _chain(
+        dl,
+        [
+            {
+                "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
+                "index": i,
+            }
+            for i in range(4)
+        ],
+    )
     ahead = LedgerPosition(log_index=2, entry_hash=entries[2].entry_hash)
     dl.save(_at(cast(as_VulnerabilityCase, dl.read(_CASE_ID)), ahead))
 
@@ -706,7 +731,14 @@ def test_a_first_seed_ahead_of_the_chain_stores_the_backfill_as_no_ops(
     )
     entries = _chain(
         _replica_holding("source", actor_id=_CASE_ACTOR_ID),
-        [{"type": "Add", "index": i} for i in range(3)],
+        [
+            {
+                "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
+                "index": i,
+            }
+            for i in range(3)
+        ],
     )
     at = LedgerPosition(log_index=2, entry_hash=entries[2].entry_hash)
 
@@ -888,7 +920,17 @@ def test_a_copy_conflicting_with_the_last_replacement_is_refused() -> None:
 @pytest.mark.spec("SYNC-16-023")
 def test_only_the_entry_the_case_position_names_is_reflected() -> None:
     dl = _replica_holding("short replica")
-    entries = _chain(dl, [{"type": "Add", "index": i} for i in range(3)])
+    entries = _chain(
+        dl,
+        [
+            {
+                "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
+                "index": i,
+            }
+            for i in range(3)
+        ],
+    )
     store_ledger_entry(entries[0], dl)
     dl.save(
         _at(
@@ -915,18 +957,28 @@ def test_a_reflected_entry_stores_the_record_the_copy_names(
     entries = _chain(
         dl,
         [
-            {"type": "Add", "index": 0},
             {
                 "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
+                "index": 0,
+            },
+            {
+                "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
                 "object": {
                     "id": note_id,
                     "type": "Note",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "content": "a note the copy names",
                     "context": _CASE_ID,
                 },
                 "target": _CASE_ID,
             },
-            {"type": "Add", "index": 2},
+            {
+                "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
+                "index": 2,
+            },
         ],
     )
     store_ledger_entry(entries[0], dl)
@@ -1100,20 +1152,48 @@ def test_a_current_copy_replaces_a_participant_the_replica_holds_ahead() -> (
 @pytest.mark.parametrize(
     "wrap",
     [
-        pytest.param(lambda case: {"type": "Join", "object": case}, id="Join"),
         pytest.param(
-            lambda case: {"type": "Ignore", "object": case}, id="Ignore"
+            lambda case: {
+                "type": "Join",
+                "published": "2026-01-01T00:00:00+00:00",
+                "object": case,
+            },
+            id="Join",
         ),
         pytest.param(
-            lambda case: {"type": "Leave", "object": case}, id="Leave"
+            lambda case: {
+                "type": "Ignore",
+                "published": "2026-01-01T00:00:00+00:00",
+                "object": case,
+            },
+            id="Ignore",
         ),
         pytest.param(
-            lambda case: {"type": "Offer", "object": case}, id="Offer"
+            lambda case: {
+                "type": "Leave",
+                "published": "2026-01-01T00:00:00+00:00",
+                "object": case,
+            },
+            id="Leave",
         ),
         pytest.param(
             lambda case: {
                 "type": "Offer",
-                "object": {"type": "Offer", "id": "urn:x", "object": case},
+                "published": "2026-01-01T00:00:00+00:00",
+                "object": case,
+            },
+            id="Offer",
+        ),
+        pytest.param(
+            lambda case: {
+                "type": "Offer",
+                "published": "2026-01-01T00:00:00+00:00",
+                "object": {
+                    "type": "Offer",
+                    "published": "2026-01-01T00:00:00+00:00",
+                    "id": "urn:x",
+                    "object": case,
+                },
             },
             id="Offer(Offer)",
         ),
@@ -1136,6 +1216,7 @@ def test_a_reflected_entry_copies_nothing_from_a_case_an_act_names(
     carried = {
         "id": _CASE_ID,
         "type": "VulnerabilityCase",
+        "published": "2026-01-01T00:00:00+00:00",
         "caseStatuses": [
             make(CaseStatus, id_=status_id, context=_CASE_ID).model_dump(
                 mode="json", by_alias=True
@@ -1179,12 +1260,14 @@ def test_a_reflected_entry_copies_each_record_the_case_names_and_no_other() -> (
         [
             {
                 "type": "Offer",
+                "published": "2026-01-01T00:00:00+00:00",
                 "object": proposal.model_dump(mode="json", by_alias=True),
                 "result": {
                     "status": status.model_dump(mode="json", by_alias=True),
                     "note": {
                         "id": stray_id,
                         "type": "Note",
+                        "published": "2026-01-01T00:00:00+00:00",
                         "content": "named by no one",
                         "context": _CASE_ID,
                     },
@@ -1219,7 +1302,17 @@ def test_storing_another_entry_at_the_case_position_is_refused() -> None:
     """The store never leaves the chain naming one entry at the case's
     position and the case another: it refuses, storing nothing."""
     dl = _replica_holding("replaced replica")
-    entries = _chain(dl, [{"type": "Add", "index": i} for i in range(3)])
+    entries = _chain(
+        dl,
+        [
+            {
+                "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
+                "index": i,
+            }
+            for i in range(3)
+        ],
+    )
     named = LedgerPosition(log_index=2, entry_hash="ab" * 32)
     _put_ahead(dl, entries, 2, named)
 
@@ -1239,7 +1332,17 @@ def test_an_entry_conflicting_with_the_case_position_is_refused_at_error(
     names is from another chain: ``REFUSED`` at ERROR, neither stored as a
     no-op, applied nor stored, and the position stays."""
     dl = _replica_holding("replaced replica")
-    entries = _chain(dl, [{"type": "Add", "index": i} for i in range(3)])
+    entries = _chain(
+        dl,
+        [
+            {
+                "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
+                "index": i,
+            }
+            for i in range(3)
+        ],
+    )
     named = LedgerPosition(log_index=2, entry_hash="ab" * 32)
     _put_ahead(dl, entries, 2, named)
 
@@ -1413,12 +1516,18 @@ def test_a_reflected_entry_whose_records_fail_is_not_stored(
     entries = _chain(
         dl,
         [
-            {"type": "Add", "index": 0},
             {
                 "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
+                "index": 0,
+            },
+            {
+                "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
                 "object": {
                     "id": note_id,
                     "type": "Note",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "content": "a note the copy names",
                     "context": _CASE_ID,
                 },
@@ -1473,6 +1582,7 @@ def test_a_reflected_entry_copies_nothing_without_its_case_or_a_valid_record(
         [
             {
                 "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
                 "object": {
                     "id": status_id,
                     "type": "CaseStatus",

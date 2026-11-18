@@ -34,6 +34,7 @@ function participantStatus(): Record<string, unknown> {
   return {
     id: `${CASE}/participant-status/1`,
     type: 'ParticipantStatus',
+    published: '2026-01-01T00:00:00.000000+00:00',
     context: CASE,
     attributedTo: 'http://actor1:7999/api/v2/actors/actor1',
     rmState: 'ACCEPTED',
@@ -220,6 +221,14 @@ describe('ledgerLineProblems', () => {
     ])
   })
 
+  it('requires the author time of any received whole object, such as a ParticipantStatus (CLP-15-011)', () => {
+    const status = participantStatus()
+    delete status.published
+    expect(ledgerLineProblems(entry(status))).toEqual([
+      'payloadSnapshot.object.published: missing (ParticipantStatus requires it)',
+    ])
+  })
+
   it('reports a nested CaseStatus once, through the field that holds it', () => {
     const nested = { ...caseStatus(), emState: 'OPEN' }
     expect(ledgerLineProblems(entry({ ...participantStatus(), caseStatus: nested }))).toEqual([
@@ -230,6 +239,7 @@ describe('ledgerLineProblems', () => {
   it('finds a status at any depth of the payload, such as a participant list', () => {
     const target = {
       type: 'CaseParticipant',
+      published: '2026-01-01T00:00:00.000000+00:00',
       participantStatuses: [participantStatus(), { ...participantStatus(), rmState: 'DONE' }],
     }
     const line = entry()
@@ -243,6 +253,7 @@ describe('ledgerLineProblems', () => {
   it('checks a participant record\'s roles and consent rows against the generated definitions', () => {
     const record = {
       type: 'CaseParticipant',
+      published: '2026-01-01T00:00:00.000000+00:00',
       attributedTo: 'http://actor1:7999/api/v2/actors/actor1',
       caseRoles: ['vendor', 'VENDOR'],
       embargoConsents: [{ type: 'EmbargoConsent', state: 'AGREED' }],

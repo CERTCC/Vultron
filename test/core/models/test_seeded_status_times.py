@@ -25,7 +25,10 @@ from pydantic import ValidationError
 
 from test.support.act_clock import ACT_AT, recorded_clock_reads
 from test.support.objects import make
-from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
+from vultron.core.models._helpers import (
+    INBOUND_CONTEXT_KEY,
+    MissingClaimedTimeError,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     CaseParticipant,
@@ -81,15 +84,22 @@ def test_a_participants_first_status_takes_its_published(cls) -> None:
 
 
 @pytest.mark.spec("CS-08-001")
+@pytest.mark.spec("CLP-15-011")
 @pytest.mark.parametrize("cls", [CaseParticipant, ReporterParticipant])
-def test_a_blank_published_seeds_a_status_with_no_time(cls) -> None:
-    """A received participant whose ``published`` is blank claimed no time,
-    so its seeded status claims none either."""
-    participant = cls.model_validate(
-        {"attributedTo": _OWNER, "context": _CASE, "published": ""},
-        context={INBOUND_CONTEXT_KEY: True},
-    )
-    (status,) = participant.participant_statuses
-    assert participant.published is None
-    assert status.published is None
-    assert status.updated is None
+def test_a_blank_published_refuses_the_participant_not_its_status(cls) -> None:
+    """A received participant whose ``published`` is blank claimed no time, so
+    it is refused as a whole object with none, and seeds no status whose own
+    missing time would hide that refusal behind a nested one."""
+    with pytest.raises(ValidationError) as caught:
+        cls.model_validate(
+            {
+                "id": f"{_CASE}/participants/1",
+                "attributedTo": _OWNER,
+                "context": _CASE,
+                "published": "",
+            },
+            context={INBOUND_CONTEXT_KEY: True},
+        )
+    (error,) = caught.value.errors()
+    assert "ctx" in error
+    assert isinstance(error["ctx"]["error"], MissingClaimedTimeError)

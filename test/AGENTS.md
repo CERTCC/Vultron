@@ -144,12 +144,12 @@ changeset, or pytest collects 0 tests (exit code 5). Verification commands:
 
 ## Config in Fixtures
 
-`vultron/config/app.py` caches `get_config()` process-wide. Prefer
-`config_override()`; where you cannot, `monkeypatch.undo()` MUST precede
-`reload_config()` in teardown, or the patched value is pinned into the cache for
-the rest of the session. A module that depends on a `VULTRON_*` setting MUST set
-it itself rather than borrowing another module's leak. Both rules, the
-autouse leak guard and its function-scope-only limitation:
+`get_config()` is cached process-wide, but `create_app(config=...)` apps read their
+own (ADR-0206). Prefer `config_override()`; where you cannot, `monkeypatch.undo()`
+MUST precede `reload_config()` in teardown, or the patched value is pinned into the
+cache for the rest of the session. A module that depends on a `VULTRON_*` setting MUST
+set it itself rather than borrowing another module's leak. Both rules, the autouse
+leak guard and its function-scope-only limitation:
 [`notes/configuration.md`](../notes/configuration.md) § "Testing Pattern".
 
 ---

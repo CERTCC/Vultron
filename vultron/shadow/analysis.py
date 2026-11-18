@@ -94,13 +94,19 @@ class CaseAnalysis(BaseModel):
 
 
 def analyse(reading: CaseReading) -> CaseAnalysis:
-    """Read *reading*'s standing record (ADR-0190, level 1)."""
+    """Read *reading*'s standing record (ADR-0190, level 1).
+
+    Each case-state event the reading declares unobservable is read as
+    unknown, never as not happened (CRD-02-005): a desideratum that orders
+    one is unknown, and a move whose change rests on one carries a reason
+    instead of a number.
+    """
     ledger = reading_ledger(reading)
     if ledger is None:
         return CaseAnalysis(reading=reading, standing=None)
     return CaseAnalysis(
         reading=reading,
-        standing=case_standing(ledger),
+        standing=case_standing(ledger, reading.unobservable_events),
         actor_names=collect_actor_names({ledger.case_id: ledger.entries}),
     )
 

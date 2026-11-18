@@ -41,6 +41,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.misrouted_invite import readdressed
 from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -533,10 +534,12 @@ def test_invite_with_several_recipients_is_refused(make_payload):
         context=case_id,
         actor=MANAGER,
         attributed_to=PROPOSER,
-        to=[OTHER_A, OTHER_B],
+        to=[OTHER_A],
         id_=f"{case_id}/embargo_invites/pair",
         at=authored_at(),
     )
+    # No factory builds an Invite to several actors (EP-09-010).
+    invite = readdressed(invite, [OTHER_A, OTHER_B])
 
     result = _deliver(dl, invite, make_payload, receiving_actor_id=OTHER_A)
 
@@ -558,10 +561,13 @@ def test_invite_with_no_recipient_is_refused(make_payload):
         context=case_id,
         actor=MANAGER,
         attributed_to=PROPOSER,
-        to=[],
+        to=[OTHER_A],
         id_=f"{case_id}/embargo_invites/nobody",
         at=authored_at(),
     )
+    # Its target still names an invitee, so it matches the embargo Invite
+    # pattern and reaches the recipient check (VAM-05-005, EP-09-026).
+    invite = readdressed(invite, [])
 
     result = _deliver(dl, invite, make_payload, receiving_actor_id=OTHER_A)
 

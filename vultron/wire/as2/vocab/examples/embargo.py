@@ -86,6 +86,11 @@ def embargo_event(days: int = 90) -> as_EmbargoEvent:
 
 
 def propose_embargo() -> as_Invite:
+    """A participant's proposal, addressed to the CASE_MANAGER alone.
+
+    The proposal goes to the CASE_MANAGER (PCR-08-001), so the CASE_MANAGER
+    is the one actor the Invite names in ``target`` (ADR-0205, EP-09-010).
+    """
     embargo = embargo_event()
     _case = case()
     _vendor = vendor()
@@ -94,6 +99,7 @@ def propose_embargo() -> as_Invite:
         embargo,
         id_=f"{_case.id_}/embargo_proposals/1",
         actor=_vendor.id_,
+        to=[case_actor().id_],
         context=_case.id_,
         summary="We propose to embargo case 1 for 90 days.",
         at=EXAMPLE_TIMESTAMP,
@@ -108,7 +114,8 @@ def relay_embargo_proposal() -> as_Invite:
     of its own, one per participant other than the proposer, naming the
     proposer in ``attributedTo`` (EP-09-002, CM-24).  The wire form is the
     proposer's ``Invite(EmbargoEvent)``; only the sender and addressee differ
-    (MSM-08-009).  The CASE_MANAGER stamps every relayed Invite with the
+    (MSM-08-009).  The addressee is the invitee, named in ``target``
+    (ADR-0205).  The CASE_MANAGER stamps every relayed Invite with the
     RSVP deadline it alone evaluates, carried as the activity's ``endTime``
     and measured from its ``published`` time (CM-28-012, EP-07-002); here a
     week after publication, well inside the embargo.
@@ -263,7 +270,8 @@ def propose_embargo_revision() -> as_Invite:
     """EV: a proposal sent while an embargo is active, so it is a revision.
 
     The wire form is the same ``Invite(EmbargoEvent)`` as an initial proposal
-    (MSM-02-001); only the receiver's EM state makes it a revision.
+    (MSM-02-001), addressed to the CASE_MANAGER and naming it in ``target``
+    (ADR-0205); only the receiver's EM state makes it a revision.
     """
     revision = embargo_event(120)
     _case = case()
@@ -271,6 +279,7 @@ def propose_embargo_revision() -> as_Invite:
         revision,
         id_=f"{_case.id_}/embargo_proposals/2",
         actor=vendor().id_,
+        to=[case_actor().id_],
         context=_case.id_,
         summary="We propose to extend the embargo on case 1 to 120 days.",
         at=EXAMPLE_TIMESTAMP,

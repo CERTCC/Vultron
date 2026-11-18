@@ -1061,6 +1061,7 @@ def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
                 "object": {
                     "id": ASSERTED_STATUS_ID,
                     "type": "ParticipantStatus",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "context": CASE_ID,
                     "rmState": rm_state,
                     "vfState": vf_state,

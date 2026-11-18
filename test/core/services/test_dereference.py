@@ -116,10 +116,12 @@ def _proposal(actor: Any) -> Any:
                 "to": [_CASE_ACTOR],
                 "object": {
                     "type": "CaseProposal",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "id": "https://example.org/proposals/p-1",
                     "attributedTo": _PARTICIPANT,
                     "object": {
                         "type": "VulnerabilityReport",
+                        "published": "2026-01-01T00:00:00+00:00",
                         "id": "https://example.org/reports/r-1",
                         "name": "A report",
                         "content": "Details",

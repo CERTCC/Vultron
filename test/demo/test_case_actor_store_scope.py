@@ -74,12 +74,14 @@ def _participant_payload(rm_state: RM) -> dict:
     return {
         "id": _PEER_PARTICIPANT_ID,
         "type": "CaseParticipant",
+        "published": "2026-01-01T00:00:00+00:00",
         "attributedTo": _PEER_ID,
         "context": _CASE_ID,
         "participantStatuses": [
             {
                 "id": "urn:uuid:ps-vendor-scope",
                 "type": "ParticipantStatus",
+                "published": "2026-01-01T00:00:00+00:00",
                 "context": _CASE_ID,
                 "rm": {"state": rm_state.value},
             }

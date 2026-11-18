@@ -2507,26 +2507,32 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The invitee of an `Invite(EmbargoEvent)` is its sole `to` recipient. A receiving
-      actor MUST resolve the invitee from that single recipient, not from the receiving
-      actor.
+      The invitee of an `Invite(EmbargoEvent)` is the actor its `target` names, which is
+      also its sole `to` recipient. A receiving actor MUST resolve the invitee from
+      `target`, not from the receiving actor.
     note: >-
       Scope: the invitee is resolved for the relayed Invite a participant receives
       (EP-09-002). A proposal is addressed to the CASE_MANAGER alone (PCR-08-001), so
-      its one `to` recipient is its adjudicator under EP-09-001, not its invitee, and
-      the CASE_MANAGER's own record takes no RSVP deadline from it (CM-28-003). Two
-      spellings of one actor in `to` (a trailing slash) name one recipient.
+      the actor its `target` and its one `to` recipient name is its adjudicator under
+      EP-09-001, and the CASE_MANAGER's own record takes no RSVP deadline from it
+      (CM-28-003). Two spellings of one actor (a trailing slash) name one recipient.
     rationale: >-
-      Every emitter sends a single-recipient Invite, a participant to the CASE_MANAGER
-      and the CASE_MANAGER to one participant per relayed Invite (EP-09-002). Inferring
-      the invitee from the receiving actor puts the RSVP deadline on the enforcer's own
-      record instead of the invitee's.
+      AS2 puts the invitee of an `Invite` in `target` (ADR-0205). Every emitter sends a
+      single-recipient Invite, a participant to the CASE_MANAGER and the CASE_MANAGER
+      to one participant per relayed Invite (EP-09-002), so the invitee is also the
+      one actor the Invite is delivered to. Inferring the invitee from the receiving
+      actor puts the RSVP deadline on the enforcer's own record instead of the
+      invitee's.
     verification: >-
       `test/core/use_cases/received/test_embargo_invite_lapse.py`
       (`TestInviteeIsTheAddressee`, `TestInviteeIdProperty`) confirms a single-recipient
-      Invite resolves that recipient.
+      Invite resolves the invitee its `target` names.
+      `test/wire/as2/factories/test_embargo_factories.py`
+      (`test_an_embargo_invite_names_its_invitee_in_target`) confirms the factory names
+      the sole recipient in `target`.
     adr:
     - ADR-0113
+    - ADR-0205
     stories:
     - story_2026_085
   - id: EP-09-026
@@ -2534,11 +2540,14 @@ groups:
     kind: protocol
     statement: >-
       A receiving actor MUST refuse an `Invite(EmbargoEvent)` that names no `to`
-      recipient or more than one, as a misrouting (OX-08-001).
+      recipient or more than one, or whose `target` names an actor other than its
+      sole recipient, as a misrouting (OX-08-001).
     rationale: >-
-      Every emitter sends a single-recipient Invite (EP-09-010), so an Invite with no
-      recipient or several is a defect, not a shape to interpret. Refusing names the
-      defect; guessing hides it.
+      Every emitter sends a single-recipient Invite naming that recipient in `target`
+      (EP-09-010), so an Invite with no recipient or several, or one delivered to an
+      actor it does not invite, is a defect, not a shape to interpret. Refusing names
+      the defect; guessing hides it. An Invite with no `target` matches no embargo
+      Invite pattern (VAM-05-005), so it is refused as unrecognized before this check.
     note: >-
       A proposal to the CASE_MANAGER is refused the same way when it names no recipient
       or several. The refusal comes before the P/X/A check, so a misrouted Invite on a
@@ -2558,12 +2567,16 @@ groups:
       (`test_an_invite_naming_no_embargo_gets_a_processing_fault`, same file).
       `test/core/use_cases/received/test_embargo_revision_relay.py`
       (`test_invite_with_several_recipients_is_refused`,
-      `test_invite_with_no_recipient_is_refused`) confirms the refusal at the receiver.
+      `test_invite_with_no_recipient_is_refused`) confirms the refusal at the receiver,
+      and `test_invite_whose_target_is_not_its_recipient_is_refused` in
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` confirms the refusal
+      of an Invite delivered to an actor its `target` does not name.
     relationships:
     - rel_type: extends
       spec_id: EP-09-010
     adr:
     - ADR-0113
+    - ADR-0205
     stories:
     - story_2026_085
     see_also:

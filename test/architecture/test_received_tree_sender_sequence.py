@@ -300,7 +300,15 @@ def _tree_at_the_case_manager(
     its own.
     """
     receiver = f"{_CASE_MANAGER}/{entry.semantics.name.lower()}"
-    activity = activity.model_copy(update={"to": [receiver]})
+    readdressed: dict[str, object] = {"to": [receiver]}
+    old_to = activity.to if isinstance(activity.to, list) else [activity.to]
+    if activity.target is not None and _as_id(activity.target) in {
+        _as_id(r) for r in old_to
+    }:
+        # An embargo Invite names its addressee as its invitee (EP-09-010,
+        # ADR-0205), so the invitee follows the address.
+        readdressed["target"] = receiver
+    activity = activity.model_copy(update=readdressed)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
     # A copy: the example case is a shared singleton, and seeding attaches
     # the participants to the case it is given.

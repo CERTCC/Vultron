@@ -351,10 +351,12 @@ For embargo times, the measure connects the embargo register and the consent row
     It gives the case's embargo-management state, which it derives from the embargo register that the ledger's steps rebuild, and the case's public state.
     It marks each desideratum as met, broken or open for each vendor.
     A desideratum is met when every history that the vendor's sequence can still become meets it, and broken when none of them does.
+    A desideratum that orders an event the case's source cannot observe is unknown instead, because the sequence cannot say whether that event happened.
     The record lists the moves that the state machines allow from each state, and names each move by its machine and its trigger.
     Each move names the participant who can make it.
     In the record, any participant can propose an embargo, and only the Case Owner can accept, reject or end one.
     For each move that changes a state, the record gives each vendor's change in the expected outcome of each desideratum if that move came next (`vultron/measure/baselines/values.py`).
+    A move that is an unobservable event, or that changes a desideratum over one, gives the reason instead of a number.
     A desideratum whose scope the case never enters counts as met.
     A move that takes a desideratum's scope out of reach changes that desideratum by 0.
     A vendor that the case has not yet notified, at RM Start, is a vendor of the record too, so its notice has a number.

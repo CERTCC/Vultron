@@ -268,9 +268,10 @@ object's time disagree with the act that made it.
   `_address_collection()` in `vultron/wire/as2/vocab/base/objects/actors.py` builds
   the wire collection with `published=None, updated=None`, while a collection that
   *arrives* carrying its own times keeps them as received (ADR-0103).
-- **A received omission reads as `None`**, never as the receiver's clock
-  (`absent_times_as_none`, ISSUE-3257); a time the class requires non-null is then
-  refused at validation.
+- **A received omission of an optional time reads as `None`**, never as the
+  receiver's clock (`absent_times_as_none`, ISSUE-3257); a received whole object
+  without `published` is refused at the edge (CLP-15-011), and any other time the
+  class requires non-null is refused at validation.
 - **A round-trip equality test must cross a second boundary on purpose.** Step the
   clock between write and read with `SteppingClock` from
   `vultron/demo/determinism.py`; never `time.sleep()`.

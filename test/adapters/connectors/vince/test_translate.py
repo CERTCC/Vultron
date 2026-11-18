@@ -60,6 +60,7 @@ from vultron.core.models.case_reading import (
     CaseReading,
     UntranslatedReason as Reason,
 )
+from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     TerminationReason,
@@ -384,6 +385,15 @@ def test_the_declaration_is_the_crosswalk_s_unobservable_table():
     table = text[text.index("## Unobservable") :].split("\n---")[0]
     for fact in VINCE_UNOBSERVABLE:
         assert f"| {fact.fact} | {fact.why} |" in table
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_the_declaration_names_fix_readiness_and_deployment_as_events():
+    """So a standing over a VINCE case reads F and D as unknown (#6563)."""
+    assert translate(CASES[0]).unobservable_events == {
+        CSEvent.F,
+        CSEvent.D,
+    }
 
 
 # -- AC-5: every time is a VINCE time, and no clock is read ----------------

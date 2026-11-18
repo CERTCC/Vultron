@@ -133,8 +133,12 @@ class CasePreview(CoreObject):
         serialization_alias="type",
     )
     # A preview states no time of its own; absent unless its sender gave one.
+    # It is a projection of the case its typed reference names (ADR-0205), so
+    # a received one is not refused for lacking one (CLP-15-011, MV-10-011);
+    # the embargo and status it carries are whole objects and carry theirs.
     published: datetime | None = None
     updated: datetime | None = None
+    _received_without_published: ClassVar[bool] = True
     active_embargo: EmbargoEvent | NonEmptyString | None = Field(
         default=None,
         json_schema_extra=vultron_property(

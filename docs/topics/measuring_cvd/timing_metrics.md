@@ -144,7 +144,7 @@ The reporter's $\evAc$ is not a decision, so the reporter has no time to accept.
 The time that the Case Owner held the report before it created the case is not on the ledger.
 
 Report to case is a bound on that time.
-The ledger entry that adds the report to the case carries the report as received, with the time that the reporter put on the report, when the reporter put a time on it (CLP-15-007).
+The ledger entry that adds the report to the case carries the report as received, with the time that the reporter put on the report (CLP-15-007, CLP-15-011).
 The Case Owner received the report after that time and before it created the case.
 Thus, when the reporter's clock agrees with the CASE_MANAGER's clock, report to case is an upper bound on how long the Case Owner held the report.
 A reporter's clock that runs fast makes report to case too small, and it can make the value negative.

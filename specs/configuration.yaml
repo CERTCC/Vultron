@@ -25,12 +25,19 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: '`get_config()` MUST return a cached `AppConfig` instance — loaded once on first call, cached for all subsequent
-      calls.'
+    statement: >-
+      `get_config()` MUST return the same `AppConfig` instance on every call in one
+      scope. Inside the scope of an app that holds its own config, that is the app's
+      config. Otherwise it is the process-wide config, loaded once on first call and
+      cached for all subsequent calls.
     rationale: >-
       Code reads settings in many places, some of them on each request. A cached
       instance reads the file and the environment once, so all callers see the same
-      values and no caller reads the file again.
+      values and no caller reads the file again. Several apps in one process each act
+      as one node, so each app's work reads its own node's config, as a container
+      does (ADR-0206).
+    adr:
+    - ADR-0206
   - id: CFG-01-003
     priority: MUST
     kind: project

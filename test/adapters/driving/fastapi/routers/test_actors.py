@@ -277,7 +277,7 @@ def test_post_untimed_case_status_to_actor_inbox_returns_422(
         _inbox_path(actor.id_), json=signed_body(payload)
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-    assert "CLP-15-010" in resp.text
+    assert "CLP-15-011" in resp.text
 
 
 def _inbox_path(actor_id: str) -> str:
@@ -318,6 +318,7 @@ _PUBLISHED = "2026-01-02T03:04:05+00:00"
                 "anyOf": [
                     {
                         "type": "Note",
+                        "published": _PUBLISHED,
                         "id": "https://example.org/notes/yes",
                         "name": "yes",
                     }
@@ -325,6 +326,7 @@ _PUBLISHED = "2026-01-02T03:04:05+00:00"
                 "oneOf": [
                     {
                         "type": "Note",
+                        "published": _PUBLISHED,
                         "id": "https://example.org/notes/no",
                         "name": "no",
                     }
@@ -1305,10 +1307,11 @@ def test_post_inbox_does_not_persist_core_class_for_core_only_type(
     registered only in ``CORE_TYPE_MAP``, and the inbox re-parse used to
     reconstruct it as that core class before persisting it.  Ingress now only
     stages the inline object for routing (#3763), so the staging is what is
-    watched.
+    watched.  A type the wire does not name is not staged at all, since a
+    staged generic object of a core-only type is read back as the core class
+    (VM-06-013).
     """
     from vultron.adapters.inbox_staging import staging as staging_module
-    from vultron.core.models.base import CoreObject
 
     persisted: list[object] = []
     real_object_to_record = staging_module.object_to_record
@@ -1334,6 +1337,9 @@ def test_post_inbox_does_not_persist_core_class_for_core_only_type(
     )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    stored = [o for o in persisted if getattr(o, "type_", None) == "CoreActor"]
-    assert len(stored) == 1, "the inline object was never staged"
-    assert not isinstance(stored[0], CoreObject)
+    assert any(getattr(o, "type_", None) == "Add" for o in persisted), (
+        "the activity itself was staged, so the spy saw the staging"
+    )
+    assert not [
+        o for o in persisted if getattr(o, "type_", None) == "CoreActor"
+    ]

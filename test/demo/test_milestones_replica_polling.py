@@ -202,11 +202,13 @@ def _forwarded_offer_payload() -> dict:
     """Wire payload of a forwarded Offer(VulnerabilityCase) from CaseActor to transferee."""
     return {
         "type": "Offer",
+        "published": "2026-01-01T00:00:00+00:00",
         "target": _OT_TRANSFEREE_ID,
         "object": {
             "attributedTo": CASE_OWNER_ID,
             "id": _OT_CASE_ID,
             "type": "VulnerabilityCase",
+            "published": "2026-01-01T00:00:00+00:00",
         },
     }
 
@@ -232,6 +234,7 @@ class TestIsOwnershipTransferOfferFor:
     def test_matches_offer_with_bare_string_object(self):
         obj = {
             "type": "Offer",
+            "published": "2026-01-01T00:00:00+00:00",
             "target": _OT_TRANSFEREE_ID,
             "object": _OT_CASE_ID,
         }
@@ -242,11 +245,13 @@ class TestIsOwnershipTransferOfferFor:
     def test_matches_offer_with_dict_target(self):
         obj = {
             "type": "Offer",
+            "published": "2026-01-01T00:00:00+00:00",
             "target": {"id": _OT_TRANSFEREE_ID, "type": "Service"},
             "object": {
                 "attributedTo": CASE_OWNER_ID,
                 "id": _OT_CASE_ID,
                 "type": "VulnerabilityCase",
+                "published": "2026-01-01T00:00:00+00:00",
             },
         }
         assert _is_ownership_transfer_offer_for(
@@ -256,6 +261,7 @@ class TestIsOwnershipTransferOfferFor:
     def test_rejects_wrong_activity_type(self):
         obj = {
             "type": "Accept",
+            "published": "2026-01-01T00:00:00+00:00",
             "target": _OT_TRANSFEREE_ID,
             "object": {"id": _OT_CASE_ID},
         }
@@ -266,6 +272,7 @@ class TestIsOwnershipTransferOfferFor:
     def test_rejects_wrong_transferee(self):
         obj = {
             "type": "Offer",
+            "published": "2026-01-01T00:00:00+00:00",
             "target": "http://other:7999/api/v2/actors/other",
             "object": {"id": _OT_CASE_ID},
         }
@@ -276,6 +283,7 @@ class TestIsOwnershipTransferOfferFor:
     def test_rejects_wrong_case_id(self):
         obj = {
             "type": "Offer",
+            "published": "2026-01-01T00:00:00+00:00",
             "target": _OT_TRANSFEREE_ID,
             "object": {"id": "urn:uuid:different-case"},
         }
@@ -287,11 +295,13 @@ class TestIsOwnershipTransferOfferFor:
         """The ORIGINAL Offer addressed to the CaseActor must not match (wrong target)."""
         original = {
             "type": "Offer",
+            "published": "2026-01-01T00:00:00+00:00",
             "target": _OT_CASE_ACTOR_ID,  # addressed to CaseActor, not transferee
             "object": {
                 "attributedTo": CASE_OWNER_ID,
                 "id": _OT_CASE_ID,
                 "type": "VulnerabilityCase",
+                "published": "2026-01-01T00:00:00+00:00",
             },
         }
         assert not _is_ownership_transfer_offer_for(
@@ -387,12 +397,14 @@ class TestFindOwnershipTransferOfferForActor:
                     {
                         "id": _OT_ORIGINAL_OFFER_ID,
                         "type": "Offer",
+                        "published": "2026-01-01T00:00:00+00:00",
                         # sent to CaseActor, NOT to transferee
                         "target": _OT_CASE_ACTOR_ID,
                         "object": {
                             "attributedTo": CASE_OWNER_ID,
                             "id": _OT_CASE_ID,
                             "type": "VulnerabilityCase",
+                            "published": "2026-01-01T00:00:00+00:00",
                         },
                     }
                 ),
@@ -712,7 +724,11 @@ _IC_INITIALIZED_CASE = {
     "published": CASE_PUBLISHED.isoformat(),
     "vulnerabilityReports": [_IC_REPORT_ID],
     "caseParticipants": [
-        {"id": _IC_PARTICIPANT_ID, "type": "CaseParticipant"}
+        {
+            "id": _IC_PARTICIPANT_ID,
+            "type": "CaseParticipant",
+            "published": CASE_PUBLISHED.isoformat(),
+        }
     ],
 }
 _IC_EMPTY_CASE = {

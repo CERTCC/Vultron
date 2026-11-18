@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Self, TypeAlias, TypedDict
+from typing import Any, ClassVar, Literal, Self, TypeAlias, TypedDict
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -88,6 +88,10 @@ class CoreActor(CoreObject):
         populate_by_name=True,
         validate_by_name=True,
     )
+
+    #: A profile describes an actor, not an act made at a moment, and many
+    #: servers serve one without ``published`` (CLP-15-011).
+    _received_without_published: ClassVar[bool] = True
 
     inbox: NonEmptyString | None = None
     outbox: NonEmptyString | None = None

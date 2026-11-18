@@ -772,6 +772,17 @@ def test_configure_default_emitter_installs_the_emitter(monkeypatch):
     assert oh.get_default_emitter() is emitter
 
 
+def test_configure_default_emitter_returns_an_undo(monkeypatch):
+    """The returned undo puts back the emitter held before (#5874)."""
+    previous = MagicMock()
+    monkeypatch.setattr(oh._DEFAULT_EMITTER_SLOT, "value", previous)
+
+    undo = oh.configure_default_emitter(MagicMock())
+    assert oh._DEFAULT_EMITTER_SLOT.value is not previous
+    undo()
+    assert oh._DEFAULT_EMITTER_SLOT.value is previous
+
+
 def test_get_default_emitter_falls_back_to_http_delivery(monkeypatch):
     """With nothing configured, a fresh ``HttpDeliveryAdapter`` is returned."""
     monkeypatch.setattr(oh._DEFAULT_EMITTER_SLOT, "value", None)

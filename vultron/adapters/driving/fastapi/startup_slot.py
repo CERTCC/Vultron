@@ -21,7 +21,14 @@ one :class:`StartupSlot` and installs into it, so the value is changed by
 mutating the slot rather than by rebinding a module global (ruff ``PLW0603``,
 #3985). Tests swap the value with
 ``monkeypatch.setattr(slot, "value", replacement)``.
+
+An install returns its undo, so the startup that installed a value can put
+back what the slot held at shutdown. Left installed, a value outlives the
+application that set it and changes what later code in the same process
+reads (#5874).
 """
+
+from collections.abc import Callable
 
 
 class StartupSlot[T]:
@@ -37,6 +44,16 @@ class StartupSlot[T]:
     def __init__(self) -> None:
         self.value: T | None = None
 
-    def install(self, value: T) -> None:
-        """Replace the held value with *value*."""
+    def install(self, value: T) -> Callable[[], None]:
+        """Replace the held value with *value*.
+
+        Returns:
+            A callable that puts back the value held before this install.
+        """
+        previous = self.value
         self.value = value
+
+        def _undo() -> None:
+            self.value = previous
+
+        return _undo

@@ -74,6 +74,7 @@ PRIOR_EMBARGO_ID = f"{CASE_ID}/embargo_events/e0"
 def _embargo_snapshot() -> dict[str, Any]:
     return {
         "type": "EmbargoEvent",
+        "published": "2026-01-01T00:00:00+00:00",
         "id": EMBARGO_ID,
         "context": CASE_ID,
         "endTime": (now_utc() + timedelta(days=60)).isoformat(),

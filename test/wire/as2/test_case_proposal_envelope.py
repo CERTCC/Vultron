@@ -45,6 +45,7 @@ _PUBLISHED = "2026-03-04T05:06:07+00:00"
 def _policy(actor_id: str) -> dict[str, Any]:
     return {
         "type": "EmbargoPolicy",
+        "published": _PUBLISHED,
         "id": f"{actor_id}/embargo-policy",
         "actorId": actor_id,
         "inbox": f"{actor_id}/inbox",
@@ -61,6 +62,7 @@ def _body(actor: Any, attributed_to: str = _VENDOR) -> dict[str, Any]:
         "to": [_CASE_ACTOR],
         "object": {
             "type": "CaseProposal",
+            "published": _PUBLISHED,
             "id": "https://example.org/proposals/p-001",
             "attributedTo": attributed_to,
             "object": _REPORT,
@@ -162,6 +164,7 @@ def test_a_create_of_something_else_may_name_its_actor_by_uri():
     body = _body(_VENDOR)
     body["object"] = {
         "type": "Note",
+        "published": _PUBLISHED,
         "id": "https://example.org/notes/n-1",
         "content": "hello",
     }

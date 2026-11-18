@@ -57,6 +57,7 @@ _END = datetime(2026, 12, 1, tzinfo=UTC)
 def _embargo_snapshot(context: str = CASE_ID) -> dict[str, Any]:
     return {
         "type": "EmbargoEvent",
+        "published": "2026-01-01T00:00:00+00:00",
         "id": EMBARGO_ID,
         "context": context,
         "startTime": "2026-09-01T00:00:00+00:00",
@@ -73,6 +74,7 @@ def _entry(embargo: dict[str, Any]) -> CaseLedgerEntry:
             semantic_type="create_embargo_event",
             payload_snapshot={
                 "type": "Create",
+                "published": "2026-01-01T00:00:00+00:00",
                 "id": f"{EMBARGO_ID}/create",
                 "actor": MANAGER_ACTOR_ID,
                 "context": CASE_ID,
