@@ -111,8 +111,12 @@ It still has no volume, and it still publishes its port on the loopback interfac
 The page shows the case as it stands at its last ledger entry.
 
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
-- **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳), and of those it cannot know (❔) when the source cannot observe an event.
-- **Desiderata** lists each of the twelve desiderata in words, with one column for each Vendor.
+- **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳).
+  The count also shows the desiderata it cannot know (❔) when the source cannot observe an event, and those it cannot score (➖) when the Vendor's case stands in no state of the chance model.
+- **Desiderata** lists in words each desideratum that move advice weighs, with one column for each Vendor.
+  These are the twelve original desiderata, the report-handling desiderata, and the embargo desiderata of [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md).
+  Each group of equivalent desiderata shows once, under its first: Embargo Start before Public Awareness also stands for Embargo Start before Exploit Public and before Attacks Observed.
+  The table leaves out the multi-party desideratum that every Vendor is aware before any fix is ready, because move advice does not use it.
 - **Move advice** puts each open move in one of three bands, by the method that [Move Bands Against Pathology Cases](../topics/measuring_cvd/move_bands.md) tests.
   A move's band is set by its end desiderata, or by its embargo desiderata when it changes no end desideratum.
   A **Harm-free** move raises at least one Vendor above the chance value and lowers none.

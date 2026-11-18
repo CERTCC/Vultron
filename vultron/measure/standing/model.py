@@ -14,14 +14,16 @@
 
 A :class:`StandingRecord` holds, for the case, its EM state and public state
 (:class:`CaseStanding`), and for each participant its report-management
-state and, for a vendor with a case-state sequence, its compound case state
-and that sequence's score (:class:`ParticipantStanding`).  EM is one state
+state and, for a vendor with a case-state sequence, its compound case state,
+that sequence's score and its extended desiderata's score
+(:class:`ParticipantStanding`).  EM is one state
 for the case, derived from its embargo register (ADR-0122); each
 participant stands in it.
 
 Everything that follows from the states is read from them, never stored
 beside them, so it cannot disagree: each desideratum's status is read from
-the score's completions (:class:`DesideratumStanding`), each allowed move
+the score, an original one's from the sequence's completions and an extended
+one's from the vendor's walk (:class:`DesideratumStanding`), each allowed move
 from the states (:mod:`~vultron.measure.standing.moves`), and each CVD
 action a participant's case state makes possible from the action rules
 (:class:`ActionAdvice`, :mod:`~vultron.core.states.cs_actions`).
@@ -56,10 +58,11 @@ from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.measure.baselines import (
-    ORIGINAL,
     Desideratum,
-    case_state_query,
+    EventKind,
+    Group,
     ordered_cs_events,
+    scope_desiderata,
 )
 from vultron.measure.history import (
     BY_NAME,
@@ -69,7 +72,13 @@ from vultron.measure.history import (
 )
 from vultron.measure.ledger import UnusableRow
 from vultron.measure.preferences import PathPreferences
-from vultron.measure.scoring import SequenceScore, met_desiderata
+from vultron.measure.scoring import (
+    ExtendedScore,
+    SequenceScore,
+    TermScore,
+    UnscoredScope,
+    met_desiderata,
+)
 from vultron.measure.sequences import UnprojectableParticipant
 from vultron.measure.standing.moves import (
     CSMove,
@@ -97,24 +106,31 @@ class DesideratumStatus(StrEnum):
     #: It orders an event the case's source cannot observe, so the case
     #: cannot say whether it is met (CRD-02-005).
     UNKNOWN = "unknown"
+    #: An extended desideratum of a vendor whose case stands in no state of
+    #: the one-vendor model, so no walk reads it (``UnscoredScope``).
+    UNSCORED = "unscored"
 
 
 class DesideratumStanding(BaseModel):
-    """One original desideratum and whether a vendor's case has met it.
+    """One desideratum of a vendor's scope and whether its case has met it.
 
     Fields:
-        notation: The desideratum as the Measuring CVD pages print it.
-        before: The case-state event the desideratum wants first.
-        after: The case-state event it wants after *before*.
-        status: Met, broken, still open, or unknown when it orders an
-            event the source cannot observe.
+        notation: The desideratum as the Measuring CVD pages print it.  The
+            first of a group of equivalent desiderata stands for the group
+            (ADR-0200 rule 2).
+        group: Its group on ``process_model_desiderata.md``.
+        before: The event the desideratum wants first.
+        after: The event it wants after *before*.
+        status: Met, broken, still open, unknown when it orders an event
+            the source cannot observe, or unscored when no walk reads it.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     notation: NonEmptyString
-    before: CSEvent
-    after: CSEvent
+    group: Group
+    before: EventKind
+    after: EventKind
     status: DesideratumStatus
 
 
@@ -128,34 +144,81 @@ def _status(meeting: int, met_by: list[set[Desideratum]]) -> DesideratumStatus:
     return DesideratumStatus.OPEN
 
 
+def _chance_status(term: TermScore) -> DesideratumStatus:
+    """Met when the walk meets *term* from every end it can reach, broken
+    when from none, else open.
+
+    *term*'s expected outcome is 1 exactly when every reachable end meets it
+    or never enters its scope, and 0 exactly when none does, since every
+    step the walk can take has a chance above 0.
+    """
+    if term.met == 1:
+        return DesideratumStatus.MET
+    if term.met == 0:
+        return DesideratumStatus.BROKEN
+    return DesideratumStatus.OPEN
+
+
+def _terms(extended: ExtendedScore | UnscoredScope) -> dict[str, TermScore]:
+    if isinstance(extended, UnscoredScope):
+        return {}
+    return {
+        t.notation: t for t in (*extended.end.terms, *extended.embargo.terms)
+    }
+
+
+def _standing(
+    desideratum: Desideratum, status: DesideratumStatus
+) -> DesideratumStanding:
+    (ordering,) = desideratum.query.orderings
+    return DesideratumStanding(
+        notation=desideratum.notation,
+        group=desideratum.group,
+        before=ordering.before.kind,
+        after=ordering.after.kind,
+        status=status,
+    )
+
+
 def desiderata_standing(
-    score: SequenceScore, unobservable: frozenset[CSEvent] = frozenset()
+    score: SequenceScore,
+    extended: ExtendedScore | UnscoredScope,
+    unobservable: frozenset[CSEvent] = frozenset(),
 ) -> tuple[DesideratumStanding, ...]:
-    """Each original desideratum's status, read from *score*'s completions.
+    """Each desideratum of a vendor's scope and its status, in the order of
+    :func:`~vultron.measure.baselines.scope_desiderata`.
 
     A desideratum that orders an event in *unobservable* is unknown: the
     sequence reads that event as not yet happened, which the source cannot
-    say (CRD-02-005).  Of the rest, one every completion meets is met, one
-    none meets is broken, and any other is open, so the status agrees with
-    the score it is read from.  In the catalog order of
-    :data:`~vultron.measure.baselines.ORIGINAL`.
+    say (CRD-02-005).  Of the rest, an original one is read from *score*'s
+    completions: met when every completion meets it, broken when none does,
+    and open otherwise.  An extended one is read from its term in
+    *extended*, the vendor's walk from where it stands, in the same three
+    ways (:func:`_chance_status`), and is unscored when *extended* is an
+    :class:`~vultron.measure.scoring.UnscoredScope`.  Each status agrees
+    with the score it is read from.
+
+    Raises:
+        ValueError: *extended* holds no term for an extended desideratum of
+            the scope, so it was not scored from the same list.
     """
     met_by = [set(met_desiderata(c.history)) for c in score.completions]
+    terms = _terms(extended)
     standings = []
-    for desideratum in ORIGINAL:
+    for desideratum in scope_desiderata():
         if ordered_cs_events(desideratum) & unobservable:
             status = DesideratumStatus.UNKNOWN
-        else:
+        elif desideratum.group is Group.ORIGINAL:
             status = _status(sum(desideratum in met for met in met_by), met_by)
-        (ordering,) = case_state_query(desideratum.query).orderings
-        standings.append(
-            DesideratumStanding(
-                notation=desideratum.notation,
-                before=ordering.before,
-                after=ordering.after,
-                status=status,
+        elif isinstance(extended, UnscoredScope):
+            status = DesideratumStatus.UNSCORED
+        elif desideratum.notation in terms:
+            status = _chance_status(terms[desideratum.notation])
+        else:
+            raise ValueError(
+                f"the vendor's score has no term for {desideratum.notation}"
             )
-        )
+        standings.append(_standing(desideratum, status))
     return tuple(standings)
 
 
@@ -192,6 +255,9 @@ class ParticipantStanding(BaseModel):
         score: The score of its case-state sequence, for a vendor with one
             (:func:`~vultron.measure.scoring.score_sequence`).  The prefix
             scored is the history an allowed :class:`CSMove` extends.
+        extended: Its extended desiderata, scored on its one-vendor walk
+            (:func:`~vultron.measure.scoring.vendor_scope`), or why the walk
+            cannot go on from the case; set exactly when *score* is.
         unscored: Why it has no case-state sequence, for every other
             participant (CEH-05-007).  Exactly one of *score* and *unscored*
             is set.
@@ -205,6 +271,7 @@ class ParticipantStanding(BaseModel):
     rm: RM
     case: CaseStanding
     score: SequenceScore | None = None
+    extended: ExtendedScore | UnscoredScope | None = None
     unscored: UnprojectableParticipant | None = None
 
     @model_validator(mode="after")
@@ -213,6 +280,11 @@ class ParticipantStanding(BaseModel):
         if (self.score is None) == (self.unscored is None):
             problems.append(
                 "a participant has either a score or the reason it has none"
+            )
+        if (self.score is None) != (self.extended is None):
+            problems.append(
+                "a scored vendor's extended desiderata are scored with its"
+                " sequence, and an unscored participant has neither"
             )
         if (
             self.unscored is not None
@@ -238,11 +310,13 @@ class ParticipantStanding(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def desiderata(self) -> tuple[DesideratumStanding, ...]:
-        """Each original desideratum met, broken, open or unknown; none
-        unscored."""
-        if self.score is None:
+        """Each desideratum of its scope met, broken, open, unknown or
+        unscored; none for a participant with no score."""
+        if self.score is None or self.extended is None:
             return ()
-        return desiderata_standing(self.score, self.case.unobservable)
+        return desiderata_standing(
+            self.score, self.extended, self.case.unobservable
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

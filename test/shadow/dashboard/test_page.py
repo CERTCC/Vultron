@@ -28,6 +28,7 @@ from vultron.measure.advice import (
     HELP_TEXT,
     Band,
 )
+from vultron.measure.baselines import scope_desiderata
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
     HEARTBEAT_KEY,
@@ -39,6 +40,7 @@ from vultron.shadow.dashboard.page import (
 )
 from vultron.shadow.dashboard.view import (
     BAND_EMPTY,
+    DESIDERATA_NOTE,
     EM_BADGES,
     LEADING_MARK,
     RM_BADGES,
@@ -274,8 +276,10 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
     assert "Vendor" in participants["Participant"].tolist()
     assert set(participants["Report"]) <= set(RM_BADGES.values())
     desiderata = _table(at, "Desiderata")
-    assert len(desiderata) == 12
+    assert len(desiderata) == len(scope_desiderata())
     assert {"Vendor", "Vendor2"} <= set(desiderata.columns)
+    # The pair desideratum move advice leaves out is named, not just absent.
+    assert DESIDERATA_NOTE in _texts(at.caption)
     moves = _table(at, "Harm-free")
     assert len(moves) > 0
     assert set(moves["Machine"]) <= {"RM", "CS", "EM"}
@@ -291,6 +295,19 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
     assert _texts(unhelpful.caption) == [BAND_EMPTY[Band.UNHELPFUL]]
     # The recording ends on the CASE_MANAGER's closure: nothing follows.
     assert not any("moved on" in c for c in _texts(at.caption))
+
+
+def test_a_case_with_no_scored_vendor_names_no_left_out_desideratum(
+    recordings_app,
+):
+    """rcv-reject's only vendor refuses its invitation: the table is empty,
+    so there is nothing to say about what it leaves out."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rcv-reject/case-actor.jsonl").run()
+    assert not at.exception
+    captions = _texts(at.caption)
+    assert "No vendor has a case-state history to score yet." in captions
+    assert DESIDERATA_NOTE not in captions
 
 
 @pytest.fixture(scope="module")

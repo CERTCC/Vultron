@@ -48,7 +48,13 @@ from vultron.core.states.cs_invariants import (
 from vultron.core.states.em import EM, EM_Trigger
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.demo.recordings.layout import RECORDINGS_DIR, recording_path
-from vultron.measure.baselines import ORIGINAL, baseline
+from vultron.measure.baselines import (
+    ORIGINAL,
+    EventKind,
+    Group,
+    baseline,
+    scope_desiderata,
+)
 from vultron.measure.history import read_case_event_histories
 from vultron.measure.history.snapshot import snapshot_records
 from vultron.measure.ledger import (
@@ -67,6 +73,8 @@ from vultron.measure.preferences import (
     path_preferences,
 )
 from vultron.measure.scoring import (
+    ExtendedScore,
+    UnscoredScope,
     met_desiderata,
     score_case,
     score_prefix,
@@ -91,6 +99,15 @@ _SCENARIOS = sorted(
 
 
 _CASE = CaseStanding(em=EM.NONE, pxa=CS_pxa.pxa)
+
+#: The extended part of a vendor read from a bare case-state history, which
+#: no joint walk reads.
+_NOT_WALKED = UnscoredScope(reason="the test walks no joint model")
+
+
+def _originals(standings):
+    """The twelve original desiderata among *standings*, in order."""
+    return [s for s in standings if s.group is Group.ORIGINAL]
 
 
 def _actor(name: str) -> str:
@@ -202,7 +219,9 @@ def test_every_vendor_is_scored_as_vultron_measure_scores_it(scenario):
         met = sum(
             (
                 1 - baseline(d)
-                for d, s in zip(ORIGINAL, standing.desiderata, strict=True)
+                for d, s in zip(
+                    ORIGINAL, _originals(standing.desiderata), strict=True
+                )
                 if s.status is DesideratumStatus.MET
             ),
             Fraction(0),
@@ -210,7 +229,9 @@ def test_every_vendor_is_scored_as_vultron_measure_scores_it(scenario):
         reachable = sum(
             (
                 1 - baseline(d)
-                for d, s in zip(ORIGINAL, standing.desiderata, strict=True)
+                for d, s in zip(
+                    ORIGINAL, _originals(standing.desiderata), strict=True
+                )
                 if s.status is not DesideratumStatus.BROKEN
             ),
             Fraction(0),
@@ -222,7 +243,9 @@ def test_every_vendor_is_scored_as_vultron_measure_scores_it(scenario):
 
 def test_a_complete_history_meets_or_breaks_every_desideratum():
     history = "VFDPXA"
-    statuses = desiderata_standing(score_prefix(history))
+    statuses = _originals(
+        desiderata_standing(score_prefix(history), _NOT_WALKED)
+    )
     met = set(met_desiderata(history))
     assert [s.status for s in statuses] == [
         DesideratumStatus.MET if d in met else DesideratumStatus.BROKEN
@@ -231,11 +254,11 @@ def test_a_complete_history_meets_or_breaks_every_desideratum():
 
 
 def test_an_empty_history_leaves_every_desideratum_open():
-    statuses = desiderata_standing(score_prefix(""))
+    statuses = _originals(desiderata_standing(score_prefix(""), _NOT_WALKED))
     assert {s.status for s in statuses} == {DesideratumStatus.OPEN}
     assert [(s.before, s.after) for s in statuses][:2] == [
-        (CSEvent.D, CSEvent.P),
-        (CSEvent.F, CSEvent.P),
+        (EventKind.D, EventKind.P),
+        (EventKind.F, EventKind.P),
     ]
 
 
@@ -244,10 +267,10 @@ def test_a_desideratum_over_an_unobservable_event_is_unknown():
     """``VFDPXA`` meets or breaks every desideratum; with D unobservable,
     each that orders D is unknown and the rest keep their status."""
     score = score_prefix("VFDPXA")
-    seen = desiderata_standing(score)
-    unseen = desiderata_standing(score, frozenset({CSEvent.D}))
+    seen = desiderata_standing(score, _NOT_WALKED)
+    unseen = desiderata_standing(score, _NOT_WALKED, frozenset({CSEvent.D}))
     for before, after in zip(seen, unseen, strict=True):
-        if CSEvent.D in (after.before, after.after):
+        if EventKind.D in (after.before, after.after):
             assert after.status is DesideratumStatus.UNKNOWN
         else:
             assert after == before
@@ -255,15 +278,101 @@ def test_a_desideratum_over_an_unobservable_event_is_unknown():
 
 def test_no_unobservable_event_leaves_every_status_as_the_score_reads():
     score = score_prefix("VP")
-    assert desiderata_standing(score, frozenset()) == desiderata_standing(
-        score
+    assert desiderata_standing(
+        score, _NOT_WALKED, frozenset()
+    ) == desiderata_standing(score, _NOT_WALKED)
+
+
+@pytest.mark.parametrize("scenario", _SCENARIOS)
+def test_each_vendor_stands_on_every_desideratum_its_scope_holds(scenario):
+    """#6669 AC-1: a vendor's desiderata are its scope's, in catalog order,
+    and each extended one reads as its case-score term does."""
+    record = case_standing(_ledger(recording_path(scenario)))
+    for standing in record.participants:
+        if standing.score is None:
+            continue
+        assert [s.notation for s in standing.desiderata] == [
+            d.notation for d in scope_desiderata()
+        ]
+        assert isinstance(standing.extended, ExtendedScore)
+        terms = {
+            t.notation: t.met
+            for t in (
+                *standing.extended.end.terms,
+                *standing.extended.embargo.terms,
+            )
+        }
+        for s in standing.desiderata:
+            if s.group is Group.ORIGINAL:
+                continue
+            met = terms[s.notation]
+            assert s.status is (
+                DesideratumStatus.MET
+                if met == 1
+                else DesideratumStatus.BROKEN
+                if met == 0
+                else DesideratumStatus.OPEN
+            ), s.notation
+
+
+def test_a_finished_case_settles_its_extended_desiderata():
+    """rv ends with the vendor's fix ready and the vul public, so the walk
+    has nothing left to decide."""
+    record = case_standing(_ledger(recording_path("rv")))
+    (vendor,) = [p for p in record.participants if p.score is not None]
+    extended = [s for s in vendor.desiderata if s.group is not Group.ORIGINAL]
+    assert extended
+    assert {s.status for s in extended} <= {
+        DesideratumStatus.MET,
+        DesideratumStatus.BROKEN,
+    }
+
+
+def test_an_unwalked_vendor_leaves_its_extended_desiderata_unscored():
+    statuses = desiderata_standing(score_prefix("VFDPXA"), _NOT_WALKED)
+    for s in statuses:
+        if s.group is Group.ORIGINAL:
+            assert s.status is not DesideratumStatus.UNSCORED
+        else:
+            assert s.status is DesideratumStatus.UNSCORED, s.notation
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_extended_desideratum_over_an_unobservable_event_is_unknown():
+    """``F_i ≺ Ex_own`` and ``Ac_i ≺ F_i`` order Fix Ready, so with it
+    unobservable neither has a status; ``Va_i ≺ P`` orders P alone."""
+    record = case_standing(_ledger(recording_path("rv")))
+    (vendor,) = [p for p in record.participants if p.score is not None]
+    assert isinstance(vendor.extended, ExtendedScore)
+    statuses = {
+        s.notation: s.status
+        for s in desiderata_standing(
+            vendor.score, vendor.extended, frozenset({CSEvent.F})
+        )
+    }
+    assert statuses[r"$\evF_i \prec \evExOwn$"] is DesideratumStatus.UNKNOWN
+    assert statuses[r"$\evAc_i \prec \evF_i$"] is DesideratumStatus.UNKNOWN
+    assert statuses[r"$\evVa_i \prec \evP$"] is not DesideratumStatus.UNKNOWN
+
+
+def test_a_score_with_a_part_missing_is_refused():
+    """A vendor score with no report-handling terms was not scored from the
+    scope's list, so its standing cannot be read from it."""
+    record = case_standing(_ledger(recording_path("rv")))
+    (vendor,) = [p for p in record.participants if p.score is not None]
+    assert vendor.score is not None
+    assert isinstance(vendor.extended, ExtendedScore)
+    partial = ExtendedScore(
+        end=vendor.extended.embargo, embargo=vendor.extended.embargo
     )
+    with pytest.raises(ValueError, match="has no term for"):
+        desiderata_standing(vendor.score, partial)
 
 
 def test_publication_before_the_fix_breaks_what_it_precedes():
     by_order = {
         (s.before + s.after): s.status
-        for s in desiderata_standing(score_prefix("VP"))
+        for s in desiderata_standing(score_prefix("VP"), _NOT_WALKED)
     }
     assert by_order["VP"] is DesideratumStatus.MET
     assert by_order["FP"] is DesideratumStatus.BROKEN
@@ -334,15 +443,18 @@ def test_a_hand_built_case_stands_as_its_entries_state():
         CSEvent.X,
         CSEvent.A,
     ]
-    # The vendor is aware before anything public: V before P, X and A is met.
+    # The vendor is aware before anything public: V before P, X and A is
+    # met.  The embargo is active before anything public, so E ≺ P is too.
     assert {
         s.before + s.after
         for s in vendor.desiderata
         if s.status is DesideratumStatus.MET
-    } == {"VP", "VX", "VA"}
-    assert {s.status for s in vendor.desiderata if s.before != CSEvent.V} == {
-        DesideratumStatus.OPEN
-    }
+    } == {"VP", "VX", "VA", "EP"}
+    assert {
+        s.status
+        for s in vendor.desiderata
+        if s.before not in (EventKind.V, EventKind.EMBARGO_START)
+    } == {DesideratumStatus.OPEN}
 
 
 @pytest.mark.spec("CEH-02-006")
@@ -424,6 +536,39 @@ def test_a_participant_is_scored_or_says_why_not():
         ParticipantStanding(participant=VENDOR, rm=RM.START, case=_CASE)
 
 
+def test_a_scored_vendor_has_its_extended_score_and_no_one_else_does():
+    reason = UnprojectableParticipant(
+        participant=VENDOR,
+        reason=UnprojectableReason.NO_CASE_STATE_EVENTS,
+        detail="none",
+    )
+    with pytest.raises(ValidationError, match="extended desiderata"):
+        ParticipantStanding(
+            participant=VENDOR,
+            rm=RM.RECEIVED,
+            case=_CASE,
+            score=score_prefix("V"),
+        )
+    with pytest.raises(ValidationError, match="extended desiderata"):
+        ParticipantStanding(
+            participant=VENDOR,
+            rm=RM.START,
+            case=_CASE,
+            unscored=reason,
+            extended=_NOT_WALKED,
+        )
+    unwalked = ParticipantStanding(
+        participant=VENDOR,
+        rm=RM.RECEIVED,
+        case=_CASE,
+        score=score_prefix("V"),
+        extended=_NOT_WALKED,
+    )
+    assert DesideratumStatus.UNSCORED in {
+        s.status for s in unwalked.desiderata
+    }
+
+
 def test_a_record_serializes_as_json():
     record = case_standing(_ledger(recording_path("rv")))
     data = json.loads(record.model_dump_json())
@@ -431,7 +576,7 @@ def test_a_record_serializes_as_json():
         p for p in data["participants"] if p["case_state"] is not None
     )
     assert vendor["case_state"] == "VFdPxa"
-    assert len(vendor["desiderata"]) == len(ORIGINAL)
+    assert len(vendor["desiderata"]) == len(scope_desiderata())
     assert data["case"]["pxa"] == "Pxa"
     assert data["path_preferences"]["case"]["duration"]["ratio"] is not None
 

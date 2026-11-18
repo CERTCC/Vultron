@@ -22,6 +22,7 @@ from vultron.core.models.case_reading import (
 )
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.demo.recordings.layout import RECORDINGS_DIR
+from vultron.measure.baselines import EventKind
 from vultron.measure.ledger import read_case_ledgers
 from vultron.measure.standing import DesideratumStatus, case_standing
 from vultron.shadow.analysis import analyse, reading_ledger
@@ -104,7 +105,7 @@ def test_a_desideratum_over_an_unobservable_event_is_not_scored():
         d
         for p in standing.participants
         for d in p.desiderata
-        if CSEvent.D in (d.before, d.after)
+        if EventKind.D in (d.before, d.after)
     ]
     assert over_d
     assert all(
@@ -119,7 +120,7 @@ def test_no_desideratum_about_the_fix_is_broken_when_fix_readiness_is_unseen():
     assert standing is not None
     for p in standing.participants:
         for d in p.desiderata:
-            fix = {CSEvent.F, CSEvent.D} & {d.before, d.after}
+            fix = {EventKind.F, EventKind.D} & {d.before, d.after}
             unknown = d.status is DesideratumStatus.UNKNOWN
             assert unknown == bool(fix), d.notation
 

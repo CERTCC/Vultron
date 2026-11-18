@@ -44,7 +44,7 @@ from vultron.measure.scoring.case import (
 from vultron.measure.scoring.complete import history_score, met_desiderata
 from vultron.measure.scoring.extended import (
     ScopeDesiderata,
-    scope_desiderata,
+    scope_parts,
     vendor_scope,
 )
 from vultron.measure.scoring.model import (
@@ -87,6 +87,6 @@ __all__ = [
     "met_desiderata",
     "score_case",
     "score_prefix",
-    "scope_desiderata",
+    "scope_parts",
     "vendor_scope",
 ]

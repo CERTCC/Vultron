@@ -503,3 +503,32 @@ def count_once(desiderata: Iterable[Desideratum]) -> tuple[Desideratum, ...]:
         if all(frozenset((k, desideratum)) not in equivalent for k in kept):
             kept.append(desideratum)
     return tuple(kept)
+
+
+SCOPE_GROUPS: frozenset[Group] = frozenset(
+    {Group.ORIGINAL, Group.REPORT_HANDLING, Group.EMBARGO}
+)
+"""The desiderata groups a vendor's scope holds (ADR-0200 rule 1).
+
+The multi-party group is left out: ``F_i ≺ P`` is the twelve's ``F ≺ P``
+for each vendor, and ``V_i ≺ F_j`` is contested (#6502).
+"""
+
+
+@cache
+def scope_desiderata() -> tuple[Desideratum, ...]:
+    """The desiderata of a vendor's scope, in catalog order, each group of
+    equivalent ones once (ADR-0200 rules 1 and 2).
+
+    Those of the :data:`SCOPE_GROUPS`, less each one equivalent to one
+    before it (:func:`count_once`): ``E ≺ P`` stands for the three ``E``
+    desiderata and ``Ex_own ≺ P`` for the three ``Ex_own`` ones.  This is
+    the one list of the desiderata the measures score: move advice sums it,
+    a vendor's case score scores it, and the case shadow tool's Desiderata
+    table shows it, so a desideratum added to the catalog reaches all three
+    at once.  Computed on first use: finding the equivalent pairs walks the
+    model.
+    """
+    return count_once(
+        d for d in (*ORIGINAL, *EXTENDED) if d.group in SCOPE_GROUPS
+    )

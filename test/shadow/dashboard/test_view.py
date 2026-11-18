@@ -1,6 +1,7 @@
 """What the dashboard shows, as words, icons and rows (#6366).
 
-Every state has a badge, every desideratum reads in words, the move advice
+Every state has a badge, every desideratum of a vendor's scope reads in
+words (#6669), the move advice
 reads band by band with each vendor's harm on its own (#6603), and a gap or
 a reader's report reads as lines and rows.
 
@@ -42,9 +43,19 @@ from vultron.measure.advice import (
     VendorHarm,
     VendorShift,
     case_advice,
+    scope_shift,
+)
+from vultron.measure.baselines import (
+    EXTENDED,
+    ORIGINAL,
+    EventKind,
+    ModelName,
+    VendorDesideratum,
+    scope_desiderata,
 )
 from vultron.measure.history import UnreadableEntry
 from vultron.measure.ledger import UnusableRow
+from vultron.measure.scoring import UnscoredScope, score_prefix
 from vultron.measure.sequences import (
     UnprojectableParticipant,
     UnprojectableReason,
@@ -76,6 +87,7 @@ def test_every_state_and_status_has_a_badge():
     assert set(view.EM_BADGES) == set(EM)
     assert set(view.DESIDERATUM_BADGES) == set(DesideratumStatus)
     assert set(view.EVENT_LABELS) == set(CSEvent)
+    assert set(view.DESIDERATUM_EVENT_LABELS) == set(EventKind)
 
 
 def test_the_public_state_reads_as_three_badges():
@@ -97,12 +109,25 @@ def test_a_desideratum_reads_in_words_and_in_event_letters():
     vendor = next(p for p in standing.participants if p.desiderata)
     first = vendor.desiderata[0]
     assert view.desideratum_label(first) == (
-        f"{view.EVENT_LABELS[first.before]} before"
-        f" {view.EVENT_LABELS[first.after]}"
+        f"{view.DESIDERATUM_EVENT_LABELS[first.before]} before"
+        f" {view.DESIDERATUM_EVENT_LABELS[first.after]}"
     )
     assert view.desideratum_code(first) == (
         f"{first.before.value} ≺ {first.after.value}"
     )
+
+
+def test_a_report_handling_desideratum_reads_in_its_own_events():
+    standing = _analysis().standing
+    assert standing is not None
+    vendor = next(p for p in standing.participants if p.desiderata)
+    (accepted,) = [
+        d for d in vendor.desiderata if d.notation == r"$\evAc_i \prec \evP$"
+    ]
+    assert view.desideratum_label(accepted) == (
+        "Report Acceptance before Public Awareness"
+    )
+    assert view.desideratum_code(accepted) == "Ac ≺ P"
 
 
 def test_participant_rows_show_report_state_case_state_and_tally():
@@ -147,9 +172,72 @@ def test_desiderata_rows_give_each_scored_vendor_its_own_column():
     rows = view.desiderata_rows(
         analysis.standing.participants, analysis.actor_names
     )
-    assert len(rows) == 12
+    assert len(rows) == len(scope_desiderata())
     assert set(rows[0]) == {"Desideratum", "Events", "Vendor", "Vendor2"}
     assert rows[0]["Vendor"] in view.DESIDERATUM_BADGES.values()
+
+
+def _counted_by_move_advice() -> list[str]:
+    """Each catalog desideratum whose reading moves a vendor's scope, found
+    by asking :func:`scope_shift`, not by reading its list."""
+    counted = []
+    for d in (*ORIGINAL, *EXTENDED):
+        other = 2 if d.model is ModelName.TWO_VENDOR else None
+        shift = scope_shift({VendorDesideratum(d, 1, other): Fraction(1)}, 2)
+        if any(part for parts in shift for part in parts):
+            counted.append(d.notation)
+    return counted
+
+
+def test_the_table_shows_exactly_the_desiderata_move_advice_sums():
+    """#6669 AC-2: the table's rows and move advice's scope are one list, so
+    a desideratum added to either and not the other fails here."""
+    analysis = _analysis()
+    assert analysis.standing is not None
+    participants = analysis.standing.participants
+    rows = view.desiderata_rows(participants, analysis.actor_names)
+    vendor = next(p for p in participants if p.desiderata)
+    assert [row["Events"] for row in rows] == [
+        view.desideratum_code(d) for d in vendor.desiderata
+    ]
+    assert [d.notation for d in vendor.desiderata] == _counted_by_move_advice()
+
+
+def test_each_group_of_equivalent_desiderata_shows_once():
+    """#6669 AC-3: ``E ≺ P`` stands for ``E ≺ X`` and ``E ≺ A``, and
+    ``ExOwn ≺ P`` for its two (ADR-0200 rule 2)."""
+    analysis = _analysis()
+    assert analysis.standing is not None
+    codes = [
+        row["Events"]
+        for row in view.desiderata_rows(
+            analysis.standing.participants, analysis.actor_names
+        )
+    ]
+    assert len(codes) == len(set(codes))
+    assert {"E ≺ P", "ExOwn ≺ P", "F ≺ ExOwn"} <= set(codes)
+    assert not {"E ≺ X", "E ≺ A", "ExOwn ≺ X", "ExOwn ≺ A"} & set(codes)
+    assert "V ≺ F" not in codes
+
+
+def test_an_unwalked_vendor_reads_not_scored_and_its_tally_counts_them():
+    unwalked = ParticipantStanding(
+        participant=VENDOR,
+        rm=RM.RECEIVED,
+        case=CaseStanding(em=EM.NONE, pxa=CS_pxa.pxa),
+        score=score_prefix("V"),
+        extended=UnscoredScope(reason="the case stands in no joint state"),
+    )
+    rows = view.desiderata_rows([unwalked], NAMES)
+    by_code = {row["Events"]: row["Vendor"] for row in rows}
+    assert (
+        by_code["Ac ≺ P"]
+        == view.DESIDERATUM_BADGES[DesideratumStatus.UNSCORED]
+    )
+    assert by_code["V ≺ P"] == view.DESIDERATUM_BADGES[DesideratumStatus.MET]
+    (row,) = view.participant_rows([unwalked], NAMES)
+    unscored = len(scope_desiderata()) - len(ORIGINAL)
+    assert f"➖ {unscored}" in str(row["Desiderata"])
 
 
 def test_vendors_that_share_a_label_keep_their_own_columns():
@@ -193,6 +281,7 @@ def test_a_tally_with_no_unknown_desideratum_shows_no_unknown_count():
     assert rows
     for row in rows:
         assert "❔" not in str(row["Desiderata"])
+        assert "➖" not in str(row["Desiderata"])
 
 
 def _reading_with_d_unobservable() -> CaseReading:

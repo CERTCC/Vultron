@@ -110,6 +110,12 @@ Reason: `E ≺ P`, `E ≺ X` and `E ≺ A` hold together, and so do the three `E
 ones, so counting each adds the same skill three times (`process_model_desiderata.md`
 § "The desiderata are not independent").
 
+Read a vendor's scope list only from `vultron.measure.baselines.scope_desiderata()`:
+move advice sums it, the case score's parts are cut from it, and the case shadow
+tool's Desiderata table shows it. Never filter the catalog again in a consumer.
+Reason: the table once held only the twelve while advice summed twenty, because
+nothing tied the two lists together (#6669).
+
 Score a case term whose scope the case never enters as met: it adds its full
 `1 − f_d`, and an open term adds `1 − f_d` times its `ChanceReading.outcome`. Reason:
 the move-advice rule below, and one combining function, `expected_outcome`, serves

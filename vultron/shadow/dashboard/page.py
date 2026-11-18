@@ -160,10 +160,10 @@ def _show_standing(analysis: CaseAnalysis) -> None:
     st.subheader("Participants")
     _table(view.participant_rows(standing.participants, names), "None.")
     st.subheader("Desiderata")
-    _table(
-        view.desiderata_rows(standing.participants, names),
-        "No vendor has a case-state history to score yet.",
-    )
+    desiderata = view.desiderata_rows(standing.participants, names)
+    _table(desiderata, "No vendor has a case-state history to score yet.")
+    if desiderata:
+        st.caption(view.DESIDERATA_NOTE)
     _show_advice(case_advice(standing), names)
 
 
