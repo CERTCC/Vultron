@@ -1277,7 +1277,7 @@ groups:
       model for CVD objects
     rationale: >-
       Wire shape, domain rules and storage change for different reasons. There is one
-      object model, and AS2 is its serialization (ADR-0099). Thus, the separation is at
+      object model, and AS2 is its serialization (ADR-0211). Thus, the separation is at
       the edges: the parse edge, the rendering port and the store. A new storage backend
       or an AS2 rendering detail then changes one edge and does not change the domain
       rules.
@@ -1290,7 +1290,7 @@ groups:
     statement: >-
       A core domain class in this codebase MUST NOT inherit directly from an
       ActivityStreams base type. Its AS2 serialization goes through the rendering port
-      (ARCH-20-001, ADR-0099).
+      (ARCH-20-001, ADR-0211).
     rationale: >-
       The two branches stay distinct type hierarchies, so neither branch imports the
       other. The rendering port gives core a wire form without core code building it
@@ -3369,7 +3369,7 @@ groups:
       condition node in the behavior tree. A short-circuit in the use case must store
       the report and the Offer before it returns. That is a store path outside the tree,
       which CLP-10-019 forbids. The tree stores the report and the Offer for every
-      addressed inbound `Offer(VulnerabilityReport)` (ADR-0111, ADR-0154). Thus a gate
+      addressed inbound `Offer(VulnerabilityReport)` (ADR-0212). Thus a gate
       outside the tree has nothing to do.
     verification: A received-side handler test posts an `Offer(VulnerabilityReport)`
       to a receiver with `auto_create_case=False`, asserts the disposition is
@@ -9252,7 +9252,7 @@ groups:
       The CASE_MANAGER MUST run the CM-28-015 sweep only after the door guards admit
       the activity, its sender gate (HP-01-006) included.
     rationale: >-
-      The sweep is a clock decision (CLP-10-025, ADR-0135). Running it after the
+      The sweep is a clock decision (CLP-10-025, ADR-0212). Running it after the
       door guards means a sender with no standing makes the CASE_MANAGER write
       nothing.
     verification: >-
@@ -9280,7 +9280,7 @@ groups:
     rationale: >-
       An overdue row is a fact from the CASE_MANAGER's clock, not evidence from the
       activity. Sweeping before the activity's own refusals records the expiries
-      even when the activity is then refused (ADR-0135).
+      even when the activity is then refused (ADR-0212).
     verification: >-
       `test_a_decision_on_no_open_proposal_is_refused_after_the_expiry` in
       `test/core/use_cases/received/test_embargo_overdue_invite_sweep.py` delivers

@@ -344,7 +344,7 @@ groups:
     rationale: >-
       Handler exceptions propagate to this boundary (DR-03-002). An exception other
       than a protocol violation may be transient or a deterministic bug, so an
-      unbounded re-queue could loop forever. A failed act keeps nothing (ADR-0151), so
+      unbounded re-queue could loop forever. A failed act keeps nothing (ADR-0212), so
       a retry re-runs the whole act. A live delivery is not queued: its retry is the
       sender's resend (ASK-07-010).
     verification: >-
@@ -447,7 +447,7 @@ groups:
       (ASK-07-014), so an item lost between its dequeue and its settlement is never
       recovered. Writes that must land together share one transaction, never a
       repair pass (ADR-0146). The act's own transaction nests inside the attempt's,
-      so a failed act still keeps nothing (ADR-0151).
+      so a failed act still keeps nothing (ADR-0212).
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_queue_drain.py` interrupts a replay
       attempt with an exception the drain does not catch, once during the act and
@@ -708,7 +708,7 @@ groups:
       reads as one of the receiver's own activities (DL-06-006). The held record is the
       received body (ADR-0149), so a resend of an activity held with no replay owed is
       parsed again from that body, and that body is its evidence. The received tree's
-      seen-before door then answers it from the record's stage (CLP-10-010, ADR-0154):
+      seen-before door then answers it from the record's stage (CLP-10-010, ADR-0212):
       an archived act was applied, so the resend is a repeat; an act a run left in
       holding with no verdict, such as one whose consequence failed, runs again and
       records the held body (CLP-07-015, CLP-10-074). Only a resend of the same body is

@@ -1655,7 +1655,7 @@ groups:
     replaying it, in hash-chain order, once the entry that closes the gap is committed.
     What is held and replayed is the Announce that was received, never one the replica
     builds. Rationale: ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md),
-    ADR-0135.
+    ADR-0212.
   specs:
   - id: SYNC-14-001
     priority: MUST
@@ -1820,7 +1820,7 @@ groups:
       would run several trees in one delivery. A drain inside the tree would run one
       tree inside another, and an internal error in the inner tree would then not be
       reported. A delivery of its own goes through the same path as in-order delivery
-      (SYNC-14-008, ADR-0135).
+      (SYNC-14-008, ADR-0212).
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that committing an
       entry whose successor's Announce is held replays that Announce and runs no

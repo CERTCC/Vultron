@@ -96,7 +96,7 @@ Chosen option: **"One gate at adoption"**, because the teardown gate has no auth
 - Good, because one call-out, not two, has to be configured, backed and fuzzed.
 - Bad, because a reader who inspects ledger entries one at a time, inside an act, sees the adoption snapshot beside an active embargo; the invariant tells them to judge at the act boundary.
 
-### Confirmation
+## Validation
 
 - `test/core/behaviors/status/test_add_participant_status_bt.py` covers the Case Owner bypass, the gate for a non-owner, and an adopted P, X or A value ending the embargo in the same act.
 - `test/core/behaviors/status/test_status_authorization_bundle.py` covers the gate's default and the permissive backend.
@@ -134,7 +134,8 @@ Chosen option: **"One gate at adoption"**, because the teardown gate has no auth
 
 This record supersedes, whole:
 
-- [ADR-0046](archived/0046-received-status-authorization.md): the adoption gate, its Case Owner bypass and the default approval are detail 2; the write-before-side-effect order is detail 4; the outbound emit invariant and the emission authority are detail 6. Its two-gate split, the teardown gate and the self-addressed `Add(CaseStatus)` had been replaced.
+- [ADR-0046](archived/0046-received-status-authorization.md): the adoption gate, its Case Owner bypass and the default approval are detail 2; the write-before-side-effect order is detail 4; the outbound emit invariant and the emission authority are detail 6.
+  Its two-gate split, the teardown gate and the self-addressed `Add(CaseStatus)` had been replaced.
 - [ADR-0166](archived/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md): one authorization and one act are detail 3, and judging at act boundaries is detail 5.
 
 Related:
@@ -144,4 +145,4 @@ Related:
 - [ADR-0080](0080-protocol-asks-not-suspended-behaviors.md) makes a gate awaiting a human an ask.
 - [ADR-0108](0108-one-move-one-mover-case-state-flows-through-the-case-manager-and-the-ledger.md) makes case state flow through the CASE_MANAGER and the ledger, which removed the loopback.
 
-Requirements: `received-status-handling.yaml` RSH-01, RSH-04 and RSH-07; `cs-behavior.yaml` CSB-18.
+Generated spec requirements: `received-status-handling.yaml` RSH-01, RSH-04 and RSH-07; `cs-behavior.yaml` CSB-18.

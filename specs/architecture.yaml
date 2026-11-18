@@ -46,7 +46,7 @@ groups:
       holds domain logic, a change of wire format must also change that logic, and core
       then does not own its own rules. The wire layer may name core types in its
       annotations (ARCH-22-001), because AS2 is a serialization of the core model
-      (ADR-0099). The rule thus limits what wire code does, not what it imports.
+      (ADR-0211). The rule thus limits what wire code does, not what it imports.
     adr:
     - ADR-0211
     - ADR-0009
@@ -170,7 +170,7 @@ groups:
       format changes only that module. If a second module also does the mapping, the two
       can disagree, and one message can mean different things in different parts of the
       code. The semantic extractor reads the AS2 form, so it is in `vultron/wire/`,
-      which may import core models (ARCH-22-001, ADR-0099).
+      which may import core models (ARCH-22-001, ADR-0211).
     verification: Inspection of `vultron/wire/` confirms that AS2-to-domain vocabulary mapping logic appears only in
       the semantic extractor module and in no other location.
     adr:
@@ -434,7 +434,7 @@ groups:
   title: Core Object Hierarchy
   rationale: >-
     The core classes are the object model, and AS2 is a serialization of them
-    (ADR-0099). Core and the wire layer thus have separate roots, and each root holds
+    (ADR-0211). Core and the wire layer thus have separate roots, and each root holds
     only what its own branch needs. Two class hierarchies for one concept need
     translation code, and translation code drifts. These rules keep one class for each
     domain concept.
@@ -796,7 +796,7 @@ groups:
       `VultronService`, `VultronApplication` and `VultronGroup`.
     rationale: >-
       With the actor classes in core, core code uses them with no wire import, and the
-      AS2 form of an actor is the serialization of its class (ADR-0099).
+      AS2 form of an actor is the serialization of its class (ADR-0211).
     verification: >-
       Inspection confirms that `VultronPerson`, `VultronOrganization`, `VultronService`,
       `VultronApplication` and `VultronGroup` are defined in
@@ -1347,7 +1347,7 @@ groups:
     Governs how core domain objects are rendered into wire-shaped (AS2 camelCase) JSON. Core
     legitimately needs a wire representation in one place — the `CaseLedgerEntry.payloadSnapshot`,
     which CLP-07-011 requires to be receiver-reconstitutable AS2 — and this group makes a driven
-    port the single seam that produces it. Under one object model (ADR-0099) the spelling lives
+    port the single seam that produces it. Under one object model (ADR-0211) the spelling lives
     on the core class (ARCH-25-002) and a dimension serializes to a bare state value (ARCH-25-005), so
     the port's adapter is a plain `by_alias` dump of the core object; what the group still
     guards is that core code reaches that dump only through the port.
@@ -1356,7 +1356,7 @@ groups:
     output, that output is a second translation beside the spelling of the class, and
     the two can drift. A driven port is the remedy that ARCH-01-004 prescribes for each
     core need for a wire form, and it gives one place that decides what goes on the
-    wire. See ADR-0063 and ADR-0099.
+    wire. See ADR-0063 and ADR-0211.
   specs:
   - id: ARCH-20-001
     priority: MUST
@@ -1941,7 +1941,7 @@ groups:
       If a wire class and a core class register under the same key, a lookup by that key
       can return the wrong class, and stored or received data can be rebuilt as a wire
       object. Disjoint keys keep each lookup unambiguous. They also stop a new wire
-      class from shadowing a core type with no notice. See ADR-0099.
+      class from shadowing a core type with no notice. See ADR-0211.
     verification: >-
       A test forces full registration first — registration is a submodule import side effect
       (VM-01-005), so it walks every submodule of the wire vocabulary package and of the core
@@ -2422,7 +2422,7 @@ groups:
     statement it refines names it.
   rationale: >-
     The rules in this group are direct consequences of one decision: the core classes
-    are the object model, and AS2 is a serialization of them (ADR-0099). They are kept
+    are the object model, and AS2 is a serialization of them (ADR-0211). They are kept
     together so that a reader can see that decision in one place. Each requirement that
     refines one of them names the rule that it refines. A spec, not a decision record,
     holds a constraint that future code must obey (ADR-0127).

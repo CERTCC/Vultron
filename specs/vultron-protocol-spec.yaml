@@ -2068,7 +2068,7 @@ groups:
       VP-11-011). The obligation to terminate itself is VP-09-001, and what a Participant
       other than the Case Owner may do is VP-11-012. The Case Owner keeps no discretion to
       keep an embargo once the public/exploit condition is canonical: adopting the value
-      is the one authorization, and the act that adopts it ends the embargo (ADR-0166,
+      is the one authorization, and the act that adopts it ends the embargo (ADR-0210,
       RSH-03-001, CSB-12-001, CSB-13-002).
     verification_debt: '#3612'
     stories:
@@ -2141,7 +2141,7 @@ groups:
       party holds the authority to end it, so participants never disagree about whether
       it still holds. The Case Owner may delegate this decision in advance, for example
       by configuring `CaseOwnerApprovesStatusUpdate` to approve reported attacks
-      automatically (RSH-07-003), which then also ends the embargo (ADR-0166). The
+      automatically (RSH-07-003), which then also ends the embargo (ADR-0210). The
       decision is made ahead of time, and the authority stays with the Case Owner.
     note: >-
       Rephrased from "Participants SHOULD terminate the embargo" for the same reason as

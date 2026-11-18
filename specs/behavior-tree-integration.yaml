@@ -977,7 +977,7 @@ groups:
       check, a trigger can extend an embargo whose end time has passed, for example when
       it accepts a pending revision. The check runs as the first stage of the trigger
       tree. Thus each request has one tree, and the check and the trigger effects have
-      one run and one outcome (ADR-0135).
+      one run and one outcome (ADR-0212).
     verification: >-
       `test/core/use_cases/triggers/test_base.py` asserts a case-scoped
       trigger's tree leads with the gated clock-decision stage, that a trigger
@@ -2429,7 +2429,7 @@ groups:
       re-run.
     rationale: >-
       The message is not judged because the backend could not decide. The re-run from
-      holding asks again, and its answer is the decision (ADR-0183, ADR-0154).
+      holding asks again, and its answer is the decision (ADR-0183, ADR-0212).
     adr:
     - ADR-0183
     relationships:

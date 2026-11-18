@@ -785,7 +785,7 @@ groups:
       class of its object. A core class with `extra="forbid"` (ARCH-12-003) refuses the
       key with a 422 status. A wire class with the Pydantic default `extra="ignore"`
       drops the key silently. Neither result is a decision of the receiver. Under one
-      object model (ADR-0099), the parser is the inbound point where wire data becomes
+      object model (ADR-0211), the parser is the inbound point where wire data becomes
       core data (ADR-0032: validate at the edge; ARCH-21-002: inbound wire data stays
       lenient).
     verification: >-
@@ -930,7 +930,7 @@ groups:
       The normalization is shallow on purpose. AS2 has many property names of two or
       three letters that are one character apart, so an edit-distance model gives many
       false matches. A wider definition of "near" is not worth its cost (ARCH-25-008;
-      ADR-0099).
+      ADR-0211).
     verification: >-
       `test_no_similarity_helper_in_the_parse_edge` in
       `test/wire/as2/test_unknown_key_disposition.py` asserts that no module under
