@@ -1259,7 +1259,7 @@ groups:
       `test/architecture/test_response_in_reply_to.py` confirms the activity cannot be
       built without `inReplyTo`.
     adr:
-    - ADR-0215
+    - ADR-0212
     stories:
     - story_2026_087
   - id: VAM-05-009
@@ -1282,7 +1282,7 @@ groups:
       `test/architecture/test_response_in_reply_to.py` confirms the activity cannot be
       built without `inReplyTo`.
     adr:
-    - ADR-0215
+    - ADR-0212
     stories:
     - story_2026_087
   - id: VAM-05-010
@@ -1316,7 +1316,7 @@ groups:
     - rel_type: implements
       spec_id: VAM-05-009
     adr:
-    - ADR-0215
+    - ADR-0212
   - id: VAM-05-011
     priority: MUST
     kind: protocol
@@ -1334,7 +1334,7 @@ groups:
       `WithdrawFromEmbargoOnCasePattern` uses `TAtype.LEAVE`, `AOtype.EVENT`, and
       `context_=VULNERABILITY_CASE`.
     adr:
-    - ADR-0215
+    - ADR-0212
     stories:
     - story_2026_090
     - story_2022_080

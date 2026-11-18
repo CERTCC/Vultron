@@ -221,6 +221,7 @@ adr/0208-core-owns-the-as2-base-vocabulary.md
 adr/0209-which-checks-run-locally-which-run-only-in-ci-and-when-to-merge-the-base-branch.md
 adr/0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md
 adr/0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md
+adr/0212-how-embargo-status-and-participant-consent-are-recorded.md
 adr/0213-how-a-participant-joins-becomes-active-and-is-removed.md
 adr/0214-how-a-received-message-is-checked-applied-and-kept.md
 adr/0215-how-embargo-status-and-participant-consent-are-recorded.md

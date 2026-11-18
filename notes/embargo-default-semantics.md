@@ -147,7 +147,7 @@ The losing terms are a revision like any other and follow the relay in
   inbox's redelivery of the proposal creates the case, registers the revision
   and relays it again. Do not store the relay as owed for a later run.
 - **Replicas learn the revision from two places**: the `Create(VulnerabilityCase)`
-  snapshot carries it as a `PROPOSED` register entry (ADR-0215), and only the
+  snapshot carries it as a `PROPOSED` register entry (ADR-0212), and only the
   proposer indexes it, when `ApplyEmbargoInviteFromLedgerNode` replays the
   Invite attributed to it (#4099).
 

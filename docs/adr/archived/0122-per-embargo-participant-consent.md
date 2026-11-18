@@ -30,11 +30,11 @@ partially_supersedes:
   - 0091-rename-pec-no-embargo-to-unbound.md
   - 0093-signatory-declined-pec-transition.md
   - 0118-pec-expired-and-unbound-exited-states.md
-superseded_by: 0215-how-embargo-status-and-participant-consent-are-recorded.md
+superseded_by: 0212-how-embargo-status-and-participant-consent-are-recorded.md
 ---
 
-> **Superseded by [ADR-0215](../0215-how-embargo-status-and-participant-consent-are-recorded.md).**
-> ADR-0215 states the embargo register, the per-embargo consent rows, the EM derivation, the owner's decisions and an embargo's end as one decision, consolidating ADR-0122, ADR-0130, ADR-0180, ADR-0202 and ADR-0203.
+> **Superseded by [ADR-0212](../0212-how-embargo-status-and-participant-consent-are-recorded.md).**
+> ADR-0212 states the embargo register, the per-embargo consent rows, the EM derivation, the owner's decisions and an embargo's end as one decision, consolidating ADR-0122, ADR-0130, ADR-0180, ADR-0202 and ADR-0203.
 > This record is kept as it stood when it was superseded.
 
 # Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case

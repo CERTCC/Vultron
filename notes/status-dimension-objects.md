@@ -32,7 +32,7 @@ Each state machine on `CaseStatus` (`em`, `pxa`) and `ParticipantStatus` (`rm`,
 `vf`, `d`) is a small dimension object that holds one `state` field. `pxa`,
 `rm`, `vf` and `d` own their `transition()` and guard predicates; `em` has no
 `transition()`, because its value is a stamped copy of the EM derived from the
-embargo register (ADR-0215). Decision: ADR-0036 (split of `vfd` into
+embargo register (ADR-0212). Decision: ADR-0036 (split of `vfd` into
 `vf` + `d`: ADR-0075). Requirements: `specs/status-dimension-objects.yaml`.
 
 ## Naming
@@ -41,7 +41,7 @@ Dimension objects take the `*Dimension` suffix (`EmDimension`, `PxaDimension`,
 `RmDimension`, `VfDimension`, `DDimension`) so they do not collide with the
 `VfdState` / `PxaState` NamedTuples in `vultron/core/states/cs/states.py`. There is no
 consent dimension: participant embargo consent is per-embargo rows on
-`CaseParticipant` (ADR-0215).
+`CaseParticipant` (ADR-0212).
 
 ## BaseModel, Not CoreObject
 

@@ -8,7 +8,7 @@ deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0114, ADR-0116, ADR-0172 (the records this one
   consolidates); ADR-0199, ADR-0205 (live records whose parts on this lifecycle it
-  restates); ADR-0203, ADR-0215 (the embargo-end notice); ADR-0093, ADR-0121,
+  restates); ADR-0203, ADR-0212 (the embargo-end notice); ADR-0093, ADR-0121,
   ADR-0124; specs/case-management.yaml
   CM-10, CM-11, CM-17, CM-23, CM-31; specs/rm-behavior.yaml RMB-14;
   CONCERN-4006, CONCERN-2257, CONCERN-5574; issues #6295, #6465, #6511
@@ -28,7 +28,7 @@ An actor goes from "invited" to "participating" in a case, may stop receiving ca
 ADR-0114 decided how an actor joins: the stub Invite creates an inert participant record, entitlement to case content is an explicit check, and RM may close from *Received*.
 ADR-0116 decided that removing a participant withdraws its entitlement and keeps its record.
 ADR-0172 then narrowed "active" to exclude closed participants, replacing a statement in each of the two.
-ADR-0199 replaced ADR-0116's removal and reinstatement messages, ADR-0203 its embargo-change notices (now stated by ADR-0215), and ADR-0205 ADR-0114's stub type.
+ADR-0199 replaced ADR-0116's removal and reinstatement messages, ADR-0203 its embargo-change notices (now stated by ADR-0212), and ADR-0205 ADR-0114's stub type.
 ADR-0114 and ADR-0116 also each carried a dated in-place correction about which ledger entries a replica learns a new participant from.
 
 So the lifecycle could be read only by laying six records over each other.
@@ -153,7 +153,7 @@ Chosen option: **option 1**, because it tracks every invitee from its Invite, ma
 15. **Catch-up follows the active check, and a bound participant hears when its embargo ends.**
     Whenever the active check turns from false to true, for any reason, the CASE_MANAGER backfills every entry the participant was not sent, in log order (CM-10-006).
     A removed participant is sent no stub, full-case or embargo Invite (CM-31-013); one reinstated into a case whose embargo in force it has not accepted is sent that embargo's Invite (CM-31-040).
-    Every signatory the ledger fan-out does not reach, removed or closed, is told when the embargo it is bound by ends or is shortened, by a notice that carries no other case content (CM-31-009, CM-31-030, CM-31-031); what the notice is, is ADR-0215's.
+    Every signatory the ledger fan-out does not reach, removed or closed, is told when the embargo it is bound by ends or is shortened, by a notice that carries no other case content (CM-31-009, CM-31-030, CM-31-031); what the notice is, is ADR-0212's.
     A participant whose stream is paused applies such a notice only from the CASE_MANAGER, and replaying the matching entry later changes nothing (CM-31-010, CM-31-032, CM-31-033).
     That is the one channel exception to taking case state from the ledger (RSH-08-003).
 
@@ -228,7 +228,7 @@ Not carried forward, because each had been overtaken before this record:
 - ADR-0114's `create_case_participant` entry, `Create(CaseParticipant)`: the seating entry is `add_case_participant_to_case`, `Add(CaseParticipant)` with the case as `target` (CM-11-023, #6295).
 - ADR-0114's stub with its own type, id and `caseId`: the stub Invite's object is the case's previewed reference (ADR-0205).
 - ADR-0116's `Remove(CaseParticipant)`/`Add(CaseParticipant)` with the case as `target`, the CASE_MANAGER's separate unledgered notice, and the Owner posting to its own inbox when it is also the CASE_MANAGER: the Owner's act names the actor and is announced (ADR-0199).
-- ADR-0116's notice table, `Remove(EmbargoEvent)` for a termination and `Announce(EmbargoEvent)` for a shorter revision, with no notice on expiry: the notice is an `Announce` of the act that made the change, sent on every end (ADR-0215).
+- ADR-0116's notice table, `Remove(EmbargoEvent)` for a termination and `Announce(EmbargoEvent)` for a shorter revision, with no notice on expiry: the notice is an `Announce` of the act that made the change, sent on every end (ADR-0212).
 - ADR-0116 and ADR-0114's statement that RM `CLOSED` is not part of the active check (ADR-0172).
 
 These records stay live for their other decisions, and restate here only their parts on this lifecycle:
@@ -239,7 +239,7 @@ These records stay live for their other decisions, and restate here only their p
 Related:
 
 - [ADR-0121](0121-joined-participant-judges-the-case-by-full-case-invite.md) decides how a joined participant judges the case through the full-case Invite, and scopes on-behalf status to existing participants.
-- [ADR-0215](0215-how-embargo-status-and-participant-consent-are-recorded.md) decides embargo status and consent, and how an embargo's end reaches a signatory the ledger fan-out does not reach (detail 15).
+- [ADR-0212](0212-how-embargo-status-and-participant-consent-are-recorded.md) decides embargo status and consent, and how an embargo's end reaches a signatory the ledger fan-out does not reach (detail 15).
 - [ADR-0093](0093-signatory-declined-pec-transition.md) decides embargo consent and its lapse.
 - [ADR-0089](0089-one-participant-status-writer.md) decides the single participant-status writer.
 - [ADR-0124](0124-case-is-a-projection-of-its-ledger.md) decides that a replica copies its ledger.

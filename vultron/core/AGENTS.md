@@ -163,7 +163,7 @@ corrupting the ordering invariant that keeps the `UNKNOWN` fallback last.
 
 The `caller_owns_em_io` guard and `WriteEmStateNode` are **retired** (#2712);
 do not reintroduce them. BT nodes call `EmbargoLifecycle`; never apply a
-register step or assign `case.current_status.em` inline (ADR-0215). Full rule:
+register step or assign `case.current_status.em` inline (ADR-0212). Full rule:
 `vultron/core/behaviors/AGENTS.md` § "EM State Reads and Writes Must Use
 Canonical Nodes". *Source: ISSUE-1474; retired ISSUE-2712*
 
