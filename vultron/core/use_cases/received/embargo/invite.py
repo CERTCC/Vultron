@@ -119,29 +119,45 @@ def _refusal_reader(
 def resolve_invitee_id(
     request: InviteToEmbargoOnCaseReceivedEvent, invite_id: str
 ) -> str:
-    """Return the invitee of an ``Invite(EmbargoEvent)``: its sole ``to``.
+    """Return the invitee of an ``Invite(EmbargoEvent)``: its ``target``.
 
     The invitee is a *message subject*, read from the message and never from
-    the store it reached (ADR-0022, CLP-10-015).  Every emitter sends one
-    recipient — a participant to the CASE_MANAGER, the CASE_MANAGER to one
-    participant per relayed Invite (EP-09-002) — so an Invite naming none or
-    several is a misrouting, refused rather than guessed at (EP-09-010).  The
-    recipient is returned in its canonical spelling, so a trailing slash still
-    names the actor (#2667), and two spellings of one actor are one recipient.
+    the store it reached (ADR-0022, CLP-10-015).  The Invite names it in
+    ``target`` (ADR-0205), and it is the one actor the Invite is addressed
+    to.  Every emitter sends one recipient — a participant to the
+    CASE_MANAGER, the CASE_MANAGER to one participant per relayed Invite
+    (EP-09-002) — so an Invite naming none or several, with no ``target``,
+    or with a ``target`` that is not its recipient, is a misrouting, refused
+    rather than guessed at (EP-09-010, EP-09-026).  The invitee is returned
+    in its canonical spelling, so a trailing slash still names the actor
+    (#2667), and two spellings of one actor are one recipient.
 
     Raises:
         VultronProtocolViolationError: ``to`` names no recipient or more
-            than one; the message gives the count.
+            than one (the message gives the count), or ``target`` is absent
+            or names another actor.
     """
     invitee_id = request.invitee_id
-    if invitee_id is None:
-        raise VultronProtocolViolationError(
-            f"Invite(EmbargoEvent) '{invite_id}' names"
-            f" {len(request.to_recipients)} 'to' recipients; its invitee is"
-            " its sole recipient, so it is refused as a misrouting"
-            " (EP-09-010, OX-08-001)"
+    if invitee_id is not None:
+        return invitee_id
+    recipients = request.to_recipients
+    target = request.target_invitee_id
+    if len(recipients) != 1:
+        problem = (
+            f"names {len(recipients)} 'to' recipients; its invitee is its"
+            " sole recipient"
         )
-    return invitee_id
+    elif target is None:
+        problem = "names no invitee in 'target' (ADR-0205)"
+    else:
+        problem = (
+            f"names '{target}' in 'target' but is addressed to"
+            f" '{recipients[0]}'; its invitee is its sole recipient"
+        )
+    raise VultronProtocolViolationError(
+        f"Invite(EmbargoEvent) '{invite_id}' {problem}, so it is refused as"
+        " a misrouting (EP-09-010, EP-09-026, OX-08-001)"
+    )
 
 
 class InviteToEmbargoOnCaseReceivedUseCase:
@@ -191,9 +207,10 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 addressed=True,
             )
         # The invitee is a subject the message names, not the actor whose
-        # replica this is (ADR-0022): the Invite's sole `to` recipient.  An
-        # Invite naming none or several is a misrouting, refused before the
-        # P/X/A check answers it (EP-09-010, HP-01-005).
+        # replica this is (ADR-0022): the Invite's `target`, its sole `to`
+        # recipient.  An Invite naming none or several, or a `target` that
+        # is not its recipient, is a misrouting, refused before the P/X/A
+        # check answers it (EP-09-010, EP-09-026, HP-01-005).
         try:
             invitee_id = resolve_invitee_id(request, invite_id)
         except VultronProtocolViolationError as exc:

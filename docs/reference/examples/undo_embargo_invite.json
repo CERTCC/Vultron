@@ -6,7 +6,7 @@
   ],
   "type": "Undo",
   "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1/invites/coordinator/undo",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Undo https://vultron.example/case-actors/vendorco-case-actor Invite Embargo for VendorCo Case #20260601",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Undo https://vultron.example/case-actors/vendorco-case-actor Invite Embargo for VendorCo Case #20260601 to https://vultron.example/organizations/coordinator",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
@@ -14,7 +14,7 @@
   "object": {
     "type": "Invite",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1/invites/coordinator",
-    "name": "https://vultron.example/case-actors/vendorco-case-actor Invite Embargo for VendorCo Case #20260601",
+    "name": "https://vultron.example/case-actors/vendorco-case-actor Invite Embargo for VendorCo Case #20260601 to https://vultron.example/organizations/coordinator",
     "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "endTime": "2026-06-08T19:12:00.000000+00:00",
     "published": "2026-06-01T19:12:00.000000+00:00",
@@ -25,6 +25,7 @@
     ],
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+    "target": "https://vultron.example/organizations/coordinator",
     "object": {
       "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-08-30T00:00:00+00:00",
       "type": "EmbargoEvent",
@@ -48,6 +49,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5LusbpkqbyWJu46TDkyKfyZsiSQcnuZ8ZQdcacCimcf9ZYAckUCW11cwaCKXZkUvZePbShCyytCtFjw3PAXXMXg2"
+    "proofValue": "z2aJKLBT1wQWFWBHeG8SEmagN7Mf88tg3y6LCBbB6bCQusUC2FKn5ML9uVNw6ovzEK7fTH6Pxa1HzofaLQfQ4Wg7N"
   }
 }

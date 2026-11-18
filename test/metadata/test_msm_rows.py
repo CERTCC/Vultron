@@ -61,11 +61,11 @@ def test_format_pattern_with_target_qualifier():
     [
         (
             MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
-            "Invite(EmbargoEvent)[context=VulnerabilityCase]",
+            "Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]",
         ),
         (
             MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
-            "Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])",
+            "Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])",
         ),
         (
             MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,

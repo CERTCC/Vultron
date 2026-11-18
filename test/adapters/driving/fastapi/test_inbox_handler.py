@@ -1117,6 +1117,8 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
             as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id
         ),
         actor="https://example.org/alice",
+        to=["https://example.org/bob"],
+        target="https://example.org/bob",
         published=published,
     )
 

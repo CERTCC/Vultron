@@ -149,6 +149,60 @@ class TestRehydrateFields:
         )
         assert isinstance(inline_offer.target, (as_Actor, CoreActor))  # type: ignore[union-attr]
 
+    def test_minimal_peer_target_reads_back_as_its_actor_reference(self, dl):
+        """A stored minimal peer fills a target as its actor reference.
+
+        The abstract ``CoreActor`` record, kept when only the peer's URI is
+        known (ADR-0159), has a core class name for its ``type``.  It fills
+        the slot as an activity carries it, typed ``Actor`` (AKM-05-017), so
+        the wire-only matcher still routes the embargo Invite (VM-06-013).
+        """
+        from vultron.core.models.actor import CoreActor
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        invitee = "https://example.org/actors/minimal-peer"
+        dl.create(make(CoreActor, id_=invitee, published=None, updated=None))
+        case_id = "urn:uuid:case-sqlite-coerce-minimal-peer"
+        embargo = make(
+            as_EmbargoEvent, context=case_id, end_time=days_from_now(45)
+        )
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=case_id,
+            actor="https://example.org/actors/proposer",
+            invitee=invitee,
+            at=authored_at(),
+        )
+        dl.save(embargo)
+        dl.save(proposal)
+
+        result = dl.read(proposal.id_)
+
+        assert type(result).__name__ == "_EmProposeEmbargoActivity"
+        target = result.target  # type: ignore[union-attr]
+        assert (target.id_, target.type_) == (invitee, "Actor")
+
+    def test_typed_actor_target_reads_back_as_held(self, dl):
+        """A stored actor of a concrete class fills a target as held."""
+        from vultron.core.models.actor import VultronPerson
+
+        person_id = "https://example.org/actors/a-person"
+        dl.save(make(VultronPerson, id_=person_id, name="A Person"))
+        invite = make(
+            as_Invite,
+            object_="https://example.org/things/x",
+            target=person_id,
+            actor="https://example.org/actors/sender",
+        )
+        dl.create(invite)
+
+        result = dl.read(invite.id_)
+
+        assert isinstance(result.target, VultronPerson)  # type: ignore[union-attr]
+        assert result.target.type_ == "Person"  # type: ignore[union-attr]
+
 
 # ---------------------------------------------------------------------------
 # DL-REHYDRATE: _coerce_to_semantic_class tests
@@ -197,6 +251,7 @@ class TestCoerceToSemanticClass:
             embargo,
             context=case.id_,
             actor="https://alice.example.org",
+            invitee="https://alice.example.org",
             at=authored_at(),
         )
         dl.save(case)

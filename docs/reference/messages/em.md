@@ -28,11 +28,13 @@ The inbox of this implementation recognizes a `Create(EmbargoEvent)`, reports "n
 {% include-markdown "./_occasions/sections/embargo-proposal.md" %}
 
 - **Triggering transition:** None or Proposed → Proposed ({N,P} → P).
-- **Wire form:** `Invite(EmbargoEvent)[context=VulnerabilityCase]`, and no other (MSM-02-001).
+- **Wire form:** `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]`, and no other (MSM-02-001).
+- **Invitee:** the Invite's `target` names the invitee, the one actor it is addressed to, as ActivityStreams 2.0 places an Invite's invitee ([ADR-0205](../../adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md), EP-09-010).
+  A proposal goes to the CASE_MANAGER alone, so its `target` names the CASE_MANAGER.
 
 {% include-markdown "./_occasions/sections/relay-embargo-proposal.md" %}
 
-- **Recipient:** one Invite per participant other than the proposer, each addressed to that participant alone, so its answer names the Invite it received (EP-09-002, EP-09-010).
+- **Recipient:** one Invite per participant other than the proposer, each addressed to that participant alone and naming it in `target`, so its answer names the Invite it received (EP-09-002, EP-09-010).
 
 {% include-markdown "./_occasions/sections/announce-embargo.md" %}
 
@@ -58,9 +60,10 @@ A revision that ends later causes no such notice, because those participants nev
   The `Reject` names the Invite by id.
   The receiver therefore sends the `Reject` even when the Invite named its terms only by URI.
   A receiver sends one `Reject` per Invite and skips a re-delivered Invite.
-- **Malformed Invite:** an `EP` that names no `to` recipient, or several.
+- **Malformed Invite:** an `EP` that names no `to` recipient, or several, or whose `target` names an actor other than its recipient (EP-09-026).
   The receiver does not answer such an `EP` with a `Reject`.
   The `EP` is received but not understood, so the receiver sends `Create(ProcessingFault)` to the sender.
+  An `EP` with no `target` matches no embargo Invite form, so its receiver does not recognize it as an `EP` at all.
 
 {% include-markdown "./_occasions/sections/abandon-embargo-proposal.md" %}
 

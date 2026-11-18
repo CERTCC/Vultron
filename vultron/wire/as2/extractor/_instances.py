@@ -49,11 +49,13 @@ InviteToEmbargoOnCasePattern = ActivityPattern(
     description=(
         "Propose an embargo on a vulnerability case. "
         "This is observed as an INVITE activity where the object is an "
-        "EmbargoEvent and the context is the VulnerabilityCase. "
+        "EmbargoEvent, the target is the invited Actor (ADR-0205) and the "
+        "context is the VulnerabilityCase. "
         "Corresponds to EmProposeEmbargoActivity."
     ),
     activity_=TAtype.INVITE,
     object_=AOtype.EVENT,
+    target_=AOtype.ACTOR,
     context_=VOtype.VULNERABILITY_CASE,
 )
 AcceptInviteToEmbargoOnCasePattern = ActivityPattern(
