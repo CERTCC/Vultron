@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from vultron.errors import LedgerReadError
 from vultron.measure.ledger import (
     Dimension,
+    EntryLabels,
     actor_uri,
     candidate_dicts,
     coerce_int,
@@ -35,7 +36,6 @@ from vultron.measure.ledger import (
     label_names,
     payload_of,
     read_ledger_file,
-    render_event_phrase,
 )
 
 #: Glob for the per-actor case-ledger replica files.
@@ -172,26 +172,31 @@ class CaseTimelineEvent(BaseModel):
         )
 
     @property
-    def target_label(self) -> str | None:
-        """Friendly target label; ``object → destination`` when both are present.
+    def _labels(self) -> EntryLabels:
+        """The friendly labels of the entry's actor, object and destination.
 
-        Each half is the display name :func:`build_timeline` resolved for it
-        (an actor's name, or for a participant the actor it stands for), else
-        the shared :func:`~vultron.measure.ledger.display_label`: the case reads
-        "case", a typed object its type's noun, and an opaque id an "unnamed"
-        label, never a bare URI or UUID (DRPT-03-001, DRPT-03-009).
+        Each is the display name :func:`build_timeline` resolved for it (an
+        actor's name, or for a participant the actor it stands for), else
+        the shared :func:`~vultron.measure.ledger.display_label`: the case
+        reads "case", a typed object its type's noun, and an opaque id an
+        "unnamed" label, never a bare URI or UUID (DRPT-03-001, DRPT-03-009).
         """
-        obj_label = self._reference_label(
-            self.target_ref, self.target_type, self.target_display_name
+        return EntryLabels(
+            actor=self.actor_label if self.actor_uri else None,
+            object=self._reference_label(
+                self.target_ref, self.target_type, self.target_display_name
+            ),
+            destination=self._reference_label(
+                self.activity_target_ref,
+                self.activity_target_type,
+                self.activity_target_display_name,
+            ),
         )
-        dest_label = self._reference_label(
-            self.activity_target_ref,
-            self.activity_target_type,
-            self.activity_target_display_name,
-        )
-        if obj_label and dest_label:
-            return f"{obj_label} → {dest_label}"
-        return obj_label or dest_label
+
+    @property
+    def target_label(self) -> str | None:
+        """Friendly target label; ``object → destination`` when both are present."""
+        return self._labels.object_cell
 
     @property
     def short_hash(self) -> str:
@@ -212,10 +217,7 @@ class CaseTimelineEvent(BaseModel):
         fills named slots with values derived from the event record's resolved
         label properties.  Unknown slot names fall back to ``"—"``.
         """
-        actor = self.actor_label if self.actor_uri else None
-        return render_event_phrase(
-            self.semantic_type, actor, self.target_label
-        )
+        return self._labels.phrase(self.semantic_type)
 
 
 # ---------------------------------------------------------------------------

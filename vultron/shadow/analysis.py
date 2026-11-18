@@ -20,7 +20,10 @@ core :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry` objects;
 the measure layer reads a case from ledger rows.  :func:`reading_ledger`
 turns the one into the other, and :func:`analyse` reads the standing record
 (:func:`~vultron.measure.standing.case_standing`) from it, so the dashboard
-shows the reader's own result beside the analysis (SHD-01-004).
+shows the reader's own result beside the analysis (SHD-01-004).  It reads
+the case narrative from the same ledger
+(:func:`~vultron.measure.history.case_narrative`): one line per entry,
+naming who did what, when, and which states the entry changed.
 
 A reading is already one case's ledger in log-index order, refused whole
 otherwise (CRD-02-001), so the rows it yields are one complete copy.
@@ -35,6 +38,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.models.case_reading import CaseReading
+from vultron.measure.history import NarrativeLine, case_narrative
 from vultron.measure.ledger import (
     CaseLedger,
     LedgerFile,
@@ -84,6 +88,8 @@ class CaseAnalysis(BaseModel):
             reading holds no ledger entry to read it from.
         actor_names: The display name each actor's payload gives it, by
             actor id, for labels that read better than a URI.
+        narrative: The case narrative: one line per ledger entry of the
+            reading, in log-index order; empty when the reading holds none.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -91,6 +97,7 @@ class CaseAnalysis(BaseModel):
     reading: CaseReading
     standing: StandingRecord | None
     actor_names: dict[str, str] = Field(default_factory=dict)
+    narrative: tuple[NarrativeLine, ...] = ()
 
 
 def analyse(reading: CaseReading) -> CaseAnalysis:
@@ -108,6 +115,7 @@ def analyse(reading: CaseReading) -> CaseAnalysis:
         reading=reading,
         standing=case_standing(ledger, reading.unobservable_events),
         actor_names=collect_actor_names({ledger.case_id: ledger.entries}),
+        narrative=case_narrative(ledger),
     )
 
 

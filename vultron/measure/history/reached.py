@@ -37,7 +37,7 @@ from pydantic import (
     model_validator,
 )
 
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
@@ -62,6 +62,11 @@ class ReachedParticipant(BaseModel):
         rm: Its report-management state.  An inert participant's state is
             the one its records name, though it is no case event yet
             (CEH-04-010).
+        vf: Its vendor fix path, read only while it holds the Vendor role
+            or no role at all, as its vendor-awareness and fix-readiness
+            events are (CEH-04-003).
+        d: Its fix deployment, read only while it holds the Deployer role
+            or no role at all, as its fix-deployed event is (CEH-04-004).
         roles: Its case roles, upper-cased and sorted: those the latest
             participant record stating them names, or, when none does, every
             role its records name.
@@ -73,6 +78,8 @@ class ReachedParticipant(BaseModel):
 
     participant: NonEmptyString
     rm: RM = RM.START
+    vf: CS_vf = CS_vf.vf
+    d: CS_d = CS_d.d
     roles: tuple[NonEmptyString, ...] = ()
     joined: bool = True
 

@@ -27,6 +27,7 @@ from vultron.measure.ledger import (
     MISSING_SLOT,
     UNNAMED_ACTOR,
     UNNAMED_OBJECT,
+    EntryLabels,
     EntryReferences,
     collect_participant_actors,
     display_label,
@@ -137,11 +138,45 @@ def test_entry_references_name_a_participant_by_its_actor():
 @pytest.mark.spec("DRPT-03-002")
 def test_every_registered_phrase_renders_from_its_registry_entry():
     for entry in SEMANTIC_REGISTRY:
-        rendered = render_event_phrase(entry.semantics.value, "Vendor", "case")
+        rendered = render_event_phrase(
+            entry.semantics.value, "Vendor", "case", "Reporter"
+        )
         expected = entry.phrase.format_map(
-            {"actor": "Vendor", "object": "case", "target": "case"}
+            {"actor": "Vendor", "object": "case", "target": "Reporter"}
         )
         assert rendered == expected[:1].upper() + expected[1:]
+
+
+@pytest.mark.spec("DRPT-03-004")
+def test_each_slot_reads_what_the_activity_names_in_it():
+    """``{target}`` names the invitee, never the case it is invited to."""
+    assert render_event_phrase(
+        "invite_actor_to_case", "Coordinator", "case", "Vendor"
+    ) == ("Coordinator invited Vendor to the case")
+    assert render_event_phrase(
+        "add_participant_status_to_participant",
+        "Case Actor",
+        "participant status",
+        "Vendor",
+    ) == ("Case Actor updated Vendor's participant status")
+
+
+@pytest.mark.spec("DRPT-03-012")
+def test_a_slot_with_no_label_reads_as_a_dash():
+    assert render_event_phrase("invite_actor_to_case", "Vendor", "case") == (
+        f"Vendor invited {MISSING_SLOT} to the case"
+    )
+
+
+def test_entry_labels_join_the_object_and_its_destination():
+    labels = EntryLabels(actor="Vendor", object="note", destination="case")
+    assert labels.object_cell == "note → case"
+    assert EntryLabels(object="note").object_cell == "note"
+    assert EntryLabels(destination="case").object_cell == "case"
+    assert EntryLabels().object_cell is None
+    assert labels.phrase("add_note_to_case") == render_event_phrase(
+        "add_note_to_case", "Vendor", "note", "case"
+    )
 
 
 @pytest.mark.spec("CEH-01-007")

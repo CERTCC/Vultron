@@ -47,7 +47,7 @@ from typing import Any
 from pydantic import JsonValue
 
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
@@ -824,21 +824,28 @@ class _Deriver:
 
 def _pxa_of(flags: tuple[bool, ...]) -> CS_pxa:
     """The public state the raised *flags* spell, one per ``p``, ``x``, ``a``."""
-    return CS_pxa[
-        "".join(
-            letter.upper() if up else letter
-            for (letter, _), up in zip(_PXA_FLAGS, flags, strict=True)
-        )
-    ]
+    return CS_pxa[_spelled(flags, _PXA_FLAGS)]
+
+
+def _spelled(
+    flags: tuple[bool, ...], letters: tuple[tuple[str, CSEvent], ...]
+) -> str:
+    """The ``vf``/``d``/``pxa`` spelling of *flags*: upper-case when up."""
+    return "".join(
+        letter.upper() if up else letter
+        for (letter, _), up in zip(letters, flags, strict=True)
+    )
 
 
 def _reached(deriver: _Deriver) -> ReachedState:
-    """What *deriver* has reached once it has read every entry."""
+    """What *deriver* has reached at the entries it has read so far."""
     return ReachedState(
         participants=[
             ReachedParticipant(
                 participant=tracker.actor,
                 rm=tracker.rm,
+                vf=CS_vf(_spelled(tracker.vf, _VF_FLAGS)),
+                d=CS_d(_spelled(tracker.d, _D_FLAGS)),
                 roles=tuple(sorted(tracker.current_roles)),
                 joined=tracker.joined,
             )
@@ -924,16 +931,32 @@ def derive_case(ledger: CaseLedger) -> tuple[CaseEventHistory, ReachedState]:
     One walk yields both, so the reached states are exactly those the
     history's events lead to (:mod:`~vultron.measure.history.reached`).
     """
+    history, steps = derive_case_steps(ledger)
+    return history, steps[-1] if steps else ReachedState()
+
+
+def derive_case_steps(
+    ledger: CaseLedger,
+) -> tuple[CaseEventHistory, list[ReachedState]]:
+    """Derive one case's event history and the states reached at each entry.
+
+    The walk of :func:`derive_case`, keeping what it has reached after each
+    of *ledger*'s rows: the list holds one state per row, in row order, so
+    a reader can see which states each entry changed.  The last one is the
+    state :func:`derive_case` returns.
+    """
     entries = ledger.entries
     managers = case_manager_ids(entries)
     creation_end = _creation_end(entries, managers)
     deriver = _Deriver(case_managers=managers)
+    steps: list[ReachedState] = []
     for placed in ledger.rows:
         deriver.read(
             placed.data,
             placed.log_index,
             creation=placed.log_index < creation_end,
         )
+        steps.append(_reached(deriver))
     history = CaseEventHistory(
         case_id=ledger.case_id,
         source=ledger.source,
@@ -945,7 +968,7 @@ def derive_case(ledger: CaseLedger) -> tuple[CaseEventHistory, ReachedState]:
         excluded=deriver.excluded,
         unreadable_entries=deriver.unreadable,
     )
-    return history, _reached(deriver)
+    return history, steps
 
 
 def read_case_event_histories(paths: Iterable[Path]) -> CaseEventHistories:
