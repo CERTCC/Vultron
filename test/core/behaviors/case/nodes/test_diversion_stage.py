@@ -23,6 +23,7 @@ a diversion that could commit the received activity, write state where it
 may not, or emit uncovered.
 """
 
+import logging
 from collections.abc import Collection
 from dataclasses import dataclass
 
@@ -68,6 +69,7 @@ from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.idempotency import (
     ReportsRefusal,
+    SilentIdempotencyGuardMixin,
     refusal_ending_run,
 )
 from vultron.core.behaviors.replica_emit_exemptions import (
@@ -138,21 +140,56 @@ class _Reasoned(_Counted):
         return super().update()
 
 
+class _Repeat(SilentIdempotencyGuardMixin, py_trees.behaviour.Behaviour):
+    """An answer that stops as an idempotent repeat (HP-01-014)."""
+
+    def update(self) -> Status:
+        return self._idempotent_failure(
+            logging.getLogger(__name__), "%s: sent", self.name
+        )
+
+
+def _stage_with(
+    condition_status: Status,
+    effects: py_trees.behaviour.Behaviour,
+    *,
+    refuses: bool = False,
+    refuses_unanswered: bool = False,
+    reason: str = "",
+) -> tuple[py_trees.composites.Sequence, DiversionStage, _Counted]:
+    """Tick a stage over *effects*; the root, the stage and its successor."""
+    condition = _Reasoned("Condition", condition_status, reason)
+    after = _Counted("After")
+    stage = DiversionStage(
+        "Probe",
+        condition,
+        effects,
+        refuses=refuses,
+        refuses_unanswered=refuses_unanswered,
+    )
+    root = py_trees.composites.Sequence(
+        name="Root", memory=False, children=[stage, after]
+    )
+    _tick(root)
+    return root, stage, after
+
+
 def _stage(
     condition_status: Status,
     effects_status: Status = Status.SUCCESS,
     *,
     refuses: bool = False,
+    refuses_unanswered: bool = False,
     reason: str = "",
 ):
-    condition = _Reasoned("Condition", condition_status, reason)
     effects = _Counted("Effects", effects_status)
-    after = _Counted("After")
-    stage = DiversionStage("Probe", condition, effects, refuses=refuses)
-    root = py_trees.composites.Sequence(
-        name="Root", memory=False, children=[stage, after]
+    root, stage, after = _stage_with(
+        condition_status,
+        effects,
+        refuses=refuses,
+        refuses_unanswered=refuses_unanswered,
+        reason=reason,
     )
-    _tick(root)
     return root, stage, effects, after
 
 
@@ -283,6 +320,108 @@ class TestDiversionStageDeclaredRefusal:
 
         assert stage_of(refusing).refuses
         assert not stage_of(quiet).refuses
+        assert not stage_of(refusing).refuses_unanswered
+
+
+class TestDiversionStageRefusalStandingUnanswered:
+    """A refusal whose answer only notifies it stands without that answer.
+
+    The P/X/A refusal of an embargo Invite or Accept is refused whether or
+    not its ``Reject`` could be sent (EMB-01-002, EMB-02-004), so its stage
+    declares the refusal on an answer that failed, but not on one that
+    stopped as a repeat of a ``Reject`` already sent (HP-01-014).
+    """
+
+    @pytest.mark.spec("HP-01-003")
+    def test_an_answer_that_failed_still_declares_the_refusal(self) -> None:
+        root, stage, _, _ = _stage(
+            Status.SUCCESS,
+            Status.FAILURE,
+            refuses=True,
+            refuses_unanswered=True,
+            reason="P/X/A set (EMB-01-002)",
+        )
+
+        assert not stage.effects_succeeded
+        assert stage.declared_refusal == "P/X/A set (EMB-01-002)"
+        assert refusal_ending_run(root) == "P/X/A set (EMB-01-002)"
+
+    @pytest.mark.spec("HP-01-003")
+    def test_an_answer_it_completed_declares_the_refusal(self) -> None:
+        _, stage, _, _ = _stage(
+            Status.SUCCESS,
+            refuses=True,
+            refuses_unanswered=True,
+            reason="why",
+        )
+
+        assert stage.declared_refusal == "why"
+
+    @pytest.mark.spec("HP-01-003")
+    def test_a_condition_with_no_reason_is_named_by_the_stage(self) -> None:
+        _, stage, _, _ = _stage(
+            Status.SUCCESS,
+            Status.FAILURE,
+            refuses=True,
+            refuses_unanswered=True,
+        )
+
+        assert stage.declared_refusal == (
+            "Probe: the delivery was diverted, not recorded"
+        )
+
+    @pytest.mark.spec("HP-01-003", "HP-01-014")
+    def test_an_answer_that_stopped_as_a_repeat_declares_no_refusal(
+        self,
+    ) -> None:
+        _, stage, _ = _stage_with(
+            Status.SUCCESS,
+            _Repeat(name="AlreadySent"),
+            refuses=True,
+            refuses_unanswered=True,
+            reason="why",
+        )
+
+        assert stage.taken and not stage.effects_succeeded
+        assert stage.declared_refusal is None
+
+    @pytest.mark.spec("HP-01-003")
+    def test_a_diversion_not_taken_declares_no_refusal(self) -> None:
+        _, stage, _, _ = _stage(
+            Status.FAILURE,
+            refuses=True,
+            refuses_unanswered=True,
+            reason="why",
+        )
+
+        assert stage.declared_refusal is None
+
+    @pytest.mark.spec("CLP-10-026")
+    def test_it_needs_a_refusing_diversion(self) -> None:
+        with pytest.raises(ValueError, match="refuses_unanswered needs"):
+            Diversion(
+                name="Probe",
+                condition=_Counted("Condition"),
+                refuses_unanswered=True,
+            )
+
+    @pytest.mark.spec("HP-01-003")
+    def test_the_factory_carries_it_to_the_stage(self) -> None:
+        tree = _tree(
+            Diversion(
+                name="Probe",
+                condition=_Counted("Condition"),
+                effects=(_Counted("Answer"),),
+                refuses=True,
+                refuses_unanswered=True,
+            ),
+            paths={ReceivedPath.CASE_MANAGER},
+        )
+
+        stage = next(
+            n for n in tree.iterate() if isinstance(n, DiversionStage)
+        )
+        assert stage.refuses and stage.refuses_unanswered
 
 
 #: The declaration a tree that reaches a diversion at any receiver makes.

@@ -251,6 +251,7 @@ def diversion_stage(
         diversion.condition,
         body,
         refuses=diversion.refuses,
+        refuses_unanswered=diversion.refuses_unanswered,
     )
 
 

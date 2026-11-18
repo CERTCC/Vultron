@@ -140,11 +140,11 @@ class _FullCaseInviteReplyReceivedUseCase:
         # A sender the case already records as closed may act on nothing
         # further: the tree's closed-sender door stops it before the rule
         # runs, with nothing committed or sent.  Its Reject would close it
-        # again, so it is SKIPPED, and any other reply is REFUSED (CM-23-049,
-        # RSH-06-006, ID-05-003).  A restated reply (the RM state is already
-        # recorded) changes nothing but the receipt, so its repeat guard
-        # says so and the runner reads it SKIPPED, like every other RM
-        # declaration (RSH-08-002).
+        # again, so it is SKIPPED; the door declares the refusal of any other
+        # reply (CM-23-049, RSH-06-006, ID-05-003, HP-01-003).  A restated
+        # reply (the RM state is already recorded) changes nothing but the
+        # receipt, so its repeat guard says so and the runner reads it
+        # SKIPPED, like every other RM declaration (RSH-08-002).
         return run_received_tree(
             tree,
             dl=self._dl,
@@ -153,7 +153,7 @@ class _FullCaseInviteReplyReceivedUseCase:
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            reader=closed_sender_reader(closes=self.rm_state is RM.CLOSED),
+            reader=closed_sender_reader,
             case_id=request.case_id,
         )
 

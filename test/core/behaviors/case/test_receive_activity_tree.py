@@ -1397,7 +1397,9 @@ class TestClosedSenderStage:
             name="SampleBT",
             case_id=CASE_ID,
             precondition_guards=[],
-            closed_sender=ClosedSenderCheck(sender_id="https://example.org/a"),
+            closed_sender=ClosedSenderCheck(
+                sender_id="https://example.org/a", closes=False
+            ),
             sender_rule=SenderRule.on_every_path(
                 SenderEntitlementKind.PARTICIPANT
             ),
@@ -1413,6 +1415,15 @@ class TestClosedSenderStage:
             unscoped(tree.children[door + 1]), SenderIsParticipantNode
         )
 
+    @pytest.mark.spec("CM-23-002")
+    def test_only_a_closing_act_lets_the_case_owner_complete(self) -> None:
+        with pytest.raises(ValueError, match="case_owner_completes needs"):
+            ClosedSenderCheck(
+                sender_id="https://example.org/a",
+                closes=False,
+                case_owner_completes=True,
+            )
+
     @pytest.mark.spec("CM-23-018")
     def test_a_tree_with_no_case_is_refused(self) -> None:
         with pytest.raises(VultronWiringError, match="closed_sender"):
@@ -1421,7 +1432,7 @@ class TestClosedSenderStage:
                 case_id=None,
                 precondition_guards=[],
                 closed_sender=ClosedSenderCheck(
-                    sender_id="https://example.org/a"
+                    sender_id="https://example.org/a", closes=False
                 ),
             )
 

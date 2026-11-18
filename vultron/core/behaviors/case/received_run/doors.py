@@ -18,9 +18,12 @@
 The addressee check (HP-01-005), the seen-before door (ADR-0154), the path
 door stage (ADR-0153), the post-close boundary (CM-23-013) and the
 incomplete-activity guard; each keeps its guard's own reason (CLP-10-010).
-The closed-sender door (CM-23-018) is read by the handlers whose trees have
-one (:func:`~vultron.core.behaviors.case.received_run.readers.closed_sender_reader`),
-because what it owes depends on whether the act would close again.
+The closed-sender door (CM-23-018) is not read here, because what it owes
+depends on whether the act would close its sender again: the door declares
+the refusal of any other act, which the runner reads as a declaration
+(HP-01-003), and a repeated closing act is ``SKIPPED`` by the handlers whose
+acts close
+(:func:`~vultron.core.behaviors.case.received_run.readers.closed_sender_reader`).
 The seen-before door is the one whose answer may be
 ``SKIPPED``: a resend of a message already applied, or still waiting.
 """

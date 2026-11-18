@@ -514,11 +514,12 @@ nothing is written before the last one admits the message (ADR-0214).
 
    A tree whose sender may already be closed on the case and whose answer must
    be told apart (a `Leave`, a stub or full-case Invite reply) passes
-   `closed_sender=ClosedSenderCheck(...)`: the factory places the door after the
-   addressee check, so a sender the case records as closed stops the tree with
-   nothing committed or sent. The handler passes the runner
-   `reader=closed_sender_reader(closes=...)` (`behaviors/case/received_run/`):
-   `SKIPPED` for a repeat of a closing act, `REFUSED` for anything else
+   `closed_sender=ClosedSenderCheck(sender_id=..., closes=...)`: the factory
+   places the door after the addressee check, so a sender the case records as
+   closed stops the tree with nothing committed or sent. For an act that does
+   not close its sender (`closes=False`) the door declares the refusal itself;
+   a tree whose act closes it passes `reader=closed_sender_reader`
+   (`behaviors/case/received_run/`), which reads the repeat as `SKIPPED`
    (CM-23-018, ID-05-003). Declare it on the tree; never run the check as a
    tree of its own or write it per handler.
 
@@ -598,7 +599,9 @@ nothing is written before the last one admits the message (ADR-0214).
    received runner reports `REFUSED` with that reason and no handler reader
    names it; a local fault stays a plain FAILURE. A `Diversion` that answers
    a delivery it refuses sets `refuses=True`, so its `DiversionStage`
-   declares the condition's reason once the answer completes (MSM-07-012).
+   declares the condition's reason once the answer completes (MSM-07-012);
+   one whose answer only notifies a refusal that stands without it also sets
+   `refuses_unanswered=True` (the P/X/A `Reject`, EMB-01-002).
    A refusal goes to the process log and, where the protocol calls for an
    answer, back to the sender — never to the ledger (CLP-04-007).
    The factory adds that answer, the refusal notice, to every tree that commits

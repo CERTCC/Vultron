@@ -159,9 +159,12 @@ def create_full_case_invite_reply_received_tree(
         paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         # A replier the case already records as closed may answer nothing
-        # further; the handler reads a repeated Reject as SKIPPED
-        # (CM-23-018, ID-05-003).
-        closed_sender=ClosedSenderCheck(sender_id=replier_id),
+        # further, so the door refuses its Accept or tentative Reject; the
+        # handler reads a repeated Reject, which would close it again, as
+        # SKIPPED (CM-23-018, ID-05-003).
+        closed_sender=ClosedSenderCheck(
+            sender_id=replier_id, closes=rm_state is RM.CLOSED
+        ),
         sender_context=SenderCheckContext(
             sender_id=replier_id,
             case_id=case_id,

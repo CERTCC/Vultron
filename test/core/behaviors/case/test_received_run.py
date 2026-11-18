@@ -46,6 +46,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
     ReceivedOutcome,
     closed_sender_reader,
     door_guards_admitted,
@@ -727,13 +728,17 @@ _CLOSURE = (
 )
 
 
-def _closed_door_tree(*, sender_closed: bool | None) -> ReceivedActivityTree:
+def _closed_door_tree(
+    *, sender_closed: bool | None, closes: bool
+) -> ReceivedActivityTree:
     """A factory tree whose closed-sender door ran (``None``: never ran)."""
     tree = create_receive_activity_tree(
         name="ClosedSenderBT",
         case_id=_CLOSED_CASE,
         precondition_guards=[],
-        closed_sender=ClosedSenderCheck(sender_id=_CLOSED_SENDER),
+        closed_sender=ClosedSenderCheck(
+            sender_id=_CLOSED_SENDER, closes=closes
+        ),
         sender_rule=SenderRule.on_every_path(
             SenderEntitlementKind.PARTICIPANT
         ),
@@ -747,6 +752,7 @@ def _closed_door_tree(*, sender_closed: bool | None) -> ReceivedActivityTree:
             for n in tree.children
             if isinstance(n, SenderClosureNotRecordedNode)
         )
+        tree.status = Status.FAILURE
         door.status = Status.FAILURE
         door.sender_closed = sender_closed
         door.feedback_message = _CLOSURE
@@ -762,8 +768,8 @@ def _closed(tree: py_trees.behaviour.Behaviour, label: str) -> ReceivedOutcome:
 @pytest.mark.spec("CM-23-018", "ID-05-003")
 @pytest.mark.spec("CM-23-049")
 def test_closed_sender_reader_skips_a_repeated_closing_act():
-    verdict = closed_sender_reader(closes=True)(
-        _closed(_closed_door_tree(sender_closed=True), "Reject")
+    verdict = closed_sender_reader(
+        _closed(_closed_door_tree(sender_closed=True, closes=True), "Reject")
     )
     assert verdict is not None
     assert verdict.disposition is HandlerDisposition.SKIPPED
@@ -773,30 +779,47 @@ def test_closed_sender_reader_skips_a_repeated_closing_act():
     )
 
 
-@pytest.mark.spec("CM-23-018")
-def test_closed_sender_reader_refuses_any_other_act():
-    verdict = closed_sender_reader(closes=False)(
-        _closed(_closed_door_tree(sender_closed=True), "Accept")
+@pytest.mark.spec("CM-23-018", "HP-01-003")
+@pytest.mark.parametrize("reader", [None, closed_sender_reader])
+def test_the_closed_sender_door_declares_the_refusal_of_any_other_act(
+    reader: OutcomeReader | None,
+):
+    """The door of an act that does not close its sender refuses it itself.
+
+    The reader steps aside, and the runner reads the door's declaration,
+    which names the tree (HP-01-003).
+    """
+    outcome = _closed(
+        _closed_door_tree(sender_closed=True, closes=False), "Accept"
     )
-    assert verdict is not None
+    assert closed_sender_reader(outcome) is None
+    verdict = read_outcome(outcome, reader=reader)
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert verdict.reason == (
-        f"Accept: {_CLOSURE} — it may act on nothing further"
+        f"ClosedSenderBT: {_CLOSURE} — it may act on nothing further"
     )
 
 
+@pytest.mark.spec("CM-23-018")
+def test_a_closing_acts_door_declares_no_refusal():
+    tree = _closed_door_tree(sender_closed=True, closes=True)
+    assert refusal_ending_run(tree) is None
+
+
+@pytest.mark.parametrize("closes", [True, False])
 @pytest.mark.parametrize("sender_closed", [False, None])
 def test_closed_sender_reader_is_none_unless_the_door_found_a_closure(
-    sender_closed: bool | None,
+    sender_closed: bool | None, closes: bool
 ):
-    tree = _closed_door_tree(sender_closed=sender_closed)
-    assert closed_sender_reader(closes=True)(_closed(tree, "X")) is None
+    tree = _closed_door_tree(sender_closed=sender_closed, closes=closes)
+    assert closed_sender_reader(_closed(tree, "X")) is None
+    assert refusal_ending_run(tree) is None
 
 
 def test_closed_sender_reader_needs_a_received_activity_tree():
     tree = py_trees.composites.Sequence(name="AdHoc", memory=False)
     with pytest.raises(VultronWiringError, match="received-activity"):
-        closed_sender_reader(closes=True)(_closed(tree, "X"))
+        closed_sender_reader(_closed(tree, "X"))
 
 
 @pytest.mark.spec("CM-23-018", "ARCH-15-001")
@@ -811,12 +834,12 @@ def test_a_crash_at_the_closed_sender_door_raises(closes: bool):
     with pytest.raises(VultronBTInternalError, match="owner check exploded"):
         read_outcome(
             ReceivedOutcome.of(
-                _closed_door_tree(sender_closed=True),
+                _closed_door_tree(sender_closed=True, closes=closes),
                 crashed,
                 "Leave",
                 receiving_actor_id=_RECEIVER,
             ),
-            reader=closed_sender_reader(closes=closes),
+            reader=closed_sender_reader,
         )
 
 

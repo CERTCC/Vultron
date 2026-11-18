@@ -314,10 +314,12 @@ def create_receive_activity_tree(
     (:func:`~vultron.core.behaviors.sender_guard.closed_sender_door`) on
     ``case_id`` (else ``manager_case_id``), after the post-close guard: when
     the case records the sender's closure the tree stops there, with nothing
-    committed or sent, and the handler asks
-    :func:`~vultron.core.behaviors.sender_guard.closed_sender_turned_away`
-    for the reason (CM-23-018).  Never run it as a tree of its own ahead of
-    this one (CLP-10-005).
+    committed or sent (CM-23-018).  For an act that would not close the
+    sender (``closed_sender.closes`` false) the door declares the refusal,
+    naming this tree, and the runner reads it (HP-01-003); a repeated
+    closing act is the handler's to read as ``SKIPPED``
+    (:func:`~vultron.core.behaviors.case.received_run.readers.closed_sender_reader`).
+    Never run it as a tree of its own ahead of this one (CLP-10-005).
 
     A :class:`~vultron.core.behaviors.case.nodes.diversion_stage.Diversion`
     among ``precondition_guards`` becomes a
@@ -506,8 +508,8 @@ def create_receive_activity_tree(
             then names the activity and the case (AKM-03-006).
         paths: The paths this message type handles, declared once
             (ADR-0153); ``None`` places no path stage.
-        closed_sender: The sender whose recorded closure stops the tree, for
-            a tree whose act may close its sender (CM-23-018).
+        closed_sender: The sender whose recorded closure stops the tree, and
+            whether the act would close it again (CM-23-018).
         sender_rule: The use case's declared sender rule; the factory
             composes the guard from it (HP-01-025).
         sender_context: The sender and the records the rule's kinds are

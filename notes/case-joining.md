@@ -130,15 +130,17 @@ from its role (CLP-09).
   `LEDGER_PEER` kind, never `ACTIVE_PARTICIPANT`. A repeat of an act that would
   close it again (`Leave`, a `Reject` of its Invite) is `SKIPPED`, with no entry,
   whatever its activity id: the closed-sender door guard asks `closure_recorded()`
-  after the post-close boundary (the factory's `closed_sender` argument), and the
-  handler reads it with `closed_sender_reader()`. The Case Owner's `Leave` is the
-  exception until the case is fully closed: it closes the case too, so a Case Owner
-  whose closure another act recorded still closes an open case with its `Leave`
+  after the post-close boundary (the factory's `closed_sender` argument, with
+  `closes=True`), and the handler reads it with `closed_sender_reader`. The Case
+  Owner's `Leave` is the exception until the case is fully closed: it closes the
+  case too, so a Case Owner whose closure another act recorded still closes an
+  open case with its `Leave`
   (`case_owner_completes=True`, CM-23-002). A failed owner `Leave` keeps none of
   its closure (CLP-07-015), so no redelivery has a half-done closure to finish.
-  Any other invitee reply from it is `REFUSED` at the same door, before its
-  `INVITEE` guard runs. A `Reject(Offer(VulnerabilityReport))`
-  on a case is refused from every sender, closed or not (CM-23-019).
+  Any other invitee reply from it is `REFUSED` at the same door, which declares
+  the refusal (`closes=False`), before its `INVITEE` guard runs. A
+  `Reject(Offer(VulnerabilityReport))` on a case is refused from every sender,
+  closed or not (CM-23-019).
 - **A closed Case Owner holds no `CASE_OWNER` standing.** The factory composes the
   closure check ahead of the role check for that kind (`_case_owner_node()`), and
   leaves `SenderIsCaseOwnerNode` asking the role alone, since the Leave, status,
