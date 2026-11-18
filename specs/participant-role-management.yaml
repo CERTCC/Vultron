@@ -1,7 +1,8 @@
 id: PRM
 title: Participant Role Management
 description: Defines the API for reading and mutating CVD roles on CaseParticipant, the one participant class shared by
-  the core domain and the wire layer (ADR-0211). Requires the role-management methods, prohibits direct attribute mutation after construction,
+  the core domain and the wire layer (ADR-0211). Requires the role-management methods,
+  prohibits direct attribute mutation after construction,
   and mandates test coverage for each method.
 scope:
 - prototype

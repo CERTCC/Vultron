@@ -1347,8 +1347,9 @@ groups:
     Governs how core domain objects are rendered into wire-shaped (AS2 camelCase) JSON. Core
     legitimately needs a wire representation in one place — the `CaseLedgerEntry.payloadSnapshot`,
     which CLP-07-011 requires to be receiver-reconstitutable AS2 — and this group makes a driven
-    port the single seam that produces it. Under one object model (ADR-0211) the spelling lives
-    on the core class (ARCH-25-002) and a dimension serializes to a bare state value (ARCH-25-005), so
+    port the single seam that produces it. Under one object model (ADR-0211) the spelling
+    lives on the core class (ARCH-25-002) and a dimension serializes to a bare state value
+    (ARCH-25-005), so
     the port's adapter is a plain `by_alias` dump of the core object; what the group still
     guards is that core code reaches that dump only through the port.
   rationale: >-
