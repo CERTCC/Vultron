@@ -71,7 +71,7 @@ class DesideratumStanding(BaseModel):
     Fields:
         notation: The desideratum as the Measuring CVD pages print it.  The
             first of a group of equivalent desiderata stands for the group
-            (ADR-0200 rule 2).
+            (ADR-0200).
         group: Its group on ``process_model_desiderata.md``.
         before: The event the desideratum wants first.
         after: The event it wants after *before*.

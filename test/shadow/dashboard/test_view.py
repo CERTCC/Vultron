@@ -205,7 +205,7 @@ def test_the_table_shows_exactly_the_desiderata_move_advice_sums():
 
 def test_each_group_of_equivalent_desiderata_shows_once():
     """#6669 AC-3: ``E ≺ P`` stands for ``E ≺ X`` and ``E ≺ A``, and
-    ``ExOwn ≺ P`` for its two (ADR-0200 rule 2)."""
+    ``ExOwn ≺ P`` for its two (ADR-0200)."""
     analysis = _analysis()
     assert analysis.standing is not None
     codes = [

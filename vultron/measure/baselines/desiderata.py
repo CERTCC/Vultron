@@ -508,7 +508,7 @@ def count_once(desiderata: Iterable[Desideratum]) -> tuple[Desideratum, ...]:
 SCOPE_GROUPS: frozenset[Group] = frozenset(
     {Group.ORIGINAL, Group.REPORT_HANDLING, Group.EMBARGO}
 )
-"""The desiderata groups a vendor's scope holds (ADR-0200 rule 1).
+"""The desiderata groups a vendor's scope holds (ADR-0200).
 
 The multi-party group is left out: ``F_i ≺ P`` is the twelve's ``F ≺ P``
 for each vendor, and ``V_i ≺ F_j`` is contested (#6502).
@@ -518,7 +518,7 @@ for each vendor, and ``V_i ≺ F_j`` is contested (#6502).
 @cache
 def scope_desiderata() -> tuple[Desideratum, ...]:
     """The desiderata of a vendor's scope, in catalog order, each group of
-    equivalent ones once (ADR-0200 rules 1 and 2).
+    equivalent ones once (ADR-0200).
 
     Those of the :data:`SCOPE_GROUPS`, less each one equivalent to one
     before it (:func:`count_once`): ``E ≺ P`` stands for the three ``E``
