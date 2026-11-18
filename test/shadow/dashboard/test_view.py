@@ -437,7 +437,7 @@ def test_a_shaded_band_has_a_legend_holding_its_rows_shades():
     """A shaded band's legend is not optional, and a row shade that is not
     on it is refused; the unhelpful band has none."""
     dark, light = view.band_legend_shades(ColourMap.VIRIDIS, 2)
-    row = {"Layer": 1}
+    row: view.Row = {"Layer": 1}
     with pytest.raises(ValueError, match="a shaded band has a legend"):
         view.BandView(
             band=Band.HARM_FREE,
