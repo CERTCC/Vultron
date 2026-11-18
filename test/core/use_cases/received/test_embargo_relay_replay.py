@@ -1154,6 +1154,22 @@ def test_a_refusal_whose_queue_write_failed_is_queued_on_redelivery(
 
 
 @pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("HP-01-003")
+def test_a_refusal_with_no_trigger_port_keeps_the_pxa_reason():
+    """The stage declares the refusal though its Reject was never built."""
+    case_id = "https://example.org/cases/relay-replay-pxa-no-port-reason"
+    net = _Network(case_id)
+    body = _refused_invite(net, "no-port-reason")
+
+    verdict = net.receive(OWNER, body, without=frozenset({"trigger_activity"}))
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason == (
+        f"EMB-01-002: P/X/A set on case '{case_id}'; embargo proposal rejected"
+    )
+
+
+@pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("MSM-05-001")
 def test_a_refusal_with_no_trigger_port_stands_without_its_er(caplog):
     """A receiver composed without the port refuses, says so, and sends no Reject."""

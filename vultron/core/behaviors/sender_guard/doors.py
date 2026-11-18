@@ -32,19 +32,24 @@ from vultron.enums.roles import CVDRole
 
 
 def closed_sender_guard(
-    case_id: str, sender_id: str
+    case_id: str, sender_id: str, *, refusal_label: str | None = None
 ) -> SenderClosureNotRecordedNode:
     """The CM-23-018 check that the case does not record the sender's closure.
 
     Built here, beside the kinds' guards, so no handler names a sender node
     itself (HP-01-007).  It is not a kind: :func:`closed_sender_door` wraps
-    it as the door guard the receive-tree factory places, and the handler
-    tells a repeated closing act (``SKIPPED``) from any other act of a closed
-    sender (``REFUSED``).  The ``CASE_OWNER`` kind's guard composes it too,
-    so a closed owner is refused (CM-23-018).
+    it as the door guard the receive-tree factory places, giving it the
+    tree's name (*refusal_label*) for an act that would not close the sender,
+    so the guard declares the refusal of any act of a closed sender
+    (``REFUSED``); a repeated closing act's door declares none, and the
+    handler reads it ``SKIPPED``.  The ``CASE_OWNER`` kind's guard composes
+    it too, with no label, so a closed owner is refused for that guard's
+    own reason (CM-23-018).
     """
     return SenderClosureNotRecordedNode(
-        case_id=case_id, sender_actor_id=sender_id
+        case_id=case_id,
+        sender_actor_id=sender_id,
+        refusal_label=refusal_label,
     )
 
 
@@ -53,16 +58,23 @@ _CLOSED_SENDER_MARK = "_vultron_closed_sender_check"
 
 
 def closed_sender_door(
-    case_id: str, check: ClosedSenderCheck
+    case_id: str, check: ClosedSenderCheck, tree_name: str
 ) -> py_trees.behaviour.Behaviour:
     """The closed-sender door guard the receive-tree factory places.
 
     It fails when the case records the sender's closure (CM-23-018), unless
     *check* lets the Case Owner complete the case's closure and the sender
-    is its Case Owner (CM-23-002).  :func:`closed_sender_turned_away` reads
-    whether a run ended there.
+    is its Case Owner (CM-23-002).  For an act that would not close the
+    sender (``check.closes`` false) the guard declares that failure a
+    refusal, naming *tree_name* (HP-01-003); for a closing act it declares
+    none, and the handler reads the repeat.  :func:`closed_sender_turned_away`
+    reads whether a run ended there.
     """
-    guard = closed_sender_guard(case_id, check.sender_id)
+    guard = closed_sender_guard(
+        case_id,
+        check.sender_id,
+        refusal_label=None if check.closes else tree_name,
+    )
     door: py_trees.behaviour.Behaviour = guard
     if check.case_owner_completes:
         door = py_trees.composites.Selector(
@@ -76,13 +88,16 @@ def closed_sender_door(
 
 def closed_sender_turned_away(
     root: py_trees.behaviour.Behaviour,
-) -> str | None:
-    """Why a received tree's run ended at its closed-sender door, or ``None``.
+) -> SenderClosureNotRecordedNode | None:
+    """The closed-sender door guard a received tree's run ended at, or ``None``.
 
     The factory places the door as one child of the tree's root Sequence; the
     run ended there when the first child that failed is that door and its
-    check found the sender's closure recorded.  The reason names the sender
-    and the case (CM-23-018); the handler reports a repeated closing act as
+    check found the sender's closure recorded.  The guard's
+    ``feedback_message`` names the sender and the case (CM-23-018).  A guard
+    that declares a refusal (:attr:`SenderClosureNotRecordedNode.declared_refusal`)
+    refused an act that would not close the sender; one that declares none
+    turned away a repeated closing act, which the handler reports
     ``SKIPPED`` (CM-23-049, ID-05-003).
     """
     for child in root.children:
@@ -92,7 +107,7 @@ def closed_sender_turned_away(
                 isinstance(guard, SenderClosureNotRecordedNode)
                 and guard.sender_closed
             ):
-                return guard.feedback_message
+                return guard
             return None
     return None
 

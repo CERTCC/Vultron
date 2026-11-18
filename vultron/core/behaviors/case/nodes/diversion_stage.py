@@ -40,7 +40,11 @@ ends the tree as an internal error (ADR-0095).  A diversion that refuses the
 delivery says so (``refuses``): once its answer completes, the stage declares
 the refusal for its condition's reason
 (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`), and the
-runner reports the delivery ``REFUSED`` with it (HP-01-003).
+runner reports the delivery ``REFUSED`` with it (HP-01-003).  A diversion
+whose answer only notifies the sender of a refusal that stands without it
+(``refuses_unanswered``, the P/X/A ``Reject``) declares the refusal whether
+or not that answer completed, unless the answer stopped as a repeat of one
+already sent: a repeat is not refused again (HP-01-014).
 
 Where a diversion may run is read from the tree's path declaration, never
 declared a second time beside it (HP-01-038, ADR-0153).  A tree that declares
@@ -60,6 +64,7 @@ from dataclasses import dataclass, field
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.idempotency import repeat_ending_run
 from vultron.core.behaviors.replica_emit_exemptions import (
     ReplicaEmitExemption,
 )
@@ -79,6 +84,12 @@ class Diversion:
             diversion that a non-manager receiver may reach (BT-17-008).
         refuses: The diversion refuses the delivery, for the reason its
             condition gives when it holds; see :class:`DiversionStage`.
+        refuses_unanswered: The refusal stands even when its answer did not
+            complete, because the answer only notifies the sender of it;
+            needs *refuses*.
+
+    Raises:
+        ValueError: *refuses_unanswered* is set without *refuses*.
     """
 
     name: str
@@ -88,6 +99,14 @@ class Diversion:
     )
     emit_exemption: ReplicaEmitExemption | None = None
     refuses: bool = False
+    refuses_unanswered: bool = False
+
+    def __post_init__(self) -> None:
+        if self.refuses_unanswered and not self.refuses:
+            raise ValueError(
+                f"Diversion {self.name}: refuses_unanswered needs refuses"
+                " (CLP-10-026)"
+            )
 
 
 class DiversionStage(py_trees.composites.Composite):
@@ -109,7 +128,9 @@ class DiversionStage(py_trees.composites.Composite):
     A stage built ``refuses`` declares the refusal of a delivery it diverted
     once its answer completed (:attr:`declared_refusal`); one whose answer
     did not complete declares none, so the handler's reading decides that
-    run.
+    run, unless the stage is also built ``refuses_unanswered``: it then
+    declares the refusal whatever its answer returned, except an answer that
+    stopped as an idempotent repeat.
 
     Only the received-tree factory constructs one.
     """
@@ -121,10 +142,12 @@ class DiversionStage(py_trees.composites.Composite):
         effects: py_trees.behaviour.Behaviour,
         *,
         refuses: bool = False,
+        refuses_unanswered: bool = False,
     ) -> None:
         super().__init__(name=name, children=[condition, effects])
         self.taken = False
         self.refuses = refuses
+        self.refuses_unanswered = refuses_unanswered
 
     @property
     def condition(self) -> py_trees.behaviour.Behaviour:
@@ -159,17 +182,22 @@ class DiversionStage(py_trees.composites.Composite):
         and the requirement it cites (HP-01-005), or one naming the stage
         when the condition gave none.  ``None`` unless the stage is built
         ``refuses``, failed on this run, and its answer completed
-        (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`).
+        (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`).  A
+        stage built ``refuses_unanswered`` needs only to have diverted the
+        delivery, with an answer that did not stop as a repeat
+        (:func:`~vultron.core.behaviors.idempotency.repeat_ending_run`).
         """
-        if not (
-            self.refuses
-            and self.status == Status.FAILURE
-            and self.effects_succeeded
+        if not (self.refuses and self.status == Status.FAILURE and self.taken):
+            return None
+        if not self.effects_succeeded and (
+            not self.refuses_unanswered
+            or repeat_ending_run(self.effects) is not None
         ):
             return None
+        answered = "answered" if self.effects_succeeded else "diverted"
         return (
             self.condition.feedback_message
-            or f"{self.name}: the delivery was answered, not recorded"
+            or f"{self.name}: the delivery was {answered}, not recorded"
         )
 
     def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:

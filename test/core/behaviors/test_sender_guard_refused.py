@@ -138,7 +138,9 @@ def test_a_failing_sender_node_at_the_root_that_was_not_composed_is_not_the_guar
 def test_a_run_that_ended_at_the_closed_sender_door_names_the_closure() -> (
     None
 ):
-    door = closed_sender_door(CASE_ID, ClosedSenderCheck(sender_id=SENDER_ID))
+    door = closed_sender_door(
+        CASE_ID, ClosedSenderCheck(sender_id=SENDER_ID, closes=True), "BT"
+    )
     guard = next(
         n
         for n in door.iterate()
@@ -149,7 +151,7 @@ def test_a_run_that_ended_at_the_closed_sender_door_names_the_closure() -> (
     guard.feedback_message = "closed (CM-23-018)"
 
     root = _root(door)
-    assert closed_sender_turned_away(root) == "closed (CM-23-018)"
+    assert closed_sender_turned_away(root) is guard
     assert not sender_guard_refused(root)
 
 
@@ -159,7 +161,10 @@ def test_a_run_that_failed_elsewhere_did_not_end_at_the_closed_sender_door() -> 
 ):
     door = closed_sender_door(
         CASE_ID,
-        ClosedSenderCheck(sender_id=SENDER_ID, case_owner_completes=True),
+        ClosedSenderCheck(
+            sender_id=SENDER_ID, closes=True, case_owner_completes=True
+        ),
+        "BT",
     )
     guard = _guard(SenderRule.in_case(SenderEntitlementKind.PARTICIPANT))
     _ran(door, Status.SUCCESS)

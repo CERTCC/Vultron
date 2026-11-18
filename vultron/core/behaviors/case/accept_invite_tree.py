@@ -234,7 +234,8 @@ def create_accept_invite_actor_to_case_tree(
         # An invitee the case already records as closed (its stub Reject was
         # applied) may act on nothing further: its Accept would join a
         # participant whose RM is terminal (CM-23-018, CM-11-015).
-        closed_sender=ClosedSenderCheck(sender_id=invitee_id),
+        # The door declares that refusal (HP-01-003).
+        closed_sender=ClosedSenderCheck(sender_id=invitee_id, closes=False),
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=invitee_id,

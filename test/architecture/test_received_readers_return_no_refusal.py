@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""No reader under ``use_cases/received/`` builds a refusal (ADR-0195, #6494).
+"""No received reader builds a refusal (ADR-0195, #6494, #6649).
 
 A received use case hands its tree to the runner with an optional reader
 (:data:`~vultron.core.behaviors.case.received_run.reading.OutcomeReader`), a
@@ -28,10 +28,10 @@ the functions it is nested in (a factory whose refusal the reader returns)
 and the same-module functions any of these calls.  An entry is
 ``path::qualified.name``, and it counts the refusals
 (``HandlerResult.refused(...)``, or a ``HandlerResult`` built ``REFUSED``) in
-that function's own body.  The shared readers in
+that function's own body.  The shared readers handlers pass the runner, in
 ``vultron/core/behaviors/case/received_run/readers.py``
-(``closed_sender_reader``, ``pxa_refusal_reader``) are outside the scan, so
-a refusal one of them returns through a handler's reader is not counted.
+(``closed_sender_reader``, ``pxa_refusal_reader``), are scanned the same
+way, keyed by their path from the repository root (#6649).
 Every ``reader=`` argument must resolve to a function the scan can follow
 (a same-module function or method, a lambda, an import, ``first_reading``
 of those, or a parameter passed through); one that does not fails, so no
@@ -49,6 +49,17 @@ import pytest
 from test.architecture import _corpus
 from test.architecture._use_case_call_graph import RECEIVED_ROOT
 
+#: The shared readers a received handler passes the runner (#6649).
+SHARED_READERS = (
+    _corpus.REPO_ROOT
+    / "vultron"
+    / "core"
+    / "behaviors"
+    / "case"
+    / "received_run"
+    / "readers.py"
+)
+
 #: Readings that stay, each for the reason its value gives (#6494 AC-1).
 # permanent: #6494 (each reading refuses a run no node declaration can state)
 KNOWN_READER_REFUSALS: dict[str, tuple[int, str]] = {
@@ -65,8 +76,9 @@ KNOWN_READER_REFUSALS: dict[str, tuple[int, str]] = {
     ),
     "embargo/invite.py::_refusal_reader.read": (
         1,
-        "adds to the shared P/X/A diversion reading whether a Reject was"
-        " sent, which an effect inside the diversion decides",
+        "adds to the P/X/A stage's declared refusal why no Reject was"
+        " sent, which an effect inside the diversion decides, not a"
+        " condition that could declare the reason",
     ),
     "sync/announce.py::_held_or_not_manager": (
         1,
@@ -81,6 +93,14 @@ KNOWN_READER_REFUSALS: dict[str, tuple[int, str]] = {
         " activity it could not resolve is still refused (SE-04-007)",
     ),
 }
+
+#: Refusals the shared readers keep (#6649 AC-3).  None: the closed-sender
+#: door declares the refusal of an act that does not close its sender, and
+#: the P/X/A stage declares its refusal whether or not its Reject was sent,
+#: so ``closed_sender_reader`` and ``pxa_refusal_reader`` keep only their
+#: ``SKIPPED`` readings.
+# permanent: #6649 (an entry would be a shared reading no declaration states)
+KNOWN_SHARED_READER_REFUSALS: dict[str, tuple[int, str]] = {}
 
 #: Reader refusals another issue removes, with their counts.
 # owner: #6499
@@ -326,6 +346,19 @@ def unresolved_readers(tree: ast.AST, rel: str) -> list[str]:
     )
 
 
+def readers_in(tree: ast.AST) -> set[str]:
+    """The readers of *tree*: each function that takes a ``ReceivedOutcome``
+    or is passed as ``reader=``, by qualified name."""
+    functions = dict(_functions(tree))
+    readers = {name for name, fn in functions.items() if _takes_outcome(fn)}
+    readers |= {
+        reader
+        for _, reader, _ in _passed_readers(tree, functions)
+        if reader is not None
+    }
+    return readers
+
+
 def reader_refusals(tree: ast.AST, rel: str) -> dict[str, int]:
     """The refusal count of each reader of module *rel*, and its helpers.
 
@@ -338,12 +371,7 @@ def reader_refusals(tree: ast.AST, rel: str) -> dict[str, int]:
     functions = dict(_functions(tree))
     known = set(functions)
     names = _result_names(tree)
-    readers = {name for name, fn in functions.items() if _takes_outcome(fn)}
-    readers |= {
-        reader
-        for _, reader, _ in _passed_readers(tree, functions)
-        if reader is not None
-    }
+    readers = readers_in(tree)
     # A reader nested in a factory may return a refusal the factory built,
     # and a factory passed as reader= holds its reader nested in it.
     reached = set(readers)
@@ -370,6 +398,10 @@ def reader_refusals(tree: ast.AST, rel: str) -> dict[str, int]:
     return found
 
 
+def _shared_rel() -> str:
+    return SHARED_READERS.relative_to(_corpus.REPO_ROOT).as_posix()
+
+
 def _received_reader_refusals() -> dict[str, int]:
     found: dict[str, int] = {}
     for path, tree in _corpus.files_mentioning(
@@ -378,6 +410,7 @@ def _received_reader_refusals() -> dict[str, int]:
         found |= reader_refusals(
             tree, path.relative_to(RECEIVED_ROOT).as_posix()
         )
+    found |= reader_refusals(_corpus.tree_of(SHARED_READERS), _shared_rel())
     return found
 
 
@@ -387,7 +420,12 @@ def test_received_readers_return_only_the_listed_refusals() -> None:
     still exists."""
     found = _received_reader_refusals()
     assert found, "corpus drifted: no received reader returns a refusal"
-    expected = {k: count for k, (count, _) in KNOWN_READER_REFUSALS.items()}
+    expected = {
+        k: count
+        for k, (count, _) in (
+            KNOWN_READER_REFUSALS | KNOWN_SHARED_READER_REFUSALS
+        ).items()
+    }
     expected |= _MOVED_EXEMPTIONS
     new = {k: v for k, v in found.items() if k not in expected}
     changed = {
@@ -412,6 +450,23 @@ def test_received_readers_return_only_the_listed_refusals() -> None:
         "listed reader refusals that no longer exist; drop them from"
         f" KNOWN_READER_REFUSALS or _MOVED_EXEMPTIONS: {gone}"
     )
+
+
+@pytest.mark.spec("HP-01-003")
+def test_the_shared_readers_are_scanned() -> None:
+    """The scan reaches the shared readers, and lists only their own keys.
+
+    The shared module's refusals are counted with the handlers' above; this
+    pins that the scan sees its readers at all, so an empty list there is a
+    finding and not a scan that missed the file (#6649).
+    """
+    readers = readers_in(_corpus.tree_of(SHARED_READERS))
+    assert {"closed_sender_reader", "pxa_refusal_reader.read"} <= readers, (
+        f"corpus drifted: the shared readers scanned are {sorted(readers)}"
+    )
+    prefix = f"{_shared_rel()}::"
+    assert all(k.startswith(prefix) for k in KNOWN_SHARED_READER_REFUSALS)
+    assert not any(k.startswith(prefix) for k in KNOWN_READER_REFUSALS)
 
 
 @pytest.mark.spec("HP-01-003")

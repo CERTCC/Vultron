@@ -53,75 +53,70 @@ def first_reading(*readers: OutcomeReader) -> OutcomeReader:
     return read
 
 
-def closed_sender_reader(*, closes: bool) -> OutcomeReader:
-    """The verdict owed a sender the tree's closed-sender door turned away.
+def closed_sender_reader(outcome: ReceivedOutcome) -> HandlerResult | None:
+    """The ``SKIPPED`` owed a closing act the closed-sender door turned away.
 
     The door (``closed_sender`` on the receive-tree factory) stops the tree
     when the case already records the sender's closure, with nothing
-    committed or sent (CM-23-018):
+    committed or sent (CM-23-018).  An act that would close it again (a
+    ``Leave``, a ``Reject`` of a stub or full-case Invite) changes nothing,
+    so it is ``SKIPPED``, whatever its activity id (ID-05-003).  Any other
+    act is refused, and the door declares that refusal itself
+    (:attr:`~vultron.core.behaviors.sender_entitlement.SenderClosureNotRecordedNode.declared_refusal`),
+    so this reader answers ``None`` for it, as it does for a run that did
+    not end at the door.  Whether the act closes its sender is declared once,
+    on the tree's
+    :class:`~vultron.core.behaviors.sender_check_context.ClosedSenderCheck`.
 
-    - an act that would close it again (*closes*: a ``Leave``, a ``Reject``
-      of a stub or full-case Invite) changes nothing, so it is ``SKIPPED``,
-      whatever its activity id (ID-05-003);
-    - any other act is ``REFUSED``: the sender may act on nothing further.
-
-    The reader answers ``None`` when the run did not end at the door.  A run
-    that failed on an internal error never reaches it: the runner raises
-    first, so a crash is never read as a repeat or a refusal (ARCH-15-001).
+    A run that failed on an internal error never reaches it: the runner
+    raises first, so a crash is never read as a repeat or a refusal
+    (ARCH-15-001).
 
     Raises:
         VultronWiringError: The tree was not built by
             :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`.
     """
-
-    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
-        root = outcome.tree
-        if not isinstance(root, ReceivedActivityTree):
-            raise VultronWiringError(
-                f"closed_sender_reader: '{root.name}' is not a"
-                " received-activity tree, so it has no closed-sender door"
-                " (CM-23-018)"
-            )
-        closed = closed_sender_turned_away(root)
-        if closed is None:
-            return None
-        if closes:
-            return HandlerResult.skipped(
-                f"{outcome.label}: {closed} — a repeat of a closing act,"
-                " nothing to apply (ID-05-003)"
-            )
-        return HandlerResult.refused(
-            f"{outcome.label}: {closed} — it may act on nothing further"
+    root = outcome.tree
+    if not isinstance(root, ReceivedActivityTree):
+        raise VultronWiringError(
+            f"closed_sender_reader: '{root.name}' is not a"
+            " received-activity tree, so it has no closed-sender door"
+            " (CM-23-018)"
         )
-
-    return read
+    guard = closed_sender_turned_away(root)
+    if guard is None or guard.declared_refusal is not None:
+        return None
+    return HandlerResult.skipped(
+        f"{outcome.label}: {guard.feedback_message} — a repeat of a closing"
+        " act, nothing to apply (ID-05-003)"
+    )
 
 
 def pxa_refusal_reader(name: str, answered: str) -> OutcomeReader:
-    """The verdict of a delivery the P/X/A refusal *name* diverted.
+    """The ``SKIPPED`` of a delivery the P/X/A refusal *name* answered before.
 
     ``SKIPPED`` when the ``Reject`` of the Invite *answered* names was
     already sent by an earlier run that ended with no verdict (one whose
     queue write failed), so the re-run sends nothing new (HP-01-014,
-    ID-04-005); otherwise ``REFUSED`` for the condition's reason
-    (EMB-01-002, EMB-02-004), whether or not the ``Reject`` could be sent.
-    ``None`` when the diversion was not taken.  A resend after a refusal
-    never reaches this: the seen-before door refuses it again from its
-    receipt stub (ADR-0154).
+    ID-04-005).  ``None`` otherwise: a taken diversion is refused for its
+    condition's reason (EMB-01-002, EMB-02-004), whether or not the
+    ``Reject`` could be sent, and its stage declares that refusal
+    (:attr:`~vultron.core.behaviors.case.nodes.diversion_stage.DiversionStage.declared_refusal`,
+    built ``refuses_unanswered``).  A resend after a refusal never reaches
+    this: the seen-before door refuses it again from its receipt stub
+    (ADR-0154).
     """
 
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:
         stage = taken_diversion(outcome.tree, name)
-        if stage is None:
-            return None
-        if node_failed(stage, EmbargoInviteNotYetRefusedNode):
+        if stage is not None and node_failed(
+            stage, EmbargoInviteNotYetRefusedNode
+        ):
             return HandlerResult.skipped(
                 f"{answered} not refused again: the Reject was already sent"
                 " (HP-01-003)"
             )
-        return HandlerResult.refused(
-            stage.condition.feedback_message or f"{name}: P/X/A set"
-        )
+        return None
 
     return read
 

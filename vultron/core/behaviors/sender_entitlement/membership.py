@@ -309,14 +309,20 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     FAILURE with :attr:`sender_closed` set when the case records the
     sender's closure (:func:`~vultron.core.participants.recipients.closure_recorded`).
     The handler reports an act that would close the sender again as
-    ``SKIPPED``, and any other act as ``REFUSED``
+    ``SKIPPED``
     (:func:`~vultron.core.behaviors.case.received_run.readers.closed_sender_reader`).
+    A door built for any other act is given its tree's name
+    (*refusal_label*), and declares that failure a refusal naming the tree,
+    so the runner reports it ``REFUSED`` (:attr:`declared_refusal`,
+    HP-01-003).  Without one it declares nothing: the ``CASE_OWNER`` kind's
+    check states its own refusal, and a closing act's door is read as a
+    repeat.
 
     Keyed on the sender's recorded RM state, never on the activity id, which
     a repeat sent under a new id does not share.  Read-only.
 
-    Its FAILURE is not a refusal: the handler decides the verdict from the
-    act, and a repeat of an act that would close the sender again is
+    Its FAILURE alone is not a refusal: what it owes depends on the act,
+    and a repeat of an act that would close the sender again is
     ``SKIPPED`` (CM-23-049, ID-05-003).  So its reason carries no
     ``REFUSED`` wording, and its line is DEBUG like every node's fact
     (:func:`~vultron.core.behaviors.node_logger.fail_with_reason`): the
@@ -330,17 +336,43 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     which states no refusal either: that door turns away only a repeated
     Leave, which the handler reports ``SKIPPED`` (#5903).
 
-    Spec: CM-23-018, ID-05-003, HP-01-007, SL-03-002.
+    Spec: CM-23-018, ID-05-003, HP-01-003, HP-01-007, SL-03-002.
     """
 
     def __init__(
-        self, case_id: str, sender_actor_id: str, name: str | None = None
+        self,
+        case_id: str,
+        sender_actor_id: str,
+        name: str | None = None,
+        *,
+        refusal_label: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.sender_actor_id = sender_actor_id
+        self.refusal_label = refusal_label
         self.sender_closed = False
         """``True`` when the last run found the sender's closure recorded."""
+
+    @property
+    def declared_refusal(self) -> str | None:
+        """The refusal of an act from a sender the case records as closed.
+
+        ``None`` unless the node was built with a *refusal_label* and its
+        last run failed on a recorded closure
+        (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`): the
+        sender may act on nothing further (CM-23-018).
+        """
+        if (
+            self.refusal_label is None
+            or self.status != Status.FAILURE
+            or not self.sender_closed
+        ):
+            return None
+        return (
+            f"{self.refusal_label}: {self.feedback_message}"
+            " — it may act on nothing further"
+        )
 
     def update(self) -> Status:
         self.sender_closed = False

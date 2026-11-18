@@ -18,6 +18,7 @@ from vultron.core.behaviors.case.received_run import (
     node_failed,
     pxa_refusal_reader,
     run_received_tree,
+    taken_diversion,
 )
 from vultron.core.behaviors.embargo.invite_received_tree import (
     EmbargoInviteFault,
@@ -82,11 +83,14 @@ def _refusal_reader(
 ) -> OutcomeReader:
     """The verdict for a run the tree did not admit.
 
-    The P/X/A refusal, noting when no ``Reject`` was sent because this
-    receiver is not the invitee (EP-09-010); then the same Invite delivered
-    again, and an Invite already answered delivered again after its proposal
-    left the index (CLP-13-001, ID-04-004, HP-01-014).  Terms the case
-    already holds, under new ids, are the generic repeat (EP-09-032).
+    The P/X/A refusal's ``Reject`` already sent (``SKIPPED``), and its
+    refusal when no ``Reject`` was sent because this receiver is not the
+    invitee (EP-09-010): the stage declares the refusal, and this reading
+    adds why nothing was sent.  Any other P/X/A refusal is the stage's
+    declaration alone.  Then the same Invite delivered again, and an Invite
+    already answered delivered again after its proposal left the index
+    (CLP-13-001, ID-04-004, HP-01-014).  Terms the case already holds,
+    under new ids, are the generic repeat (EP-09-032).
     """
     where = f"Invite(EmbargoEvent) '{invite_id}' on case '{case_id}'"
     pxa = pxa_refusal_reader(PXA_INVITE_REFUSAL, where)
@@ -95,13 +99,18 @@ def _refusal_reader(
         if outcome.succeeded:
             return None
         tree = outcome.tree
-        if (refusal := pxa(outcome)) is not None:
-            if node_failed(tree, ReceiverIsInviteeNode):
+        if (repeat := pxa(outcome)) is not None:
+            return repeat
+        if (stage := taken_diversion(tree, PXA_INVITE_REFUSAL)) is not None:
+            declared = stage.declared_refusal
+            if declared is not None and node_failed(
+                stage, ReceiverIsInviteeNode
+            ):
                 return HandlerResult.refused(
-                    f"{refusal.reason}; no Reject sent, the Invite is addressed"
+                    f"{declared}; no Reject sent, the Invite is addressed"
                     f" to '{subjects.invitee_id}' (EP-09-010)"
                 )
-            return refusal
+            return None
         if node_failed(tree, EmbargoProposalNotYetRecordedNode):
             return HandlerResult.skipped(
                 f"invite '{invite_id}' was already applied on case '{case_id}'"
