@@ -32,18 +32,29 @@ The run holds what it reads in memory, and its transient files in a
 private temporary directory removed when the run ends
 (:func:`~vultron.shadow.dashboard.lifecycle.private_tempdir`), so a case
 it read is left nowhere on the host after it exits (SHD-01-003).
+
+Its log records go to standard error, and carry case, activity and actor
+ids, never case content (:func:`~vultron.shadow.log_content.shadow_logging`,
+VSD-01-003).  Streamlit's rich traceback printer is turned off: it prints an
+uncaught exception straight to the console, past any logging.
 """
 
 from __future__ import annotations
+
+import logging
 
 import click
 from streamlit.web import cli as streamlit_cli
 
 from vultron.shadow.dashboard.app import APP_PATH
 from vultron.shadow.dashboard.lifecycle import private_tempdir
+from vultron.shadow.log_content import shadow_logging
 
 #: The port the page listens on by default.
 DEFAULT_PORT = 8501
+
+#: The log levels ``--log-level`` takes.
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
 
 def streamlit_args(address: str, port: int) -> list[str]:
@@ -65,6 +76,8 @@ def streamlit_args(address: str, port: int) -> list[str]:
         "127.0.0.1",
         "--logger.hideWelcomeMessage",
         "true",
+        "--logger.enableRich",
+        "false",
         "--global.developmentMode",
         "false",
     ]
@@ -84,14 +97,23 @@ def streamlit_args(address: str, port: int) -> list[str]:
     type=click.IntRange(1, 65535),
     help="The port the page listens on.",
 )
-def main(address: str, port: int) -> None:
+@click.option(
+    "--log-level",
+    default="INFO",
+    show_default=True,
+    type=click.Choice(LOG_LEVELS, case_sensitive=False),
+    help="The lowest level of the tool's own log records to write.",
+)
+def main(address: str, port: int, log_level: str) -> None:
     """Start the case shadow tool's dashboard."""
-    # Any transient file the run writes goes in a directory removed when
-    # the run ends, by return, error or SIGTERM (SHD-01-003).
-    with private_tempdir():
+    # Every log record is cleaned of case content (VSD-01-003), and any
+    # transient file the run writes goes in a directory removed when the
+    # run ends, by return, error or SIGTERM (SHD-01-003).
+    level = logging.getLevelNamesMapping()[log_level.upper()]
+    with shadow_logging(level), private_tempdir():
         streamlit_cli.main(
             args=streamlit_args(address, port), prog_name="streamlit"
         )
 
 
-__all__ = ["DEFAULT_PORT", "main", "streamlit_args"]
+__all__ = ["DEFAULT_PORT", "LOG_LEVELS", "main", "streamlit_args"]

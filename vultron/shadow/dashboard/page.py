@@ -22,6 +22,11 @@ bands of the case's move advice (ADR-0200).  Beside the analysis it always
 shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
+Each case is handled inside :func:`~vultron.shadow.log_content.case_log_context`,
+so its log records name the case and its tracker reference and never carry
+its content (VSD-01-003).  Each ledger entry's record carries the entry's
+activity id as its correlation id.
+
 The page only reads: it holds the reader and nothing that can send or write
 (SHD-01-001, SHD-01-002).  A case it reads lives in the process's memory
 only, and nothing of it is written to disk (SHD-01-003).
@@ -29,6 +34,7 @@ only, and nothing of it is written to disk (SHD-01-003).
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 
 import pandas as pd
@@ -37,9 +43,13 @@ import streamlit as st
 from vultron.core.models.case_reading import CaseReading
 from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import VultronError
+from vultron.logging_correlation import correlation_context
 from vultron.measure.advice import CaseAdvice, case_advice
 from vultron.shadow.analysis import CaseAnalysis, analyse
 from vultron.shadow.dashboard import view
+from vultron.shadow.log_content import case_log_context
+
+logger = logging.getLogger(__name__)
 
 #: The page's title, also the browser tab's.
 TITLE = "Case shadow"
@@ -171,6 +181,35 @@ def _show_reader_report(reading: CaseReading) -> None:
     )
 
 
+def _log_reading(case_id: str, reading: CaseReading) -> None:
+    """Log what was read: the case, then each entry and its source record."""
+    logger.info(
+        "Read case %s: %d ledger entries, %d inferences, %d untranslated"
+        " facts",
+        case_id,
+        len(reading.ledger),
+        len(reading.inferences),
+        len(reading.untranslated),
+    )
+    sources = {c.entry_id: c.source_record for c in reading.citations}
+    for entry in reading.ledger:
+        with correlation_context(activity_id=entry.log_object_id):
+            logger.debug(
+                "Case %s entry %s (%s) translates source record %s",
+                case_id,
+                entry.id_,
+                entry.semantic_type,
+                sources[entry.id_],
+            )
+    for fact in reading.untranslated:
+        logger.debug(
+            "Case %s source record %s not translated: %s",
+            case_id,
+            fact.source_record,
+            fact.reason,
+        )
+
+
 def render(reader: CaseReader, suggestions: Sequence[str] = ()) -> None:
     """Draw the page for the case the analyst enters, read through *reader*.
 
@@ -188,15 +227,21 @@ def render(reader: CaseReader, suggestions: Sequence[str] = ()) -> None:
     if case_id is None:
         st.info("Enter a case to see where it stands.")
         return
-    try:
-        reading = reader.read_case(case_id)
-    except VultronError as exc:
-        # A refusal that carries several problems names them all in str()
-        # (EH-07-003), so the analyst sees every reason at once.
-        st.error(str(exc))
-        return
-    _show_standing(analyse(reading))
-    _show_reader_report(reading)
+    with case_log_context(case_id) as case_log:
+        try:
+            reading = reader.read_case(case_id)
+        except VultronError as exc:
+            # A refused read is the analyst's to fix, not a fault: WARNING
+            # (EH-06-001).
+            logger.warning("Could not read case %s: %s", case_id, exc)
+            # A refusal that carries several problems names them all in
+            # str() (EH-07-003), so the analyst sees every reason at once.
+            st.error(str(exc))
+            return
+        case_log.withhold(reading)
+        _log_reading(case_id, reading)
+        _show_standing(analyse(reading))
+        _show_reader_report(reading)
 
 
 __all__ = ["CASE_KEY", "TITLE", "render"]
