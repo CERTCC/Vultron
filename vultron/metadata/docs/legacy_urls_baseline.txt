@@ -220,6 +220,7 @@ adr/0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md
 adr/0208-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md
 adr/0209-a-local-gate-runs-only-what-answers-before-the-required-ci-gate-and-the-base-is-merged-locally-only-on-conflict.md
 adr/0210-a-reported-p-x-or-a-value-is-adopted-through-one-gate-and-its-adoption-ends-the-embargo-in-the-same-act.md
+adr/0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
@@ -230,6 +231,7 @@ adr/archived/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md
 adr/archived/0070-invited-actor-rm-triage-via-ledger-backfill.md
 adr/archived/0082-wire-core-boundary-pairing-registry.md
 adr/archived/0084-participant-assertion-authority.md
+adr/archived/0099-one-object-model-as2-is-a-serialization.md
 adr/archived/0111-intake-is-the-first-received-side-stage.md
 adr/archived/0126-ci-is-the-full-suite-authority-after-the-first-push.md
 adr/archived/0135-compose-received-trees-never-chain-them.md
