@@ -4765,16 +4765,17 @@ groups:
       A receiver MUST refuse at message validation an inbound activity that carries, at
       any depth, a whole object with no `published`, naming the object's position. An
       actor profile, a collection and an `EmbargoConsent` row are exempt. A typed
-      reference (MV-10-011), the case preview it may carry (ADR-0205), a URI and a
-      `Link` are not whole objects, so the rule does not reach them.
+      reference (MV-10-011), a URI and a `Link` are not whole objects, and a preview a
+      typed reference carries is a projection of the object it names (ADR-0205), so the
+      rule reaches none of them.
     rationale: >-
       A conformant sender states the time of every object it authors, so the rule
       refuses only malformed input. Refusing at the edge spares every reader of a
       received object's time a check of whether its type is one a decision needs, and
       lets core declare the time required (ADR-0032). An actor profile or a collection
       is not an act made at a moment, and many servers serve profiles without one.
-      A case preview and a consent row are kept without a time by CM-17-010 and
-      CM-23-044.
+      A case preview, a projection of the case it names, and a consent row are kept
+      without a time by CM-17-010 and CM-23-044.
     note: >-
       The objects nested in a ledger entry's `payloadSnapshot` are kept as received
       JSON and are not validated into objects (CLP-07-011), so this rule does not

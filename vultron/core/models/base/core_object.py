@@ -166,8 +166,9 @@ class CoreObject(CoreRecord):
     # one without it (CLP-15-011).  A class every author stamps narrows it to
     # ``datetime``.  The base admits ``None`` for the classes that keep it:
     # an actor profile (exempt, ``_received_without_published``), the bare
-    # reference the extractor wraps an unmodelled object in and a case preview's
-    # projection (neither is a whole object), an embargo consent row (copied,
+    # reference the extractor wraps an unmodelled object in (no whole object),
+    # a case preview (a projection of the object it names), an embargo consent
+    # row (copied,
     # never stamped, CM-23-044), and an attachment read before the act that
     # authors it opens.
     published: datetime | None

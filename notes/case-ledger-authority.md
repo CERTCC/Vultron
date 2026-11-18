@@ -363,9 +363,10 @@ Rules:
    (CLP-15-008, MV-03-002): the wire default would otherwise pose the
    receiver's clock as the sender's claim. A present, non-blank but unreadable
    value stays a schema fault. A nested whole object without `published` is
-   refused too, at any depth, except an actor profile, a collection, a case
-   stub or an `EmbargoConsent` row; a typed reference, a URI and a `Link`
-   carry no time (CLP-15-011, ADR-0198). An omitted `updated` is carried as
+   refused too, at any depth, except an actor profile, a collection or an
+   `EmbargoConsent` row; a typed reference, a URI and a `Link` carry no time,
+   and a case preview is a projection of the object it names (CLP-15-011,
+   ADR-0198, ADR-0205). An omitted `updated` is carried as
    absent (CLP-15-007). Rebuild core
    objects from a snapshot through `project_wire_snapshot_to_core`, never
    `Model.model_validate(snapshot)`,

@@ -266,9 +266,9 @@ def _stub_embargo(**extra: Any) -> dict[str, Any]:
 @pytest.mark.spec("CM-17-010")
 def test_a_case_preview_carries_no_time_of_its_own() -> None:
     """A case reference's preview, whose keys CM-17-010 fixes without a
-    ``published``, is part of the reference, so neither the reference nor it is
-    refused for one; the embargo it carries is a whole object and has its
-    own."""
+    ``published``, is a projection of the case it names, so neither the
+    reference nor it is refused for one; the embargo it carries is a whole
+    object and has its own."""
     stub = _stub(activeEmbargo=_stub_embargo(published=PUBLISHED))
 
     parsed = parse_activity(_stub_invite(stub))

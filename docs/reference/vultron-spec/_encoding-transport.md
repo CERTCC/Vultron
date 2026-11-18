@@ -38,7 +38,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 Every object an Activity embeds carries its own `id` too, at any depth, and a receiver refuses a message that embeds one without it.
 A Link, such as a `Mention` in `tag`, is not an object: it needs no `id` and names its resource by `href`.
 
-Every whole object an Activity embeds, at any depth, also carries the `published` timestamp its author stamped on it, except an actor profile, a collection or an embargo consent row; a typed reference, with the case preview it may carry, is not a whole object.
+Every whole object an Activity embeds, at any depth, also carries the `published` timestamp its author stamped on it, except an actor profile, a collection or an embargo consent row; a typed reference is not a whole object, and the case preview it may carry is a projection of the object it names.
 A receiver refuses a message that embeds one without it, and names where the object sits.
 An actor profile describes an actor and a collection is a container, so neither is an act made at a moment.
 A case preview carries only the keys it defines, and a consent row is copied without a time, so neither carries one.

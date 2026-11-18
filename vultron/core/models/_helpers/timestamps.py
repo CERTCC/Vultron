@@ -168,10 +168,11 @@ def received_without_published(cls: type[BaseModel]) -> bool:
     A class with no ``published`` field (a ``Link``) is not reached.  A kind
     that is not an act made at a moment opts out by setting the class
     attribute ``_received_without_published`` on its base class, and every
-    subclass inherits it: an actor profile and a collection (CLP-15-011), a typed
-    reference, which is no whole object (MV-10-011), a case preview, whose
-    keys CM-17-010 fixes without one, and an embargo consent row, which a
-    replica copies without reading a clock (CM-23-044).
+    subclass inherits it: an actor profile and a collection (CLP-15-011), a
+    typed reference, which is no whole object (MV-10-011), a case preview, a
+    projection of the object it names (ADR-0205) whose keys CM-17-010 fixes
+    without one, and an embargo consent row, which a replica copies without
+    reading a clock (CM-23-044).
     """
     return "published" not in cls.model_fields or bool(
         getattr(cls, "_received_without_published", False)
