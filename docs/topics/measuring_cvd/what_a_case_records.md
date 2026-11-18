@@ -349,9 +349,12 @@ For embargo times, the measure connects the embargo register and the consent row
     The standing record puts these results together for one case at its last entry (`vultron/measure/standing/`).
     It gives each participant's report-management state, and each vendor's case state and score.
     It gives the case's embargo-management state, which it derives from the embargo register that the ledger's steps rebuild, and the case's public state.
-    It marks each desideratum as met, broken or open for each vendor.
-    A desideratum is met when every history that the vendor's sequence can still become meets it, and broken when none of them does.
+    For each vendor, it marks each desideratum of the vendor's scope as met, broken or open.
+    The scope holds the twelve original desiderata, the report-handling desiderata and the embargo desiderata, with each group of equivalent desiderata once, the same list that move advice weighs.
+    An original desideratum is met when every history that the vendor's sequence can still become meets it, and broken when none of them does.
+    An extended desideratum is met when every end that the vendor's walk can still reach meets it or never enters its scope, and broken when none of them does.
     A desideratum that orders an event the case's source cannot observe is unknown instead, because the sequence cannot say whether that event happened.
+    When the vendor's case stands in no state of the one-vendor model, its extended desiderata are not scored.
     The record lists the moves that the state machines allow from each state, and names each move by its machine and its trigger.
     Each move names the participant who can make it.
     In the record, any participant can propose an embargo, and only the Case Owner can accept, reject or end one.
