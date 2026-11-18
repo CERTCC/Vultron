@@ -32,6 +32,7 @@ related_notes:
   - notes/bt-integration.md
   - notes/domain-validation.md
   - notes/case-ledger-authority.md
+  - notes/consent-in-participant-status.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management

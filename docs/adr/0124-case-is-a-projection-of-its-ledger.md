@@ -13,6 +13,8 @@ consulted: >-
   ADR-0116, ADR-0119, ADR-0122; specs/case-ledger-processing.yaml CLP-07, CLP-10;
   specs/sync-ledger-replication.yaml SYNC-00-002; specs/case-management.yaml CM-23-016
 informed: []
+partially_superseded_by:
+  - 0212-a-replica-changes-state-only-from-the-case-managers-entries-and-consent-is-part-of-a-participants-status.md
 stakeholder_type: [project-contributor]
 ---
 

@@ -17,6 +17,8 @@ informed: []
 partially_supersedes:
   - 0103-object-time-is-carried-never-minted.md
   - 0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md
+partially_superseded_by:
+  - 0212-a-replica-changes-state-only-from-the-case-managers-entries-and-consent-is-part-of-a-participants-status.md
 stakeholder_type: [project-contributor]
 ---
 

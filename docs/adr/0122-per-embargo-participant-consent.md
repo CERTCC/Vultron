@@ -24,6 +24,7 @@ partially_superseded_by:
   - 0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md
   - 0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md
   - 0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md
+  - 0212-a-replica-changes-state-only-from-the-case-managers-entries-and-consent-is-part-of-a-participants-status.md
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0048-pec-no-embargo-is-absence-not-pre-consent.md
