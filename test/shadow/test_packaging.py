@@ -28,6 +28,10 @@ from streamlit import config as st_config, net_util
 from streamlit.web import bootstrap
 
 from test.support.child_env import child_env
+from vultron.config.shadow import (
+    SHADOW_NODE_ACTOR_ID_ENV_VAR,
+    SHADOW_NODE_URL_ENV_VAR,
+)
 from vultron.config.vince import VINCE_API_TOKEN_ENV_VAR
 from vultron.metadata.base import repo_root
 from vultron.shadow.dashboard import cli
@@ -35,6 +39,7 @@ from vultron.shadow.dashboard.cli import DEFAULT_PORT, streamlit_args
 
 _REPO = repo_root()
 _COMPOSE = _REPO / "docker" / "docker-compose.yml"
+_DEMO_COMPOSE = _REPO / "docker" / "docker-compose-multi-actor.yml"
 _DOCKERFILE = _REPO / "docker" / "Dockerfile"
 _SHADOW = _REPO / "vultron" / "shadow"
 
@@ -82,6 +87,21 @@ def test_the_service_names_the_credential_with_no_value():
     assert not re.search(
         rf"{VINCE_API_TOKEN_ENV_VAR}\s*[:=]", _COMPOSE.read_text()
     )
+
+
+def test_the_service_names_the_demo_node_settings_with_no_value():
+    """The node to follow is the shell's to set, by name (#6531)."""
+    environment = [str(item) for item in _service()["environment"]]
+    for name in (SHADOW_NODE_URL_ENV_VAR, SHADOW_NODE_ACTOR_ID_ENV_VAR):
+        assert name in environment
+
+
+def test_the_service_is_on_the_demo_nodes_network():
+    """It reaches a demo node by service name, on the nodes' own network."""
+    demo = yaml.safe_load(_DEMO_COMPOSE.read_text())
+    assert demo["services"]["case-actor"]["networks"] == ["vultron-network"]
+    assert _service()["networks"] == ["vultron-network"]
+    assert "vultron-network" in demo["networks"]
 
 
 def _shadow_stage() -> list[str]:

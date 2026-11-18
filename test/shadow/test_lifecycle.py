@@ -6,8 +6,9 @@ and writes one transient working file that holds the marker too.  After
 the child exits, the marker is in no file under its working directory, its
 temporary directory or its home (which holds ``~/.streamlit``): when it
 exits normally (AC-1), when the read fails partway through the ledger
-(a row that does not parse), and when it is stopped with ``SIGTERM``
-while it holds the case (AC-2).
+(a row that does not parse), when it is stopped with ``SIGTERM``
+while it holds the case (AC-2), and when it has followed the case over a
+live reader's event stream until the stream closed (#6531).
 The child drives the page with Streamlit's ``AppTest``, so it reads and
 holds the case exactly as a browser session would, without a socket.
 
@@ -21,6 +22,7 @@ Spec: SHD-01-003.
 from __future__ import annotations
 
 import ast
+import json
 import os
 import shutil
 import signal
@@ -68,13 +70,32 @@ from streamlit.testing.v1 import AppTest
 from vultron.shadow.dashboard.app import APP_PATH
 from vultron.shadow.dashboard.lifecycle import private_tempdir
 
+#: Follows the synthetic case through the live reader, over a scripted
+#: stream that sends each of its rows, then closes.
+FOLLOW_PAGE = '''
+import os
+from pathlib import Path
+
+from test.support.ledger_stream import (
+    CLOSE, ScriptedStream, recording_rows, sse_rows,
+)
+from vultron.shadow.dashboard.page import render
+
+held = Path(os.environ["VULTRON_SHADOW__LEDGER_DIR"]) / "held.jsonl"
+render(ScriptedStream(sse_rows(recording_rows(held)) + CLOSE).reader())
+'''
+
 mode, case_id, marker, ready = sys.argv[1:]
 with private_tempdir():
     # A transient working file that holds the case's content.
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
         f.write(marker)
-    at = AppTest.from_file(str(APP_PATH), default_timeout=20).run()
-    at.selectbox[0].select(case_id).run()
+    if mode == "follows":
+        at = AppTest.from_string(FOLLOW_PAGE, default_timeout=20).run()
+        at.text_input[0].input(case_id).run()
+    else:
+        at = AppTest.from_file(str(APP_PATH), default_timeout=20).run()
+        at.selectbox[0].select(case_id).run()
     assert not at.exception, at.exception
     errors = [e.value for e in at.error]
     subheaders = [s.value for s in at.subheader]
@@ -235,6 +256,14 @@ def _assert_nothing_left(host: _Host) -> None:
 @pytest.mark.spec("SHD-01-003")
 def test_a_case_read_leaves_no_copy_after_the_process_exits(host):
     _run(host, "held", "held.jsonl")
+    _assert_nothing_left(host)
+
+
+@pytest.mark.spec("SHD-01-003")
+def test_a_followed_case_leaves_no_copy_after_the_process_exits(host):
+    """AC-6 of #6531: a case followed live is held in memory only."""
+    case_id = json.loads(_RECORDING.read_text().splitlines()[0])["caseId"]
+    _run(host, "follows", case_id)
     _assert_nothing_left(host)
 
 

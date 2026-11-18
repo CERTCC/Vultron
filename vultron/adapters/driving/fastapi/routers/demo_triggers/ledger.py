@@ -130,6 +130,8 @@ def demo_get_case_ledger(
         "The server then re-reads the actor's DataLayer on a short interval "
         "(``server.ledger_stream_poll_seconds``, default 0.25 s) and pushes "
         "each new entry, whether committed locally or replicated in. "
+        "A stream with nothing to send for a few seconds sends a "
+        "``: keepalive`` comment, which a client skips. "
         "The stream ends when the client disconnects, and ends with a "
         "terminal ``event: close`` when the server shuts down. "
         "Tail it with ``curl -N``. "
