@@ -222,6 +222,7 @@ adr/0209-a-local-gate-runs-only-what-answers-before-the-required-ci-gate-and-the
 adr/0210-a-reported-p-x-or-a-value-is-adopted-through-one-gate-and-its-adoption-ends-the-embargo-in-the-same-act.md
 adr/0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
 adr/0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
+adr/0213-a-participant-is-created-by-its-invite-is-active-only-while-entitled-and-is-removed-by-withdrawing-entitlement.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
@@ -234,6 +235,8 @@ adr/archived/0082-wire-core-boundary-pairing-registry.md
 adr/archived/0084-participant-assertion-authority.md
 adr/archived/0099-one-object-model-as2-is-a-serialization.md
 adr/archived/0111-intake-is-the-first-received-side-stage.md
+adr/archived/0114-joining-a-case-stub-invite-inert-participant.md
+adr/archived/0116-removing-a-participant-withdraws-entitlement-not-membership.md
 adr/archived/0122-per-embargo-participant-consent.md
 adr/archived/0126-ci-is-the-full-suite-authority-after-the-first-push.md
 adr/archived/0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md
@@ -243,6 +246,7 @@ adr/archived/0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infras
 adr/archived/0151-a-received-act-commits-its-own-entry-with-its-consequences.md
 adr/archived/0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 adr/archived/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md
+adr/archived/0172-an-active-participant-is-not-closed.md
 adr/archived/0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
 adr/archived/0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
 adr/archived/0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md
