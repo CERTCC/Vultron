@@ -326,7 +326,7 @@ Also emit findings for these `merge_state_status` values even when
 
 - `BEHIND` — base has advanced and a ruleset requires branches be up to date:
   **IMPROVE**, `fix-now` (execute clears it with `gh pr update-branch`,
-  PAD-18-014). This repository sets no such ruleset today (ADR-0126), so say
+  PAD-18-014). This repository sets no such ruleset today (ADR-0209), so say
   in the description that the premise changed; `pr-verify` still blocks on a
   live `BEHIND` (PAD-18-005).
 - `BLOCKED` — **IMPROVE**. Name the cause rather than the state, and read it

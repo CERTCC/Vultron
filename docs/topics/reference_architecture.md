@@ -36,7 +36,7 @@ The codebase splits into three concentric responsibilities.
 
 The wire format is a separate concern from the domain, not a subset of it.
 AS2 was chosen because it maps cleanly to Vultron semantics ([ADR-0005](../adr/0005-activitystreams-vocabulary-as-vultron-message-format.md)), but that alignment does not make it a domain dependency.
-Core domain objects and wire classes form two structurally distinct branches with no shared base: a strict core branch and a lenient wire branch ([ADR-0017](../adr/archived/0017-domain-wire-object-separation.md), [ADR-0099](../adr/0099-one-object-model-as2-is-a-serialization.md)).
+Core domain objects and wire classes form two structurally distinct branches with no shared base: a strict core branch and a lenient wire branch ([ADR-0017](../adr/archived/0017-domain-wire-object-separation.md), [ADR-0211](../adr/0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md)).
 The core branch is authoritative, and AS2 is one of its serializations: a core object dumped with its AS2 aliases *is* the wire document.
 The wire branch tolerates the loose, optional shapes that arrive over the network.
 A domain type such as a case has no separate wire class: its `as_` name is an alias of the core class.
@@ -86,7 +86,7 @@ The HTTP inbox lives in `vultron/adapters/driving/fastapi/`, returns `202 Accept
 
 The wire layer turns bytes into meaning.
 The AS2 parser checks structural validity, `rehydrate()` resolves referenced objects into full inline objects, and the semantic extractor (`vultron/wire/as2/extractor/`) matches the activity against an ordered pattern registry to produce a domain-level `MessageSemantics` value.
-The parser also decides what happens to every unrecognized key, at every depth (MV-11, [ADR-0099](../adr/0099-one-object-model-as2-is-a-serialization.md)).
+The parser also decides what happens to every unrecognized key, at every depth (MV-11, [ADR-0211](../adr/0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md)).
 A misspelling of a field the receiver reads refuses the whole activity, and any other unknown key is set aside and logged.
 The semantic extractor is the single place where AS2 structure becomes domain intent (ARCH-03-001), so the rest of the core never inspects wire shapes.
 
@@ -127,7 +127,7 @@ Inside a use case, protocol-significant work runs as a **behavior tree** (BT).
 A behavior tree is a hierarchy of nodes ticked from the root; each node returns *Success*, *Failure*, or *Running*, and the control-flow nodes above them compose those results into higher-level behavior.
 Vultron uses this structure because CVD activities compose the same way: validate a report, propose an embargo, publish an advisory — each is a small tree that slots into a larger one ([ADR-0002](../adr/0002-model-processes-with-behavior-trees.md)).
 
-On the received side, a tree first asks its door questions: is the message addressed to the receiver, has the receiver seen it before, which path does it take, and is the case open to the write from this sender (CLP-10-010, [ADR-0154](../adr/0154-a-received-message-is-one-staged-record-archived-only-when-applied.md)).
+On the received side, a tree first asks its door questions: is the message addressed to the receiver, has the receiver seen it before, which path does it take, and is the case open to the write from this sender (CLP-10-010, [ADR-0214](../adr/0214-how-a-received-message-is-checked-applied-and-kept.md)).
 Each answer can end the run, and nothing is stored before the last one.
 A resend is answered at the second door from what the receiver recorded for it, and nothing runs again.
 The tree then stores what arrived (intake), runs guards, commits the ledger entry, and fires effects, in that order (CLP-10-006).

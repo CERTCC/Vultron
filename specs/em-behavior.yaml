@@ -868,7 +868,7 @@ groups:
       emits no ET (EP-09-008, EMB-03-003, ADR-0118). While another revision is
       open, the rejection leaves EM in Revise and ends nothing (EP-08-001).
       Adopting P, X or A ends the embargo and cancels its proposals in the same
-      act (ADR-0166, EP-08-004), so this rule's start state follows only a
+      act (ADR-0210, EP-08-004), so this rule's start state follows only a
       failed teardown (CSB-18-004).
     verification: >-
       `test/core/use_cases/received/test_embargo_ending_notices.py`
@@ -1029,13 +1029,13 @@ groups:
       (EMB-02-002), before the commit (CLP-10-009). A refusal is not an act,
       so it carries no ET. The P/X/A fact causes the termination, not the EC
       (EMB-03-003): the act that adopts P, X or A ends the embargo (RSH-03-001,
-      ADR-0166). EJ differs (EMB-04-002): it is committed, so its act can end
+      ADR-0210). EJ differs (EMB-04-002): it is committed, so its act can end
       the embargo.
     note: >-
       Restated to match the received EC tree, which refuses the activation in
       `OwnerMayActivateEmbargoNode` (maintainer decision, #5325).
     adr:
-    - ADR-0166
+    - ADR-0210
     verification: >-
       `test/core/use_cases/received/test_embargo_owner_decision.py::test_an_accepted_revision_with_pxa_set_is_refused_without_et`
       confirms that, with P, X or A set, the CASE_MANAGER refuses the Case
@@ -1741,7 +1741,7 @@ groups:
       covers the lazy check, the outside request, the order of the two, a
       race between them, an early request after the end time, and the lazy
       check composed into the one tree that handles a participant's received
-      activity or a case-scoped trigger (CLP-10-025, ADR-0135), including an
+      activity or a case-scoped trigger (CLP-10-025, ADR-0214), including an
       accept of a pending revision that cannot extend the expired embargo;
       `test/core/use_cases/received/test_termination_reason.py`
       covers the refusal of an early `END_TIME_REACHED` at the CASE_MANAGER and
@@ -2209,7 +2209,7 @@ groups:
     runs `ResolveCaseManagerNode` before the state mutation) and is authorised by
     the Case Owner by default (CM-02-005). A teardown that a received P, X or A
     report calls for is authorised by the Case Owner's adoption of that value,
-    with no second gate (RSH-07-001, ADR-0166). A non-manager Participant
+    with no second gate (RSH-07-001, ADR-0210). A non-manager Participant
     that wishes to end an embargo does not run this trigger to write canonical
     state; it initiates termination by reporting the condition or notifying intent
     (VP-11-003, VP-13-017/018), and terminates only its own compliance. See

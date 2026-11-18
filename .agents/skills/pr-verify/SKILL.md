@@ -64,7 +64,7 @@ comment.
    `sync_commit_ref` (PAD-18-004 called for a merge that never happened).
    `merge_reason: "deferred"` with `merge_required: false` and a null
    `sync_commit_ref` is **not** that: execute found an overlap and, by design,
-   left it to the merger's `gh pr update-branch` (PAD-18-019, ADR-0138). Do not
+   left it to the merger's `gh pr update-branch` (PAD-18-019, ADR-0209). Do not
    flag it.
    Continue to Phase 2 — the live check there is what decides the verdict —
    but this flag alone blocks `READY-TO-MERGE`, because it means execute never
@@ -147,7 +147,7 @@ cannot be ready to merge no matter what those checks find.
      onto another base is blocked by some other rule. Report it as the note it
      is; do not send anyone to a gate nothing requires on that base.
    - `BRANCH-BEHIND` — GitHub reports `BEHIND` only when a ruleset requires
-     up-to-date branches, which this repository does not set (ADR-0126).
+     up-to-date branches, which this repository does not set (ADR-0209).
      `pr-execute` updates the branch on GitHub when it sees `BEHIND`
      (PAD-18-014), so a live `BEHIND` here means the base moved again after
      execute's last check: re-run `/pr-execute`, which clears it.

@@ -13,7 +13,7 @@ stakeholder_type: [project-contributor]
 ---
 
 > **Superseded by
-> [ADR-0099](../0099-one-object-model-as2-is-a-serialization.md).** The diagnosis
+> [ADR-0099](0099-one-object-model-as2-is-a-serialization.md).** The diagnosis
 > in this ADR stands and is the foundation ADR-0099 builds on — the four
 > duplications, the measured evidence, and the finding that "zero wire→core
 > imports" was unreachable are all still accurate and should still be read.

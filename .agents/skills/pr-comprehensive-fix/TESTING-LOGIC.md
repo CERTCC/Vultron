@@ -105,8 +105,8 @@ structured blockers, and explicit blocked/unblocked status.
 ## No Full-Suite Escalation
 
 The file-change detection this section used to describe — demo, adapters,
-behavior trees, use cases, the extractor — decided nothing by the time
-ADR-0143 landed, and decides nothing now: those paths are gated by their
+behavior trees, use cases, the extractor — decided nothing after
+2026-10-16 (ADR-0209), and decides nothing now: those paths are gated by their
 importers like any other (PAD-18-012). `pr-triage` still records
 `needs_integration_tests`, but only as information for a reader; no gate
 reads it (`pr-execute/REFERENCE.md`).

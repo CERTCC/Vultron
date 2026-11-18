@@ -66,7 +66,7 @@ runs the step's own `run:` script when it needs no GitHub expression. Or add an
 no sooner there than here. PAD-18-023 names the second kind: pyright, the
 spec-corpus suite, the guard tests, the site build and the checks that read
 the built site. Without an entry either way the mirror would silently fall
-behind CI, the gap it closes (PAD-18-022, ADR-0173).
+behind CI, the gap it closes (PAD-18-022, ADR-0209).
 
 ## A Check Moved From a Local Gate to CI Needs an Unfiltered Job
 
@@ -145,7 +145,7 @@ the re-run caveat above teeth — an unjudged re-run now holds the merge, not ju
 the reader's confidence.
 
 It sets `strict_required_status_checks_policy: false`, so a branch merely behind
-`main` still does not block a merge (ADR-0126, ADR-0138), and `BEHIND` remains a
+`main` still does not block a merge (ADR-0209), and `BEHIND` remains a
 state this repository does not produce. Emergency release is a human setting the
 ruleset's `enforcement` to `disabled`, never a bypass actor.
 

@@ -46,9 +46,9 @@ groups:
       holds domain logic, a change of wire format must also change that logic, and core
       then does not own its own rules. The wire layer may name core types in its
       annotations (ARCH-22-001), because AS2 is a serialization of the core model
-      (ADR-0099). The rule thus limits what wire code does, not what it imports.
+      (ADR-0211). The rule thus limits what wire code does, not what it imports.
     adr:
-    - ADR-0099
+    - ADR-0211
     - ADR-0009
   - id: ARCH-01-004
     priority: MUST
@@ -170,11 +170,11 @@ groups:
       format changes only that module. If a second module also does the mapping, the two
       can disagree, and one message can mean different things in different parts of the
       code. The semantic extractor reads the AS2 form, so it is in `vultron/wire/`,
-      which may import core models (ARCH-22-001, ADR-0099).
+      which may import core models (ARCH-22-001, ADR-0211).
     verification: Inspection of `vultron/wire/` confirms that AS2-to-domain vocabulary mapping logic appears only in
       the semantic extractor module and in no other location.
     adr:
-    - ADR-0099
+    - ADR-0211
 - id: ARCH-04
   title: Driven Adapter Injection
   specs:
@@ -434,7 +434,7 @@ groups:
   title: Core Object Hierarchy
   rationale: >-
     The core classes are the object model, and AS2 is a serialization of them
-    (ADR-0099). Core and the wire layer thus have separate roots, and each root holds
+    (ADR-0211). Core and the wire layer thus have separate roots, and each root holds
     only what its own branch needs. Two class hierarchies for one concept need
     translation code, and translation code drifts. These rules keep one class for each
     domain concept.
@@ -455,7 +455,7 @@ groups:
       core does model is the core class itself (ARCH-25-003). Core's AS2 base classes,
       AS2 models with no Vultron property, are the one exception (ADR-0208).
     adr:
-    - ADR-0099
+    - ADR-0211
     - ADR-0208
     verification: >-
       `test_wire_vocabulary_inherits_nothing_from_core` in
@@ -486,7 +486,7 @@ groups:
       internal record cannot go into a delivered payload by mistake. A third level of
       root would add a distinction that no code uses.
     adr:
-    - ADR-0099
+    - ADR-0211
     verification: >-
       `TestCoreRoots` in `test/architecture/test_hierarchy_invariants.py` asserts
       `CoreObject.__bases__ == (CoreRecord,)`, that `CoreRecord` declares only the identity
@@ -525,7 +525,7 @@ groups:
       spec_id: ARCH-25-025
     adr:
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-12-013
     priority: MUST
     kind: project
@@ -550,7 +550,7 @@ groups:
       spec_id: ARCH-25-013
     adr:
     - ADR-0063
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-12-014
     priority: MUST_NOT
     kind: project
@@ -564,7 +564,7 @@ groups:
       `test/architecture/test_hierarchy_invariants.py` keeps core types out of
       `VOCABULARY`. It may not be marked `xfail`.
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-12-015
     priority: MUST_NOT
     kind: project
@@ -586,7 +586,7 @@ groups:
       spec_id: VM-10-001
     adr:
     - ADR-0063
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-12-004
     priority: MUST_NOT
     kind: project
@@ -796,7 +796,7 @@ groups:
       `VultronService`, `VultronApplication` and `VultronGroup`.
     rationale: >-
       With the actor classes in core, core code uses them with no wire import, and the
-      AS2 form of an actor is the serialization of its class (ADR-0099).
+      AS2 form of an actor is the serialization of its class (ADR-0211).
     verification: >-
       Inspection confirms that `VultronPerson`, `VultronOrganization`, `VultronService`,
       `VultronApplication` and `VultronGroup` are defined in
@@ -1347,8 +1347,9 @@ groups:
     Governs how core domain objects are rendered into wire-shaped (AS2 camelCase) JSON. Core
     legitimately needs a wire representation in one place — the `CaseLedgerEntry.payloadSnapshot`,
     which CLP-07-011 requires to be receiver-reconstitutable AS2 — and this group makes a driven
-    port the single seam that produces it. Under one object model (ADR-0099) the spelling lives
-    on the core class (ARCH-25-002) and a dimension serializes to a bare state value (ARCH-25-005), so
+    port the single seam that produces it. Under one object model (ADR-0211) the spelling
+    lives on the core class (ARCH-25-002) and a dimension serializes to a bare state value
+    (ARCH-25-005), so
     the port's adapter is a plain `by_alias` dump of the core object; what the group still
     guards is that core code reaches that dump only through the port.
   rationale: >-
@@ -1356,7 +1357,7 @@ groups:
     output, that output is a second translation beside the spelling of the class, and
     the two can drift. A driven port is the remedy that ARCH-01-004 prescribes for each
     core need for a wire form, and it gives one place that decides what goes on the
-    wire. See ADR-0063 and ADR-0099.
+    wire. See ADR-0063 and ADR-0211.
   specs:
   - id: ARCH-20-001
     priority: MUST
@@ -1389,7 +1390,7 @@ groups:
       spec_id: ARCH-01-004
     adr:
     - ADR-0063
-    - ADR-0099
+    - ADR-0211
     see_also:
     - spec_id: ARCH-12-013
       reason: >-
@@ -1418,7 +1419,7 @@ groups:
       spec_id: ARCH-20-001
     adr:
     - ADR-0063
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-20-010
     priority: MUST_NOT
     kind: project
@@ -1436,7 +1437,7 @@ groups:
       spec_id: ARCH-20-002
     adr:
     - ADR-0063
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-20-003
     priority: MUST
     kind: project
@@ -1457,7 +1458,7 @@ groups:
       `CoreRecord` and renders every `CORE_VOCABULARY` entry.
     adr:
     - ADR-0063
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-20-004
     priority: MUST
     kind: project
@@ -1539,7 +1540,7 @@ groups:
       `application/json`, not an AS2 document, and is outside this requirement.
     adr:
     - ADR-0063
-    - ADR-0099
+    - ADR-0211
     relationships:
     - rel_type: uses_definition
       spec_id: ARCH-25-003
@@ -1580,7 +1581,7 @@ groups:
     - rel_type: derives_from
       spec_id: ARCH-25-003
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-20-012
     priority: MUST
     kind: project
@@ -1600,7 +1601,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-20-008
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-20-009
     priority: MUST
     kind: project
@@ -1625,7 +1626,7 @@ groups:
     - rel_type: uses_definition
       spec_id: DL-05-001
     adr:
-    - ADR-0099
+    - ADR-0211
     see_also:
     - spec_id: VM-06-007
       reason: 'context for the reader'
@@ -1681,7 +1682,7 @@ groups:
       spec_id: ARCH-21-003
     adr:
     - ADR-0064
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-21-003
     priority: MUST_NOT
     kind: architecture
@@ -1823,7 +1824,7 @@ groups:
       `ALLOWED_CORE_PACKAGES`.
     adr:
     - ADR-0009
-    - ADR-0099
+    - ADR-0211
     relationships:
     - rel_type: refines
       spec_id: ARCH-25-006
@@ -1843,7 +1844,7 @@ groups:
       import.
     adr:
     - ADR-0009
-    - ADR-0099
+    - ADR-0211
     relationships:
     - rel_type: verifies
       spec_id: ARCH-22-001
@@ -1864,7 +1865,7 @@ groups:
       spec_id: ARCH-22-002
     adr:
     - ADR-0009
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-22-005
     priority: MUST
     kind: project
@@ -1883,7 +1884,7 @@ groups:
       spec_id: ARCH-22-002
     adr:
     - ADR-0009
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-22-006
     priority: MUST
     kind: project
@@ -1903,7 +1904,7 @@ groups:
       spec_id: ARCH-22-002
     adr:
     - ADR-0009
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-22-003
     priority: SHOULD_NOT
     kind: project
@@ -1916,7 +1917,7 @@ groups:
       on, and a violation set or an `xfail` marker would have no work to do.
     adr:
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-22-007
     priority: SHOULD_NOT
     kind: project
@@ -1927,7 +1928,7 @@ groups:
       passes. That is worse than no goal test.
     adr:
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
 - id: ARCH-23
   title: Core↔Wire Vocabulary and Round-Trip Invariants
   specs:
@@ -1941,7 +1942,7 @@ groups:
       If a wire class and a core class register under the same key, a lookup by that key
       can return the wrong class, and stored or received data can be rebuilt as a wire
       object. Disjoint keys keep each lookup unambiguous. They also stop a new wire
-      class from shadowing a core type with no notice. See ADR-0099.
+      class from shadowing a core type with no notice. See ADR-0211.
     verification: >-
       A test forces full registration first — registration is a submodule import side effect
       (VM-01-005), so it walks every submodule of the wire vocabulary package and of the core
@@ -1953,7 +1954,7 @@ groups:
       is empty for the wrong reason.
     adr:
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-23-003
     priority: MUST_NOT
     kind: project
@@ -1972,7 +1973,7 @@ groups:
       byte-identical to its pre-change output.
     adr:
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-23-004
     priority: MUST
     kind: project
@@ -1991,7 +1992,7 @@ groups:
       for every wire class.
     adr:
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-23-008
     priority: MUST_NOT
     kind: project
@@ -2011,7 +2012,7 @@ groups:
       spec_id: ARCH-23-004
     adr:
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-23-005
     priority: MUST
     kind: project
@@ -2028,7 +2029,7 @@ groups:
     adr:
     - ADR-0056
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-23-009
     priority: MAY
     kind: project
@@ -2045,7 +2046,7 @@ groups:
       `test/architecture/test_core_extra_forbid.py`.
     adr:
     - ADR-0056
-    - ADR-0099
+    - ADR-0211
     see_also:
     - spec_id: CM-31-014
       reason: 'a cited rationale ("because CM-31-014 forbids storing it")'
@@ -2070,7 +2071,7 @@ groups:
       spec_id: ARCH-23-005
     adr:
     - ADR-0056
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-23-011
     priority: MUST
     kind: project
@@ -2093,7 +2094,7 @@ groups:
       spec_id: ARCH-23-005
     adr:
     - ADR-0056
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-23-012
     priority: MUST
     kind: project
@@ -2113,7 +2114,7 @@ groups:
       spec_id: ARCH-23-005
     adr:
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-23-006
     priority: MUST
     kind: project
@@ -2134,7 +2135,7 @@ groups:
       `test/architecture/test_wire_no_core_object_annotations.py` asserts every `CORE_VOCABULARY` entry that is a
       `CoreObject` subclass serializes only AS2 property names — no Python snake_case field names reach the wire.
     adr:
-    - ADR-0099
+    - ADR-0211
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-12-013
@@ -2422,7 +2423,7 @@ groups:
     statement it refines names it.
   rationale: >-
     The rules in this group are direct consequences of one decision: the core classes
-    are the object model, and AS2 is a serialization of them (ADR-0099). They are kept
+    are the object model, and AS2 is a serialization of them (ADR-0211). They are kept
     together so that a reader can see that decision in one place. Each requirement that
     refines one of them names the rule that it refines. A spec, not a decision record,
     holds a constraint that future code must obey (ADR-0127).
@@ -2448,7 +2449,7 @@ groups:
       its Python name, and `test_every_wire_name_for_a_domain_type_is_its_core_class` in
       the same file asserts no wire class models a core domain type a second time.
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-011
     priority: MUST
     kind: project
@@ -2467,7 +2468,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-001
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-012
     priority: MUST
     kind: project
@@ -2490,7 +2491,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-001
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-002
     priority: MUST
     kind: project
@@ -2509,7 +2510,7 @@ groups:
       `test/architecture/test_hierarchy_invariants.py` asserts a field reads from both
       its AS2 spelling and its Python name.
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-013
     priority: MUST
     kind: project
@@ -2535,7 +2536,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-002
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-014
     priority: MUST_NOT
     kind: project
@@ -2550,7 +2551,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-002
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-003
     priority: MUST
     kind: project
@@ -2570,7 +2571,7 @@ groups:
     - rel_type: satisfies
       spec_id: PRM-04-001
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-015
     priority: MUST
     kind: project
@@ -2589,7 +2590,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-003
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-016
     priority: MUST
     kind: project
@@ -2611,7 +2612,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-003
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-017
     priority: MUST_NOT
     kind: project
@@ -2628,7 +2629,7 @@ groups:
     - rel_type: derives_from
       spec_id: ARCH-25-003
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-004
     priority: MUST_NOT
     kind: project
@@ -2647,7 +2648,7 @@ groups:
       `test/architecture/test_hierarchy_invariants.py` asserts no wire class inherits
       from either core root.
     adr:
-    - ADR-0099
+    - ADR-0211
     - ADR-0208
     see_also:
     - spec_id: ARCH-25-034
@@ -2668,7 +2669,7 @@ groups:
     - rel_type: implements
       spec_id: ARCH-25-004
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-019
     priority: MUST
     kind: project
@@ -2689,7 +2690,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-004
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-005
     priority: MUST
     kind: project
@@ -2706,7 +2707,7 @@ groups:
       `test/core/models/test_dimension_bare_serialization.py` asserts the bare-value
       dump and that both the bare and the mapping form are read.
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-020
     priority: MUST
     kind: project
@@ -2725,7 +2726,7 @@ groups:
     - rel_type: implements
       spec_id: ARCH-25-005
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-021
     priority: MUST_NOT
     kind: project
@@ -2743,7 +2744,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-005
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-006
     priority: MUST_NOT
     kind: project
@@ -2760,7 +2761,7 @@ groups:
       `test/architecture/test_wire_core_import_allowlist.py` scans every module under
       `vultron/wire/` against the allow-list.
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-022
     priority: MUST
     kind: project
@@ -2779,7 +2780,7 @@ groups:
     - rel_type: implements
       spec_id: ARCH-25-006
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-023
     priority: MUST_NOT
     kind: project
@@ -2794,7 +2795,7 @@ groups:
     - rel_type: refines
       spec_id: ARCH-01-001
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-007
     priority: MUST
     kind: project
@@ -2820,7 +2821,7 @@ groups:
       spellings. `test/architecture/test_no_receive_path_reparse.py` asserts nothing on
       the receive path re-validates from the raw body.
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-033
     priority: MUST_NOT
     kind: project
@@ -2840,7 +2841,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-007
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-034
     priority: MUST
     kind: project
@@ -2914,7 +2915,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-007
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-025
     priority: MUST
     kind: project
@@ -2935,7 +2936,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-007
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-026
     priority: MUST_NOT
     kind: project
@@ -2955,7 +2956,7 @@ groups:
     - rel_type: uses_definition
       spec_id: VM-08-002
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-008
     priority: MUST
     kind: project
@@ -2981,7 +2982,7 @@ groups:
       activity against `VultronActivity`; `test/wire/as2/test_language_maps.py` asserts a
       received language map is read, not set aside, and round-trips through the DataLayer.
     adr:
-    - ADR-0099
+    - ADR-0211
     relationships:
     - rel_type: extends
       spec_id: ARCH-25-007
@@ -3000,7 +3001,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-008
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-028
     priority: MUST
     kind: project
@@ -3023,7 +3024,7 @@ groups:
     - rel_type: uses_definition
       spec_id: MV-11-002
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-009
     priority: MUST
     kind: project
@@ -3041,7 +3042,7 @@ groups:
       `test/wire/as2/test_rehydration_materialisation.py` assert `rehydrate()`
       materialises a bare ID in a model-only slot.
     adr:
-    - ADR-0099
+    - ADR-0211
     lint_suppress:
     # compound_statement: the second and third keywords qualify the first, not add
     # a duty: holding the whole object is a prototype rule to revisit before
@@ -3068,7 +3069,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-009
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-030
     priority: MUST
     kind: project
@@ -3088,7 +3089,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-029
     adr:
-    - ADR-0099
+    - ADR-0211
     see_also:
     - spec_id: VM-06-004
       reason: 'a pointer to where the outcome for that slot is stated'
@@ -3112,7 +3113,7 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-029
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-010
     priority: MUST
     kind: project
@@ -3133,7 +3134,7 @@ groups:
       including one AS2 verb carrying several semantics and one shorthand spanning
       several activities.
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: ARCH-25-032
     priority: MUST
     kind: project
@@ -3151,4 +3152,4 @@ groups:
     - rel_type: extends
       spec_id: ARCH-25-010
     adr:
-    - ADR-0099
+    - ADR-0211

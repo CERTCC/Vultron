@@ -183,7 +183,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 **Termination once P, X or A is canonical.**
 The Case Owner uses its authority over this termination when the reported value is adopted, not after.
-Adopting a P, X or A value is the one authorization, and the CASE_MANAGER act that adopts the value also ends the embargo ([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate), ADR-0166).
+Adopting a P, X or A value is the one authorization, and the CASE_MANAGER act that adopts the value also ends the embargo ([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate), ADR-0210).
 So the Case Owner cannot keep an embargo once one of these values is canonical, and there is no decision to keep the embargo to record.
 A policy that must delay the termination decides at adoption, by not adopting the value yet.
 Attacks Observed differs from Public Aware and Exploit Public only at adoption: the CASE_MANAGER is recommended, not required, to adopt an A value and end the embargo.

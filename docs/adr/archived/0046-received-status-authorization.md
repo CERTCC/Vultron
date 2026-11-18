@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-07-30
 created: 2026-07-30
 revision: 1
@@ -10,7 +10,12 @@ informed: []
 partially_superseded_by: 0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md
 lint_suppress: [status_prose_contradiction]
 stakeholder_type: [project-contributor]
+superseded_by: 0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md
 ---
+
+> **Superseded by [ADR-0210](../0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md).**
+> ADR-0210 states the status adoption gate and the teardown that adoption makes as one decision, consolidating ADR-0046 and ADR-0166.
+> This record is kept as it stood when it was superseded.
 
 # Two-Gate Authorization Model for Received-Side CaseStatus Canonicalization
 

@@ -100,7 +100,7 @@ was reasoned.
 | `StatusAdoptionGate` (`CaseOwnerApprovesStatusUpdate`) | `status_adoption_gate_factory` | `RequireCaseOwnerApprovalNode` (RSH-07-001) |
 
 There is no teardown gate. Adopting a P, X or A value also authorizes the
-embargo teardown it calls for, which runs in the same act (ADR-0166). Do not add
+embargo teardown it calls for, which runs in the same act (ADR-0210). Do not add
 a second gate between adoption and teardown: its refusal would leave P, X or A
 beside an active embargo, which CSB-18-002 to CSB-18-004 forbid.
 
@@ -128,7 +128,7 @@ authorization-flavored gate:
   reason Selector (every `exit_embargo_*` reason factory defaults `AlwaysFail`),
   and EMB-14-008 frames it as an optional veto. A blocking default would kill
   EMB-14's voluntary-exit path. The received-side teardown path is covered by
-  the adoption gate, whose authorization also covers the teardown (ADR-0166).
+  the adoption gate, whose authorization also covers the teardown (ADR-0210).
 - **`CaseProposalCallOutBundle.evaluate_proposal_factory`**
   (`EvaluateCaseProposal`, CP-05-002) — admitting a proposal creates a *new* case
   owned by the proposer; no existing case's state or embargo is touched. The
@@ -188,7 +188,7 @@ change.
 ## Production-Only Domains: STOCHASTIC Bundle Without Fuzzer Nodes
 
 A domain with no legacy simulator counterpart (e.g.
-`StatusAuthorizationCallOutBundle`, ADR-0046) has no named fuzzer classes. Its
+`StatusAuthorizationCallOutBundle`, ADR-0210) has no named fuzzer classes. Its
 STOCHASTIC singleton uses the generic `WeightedBehavior` subclass nearest the
 DETERMINISTIC ceiling:
 

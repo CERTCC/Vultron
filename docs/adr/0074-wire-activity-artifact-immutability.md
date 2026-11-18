@@ -8,7 +8,9 @@ deciders: ahouseholder
 consulted: notes/wire-artifact-immutability.md, notes/datalayer-design.md, notes/activity-factories.md, notes/core-wire-rendering-port.md, docs/adr/archived/0017-domain-wire-object-separation.md, docs/adr/0064-core-branch-validate-assignment.md, docs/adr/0073-per-actor-storage-isolation.md
 informed: specs/vocabulary-model.yaml
 stakeholder_type: [project-contributor]
-partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
+partially_superseded_by:
+  - 0099-one-object-model-as2-is-a-serialization.md
+  - 0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md
 ---
 
 # Treat Wire Activities as Immutable Artifacts; Freeze at Receipt and at Factory Seal
