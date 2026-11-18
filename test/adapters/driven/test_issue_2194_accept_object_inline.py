@@ -14,16 +14,15 @@ The DataLayer dehydrates ``as_ObjectRef``-typed fields (``object_``) to a bare I
 string on store (``vultron/adapters/driven/db_record/codec.py::_dehydrate_data``). When
 the activity was read back for delivery (the pre-#2655 outbox path; delivery now
 relays the sealed body instead), ``_rehydrate_fields`` tried to resolve that ID
-via ``dl.read(offer_id)``. In the
-invite / reconstitution path the submit-report Offer activity was never persisted
-as a standalone record under ``offer_id`` (it is reconstituted on demand from a
-``VultronOfferRecord``), so rehydration finds nothing, logs "Could not rehydrate
-field 'object_' ... keeping string reference", and leaves ``object_`` a bare
-string. The outbox gate ``_validate_inline_object`` then rejects it:
-"Outbound initiating activities must carry fully inline typed objects
-(AKM-03-003)". The Accept is never delivered, the participant stays at
-RM.RECEIVED, and ``engage-case`` later returns 422
-``TransitionParticipantRMtoAccepted``.
+via ``dl.read(offer_id)``. The submit-report Offer the receiver answers is
+not held as a standalone record under ``offer_id`` (a received Offer is
+held only as received, DL-06-006), so rehydration finds nothing, logs
+"Could not rehydrate field 'object_' ... keeping string reference", and
+leaves ``object_`` a bare string. The outbox gate
+``_validate_inline_object`` then rejects it: "Outbound initiating
+activities must carry fully inline typed objects (AKM-03-003)". The
+Accept is never delivered, the participant stays at RM.RECEIVED, and
+``engage-case`` later returns 422 ``TransitionParticipantRMtoAccepted``.
 
 Location rationale: the true emission site is the driven adapter layer — the
 validate-report factory (``vultron/wire/as2/factories/report.py``) plus the
@@ -81,9 +80,8 @@ def _build_validate_report_accept():
         attributed_to=REPORTER_ID,
         content="test report",
     )
-    # The offer the participant is accepting (received / reconstituted, fully
-    # typed and inline — never persisted as a standalone record under offer_id
-    # in the invite / reconstitution path).
+    # The offer the receiver is accepting, as received: fully typed and
+    # inline, never held as a standalone record under offer_id (DL-06-006).
     offer = rm_submit_report_activity(
         report=report,
         to=RECEIVER_ID,

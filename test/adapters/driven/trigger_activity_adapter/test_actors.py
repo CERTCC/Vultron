@@ -38,6 +38,7 @@ from vultron.errors import (
     VultronValidationError,
 )
 from vultron.wire.as2.factories import (
+    create_case_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_activity,
     offer_case_participant_role_activity,
@@ -897,6 +898,20 @@ class TestAnswerCaseParticipantRole:
             _answer(
                 adapter, method, "https://example.org/activities/never-held"
             )
+
+        assert list(dl.list_objects(verb)) == []
+
+    def test_an_archived_activity_that_is_not_an_offer_is_refused(
+        self, adapter, dl, method, verb
+    ):
+        """A non-Offer received under the id is not embedded as one."""
+        create = create_case_activity(
+            _CASE, actor=_CASE_ACTOR, to=[_VENDOR], at=authored_at()
+        )
+        archive_received(dl, create)
+
+        with pytest.raises(VultronValidationError, match="not as an Offer"):
+            _answer(adapter, method, create.id_)
 
         assert list(dl.list_objects(verb)) == []
 
