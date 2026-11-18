@@ -12,11 +12,13 @@ Spec: SHD-01-002, SHD-01-004, SHD-03-002.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from test.measure.history.builders import two_vendors_ledger
 from test.support.ledger_stream import recording_rows
 from vultron.config import clear_config_cache, config_override
 from vultron.config.shadow import ShadowConfig
@@ -27,7 +29,10 @@ from vultron.measure.advice import (
     HARM_NOTE,
     HELP_TEXT,
     Band,
+    case_advice,
 )
+from vultron.measure.standing import case_standing
+from vultron.shadow.dashboard import view
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
     HEARTBEAT_KEY,
@@ -41,6 +46,8 @@ from vultron.shadow.dashboard.view import (
     BAND_EMPTY,
     EM_BADGES,
     LEADING_MARK,
+    LEGEND_BETTER,
+    LEGEND_DOMINATED,
     RM_BADGES,
     TOP_MARK,
 )
@@ -350,26 +357,36 @@ def test_the_page_shows_the_marks_help_text_and_harm_note(advice_app):
     assert DOMINATED_BY_HARM_FREE in trade_off["Dominated by"].tolist()
 
 
+_BACKGROUND = re.compile(r"background-color: (#[0-9a-f]{6})")
+
+
 @pytest.mark.spec("SHD-03-003", "SHD-03-004")
-def test_each_shaded_band_shows_a_colour_legend(advice_app):
-    """AC-1 of #6673: each shaded band shows a legend strip labelled from
-    better (layer 1) to dominated (deeper layers), and the help text no
-    longer says 'darkest'."""
+def test_each_shaded_band_shows_a_legend_in_its_rows_shades(advice_app):
+    """#6673 AC-1, AC-2: one legend under each shaded band's title, labelled
+    at both ends, its cells the band's own layer shades and holding each
+    row's shade; the help text is shown and no caption says "darkest"."""
     at = advice_app
-    # The help text no longer says "darkest"
     captions = _texts(at.caption)
-    help_line = next(c for c in captions if "Prefer the harm-free" in c)
-    assert "darkest" not in help_line.lower()
-    assert "better" in help_line and "dominated" in help_line
-    # Each shaded band (harm-free, trade-off) shows a legend with labels
+    assert HELP_TEXT in captions
+    assert not any("darkest" in c.lower() for c in captions)
     markdowns = _texts(at.markdown)
-    legend_html = [m for m in markdowns if "better (layer 1)" in m]
-    assert len(legend_html) >= 2  # At least harm-free and trade-off
-    for html in legend_html:
-        assert "better (layer 1)" in html
-        assert "dominated (deeper layers)" in html
-        # The legend contains shaded divs
-        assert "background-color:" in html
+    legends = [m for m in markdowns if LEGEND_BETTER in m]
+    assert len(legends) == 2
+    expected = {
+        b.title: b
+        for b in view.band_views(
+            case_advice(case_standing(two_vendors_ledger().case_ledger())), {}
+        )
+    }
+    for heading in ("Harm-free", "Trade-off"):
+        legend = markdowns[markdowns.index(f"**{heading}**") + 1]
+        assert LEGEND_BETTER in legend and LEGEND_DOMINATED in legend
+        assert legend.index(LEGEND_BETTER) < legend.index(LEGEND_DOMINATED)
+        cells = _BACKGROUND.findall(legend)
+        assert cells == [s.background for s in expected[heading].legend]
+        styles = _frame(at, heading).proto.arrow_data.styler.styles
+        row_backgrounds = set(_BACKGROUND.findall(styles))
+        assert row_backgrounds and row_backgrounds <= set(cells)
 
 
 def test_the_moves_with_no_band_are_listed_with_why(advice_app):

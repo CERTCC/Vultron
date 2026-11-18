@@ -246,6 +246,7 @@ def test_each_negative_part_is_a_harm_by_vendor_with_its_size(two_vendors):
     assert "not a broken desideratum" in HARM_NOTE
 
 
+@pytest.mark.spec("SHD-03-004")
 def test_the_record_says_how_to_show_each_band(two_vendors):
     assert [b.band for b in two_vendors.bands] == list(BAND_ORDER)
     harm_free, trade_off, unhelpful = two_vendors.bands

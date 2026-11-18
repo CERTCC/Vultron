@@ -84,7 +84,7 @@ HELP_TEXT = (
     "Prefer the harm-free band; inside a band, moves at the 'better' end are"
     " dominated by no other move."
 )
-"""The page's advice on reading the bands (ADR-0200)."""
+"""The page's advice on reading the bands and their legends (SHD-03-004)."""
 
 HARM_NOTE = (
     "A negative shift means worse than the chance value, not a broken"
