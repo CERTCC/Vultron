@@ -406,6 +406,7 @@ plugins:
         adr/0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md: adr/archived/0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
         adr/0046-received-status-authorization.md: adr/archived/0046-received-status-authorization.md
         adr/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md: adr/archived/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md
+        adr/0099-one-object-model-as2-is-a-serialization.md: adr/archived/0099-one-object-model-as2-is-a-serialization.md
         # ADR-0146 was renamed when it widened from embargo acts to every
         # CASE_MANAGER act (#4983).
         adr/0146-one-atomic-commit-per-embargo-act.md: adr/0146-one-atomic-commit-per-case-manager-act.md

@@ -11,7 +11,7 @@ description: >
   type lists (resolve_wire_type, _as2_core_supertype, AS2_SUPERTYPES),
   CORE_TYPE_MAP,
   disjoint registry keys, and one owner per type value (typed references and
-  ADR-0099 aliases claim none).
+  ADR-0211 aliases claim none).
   Operating rules live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml (VM-01 through VM-03, VM-06, VM-10)
@@ -298,7 +298,7 @@ opt-out flag (#4119). The Vultron actor classes (`as_VultronPerson`, …) are
 the only sanctioned sharers: they register after the base actors and
 shadow them, so `{"type": "Person"}` gets the subclass carrying
 `embargo_policy`. When a core class owns an AS2 `type`, the wire name is an
-ADR-0099 alias of it, never a second class: `as_Document`, `as_Image`, `as_Audio`
+ADR-0211 alias of it, never a second class: `as_Document`, `as_Image`, `as_Audio`
 and `as_Video` are the core attached-file classes (CSAF-01-001), so `as_Page` and
 `as_Article` extend `as_Object`. A typed reference carries the `type` of the
 object it names and declares a `type_` with no default, so the gate passes it by
@@ -310,7 +310,7 @@ collision, which would silently move the key to whichever class imports last
 `CORE_VOCABULARY` in `test/wire/as2/vocab/base/test_registry.py`). Do not
 restate a key count in prose (MS-16-001).
 
-**Never resolve a core type's wire counterpart by name.** Under ADR-0099 there
+**Never resolve a core type's wire counterpart by name.** Under ADR-0211 there
 is none: `render()` is the object's own `model_dump` (ARCH-20-002), and the
 declarative pairing registry (ARCH-23-001) was cancelled, not deferred; do not
 revive #2937. `test_render_adapter_does_not_resolve_a_wire_counterpart` and

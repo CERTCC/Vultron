@@ -627,7 +627,7 @@ groups:
     adr:
     - ADR-0062
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
     see_also:
     - spec_id: ARCH-23-002
       reason: 'context for the reader'
@@ -661,7 +661,7 @@ groups:
     adr:
     - ADR-0062
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
   - id: DL-05-006
     priority: MUST
     kind: project

@@ -4,7 +4,7 @@ status: active
 kind: guidance
 tags: [wire, core, boundary, vocabulary, pydantic, validation]
 description: >
-  Rules for the wire/core boundary under one object model (ADR-0099): which
+  Rules for the wire/core boundary under one object model (ADR-0211): which
   direction may import which, wire-only type resolution, union-safe validators,
   blank IRI branches, the extra="forbid" contract with its two invariants, and the
   inbound unknown-key rule (MV-11), decided at the parse edge, not by class
@@ -41,7 +41,7 @@ relevant_packages:
 
 # Wire/Core Boundary
 
-One object model (ADR-0099): a paired domain type is a core class that is also
+One object model (ADR-0211): a paired domain type is a core class that is also
 its own AS2 wire form. These rules keep the two branches from leaking into each
 other.
 
@@ -94,7 +94,7 @@ parent field then rejects, degrading the object to a bare `as_Link` (ISSUE-3217)
 ## Validators Inside a Union Raise `ValueError`
 
 `as_ObjectRef` is `ActivityStreamRef[as_Object] | CoreObject | None` on purpose
-(ADR-0099). A validator reachable inside a union MUST raise a `ValueError`
+(ADR-0211). A validator reachable inside a union MUST raise a `ValueError`
 subclass: anything else escapes the union instead of failing the branch, so
 Pydantic never tries the next one. `VultronValidationError` inherits `ValueError`
 for this reason; `test_core_guard_inside_wire_union_fails_the_branch` holds it.

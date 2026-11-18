@@ -71,7 +71,7 @@ groups:
       The factory package's imports from `vultron.core` stay inside the ARCH-22-001
       allow-list (`test/architecture/test_wire_core_import_allowlist.py`).
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: AF-01-006
     priority: MUST
     kind: project
@@ -90,7 +90,7 @@ groups:
     - rel_type: extends
       spec_id: AF-01-005
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: AF-01-007
     priority: MUST_NOT
     kind: project
@@ -106,7 +106,7 @@ groups:
       `test/architecture/test_factory_wire_spelling_and_stubs.py` asserts that no module
       under `vultron/` outside `vultron/wire/as2/` builds a `CasePreview`.
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: AF-01-008
     priority: MUST_NOT
     kind: project
@@ -122,7 +122,7 @@ groups:
       `test/architecture/test_factory_wire_spelling_and_stubs.py` fails on a camelCase
       string literal in `vultron/wire/as2/factories/` that is not a docstring.
     adr:
-    - ADR-0099
+    - ADR-0211
     relationships:
     - rel_type: uses_definition
       spec_id: ARCH-12-013

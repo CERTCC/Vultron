@@ -7,7 +7,9 @@ revision: 1
 deciders: Allen Householder
 consulted: Claude Code (planning agent for CONCERN-2260)
 informed: Vultron contributors
-partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
+partially_superseded_by:
+  - 0099-one-object-model-as2-is-a-serialization.md
+  - 0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -279,7 +281,7 @@ routes into `_wire_object_from_row` → `_project_wire_row_to_core`
 
 - Source concern: #2260. Closes the long-standing violation tracked in #1991.
 - **Mechanism revised by [ADR-0082](archived/0082-wire-core-boundary-pairing-registry.md),
-  itself superseded by [ADR-0099](0099-one-object-model-as2-is-a-serialization.md).**
+  itself superseded by [ADR-0099](archived/0099-one-object-model-as2-is-a-serialization.md).**
   The decision — render core objects to wire JSON through a driven port — stands.
   ADR-0082 planned to replace step 2 above (resolving a wire class by name
   collision and calling its `from_core()`) with an adapter-side translator driven

@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-09-21
 created: 2026-09-21
 updated: 2026-09-21
@@ -15,7 +15,12 @@ partially_supersedes:
   - 0074-wire-activity-artifact-immutability.md
 partially_superseded_by:
   - 0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md
+superseded_by: 0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
 ---
+
+> **Superseded by [ADR-0211](../0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md).**
+> ADR-0211 states the one object model, its two serializations and the unknown-key rule as one decision, folding in ADR-0099's amendments and ADR-0175's former-name rule.
+> This record is kept as it stood when it was superseded.
 
 # One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy
 
@@ -136,7 +141,7 @@ spelling, and both are the status classes covered by ADR-0036.
    additionally kept as an unparsed `dict[str, Any]` in the ledger payload
    snapshot (CLP-07-011); that copy is neither serialization above. It is meant
    to be the body as it arrived, but today it is rebuilt from the parsed graph;
-   [ADR-0107](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
+   [ADR-0107](../0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
    records that gap and stages the change that records the received evidence
    instead.
 2. **Core field names follow Python convention; the AS2 spelling lives in a
@@ -718,7 +723,7 @@ were retired in full when this ADR reached `accepted` (#3492).
   `frozen=True` covers only the class that declares it, and detail 3 made every paired nested object a mutable core class, so a frozen envelope can carry a writable case, report, participant or status.
   Pydantic has no per-instance freezing, and the nested classes are mutable by design because they are also the domain objects.
   The evidence therefore moves out of the object graph: `parse_activity` seals the received body as JSON text before anything expands or validates it, and ingress rehydration carries that text to the routing copy (snapshot-at-parse, #3584).
-  What the ledger does with that evidence is [ADR-0107](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)'s decision, not this one's.
+  What the ledger does with that evidence is [ADR-0107](../0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)'s decision, not this one's.
 
 **Unaffected:** ADR-0083 (the message set and the AS2 vocabulary are different
 shapes), ADR-0069 (namespace).
@@ -790,3 +795,8 @@ Generated spec requirements: ARCH-25-001, ARCH-25-002, ARCH-25-003, ARCH-25-004,
 Ratified by Allen D. Householder on 2026-10-02, in the audit of unsupervised agent decisions (#4195).
 The amendments of 2026-09-28 to 2026-09-30 to details 7 and 8 (#3888, #3900) were made without a human reviewing them; the audit confirmed the MV-11 strictness they describe: a near miss on a declared field spelling is refused with a 422 naming both spellings, `@id` and `@type` are refused, and no similarity measure is used.
 The receive-side half is still a defect to finish: the verbatim snapshot of a received activity is persisted by #3742.
+
+## Amendment — 2026-11-18 (editorial)
+
+When ADR-0211 superseded this record and it moved to `archived/`, its links to live decision records gained a `../` prefix so that they still resolve.
+No other text changed.

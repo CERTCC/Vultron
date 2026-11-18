@@ -36,7 +36,7 @@ The codebase splits into three concentric responsibilities.
 
 The wire format is a separate concern from the domain, not a subset of it.
 AS2 was chosen because it maps cleanly to Vultron semantics ([ADR-0005](../adr/0005-activitystreams-vocabulary-as-vultron-message-format.md)), but that alignment does not make it a domain dependency.
-Core domain objects and wire classes form two structurally distinct branches with no shared base: a strict core branch and a lenient wire branch ([ADR-0017](../adr/archived/0017-domain-wire-object-separation.md), [ADR-0099](../adr/0099-one-object-model-as2-is-a-serialization.md)).
+Core domain objects and wire classes form two structurally distinct branches with no shared base: a strict core branch and a lenient wire branch ([ADR-0017](../adr/archived/0017-domain-wire-object-separation.md), [ADR-0211](../adr/0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md)).
 The core branch is authoritative, and AS2 is one of its serializations: a core object dumped with its AS2 aliases *is* the wire document.
 The wire branch tolerates the loose, optional shapes that arrive over the network.
 A domain type such as a case has no separate wire class: its `as_` name is an alias of the core class.
@@ -86,7 +86,7 @@ The HTTP inbox lives in `vultron/adapters/driving/fastapi/`, returns `202 Accept
 
 The wire layer turns bytes into meaning.
 The AS2 parser checks structural validity, `rehydrate()` resolves referenced objects into full inline objects, and the semantic extractor (`vultron/wire/as2/extractor/`) matches the activity against an ordered pattern registry to produce a domain-level `MessageSemantics` value.
-The parser also decides what happens to every unrecognized key, at every depth (MV-11, [ADR-0099](../adr/0099-one-object-model-as2-is-a-serialization.md)).
+The parser also decides what happens to every unrecognized key, at every depth (MV-11, [ADR-0211](../adr/0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md)).
 A misspelling of a field the receiver reads refuses the whole activity, and any other unknown key is set aside and logged.
 The semantic extractor is the single place where AS2 structure becomes domain intent (ARCH-03-001), so the rest of the core never inspects wire shapes.
 
