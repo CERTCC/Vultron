@@ -40,8 +40,8 @@ How does an actor become a participant, what makes a participant entitled to cas
 ## Decision Drivers
 
 - **The CASE_MANAGER tracks an invitee from the moment it is invited**: whether it was told, whether it answered, and how.
-- **Case content reaches only entitled actors.** Entitlement is having joined and, while an embargo is in force, being party to it; many cases have no embargo in force, so entitlement cannot be "is a signatory" alone.
-- **A participant's status is its own declaration** (ADR-0121). No other party writes a judgement the participant has not made, and a timeout never stands in for one.
+- **Case content reaches only entitled actors**: entitlement is having joined and, while an embargo is in force, being party to it; many cases have no embargo in force, so entitlement cannot be "is a signatory" alone.
+- **A participant's status is its own declaration** (ADR-0121), so no other party writes a judgement the participant has not made, and a timeout never stands in for one.
 - **Removal is a decision the case makes about a participant**, not a statement the participant makes about itself, so it is not a consent state.
 - **Every change to the case is a message in the ledger**, and a replica copies what each entry carries and infers nothing from another entry (ADR-0124).
 - **A receiver classifies an activity by its shape**, so two messages that mean different things differ in shape.
@@ -170,7 +170,7 @@ Chosen option: **option 1**, because it tracks every invitee from its Invite, ma
 - Bad, because a participant whose stream is paused receives direct notices the ledger does not carry, so idempotence between the two channels must be tested.
 - Bad, because the serialized case carries a computed collection that must round-trip, and it changes whenever a participant closes.
 
-### Confirmation
+## Validation
 
 - `test/core/use_cases/received/test_stub_invite_replay.py` and `test/core/behaviors/case/test_accept_invite_tree.py` cover the record the stub Invite creates, its seating entry, and the replies.
 - `test/core/use_cases/received/test_invite_resend.py` covers re-invites and re-issue across an embargo change.
@@ -246,4 +246,4 @@ Related:
 - [ADR-0085](0085-case-lifecycle-boundaries.md) decides the case's lifecycle boundaries.
 - `notes/case-joining.md` describes the join model for readers of the old one.
 
-Requirements: `case-management.yaml` CM-10, CM-11, CM-17, CM-23 and CM-31; `rm-behavior.yaml` RMB-14; `participant-case-replica.yaml` PCR-02 and PCR-08; `embargo-policy.yaml` EP-09.
+Generated spec requirements: `case-management.yaml` CM-10, CM-11, CM-17, CM-23 and CM-31; `rm-behavior.yaml` RMB-14; `participant-case-replica.yaml` PCR-02 and PCR-08; `embargo-policy.yaml` EP-09.
