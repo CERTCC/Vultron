@@ -32,8 +32,13 @@ from vultron.core.models.case_reading import (
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    derive_em,
+)
 from vultron.core.states.rm import RM
 from vultron.demo.recordings.layout import RECORDINGS_DIR
+from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.advice import (
     BAND_ORDER,
     CHANCE_EVENT,
@@ -459,7 +464,17 @@ def test_a_harm_free_move_shows_its_embargo_harm():
     assert row["Mark"] == view.TOP_MARK
 
 
+def _register_problem() -> str:
+    """The words :func:`derive_em` gives a register with two active entries."""
+    with pytest.raises(VultronInvalidStateTransitionError) as raised:
+        derive_em([EmbargoRegisterStatus.ACTIVE, EmbargoRegisterStatus.ACTIVE])
+    return str(raised.value)
+
+
 def test_every_kind_of_hole_reads_as_a_line(tmp_path):
+    """The register problem reads once, in derive_em's own words, never
+    behind a second "Embargo register:"."""
+    problem = _register_problem()
     gap = StandingGap(
         missing_log_indices=[2],
         conflicting_log_indices=[4],
@@ -467,14 +482,14 @@ def test_every_kind_of_hole_reads_as_a_line(tmp_path):
             UnusableRow(path=tmp_path / "x.jsonl", line=3, reason="not JSON")
         ],
         unreadable_entries=[UnreadableEntry(log_index=5, reason="no stamp")],
-        register_problem="two active embargoes",
+        register_problem=problem,
     )
     lines = view.gap_lines(gap)
     assert lines[0] == "Missing log indices: [2]"
     assert lines[1] == "Conflicting log indices: [4]"
     assert "not JSON" in lines[2]
     assert lines[3] == "Unreadable entry at log index 5: no stamp"
-    assert lines[4] == "Embargo register: two active embargoes"
+    assert lines[4] == problem
 
 
 @pytest.mark.spec("SHD-01-004")
@@ -687,6 +702,39 @@ def test_a_vince_participant_never_reads_as_its_opaque_id():
         vendor_columns = [c for c in row if c not in ("Desideratum", "Events")]
         assert len(set(vendor_columns)) == len(vendor_columns)
         assert all(c.startswith(UNNAMED_ACTOR) for c in vendor_columns)
+
+
+@pytest.mark.spec("DRPT-03-009")
+def test_a_move_and_a_harm_by_an_unnamed_actor_read_as_unnamed():
+    """#6685: the move tables and the harm text name an opaque id as
+    unnamed, as the participants table does."""
+    opaque = "urn:uuid:1e7a421f-b727-4c1d-9a3e-0f6b2c9d8e71"
+    move = RMMove(participant=opaque, source=RM.RECEIVED, destination=RM.VALID)
+    advice = CaseAdvice(
+        case_id="urn:uuid:case-1",
+        end_confirmed=True,
+        vendors=(opaque,),
+        bands=tuple(BandAdvice.of(b, []) for b in BAND_ORDER),
+        unbanded=(UnbandedMove(move=move, reason="it waits"),),
+    )
+    (row,) = view.unbanded_rows(advice, {})
+    assert row["Who"] == UNNAMED_ACTOR
+    advised = AdvisedMove(
+        move=move,
+        shift=(
+            VendorShift(
+                vendor=opaque, end=Fraction(1, 4), embargo=Fraction(-1, 8)
+            ),
+        ),
+        band=Band.HARM_FREE,
+        layer=1,
+        top=True,
+        leading_among_yours=False,
+        harms=(
+            VendorHarm(vendor=opaque, part=Part.EMBARGO, size=Fraction(-1, 8)),
+        ),
+    )
+    assert view.harm_text(advised, {}) == f"{UNNAMED_ACTOR}: embargo −0.125"
 
 
 def test_an_actor_with_no_name_reads_by_its_uri_or_as_unnamed():

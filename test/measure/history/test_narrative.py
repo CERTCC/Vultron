@@ -302,10 +302,33 @@ def test_a_line_where_only_one_index_is_missing_names_it():
     assert lines[3].notes == ("No entry at log index 3 before this one",)
 
 
+def test_each_hole_is_named_on_the_line_after_it_the_first_one_included():
+    """A missing log index 0 is named on the first line, and two holes in one
+    ledger are each named once, on the line that follows them."""
+    ledger = _vendor_case()
+    del ledger.entries[4]
+    del ledger.entries[0]
+    case_ledger = ledger.case_ledger()
+    assert case_ledger.missing_log_indices == [0, 4]
+    lines = case_narrative(case_ledger)
+    assert [line.log_index for line in lines] == [1, 2, 3, 5]
+    assert "No entry at log index 0 before this one" in lines[0].notes
+    assert "No entry at log index 4 before this one" in lines[3].notes
+    holes = [
+        n for line in lines for n in line.notes if n.startswith("No entry")
+    ]
+    assert holes == [
+        "No entry at log index 0 before this one",
+        "No entry at log index 4 before this one",
+    ]
+
+
 def test_a_narrative_read_from_a_walk_already_taken_is_the_same():
     case_ledger = _vendor_case().case_ledger()
     derived = derive_case_steps(case_ledger)
-    assert case_narrative(case_ledger, derived) == case_narrative(case_ledger)
+    assert case_narrative(case_ledger, derived=derived) == case_narrative(
+        case_ledger
+    )
 
 
 def test_an_em_change_after_a_broken_register_reads_from_the_last_em_state():

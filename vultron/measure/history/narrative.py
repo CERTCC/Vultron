@@ -299,6 +299,7 @@ def _hole_notes(
 
 def case_narrative(
     ledger: CaseLedger,
+    *,
     derived: tuple[CaseEventHistory, list[ReachedState]] | None = None,
 ) -> tuple[NarrativeLine, ...]:
     """One line per row of *ledger*, in log-index order.

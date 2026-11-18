@@ -518,7 +518,8 @@ def gap_lines(gap: StandingGap) -> list[str]:
         for entry in gap.unreadable_entries
     )
     if gap.register_problem is not None:
-        lines.append(f"Embargo register: {gap.register_problem}")
+        # Already worded as an embargo register problem (derive_em).
+        lines.append(gap.register_problem)
     return lines
 
 

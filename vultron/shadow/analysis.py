@@ -123,7 +123,7 @@ def analyse(reading: CaseReading) -> CaseAnalysis:
             ledger, reading.unobservable_events, derived=(history, steps[-1])
         ),
         actor_names=collect_actor_names({ledger.case_id: ledger.entries}),
-        narrative=case_narrative(ledger, (history, steps)),
+        narrative=case_narrative(ledger, derived=(history, steps)),
     )
 
 
