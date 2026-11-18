@@ -63,11 +63,10 @@ References
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import py_trees
 from py_trees.common import Status
-from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.call_out.bundles.publication import (
@@ -76,7 +75,8 @@ from vultron.core.behaviors.call_out.bundles.publication import (
 )
 from vultron.core.behaviors.call_out.guard import guard_call_out_factory
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
+from vultron.core.behaviors.helpers.ports_base import BehaviourWithPortHooks
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.report.advisory_review import (
     DRAFT_ARTIFACT_KEY,  # noqa: F401 — re-exported (moved, CS-05-003)
     REVIEW_DECISION_KEY,
@@ -86,7 +86,7 @@ from vultron.core.behaviors.report.advisory_review import (
 logger = logging.getLogger(__name__)
 
 
-class _NeedsRevisionGate(BehaviourWithPorts):
+class _NeedsRevisionGate(BehaviourWithPortHooks):
     """ProtocolInternal gate: read the review decision and check needs_revision.
 
     Reads the :class:`AdvisoryReviewDecision` written to :data:`REVIEW_DECISION_KEY`
@@ -111,12 +111,10 @@ class _NeedsRevisionGate(BehaviourWithPorts):
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
 
-    def setup(self, **kwargs: Any) -> None:
-        """Wire input port to the shared review-decision blackboard key."""
-        self.setup_ports(
-            port_remappings={REVIEW_DECISION_KEY: f"/{REVIEW_DECISION_KEY}"},
-            logger=port_wiring_logger(),
-        )
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Wire the input port to the shared ``REVIEW_DECISION_KEY`` key."""
+        return {REVIEW_DECISION_KEY: f"/{REVIEW_DECISION_KEY}"}
 
     def update(self) -> Status:
         """Return SUCCESS when the review decision requests revision.

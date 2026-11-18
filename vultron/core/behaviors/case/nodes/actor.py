@@ -36,10 +36,9 @@ the process-area root per BTND-07-003:
 """
 
 import logging
-from typing import Any
 
 from py_trees.common import Status
-from py_trees.ports import BehaviourWithPorts, PortInformation
+from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.case.nodes.invite_actor_emit import (  # noqa: F401
     EmitInviteActorToCaseNode,
@@ -51,7 +50,8 @@ from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
 from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
-from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
+from vultron.core.behaviors.helpers.ports_base import BehaviourWithPortHooks
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.enums.roles import CVDRole, parse_role
 
 
@@ -68,7 +68,7 @@ def _parse_injected_role(raw: object) -> CVDRole:
     return parse_role(raw)
 
 
-class EvaluateDefaultRolesNode(BehaviourWithPorts):
+class EvaluateDefaultRolesNode(BehaviourWithPortHooks):
     """Assign default CVD roles for a suggested actor (CM-16-003).
 
     ADR-0024 Evaluator shape.  Writes ``suggested_roles_{id_segment}``
@@ -148,11 +148,9 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         "suggested_roles": PortInformation(data_type=list, required=True),
     }
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={"suggested_roles": f"/{self._roles_key}"},
-            logger=port_wiring_logger(),
-        )
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Wire the output port to this recommendation's roles key."""
+        return {"suggested_roles": f"/{self._roles_key}"}
 
     def _compute_roles(self) -> list[CVDRole]:
         """Return default roles for the suggested actor (CM-16-003).

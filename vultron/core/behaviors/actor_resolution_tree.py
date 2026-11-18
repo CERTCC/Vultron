@@ -31,21 +31,23 @@ from typing import Final
 
 import py_trees
 from py_trees.common import Status
-from py_trees.ports import BehaviourWithPorts, PortInformation
+from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.call_out.capabilities.actor_resolution import (
     RESOLVED_ACTOR_KEY,
 )
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-from vultron.core.behaviors.helpers.ports_base import _OptionalPortRead
-from vultron.core.behaviors.node_logger import port_wiring_logger
+from vultron.core.behaviors.helpers.ports_base import (
+    BehaviourWithPortHooks,
+    _OptionalPortRead,
+)
 from vultron.core.models.actor import CoreActor
 
 #: The node name a tree passes to the actor-resolution backend factory.
 RESOLVE_ACTOR_DETAILS: Final[str] = "ResolveActorDetails"
 
 
-class KeepResolvedActorNode(_OptionalPortRead, BehaviourWithPorts):
+class KeepResolvedActorNode(_OptionalPortRead, BehaviourWithPortHooks):
     """Copy the record on ``resolved_actor`` into the caller's dict.
 
     It reads no store, so it takes only the shared optional-port read, not
@@ -71,11 +73,10 @@ class KeepResolvedActorNode(_OptionalPortRead, BehaviourWithPorts):
         super().__init__(name=type(self).__name__)
         self._kept = kept
 
-    def setup(self, **kwargs: object) -> None:
-        self.setup_ports(
-            port_remappings={RESOLVED_ACTOR_KEY: f"/{RESOLVED_ACTOR_KEY}"},
-            logger=port_wiring_logger(),
-        )
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Wire the input port to the shared ``resolved_actor`` key."""
+        return {RESOLVED_ACTOR_KEY: f"/{RESOLVED_ACTOR_KEY}"}
 
     def update(self) -> Status:
         record = self._try_get_input(RESOLVED_ACTOR_KEY)

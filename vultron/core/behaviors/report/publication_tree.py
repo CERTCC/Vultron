@@ -62,18 +62,18 @@ References
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import py_trees
 from py_trees.common import Status
-from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.call_out.bundles.publication import (
     PUBLICATION_DETERMINISTIC,
     PublicationCallOutBundle,
 )
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
+from vultron.core.behaviors.helpers.ports_base import BehaviourWithPortHooks
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.report.publication_intent import (
     INTENT_DECISION_KEY,
     PublicationIntentDecision,
@@ -85,7 +85,7 @@ from vultron.core.behaviors.report.publish_artifact_tree import (
 logger = logging.getLogger(__name__)
 
 
-class _ShouldPublishArtifactGate(BehaviourWithPorts):
+class _ShouldPublishArtifactGate(BehaviourWithPortHooks):
     """ProtocolInternal gate: read the intent record and check one artifact flag.
 
     Reads the :class:`PublicationIntentDecision` written to
@@ -117,12 +117,10 @@ class _ShouldPublishArtifactGate(BehaviourWithPorts):
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
 
-    def setup(self, **kwargs: Any) -> None:
-        """Wire input port to the shared intent-decision blackboard key."""
-        self.setup_ports(
-            port_remappings={INTENT_DECISION_KEY: f"/{INTENT_DECISION_KEY}"},
-            logger=port_wiring_logger(),
-        )
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Wire the input port to the shared ``INTENT_DECISION_KEY`` key."""
+        return {INTENT_DECISION_KEY: f"/{INTENT_DECISION_KEY}"}
 
     def update(self) -> Status:
         """Return SUCCESS if this artifact is intended for publication.

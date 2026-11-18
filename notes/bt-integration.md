@@ -16,6 +16,7 @@ description: >
   where each is seeded or looked up, and how to translate a simulator tree.
 related_specs:
   - specs/behavior-tree-integration.yaml
+  - specs/behavior-tree-node-design.yaml
   - specs/handler-protocol.yaml
   - specs/inbox-endpoint.yaml
   - specs/case-ledger-processing.yaml
@@ -270,6 +271,34 @@ leaves subtrees no walk can reach.
   put a store call back in the use case (ADR-0195).
 - **One source per key per tree** (BT-25-011). A key is seeded or published, never
   both, so tick order cannot decide which value a node reads.
+- **Where the pieces live.** Name a new key in `behaviors/act_keys.py`, reusing a
+  key whose value means the same thing. Declare a tree's keys with
+  `declare_inputs` (`behaviors/act_inputs.py`) on the node its factory returns;
+  `tree_inputs` collects a composed tree's declarations. A key is seeded from the
+  act's same-named attribute unless `declare_seeds` maps or withholds it. Reason:
+  one checker, `seed_act_inputs`, serves both runners, so the rules cannot drift.
+  A seeder that writes a key outside an output port implements
+  `published_act_keys()` so the BT-25-011 check counts it, as `CaseIdScope` does.
+  Bind ports only through the `PortRemappingHooks` hooks, never in `setup()`:
+  the publisher check and the vocabulary ratchet read the hooks, not setup.
+- **Declare a key only once the composed tree has one source for it**
+  (BT-25-011). The check counts every publisher in the tree, scopes included.
+  So a case trigger cannot declare `/case_id` seeded while the clock-decision
+  stage still wraps its nodes in `CaseIdScope`, and a received tree cannot
+  while its shared stages use `with_case_id`. A key declared published needs
+  exactly one lookup node, so a guard repeated across stages, such as
+  `CheckIsCaseManagerNode` publishing `/case_actor_id`, is folded first.
+  Reason: a scoped copy and the seed can differ (a resolved case id against a
+  short id), and tick order would choose between them. Pinned by
+  `test_a_seeded_case_id_under_the_clock_decision_stage_has_two_sources`.
+- **A case trigger tree declares `/case_id` seeded only once #6678 has landed.**
+  Reason: until the trigger adapter resolves a short case id to the full id at
+  the edge (ADR-0032), the request's `case_id` may be a short id.
+- **Review every attribute-name seed.** `test/architecture/_act_seeding_table.py`
+  records each act type's seeds, so a new property that matches a key is a
+  reviewed diff. Withhold a match whose value means something else with
+  `declare_seeds(type, {KEY: None})`, as the actor-recommendation answers do for
+  their client-claimed `case_actor_id`.
 
 - **A node never runs a tree** (BT-25-001). Compose the subtree as a child, and
   turn the parent's "branch on the nested result" into a Selector or Sequence.

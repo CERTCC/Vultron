@@ -17,6 +17,8 @@
 participant roles and case ownership transfer.
 """
 
+from vultron.core.behaviors.act_inputs import declare_seeds
+from vultron.core.behaviors.act_keys import CASE_ACTOR_ID
 from vultron.core.models.use_case_result import (
     ActivityResult,
     RoleOfferResult,
@@ -116,6 +118,16 @@ class RejectActorRecommendationTriggerRequest(
     Emits a Reject(Offer(CaseParticipant)) queued in the Case Owner's outbox
     for delivery to the CaseActor (ADR-0026, CM-16-007).
     """
+
+
+# Each answer names, in ``case_actor_id``, the actor the client says the
+# answer goes to: a claim, not the role-checked CASE_MANAGER that the
+# ``/case_actor_id`` key carries, so it is never seeded there (BT-25-007).
+for _answer in (
+    AcceptActorRecommendationTriggerRequest,
+    RejectActorRecommendationTriggerRequest,
+):
+    declare_seeds(_answer, {CASE_ACTOR_ID: None})
 
 
 class InviteActorToCaseTriggerRequest(

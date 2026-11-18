@@ -215,10 +215,17 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
                 "actor_id": "/actor_id",
                 "trigger_activity_factory": "/trigger_activity_factory",
                 ACT_INSTANT_KEY: f"/{ACT_INSTANT_KEY}",
-                "suggested_roles": f"/{suggested_roles_key(self.recommendation_id)}",
+                **self.bound_port_remappings(),
             },
             logger=port_wiring_logger(),
         )
+
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Read this recommendation's roles key (BTND-03-004)."""
+        return {
+            **super()._instance_port_remappings(),
+            "suggested_roles": f"/{suggested_roles_key(self.recommendation_id)}",
+        }
 
     def initialise(self) -> None:
         super().initialise()

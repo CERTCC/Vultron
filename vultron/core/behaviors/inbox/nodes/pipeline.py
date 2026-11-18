@@ -57,12 +57,13 @@ import logging
 from typing import Any
 
 from py_trees.common import Status
-from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge.act_instant import read_act_instant
+from vultron.core.behaviors.helpers.ports_base import BehaviourWithPortHooks
 from vultron.core.behaviors.inbox.models import InboxOutcomeStatus
-from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.events import (
     is_deferral_exempt,
     resolve_case_context_id,
@@ -104,7 +105,7 @@ ALL_INBOX_KEYS = (
 )
 
 
-class _InboxNodeWithPorts(BehaviourWithPorts):
+class _InboxNodeWithPorts(BehaviourWithPortHooks):
     """Base class for typed-Ports inbox pipeline nodes.
 
     Declares the shared outcome output ports (inbox_outcome_status,
@@ -123,11 +124,6 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
         super().__init__(name=name)
         self.logger = node_logger(self)  # type: ignore[assignment]
 
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        """Domain-specific port-to-absolute-key remappings for this subclass."""
-        return {}
-
     INPUT_PORTS: dict[str, PortInformation] = {}
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
@@ -135,15 +131,13 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
         KEY_FAILURE_REASON: PortInformation(data_type=str, required=False),
     }
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                KEY_OUTCOME_STATUS: f"/{KEY_OUTCOME_STATUS}",
-                KEY_FAILURE_REASON: f"/{KEY_FAILURE_REASON}",
-                **self._domain_port_remappings(),
-            },
-            logger=port_wiring_logger(),
-        )
+    def bound_port_remappings(self) -> dict[str, str]:
+        """The shared outcome keys, then this subclass's domain keys."""
+        return {
+            KEY_OUTCOME_STATUS: f"/{KEY_OUTCOME_STATUS}",
+            KEY_FAILURE_REASON: f"/{KEY_FAILURE_REASON}",
+            **super().bound_port_remappings(),
+        }
 
     def _record_outcome(
         self, status: InboxOutcomeStatus, reason: str

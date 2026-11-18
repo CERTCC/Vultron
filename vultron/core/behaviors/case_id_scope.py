@@ -38,6 +38,7 @@ from collections.abc import Iterator
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_keys import CASE_ID, ActKey
 from vultron.core.behaviors.blackboard_scope import (
     restore_keys,
     snapshot_keys,
@@ -46,7 +47,7 @@ from vultron.core.behaviors.blackboard_scope import (
 __all__ = ["CaseIdScope", "seeded_case_id", "unscoped", "with_case_id"]
 
 #: The bare name of the port key every ``case_id``-reading node remaps to.
-_CASE_ID_KEY = "case_id"
+_CASE_ID_KEY = CASE_ID.name
 
 
 class CaseIdScope(py_trees.decorators.Decorator):
@@ -85,6 +86,14 @@ class CaseIdScope(py_trees.decorators.Decorator):
     def update(self) -> Status:
         self.feedback_message = self.decorated.feedback_message
         return self.decorated.status
+
+    def published_act_keys(self) -> frozenset[ActKey]:
+        """``/case_id``, which this scope writes for its child's tick.
+
+        So a tree that also declares ``/case_id`` as seeded by the runner, or
+        published by a lookup node, has two sources (BT-25-011).
+        """
+        return frozenset({CASE_ID})
 
 
 def with_case_id(

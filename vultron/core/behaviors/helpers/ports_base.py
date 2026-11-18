@@ -64,6 +64,55 @@ _ACTOR_KEY = "/actor_id"
 _AT_KEY = f"/{ACT_INSTANT_KEY}"
 
 
+class PortRemappingHooks:
+    """The two hooks a ports node binds its domain ports through.
+
+    A node declares where its ports read and write with
+    :meth:`_domain_port_remappings` (fixed per class) and
+    :meth:`_instance_port_remappings` (computed per instance), and its
+    ``setup()`` passes :meth:`bound_port_remappings` to ``setup_ports()``
+    (BTND-03-010, BTND-03-019).  Readers that must not set the node up, such
+    as the BT-25-011 publisher check
+    (:func:`~vultron.core.behaviors.act_inputs.act_key_bindings`) and the
+    act-key vocabulary ratchet, read the same merge, so a binding made
+    outside the hooks is invisible to them.
+    """
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Subclasses override to map domain port names to absolute blackboard paths.
+
+        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
+        that domain keys declared in ``INPUT_PORTS`` resolve to the same global
+        paths written by preceding ``DataLayerAction`` writer nodes.
+        """
+        return {}
+
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Override for instance-state-dependent port paths (dynamic keys)."""
+        return {}
+
+    def bound_port_remappings(self) -> dict[str, str]:
+        """This node's domain bindings: the class's, then the instance's."""
+        return {
+            **self._domain_port_remappings(),
+            **self._instance_port_remappings(),
+        }
+
+
+class BehaviourWithPortHooks(PortRemappingHooks, BehaviourWithPorts):
+    """A ports behaviour whose every binding comes from the hooks."""
+
+    INPUT_PORTS: dict[str, PortInformation] = {}
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings=self.bound_port_remappings(),
+            logger=port_wiring_logger(),
+        )
+
+
 class _ActInstantPort:
     """The ``at`` input port both ports bases declare (ADR-0176).
 
@@ -117,7 +166,7 @@ class _OptionalPortRead:
 
 
 class DataLayerConditionWithPorts(
-    _OptionalPortRead, _ActInstantPort, BehaviourWithPorts
+    PortRemappingHooks, _OptionalPortRead, _ActInstantPort, BehaviourWithPorts
 ):
     """Base class for typed-Ports BT condition nodes with DataLayer access.
 
@@ -149,28 +198,13 @@ class DataLayerConditionWithPorts(
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
 
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        """Subclasses override to map domain input-port names to absolute blackboard paths.
-
-        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
-        that domain keys declared in ``INPUT_PORTS`` resolve to the same global
-        paths written by preceding ``DataLayerAction`` writer nodes.
-        """
-        return {}
-
-    def _instance_port_remappings(self) -> dict[str, str]:
-        """Override for instance-state-dependent port paths (dynamic keys)."""
-        return {}
-
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
             port_remappings={
                 "datalayer": _DL_KEY,
                 "actor_id": _ACTOR_KEY,
                 ACT_INSTANT_KEY: _AT_KEY,
-                **self._domain_port_remappings(),
-                **self._instance_port_remappings(),
+                **self.bound_port_remappings(),
             },
             logger=port_wiring_logger(),
         )
@@ -216,7 +250,7 @@ class DataLayerConditionWithPorts(
 
 
 class DataLayerActionWithPorts(
-    _OptionalPortRead, _ActInstantPort, BehaviourWithPorts
+    PortRemappingHooks, _OptionalPortRead, _ActInstantPort, BehaviourWithPorts
 ):
     """Base class for typed-Ports BT action nodes with DataLayer access.
 
@@ -251,20 +285,6 @@ class DataLayerActionWithPorts(
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
 
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        """Subclasses override to map domain input-port names to absolute blackboard paths.
-
-        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
-        that domain keys declared in ``INPUT_PORTS`` resolve to the same global
-        paths written by preceding ``DataLayerAction`` writer nodes.
-        """
-        return {}
-
-    def _instance_port_remappings(self) -> dict[str, str]:
-        """Override for instance-state-dependent port paths (dynamic keys)."""
-        return {}
-
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
             port_remappings={
@@ -273,8 +293,7 @@ class DataLayerActionWithPorts(
                 "trigger_activity_factory": "/trigger_activity_factory",
                 "wire_render_port": "/wire_render_port",
                 ACT_INSTANT_KEY: _AT_KEY,
-                **self._domain_port_remappings(),
-                **self._instance_port_remappings(),
+                **self.bound_port_remappings(),
             },
             logger=port_wiring_logger(),
         )
