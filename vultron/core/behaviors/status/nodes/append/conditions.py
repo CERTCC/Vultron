@@ -31,10 +31,10 @@ import logging
 from typing import Any
 
 from py_trees.common import Status
-from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.behaviors.node_logger import port_wiring_logger
+from vultron.core.behaviors.helpers.ports_base import BehaviourWithPortHooks
 from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
 )
@@ -55,7 +55,7 @@ def _has_status_in_participant(participant: Any, status_id: str) -> bool:
     return status_id in existing_ids
 
 
-class SkipIfIdempotentNode(BehaviourWithPorts):
+class SkipIfIdempotentNode(BehaviourWithPortHooks):
     """Idempotency guard for the append-participant-status Selector.
 
     Returns SUCCESS when *status_id* is already present in the participant's
@@ -88,13 +88,10 @@ class SkipIfIdempotentNode(BehaviourWithPorts):
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                "append_status_participant": "/append_status_participant"
-            },
-            logger=port_wiring_logger(),
-        )
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Wire the input port to the shared ``append_status_participant`` key."""
+        return {"append_status_participant": "/append_status_participant"}
 
     def update(self) -> Status:
         try:

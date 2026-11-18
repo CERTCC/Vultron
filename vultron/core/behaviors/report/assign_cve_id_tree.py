@@ -58,16 +58,17 @@ References
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import py_trees
 from py_trees.common import Status
-from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
 )
-from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
+from vultron.core.behaviors.helpers.ports_base import BehaviourWithPortHooks
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.predicates.roles import has_cna_role
 
 if TYPE_CHECKING:
@@ -86,7 +87,7 @@ _ACTOR_ROLES_KEY = "actor_roles"
 _PUBLICATION_INTENT_SET_KEY = "publication_intent_set"
 
 
-class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
+class _IsIDAssignmentAuthorityNode(BehaviourWithPortHooks):
     """ProtocolInternal: check whether this actor holds CNA role.
 
     Reads ``actor_roles`` from the blackboard (written by the BT setup phase)
@@ -107,11 +108,10 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={_ACTOR_ROLES_KEY: f"/{_ACTOR_ROLES_KEY}"},
-            logger=port_wiring_logger(),
-        )
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Wire the input port to the shared ``_ACTOR_ROLES_KEY`` key."""
+        return {_ACTOR_ROLES_KEY: f"/{_ACTOR_ROLES_KEY}"}
 
     def update(self) -> Status:
         try:
@@ -146,7 +146,7 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
         return Status.FAILURE
 
 
-class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
+class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPortHooks):
     """ProtocolInternal: OR-gate for public disclosure status.
 
     Returns SUCCESS when ``publication_intent_set`` is truthy on the
@@ -173,13 +173,10 @@ class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                _PUBLICATION_INTENT_SET_KEY: f"/{_PUBLICATION_INTENT_SET_KEY}"
-            },
-            logger=port_wiring_logger(),
-        )
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Wire the input port to the shared ``_PUBLICATION_INTENT_SET_KEY`` key."""
+        return {_PUBLICATION_INTENT_SET_KEY: f"/{_PUBLICATION_INTENT_SET_KEY}"}
 
     def update(self) -> Status:
         try:

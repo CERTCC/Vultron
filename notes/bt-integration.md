@@ -279,6 +279,23 @@ leaves subtrees no walk can reach.
   one checker, `seed_act_inputs`, serves both runners, so the rules cannot drift.
   A seeder that writes a key outside an output port implements
   `published_act_keys()` so the BT-25-011 check counts it, as `CaseIdScope` does.
+  Bind ports only through the `PortRemappingHooks` hooks, never in `setup()`:
+  the publisher check and the vocabulary ratchet read the hooks, not setup.
+- **Declare a key only once the composed tree has one source for it**
+  (BT-25-011). The check counts every publisher in the tree, scopes included.
+  So a case trigger cannot declare `/case_id` seeded while the clock-decision
+  stage still wraps its nodes in `CaseIdScope`, and a received tree cannot
+  while its shared stages use `with_case_id`. A key declared published needs
+  exactly one lookup node, so a guard repeated across stages, such as
+  `CheckIsCaseManagerNode` publishing `/case_actor_id`, is folded first.
+  Reason: a scoped copy and the seed can differ (a resolved case id against a
+  short id), and tick order would choose between them. Pinned by
+  `test_a_seeded_case_id_under_the_clock_decision_stage_has_two_sources`.
+- **Review every attribute-name seed.** `test/architecture/_act_seeding_table.py`
+  records each act type's seeds, so a new property that matches a key is a
+  reviewed diff. Withhold a match whose value means something else with
+  `declare_seeds(type, {KEY: None})`, as the actor-recommendation answers do for
+  their client-claimed `case_actor_id`.
 
 - **A node never runs a tree** (BT-25-001). Compose the subtree as a child, and
   turn the parent's "branch on the nested result" into a Selector or Sequence.

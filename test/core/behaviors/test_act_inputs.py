@@ -67,6 +67,7 @@ from vultron.core.behaviors.helpers.ports_base import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
 from vultron.core.models.note import VultronNote
 from vultron.core.models.use_case_result import HandlerResult
@@ -226,8 +227,7 @@ class _RelativeBinding:
 
     OUTPUT_PORTS = {"case_id": PortInformation(data_type=str)}
 
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
+    def bound_port_remappings(self) -> dict[str, str]:
         return {"case_id": "case_id"}
 
 
@@ -251,8 +251,7 @@ class _OddHook:
 
     OUTPUT_PORTS = {"case_id": PortInformation(data_type=str)}
 
-    @classmethod
-    def _domain_port_remappings(cls) -> list[str]:
+    def bound_port_remappings(self) -> list[str]:
         return ["/case_id"]
 
 
@@ -559,9 +558,13 @@ class _SeededTrigger(SvcActivityTriggerBase):
         request: EngageCaseTriggerRequest,
         tree: py_trees.behaviour.Behaviour,
         context: dict[str, object] | None = None,
+        dl: SqliteDataLayer | None = None,
     ) -> None:
         super().__init__(
-            MagicMock(), request, MagicMock(), clock=FixedClock(ACT_AT)
+            dl if dl is not None else MagicMock(),
+            request,
+            MagicMock(),
+            clock=FixedClock(ACT_AT),
         )
         self._tree = tree
         self._context = context or {}
@@ -615,5 +618,31 @@ def test_the_trigger_runner_refuses_a_declared_key_its_context_passes():
         context={"case_id": _CASE_ID},
     )
     with pytest.raises(VultronWiringError, match="also passed by the caller"):
+        run_in_act(trigger)
+    assert probe.ticks == 0
+
+
+class _ClockDecidingTrigger(_SeededTrigger):
+    """The same trigger with the case-wide clock decisions in front."""
+
+    _takes_case_clock_decisions = True
+
+
+@pytest.mark.spec("BT-25-011")
+def test_a_seeded_case_id_under_the_clock_decision_stage_has_two_sources():
+    """The clock stage still takes its case as a factory argument and seeds
+    ``/case_id`` for its own nodes through ``CaseIdScope``, so a case trigger
+    whose tree declares ``/case_id`` seeded meets a second source until that
+    stage reads the runner's seed (BT-25-011)."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    dl.save(make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_RECEIVER))
+    probe = _Probe()
+    trigger = _ClockDecidingTrigger(
+        _engage(), declare_inputs(_sequence(probe), seeded=[CASE_ID]), dl=dl
+    )
+    with pytest.raises(
+        VultronWiringError,
+        match=r"'/case_id' is seeded by the runner and also published by",
+    ):
         run_in_act(trigger)
     assert probe.ticks == 0

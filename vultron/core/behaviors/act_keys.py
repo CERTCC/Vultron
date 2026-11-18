@@ -157,8 +157,8 @@ INVITE_ID = _act_key(
 PROPOSAL_ID = _act_key(
     "proposal_id",
     str,
-    "The id of the proposal (a case proposal or an embargo proposal) the"
-    " act answers or names.",
+    "The id of the proposal (a case proposal, an embargo proposal or a"
+    " case-ownership-transfer proposal) the act answers or names.",
 )
 PARTICIPANT_ID = _act_key(
     "participant_id",
@@ -173,8 +173,8 @@ NOTE_ID = _act_key(
 OBJECT_ID = _act_key(
     "object_id",
     str,
-    "The id of the object the act carries or names, for an act no narrower"
-    " key above describes.",
+    "The id of the object the act carries or names.  Every received event"
+    " seeds it; a tree reads a narrower key above when one names the value.",
 )
 
 # --- Who takes part in the act ------------------------------------------------

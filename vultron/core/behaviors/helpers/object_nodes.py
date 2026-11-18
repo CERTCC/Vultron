@@ -65,12 +65,16 @@ class ReadObject(DataLayerConditionWithPorts):
         "object_data": PortInformation(data_type=object, required=True),
     }
 
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Wire ``object_data`` to this object's own key."""
+        return {"object_data": f"/{self.blackboard_key}"}
+
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
             port_remappings={
                 "datalayer": "/datalayer",
                 "actor_id": "/actor_id",
-                "object_data": f"/{self.blackboard_key}",
+                **self.bound_port_remappings(),
             },
             logger=port_wiring_logger(),
         )
@@ -145,13 +149,17 @@ class UpdateObject(DataLayerActionWithPorts):
         "object_data": PortInformation(data_type=object, required=True),
     }
 
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Wire ``object_data`` to this object's own key."""
+        return {"object_data": f"/{self.blackboard_key}"}
+
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
             port_remappings={
                 "datalayer": "/datalayer",
                 "actor_id": "/actor_id",
                 "trigger_activity_factory": "/trigger_activity_factory",
-                "object_data": f"/{self.blackboard_key}",
+                **self.bound_port_remappings(),
             },
             logger=port_wiring_logger(),
         )

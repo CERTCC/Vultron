@@ -221,22 +221,19 @@ class PublishesActKeys(Protocol):
 def act_key_bindings(node: object) -> dict[str, str]:
     """The absolute keys *node*'s ports are bound to, by port name.
 
-    Read without setting the node up, from the two hooks the ports bases
-    merge into ``setup_ports()``: ``_domain_port_remappings()`` and
-    ``_instance_port_remappings()`` (BTND-03-010, BTND-03-019).  Only
-    absolute (``/``-prefixed) targets are returned; a node that is not a
-    ports node binds nothing.
+    Read without setting the node up, from the merge of the two hooks that
+    ``setup()`` passes to ``setup_ports()``: ``bound_port_remappings()`` of
+    :class:`~vultron.core.behaviors.helpers.ports_base.PortRemappingHooks`
+    (BTND-03-010, BTND-03-019).  Only absolute (``/``-prefixed) targets are
+    returned; a node without the hooks binds nothing.
     """
-    bindings: dict[str, str] = {}
-    for hook in ("_domain_port_remappings", "_instance_port_remappings"):
-        method = getattr(node, hook, None)
-        if callable(method):
-            remaps = method()
-            if isinstance(remaps, Mapping):
-                bindings.update(remaps)
+    method = getattr(node, "bound_port_remappings", None)
+    remaps = method() if callable(method) else None
+    if not isinstance(remaps, Mapping):
+        return {}
     return {
         port: target
-        for port, target in bindings.items()
+        for port, target in remaps.items()
         if isinstance(target, str) and target.startswith("/")
     }
 
