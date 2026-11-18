@@ -225,9 +225,9 @@ adr/0210-a-reported-p-x-or-a-value-is-adopted-through-one-gate-and-its-adoption-
 adr/0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md
 adr/0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md
 adr/0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
-adr/0215-a-replica-changes-state-only-from-the-case-managers-entries-and-consent-is-part-of-a-participants-status.md
 adr/0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
 adr/0214-how-a-received-message-is-checked-applied-and-kept.md
+adr/0215-a-replica-changes-state-only-from-the-case-managers-entries-and-consent-is-part-of-a-participants-status.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
