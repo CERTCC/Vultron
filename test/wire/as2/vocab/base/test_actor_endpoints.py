@@ -438,24 +438,34 @@ def test_inbound_rule_reaches_an_item_nested_in_an_endpoint_dict(field_name):
 
     ``_coerce_uri_to_collection`` validates a collection dict itself, so it
     must hand Pydantic the caller's context: under ``INBOUND_CONTEXT_KEY`` an
-    inline item's absent ``published`` stays ``None`` (ADR-0103) rather than
-    being fabricated from the local clock — at every depth, as
-    ``carry_absent_times_on_inbound`` promises.
+    inline item's absent ``updated`` stays ``None`` (ADR-0103) rather than
+    being fabricated from the local clock, and an item with no ``published``
+    is refused (CLP-15-011), at every depth.
     """
-    collection: dict[str, Any] = {
-        "type": "OrderedCollection",
-        "id": f"{ACTOR_ID}/{field_name}",
-        "items": [{"type": "Note", "id": "https://example.org/notes/1"}],
+    item = {
+        "type": "Note",
+        "id": "https://example.org/notes/1",
+        "content": "held",
+        "published": "2026-01-01T00:00:00+00:00",
     }
 
-    actor = as_Service.model_validate(
-        {"id": ACTOR_ID, field_name: collection},
-        context={INBOUND_CONTEXT_KEY: True},
-    )
+    def actor_with(collection_item: dict[str, Any]) -> Any:
+        collection: dict[str, Any] = {
+            "type": "OrderedCollection",
+            "id": f"{ACTOR_ID}/{field_name}",
+            "items": [collection_item],
+        }
+        return as_Service.model_validate(
+            {"id": ACTOR_ID, field_name: collection},
+            context={INBOUND_CONTEXT_KEY: True},
+        )
 
-    (item,) = getattr(actor, field_name).items
-    assert item.published is None
-    assert item.updated is None
+    (held,) = getattr(actor_with(item), field_name).items
+    assert held.updated is None
+
+    untimed = {k: v for k, v in item.items() if k != "published"}
+    with pytest.raises(ValueError, match="CLP-15-011"):
+        actor_with(untimed)
 
 
 @pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)

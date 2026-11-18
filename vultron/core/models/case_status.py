@@ -16,7 +16,7 @@
 """Domain representation of a case status snapshot."""
 
 from datetime import datetime
-from typing import ClassVar, Literal
+from typing import Literal
 
 from pydantic import AliasChoices, Field, model_validator
 
@@ -75,14 +75,13 @@ class CaseStatus(CoreObject):
     # Re-narrowed from CoreObject's ``datetime | None`` (ARCH-10-001), as
     # ``CaseLedgerEntry.published`` is: every status carries one (SM-05-003,
     # CM-29-005).  The narrowed type alone would refuse a received omission
-    # as a bare type fault; the flag makes the inbound read name the rule
-    # (CLP-15-010).
+    # as a bare type fault; the inbound read refuses it first, naming the rule
+    # (CLP-15-010, CLP-15-011).
     published: datetime
     # Absent by default, not CoreObject's clock read: a second read would
     # differ from ``published`` and claim a change that never happened
     # (CM-29-006).
     updated: datetime | None = None
-    _inbound_requires_published: ClassVar[bool] = True
     attributed_to: NonEmptyString | None = None  # pyright: ignore[reportGeneralTypeIssues]
     # Each dimension serializes to its bare state value (ARCH-25-005, ADR-0099), so
     # the alias alone produces the flat wire shape the AS2 form has always used:

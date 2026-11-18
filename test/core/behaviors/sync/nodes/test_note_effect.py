@@ -208,6 +208,7 @@ def test_apply_note_stores_a_note_the_seeded_case_already_names(
                 "object": {
                     "id": NOTE_ID,
                     "type": "Note",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "content": "seeded note",
                     "context": CASE_ID,
                 }

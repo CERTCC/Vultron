@@ -257,7 +257,16 @@ def _id_less_probes() -> list[tuple[str, Any]]:
         if slot == "url":
             continue
         key = to_camel(slot)
-        probes.append((key, {"type": "Note", "content": "no id"}))
+        probes.append(
+            (
+                key,
+                {
+                    "type": "Note",
+                    "published": "2026-01-01T00:00:00+00:00",
+                    "content": "no id",
+                },
+            )
+        )
         if slot not in SINGLE_VALUED:
             probes.append((key, [{"type": "Person"}]))
             probes.append((key, [{}]))
@@ -278,7 +287,15 @@ def test_parse_edge_refuses_an_id_less_object_in_a_reference_slot(
 def test_parse_edge_refuses_an_id_less_object_as_the_activity_object() -> None:
     """The rule holds outside the reference slots, at any depth."""
     with pytest.raises(VultronParseValidationError):
-        parse_activity(_offer(object={"type": "Note", "content": "no id"}))
+        parse_activity(
+            _offer(
+                object={
+                    "type": "Note",
+                    "published": "2026-01-01T00:00:00+00:00",
+                    "content": "no id",
+                }
+            )
+        )
 
 
 @pytest.mark.spec("OID-01-013")
@@ -291,7 +308,11 @@ def test_parse_edge_refuses_an_id_less_object_in_a_core_slot() -> None:
         "content": "c",
         "attributedTo": "https://example.org/actors/alice",
         "published": "2026-03-04T05:06:07+00:00",
-        "context": {"type": "Note", "content": "no id"},
+        "context": {
+            "type": "Note",
+            "published": "2026-01-01T00:00:00+00:00",
+            "content": "no id",
+        },
     }
     body = _offer(type="Create", object=report)
     with pytest.raises(VultronParseValidationError):
@@ -303,7 +324,16 @@ def test_parse_edge_keeps_a_received_object_id() -> None:
     """An embedded Object that carries its id keeps exactly that id."""
     note_id = "https://example.org/notes/1"
     activity = parse_activity(
-        _offer(tag=[{"type": "Note", "id": note_id, "content": "x"}])
+        _offer(
+            tag=[
+                {
+                    "type": "Note",
+                    "published": "2026-01-01T00:00:00+00:00",
+                    "id": note_id,
+                    "content": "x",
+                }
+            ]
+        )
     )
     assert isinstance(activity.tag, list)
     assert getattr(activity.tag[0], "id_", None) == note_id

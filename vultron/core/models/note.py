@@ -15,6 +15,8 @@
 
 """Domain representation of a Note."""
 
+from datetime import datetime
+
 from pydantic import Field
 
 from vultron.core.models.base import CoreObject, NonEmptyString
@@ -25,6 +27,10 @@ class VultronNote(CoreObject):
 
     ``type_`` is ``"Note"`` to match the wire value.
     """
+
+    # Every author states it (ADR-0176), and a receiver refuses a received
+    # one without it (CLP-15-011).
+    published: datetime
 
     type_: NonEmptyString = Field(
         default="Note",

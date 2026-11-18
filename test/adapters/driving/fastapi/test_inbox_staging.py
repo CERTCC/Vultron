@@ -360,6 +360,7 @@ def test_stage_inline_object_stages_the_parsed_inline_case(
         {
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": _PUBLISHED,
             "id": "urn:uuid:case-parsed-001",
             "name": "Parsed Case",
         }
@@ -384,12 +385,14 @@ def test_stage_inline_object_stages_the_inline_embargo_a_case_names(
         {
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": _PUBLISHED,
             "id": case_id,
             "name": "Embargoed Case",
             "embargoRegister": [
                 {
                     "embargo": {
                         "type": "EmbargoEvent",
+                        "published": _PUBLISHED,
                         "id": embargo_id,
                         "context": case_id,
                         "startTime": _PUBLISHED,
@@ -417,6 +420,7 @@ def test_stage_inline_object_skips_a_case_naming_an_unheld_embargo(
         {
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": _PUBLISHED,
             "id": case_id,
             "name": "Unheld Embargo Case",
             "embargoRegister": [
@@ -496,6 +500,7 @@ def test_stage_inline_object_stages_parsed_class_after_a_set_aside_key(
         {
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": _PUBLISHED,
             "id": "urn:uuid:case-foreign-001",
             "name": "Case With A Foreign Key",
             "fooBar": 1,

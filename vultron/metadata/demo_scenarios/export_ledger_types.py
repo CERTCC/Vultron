@@ -83,7 +83,10 @@ import annotated_types
 from pydantic import BaseModel, BeforeValidator
 from pydantic.fields import FieldInfo
 
-from vultron.core.models._helpers import reads_absent_as_none
+from vultron.core.models._helpers import (
+    reads_absent_as_none,
+    received_without_published,
+)
 from vultron.core.models.base import CoreObject
 from vultron.core.models.base.core_object import UnmodelledObject
 from vultron.core.models.base.language_map import absent_as_empty
@@ -489,12 +492,11 @@ def _is_required(
     if ledger_type.role == "written":
         return field.is_required() or not nullable
     if reads_absent_as_none(field):
-        # An author time is required where an object is built (ADR-0176), but
-        # a received omission reads as ``None`` (ADR-0103): only a class that
-        # reads its sender's time refuses it (CLP-15-010).
-        return (
-            key == "published"
-            and ledger_type.model._inbound_requires_published
+        # An author time is required where an object is built (ADR-0176).
+        # A received omission reads as ``None`` (CLP-15-007), except a whole
+        # object's ``published``, which a receiver refuses (CLP-15-011).
+        return key == "published" and not received_without_published(
+            ledger_type.model
         )
     return field.is_required()
 

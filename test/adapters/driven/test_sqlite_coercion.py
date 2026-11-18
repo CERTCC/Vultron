@@ -284,6 +284,7 @@ class TestCoerceToSemanticClass:
                     "inReplyTo": "urn:uuid:invite-roundtrip-1",
                     "object": {
                         "type": "Invite",
+                        "published": "2026-01-01T00:00:00+00:00",
                         "id": "urn:uuid:invite-roundtrip-1",
                         "actor": "https://example.org/actors/vendor",
                         "object": {
@@ -294,6 +295,7 @@ class TestCoerceToSemanticClass:
                         "target": {
                             **INBOUND_CASE_OWNERSHIP,
                             "type": "VulnerabilityCase",
+                            "published": "2026-01-01T00:00:00+00:00",
                             "id": "https://example.org/cases/case-roundtrip-1",
                         },
                         "to": ["https://example.org/actors/coordinator"],

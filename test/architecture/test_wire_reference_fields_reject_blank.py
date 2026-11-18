@@ -155,7 +155,12 @@ def test_the_derived_reference_set_covers_the_activity_slots() -> None:
         "instrument",
         "result",
     } <= set(examined["as_Offer"])
-    assert "items" in examined["as_OrderedCollection"]
+    # The collection types are core's now (ADR-0208), so not in the wire
+    # vocabulary; their ``items`` still refuses a blank IRI.
+    from vultron.core.models.collection import Collection
+
+    items = declared_type(Collection.model_fields["items"])
+    assert is_reference_field(items) and rejects_blank(items)
     assert "closed" in examined["as_Question"]
     # The hand-spelled ``as_VulnerabilityCase | NonEmptyString`` union.  The
     # case Invite's ``target`` is no longer a union: it requires the stub

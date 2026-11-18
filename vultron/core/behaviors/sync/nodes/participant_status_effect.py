@@ -164,9 +164,10 @@ class ApplyParticipantStatusFromLedgerNode(
             return Status.SUCCESS
 
         try:
-            # Projected, not validated raw: the snapshot is AS2-shaped, and its
-            # absent timestamps are absences to carry rather than gaps for this
-            # replica's clock to fill (CLP-15-007).
+            # Projected, not validated raw: the snapshot is AS2-shaped.  An
+            # absent optional time is carried as absent, and an absent
+            # ``published`` is refused, never filled from this replica's
+            # clock (CLP-15-007, CLP-15-011).
             status_obj = ParticipantStatus.model_validate(
                 project_wire_snapshot_to_core(ParticipantStatus, status_data)
             )

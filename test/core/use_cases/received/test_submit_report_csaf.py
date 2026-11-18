@@ -291,7 +291,12 @@ def test_an_image_beside_the_csaf_document_is_kept_and_not_read() -> None:
 @pytest.mark.parametrize(
     "other",
     [
-        {"type": "Note", "id": OTHER_ID, "content": "Steps to reproduce."},
+        {
+            "type": "Note",
+            "published": "2026-01-01T00:00:00+00:00",
+            "id": OTHER_ID,
+            "content": "Steps to reproduce.",
+        },
         {"type": "Link", "href": "https://finder.example.org/advisory"},
         "https://finder.example.org/advisory",
     ],

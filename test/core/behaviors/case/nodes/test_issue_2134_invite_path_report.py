@@ -118,6 +118,7 @@ def _make_offer_report_snapshot() -> dict:
     """
     return {
         "type": "Add",
+        "published": "2026-01-01T00:00:00+00:00",
         "actor": CASE_OWNER_ACTOR_ID,
         "context": CASE_ID,
         "offerId": OFFER_ID,
@@ -125,6 +126,7 @@ def _make_offer_report_snapshot() -> dict:
         "object": {
             "id": REPORT_ID,
             "type": "VulnerabilityReport",
+            "published": "2026-01-01T00:00:00+00:00",
             "content": "Test vulnerability report",
             "attributedTo": REPORTER_ACTOR_ID,
         },
@@ -361,6 +363,7 @@ class TestApplyOfferReportFromLedgerNode:
                 semantic_type="invite_actor_to_case",
                 payload_snapshot={
                     "type": "Invite",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "id": "https://example.org/activities/invite-01",
                     "actor": CASE_OWNER_ACTOR_ID,
                     "context": CASE_ID,

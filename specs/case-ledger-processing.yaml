@@ -4687,12 +4687,14 @@ groups:
       AS2 makes object timestamps optional. A value that the receiver makes is later
       indistinguishable from the sender's claim. For example, each receiver would derive
       its own genesis hash for one case, and order received statuses by arrival.
-    verification: '`as_Base.carry_absent_times_on_inbound` reads an omitted clock-defaulted
-      timestamp as `None` for any class validated under the inbound context `parse_activity`
-      passes, the extractor builders pass timestamps through unchanged, and
-      `project_wire_snapshot_to_core` does the same when a replica rebuilds a core object
-      from a stored snapshot. Covered by `test/wire/as2/test_nested_timestamps.py` and
-      `test/core/behaviors/sync/nodes/test_participant_status_effect.py`.'
+    verification: '`as_Base.carry_absent_times_on_inbound` and its core twin read an
+      omitted optional timestamp as `None` for any class validated under the inbound
+      context `parse_activity` passes, the extractor builders pass timestamps through
+      unchanged, and `project_wire_snapshot_to_core` does the same when a replica
+      rebuilds a core object from a stored snapshot.
+      `test_nested_object_without_updated_extracts_with_no_updated` in
+      `test/wire/as2/test_nested_timestamps.py` and
+      `test/core/behaviors/sync/nodes/test_participant_status_effect.py` cover it.'
     adr:
     - ADR-0103
     - ADR-0079
@@ -4708,7 +4710,9 @@ groups:
       refuse the message at message validation.
     rationale: >-
       An absent time harms only a decision that needs it, so that decision refuses the
-      message early and clearly. Every other consumer accepts the absence.
+      message early and clearly. A whole object's `published` is required everywhere
+      (CLP-15-011), so this rule covers the other times a sender may omit, such as an
+      embargo's `endTime`.
     verification: >-
       `test_case_needing_its_time_for_genesis_is_refused_at_parse` and
       `test_embargo_without_end_time_is_refused_at_parse` in
@@ -4760,26 +4764,54 @@ groups:
     statement: >-
       A receiver MUST refuse at message validation an inbound activity that carries, at
       any depth, a whole object with no `published`, naming the object's position. An
-      actor profile and a collection are exempt. A typed reference (MV-10-011), a URI
-      and a `Link` are not whole objects, so the rule does not reach them.
+      actor profile, a collection and an `EmbargoConsent` row are exempt. A typed
+      reference (MV-10-011), a URI and a `Link` are not whole objects, and a preview a
+      typed reference carries is a projection of the object it names (ADR-0205), so the
+      rule reaches none of them.
     rationale: >-
       A conformant sender states the time of every object it authors, so the rule
       refuses only malformed input. Refusing at the edge spares every reader of a
       received object's time a check of whether its type is one a decision needs, and
       lets core declare the time required (ADR-0032). An actor profile or a collection
       is not an act made at a moment, and many servers serve profiles without one.
+      A case preview, a projection of the case it names, and a consent row are kept
+      without a time by CM-17-010 and CM-23-044.
     note: >-
       The objects nested in a ledger entry's `payloadSnapshot` are kept as received
       JSON and are not validated into objects (CLP-07-011), so this rule does not
-      reach them.
+      reach them. A case preview carries exactly the keys CM-17-010 names, none of them
+      `published`; the embargo and status it carries are whole objects and carry
+      theirs. An `EmbargoConsent` row carries no time because a replica copies it
+      without reading a clock (CM-23-044). The vocabulary does not model a collection
+      page (`CollectionPage`, `OrderedCollectionPage`), since Vultron sends no paged
+      collection, so a page received with content is read as a plain object and
+      refused without `published`.
     verification: >-
       `test_a_whole_object_without_published_is_refused` and
       `test_a_nested_whole_object_without_published_is_refused` in
       `test/wire/as2/test_typed_references.py` assert `parse_activity` refuses an
       activity whose inline `Note`, at the top or nested one level down, has no
-      `published`. Both are strict xfails until #6456 lands.
-      `test_an_actor_profile_or_collection_without_published_is_accepted` in the
-      same file asserts the two exemptions.
+      `published`, and `test_parse_refuses_a_nested_whole_object_without_published`
+      and `test_a_deeply_nested_whole_object_is_refused_naming_its_position` in
+      `test/wire/as2/test_nested_timestamps.py` assert it for every nested kind and
+      name the position.
+      `test_an_actor_profile_or_collection_without_published_is_accepted` and
+      `test_a_reference_uri_or_link_without_published_is_accepted` in
+      `test_typed_references.py` assert the exemptions and the forms the rule does
+      not reach. `test_a_consent_row_in_a_participant_needs_no_published` in
+      `test_nested_timestamps.py` asserts the consent-row exemption, and
+      `test_a_case_preview_carries_no_time_of_its_own` in `test_typed_references.py`
+      the case stub's. In `test_nested_timestamps.py`,
+      `test_a_generic_slot_passes_an_untimed_object_whose_type_is_exempt` and
+      `test_a_generic_slot_refuses_an_untimed_object_whose_type_is_not_exempt` assert
+      that a class admitting any object exempts only a `type` naming an exempt kind,
+      `test_a_generic_slot_passes_an_untimed_collection` that it knows a collection
+      by core's own collection class (ADR-0208),
+      and `test_a_typed_class_is_not_exempted_by_the_type_its_data_names` that a class
+      declaring its own type is judged by itself.
+      `test_a_fetched_whole_object_without_published_is_refused` in
+      `test/adapters/driven/test_http_object_fetch.py` asserts the same at the fetch
+      edge.
     relationships:
     - rel_type: extends
       spec_id: CLP-15-007

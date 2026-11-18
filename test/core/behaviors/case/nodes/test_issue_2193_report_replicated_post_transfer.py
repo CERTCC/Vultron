@@ -89,6 +89,7 @@ def _make_add_report_snapshot() -> dict:
     """
     return {
         "type": "Add",
+        "published": "2026-01-01T00:00:00+00:00",
         "actor": ORIGINAL_CASE_ACTOR_ID,
         "context": CASE_ID,
         "offerId": OFFER_ID,
@@ -96,6 +97,7 @@ def _make_add_report_snapshot() -> dict:
         "object": {
             "id": REPORT_ID,
             "type": "VulnerabilityReport",
+            "published": "2026-01-01T00:00:00+00:00",
             "name": "Critical RCE in network stack",
             "content": "Remote code execution vulnerability discovered.",
             "attributedTo": REPORTER_ACTOR_ID,

@@ -62,12 +62,14 @@ def _leave_entry(
 ) -> CaseLedgerEntry:
     snapshot: dict[str, Any] = {
         "type": "Leave",
+        "published": "2026-01-01T00:00:00+00:00",
         "id": "https://example.org/activities/leave-e0",
         "actor": actor,
         "to": [MANAGER_ACTOR_ID],
         "context": CASE_ID,
         "object": {
             "type": "EmbargoEvent",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": embargo_id,
             "context": CASE_ID,
             "endTime": (now_utc() + timedelta(days=30)).isoformat(),

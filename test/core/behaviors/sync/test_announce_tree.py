@@ -715,6 +715,7 @@ def _make_relayed_invite_entry(
                 "endTime": "2026-10-07T12:00:00+00:00",
                 "object": {
                     "type": "EmbargoEvent",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "id": f"{CASE_ID}/embargo_events/e1",
                     "context": CASE_ID,
                     "endTime": "2026-11-14T12:00:00+00:00",
@@ -742,6 +743,7 @@ def _make_consent_row_entry(
             semantic_type=UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
             payload_snapshot={
                 "type": "Update",
+                "published": "2026-01-01T00:00:00+00:00",
                 "id": activity_id,
                 "actor": CASE_ACTOR_ACTOR_ID,
                 "context": CASE_ID,
@@ -1094,6 +1096,7 @@ def _make_participant_status_entry(
                 "object": {
                     "id": PARTICIPANT_STATUS_ID,
                     "type": "ParticipantStatus",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "name": "test_status",
                     "context": CASE_ID,
                 },
@@ -1259,6 +1262,7 @@ def _reply_entry(
         "actor": actor,
         "object": {
             "type": "Invite",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": "https://example.org/invites/1",
             "object": {
                 "type": "VulnerabilityCase",
@@ -1858,6 +1862,7 @@ def _make_ownership_transfer_entry(
             semantic_type=UPDATE_CASE_OWNER_SEMANTIC_TYPE,
             payload_snapshot={
                 "type": "Update",
+                "published": "2026-01-01T00:00:00+00:00",
                 "actor": OWNER_ACTOR_ID,
                 "object": carried,
             },
@@ -2042,6 +2047,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
                 semantic_type=UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
                 payload_snapshot={
                     "type": "Update",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "actor": OWNER_ACTOR_ID,
                     "object": record.model_dump(mode="json", by_alias=True),
                 },
@@ -2122,7 +2128,11 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
                 log_index=0,
                 object_id="https://example.org/activities/accept",
                 semantic_type="accept_case_ownership_transfer",
-                payload_snapshot={"type": "Accept", "actor": NEW_OWNER_ID},
+                payload_snapshot={
+                    "type": "Accept",
+                    "published": "2026-01-01T00:00:00+00:00",
+                    "actor": NEW_OWNER_ID,
+                },
                 prev_log_hash=case_obj.genesis_hash,
                 received_at=ACT_AT,
             )
@@ -2174,7 +2184,11 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
                 log_index=0,
                 object_id="https://example.org/activities/reject-ownership",
                 semantic_type="reject_case_ownership_transfer",
-                payload_snapshot={"type": "Reject", "actor": NEW_OWNER_ID},
+                payload_snapshot={
+                    "type": "Reject",
+                    "published": "2026-01-01T00:00:00+00:00",
+                    "actor": NEW_OWNER_ID,
+                },
                 prev_log_hash=case.genesis_hash,
                 received_at=ACT_AT,
             )
@@ -2233,6 +2247,7 @@ def _make_participant_status_entry_with_states(
                 "object": {
                     "id": status_id,
                     "type": "ParticipantStatus",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "rmState": rm_state,
                     "vfState": vf_state,
                     "context": CASE_ID,

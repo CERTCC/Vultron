@@ -24,6 +24,7 @@ guarantee has to hold on this branch by itself.
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
+from pydantic import ValidationError
 
 from test.support.objects import make, with_times
 from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
@@ -79,13 +80,22 @@ def test_core_object_explicit_none_stays_none(field):
 
 
 @pytest.mark.spec("CLP-15-007")
-@pytest.mark.parametrize("field", ("published", "updated"))
-def test_core_object_absent_inbound_time_stays_none(field):
-    """The inbound absent-time rule (ADR-0103) is unaffected by normalisation."""
+def test_core_object_absent_inbound_updated_stays_none():
+    """An absent ``updated`` is carried as absent, never a clock read."""
     obj = CoreObject.model_validate(
-        {"id": "urn:uuid:obj"}, context={INBOUND_CONTEXT_KEY: True}
+        {"id": "urn:uuid:obj", "published": NAIVE_DT.isoformat()},
+        context={INBOUND_CONTEXT_KEY: True},
     )
-    assert getattr(obj, field) is None
+    assert obj.updated is None
+
+
+@pytest.mark.spec("CLP-15-011")
+def test_core_object_absent_inbound_published_is_refused():
+    """A received whole object without ``published`` is refused (ADR-0198)."""
+    with pytest.raises(ValidationError, match="CLP-15-011"):
+        CoreObject.model_validate(
+            {"id": "urn:uuid:obj"}, context={INBOUND_CONTEXT_KEY: True}
+        )
 
 
 @pytest.mark.spec("CS-13-001")

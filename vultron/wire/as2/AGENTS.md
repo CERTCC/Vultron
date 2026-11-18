@@ -29,10 +29,11 @@
       when the classes collapsed — that is what stopped two example files
       being generated and what made the render port fail open. Gate on
       `CoreObject` when you mean "a Vultron domain object".
-    - The prefix still marks a genuine wire class for the ~49 *unpaired* AS2
-      vocabulary types (`as_Link`, `as_Collection`, `as_Tombstone`, …) and the
-      47 `_XxxActivity` message shapes. Those have no core counterpart and the
-      old rule applies to them unchanged.
+    - The prefix still marks a genuine wire class for the *unpaired* AS2
+      vocabulary types (`as_Link`, `as_Tombstone`, …) and the `_XxxActivity`
+      message shapes. Those have no core counterpart and the old rule applies
+      to them unchanged. Core owns the AS2 base vocabulary as it moves
+      (ADR-0208): `as_Collection` already aliases its core class.
     - New domain models still belong in `vultron/core/models/` with no prefix.
 - **Wire-layer field names**: Use trailing underscore for fields whose
   plain name collides with a Python builtin or reserved word (e.g.,
