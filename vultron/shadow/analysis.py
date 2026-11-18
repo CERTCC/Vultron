@@ -38,7 +38,11 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.models.case_reading import CaseReading
-from vultron.measure.history import NarrativeLine, case_narrative
+from vultron.measure.history import (
+    NarrativeLine,
+    case_narrative,
+    derive_case_steps,
+)
 from vultron.measure.ledger import (
     CaseLedger,
     LedgerFile,
@@ -111,11 +115,15 @@ def analyse(reading: CaseReading) -> CaseAnalysis:
     ledger = reading_ledger(reading)
     if ledger is None:
         return CaseAnalysis(reading=reading, standing=None)
+    # One walk of the ledger serves both the standing and the narrative.
+    history, steps = derive_case_steps(ledger)
     return CaseAnalysis(
         reading=reading,
-        standing=case_standing(ledger, reading.unobservable_events),
+        standing=case_standing(
+            ledger, reading.unobservable_events, derived=(history, steps[-1])
+        ),
         actor_names=collect_actor_names({ledger.case_id: ledger.entries}),
-        narrative=case_narrative(ledger),
+        narrative=case_narrative(ledger, (history, steps)),
     )
 
 

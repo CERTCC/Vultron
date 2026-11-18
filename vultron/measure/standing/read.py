@@ -36,6 +36,7 @@ from vultron.measure.baselines.values import Outcomes
 from vultron.measure.history import (
     CaseEventHistory,
     ReachedParticipant,
+    ReachedState,
     derive_case,
 )
 from vultron.measure.ledger import CaseLedger
@@ -209,7 +210,10 @@ def _unaware_vendors(participants: list[ParticipantStanding]) -> list[str]:
 
 
 def case_standing(
-    ledger: CaseLedger, unobservable: frozenset[CSEvent] = frozenset()
+    ledger: CaseLedger,
+    unobservable: frozenset[CSEvent] = frozenset(),
+    *,
+    derived: tuple[CaseEventHistory, ReachedState] | None = None,
 ) -> StandingRecord:
     """Where the case *ledger* records stands at its last entry.
 
@@ -220,6 +224,8 @@ def case_standing(
             observe.  Each desideratum that orders one is unknown, and each
             move whose change in expected outcome rests on one carries the
             reason instead of a number (CRD-02-005).
+        derived: :func:`~vultron.measure.history.derive_case` of *ledger*,
+            when the caller has walked it already; walked here otherwise.
 
     Returns:
         Each participant's states, the desiderata each vendor's case has met,
@@ -227,7 +233,7 @@ def case_standing(
         A ledger with a hole yields only the :class:`StandingGap` that names
         it, never a reading that hides it.
     """
-    history, reached = derive_case(ledger)
+    history, reached = derived if derived is not None else derive_case(ledger)
     try:
         em = reached.em()
     except VultronInvalidStateTransitionError as exc:

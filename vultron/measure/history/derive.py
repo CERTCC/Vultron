@@ -72,6 +72,7 @@ from vultron.measure.history.reached import ReachedParticipant, ReachedState
 from vultron.measure.history.register import RebuiltRegister
 from vultron.measure.history.snapshot import (
     ParticipantRecord,
+    entry_times,
     member_of,
     parse_time,
     roles_of,
@@ -278,9 +279,7 @@ class _Deriver:
         if semantic_type is None:
             self._unreadable(log_index, f"unknown semantic type {raw_type!r}")
             return None
-        committed_at = parse_time(
-            first_present(entry, "published", "receivedAt", "received_at")
-        )
+        committed_at, claimed_at = entry_times(entry)
         if committed_at is None:
             self._unreadable(log_index, "no commit stamp")
             return None
@@ -289,7 +288,7 @@ class _Deriver:
             log_index=log_index,
             semantic_type=semantic_type,
             committed_at=committed_at,
-            claimed_at=parse_time(payload.get("published")),
+            claimed_at=claimed_at,
             creation=creation,
             actor=actor_uri(payload.get("actor")),
             payload=payload,
@@ -779,16 +778,12 @@ class _Deriver:
         if any(
             was and not now for was, now in zip(reached, named, strict=True)
         ):
-            spelled = "".join(
-                letter.upper() if up else letter
-                for (letter, _), up in zip(letters, reached, strict=True)
-            )
             self._exclude(
                 context,
                 tracker.actor if tracker else None,
                 dimension,
                 raw,
-                spelled,
+                _spelled(reached, letters),
             )
             return reached
         for (_, event), was, now in zip(letters, reached, named, strict=True):

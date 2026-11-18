@@ -98,7 +98,7 @@ NO_ENTRY_NOTE = (
 NARRATIVE_NOTE = (
     "Who did what, when, and which states it changed: one line per ledger"
     " entry, in ledger order, read from the ledger. The time is the one the"
-    " actor's activity claims; the CASE_MANAGER's commit stamp shows only"
+    " actor's activity claims; the Case Manager's commit stamp shows only"
     " where it differs. A state shown as ? is one the source never records."
 )
 

@@ -22,6 +22,7 @@ Spec: CEH-01-006, CEH-01-007, CEH-03-007, CEH-03-008, DRPT-03-004.
 """
 
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -45,9 +46,11 @@ from vultron.measure.history import (
     StateChange,
     StateMachine,
     case_narrative,
+    derive_case_steps,
 )
 from vultron.measure.ledger import (
     LedgerFile,
+    LedgerRow,
     case_ledgers_from_files,
     read_case_ledgers,
     render_event_phrase,
@@ -217,10 +220,92 @@ def test_a_register_with_no_em_state_says_so_once_and_changes_no_em():
     ledger.add("announce_vulnerability_case", "Announce", CM, broken)
     _, first, second = case_narrative(ledger.case_ledger())
     (note,) = first.notes
-    assert note.startswith("Embargo register: ")
+    assert note.startswith("Embargo register breaks its invariants: ")
     assert "ACTIVE" in note and "TERMINATED" in note
     assert first.changes == second.changes == ()
     assert second.notes == ()
+
+
+def test_a_register_broken_another_way_says_so_again():
+    ledger = Ledger()
+    ledger.genesis([], with_embargo=False)
+    for register in (
+        [{"embargo": embargo(), "status": "SUPERSEDED"}],
+        [
+            {"embargo": embargo(EMBARGO_2), "status": "PROPOSED"},
+            {"embargo": embargo("urn:uuid:embargo-3"), "status": "TERMINATED"},
+        ],
+    ):
+        ledger.add(
+            "announce_vulnerability_case",
+            "Announce",
+            CM,
+            {
+                "id": CASE,
+                "type": "VulnerabilityCase",
+                "embargoRegister": register,
+            },
+        )
+    _, first, second = case_narrative(ledger.case_ledger())
+    (first_note,) = first.notes
+    (second_note,) = second.notes
+    assert "SUPERSEDED" in first_note
+    assert "PROPOSED while another is TERMINATED" in second_note
+    assert first.changes == second.changes == ()
+
+
+def test_a_line_after_a_hole_names_the_entries_missing_before_it():
+    ledger = _vendor_case()
+    del ledger.entries[2:4]
+    case_ledger = ledger.case_ledger()
+    assert case_ledger.missing_log_indices == [2, 3]
+    lines = case_narrative(case_ledger)
+    assert [line.log_index for line in lines] == [0, 1, 4, 5]
+    assert lines[2].notes == ("No entry at log indices 2, 3 before this one",)
+    assert [line.notes for line in (lines[0], lines[1], lines[3])] == [
+        (),
+        (),
+        (),
+    ]
+
+
+def test_a_line_where_the_copies_disagree_says_so():
+    ledger = _vendor_case()
+    other = Ledger(entries=[dict(entry) for entry in ledger.entries])
+    other.entries[1] = {**other.entries[1], "entryHash": "hash-other"}
+    rows = [
+        LedgerRow(path=Path(name), line=i + 1, data=entry)
+        for name, copy in (("a.jsonl", ledger), ("b.jsonl", other))
+        for i, entry in enumerate(copy.entries)
+    ]
+    files = [
+        LedgerFile(
+            path=Path(name), rows=[r for r in rows if r.path == Path(name)]
+        )
+        for name in ("a.jsonl", "b.jsonl")
+    ]
+    (case_ledger,) = case_ledgers_from_files(files).cases.values()
+    assert 1 in case_ledger.conflicting_log_indices
+    lines = case_narrative(case_ledger)
+    at_one = [line for line in lines if line.log_index == 1]
+    assert len(at_one) == 2
+    assert all(
+        "The ledger's copies disagree at this log index" in line.notes
+        for line in at_one
+    )
+
+
+def test_a_line_where_only_one_index_is_missing_names_it():
+    ledger = _vendor_case()
+    del ledger.entries[3]
+    lines = case_narrative(ledger.case_ledger())
+    assert lines[3].notes == ("No entry at log index 3 before this one",)
+
+
+def test_a_narrative_read_from_a_walk_already_taken_is_the_same():
+    case_ledger = _vendor_case().case_ledger()
+    derived = derive_case_steps(case_ledger)
+    assert case_narrative(case_ledger, derived) == case_narrative(case_ledger)
 
 
 def test_an_em_change_after_a_broken_register_reads_from_the_last_em_state():

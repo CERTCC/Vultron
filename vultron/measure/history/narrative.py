@@ -25,11 +25,15 @@ change the entry caused.
 
 The state changes come from the walk the event history takes
 (:func:`~vultron.measure.history.derive_case_steps`): the states reached
-after an entry are compared with those reached before it, so a line shows
-exactly what the history reads the entry as changing.  That covers each
+after an entry are compared with those reached before it.  That covers each
 participant's report management (RM) and its vendor fix path and deployment
 (VFD), the case's EM state, derived from its embargo register (ADR-0122),
-and the case's public state (PXA).
+and the case's public state (PXA).  A line reports the net change: an entry
+that seats a participant at RM Received, Valid and Accepted reads as one
+change from Start to Accepted.  The states reached hold an inert
+participant's states from the entry that seats it, though its events wait
+for the entry recording its acceptance (CEH-04-010), so a line shows a
+state change where the history has no event yet.
 
 Each line carries its entry's log index, so a reader can point at one line
 and read the case as it stood there.
@@ -48,9 +52,10 @@ from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.states.em import EM
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.history.derive import derive_case_steps
+from vultron.measure.history.model import CaseEventHistory
 from vultron.measure.history.reached import ReachedParticipant, ReachedState
 from vultron.measure.history.render import entry_labels
-from vultron.measure.history.snapshot import parse_time
+from vultron.measure.history.snapshot import entry_times
 from vultron.measure.ledger import (
     CaseLedger,
     actor_uri,
@@ -131,14 +136,16 @@ class NarrativeLine(BaseModel):
         actor: The acting actor's display name.
         object: The object's display name, with its destination when the
             entry names one (``object → destination``).
-        phrase: The registry phrase of the semantic type, its slots filled
-            with the actor's and the object's names (DRPT-03-004).
+        phrase: The registry phrase of the semantic type, each slot filled
+            with the name of what the activity names in it: the actor, the
+            object and the destination (DRPT-03-004).
         changes: Every state change the entry caused: RM, then EM, then
             VFD, then PXA, participants in the order the walk first met
             them.
-        notes: What keeps the line from reading the entry in full: each
-            part of it the walk could not read, and an embargo register
-            the entry left with no EM state.
+        notes: What keeps the line from reading the entry in full: entries
+            missing before it, copies that disagree at its index, each part
+            of it the walk could not read, and why an embargo register the
+            entry left gives no EM state.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -248,20 +255,18 @@ def _line(
     notes: tuple[str, ...],
 ) -> NarrativeLine:
     """The line of *entry*, with the *changes* it caused and its *notes*."""
-    payload = payload_of(entry)
     raw_type = first_present(entry, "semanticType", "semantic_type")
     semantic_type = (
         raw_type if isinstance(raw_type, str) and raw_type else None
     )
     labels = entry_labels(entry, names, case_id)
+    committed_at, claimed_at = entry_times(entry)
     return NarrativeLine(
         log_index=log_index,
-        committed_at=parse_time(
-            first_present(entry, "published", "receivedAt", "received_at")
-        ),
-        claimed_at=parse_time(payload.get("published")),
+        committed_at=committed_at,
+        claimed_at=claimed_at,
         semantic_type=semantic_type,
-        actor_id=actor_uri(payload.get("actor")),
+        actor_id=actor_uri(payload_of(entry).get("actor")),
         actor=labels.actor,
         object=labels.object_cell,
         phrase=labels.phrase(semantic_type or ""),
@@ -270,7 +275,32 @@ def _line(
     )
 
 
-def case_narrative(ledger: CaseLedger) -> tuple[NarrativeLine, ...]:
+def _indices(indices: list[int]) -> str:
+    if len(indices) == 1:
+        return f"log index {indices[0]}"
+    return "log indices " + ", ".join(str(i) for i in indices)
+
+
+def _hole_notes(
+    ledger: CaseLedger, previous: int, log_index: int
+) -> list[str]:
+    """What the ledger lacks between *previous* and *log_index*, and whether
+    its copies disagree at *log_index* (CEH-02-006)."""
+    notes: list[str] = []
+    missing = [
+        i for i in ledger.missing_log_indices if previous < i < log_index
+    ]
+    if missing:
+        notes.append(f"No entry at {_indices(missing)} before this one")
+    if log_index in ledger.conflicting_log_indices:
+        notes.append("The ledger's copies disagree at this log index")
+    return notes
+
+
+def case_narrative(
+    ledger: CaseLedger,
+    derived: tuple[CaseEventHistory, list[ReachedState]] | None = None,
+) -> tuple[NarrativeLine, ...]:
     """One line per row of *ledger*, in log-index order.
 
     Each line's state changes compare the states the event history's walk
@@ -279,20 +309,33 @@ def case_narrative(ledger: CaseLedger) -> tuple[NarrativeLine, ...]:
     cannot read keeps its line, which says why it changed nothing.  When an
     entry leaves the embargo register with no EM state, its line says why,
     and the next EM change is read from the last EM state the register gave.
+    A line after a hole in the ledger names the entries missing before it,
+    and a line at an index where the ledger's copies disagree says so.
+
+    Args:
+        ledger: One case's entries, as
+            :func:`vultron.measure.ledger.read_case_ledgers` selects them.
+        derived: :func:`~vultron.measure.history.derive_case_steps` of
+            *ledger*, when the caller has walked it already; walked here
+            otherwise, so a caller that also reads the standing walks once.
     """
     names = label_names({ledger.case_id: ledger.entries})
-    history, steps = derive_case_steps(ledger)
+    history, steps = (
+        derived if derived is not None else derive_case_steps(ledger)
+    )
     unreadable: dict[int, list[str]] = {}
     for item in history.unreadable_entries:
         unreadable.setdefault(item.log_index, []).append(item.reason)
     lines: list[NarrativeLine] = []
     before = ReachedState()
     em_before, problem_before = _em(before)
+    previous = -1
     for placed, after in zip(ledger.rows, steps, strict=True):
         em_after, problem = _em(after)
-        notes = list(dict.fromkeys(unreadable.get(placed.log_index, ())))
+        notes = _hole_notes(ledger, previous, placed.log_index)
+        notes.extend(dict.fromkeys(unreadable.get(placed.log_index, ())))
         if problem is not None and problem != problem_before:
-            notes.append(f"Embargo register: {problem}")
+            notes.append(problem)
         lines.append(
             _line(
                 placed.data,
@@ -304,6 +347,7 @@ def case_narrative(ledger: CaseLedger) -> tuple[NarrativeLine, ...]:
             )
         )
         before, problem_before = after, problem
+        previous = placed.log_index
         if em_after is not None:
             em_before = em_after
     return tuple(lines)

@@ -9,6 +9,9 @@ Spec: CRD-01-003, CRD-02-005 (strict xfail, #6563).
 
 import pytest
 
+import vultron.measure.history.narrative as narrative_module
+import vultron.measure.standing.read as standing_read
+import vultron.shadow.analysis as analysis_module
 from test.support.case_reader import (
     FAKE_CASE,
     FakeCaseReader,
@@ -70,6 +73,27 @@ def test_the_narrative_is_the_one_the_bridged_ledger_reads():
     assert [line.log_index for line in narrative] == [
         entry.log_index for entry in reading.ledger
     ]
+
+
+def test_the_standing_and_the_narrative_share_one_walk(monkeypatch):
+    """One walk, so an entry the walk cannot read is reported once."""
+    walks: list[object] = []
+    real = analysis_module.derive_case_steps
+
+    def counted(ledger):
+        walks.append(ledger)
+        return real(ledger)
+
+    def refused(_ledger):
+        raise AssertionError("the standing walked the ledger again")
+
+    monkeypatch.setattr(analysis_module, "derive_case_steps", counted)
+    monkeypatch.setattr(standing_read, "derive_case", refused)
+    monkeypatch.setattr(narrative_module, "derive_case_steps", refused)
+    reading = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RECORDING))
+    analysis = analyse(reading)
+    assert len(walks) == 1
+    assert analysis.standing is not None and analysis.narrative
 
 
 def test_a_reading_with_no_entry_has_no_standing_but_keeps_its_report():

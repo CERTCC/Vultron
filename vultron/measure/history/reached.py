@@ -15,7 +15,8 @@
 The derivation compares each entry's state with the state already reached
 (CEH-04-001), so when the walk ends it holds what each dimension has reached.
 :class:`ReachedState` keeps that, for a measure that reads where a case
-stands rather than how it got there.
+stands rather than how it got there, and the walk can keep it after each
+entry, for a reader that asks which states an entry changed.
 
 It is the walk's own record, not a second reading of the ledger: a state an
 entry names behind the one reached is excluded here as it is from the events
@@ -55,7 +56,7 @@ PxaName = Annotated[CS_pxa, BY_NAME]
 
 
 class ReachedParticipant(BaseModel):
-    """What one participant has reached at the ledger's last entry.
+    """What one participant has reached at an entry of the ledger.
 
     Fields:
         participant: The participant's actor.
@@ -91,7 +92,9 @@ class ReachedParticipant(BaseModel):
 
 
 class ReachedState(BaseModel):
-    """The states a case's ledger has reached at its last entry.
+    """The states a case's ledger has reached at one of its entries: its last
+    one from :func:`~vultron.measure.history.derive_case`, or each one in
+    turn from :func:`~vultron.measure.history.derive_case_steps`.
 
     Fields:
         participants: Every participant the ledger records, in the order
