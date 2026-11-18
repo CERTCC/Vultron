@@ -113,6 +113,7 @@ The page shows the case as it stands at its last ledger entry.
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
 - **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳).
   The count also shows the desiderata it cannot know (❔) when the source cannot observe an event, and those it cannot score (▫️) when the Vendor's case stands in no state of the chance model.
+  For a Vendor with desiderata it cannot score, **Not scored because** names the rule of the chance model that the Vendor's case breaks.
 - **Desiderata** lists in words each desideratum that move advice weighs, with one column for each Vendor.
   These are the twelve original desiderata, the report-handling desiderata, and the embargo desiderata of [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md).
   Each group of equivalent desiderata shows once, under its first: Embargo Start before Public Awareness also stands for Embargo Start before Exploit Public and before Attacks Observed.
