@@ -8,7 +8,9 @@ tracks:
   - "#6656"   # follow-up: Case Owner decisions
   - "#6657"   # follow-up: Invite answers and role grants
   - "#6658"   # follow-up: participant content
+  - "#6680"   # docs pages, after #6655
   - "#6653"   # epic
+  - "#6679"   # docs epic
 description: >
   The build plan for ADR-0215: a participant's embargo consent moves from
   its own rows into each participant status; a participant reports a status
@@ -206,6 +208,8 @@ after the change.
 2. Consent moves into the status, replicas copy the statuses only, and the
    consent-row exemption from the received-time rule goes with the consent
    rows (#6655). It starts after #6512 and #6510 land.
+3. The reader-facing docs pages describe consent as part of each status
+   (#6680).
 
 The Case Owner's decisions, case Invite answers, role grants, and content that
 participants add come under the replica rule in #6656, #6657 and #6658.
