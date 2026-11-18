@@ -2673,6 +2673,32 @@ class TestOwnerLeaveDuringActiveEmbargo:
             " first, then send Leave again (CM-23-011)"
         )
 
+    @pytest.mark.spec("HP-01-003")
+    def test_a_run_failing_before_the_close_is_refused_for_its_leaf(self):
+        """A run that fails at intake, before the close arm runs, is refused
+        for the failing node's reason; no handler reading names the close
+        that never ran (ADR-0195)."""
+        dl = _make_full_dl()
+        event = _make_close_case_event(sender_actor_id=OWNER_ID).model_copy(
+            update={"received_evidence": None}
+        )
+
+        result = run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == (
+            f"CloseCaseBT: activity '{event.activity_id}' carries no"
+            " received body to record (VM-08-002, ARCH-15-001)"
+        )
+
     @pytest.mark.spec("CM-23-011")
     @pytest.mark.spec("CLP-02-005")
     @pytest.mark.spec("CLP-05-001")

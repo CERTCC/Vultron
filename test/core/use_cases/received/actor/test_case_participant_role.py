@@ -203,6 +203,36 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             isinstance(n, ActivityIncompleteNode) for n in tree.iterate()
         )
 
+    @pytest.mark.spec("HP-01-003")
+    def test_an_offer_naming_no_case_that_intake_cannot_record_is_refused(
+        self, make_payload
+    ):
+        """The incomplete-activity tree judges its delivery like every other
+        user of it: a copy intake cannot record is refused for intake's
+        reason, never read as a local fault (ADR-0195)."""
+        dl = self._store(self._CASE_ACTOR_URI)
+        offer = self._make_offer()
+        event = make_payload(
+            offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
+        )
+        event = event.model_copy(
+            update={
+                "activity": event.activity.model_copy(
+                    update={"context": None}
+                ),
+                "received_evidence": None,
+            }
+        )
+
+        result = self._execute_at_case_manager(dl, event)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason == (
+            f"OfferCaseParticipantRoleReceivedBT: activity '{offer.id_}'"
+            " carries no received body to record (VM-08-002, ARCH-15-001)"
+        )
+        assert not _archived_by_intake(dl, offer.id_)
+
     @pytest.mark.spec("HP-01-005")
     def test_an_unaddressed_offer_naming_no_case_is_refused_at_the_door(
         self, make_payload

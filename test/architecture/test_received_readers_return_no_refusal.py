@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""No received handler's post-run reader decides a refusal (ADR-0195, #6494).
+"""No reader under ``use_cases/received/`` builds a refusal (ADR-0195, #6494).
 
 A received use case hands its tree to the runner with an optional reader
 (:data:`~vultron.core.behaviors.case.received_run.reading.OutcomeReader`), a
@@ -29,7 +29,13 @@ and the same-module functions any of these calls.  An entry is
 ``path::qualified.name``, and it counts the refusals
 (``HandlerResult.refused(...)``, or a ``HandlerResult`` built ``REFUSED``) in
 that function's own body.  The shared readers in
-``vultron/core/behaviors/case/received_run/readers.py`` are outside the scan.
+``vultron/core/behaviors/case/received_run/readers.py``
+(``closed_sender_reader``, ``pxa_refusal_reader``) are outside the scan, so
+a refusal one of them returns through a handler's reader is not counted.
+Every ``reader=`` argument must resolve to a function the scan can follow
+(a same-module function or method, a lambda, an import, ``first_reading``
+of those, or a parameter passed through); one that does not fails, so no
+reader hides behind a variable.
 
 The set is exact.  A new reader refusal fails, and so does a listed one that
 is gone, so the list holds only the readings that still refuse.
@@ -84,7 +90,6 @@ _MOVED_EXEMPTIONS: dict[str, int] = {
 }
 
 _Function = ast.FunctionDef | ast.AsyncFunctionDef
-_FUNCTION_TYPES = (ast.FunctionDef, ast.AsyncFunctionDef)
 
 
 def _result_names(tree: ast.AST) -> frozenset[str]:
@@ -125,7 +130,9 @@ def _is_refusal(node: ast.AST, names: frozenset[str]) -> bool:
 def _own_nodes(fn: _Function) -> Iterator[ast.AST]:
     """The nodes of *fn*'s body, a lambda's included, not a nested def's."""
     stack: list[ast.AST] = [
-        n for n in fn.body if not isinstance(n, _FUNCTION_TYPES)
+        n
+        for n in fn.body
+        if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]
     while stack:
         node = stack.pop()
@@ -133,7 +140,7 @@ def _own_nodes(fn: _Function) -> Iterator[ast.AST]:
         stack += [
             c
             for c in ast.iter_child_nodes(node)
-            if not isinstance(c, _FUNCTION_TYPES)
+            if not isinstance(c, (ast.FunctionDef, ast.AsyncFunctionDef))
         ]
 
 
@@ -142,7 +149,7 @@ def _functions(tree: ast.AST) -> Iterator[tuple[str, _Function]]:
 
     def walk(node: ast.AST, prefix: str) -> Iterator[tuple[str, _Function]]:
         for child in ast.iter_child_nodes(node):
-            if isinstance(child, _FUNCTION_TYPES):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 name = f"{prefix}{child.name}"
                 yield name, child
                 yield from walk(child, f"{name}.")
@@ -196,23 +203,127 @@ def _called(node: ast.Call, caller: str, functions: set[str]) -> str | None:
     return None
 
 
+def _imported_names(tree: ast.AST) -> frozenset[str]:
+    """The names *tree*'s imports bind, at any depth."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names |= {
+                (a.asname or a.name).partition(".")[0] for a in node.names
+            }
+    return frozenset(names)
+
+
+def _parameters(name: str, functions: dict[str, _Function]) -> set[str]:
+    """The parameters of *name* and of every function it is nested in."""
+    params: set[str] = set()
+    parts = name.split(".")
+    for i in range(1, len(parts) + 1):
+        fn = functions.get(".".join(parts[:i]))
+        if fn is not None:
+            a = fn.args
+            params |= {
+                arg.arg for arg in (*a.posonlyargs, *a.args, *a.kwonlyargs)
+            }
+            params |= {v.arg for v in (a.vararg, a.kwarg) if v is not None}
+    return params
+
+
+#: The shared combinator whose arguments are themselves readers.
+_COMBINATOR = "first_reading"
+
+
+def _reader_targets(
+    expr: ast.expr,
+    caller: str,
+    functions: dict[str, _Function],
+    imported: frozenset[str],
+) -> Iterator[tuple[str | None, str | None]]:
+    """``(reader, unresolved)`` for each reader *expr* passes as ``reader=``.
+
+    *reader* is a same-module function the expression names (a lambda is
+    *caller* itself); *unresolved* names a part the scan cannot follow, a
+    local variable or a starred tuple, so the ratchet fails rather than miss
+    the reader behind it.  ``None``, an imported reader and a parameter
+    *caller* passes through (checked where its caller passes ``reader=``)
+    yield neither.
+    """
+    if isinstance(expr, ast.Lambda):
+        yield caller, None
+    elif isinstance(expr, ast.Constant) and expr.value is None:
+        return
+    elif isinstance(expr, ast.IfExp):
+        for branch in (expr.body, expr.orelse):
+            yield from _reader_targets(branch, caller, functions, imported)
+    elif (
+        isinstance(expr, ast.Call)
+        and isinstance(expr.func, ast.Name)
+        and expr.func.id == _COMBINATOR
+    ):
+        for arg in expr.args:
+            yield from _reader_targets(arg, caller, functions, imported)
+    elif (
+        target := _one_target(expr, caller, functions, imported)
+    ) is not None:
+        yield target
+
+
+def _one_target(
+    expr: ast.expr,
+    caller: str,
+    functions: dict[str, _Function],
+    imported: frozenset[str],
+) -> tuple[str | None, str | None] | None:
+    """A name, ``self`` method or factory call passed as ``reader=``.
+
+    ``None`` for an import or a parameter passed through.
+    """
+    known = set(functions)
+    if isinstance(expr, ast.Name):
+        if (found := _resolve(expr.id, caller, known)) is not None:
+            return found, None
+        if expr.id in imported | _parameters(caller, functions):
+            return None
+        return None, expr.id
+    if isinstance(expr, ast.Attribute):
+        # ``self.x`` resolves as the call ``self.x()`` would.
+        expr = ast.Call(func=expr, args=[], keywords=[])
+    if isinstance(expr, ast.Call):
+        if (found := _called(expr, caller, known)) is not None:
+            # A same-module reader, or a factory whose nested one is reached.
+            return found, None
+        func = expr.func
+        if isinstance(func, ast.Name) and func.id in imported:
+            return None
+        return None, ast.unparse(func)
+    return None, ast.unparse(expr)
+
+
 def _passed_readers(
-    name: str, fn: _Function, functions: set[str]
-) -> Iterator[str]:
-    """The functions *fn* passes as a ``reader=``, and itself for a lambda."""
-    for node in _own_nodes(fn):
-        if not isinstance(node, ast.Call):
-            continue
-        for kw in node.keywords:
-            if kw.arg != "reader":
+    tree: ast.AST, functions: dict[str, _Function]
+) -> Iterator[tuple[str, str | None, str | None]]:
+    """``(caller, reader, unresolved)`` for every ``reader=`` in *tree*."""
+    imported = _imported_names(tree)
+    for name, fn in functions.items():
+        for node in _own_nodes(fn):
+            if not isinstance(node, ast.Call):
                 continue
-            for part in ast.walk(kw.value):
-                if isinstance(part, ast.Lambda):
-                    yield name
-                elif isinstance(part, ast.Name) and (
-                    found := _resolve(part.id, name, functions)
-                ):
-                    yield found
+            for kw in node.keywords:
+                if kw.arg == "reader":
+                    for reader, unresolved in _reader_targets(
+                        kw.value, name, functions, imported
+                    ):
+                        yield name, reader, unresolved
+
+
+def unresolved_readers(tree: ast.AST, rel: str) -> list[str]:
+    """Each ``reader=`` part of module *rel* the scan cannot follow."""
+    functions = dict(_functions(tree))
+    return sorted(
+        f"{rel}::{caller}: reader={unresolved}"
+        for caller, _, unresolved in _passed_readers(tree, functions)
+        if unresolved is not None
+    )
 
 
 def reader_refusals(tree: ast.AST, rel: str) -> dict[str, int]:
@@ -228,8 +339,11 @@ def reader_refusals(tree: ast.AST, rel: str) -> dict[str, int]:
     known = set(functions)
     names = _result_names(tree)
     readers = {name for name, fn in functions.items() if _takes_outcome(fn)}
-    for name, fn in functions.items():
-        readers |= set(_passed_readers(name, fn, known))
+    readers |= {
+        reader
+        for _, reader, _ in _passed_readers(tree, functions)
+        if reader is not None
+    }
     # A reader nested in a factory may return a refusal the factory built,
     # and a factory passed as reader= holds its reader nested in it.
     reached = set(readers)
@@ -297,6 +411,25 @@ def test_received_readers_return_only_the_listed_refusals() -> None:
     assert not gone, (
         "listed reader refusals that no longer exist; drop them from"
         f" KNOWN_READER_REFUSALS or _MOVED_EXEMPTIONS: {gone}"
+    )
+
+
+@pytest.mark.spec("HP-01-003")
+def test_every_received_reader_argument_resolves() -> None:
+    """A ``reader=`` the scan cannot follow would hide its refusals."""
+    unresolved = [
+        line
+        for path, tree in _corpus.files_mentioning(
+            "reader=", under=RECEIVED_ROOT
+        )
+        for line in unresolved_readers(
+            tree, path.relative_to(RECEIVED_ROOT).as_posix()
+        )
+    ]
+    assert not unresolved, (
+        "reader= arguments the ratchet cannot follow; pass the reader"
+        " function itself, a call of its factory, or a lambda:\n"
+        + "\n".join(f"  {u}" for u in unresolved)
     )
 
 
@@ -398,6 +531,28 @@ def test_received_readers_return_only_the_listed_refusals() -> None:
             id="refused-construction",
         ),
         pytest.param(
+            "class UC:\n"
+            "    @staticmethod\n"
+            "    def _r(o):\n"
+            "        return HandlerResult.refused('x')\n"
+            "    def execute(self):\n"
+            "        return run_received_tree(t, reader=self._r)\n",
+            {"m.py::UC._r": 1},
+            id="unannotated-method-passed-as-reader",
+        ),
+        pytest.param(
+            "def make():\n"
+            "    def read(o):\n"
+            "        return HandlerResult.refused('x')\n"
+            "    return read\n"
+            "def run():\n"
+            "    return run_received_tree(\n"
+            "        t, reader=first_reading(make(), None if c else make())\n"
+            "    )\n",
+            {"m.py::make.read": 1},
+            id="unannotated-factory-reader-in-first-reading",
+        ),
+        pytest.param(
             "def _unrelated():\n"
             "    return HandlerResult.refused('x')\n"
             "def read(outcome: ReceivedOutcome):\n"
@@ -417,3 +572,47 @@ def test_received_readers_return_only_the_listed_refusals() -> None:
 )
 def test_detector(source: str, expected: dict[str, int]) -> None:
     assert reader_refusals(_corpus.parse_inline(source), "m.py") == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        pytest.param(
+            "def make():\n"
+            "    def read(o):\n"
+            "        return HandlerResult.refused('x')\n"
+            "    return read\n"
+            "def run():\n"
+            "    r = make()\n"
+            "    return run_received_tree(t, reader=r)\n",
+            ["m.py::run: reader=r"],
+            id="local-variable",
+        ),
+        pytest.param(
+            "READERS = ()\n"
+            "def run():\n"
+            "    return run_received_tree(t, reader=first_reading(*READERS))\n",
+            ["m.py::run: reader=*READERS"],
+            id="starred-tuple",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        return run_received_tree(t, reader=self._gone)\n",
+            ["m.py::UC.execute: reader=self._gone"],
+            id="missing-method",
+        ),
+        pytest.param(
+            "from x import closed_sender_reader\n"
+            "def run(reader):\n"
+            "    run_received_tree(t, reader=reader)\n"
+            "    run_received_tree(t, reader=closed_sender_reader(closes=True))\n"
+            "    run_received_tree(t, reader=None)\n"
+            "    run_received_tree(t, reader=lambda o: None)\n",
+            [],
+            id="followable",
+        ),
+    ],
+)
+def test_unresolved_reader_detector(source: str, expected: list[str]) -> None:
+    assert unresolved_readers(_corpus.parse_inline(source), "m.py") == expected
