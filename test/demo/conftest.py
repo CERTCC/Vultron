@@ -51,7 +51,11 @@ from vultron.demo.helpers.invite_chain import (
     links as invite_links,
 )
 from vultron.demo.in_process import InProcessObjectFetcher, InProcessRouter
-from vultron.demo.recordings.runner import ScenarioNodes, scenario_nodes
+from vultron.demo.recordings.runner import (
+    ScenarioNodes,
+    node_base,
+    scenario_nodes,
+)
 from vultron.demo.recordings.topology import load_topology
 from vultron.wire.as2.factories import parse_submit_report_offer
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -532,15 +536,24 @@ def container_nodes() -> Iterator[StartContainers]:
     in-process recordings are, so the nodes run no background work and the
     test body runs in the demo runner's own config scope: while a node holds
     its config, a config read in no app's scope is refused (DEMOMA-01-007).
-    The nodes stop when the test ends.
+    The nodes stop when the test ends.  Call it once per test: a second
+    call would reset the stores of the nodes the first one started, so it is
+    refused.
     """
     with contextlib.ExitStack() as stack:
+        started: list[ScenarioNodes] = []
 
         def start(*slots: ContainerSlot) -> ScenarioNodes:
-            bases = [
-                slot.compose_url.removesuffix("/api/v2") for slot in slots
-            ]
-            return stack.enter_context(scenario_nodes(bases, load_topology()))
+            if started:
+                raise RuntimeError(
+                    "container_nodes was already started in this test; "
+                    "start every container in one call."
+                )
+            bases = [node_base(slot.compose_url) for slot in slots]
+            started.append(
+                stack.enter_context(scenario_nodes(bases, load_topology()))
+            )
+            return started[0]
 
         yield start
 

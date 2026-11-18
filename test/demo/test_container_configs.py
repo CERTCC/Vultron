@@ -36,7 +36,8 @@ from typing import Any
 import pytest
 
 from test.demo.conftest import StartContainers, submit_report_through_reporter
-from vultron.config import AppConfig
+from vultron.config import AppConfig, load_actor_config
+from vultron.config.actor import ActorConfig
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.use_cases.received.case_proposal import create as proposal
 from vultron.demo.helpers.cast import (
@@ -45,14 +46,14 @@ from vultron.demo.helpers.cast import (
     VENDOR_SLOT,
     ContainerSlot,
 )
-from vultron.demo.recordings.runner import ScenarioNodes
+from vultron.demo.recordings.runner import ScenarioNodes, node_base
 from vultron.enums.roles import CVDRole
 
 _SLOTS = (REPORTER_SLOT, VENDOR_SLOT, CASE_ACTOR)
 
 
 def _base(slot: ContainerSlot) -> str:
-    return slot.compose_url.removesuffix("/api/v2")
+    return node_base(slot.compose_url)
 
 
 def _id(slot: ContainerSlot) -> str:
@@ -167,12 +168,12 @@ def test_a_case_actor_reading_its_own_roles_fails_in_process(
     node holding its container's config it must not.
     """
     real_tree = proposal.create_case_proposal_received_tree
+    read: list[ActorConfig] = []
 
     def tree_seating_from_own_config(*args: Any, **kwargs: Any) -> Any:
-        from vultron.config import load_actor_config
-
-        # Read inside the CaseActor's app, so this is the CaseActor's config.
-        kwargs["proposer_case_roles"] = load_actor_config().default_case_roles
+        own = load_actor_config()
+        read.append(own)
+        kwargs["proposer_case_roles"] = own.default_case_roles
         return real_tree(*args, **kwargs)
 
     monkeypatch.setattr(
@@ -182,5 +183,20 @@ def test_a_case_actor_reading_its_own_roles_fails_in_process(
     )
 
     seat = _vendor_seat_on_the_case_actor(containers)
+    # The read landed on the case-actor node's own config, not on the
+    # runner's or another node's: that is the #1876 read.
+    case_actor_config = containers.apps[_base(CASE_ACTOR)].config
+    assert case_actor_config is not None
+    assert read, "the CaseActor never built its proposal tree"
+    assert all(config is case_actor_config.actor for config in read)
     with pytest.raises(AssertionError, match="#1876"):
         _assert_seated_with_its_own_roles(seat)
+
+
+def test_containers_are_started_in_one_call(
+    container_nodes: StartContainers,
+) -> None:
+    """A second start would reset the first nodes' stores, so it is refused."""
+    container_nodes(VENDOR_SLOT)
+    with pytest.raises(RuntimeError, match="already started"):
+        container_nodes(CASE_ACTOR)

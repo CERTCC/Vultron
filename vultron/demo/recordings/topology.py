@@ -30,8 +30,9 @@ from vultron.errors import DemoRecordingError
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_PATH = REPO_ROOT / "docker" / "docker-compose-multi-actor.yml"
 
-#: The compose service whose environment maps container slots to URLs.
-_RUNNER_SERVICE = "demo-runner"
+#: The compose service that drives a scenario; its environment maps container
+#: slots to URLs.
+RUNNER_SERVICE = "demo-runner"
 _CASE_ROLES_ENV = "VULTRON_ACTOR__DEFAULT_CASE_ROLES"
 _CASE_ACTOR_SERVICE_ENV = "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL"
 _SERVER_BASE_URL_ENV = "VULTRON_SERVER__BASE_URL"
@@ -85,14 +86,12 @@ class ContainerTopology:
             var (``VULTRON_ACTOR1_BASE_URL`` → ``http://actor1:7999/api/v2``).
         case_roles: Each container's ``VULTRON_ACTOR__DEFAULT_CASE_ROLES``,
             keyed by host name.  A container without the setting is absent.
-        case_actor_service_url: The CaseActor every container proposes to.
-        settings: Each service's other per-container settings, keyed by host
-            name.  A service with none of them is absent.
+        settings: Every service's other per-container settings, keyed by
+            host name, so a service that sets none of them is still present.
     """
 
     slot_urls: dict[str, str]
     case_roles: dict[str, list[CVDRole]]
-    case_actor_service_url: str
     settings: dict[str, ContainerSettings] = field(default_factory=dict)
 
     def url_for(self, role: ActorRole) -> str:
@@ -102,7 +101,7 @@ class ContainerTopology:
         except KeyError:
             raise DemoRecordingError(
                 f"actor role {role.name!r} runs in container slot "
-                f"{role.url_env!r}, which the {_RUNNER_SERVICE!r} service in "
+                f"{role.url_env!r}, which the {RUNNER_SERVICE!r} service in "
                 f"{COMPOSE_PATH.name} does not define."
             ) from None
 
@@ -130,12 +129,12 @@ class ContainerTopology:
                 of *url*.
         """
         host = urlparse(url).hostname or ""
-        if host not in self.settings and host not in self.case_roles:
+        own = self.settings.get(host)
+        if own is None:
             raise DemoRecordingError(
                 f"{url!r} names host {host!r}, which is no service in "
-                f"{COMPOSE_PATH.name} with per-container settings."
+                f"{COMPOSE_PATH.name}."
             )
-        own = self.settings.get(host, ContainerSettings())
         # Validated rather than copied with ``model_copy(update=...)``, which
         # skips validation and would store the role names and URL as strings.
         actor = ActorConfig.model_validate(
@@ -153,6 +152,10 @@ class ContainerTopology:
         # ``AppConfig(...)`` keyword arguments are no settings source, so the
         # node's config is a copy of *base* (notes/configuration.md).
         return base.model_copy(update=update)
+
+    def runner_config(self, base: AppConfig) -> AppConfig:
+        """Return the ``AppConfig`` of the service that drives a scenario."""
+        return self.config_for(f"http://{RUNNER_SERVICE}", base)
 
 
 def _service_env(service: object) -> dict[str, str]:
@@ -184,14 +187,14 @@ def load_topology(compose_path: Path = COMPOSE_PATH) -> ContainerTopology:
         raise DemoRecordingError(
             f"{compose_path.name} has no 'services' mapping."
         )
-    if _RUNNER_SERVICE not in services:
+    if RUNNER_SERVICE not in services:
         raise DemoRecordingError(
-            f"{compose_path.name} has no {_RUNNER_SERVICE!r} service."
+            f"{compose_path.name} has no {RUNNER_SERVICE!r} service."
         )
-    runner_env = _service_env(services[_RUNNER_SERVICE])
+    runner_env = _service_env(services[RUNNER_SERVICE])
     if _CASE_ACTOR_SERVICE_ENV not in runner_env:
         raise DemoRecordingError(
-            f"the {_RUNNER_SERVICE!r} service in {compose_path.name} does not "
+            f"the {RUNNER_SERVICE!r} service in {compose_path.name} does not "
             f"set {_CASE_ACTOR_SERVICE_ENV}."
         )
     slot_urls = {
@@ -204,11 +207,11 @@ def load_topology(compose_path: Path = COMPOSE_PATH) -> ContainerTopology:
     for name, service in services.items():
         env = _service_env(service)
         _refuse_uncarried_settings(name, env, compose_path)
-        if _SERVER_BASE_URL_ENV in env or _CASE_ACTOR_SERVICE_ENV in env:
-            settings[name] = ContainerSettings(
-                base_url=env.get(_SERVER_BASE_URL_ENV),
-                case_actor_service_url=env.get(_CASE_ACTOR_SERVICE_ENV),
-            )
+        _refuse_empty_carried_settings(name, env, compose_path)
+        settings[name] = ContainerSettings(
+            base_url=env.get(_SERVER_BASE_URL_ENV),
+            case_actor_service_url=env.get(_CASE_ACTOR_SERVICE_ENV),
+        )
         raw = env.get(_CASE_ROLES_ENV)
         if raw is None:
             continue
@@ -225,9 +228,29 @@ def load_topology(compose_path: Path = COMPOSE_PATH) -> ContainerTopology:
     return ContainerTopology(
         slot_urls=slot_urls,
         case_roles=case_roles,
-        case_actor_service_url=runner_env[_CASE_ACTOR_SERVICE_ENV],
         settings=settings,
     )
+
+
+def _refuse_empty_carried_settings(
+    name: str, env: dict[str, str], compose_path: Path
+) -> None:
+    """Refuse a carried setting set to an empty value (CS-08-002).
+
+    Raises:
+        DemoRecordingError: When the service sets a setting in
+            :data:`CARRIED_IN_PROCESS` to an empty or blank value.
+    """
+    empty = sorted(
+        key
+        for key in CARRIED_IN_PROCESS
+        if key in env and not env[key].strip()
+    )
+    if empty:
+        raise DemoRecordingError(
+            f"service {name!r} in {compose_path.name} sets {empty} to an "
+            "empty value; leave a setting out rather than set it empty."
+        )
 
 
 def _refuse_uncarried_settings(

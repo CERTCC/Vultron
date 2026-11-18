@@ -166,7 +166,8 @@ class TestLoadTopology:
         assert REPORTER_SLOT.name not in topology.case_roles
         for slot in CHARACTER_SLOTS:
             assert slot.name not in topology.case_roles
-        assert topology.case_actor_service_url == CASE_ACTOR.compose_url
+        runner_settings = topology.settings["demo-runner"]
+        assert runner_settings.case_actor_service_url == CASE_ACTOR.compose_url
 
     def test_case_roles_are_looked_up_by_the_actors_host(self):
         topology = load_topology()
@@ -182,9 +183,7 @@ class TestLoadTopology:
         )
 
     def test_an_unknown_slot_is_refused(self):
-        topology = ContainerTopology(
-            slot_urls={}, case_roles={}, case_actor_service_url="http://x"
-        )
+        topology = ContainerTopology(slot_urls={}, case_roles={})
         role = ActorRole(
             name="reporter",
             slot=ContainerSlot(name="nowhere", port=1),
@@ -280,13 +279,52 @@ class TestContainerConfig:
         base = own_app_config(max_inbox_retry_attempts=7)
         config = load_topology().config_for(VENDOR_SLOT.compose_url, base)
         assert config.max_inbox_retry_attempts == 7
-        assert base.actor.default_case_roles == []
 
     def test_the_runner_has_no_server_url_of_its_own(self):
         base = self._base()
-        config = load_topology().config_for("http://demo-runner", base)
+        config = load_topology().runner_config(base)
         assert config.server.base_url == base.server.base_url
         assert config.actor.default_case_roles == []
+        assert (
+            str(config.actor.case_actor_service_url).rstrip("/")
+            == CASE_ACTOR.compose_url
+        )
+
+    def _compose(self, tmp_path: Path, vendor_env: str) -> Path:
+        compose = tmp_path / "compose.yml"
+        compose.write_text(
+            "services:\n"
+            "  demo-runner:\n"
+            "    environment:\n"
+            "      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://ca/api/v2\n"
+            "  vendor:\n"
+            f"    environment: {vendor_env}\n",
+            encoding="utf-8",
+        )
+        return compose
+
+    def test_a_service_that_sets_nothing_carried_still_has_a_config(
+        self, tmp_path
+    ):
+        """No CaseActor URL, as Docker gives it, even when *base* has one."""
+        topology = load_topology(self._compose(tmp_path, "[]"))
+        base = own_app_config(
+            actor=ActorConfig(
+                default_case_roles=[CVDRole.DEPLOYER],
+                case_actor_service_url="http://elsewhere/api/v2",
+            )
+        )
+        config = topology.config_for("http://vendor:7999/api/v2", base)
+        assert config.actor.case_actor_service_url is None
+        assert config.actor.default_case_roles == []
+        assert config.server.base_url == base.server.base_url
+
+    def test_an_empty_carried_setting_is_refused(self, tmp_path):
+        compose = self._compose(
+            tmp_path, "['VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=']"
+        )
+        with pytest.raises(DemoRecordingError, match="empty value"):
+            load_topology(compose)
 
     def test_an_unknown_host_is_refused(self):
         with pytest.raises(DemoRecordingError, match="elsewhere"):
@@ -308,7 +346,7 @@ class TestContainerConfig:
             load_topology(compose)
 
     def test_scenario_nodes_hold_their_containers_configs(self):
-        bases = [VENDOR_SLOT.compose_url.removesuffix("/api/v2")]
+        bases = [runner.node_base(VENDOR_SLOT.compose_url)]
         with runner.scenario_nodes(bases, load_topology()) as nodes:
             config = nodes.apps[bases[0]].config
             assert config is not None

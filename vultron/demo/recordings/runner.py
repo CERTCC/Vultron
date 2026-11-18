@@ -70,7 +70,7 @@ from vultron.demo.utils.check_tree import (
 from vultron.errors import DemoRecordingError
 
 
-def _node_base(url: str) -> str:
+def node_base(url: str) -> str:
     """Return ``scheme://host:port`` of *url*."""
     parsed = urlparse(url)
     return f"{parsed.scheme}://{parsed.netloc}"
@@ -108,7 +108,7 @@ class ScenarioNodes:
         """
         url = f"{client.base_url}{path}"
         parsed = urlparse(url)
-        node = self.clients.get(_node_base(url))
+        node = self.clients.get(node_base(url))
         if node is None:
             raise DemoRecordingError(
                 f"no in-process container serves {url!r}; the scenario "
@@ -134,10 +134,6 @@ def _routed_call(nodes: ScenarioNodes) -> Callable[..., Any]:
         return nodes.call(client, method, path, **kwargs)
 
     return call
-
-
-#: The host of the compose service that drives a scenario.
-_RUNNER_HOST = "demo-runner"
 
 
 @contextlib.contextmanager
@@ -191,9 +187,7 @@ def scenario_nodes(
             configs = {
                 base: topology.config_for(base, run_config) for base in bases
             }
-            runner_config = topology.config_for(
-                f"http://{_RUNNER_HOST}", run_config
-            )
+            runner_config = topology.runner_config(run_config)
             with (
                 # Patched on the slot, as its docstring prescribes, so exit
                 # puts back exactly what was installed, including nothing at
@@ -302,7 +296,7 @@ def record_scenario(
     module = importlib.import_module(spec.module_name)
     roles: list[ActorRole] = module.ROLES
     urls = {role: topology.url_for(role) for role in roles}
-    bases = sorted({_node_base(url) for url in urls.values()})
+    bases = sorted({node_base(url) for url in urls.values()})
     with tempfile.TemporaryDirectory(prefix="vultron-recording-") as devlogs:
         with (
             # One seed for the whole tree, not this scenario's name, so

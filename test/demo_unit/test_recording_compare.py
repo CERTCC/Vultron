@@ -131,7 +131,7 @@ class TestFixtureStoryMutations:
             yield _Cast(
                 nodes=runner.ScenarioNodes(
                     clients={
-                        runner._node_base(slot.compose_url): client
+                        runner.node_base(slot.compose_url): client
                         for slot in (VENDOR_SLOT, OTHER_SLOT)
                     }
                 ),
