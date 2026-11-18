@@ -785,7 +785,7 @@ groups:
       `vultron/core/states/embargo_register.py`);
       `test/core/models/test_embargo_register.py` asserts both refusals.
     adr:
-    - ADR-0215
+    - ADR-0212
     stories:
     - story_2026_087
   - id: VP-04-003

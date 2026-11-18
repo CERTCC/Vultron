@@ -1585,7 +1585,7 @@ groups:
     - story_2026_039
     adr:
     - ADR-0107
-    - ADR-0215
+    - ADR-0212
   - id: RSH-09-006
     priority: MUST_NOT
     kind: protocol

@@ -24,7 +24,7 @@ It also adds four things that the specification does not carry: the symbol set, 
 
 A case's EM state is never set directly.
 It is computed from the case's embargo register, which holds one entry per embargo ever proposed ([§7.1.2 Deriving EM from the Register](../../../reference/vultron-spec/tracking-models.md#712-deriving-em-from-the-register)).
-Every change to the register must obey the transitions on this page (ADR-0215).
+Every change to the register must obey the transitions on this page (ADR-0212).
 
 {% include-markdown "./_em_state_names.md" %}
 

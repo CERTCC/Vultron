@@ -133,7 +133,7 @@ policy), then hands the result to `commit_and_apply_embargo_entries()`
    carries (`ACTIVATE` includes the supersede, `TERMINATE` the cancels), or,
    for a participant's `Accept`/`Reject(Invite(EmbargoEvent))`, the row the
    answer states (`ConsentRowChange.answer()`: that entry is the row's entry,
-   and no second one records it, ADR-0215), and
+   and no second one records it, ADR-0212), and
    whose `commit` queues and commits the act; `commit=None` when the guarded
    commit already committed it (a received act, same transaction).
 2. One `consent_row_entry()` per consent row the act changes.
