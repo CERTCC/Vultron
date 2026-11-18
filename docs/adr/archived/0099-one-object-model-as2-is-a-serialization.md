@@ -692,7 +692,7 @@ compatibility.
 
 **Supersedes** — recorded as `superseded_by` on both, which now carry
 `status: superseded` and live in
-[`docs/adr/archived/`](archived/README.md). Until this ADR reached `accepted`
+[`docs/adr/archived/`](README.md). Until this ADR reached `accepted`
 they were only annotated (`partially_superseded_by`) and kept
 `status: accepted`, because retiring two accepted decisions on the strength of
 one not yet validated would have overstated what had been established. They
