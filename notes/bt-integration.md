@@ -270,6 +270,14 @@ leaves subtrees no walk can reach.
   put a store call back in the use case (ADR-0195).
 - **One source per key per tree** (BT-25-011). A key is seeded or published, never
   both, so tick order cannot decide which value a node reads.
+- **Where the pieces live.** Name a new key in `behaviors/act_keys.py`, reusing a
+  key whose value means the same thing. Declare a tree's keys with
+  `declare_inputs` (`behaviors/act_inputs.py`) on the node its factory returns;
+  `tree_inputs` collects a composed tree's declarations. A key is seeded from the
+  act's same-named attribute unless `declare_seeds` maps or withholds it. Reason:
+  one checker, `seed_act_inputs`, serves both runners, so the rules cannot drift.
+  A seeder that writes a key outside an output port implements
+  `published_act_keys()` so the BT-25-011 check counts it, as `CaseIdScope` does.
 
 - **A node never runs a tree** (BT-25-001). Compose the subtree as a child, and
   turn the parent's "branch on the nested result" into a Selector or Sequence.

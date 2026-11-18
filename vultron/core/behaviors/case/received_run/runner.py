@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 
 import py_trees
 
+from vultron.core.behaviors.act_inputs import seed_act_inputs
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.received_run.reading import (
     OutcomeReader,
@@ -97,10 +98,16 @@ def run_received_tree(
             handler accepted; a failure no door, reader or declared repeat
             answers then raises.  A callable is asked once the tree is
             built, for a builder that chooses the tree.
-        **context: Further blackboard keys for the run.
+        **context: Further blackboard keys for the run.  None may name a
+            key the tree declares (BT-25-011).
+
+    The tree's declared per-act keys are seeded from *request* before the
+    first tick (BT-25-007, :func:`~vultron.core.behaviors.act_inputs.seed_act_inputs`).
 
     Raises:
         VultronValidationError: No receiving actor can be resolved.
+        VultronWiringError: A key the tree declares has no value, no source
+            or two sources; nothing ran (BT-25-008, BT-25-011).
         VultronBTInternalError: The run failed on an internal error.
     """
     receiving_actor_id = resolve_receiving_actor_id(
@@ -108,6 +115,7 @@ def run_received_tree(
     )
     if not isinstance(tree, py_trees.behaviour.Behaviour):
         tree = tree(receiving_actor_id)
+    seeds = seed_act_inputs(tree, request, context=context)
     result = BTBridge(
         datalayer=dl,
         trigger_activity=trigger_activity,
@@ -118,6 +126,7 @@ def run_received_tree(
         actor_id=receiving_actor_id,
         activity=request,
         **context,
+        **seeds,
     )
     verdict = read_outcome(
         ReceivedOutcome.of(

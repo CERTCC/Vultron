@@ -30,6 +30,7 @@ import py_trees
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from vultron.core.behaviors.act_inputs import seed_act_inputs
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.bridge.act_instant import open_act
 from vultron.core.behaviors.case.case_clock_decisions import (
@@ -77,7 +78,9 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
     5. Call :meth:`_build_tree` (abstract) — subclass returns the BT; a
        case-scoped trigger's tree is preceded by the case-wide clock
        decisions (:meth:`_with_case_clock_decisions`).
-    6. Execute the BT via ``bridge.execute_with_setup``.
+    6. Seed the tree's declared per-act keys from the request
+       (``seed_act_inputs``, BT-25-007) and execute the BT via
+       ``bridge.execute_with_setup``.
     7. Raise on failure.
     8. Call :meth:`_handle_result` (abstract) — subclass logs/extracts output.
     9. Return :meth:`_build_result` (abstract) — the verb's typed
@@ -183,11 +186,17 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
             wire_render_port=self._wire_render_port,
         )
         tree = self._with_case_clock_decisions(self._build_tree())
+        context = self._extra_execute_kwargs()
+        # The tree's declared per-act keys, from the request, before the
+        # first tick; a key with no value or two sources raises here, with
+        # nothing run (BT-25-007, BT-25-008, BT-25-011).
+        seeds = seed_act_inputs(tree, self._request, context=context)
         result = bridge.execute_with_setup(
             tree,
             actor_id=self._actor_id,
             at=self._at,
-            **self._extra_execute_kwargs(),
+            **context,
+            **seeds,
         )
 
         if result.status != Status.SUCCESS:
@@ -379,6 +388,8 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
 
         Override to inject extra blackboard context required by specific BT
         trees (e.g. ``{"case_id": self._case_id}`` for trees whose nodes
-        read ``case_id`` from the blackboard).
+        read ``case_id`` from the blackboard).  A key the tree declares
+        (``declare_inputs``) is seeded from the request instead, and naming
+        it here too is refused as a second source (BT-25-011).
         """
         return {}
