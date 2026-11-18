@@ -18,7 +18,7 @@ partially_supersedes:
 stakeholder_type: [project-contributor]
 ---
 
-# The Core Classes Are the One Object Model, and AS2 Is Their Serialization
+# One Set of Classes for the Domain Model, with AS2 as Its Wire Format
 
 ## Context and Problem Statement
 

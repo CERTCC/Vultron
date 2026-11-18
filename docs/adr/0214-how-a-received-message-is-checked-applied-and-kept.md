@@ -19,7 +19,7 @@ supersedes:
 stakeholder_type: [project-contributor]
 ---
 
-# A Received Delivery Is One Tree in Fixed Stages, and Its Outcome Decides What Is Kept
+# How a Received Message Is Checked, Applied and Kept
 
 ## Context and Problem Statement
 

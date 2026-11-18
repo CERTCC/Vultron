@@ -189,7 +189,7 @@ The maintainer later decided the points this record first left open: a missing n
   The guards run again when a held activity is judged, so a sender's earlier `Leave` still closes the door on its later activities.
   A held activity is kept as the body that arrived (VM-08-002), so its eventual ledger entry is that body (CLP-07-011).
   When it is released it is judged as a delivery of its own, as a held ledger entry is replayed (SYNC-14-009).
-  It is one more wait of the received-message holding that IO-03-009 governs ([ADR-0212](0212-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md)), beside the waits for a case, a ledger gap, an object fetch and a retry.
+  It is one more wait of the received-message holding that IO-03-009 governs ([ADR-0214](0214-how-a-received-message-is-checked-applied-and-kept.md)), beside the waits for a case, a ledger gap, an object fetch and a retry.
 - **How #5202 and #5203 resolve.**
   In #5202, the `Accept` carries number *n* and the `Reject` *n + 1*.
   In either arrival order the CASE_MANAGER judges the `Accept` and then the `Reject`, so the consent row ends `DECLINED`: the answer sent last decides.

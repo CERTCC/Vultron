@@ -20,11 +20,11 @@ partially_superseded_by:
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0111-intake-is-the-first-received-side-stage.md
-superseded_by: 0212-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md
+superseded_by: 0214-how-a-received-message-is-checked-applied-and-kept.md
 ---
 
-> **Superseded by [ADR-0212](../0212-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md).**
-> ADR-0212 states the received-side stage order, the staged record, the atomic act and what the receiver keeps as one decision, consolidating ADR-0111, ADR-0135, ADR-0151 and ADR-0154.
+> **Superseded by [ADR-0214](../0214-how-a-received-message-is-checked-applied-and-kept.md).**
+> ADR-0214 states the received-side stage order, the staged record, the atomic act and what the receiver keeps as one decision, consolidating ADR-0111, ADR-0135, ADR-0151 and ADR-0154.
 > This record is kept as it stood when it was superseded.
 
 # Compose Received Trees, Never Chain Them

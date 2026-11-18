@@ -213,7 +213,7 @@ blackboard from the event, call `bridge.execute_with_setup()`, check the
 status, extract output from the blackboard.
 
 A call from `execute()` to a helper that writes to the DataLayer is **not**
-glue, whatever the helper is named (CLP-10-020, ADR-0212). The ratchet
+glue, whatever the helper is named (CLP-10-020, ADR-0214). The ratchet
 `test/architecture/test_no_dl_mutations_in_execute.py` resolves calls from a
 received `execute()` transitively through anything defined under
 `vultron/core/use_cases/` (module helper, `self._method()`, relative or
@@ -222,7 +222,7 @@ write is never a violation. Its `KNOWN_VIOLATIONS` set is empty; a new entry
 needs the issue that owns its removal. Trigger-side bodies get only the direct
 rule (BT-15-001).
 
-### Compose Trees, Never Chain Them (ADR-0212)
+### Compose Trees, Never Chain Them (ADR-0214)
 
 A received delivery runs **one** tree (CLP-10-005). If the work needs two trees,
 write the tree that composes them: the door check, the expiry, the refusal and
@@ -281,15 +281,15 @@ leaves subtrees no walk can reach.
   client, so the runner unregisters every client the tree registered with
   `clear=False`, leaving key restore to the bridge (BT-17-007).
 
-### The Received-Side Stages (ADR-0212)
+### The Received-Side Stages (ADR-0214)
 
 A received-side tree composed via `create_receive_activity_tree`
 (`vultron/core/behaviors/case/receive_activity_tree.py`) runs its stages in a
 fixed order (CLP-10-006, CLP-10-010): door guards, intake, the ledger-position
 answer, clock decisions, guards, commit, effects. Each door can end the run, and
-nothing is written before the last one admits the message (ADR-0212).
+nothing is written before the last one admits the message (ADR-0214).
 
-1. **Door guards** — in ADR-0212's order: the addressee check (HP-01-005),
+1. **Door guards** — in ADR-0214's order: the addressee check (HP-01-005),
    the seen-before door (`case/nodes/seen_before.py`), the path stage
    (HP-01-035), the post-close write boundary (CM-23-013), the closed-sender
    door (CM-23-018) and the sender guard (HP-01-006). A case the receiver does
@@ -300,7 +300,7 @@ nothing is written before the last one admits the message (ADR-0212).
    reads a door's answer first, through `door_refusal`
    (`behaviors/case/received_run/`, ADR-0195); never run a door guard as a
    one-node tree ahead of the received tree, the chained shape CLP-10-005
-   forbids (ADR-0212).
+   forbids (ADR-0214).
 
    The seen-before door answers a resend from the message's one record, by
    its stage, and the run ends there: a receipt stub is `REFUSED` with the
@@ -543,7 +543,7 @@ nothing is written before the last one admits the message (ADR-0212).
    (`build_id(sender_activity_id)`), carrying the sender's id for reverse
    lookup. It stores the event's sealed `received_evidence` and nothing
    derived from it (ADR-0149), and keeps nothing in memory for a later stage:
-   whether a delivery is new is the seen-before door's answer (ADR-0212).
+   whether a delivery is new is the seen-before door's answer (ADR-0214).
    Never store under the sender's id: one id-keyed table per actor lets a
    sender squat an id we derive for our own records. Readers load the record
    (`read_received_activity`), never parse it themselves. Intake decides
@@ -637,7 +637,7 @@ nothing is written before the last one admits the message (ADR-0212).
    the Factory"). In a tree that commits to a case the factory runs the commit
    and both effect lists in one `ActTransaction` by default, so the act's
    entry becomes durable only when the act commits, and a failure keeps
-   nothing (CLP-07-015, ADR-0212); only a registered `OneActExemption`
+   nothing (CLP-07-015, ADR-0214); only a registered `OneActExemption`
    (CLP-07-024) opts a tree out. So an effect that fails as a normal outcome
    (a withheld status adoption) must not return FAILURE, or the act loses its
    entry: make it the success arm of a Selector. Read the stages through
@@ -654,7 +654,7 @@ root runs something before the doors. A tree that needs a branch ahead of the
 receipt commit uses an outer factory with `case_id=None` (intake, no commit)
 and an inner factory per arm that commits, built `nested=True` so it runs no
 seen-before door or intake of its own: a second intake would read the first
-run as a re-run (ADR-0212). Intake
+run as a re-run (ADR-0214). Intake
 records nothing when the event carries no activity, so
 a semantic-registry entry must set `include_activity=True`. A slot a
 message's meaning requires (its case id, its inline object) is a required slot

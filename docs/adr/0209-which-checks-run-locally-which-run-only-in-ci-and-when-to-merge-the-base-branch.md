@@ -19,7 +19,7 @@ supersedes:
 stakeholder_type: [project-contributor]
 ---
 
-# A Local Gate Runs Only What Answers Before the Required CI Gate, and the Base Is Merged Locally Only on Conflict
+# Which Checks Run Locally, Which Run Only in CI, and When to Merge the Base Branch
 
 ## Context and Problem Statement
 

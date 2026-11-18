@@ -3369,7 +3369,7 @@ groups:
       condition node in the behavior tree. A short-circuit in the use case must store
       the report and the Offer before it returns. That is a store path outside the tree,
       which CLP-10-019 forbids. The tree stores the report and the Offer for every
-      addressed inbound `Offer(VulnerabilityReport)` (ADR-0212). Thus a gate
+      addressed inbound `Offer(VulnerabilityReport)` (ADR-0214). Thus a gate
       outside the tree has nothing to do.
     verification: A received-side handler test posts an `Offer(VulnerabilityReport)`
       to a receiver with `auto_create_case=False`, asserts the disposition is
@@ -3378,7 +3378,7 @@ groups:
       `test/architecture/test_no_dl_mutations_in_execute.py` (CLP-10-020) fails if
       `SubmitReportReceivedUseCase.execute()` reaches a store helper.
     adr:
-    - ADR-0212
+    - ADR-0214
     see_also:
     - spec_id: CLP-10-019
       reason: 'context for the reader'
@@ -9218,7 +9218,7 @@ groups:
       spec_id: MSM-07-009
     adr:
     - ADR-0118
-    - ADR-0212
+    - ADR-0214
     - ADR-0180
     stories:
     - story_2026_092
@@ -9252,7 +9252,7 @@ groups:
       The CASE_MANAGER MUST run the CM-28-015 sweep only after the door guards admit
       the activity, its sender gate (HP-01-006) included.
     rationale: >-
-      The sweep is a clock decision (CLP-10-025, ADR-0212). Running it after the
+      The sweep is a clock decision (CLP-10-025, ADR-0214). Running it after the
       door guards means a sender with no standing makes the CASE_MANAGER write
       nothing.
     verification: >-
@@ -9266,7 +9266,7 @@ groups:
     - rel_type: uses_definition
       spec_id: HP-01-006
     adr:
-    - ADR-0212
+    - ADR-0214
     stories:
     - story_2026_092
     - story_2022_027
@@ -9280,7 +9280,7 @@ groups:
     rationale: >-
       An overdue row is a fact from the CASE_MANAGER's clock, not evidence from the
       activity. Sweeping before the activity's own refusals records the expiries
-      even when the activity is then refused (ADR-0212).
+      even when the activity is then refused (ADR-0214).
     verification: >-
       `test_a_decision_on_no_open_proposal_is_refused_after_the_expiry` in
       `test/core/use_cases/received/test_embargo_overdue_invite_sweep.py` delivers
@@ -9292,7 +9292,7 @@ groups:
     - rel_type: uses_definition
       spec_id: MSM-07-008
     adr:
-    - ADR-0212
+    - ADR-0214
     stories:
     - story_2026_092
     - story_2022_027
@@ -9319,7 +9319,7 @@ groups:
       spec_id: CM-28-015
     adr:
     - ADR-0118
-    - ADR-0212
+    - ADR-0214
     stories:
     - story_2026_092
     - story_2022_027
@@ -9346,7 +9346,7 @@ groups:
     - rel_type: extends
       spec_id: CM-28-015
     adr:
-    - ADR-0212
+    - ADR-0214
     stories:
     - story_2026_092
     - story_2022_027

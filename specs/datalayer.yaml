@@ -426,7 +426,7 @@ groups:
       `outbox_append` queues an activity, and `outbox_list` reads which are pending.
       Neither takes an actor id, since that would allow a write to the queue of
       another actor (DL-07-001). A received tree emits through this port in its
-      effects stage (ADR-0212).
+      effects stage (ADR-0214).
     adr:
     - ADR-0073
   - id: DL-04-005

@@ -298,7 +298,7 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   trial-applies every planned entry, commits them in order, then saves the
   result; a refused trial or a failed commit writes nothing. In a received
   tree the act's own entry commits in the same transaction, so it is not kept
-  either (ADR-0146, ADR-0212). `consent_row_entry()` builds the planned entry
+  either (ADR-0146, ADR-0214). `consent_row_entry()` builds the planned entry
   for one row.
 - **The replica side** subclasses `ApplyEmbargoChangeFromLedgerNode`
   (`sync/nodes/embargo_copy_effect.py`) and names its entry's change in
@@ -425,7 +425,7 @@ received embargo activity and embargo trigger (CM-28-015, CM-28-028, CM-28-029).
 Rows of a replaced, rejected, cancelled or ended embargo are frozen: skip them
 (CM-28-025).
 
-The sweep is a clock decision (CLP-10-025, ADR-0212), passed by each received
+The sweep is a clock decision (CLP-10-025, ADR-0214), passed by each received
 embargo tree as `clock_decisions` and added by `SvcEmbargoTriggerBase` ahead of
 each embargo trigger's tree. It runs after the door guards, so a sender with no
 standing makes the CASE_MANAGER write nothing, and before the activity's own

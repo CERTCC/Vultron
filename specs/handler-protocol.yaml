@@ -143,7 +143,7 @@ groups:
       `SKIPPED` tells the pipeline that the message was handled without new work, so
       a redelivery does not read as applied work or as a refusal (ADR-0095). A
       refusal is whole and final for that activity, so its resend gets the same
-      answer, not a skip (ADR-0212).
+      answer, not a skip (ADR-0214).
     verification: >-
       The `HP-01-003`-marked tests under `test/core/use_cases/received/` drive each
       handler through its skip exit and assert that a redelivered duplicate is
@@ -159,7 +159,7 @@ groups:
       spec_id: CLP-10-010
     adr:
     - ADR-0095
-    - ADR-0212
+    - ADR-0214
   - id: HP-01-015
     priority: MUST
     kind: project
@@ -726,7 +726,7 @@ groups:
       list, with a reason for each entry, makes each tree that is different a visible
       decision (CS-22-001). It is the first question because a copy that is not for
       the receiver is refused before anything else is asked of it or written for it:
-      it costs one read and a receipt stub (ADR-0212).
+      it costs one read and a receipt stub (ADR-0214).
     verification: >-
       `test/architecture/test_received_tree_addressee_guard.py::test_every_received_tree_carries_the_guard_unless_exempt`
       builds every received tree and fails on one without the guard whose site is
@@ -749,7 +749,7 @@ groups:
     statement: >-
       A received tree whose message type declares the paths it handles carries the
       path stage. The receive-tree factory MUST place that stage directly after the
-      seen-before door (ADR-0212), which follows the HP-01-012 addressee check, and
+      seen-before door (ADR-0214), which follows the HP-01-012 addressee check, and
       before the sender guard.
     rationale: >-
       The path stage sits in the factory for the reason HP-01-012 gives for the
@@ -758,7 +758,7 @@ groups:
       addressed is refused before its role is asked about at all, and before the
       sender guard because the guard reads the path the stage chose (HP-01-036). It
       sits after the seen-before door because a resend is answered from its record
-      before its role is asked about (ADR-0212).
+      before its role is asked about (ADR-0214).
     verification: >-
       `test/core/behaviors/case/test_received_path_stage.py::test_the_stage_runs_after_the_addressee_check_and_before_the_guard`
       asserts the order addressee check < seen-before door < path stage < sender
@@ -772,7 +772,7 @@ groups:
       spec_id: HP-01-012
     adr:
     - ADR-0153
-    - ADR-0212
+    - ADR-0214
   - id: HP-01-036
     priority: MUST
     kind: architecture

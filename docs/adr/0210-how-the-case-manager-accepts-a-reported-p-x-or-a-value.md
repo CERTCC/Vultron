@@ -16,7 +16,7 @@ supersedes:
 stakeholder_type: [project-contributor]
 ---
 
-# A Reported P, X or A Value Is Adopted Through One Gate, and Its Adoption Ends the Embargo in the Same Act
+# How the Case Manager Accepts a Reported P, X or A Value
 
 ## Context and Problem Statement
 

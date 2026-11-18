@@ -1741,7 +1741,7 @@ groups:
       covers the lazy check, the outside request, the order of the two, a
       race between them, an early request after the end time, and the lazy
       check composed into the one tree that handles a participant's received
-      activity or a case-scoped trigger (CLP-10-025, ADR-0212), including an
+      activity or a case-scoped trigger (CLP-10-025, ADR-0214), including an
       accept of a pending revision that cannot extend the expired embargo;
       `test/core/use_cases/received/test_termination_reason.py`
       covers the refusal of an early `END_TIME_REACHED` at the CASE_MANAGER and
