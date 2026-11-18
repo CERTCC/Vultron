@@ -350,7 +350,7 @@ def test_the_page_shows_the_marks_help_text_and_harm_note(advice_app):
     assert DOMINATED_BY_HARM_FREE in trade_off["Dominated by"].tolist()
 
 
-@pytest.mark.spec("SHD-03-003")
+@pytest.mark.spec("SHD-03-003", "SHD-03-004")
 def test_each_shaded_band_shows_a_colour_legend(advice_app):
     """AC-1 of #6673: each shaded band shows a legend strip labelled from
     better (layer 1) to dominated (deeper layers), and the help text no
