@@ -224,7 +224,6 @@ adr/0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md
 adr/0212-how-embargo-status-and-participant-consent-are-recorded.md
 adr/0213-how-a-participant-joins-becomes-active-and-is-removed.md
 adr/0214-how-a-received-message-is-checked-applied-and-kept.md
-adr/0215-how-embargo-status-and-participant-consent-are-recorded.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
