@@ -37,7 +37,7 @@ with the reason it does not.
 
 import importlib
 import pkgutil
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 import py_trees
 import pytest
@@ -176,8 +176,15 @@ def _input_bindings(classes: Iterable[type]) -> dict[str, list[str]]:
         if not callable(remaps):
             continue
         inputs = getattr(cls, "INPUT_PORTS", {})
-        for port, target in remaps().items():
-            if port in inputs and target.startswith("/"):
+        bound = remaps()
+        if not isinstance(bound, Mapping):
+            continue
+        for port, target in bound.items():
+            if (
+                port in inputs
+                and isinstance(target, str)
+                and target.startswith("/")
+            ):
                 found.setdefault(target, []).append(
                     f"{cls.__module__}.{cls.__qualname__}.{port}"
                 )
