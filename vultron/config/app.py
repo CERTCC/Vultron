@@ -49,7 +49,7 @@ from vultron.config.ledger import LedgerConfig
 from vultron.config.secrets import refuse_secrets_in_file
 from vultron.config.shadow import ShadowConfig
 from vultron.config.vince import VinceConfig
-from vultron.errors import VultronWiringError
+from vultron.errors import VultronConfigScopeLostError
 
 logger = logging.getLogger(__name__)
 
@@ -328,7 +328,7 @@ def get_config() -> AppConfig:
         The active :class:`AppConfig` instance.
 
     Raises:
-        VultronWiringError: the call is in no app scope while an app holding
+        VultronConfigScopeLostError: the call is in no app scope while an app holding
             its own config runs in this process (:func:`holding_app_config`).
             The caller lost its app's scope, and the process-wide config is
             not its node's config, so it is never returned in its place.
@@ -337,7 +337,7 @@ def get_config() -> AppConfig:
     if isinstance(scoped, AppConfig):
         return scoped
     if scoped is None and _HELD_APP_CONFIGS:
-        raise VultronWiringError(
+        raise VultronConfigScopeLostError(
             "get_config() was called in no app scope while an app holding "
             "its own AppConfig runs in this process, so the process-wide "
             "config is not this caller's node config. Run the work inside "
@@ -374,7 +374,7 @@ def holding_app_config(config: AppConfig) -> Generator[None]:
 
     Enters :func:`app_config_scope` for *config* and, until exit, counts the
     app as running.  While any such app runs, :func:`get_config` in no app
-    scope raises :class:`~vultron.errors.VultronWiringError` instead of
+    scope raises :class:`~vultron.errors.VultronConfigScopeLostError` instead of
     returning the process-wide config (ADR-0206).  An app's lifespan wraps
     itself in this.
 

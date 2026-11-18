@@ -32,6 +32,7 @@ from fastapi import FastAPI, Path, Request
 from vultron.adapters.driven.actor_hosts import (
     CONFIGURED_NODE,
     canonical_actor_uri,
+    registry_store,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
@@ -78,6 +79,7 @@ from vultron.config import (
     holding_app_config,
 )
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.errors import VultronWiringError
 from vultron.logging_setup import (
     restore_third_party_log_levels,
     suppress_third_party_info_noise,
@@ -172,11 +174,7 @@ def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
         canonical = canonical_actor_uri(
             actor_id, base_url=node_base_url(request)
         )
-        if canonical not in registry:
-            registry[canonical] = SqliteDataLayer(
-                db_url=db_url, actor_id=canonical
-            )
-        return registry[canonical]
+        return registry_store(registry, db_url, canonical)
 
     application.dependency_overrides[get_actor_dl] = _isolated_actor_dl
     application.state.actor_dls = registry
@@ -202,6 +200,37 @@ def _teardown_per_app_state(application: FastAPI) -> None:
         actor_dl.close()
 
 
+def _require_declared_node_storage(application: FastAPI) -> None:
+    """Refuse an app with its own config whose stores the work cannot find.
+
+    Such an app runs a node's background work on the stores its
+    ``app.state.db_url`` names (ADR-0206).  A host that registers its own
+    ``get_actor_dl`` override declares no template unless it sets one, and
+    the work would then read the configured deployment, which may hold
+    another node's stores in the same process (DL-07-011).
+
+    Raises:
+        VultronWiringError: the app has a ``get_actor_dl`` override and no
+            declared ``app.state.db_url``.
+    """
+    if get_actor_dl not in application.dependency_overrides:
+        return
+    if app_node_deployment(application).db_url is not None:
+        return
+    raise VultronWiringError(
+        "an app given its own config with a get_actor_dl override must "
+        "declare app.state.db_url, the template its stores are opened "
+        "under, so its background work reads its own node's stores "
+        "(DL-07-011, ADR-0206)"
+    )
+
+
+async def _finish_outbox_monitor(monitor: OutboxMonitor | None) -> None:
+    """Stop the outbox monitor, if one was started, and wait for its task."""
+    if monitor is not None:
+        await monitor.aclose()
+
+
 async def _finish_background_work(
     application: FastAPI,
     finishes: tuple[tuple[str, Coroutine[Any, Any, None]], ...],
@@ -209,53 +238,60 @@ async def _finish_background_work(
     """Await each ``(state attribute, finish)`` pair, then raise the first error.
 
     Every finish is awaited, and its ``app.state`` attribute cleared, even
-    when an earlier one raised: a finish stops its own task before it waits
-    for it, so skipping one would leave that task running while the
-    teardown closes the stores it reads.
+    when an earlier one raised, a cancellation included: a finish stops its
+    own task before it waits for it, so skipping one would leave that task
+    running while the teardown closes the stores it reads.  A cancellation
+    or other ``BaseException`` is raised in preference to an ordinary error;
+    every error not raised is logged, so none is lost.
     """
-    errors: list[Exception] = []
+    errors: list[BaseException] = []
     for attribute, finish in finishes:
         try:
             await finish
-        except Exception as error:  # noqa: BLE001 - re-raised below
+        except BaseException as error:  # noqa: BLE001 - re-raised below
             errors.append(error)
         finally:
             setattr(application.state, attribute, None)
-    if errors:
-        raise errors[0]
+    if not errors:
+        return
+    first = next(
+        (found for found in errors if not isinstance(found, Exception)),
+        errors[0],
+    )
+    for other in errors:
+        if other is not first:
+            logger.error(
+                "Background work also ended on an error at shutdown: %s",
+                other,
+                exc_info=other,
+            )
+    raise first
 
 
 def _finish_teardown(
     application: FastAPI,
-    monitor: OutboxMonitor | None,
     undo_global_installs: list[Callable[[], None]],
     configure_globals: bool,
 ) -> None:
-    """Stop the outbox monitor and undo the lifespan's startup installs.
+    """Undo the lifespan's startup installs and close the app's own state.
 
     Run even when awaiting the background work raised, so a failed task does
-    not leave a global install or an app's stores behind.  A monitor whose
-    loop ended on a ``VultronWiringError`` raises from ``stop()``
-    (ADR-0206); the rest of the teardown still runs, in a ``finally``.
+    not leave a global install or an app's stores behind.  Every background
+    task, the outbox monitor's included, has ended by the time this runs.
     """
-    try:
-        if monitor is not None:
-            application.state.outbox_monitor = None
-            monitor.stop()
-    finally:
-        # Clear the per-app emitter reference so it cannot leak between
-        # TestClient lifetimes on the same app singleton.
-        if configure_globals:
-            application.state.emitter = None
-            # configure_logging() pinned third-party logger levels globally;
-            # undo it so a TestClient lifetime does not reconfigure logging
-            # for everything that runs after it.
-            restore_third_party_log_levels()
-        for undo in reversed(undo_global_installs):
-            undo()
+    # Clear the per-app emitter reference so it cannot leak between
+    # TestClient lifetimes on the same app singleton.
+    if configure_globals:
+        application.state.emitter = None
+        # configure_logging() pinned third-party logger levels globally;
+        # undo it so a TestClient lifetime does not reconfigure logging
+        # for everything that runs after it.
+        restore_third_party_log_levels()
+    for undo in reversed(undo_global_installs):
+        undo()
 
-        if not configure_globals:
-            _teardown_per_app_state(application)
+    if not configure_globals:
+        _teardown_per_app_state(application)
 
 
 def _lifespan_config_scope(
@@ -325,6 +361,8 @@ def _make_lifespan(
 
     @asynccontextmanager
     async def _lifespan(application: FastAPI) -> AsyncIterator[dict[str, Any]]:
+        if not configure_globals and config is not None:
+            _require_declared_node_storage(application)
         if configure_globals:
             configure_logging()
 
@@ -450,11 +488,12 @@ def _make_lifespan(
                         "startup_inbox_replay",
                         finish_startup_inbox_replay(startup_replay),
                     ),
+                    ("outbox_monitor", _finish_outbox_monitor(monitor)),
                 ),
             )
         finally:
             _finish_teardown(
-                application, monitor, undo_global_installs, configure_globals
+                application, undo_global_installs, configure_globals
             )
 
     return _in_config_scope(_lifespan, config)
@@ -555,9 +594,12 @@ def create_app(
             node runs outside a request (the outbox monitor, the startup
             inbox replay, the ledger position statements and the
             sender-sequence hold timer) on its own deployment's stores and in
-            its own scope, as its container would.  Leave ``None`` to read
-            the process-wide config, as one node per process does; such an
-            app starts none of that work.
+            its own scope, as its container would.  An app given a config
+            and its own ``get_actor_dl`` override must also set
+            ``app.state.db_url``, the template its stores are opened under,
+            or its lifespan raises ``VultronWiringError``.  Leave ``None``
+            to read the process-wide config, as one node per process does;
+            such an app starts none of that work.
 
     Returns:
         A new :class:`FastAPI` instance with the Vultron router included.

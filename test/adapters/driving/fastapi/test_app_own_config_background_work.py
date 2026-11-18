@@ -32,7 +32,7 @@ import asyncio
 import contextvars
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Coroutine, Iterator
 from datetime import timedelta
 from types import SimpleNamespace
 from typing import Any, cast
@@ -48,8 +48,14 @@ from vultron.adapters.driving.fastapi import (
     outbox_monitor,
     sender_sequence_holds,
 )
-from vultron.adapters.driving.fastapi.app import create_app
-from vultron.adapters.driving.fastapi.deps import app_node_deployment
+from vultron.adapters.driving.fastapi.app import (
+    _finish_background_work,
+    create_app,
+)
+from vultron.adapters.driving.fastapi.deps import (
+    app_node_deployment,
+    get_actor_dl,
+)
 from vultron.config import (
     AppConfig,
     app_config_scope,
@@ -62,7 +68,7 @@ from vultron.demo.in_process import (
     IsolatedActorApp,
     create_isolated_actor_app,
 )
-from vultron.errors import VultronWiringError
+from vultron.errors import VultronConfigScopeLostError, VultronWiringError
 
 _WAIT_SECONDS = 10.0
 
@@ -367,7 +373,12 @@ def test_lifespan_work_that_lost_its_scope_raises_at_shutdown(
 
     # Every other task was stopped and awaited too, not left running while
     # the stores closed; the teardown still ran, and the hold is gone.
-    assert all(task is not None and task.done() for task in others)
+    # Stopped by the lifespan, not cancelled when the test client's loop
+    # closed: a task left running would read as cancelled here.
+    assert all(
+        task is not None and task.done() and not task.cancelled()
+        for task in others
+    )
     assert node.app.state.dispatcher is None
     assert node.app.state.outbox_monitor is None
     assert held_app_configs() == holds_before
@@ -466,3 +477,224 @@ def test_an_apps_background_work_shares_its_routes_store_instances() -> None:
         other = f"{actor_id.rsplit('/', 1)[0]}/other"
         opened = node.store(other)
         assert registry[other] is opened
+
+
+# ---------------------------------------------------------------------------
+# Only a lost scope ends the work; any other wiring fault stays one actor's
+# ---------------------------------------------------------------------------
+
+
+class _FakeNode:
+    """Two hosted actors, each with a store that holds one outbox item."""
+
+    actors = ("urn:uuid:first", "urn:uuid:second")
+
+    def actor_ids(self) -> list[str]:
+        return list(self.actors)
+
+    def store(self, actor_id: str) -> Any:
+        return SimpleNamespace(
+            actor_id=actor_id,
+            inbox_list=lambda: [],
+            outbox_list=lambda: ["queued"],
+        )
+
+    def stores(self) -> dict[str, Any]:
+        return {actor_id: self.store(actor_id) for actor_id in self.actors}
+
+
+def _run_boundary(path: str, error: Exception, monkeypatch) -> list[str]:
+    """Run *path* over two actors whose first raises *error*; list reached."""
+    reached: list[str] = []
+    node = cast(Any, _FakeNode())
+
+    async def _work(
+        actor_dl: Any, actor_id: str, *_args: Any, **_kw: Any
+    ) -> None:
+        reached.append(actor_id)
+        if actor_id == _FakeNode.actors[0]:
+            raise error
+
+    run: Coroutine[Any, Any, Any]
+    if path == "startup replay":
+        monkeypatch.setattr(
+            inbox_startup_replay, "rerun_left_in_holding", _work
+        )
+        run = inbox_startup_replay.replay_hosted_inbox_queues(node=node)
+    elif path == "position statements":
+        monkeypatch.setattr(
+            ledger_position_statements, "run_serialised_actor_work", _work
+        )
+        run = ledger_position_statements.state_hosted_ledger_positions(
+            node=node
+        )
+    elif path == "hold timer":
+        monkeypatch.setattr(
+            sender_sequence_holds, "run_actor_work_then_replay", _work
+        )
+        run = sender_sequence_holds.end_hosted_expired_holds(node=node)
+    else:
+
+        async def _drain(actor_id: str, actor_dl: Any, **_kw: Any) -> None:
+            await _work(actor_dl, actor_id)
+
+        monkeypatch.setattr(outbox_monitor, "outbox_handler", _drain)
+        monitor = outbox_monitor.OutboxMonitor(
+            actor_datalayers_factory=node.stores
+        )
+        run = monitor.drain_all()
+    asyncio.run(run)
+    return reached
+
+
+_BOUNDARIES = [
+    "startup replay",
+    "position statements",
+    "hold timer",
+    "outbox monitor",
+]
+
+
+@pytest.mark.parametrize("path", _BOUNDARIES)
+def test_another_wiring_fault_stays_one_actors_failure(
+    path: str, monkeypatch
+) -> None:
+    """A ``VultronWiringError`` that is not a lost scope is logged, as before.
+
+    The production boundaries logged one actor's miswiring and went on to
+    the next actor; only a lost config scope is every actor's failure.
+    """
+    reached = _run_boundary(
+        path, VultronWiringError("one actor's missing port"), monkeypatch
+    )
+
+    assert reached == list(_FakeNode.actors)
+
+
+@pytest.mark.parametrize("path", _BOUNDARIES)
+def test_a_lost_scope_ends_the_boundary_at_the_first_actor(
+    path: str, monkeypatch
+) -> None:
+    with pytest.raises(VultronConfigScopeLostError):
+        _run_boundary(
+            path, VultronConfigScopeLostError("lost scope"), monkeypatch
+        )
+
+
+# ---------------------------------------------------------------------------
+# The app's own dispatcher, emitter and stores reach its background work
+# ---------------------------------------------------------------------------
+
+
+def test_the_replay_and_hold_timer_use_the_apps_own_dispatcher(
+    nodes: list[IsolatedActorApp], monkeypatch
+) -> None:
+    seen: dict[str, Any] = {}
+
+    async def _record_rerun(
+        _dl: Any, actor_id: str, dispatcher: Any, *_args: Any
+    ) -> None:
+        seen.setdefault(f"replay {actor_id}", dispatcher)
+
+    async def _record_round(
+        _dl: Any, actor_id: str, dispatcher: Any, *_args: Any
+    ) -> None:
+        seen.setdefault(f"hold timer {actor_id}", dispatcher)
+
+    monkeypatch.setattr(
+        inbox_startup_replay, "rerun_left_in_holding", _record_rerun
+    )
+    monkeypatch.setattr(
+        sender_sequence_holds, "run_actor_work_then_replay", _record_round
+    )
+    node = nodes[0]
+    with node.client:
+        _wait_for(lambda: len(seen) == 2, "the replay and a hold round")
+        own = node.app.state.dispatcher
+
+    assert own is not None
+    assert seen == {
+        f"replay {node.actor_id}": own,
+        f"hold timer {node.actor_id}": own,
+    }
+
+
+def test_the_monitor_uses_the_emitter_its_host_set() -> None:
+    emitter = cast(Any, object())
+    app = create_app(config=own_app_config())
+    app.state.emitter = emitter
+    with TestClient(app):
+        assert app.state.outbox_monitor._emitter is emitter
+
+
+def test_an_override_without_a_declared_template_is_refused() -> None:
+    """The work would otherwise read the configured deployment's stores."""
+    app = create_app(config=own_app_config())
+    app.dependency_overrides[get_actor_dl] = lambda actor_id: None
+    holds_before = held_app_configs()
+
+    with pytest.raises(VultronWiringError, match=r"app\.state\.db_url"):
+        with TestClient(app):
+            pass
+    assert held_app_configs() == holds_before
+
+
+def test_the_monitor_task_has_ended_once_the_lifespan_has() -> None:
+    """The monitor is awaited, not only cancelled, before the stores close."""
+    app = create_app(config=own_app_config())
+    with TestClient(app):
+        task = app.state.outbox_monitor._task
+    assert task is not None
+    assert task.done()
+
+
+# ---------------------------------------------------------------------------
+# Shutdown awaits every task and loses no error
+# ---------------------------------------------------------------------------
+
+
+def _finish(log: list[str], name: str, error: BaseException | None):
+    async def _run() -> None:
+        log.append(name)
+        if error is not None:
+            raise error
+
+    return _run()
+
+
+def test_every_finish_is_awaited_and_extra_errors_are_logged(caplog) -> None:
+    log: list[str] = []
+    application = FastAPI()
+    for name in ("one", "two", "three"):
+        setattr(application.state, name, "running")
+    finishes = (
+        ("one", _finish(log, "one", RuntimeError("first"))),
+        ("two", _finish(log, "two", ValueError("second"))),
+        ("three", _finish(log, "three", None)),
+    )
+
+    with caplog.at_level("ERROR"):
+        with pytest.raises(RuntimeError, match="first"):
+            asyncio.run(_finish_background_work(application, finishes))
+
+    assert log == ["one", "two", "three"]
+    assert all(
+        getattr(application.state, name) is None
+        for name in ("one", "two", "three")
+    )
+    assert "second" in caplog.text
+
+
+def test_a_cancellation_does_not_skip_the_later_finishes() -> None:
+    log: list[str] = []
+    application = FastAPI()
+    finishes = (
+        ("one", _finish(log, "one", RuntimeError("first"))),
+        ("two", _finish(log, "two", asyncio.CancelledError())),
+        ("three", _finish(log, "three", None)),
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(_finish_background_work(application, finishes))
+
+    assert log == ["one", "two", "three"]

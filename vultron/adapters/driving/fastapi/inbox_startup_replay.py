@@ -65,7 +65,7 @@ from vultron.core.services.received_activity import (
     sealed_body_of,
 )
 from vultron.core.services.received_holding import records_left_in_holding
-from vultron.errors import VultronWiringError
+from vultron.errors import VultronConfigScopeLostError
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +170,7 @@ async def rerun_left_in_holding(
                 # At the time its record says it was received (ADR-0176).
                 arrived_at=record.received_at,
             )
-        except VultronWiringError:
+        except VultronConfigScopeLostError:
             # A lost config scope is no one record's failure (ADR-0206).
             raise
         except Exception:
@@ -230,8 +230,9 @@ async def replay_hosted_inbox_queues(
     passes the configured node; an app holding its own config passes its own
     deployment (ADR-0206), so no other node's stores in the process are read.
 
-    A ``VultronWiringError`` is not one actor's failure: the replay has lost
-    its app's config scope, so it is raised, not logged (ADR-0206).
+    A ``VultronConfigScopeLostError`` is not one actor's failure: the replay
+    has lost its app's config scope, so it is raised, not logged (ADR-0206).
+    Any other ``VultronWiringError`` stays one actor's failure.
 
     Args:
         emitter: The app's ActivityEmitter, for the outbox drain after each
@@ -261,7 +262,7 @@ async def replay_hosted_inbox_queues(
                 actor_id,
             )
             await replay_inbox_queue(actor_dl, actor_id, dispatcher, emitter)
-        except VultronWiringError:
+        except VultronConfigScopeLostError:
             raise
         except Exception:
             # The startup boundary: one actor's failed replay must not stop

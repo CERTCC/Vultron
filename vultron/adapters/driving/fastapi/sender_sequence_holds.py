@@ -56,7 +56,7 @@ from vultron.core.ports.emitter import ActivityEmitter
 from vultron.core.services.sender_sequence_order import (
     end_expired_sender_sequence_holds,
 )
-from vultron.errors import VultronWiringError
+from vultron.errors import VultronConfigScopeLostError
 
 logger = logging.getLogger(__name__)
 
@@ -113,9 +113,10 @@ async def end_hosted_expired_holds(
 
     Only *node*'s stores are read (DL-07-011), as for the startup replay:
     the production lifespan passes the configured node, and an app holding
-    its own config its own deployment (ADR-0206).  A ``VultronWiringError``
-    means the work lost its app's config scope, which is no one actor's
-    failure, so it is raised, not logged (ADR-0206).
+    its own config its own deployment (ADR-0206).  A
+    ``VultronConfigScopeLostError`` means the work lost its app's config
+    scope, which is no one actor's failure, so it is raised, not logged.
+    Any other ``VultronWiringError`` stays one actor's failure.
 
     Args:
         emitter: The app's ActivityEmitter, for the drain after the replay.
@@ -140,7 +141,7 @@ async def end_hosted_expired_holds(
                 partial(_end_expired_holds_into, actor_dl, clock, ended),
             )
             total += sum(ended)
-        except VultronWiringError:
+        except VultronConfigScopeLostError:
             raise
         except Exception:
             # The timer boundary: one actor's failure must not stop the
@@ -171,8 +172,8 @@ async def _end_holds_on_interval(
     """End expired holds every *interval_seconds* until *stop* is set.
 
     A round's failure is logged and the next round tries again, except a
-    ``VultronWiringError`` (a lost config scope, ADR-0206), which ends the
-    task and surfaces when it is awaited at shutdown.
+    ``VultronConfigScopeLostError`` (a lost config scope, ADR-0206), which
+    ends the task and surfaces when it is awaited at shutdown.
     """
     while not stop.is_set():
         try:
@@ -182,7 +183,7 @@ async def _end_holds_on_interval(
                 await end_hosted_expired_holds(
                     emitter=emitter, dispatcher=dispatcher, node=node
                 )
-            except VultronWiringError:
+            except VultronConfigScopeLostError:
                 raise
             except Exception:
                 logger.exception(

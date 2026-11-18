@@ -35,6 +35,7 @@ exist, and resolve an inbound URL segment without consulting any store at all.
 
 import logging
 import os
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -169,6 +170,29 @@ def hosted_actor_ids(
     )
 
 
+#: Guards every app's store registry, so a route (in the threadpool) and the
+#: app's background work (on the loop) never open two stores for one actor.
+_REGISTRY_LOCK = threading.Lock()
+
+
+def registry_store(
+    registry: dict[str, SqliteDataLayer], db_url: str, actor_id: str
+) -> SqliteDataLayer:
+    """Return *actor_id*'s store in *registry*, opening it there if absent.
+
+    The one get-or-open over an app's registry of stores, for its routes
+    and its background work alike, so both are handed one instance per
+    actor: a store opened twice would leave one unclosed at teardown and
+    without the outbox monitor's wakeup.
+    """
+    with _REGISTRY_LOCK:
+        found = registry.get(actor_id)
+        if found is None:
+            found = SqliteDataLayer(db_url=db_url, actor_id=actor_id)
+            registry[actor_id] = found
+        return found
+
+
 @dataclass(frozen=True)
 class NodeDeployment:
     """The storage template and base URL of one node (DL-07-011, DL-07-012).
@@ -211,13 +235,7 @@ class NodeDeployment:
         """The store of *actor_id* on this node, opened if need be."""
         if self.opened is None or self.db_url is None:
             return get_datalayer(actor_id, db_url=self.db_url)
-        found = self.opened.get(actor_id)
-        if found is None:
-            found = self.opened.setdefault(
-                actor_id,
-                SqliteDataLayer(db_url=self.db_url, actor_id=actor_id),
-            )
-        return found
+        return registry_store(self.opened, self.db_url, actor_id)
 
     def stores(self) -> dict[str, SqliteDataLayer]:
         """The store of every actor this node hosts, keyed by actor URI."""

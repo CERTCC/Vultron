@@ -44,7 +44,7 @@ from vultron.core.ports.emitter import ActivityEmitter
 from vultron.core.use_cases.triggers.sync import (
     state_ledger_positions_trigger,
 )
-from vultron.errors import VultronWiringError
+from vultron.errors import VultronConfigScopeLostError
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +76,9 @@ async def state_hosted_ledger_positions(
     Only *node*'s stores are read (DL-07-011).  The production lifespan
     passes the configured node; an app holding its own config passes its own
     deployment (ADR-0206), so no other node's stores in the process are read.
-    A ``VultronWiringError`` means the work lost its app's config scope, which
-    is no one actor's failure, so it is raised, not logged (ADR-0206).
+    A ``VultronConfigScopeLostError`` means the work lost its app's config
+    scope, which is no one actor's failure, so it is raised, not logged
+    (ADR-0206).  Any other ``VultronWiringError`` stays one actor's failure.
 
     Args:
         emitter: The app's ActivityEmitter, for the outbox drain.
@@ -98,7 +99,7 @@ async def state_hosted_ledger_positions(
                 partial(_state_positions, actor_dl, actor_id, sent),
             )
             total += sum(sent)
-        except VultronWiringError:
+        except VultronConfigScopeLostError:
             raise
         except Exception:
             # The statement boundary: one actor's failure must not stop the
@@ -127,13 +128,13 @@ async def _one_round(
 
     A failure outside one actor's statements, such as listing the hosted
     actors, is logged and the round ends; the next round tries again, so an
-    error never ends the interval loop.  A ``VultronWiringError`` (the work
-    lost its app's config scope, ADR-0206) ends the task, and surfaces when
-    it is awaited at shutdown.
+    error never ends the interval loop.  A ``VultronConfigScopeLostError``
+    (the work lost its app's config scope, ADR-0206) ends the task, and
+    surfaces when it is awaited at shutdown.
     """
     try:
         await state_hosted_ledger_positions(emitter=emitter, node=node)
-    except VultronWiringError:
+    except VultronConfigScopeLostError:
         raise
     except Exception:
         logger.exception(

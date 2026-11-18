@@ -165,11 +165,13 @@ stack and imports neither core nor config.
   app runs, `get_config()` in no scope raises `VultronWiringError`, never the
   process-wide config (ADR-0206). `reload_config()` and `config_override()` act
   on the process-wide config only.
-- **A background boundary re-raises `VultronWiringError`.** The lifespan's
-  per-actor and per-round `except Exception` boundaries (startup replay,
-  position statements, hold timer, outbox monitor) log one actor's failure and
-  go on; a lost scope is every actor's failure, so each re-raises it first and
-  the lifespan's shutdown surfaces it. Add the same re-raise to a new boundary
+- **A background boundary re-raises `VultronConfigScopeLostError`, and only
+  it.** The lifespan's per-actor and per-round `except Exception` boundaries
+  (startup replay, position statements, hold timer, outbox monitor) log one
+  actor's failure and go on; a lost scope is every actor's failure, so each
+  re-raises that subclass first and the lifespan's shutdown surfaces it. Any
+  other `VultronWiringError` stays one actor's failure, as in production
+  before ADR-0206. Add the same re-raise to a new boundary
   (`test_app_own_config_background_work.py`).
 - **An app holding its own config runs a node's background work.** Its
   lifespan starts the outbox monitor, startup replay, position statements and
