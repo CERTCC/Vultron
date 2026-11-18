@@ -34,7 +34,7 @@ keyed on the shape, never on a class name:
    ``lambda: seen_door.rerun`` the seen-before door's retired ``rerun`` flag
    was read through.
 2. **A blackboard key.**  A handling node reads a key whose last writer, in
-   tick order, is a door node.  A ``CaseIdScope`` seeds ``/case_id`` for its
+   tick order, is a door node.  An ``ActKeyScope`` seeds ``/case_id`` for its
    own subtree, so a read inside one is the scope's.
 
 The one reference admitted is the path answer (:data:`PATH_ANSWER_READS`),
@@ -57,10 +57,10 @@ import py_trees
 import pytest
 
 from test.architecture._received_tree_builds import built_received_trees
+from vultron.core.behaviors.act_key_scope import ActKeyScope
 from vultron.core.behaviors.case.receive_stages.tree import (
     ReceivedActivityTree,
 )
-from vultron.core.behaviors.case_id_scope import CaseIdScope
 
 _Finding = tuple[str, str, str]
 """(handling node class, what it reads through, door node class)."""
@@ -186,9 +186,10 @@ def key_findings(tree: ReceivedActivityTree) -> set[_Finding]:
                     )
         for key in _keys(node, written=True):
             last[key] = node
-        if isinstance(node, CaseIdScope):
+        if isinstance(node, ActKeyScope):
             scoped = dict(last)
-            scoped["/case_id"] = node
+            for seeded in node.seeds:
+                scoped[seeded.path] = node
             for child in node.children:
                 walk(child, scoped)
             return

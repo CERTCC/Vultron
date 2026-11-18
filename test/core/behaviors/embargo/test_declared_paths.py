@@ -53,6 +53,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 from test.support.act_runner import run_tree
 from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.act_key_scope import ActKeyScope
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
@@ -62,7 +63,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
 )
-from vultron.core.behaviors.case_id_scope import CaseIdScope
+from vultron.core.behaviors.case_id_scope import seeded_case_id
 from vultron.core.behaviors.embargo.announce_received_tree import (
     announce_embargo_received_tree,
 )
@@ -316,7 +317,8 @@ def _run_stage(
     stage = _path_stage(tree)
     # The door is the scope that seeds the stage's /case_id port.
     door = stage.parent
-    assert isinstance(door, CaseIdScope) and door.case_id == case_id
+    assert isinstance(door, ActKeyScope)
+    assert seeded_case_id(stage) == case_id
     assert isinstance(tree, ReceivedActivityTree)
     assert door in tree.door_guards, (
         "the path stage is a door guard, so its refusal ends the tree before"

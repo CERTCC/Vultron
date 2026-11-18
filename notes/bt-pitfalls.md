@@ -471,25 +471,29 @@ enforced by `test/architecture/test_participant_status_validation.py`.
 
 ## A Tick-Time `case_id` Comes Only Through the Port
 
-A node that declares a `case_id` input port reads it from that port in every
-tree, never also from a constructor argument (BTND-01-006, BTND-01-007): a
-constructor value with a port fallback is the dual channel that let a stale
-`/case_id` decide a later delivery above. Ratchet:
-`test/architecture/test_case_id_one_channel.py`. A per-act value is never a
-constructor argument, even one every tree knows at build time (BTND-01-008,
-BTND-01-009): the migration to named keys is planned in
-[bt-integration](bt-integration.md) § "One Fixed-Shape Tree per Act", and
-`with_case_id` below is the interim seeding it removes.
+A node that declares an input port for a key of the act-key vocabulary, such as
+`case_id`, reads it from that port in every tree, never also from a constructor
+argument (BTND-01-006, BTND-01-007): a constructor value with a port fallback is
+the dual channel that let a stale `/case_id` decide a later delivery above.
+Ratchet: `test/architecture/test_act_key_one_channel.py`. A per-act value is
+never a constructor argument, even one every tree knows at build time
+(BTND-01-008, BTND-01-009): the migration to named keys is planned in
+[bt-integration](bt-integration.md) § "One Fixed-Shape Tree per Act", and the
+interim seeder below is what it removes. Ratchet:
+`test/architecture/test_per_act_parameter_ratchet.py`, whose known sites are
+each tagged with the Task that removes them.
 
-A tree that knows the case at build time seeds the port, two ways:
+A tree that knows a value at build time seeds the port, two ways:
 
-- **Inside a tree**, wrap the node: `with_case_id(node, case_id)`
-  (`vultron/core/behaviors/case_id_scope.py`). The `CaseIdScope` it returns
-  writes `/case_id` for the node's own tick and restores the key's previous
-  state on every outcome, so a later sibling still reads what an earlier node
-  published and nothing outlives the execution (#5803, BT-09). Seeding the key
-  for the whole tree instead would hand every other `/case_id` reader the
-  build-time case in place of the one a resolver publishes.
+- **Inside a tree**, wrap the node: `with_act_keys(node, {INVITEE_ID: …})`
+  (`vultron/core/behaviors/act_key_scope.py`), or `with_case_id(node, case_id)`
+  for `/case_id` alone. The `ActKeyScope` it returns writes each key for the
+  node's own tick and restores its previous state on every outcome, so a later
+  sibling still reads what an earlier node published and nothing outlives the
+  execution (#5803, BT-09). Seeding the key for the whole tree instead would
+  hand every other reader the build-time value in place of the one a resolver
+  publishes. Seed a node's keys in one call, or wrap a scope again (its seeds
+  merge): a seeded node then sits exactly one level down.
 - **A node run alone**, as in a test or a nested call, takes
   `execute_with_setup(node, case_id=...)`, which scopes the key per execution.
 
@@ -500,8 +504,9 @@ case leaves the port to an earlier node of the same execution. Only
 as their documented resolution step.
 
 A seeded node sits one level below where it used to. Code that reads a tree's
-shape sees through the scope with `unscoped(node)`, and reads the seeded case
-with `seeded_case_id(node)`; never re-add a `_case_id` attribute for it.
+shape sees through the scope with `unscoped(node)`, and reads a seeded value
+with `seeded_value(node, KEY)` or `seeded_case_id(node)`; never re-add a
+`_case_id` attribute for it.
 
 `CreateParticipantStatusNode` is the worked case: `case_id` comes only through
 `CaseIdInputPortMixin`, and the subject actor is today an explicit constructor

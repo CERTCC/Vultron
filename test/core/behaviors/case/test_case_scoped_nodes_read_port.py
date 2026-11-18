@@ -16,7 +16,7 @@
 Each stage builder seeds the port with the case the tree names, so a tree
 built today hands each node the case it handed it through the constructor
 before; and a structural check that inspects one of these nodes looks
-through the :class:`~vultron.core.behaviors.case_id_scope.CaseIdScope` that
+through the :class:`~vultron.core.behaviors.act_key_scope.ActKeyScope` that
 seeds it (#6500).
 """
 

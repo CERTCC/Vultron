@@ -278,19 +278,26 @@ leaves subtrees no walk can reach.
   act's same-named attribute unless `declare_seeds` maps or withholds it. Reason:
   one checker, `seed_act_inputs`, serves both runners, so the rules cannot drift.
   A seeder that writes a key outside an output port implements
-  `published_act_keys()` so the BT-25-011 check counts it, as `CaseIdScope` does.
+  `published_act_keys()` so the BT-25-011 check counts it, as `ActKeyScope` does.
   Bind ports only through the `PortRemappingHooks` hooks, never in `setup()`:
   the publisher check and the vocabulary ratchet read the hooks, not setup.
 - **Declare a key only once the composed tree has one source for it**
   (BT-25-011). The check counts every publisher in the tree, scopes included.
   So a case trigger cannot declare `/case_id` seeded while the clock-decision
-  stage still wraps its nodes in `CaseIdScope`, and a received tree cannot
+  stage still wraps its nodes in `with_case_id`, and a received tree cannot
   while its shared stages use `with_case_id`. A key declared published needs
   exactly one lookup node, so a guard repeated across stages, such as
   `CheckIsCaseManagerNode` publishing `/case_actor_id`, is folded first.
   Reason: a scoped copy and the seed can differ (a resolved case id against a
   short id), and tick order would choose between them. Pinned by
   `test_a_seeded_case_id_under_the_clock_decision_stage_has_two_sources`.
+- **A node moves to its keys before its factory does** (BTND-01-008/009). The
+  factory still holds the value, so it seeds the moved node with
+  `with_act_keys(node, {KEY: value})` (`behaviors/act_key_scope.py`) until its
+  own Task removes the parameter; #6593 deletes the seeder. Reason: one PR per
+  family stays reviewable. `test_per_act_parameter_ratchet.py` lists each
+  remaining per-act parameter, tagged with its Task; delete an entry when its
+  site moves, never add one.
 - **A case trigger tree declares `/case_id` seeded only once #6678 has landed.**
   Reason: until the trigger adapter resolves a short case id to the full id at
   the edge (ADR-0032), the request's `case_id` may be a short id.

@@ -631,7 +631,7 @@ class _ClockDecidingTrigger(_SeededTrigger):
 @pytest.mark.spec("BT-25-011")
 def test_a_seeded_case_id_under_the_clock_decision_stage_has_two_sources():
     """The clock stage still takes its case as a factory argument and seeds
-    ``/case_id`` for its own nodes through ``CaseIdScope``, so a case trigger
+    ``/case_id`` for its own nodes through ``with_case_id``, so a case trigger
     whose tree declares ``/case_id`` seeded meets a second source until that
     stage reads the runner's seed (BT-25-011)."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
