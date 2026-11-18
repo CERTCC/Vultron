@@ -32,24 +32,36 @@ Nothing here calls Streamlit.
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from vultron.core.states.cs import CS, CS_d, CS_pxa, CS_vf
-from vultron.core.states.cs.transitions import (
-    _d_transitions,
-    _pxa_transitions,
-    _vf_transitions,
+from vultron.core.states.cs import (
+    CS,
+    CS_pxa,
+    d_transition_rows,
+    pxa_transition_rows,
+    vf_transition_rows,
 )
 from vultron.core.states.cs_invariants import CSEvent, cs_dimensions
 from vultron.core.states.em import EM, EM_Trigger, em_transition_rows
-from vultron.core.states.rm import RM, _transitions as _rm_transitions
+from vultron.core.states.rm import RM, rm_transition_rows
 from vultron.measure.ledger import friendly_actor_name
 from vultron.measure.standing import CaseStanding, ParticipantStanding
+from vultron.primitives import NonEmptyString
 from vultron.shadow.dashboard import view
+from vultron.shadow.dashboard.case_state import (
+    PXA_NOTATION,
+    VFD_BADGES,
+    VFD_NOTATION,
+    VFD_STATES,
+    possible_states,
+    vfd_badge,
+    vfd_name,
+)
 
 
 class MapState(BaseModel):
@@ -77,7 +89,7 @@ class MapEdge(BaseModel):
         triggers: Each trigger of the table that moves *source* to *dest*,
             in table order and in words, shown on hover.
         label: What the arrow reads: a case-state trigger's event letter,
-            or nothing, so a small map is not crowded with words.
+            or ``None``, so a small map is not crowded with words.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -85,13 +97,16 @@ class MapEdge(BaseModel):
     source: str
     dest: str
     triggers: tuple[str, ...]
-    label: str = ""
+    label: NonEmptyString | None = None
 
 
-#: How the map draws its graph, its states and its arrows.
+#: How the map draws its graph, its states and its arrows.  Streamlit draws
+#: a Graphviz chart in the same colours whatever the app's theme, so the map
+#: is a white card: its greys and reds read on it in a light and a dark
+#: theme alike.
 _GRAPH = (
-    'graph [rankdir=LR, bgcolor="transparent", size="4,2",'
-    ' nodesep=0.15, ranksep=0.3, pad=0.05, fontname="sans-serif"];'
+    'graph [rankdir=LR, bgcolor="#ffffff", size="4,2",'
+    ' nodesep=0.15, ranksep=0.3, pad=0.1, fontname="sans-serif"];'
 )
 _NODE = (
     'node [shape=box, style="rounded,filled", fillcolor="#f0f2f6",'
@@ -99,7 +114,7 @@ _NODE = (
     ' fontsize=10, height=0.25, margin="0.06,0.03"];'
 )
 _EDGE = (
-    'edge [color="#9aa0a6", fontcolor="#6b6f76", fontname="sans-serif",'
+    'edge [color="#80868b", fontcolor="#3c4043", fontname="sans-serif",'
     " fontsize=8, arrowsize=0.5];"
 )
 #: The current state: filled, and drawn with a double border, so it is told
@@ -194,14 +209,15 @@ class MachineMap(BaseModel):
 
 
 #: One transition as a map draws it: ``(words, label, source, dest)``,
-#: its trigger in words and as its arrow reads it, and the two node ids.
-type _Row = tuple[str, str, str, str]
+#: its trigger in words and as its arrow reads it (``None`` for no label),
+#: and the two node ids.
+type _Row = tuple[str, str | None, str, str]
 
 
 def _edges(rows: Iterable[_Row]) -> tuple[MapEdge, ...]:
     """One arrow per (source, dest) of *rows*, carrying its triggers in row
     order."""
-    triggers: dict[tuple[str, str], dict[str, str]] = {}
+    triggers: dict[tuple[str, str], dict[str, str | None]] = {}
     for words, label, source, dest in rows:
         triggers.setdefault((source, dest), {}).setdefault(words, label)
     return tuple(
@@ -209,7 +225,8 @@ def _edges(rows: Iterable[_Row]) -> tuple[MapEdge, ...]:
             source=source,
             dest=dest,
             triggers=tuple(named),
-            label=", ".join(label for label in named.values() if label),
+            label=", ".join(label for label in named.values() if label)
+            or None,
         )
         for (source, dest), named in triggers.items()
     )
@@ -222,7 +239,7 @@ def _words(trigger: Enum) -> str:
 
 def _word_row(trigger: Enum, source: str, dest: str) -> _Row:
     """A report or embargo transition: its arrow reads nothing."""
-    return (_words(trigger), "", source, dest)
+    return (_words(trigger), None, source, dest)
 
 
 def _letter_row(trigger: Enum, source: str, dest: str) -> _Row:
@@ -231,12 +248,14 @@ def _letter_row(trigger: Enum, source: str, dest: str) -> _Row:
 
 
 def _table_rows(
-    table: Sequence[Mapping[str, Enum]],
+    table: Iterable[tuple[Enum, Enum, Enum]],
     row: Callable[[Enum, str, str], _Row],
 ) -> list[_Row]:
-    """A ``transitions``-form table as map rows, each state by its enum
+    """``(trigger, source, dest)`` rows as map rows, each state by its enum
     name."""
-    return [row(t["trigger"], t["source"].name, t["dest"].name) for t in table]
+    return [
+        row(trigger, source.name, dest.name) for trigger, source, dest in table
+    ]
 
 
 def _word_states[S: Enum](
@@ -262,7 +281,12 @@ def _rm_map() -> MachineMap:
         name="RM",
         title="Report management",
         states=_word_states(RM, view.RM_BADGES),
-        edges=_edges(_table_rows(_rm_transitions, _word_row)),
+        edges=_edges(
+            _table_rows(
+                ((t.trigger, t.source, t.dest) for t in rm_transition_rows()),
+                _word_row,
+            )
+        ),
     )
 
 
@@ -286,39 +310,34 @@ def _pxa_map() -> MachineMap:
             MapState(id=s.name, label=s.name, tooltip=_public_words(s))
             for s in CS_pxa
         ),
-        edges=_edges(_table_rows(_pxa_transitions, _letter_row)),
+        edges=_edges(
+            _table_rows(
+                ((t.trigger, t.source, t.dest) for t in pxa_transition_rows()),
+                _letter_row,
+            )
+        ),
     )
-
-
-#: Each Vendor Fix Path state, as the compound case states allow it: a
-#: ``(vf, d)`` pair, in the order the compound states first reach it.  A
-#: fix is deployed only once it is ready, so of the six pairs only four.
-VFD_STATES: tuple[tuple[CS_vf, CS_d], ...] = tuple(
-    dict.fromkeys(cs_dimensions(s)[:2] for s in CS)
-)
 
 
 def _vfd_rows() -> list[_Row]:
     """The VF and D tables over :data:`VFD_STATES`: each VF row with D held,
     and each D row with VF held, wherever both ends are VFD states."""
     rows: list[_Row] = []
-    for t in _vf_transitions:
+    for vf_row in vf_transition_rows():
         rows.extend(
             _letter_row(
-                t["trigger"], view.vfd_name(vf, d), view.vfd_name(t["dest"], d)
+                vf_row.trigger, vfd_name(vf, d), vfd_name(vf_row.dest, d)
             )
             for vf, d in VFD_STATES
-            if vf is t["source"] and (t["dest"], d) in VFD_STATES
+            if vf is vf_row.source and (vf_row.dest, d) in VFD_STATES
         )
-    for t in _d_transitions:
+    for d_row in d_transition_rows():
         rows.extend(
             _letter_row(
-                t["trigger"],
-                view.vfd_name(vf, d),
-                view.vfd_name(vf, t["dest"]),
+                d_row.trigger, vfd_name(vf, d), vfd_name(vf, d_row.dest)
             )
             for vf, d in VFD_STATES
-            if d is t["source"] and (vf, t["dest"]) in VFD_STATES
+            if d is d_row.source and (vf, d_row.dest) in VFD_STATES
         )
     return rows
 
@@ -329,9 +348,9 @@ def _vfd_map() -> MachineMap:
         title="Vendor fix path",
         states=tuple(
             MapState(
-                id=view.vfd_name(vf, d),
-                label=view.vfd_name(vf, d),
-                tooltip=view.VFD_BADGES[(vf, d)],
+                id=vfd_name(vf, d),
+                label=vfd_name(vf, d),
+                tooltip=VFD_BADGES[(vf, d)],
             )
             for vf, d in VFD_STATES
         ),
@@ -377,7 +396,7 @@ def _possible(
     unobservable: Collection[CSEvent],
 ) -> tuple[str, ...]:
     """Each state of *machine* the reading of *state* allows."""
-    return view.possible_states(
+    return possible_states(
         state, [s.id for s in machine.states], events, unobservable
     )
 
@@ -402,7 +421,7 @@ def pxa_minimap(
     """
     return _minimap(
         PXA_MAP,
-        _possible(PXA_MAP, state.name, view.PXA_EVENTS, unobservable),
+        _possible(PXA_MAP, state.name, PXA_NOTATION, unobservable),
         _public_words(state, unobservable),
     )
 
@@ -416,16 +435,30 @@ def vfd_minimap(state: CS, unobservable: Collection[CSEvent] = ()) -> Minimap:
     vf, d, _ = cs_dimensions(state)
     return _minimap(
         VFD_MAP,
-        _possible(
-            VFD_MAP, view.vfd_name(vf, d), view.VFD_EVENTS, unobservable
-        ),
-        view.vfd_badge(state, unobservable),
+        _possible(VFD_MAP, vfd_name(vf, d), VFD_NOTATION, unobservable),
+        vfd_badge(state, unobservable),
     )
 
 
 def case_minimaps(case: CaseStanding) -> tuple[Minimap, Minimap]:
     """The case's EM and public state, each on its map."""
     return em_minimap(case.em), pxa_minimap(case.pxa, case.unobservable)
+
+
+#: Every ASCII punctuation character, each of which CommonMark lets a
+#: backslash escape.
+_PUNCTUATION = re.compile(r"([!-/:-@\[-`{-~])")
+
+
+def markdown_literal(text: str) -> str:
+    """*text* escaped, so Streamlit's Markdown shows it as written.
+
+    A participant's name comes from the case's source, so a label such as
+    a tab's must not render it: an image in it would have the browser fetch
+    an outside URL.  Every ASCII punctuation character is escaped, which
+    also covers Streamlit's own ``:emoji:`` and ``:color[...]`` directives.
+    """
+    return _PUNCTUATION.sub(r"\\\1", text)
 
 
 #: What the page says in place of a participant's VFD map when it has no
@@ -447,6 +480,11 @@ class ParticipantMinimaps(BaseModel):
     label: str
     rm: Minimap
     vfd: Minimap | None
+
+    @property
+    def tab(self) -> str:
+        """Its tab's label: :attr:`label` as literal Markdown text."""
+        return markdown_literal(self.label)
 
 
 def participant_minimaps(
@@ -480,7 +518,6 @@ __all__ = [
     "PXA_MAP",
     "RM_MAP",
     "VFD_MAP",
-    "VFD_STATES",
     "MachineMap",
     "MapEdge",
     "MapState",
@@ -488,6 +525,7 @@ __all__ = [
     "ParticipantMinimaps",
     "case_minimaps",
     "em_minimap",
+    "markdown_literal",
     "participant_minimaps",
     "pxa_minimap",
     "rm_minimap",

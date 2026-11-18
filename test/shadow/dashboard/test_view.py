@@ -23,7 +23,7 @@ from vultron.core.models.case_reading import (
     UntranslatedFact,
     UntranslatedReason as Reason,
 )
-from vultron.core.states.cs import CS, CS_d, CS_pxa, CS_vf
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -59,6 +59,7 @@ from vultron.measure.standing import (
 )
 from vultron.shadow.analysis import analyse
 from vultron.shadow.dashboard import view
+from vultron.shadow.dashboard.case_state import VFD_BADGES
 from vultron.shadow.readers import VultronCaseReader
 
 VENDOR = "https://vendor.example/actors/vendor"
@@ -78,28 +79,8 @@ def test_every_state_and_status_has_a_badge():
     assert set(view.EVENT_LABELS) == set(CSEvent)
 
 
-def test_each_vendor_fix_path_state_reads_in_words():
-    """AC-3: a fix path reads as words, never as its compound state's
-    name."""
-    assert set(view.VFD_BADGES) == {
-        (s.value.vf_state, s.value.d_state) for s in CS
-    }
-    assert view.vfd_badge(CS.VFdPXa) == "🩹 Fix ready"
-    assert view.vfd_badge(CS.vfdpxa) == "⚪ Vendor unaware"
-    for state in CS:
-        assert state.name not in view.vfd_badge(state)
-
-
 @pytest.mark.spec("CRD-02-005")
-def test_an_unobservable_event_reads_as_unknown_never_as_false():
-    """A fix path the source cannot see through names every state it may
-    be in; a public-state event it cannot see reads as unknown."""
-    assert view.vfd_badge(CS.VfdPxa, {CSEvent.F, CSEvent.D}) == (
-        "❔ Vendor aware, fix ready or fix deployed"
-    )
-    assert view.vfd_badge(CS.vfdpxa, {CSEvent.V}) == (
-        "❔ Vendor unaware or vendor aware"
-    )
+def test_an_unobservable_public_event_reads_as_unknown_never_as_false():
     assert view.public_badges(CS_pxa.pxa, {CSEvent.A}) == (
         "🤫 Not public",
         "🛡️ No public exploit",
@@ -142,7 +123,7 @@ def test_participant_rows_show_report_state_fix_path_and_tally():
     )
     vendor = next(r for r in rows if r["Participant"] == "Vendor")
     assert vendor["Report"] == view.RM_BADGES[RM.CLOSED]
-    assert vendor["Fix path"] == view.VFD_BADGES[(CS_vf.VF, CS_d.d)]
+    assert vendor["Fix path"] == VFD_BADGES[(CS_vf.VF, CS_d.d)]
     assert str(vendor["Desiderata"]).startswith("✅ ")
     assert vendor["Not scored because"] == ""
     manager = next(r for r in rows if "CASE_MANAGER" in str(r["Roles"]))
@@ -211,6 +192,8 @@ def test_an_unknown_desideratum_shows_its_own_badge_and_count():
         if r["Participant"] == "Vendor"
     )
     assert "❔ 3" in str(vendor["Desiderata"])
+    # The fix path reads D, which the source cannot see, as unknown.
+    assert vendor["Fix path"] == "❔ Fix ready or fix deployed"
 
 
 def test_a_tally_with_no_unknown_desideratum_shows_no_unknown_count():

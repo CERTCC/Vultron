@@ -324,6 +324,60 @@ def test_each_state_is_shown_on_its_machines_map(recordings_app):
     assert minimap.NO_FIX_PATH in captions
 
 
+_NO_PARTICIPANTS_PAGE = """
+from vultron.shadow.dashboard.page import _show_participant_minimaps
+
+_show_participant_minimaps([], {})
+"""
+
+
+def test_a_standing_with_no_participant_draws_no_participant_tabs():
+    at = AppTest.from_string(
+        _NO_PARTICIPANTS_PAGE, default_timeout=_TIMEOUT
+    ).run()
+    assert not at.exception
+    assert not at.tabs
+    assert not at.get("graphviz_chart")
+
+
+#: The fake case, read from a source that cannot observe attacks or a
+#: fix being ready.
+_UNSEEN_PAGE = """
+from test.support.case_reader import FAKE_CASE, FakeCaseReader, fake_case_records
+from vultron.core.models.case_reading import UnobservableFact
+from vultron.core.states.cs_invariants import CSEvent
+from vultron.shadow.dashboard.page import render
+
+
+class Unseen(FakeCaseReader):
+    unobservable = (
+        UnobservableFact(
+            fact="Attacks (A), fix ready (F)",
+            why="No field records them.",
+            events=frozenset({CSEvent.A, CSEvent.F}),
+        ),
+    )
+
+
+render(Unseen({FAKE_CASE: fake_case_records()}))
+"""
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_event_reads_as_unknown_on_the_page():
+    """The top row's badge and the public-state map both read an event the
+    source cannot observe as unknown."""
+    at = AppTest.from_string(_UNSEEN_PAGE, default_timeout=_TIMEOUT).run()
+    at.text_input[0].input("urn:uuid:case-1").run()
+    assert not at.exception
+    assert _texts(at.metric)[3] == "❔ Attacks Observed unknown"
+    pxa = at.get("graphviz_chart")[1]
+    assert "dashed" in pxa.proto.spec
+    assert any(
+        c.endswith("❔ Attacks Observed unknown") for c in _texts(at.caption)
+    )
+
+
 @pytest.fixture(scope="module")
 def advice_app() -> AppTest:
     """The advice section for a case with a move in every band."""

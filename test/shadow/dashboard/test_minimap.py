@@ -10,19 +10,25 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from enum import Enum
 
 import pytest
 from pydantic import ValidationError
 
-from vultron.core.states.cs import CS, CS_d, CS_pxa, CS_vf
-from vultron.core.states.cs.transitions import (
-    _d_transitions,
-    _pxa_transitions,
-    _vf_transitions,
+from vultron.core.models.case_reading import CaseReading, UnobservableFact
+from vultron.core.states.common import TransitionBase
+from vultron.core.states.cs import (
+    CS,
+    CS_d,
+    CS_pxa,
+    CS_vf,
+    d_transition_rows,
+    pxa_transition_rows,
+    vf_transition_rows,
 )
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM, EM_TRANSITIONS
-from vultron.core.states.rm import RM, _transitions as _rm_transitions
+from vultron.core.states.rm import RM, rm_transition_rows
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.sequences import (
     UnprojectableParticipant,
@@ -30,7 +36,7 @@ from vultron.measure.sequences import (
 )
 from vultron.measure.standing import CaseStanding, ParticipantStanding
 from vultron.shadow.analysis import analyse
-from vultron.shadow.dashboard import minimap, view
+from vultron.shadow.dashboard import case_state, minimap, view
 from vultron.shadow.readers import VultronCaseReader
 
 _NODE = re.compile(r'^"(?P<id>[^"]+)" \[label="(?P<label>[^"]*)"', re.M)
@@ -62,10 +68,15 @@ def _letter(trigger) -> str:
     return f"{trigger.name}: {_words(trigger)}"
 
 
-def _rows(table: Iterable[dict], trigger_text) -> set[tuple[str, str, str]]:
+def _rows(
+    table: Iterable[TransitionBase], trigger_text
+) -> set[tuple[str, str, str]]:
+    def name(state) -> str:
+        assert isinstance(state, Enum)
+        return state.name
+
     return {
-        (trigger_text(t["trigger"]), t["source"].name, t["dest"].name)
-        for t in table
+        (trigger_text(t.trigger), name(t.source), name(t.dest)) for t in table
     }
 
 
@@ -77,7 +88,7 @@ def test_the_rm_map_draws_every_state_and_transition_of_its_table():
     """AC-2: the RM table's states and transitions, both ways."""
     dot = minimap.RM_MAP.dot(RM.START.name)
     assert _nodes(dot) == {s.name for s in RM}
-    assert _arrows(dot) == _rows(_rm_transitions, _words)
+    assert _arrows(dot) == _rows(rm_transition_rows(), _words)
 
 
 def test_the_em_map_draws_every_state_and_transition_of_its_table():
@@ -98,7 +109,7 @@ def test_the_pxa_map_draws_every_state_and_transition_of_its_table():
     reading its event letter."""
     dot = minimap.PXA_MAP.dot(CS_pxa.pxa.name)
     assert _nodes(dot) == {s.name for s in CS_pxa}
-    assert _arrows(dot) == _rows(_pxa_transitions, _letter)
+    assert _arrows(dot) == _rows(pxa_transition_rows(), _letter)
     assert {m["label"] for m in _ARROW.finditer(dot)} == {"P", "X", "A"}
 
 
@@ -111,8 +122,8 @@ def test_the_vfd_map_draws_the_vf_and_d_tables_over_the_four_vfd_states():
     assert {n[:-1] for n in nodes} == {s.value for s in CS_vf}
     assert {n[-1] for n in nodes} == {s.value for s in CS_d}
     arrows = _arrows(dot)
-    vf_rows = _rows(_vf_transitions, _letter)
-    d_rows = _rows(_d_transitions, _letter)
+    vf_rows = _rows(vf_transition_rows(), _letter)
+    d_rows = _rows(d_transition_rows(), _letter)
     held_d = {(t, s[:-1], d[:-1]) for t, s, d in arrows if s[-1] == d[-1]}
     held_vf = {(t, s[-1], d[-1]) for t, s, d in arrows if s[:-1] == d[:-1]}
     assert held_d == vf_rows
@@ -127,8 +138,8 @@ def test_the_vfd_states_are_those_the_compound_states_allow():
         (CS_vf.Vf, CS_d.d),
         (CS_vf.VF, CS_d.d),
         (CS_vf.VF, CS_d.D),
-    ) == minimap.VFD_STATES
-    assert set(view.VFD_BADGES) == set(minimap.VFD_STATES)
+    ) == case_state.VFD_STATES
+    assert set(case_state.VFD_WORDS) == set(case_state.VFD_STATES)
 
 
 @pytest.mark.parametrize(
@@ -165,7 +176,7 @@ def test_an_unobservable_fix_path_event_marks_every_state_it_allows():
     # An unobservable event that no other state allows changes nothing.
     alone = minimap.vfd_minimap(CS.VfdPxa, {CSEvent.D})
     assert _current(alone.dot) == ["Vfd"]
-    assert alone.caption == view.VFD_BADGES[(CS_vf.Vf, CS_d.d)]
+    assert alone.caption == case_state.VFD_BADGES[(CS_vf.Vf, CS_d.d)]
 
 
 @pytest.mark.spec("CRD-02-005")
@@ -289,3 +300,56 @@ def test_a_recorded_vendor_has_its_fix_path_on_its_map():
     assert vendor.vfd is not None
     assert _current(vendor.vfd.dot) == ["VFd"]
     assert any(m.vfd is None for m in maps)
+
+
+def test_an_unobservable_event_the_reading_says_happened_stays_happened():
+    """Only an event not yet seen may have happened unseen: a state the
+    reading spells upper-case is never read back as possibly false."""
+    vfd = minimap.vfd_minimap(CS.VFdPxa, {CSEvent.F})
+    assert _current(vfd.dot) == ["VFd"]
+    pxa = minimap.pxa_minimap(CS_pxa.PXa, {CSEvent.P})
+    assert _current(pxa.dot) == ["PXa"]
+
+
+def _reading_with_d_unobservable() -> CaseReading:
+    path = RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
+    recorded = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(path))
+    return CaseReading(
+        ledger=recorded.ledger,
+        citations=recorded.citations,
+        unobservable=(
+            UnobservableFact(
+                fact="Fix Deployed (D)",
+                why="no field",
+                events=frozenset({CSEvent.D}),
+            ),
+        ),
+    )
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_a_participants_maps_read_its_cases_unobservable_events():
+    """The reading's unobservable events reach each participant's map."""
+    analysis = analyse(_reading_with_d_unobservable())
+    assert analysis.standing is not None
+    maps = minimap.participant_minimaps(
+        analysis.standing.participants, analysis.actor_names
+    )
+    vendor = next(m for m in maps if m.label == "Vendor")
+    assert vendor.vfd is not None
+    assert _possible(vendor.vfd.dot) == ["VFd", "VFD"]
+    assert vendor.vfd.caption == "❔ Fix ready or fix deployed"
+
+
+def test_a_tab_shows_a_participants_name_as_literal_text():
+    """A name from the case's source is never rendered as Markdown: an
+    image in it would have the browser fetch an outside URL."""
+    name = "![x](https://host.example/p.png) :red[Vendor]"
+    assert minimap.markdown_literal(name) == (
+        "\\!\\[x\\]\\(https\\:\\/\\/host\\.example\\/p\\.png\\)"
+        " \\:red\\[Vendor\\]"
+    )
+    (maps,) = minimap.participant_minimaps([_unscored(VENDOR)], {VENDOR: name})
+    assert maps.label == name
+    assert maps.tab == minimap.markdown_literal(name)
+    assert minimap.markdown_literal("Vendor 2") == "Vendor 2"

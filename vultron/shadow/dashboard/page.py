@@ -194,7 +194,7 @@ def _show_participant_minimaps(
     if not maps:
         return
     for tab, participant in zip(
-        st.tabs([m.label for m in maps]), maps, strict=True
+        st.tabs([m.tab for m in maps]), maps, strict=True
     ):
         with tab:
             rm_column, vfd_column = st.columns(2)
