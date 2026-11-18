@@ -5,7 +5,9 @@ created: 2026-07-31
 updated: 2026-07-31
 revision: 1
 deciders: [adh, Claude Opus 5]
-partially_superseded_by: docs/adr/0122-per-embargo-participant-consent.md
+partially_superseded_by:
+  - docs/adr/0122-per-embargo-participant-consent.md
+  - 0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
 stakeholder_type: [project-contributor]
 ---
 

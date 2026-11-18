@@ -2,7 +2,7 @@
 status: accepted-provisional
 status_override: >-
   Revision 3 edited in place in epoch 2, not superseded, with the maintainer's explicit
-  approval on 2026-11-18 (Idea #6615, PR #6646, ADR-0212): an embargo consent row is no
+  approval on 2026-11-18 (Idea #6615, PR #6646, ADR-0215): an embargo consent row is no
   longer exempt, because consent is part of a participant status, which carries its time.
   Revision 2 edited in place in epoch 2, not superseded, with the maintainer's explicit
   approval on 2026-11-17 (Issue #6456, PR #6611). It records the maintainer's ruling that a
@@ -171,6 +171,6 @@ Generated spec requirements: `message-validation.yaml` MV-10-009 (amended), MV-1
 Corrected in place by instruction of Allen D. Householder (Idea #6615, PR #6646).
 
 Replaced: "Four kinds of whole object are exempt: an actor profile, a collection, a case stub and an embargo consent row."
-A participant's embargo consent is part of its status (ADR-0212), and a status carries the `published` time of the act that wrote it.
+A participant's embargo consent is part of its status (ADR-0215), and a status carries the `published` time of the act that wrote it.
 No received whole object is a consent row, so the consent row's exemption is removed.
 The rest of the decision is unchanged.

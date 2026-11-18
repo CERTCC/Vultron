@@ -52,8 +52,8 @@ Everything a chart holds comes from the core layer: each machine's module declar
 ### Charts are generated and committed
 
 A generator writes one statechart per machine in Sismic's YAML format: RM, the vendor fix path (VF), the deployer path (D), the public state (PXA), EM, and PEC.
-One PEC chart describes one consent row, since consent is held per (participant, embargo register entry) ([ADR-0122](0122-per-embargo-participant-consent.md)).
-The embargo register is the stored data EM is computed from ([ADR-0130](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md)), so it gets no chart.
+One PEC chart describes one consent row, since consent is held per (participant, embargo register entry) ([ADR-0122](archived/0122-per-embargo-participant-consent.md)).
+The embargo register is the stored data EM is computed from ([ADR-0130](archived/0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md)), so it gets no chart.
 Each register entry does have a lifecycle table of its own, but that lifecycle is bookkeeping beneath EM: no message names a register trigger, and other participants see its effect only as EM and consent moves.
 The charts are committed and gated by a `--check` hook that regenerates them and fails on any difference, as the occasion YAML is.
 They hold states, the initial and final states, and transitions with an event, a target and, where needed, a named condition.

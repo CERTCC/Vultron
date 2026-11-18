@@ -75,7 +75,7 @@ Mechanism, the silent node-shadowing variant, and the full rules:
 
 ## PEC Consent Writes — Never Direct-Assign `embargo_consents`
 
-(CM-18-005, CM-18-016; ADR-0122)
+(CM-18-005, CM-18-016; ADR-0212)
 
 ```python
 # WRONG — skips the transition table
@@ -86,7 +86,7 @@ dl.save(participant)
 ```
 
 Every row is written (`UNINVITED` first), so attach a new participant *before*
-storing it. "Signatory" and "lapsed" are reads, never writes (ADR-0122); see
+storing it. "Signatory" and "lapsed" are reads, never writes (ADR-0212); see
 `notes/participant-embargo-consent.md`.
 
 ---
@@ -161,7 +161,7 @@ Specs: BTND-07-005, BTND-07-009, BTND-07-010, BTC-01-001.
 
 **Never read `case.em_state` inline inside a BT node** — go through
 `ReadEmStateNode` (`embargo/nodes/em_state.py`; AC-1, #1474). EM is derived
-from the embargo register (ADR-0122): **never apply a register step directly**
+from the embargo register (ADR-0212): **never apply a register step directly**
 (EMB-18-001) — every embargo change routes through `EmbargoLifecycle`
 (`vultron/core/services/embargo_lifecycle/`; `WriteEmStateNode` was retired
 in issue #2712). Direct access is invisible to the BT audit trail. In-node

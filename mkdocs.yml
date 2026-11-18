@@ -407,6 +407,11 @@ plugins:
         adr/0046-received-status-authorization.md: adr/archived/0046-received-status-authorization.md
         adr/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md: adr/archived/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md
         adr/0099-one-object-model-as2-is-a-serialization.md: adr/archived/0099-one-object-model-as2-is-a-serialization.md
+        adr/0122-per-embargo-participant-consent.md: adr/archived/0122-per-embargo-participant-consent.md
+        adr/0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md: adr/archived/0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md
+        adr/0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md: adr/archived/0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md
+        adr/0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md: adr/archived/0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md
+        adr/0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md: adr/archived/0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md
         # ADR-0146 was renamed when it widened from embargo acts to every
         # CASE_MANAGER act (#4983).
         adr/0146-one-atomic-commit-per-embargo-act.md: adr/0146-one-atomic-commit-per-case-manager-act.md

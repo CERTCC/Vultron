@@ -67,7 +67,7 @@ These rules live in `vultron/measure/history/` (`derive.py`, `snapshot.py`).
   `vultron/measure/history/reached.py`), and a measure that needs EM derives it from
   those statuses with `derive_em`, not from the stamped `CaseStatus.em`. Reason: EM
   is derived from the register, and the stamp is only a copy written when a case
-  status is added (ADR-0122); in `rcv-embargo` the stamp reads `ACTIVE` while a
+  status is added (ADR-0212); in `rcv-embargo` the stamp reads `ACTIVE` while a
   proposal holds the register in `REVISE`.
 - **An invitation is a row newly `INVITED` with an RSVP deadline.** Emit it with
   the deadline, and emit nothing for a row invited with none (CEH-04-017). Reason:

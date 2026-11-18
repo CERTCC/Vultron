@@ -247,7 +247,7 @@ node diverged.
   the evaluator, each with a reason.
 - It covers RM, VF, D and case-level P/X/A only. PEC is not a status dimension:
   consent moves only through `CaseParticipant.apply_pec_transition()`
-  (CM-18-005, ADR-0122).
+  (CM-18-005, ADR-0212).
 
 **The write node keeps its own checks** (BTND-10-003). `CreateParticipantStatusNode`
 is reached from `develop_fix.py`, `deploy_fix.py` and the Leave closure writer

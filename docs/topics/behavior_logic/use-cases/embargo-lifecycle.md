@@ -35,7 +35,7 @@ A case routinely holds both at once: an active embargo with one Participant who 
 The case keeps one embargo register entry for every embargo ever proposed on it.
 The EM state is a read of the entries' statuses ([§7.1.1 The Embargo Register in the specification](../../../reference/vultron-spec/tracking-models.md#711-the-embargo-register)).
 A Participant is a [signatory](../../../reference/glossary.md#embargo-and-timing) when its consent row for the register's `ACTIVE` entry is `AGREED`.
-Signatory status is a lookup, not a second record, so the embargo and the Participant's position can never drift apart ([ADR-0122](../../../adr/0122-per-embargo-participant-consent.md)).
+Signatory status is a lookup, not a second record, so the embargo and the Participant's position can never drift apart ([ADR-0212](../../../adr/0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md)).
 A Participant has lapsed when it agreed to an embargo that has since been replaced by one it has not agreed to.
 Lapsed status is also read from the rows and the register, and it needs three conditions (CM-18-001):
 

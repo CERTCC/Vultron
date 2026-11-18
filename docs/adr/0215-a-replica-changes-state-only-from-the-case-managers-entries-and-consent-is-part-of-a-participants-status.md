@@ -7,7 +7,7 @@ revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Idea #6615, Issue #6456, PR #6611, Issue #6330; ADR-0033,
-  ADR-0122, ADR-0124, ADR-0198; specs/case-management.yaml CM-18, CM-23-044;
+  ADR-0212, ADR-0124, ADR-0198; specs/case-management.yaml CM-18, CM-23-044;
   specs/message-semantics-mapping.yaml MSM-07; specs/status-dimension-objects.yaml
   SDO-03; specs/received-status-handling.yaml RSH-09;
   specs/case-ledger-processing.yaml CLP-07, CLP-15-011
@@ -19,7 +19,7 @@ stakeholder_type: [project-contributor]
 
 ## Context and Problem Statement
 
-A participant's **Embargo Consent** is kept as a separate row on its participant record: one `EmbargoConsent` row for each embargo in the case's **Embargo Register** (ADR-0122).
+A participant's **Embargo Consent** is kept as a separate row on its participant record: one `EmbargoConsent` row for each embargo in the case's **Embargo Register** (ADR-0212).
 A row carries no time, so the ledger cannot show when a participant came to agree, decline or time out, except by the entry that caused the change.
 For the same reason the rule that every received whole object carries `published` needs an exemption for consent rows (CLP-15-011, PR #6611).
 
@@ -37,7 +37,7 @@ The question: **where is a participant's consent recorded, and which entries is 
 
 ## Decision Drivers
 
-- One fact is recorded once: two records of the same fact can disagree (ADR-0122).
+- One fact is recorded once: two records of the same fact can disagree (ADR-0212).
 - Every change of a participant's state is dated, so a case can be traced event by event.
 - A replica decides nothing: it copies what the CASE_MANAGER recorded (ADR-0124, CM-23-044).
 - The ledger keeps a participant's own words as it sent them, so a signed message stays verifiable.
@@ -90,7 +90,7 @@ A status claim from a participant that changes its consent is refused, and the r
 
 A participant reports a change of its own state by an `Add(ParticipantStatus)` that carries only the fields that changed.
 A field that the claim does not carry is unchanged.
-A field that the claim carries as an explicit null is cleared.
+A claim cannot clear a field: no wire object carries a null (VM-07-001), and the state a claim reports only moves forward, so a claim that carries a null is refused.
 
 The CASE_MANAGER checks each claimed field against the participant's state.
 It then merges the claim onto the participant's latest status and records the result as its own entry, which names the claim it came from.
@@ -107,9 +107,9 @@ The parse edge reads a participant's received claim into the claim type, because
 
 ### Effect on earlier decisions
 
-ADR-0122, ADR-0124 and ADR-0198 are edited in place to match, with the maintainer's approval on 2026-11-18.
+ADR-0212, ADR-0124 and ADR-0198 are edited in place to match, with the maintainer's approval on 2026-11-18.
 
-- ADR-0122 keeps its consent states, triggers and register.
+- ADR-0212 keeps its consent states, triggers and register.
   Consent becomes a table on each status, "not asked" is read from the register, and each consent change is a CASE_MANAGER status entry that carries its time.
 - ADR-0124 keeps its single apply function and its rule that a replica copies.
   An act's own entry becomes a record, and the CASE_MANAGER's entries after it carry each change.
@@ -126,13 +126,12 @@ ADR-0122, ADR-0124 and ADR-0198 are edited in place to match, with the maintaine
 - Bad, because an answer to an embargo becomes two entries, the answer and the status, where it was one.
 - Bad, because every status repeats the consent table; at a few embargoes for each case this is small.
 - Bad, because a claim that carries only changes cannot show that the participant's view of its own state has drifted from the CASE_MANAGER's.
-- Bad, because a claim must tell a missing field from an explicit null, which the parse edge otherwise does not need to do.
 - Bad, because the wire format changes: the status carries consent, a status claim may be partial, and `EmbargoConsent` is no longer sent on its own.
   The prototype owes no compatibility.
 
 ## Validation
 
-- Unit tests merge claims onto statuses, and assert that a missing field is unchanged, that a null clears its field, and that a claim that changes consent is refused.
+- Unit tests merge claims onto statuses, and assert that a missing field is unchanged, that a claim carrying a null is refused, and that a claim that changes consent is refused.
 - Tests assert that every consent change writes one dated status, and that signatory and lapsed read the same as before.
 - The rebuild-from-ledger test of ADR-0124 rebuilds consent from statuses alone.
 - A test asserts that no replica effect applies an entry that the CASE_MANAGER did not write, for the entry kinds that have adopted this decision.

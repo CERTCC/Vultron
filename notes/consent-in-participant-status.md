@@ -10,7 +10,7 @@ tracks:
   - "#6658"   # follow-up: participant content
   - "#6653"   # epic
 description: >
-  The build plan for ADR-0212: a participant's embargo consent moves from
+  The build plan for ADR-0215: a participant's embargo consent moves from
   its own rows into each participant status; a participant reports a status
   change as a claim that carries only what changed, and the CASE_MANAGER
   merges it into a whole status; and a replica changes state only from the
@@ -36,7 +36,7 @@ related_notes:
 
 # Consent in Participant Status, and Replicas That Copy Only the Case Manager
 
-ADR-0212 decides three changes. The code does none of them yet. This note
+ADR-0215 decides three changes. The code does none of them yet. This note
 holds the rules that the build follows and the traps it must avoid. The specs
 that state the replaced rules are amended in the same pull request as the code
 that meets the new ones. Until then, they describe the code as it is.
@@ -62,7 +62,8 @@ that meets the new ones. Until then, they describe the code as it is.
   claim that changes its consent is refused, and the reason names `Accept`,
   `Reject` or `Leave`.
 - **A status claim carries only what changed.** A missing field is
-  unchanged, and an explicit null clears it. The merge is the previous status
+  unchanged. A claim cannot clear a field, and one that carries a null is
+  refused (no wire object carries a null, VM-07-001). The merge is the previous status
   updated with the claim's set fields (`model_dump(exclude_unset=True)`), and
   the result is validated as a whole status. The id, the time and the author
   come from the CASE_MANAGER's act. The recorded status names the claim it
@@ -94,7 +95,7 @@ that meets the new ones. Until then, they describe the code as it is.
 
 Each implementation PR amends these requirements together with the code that
 meets them. The lists come from a read of the whole spec corpus against
-ADR-0212. They are a floor: re-run `spec-backstop` on the real diff.
+ADR-0215. They are a floor: re-run `spec-backstop` on the real diff.
 
 **Term.** CM-18-001 keeps the name *consent row* and redefines it as one
 embargo's row in a status's consent table. The requirements that use the term
@@ -124,8 +125,8 @@ and each invitee's `INVITE` still write statuses.
 | CM-04-001, CM-04-002 | Name the CASE_MANAGER and the merge as what records the declared RM, VF or D state (check: may already read that way) |
 | new | The claim type, the merge rule, and the link from the record to its claim |
 
-Open: how a claim clears a field. VM-07-001 and ARCH-20-002 drop `None`
-fields from every wire object, so an explicit null cannot be sent.
+A claim cannot clear a field, so VM-07-001 and ARCH-20-002, which drop
+`None` fields from every wire object, need no change.
 
 ### #6655: consent into status
 
