@@ -337,11 +337,17 @@ def test_the_job_runs_on_a_change_to_what_it_checks() -> None:
             "docker/**",
             ".dockerignore",
             "vultron/shadow/**",
+            "vultron/config/shadow.py",
+            "vultron/demo/cli/seed_command.py",
+            "vultron/adapters/driving/fastapi/routers/trigger_case.py",
+            "vultron/adapters/driving/fastapi/routers/demo_triggers/**",
+            "vultron/adapters/driving/fastapi/ledger_stream.py",
             "pyproject.toml",
             "uv.lock",
             ".github/workflows/shadow-image.yml",
             ".github/actions/build-demo-images/**",
             ".github/scripts/find_in_image.py",
+            ".github/scripts/shadow_live_read.py",
         }, event
 
 

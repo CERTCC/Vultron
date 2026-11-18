@@ -13,26 +13,31 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Case shadow tool configuration: which case reader a run reads through.
+"""Case shadow tool configuration: what each case source reads through.
 
 Provides :class:`ShadowConfig`, the ``shadow:`` section of
 :class:`~vultron.config.app.AppConfig`.  The case shadow tool's dashboard
-reads it at start (ADR-0190, ADR-0192):
+reads it at start (ADR-0190, ADR-0192).  The analyst picks the source on the
+page: the recorded demo cases, an outside system, or a running Vultron node
+(#6642).  These settings configure each source:
 
-* ``connector`` names the connector entry point whose case reader the run
-  reads an outside system's cases through.  When it is unset, the run reads
-  Vultron case-ledger files through the Vultron case reader.
-* ``ledger_dir`` confines the Vultron case reader to one directory, so an
-  analyst's input cannot open the host's other files.  Unset, the directory
-  the tool starts in confines it.
-* ``node_url`` and ``node_actor_id`` name a running Vultron node and the
-  CASE_MANAGER whose case ledger the live Vultron case reader reads.  The
-  deployment sets them, as ``VULTRON_SHADOW__NODE_URL`` and
-  ``VULTRON_SHADOW__NODE_ACTOR_ID``; the page never asks for them, so an
-  analyst's input cannot point the tool at another host (SHD-01-001).
+* ``ledger_dir`` confines the Vultron case reader, which reads the recorded
+  demo cases, to one directory, so an analyst's input cannot open the host's
+  other files.  Unset, the directory the tool starts in confines it.
+* ``connector`` names the connector entry point whose case reader the
+  outside-system source reads through.  When it is unset, that source is
+  VINCE, through the ``vince`` connector.
+* ``node_url`` and ``node_actor_id`` prefill the running-node source's
+  fields: a Vultron node's API root and the CASE_MANAGER whose case ledger
+  the live Vultron case reader reads.  The deployment sets them, as
+  ``VULTRON_SHADOW__NODE_URL`` and ``VULTRON_SHADOW__NODE_ACTOR_ID``.  They
+  are not secret: the analyst may type others on the page, and a typed value
+  is checked by the same rules.  The live reader only reads a node's case
+  ledger (SHD-04-001), so no value sends anything (SHD-01-001).
 
 An outside system's endpoint and credential are that connector's own
-settings, such as the ``vince:`` section (SHD-02-003).
+settings, such as the ``vince:`` section.  The page never asks for a
+credential (SHD-02-003).
 """
 
 from __future__ import annotations
@@ -49,6 +54,9 @@ from vultron.primitives import NonEmptyString
 SHADOW_NODE_URL_ENV_VAR = env_var_name(("shadow", "node_url"))
 #: The environment variable that names the CASE_MANAGER it reads as.
 SHADOW_NODE_ACTOR_ID_ENV_VAR = env_var_name(("shadow", "node_actor_id"))
+#: The connector the outside-system source reads through when
+#: ``connector`` is unset: VINCE's, by its entry-point name.
+VINCE_CONNECTOR = "vince"
 
 
 class ShadowConfig(BaseModel):
@@ -57,23 +65,24 @@ class ShadowConfig(BaseModel):
     Attributes:
         connector: The name of the connector entry point, in the
             ``vultron.connectors`` group, whose case reader the case shadow
-            tool reads cases through.  When it is ``None`` the tool reads
-            Vultron case-ledger files.  Default ``None``.
+            tool's outside-system source reads cases through.  When it is
+            ``None`` that source is VINCE, through the ``vince`` connector
+            (:data:`VINCE_CONNECTOR`).  Default ``None``.
         ledger_dir: The directory the Vultron case reader reads case-ledger
             files from.  A case is then named by its file's path relative to
             this directory, and a path outside it is refused.  When it is
             ``None`` the directory the tool starts in takes its place.
             Default ``None``.
         node_url: The API root of a running Vultron node in prototype run
-            mode, such as ``http://case-actor:7999/api/v2``.  When it is set
-            and no connector is named, the tool follows each case on that
-            node's case ledger through the live Vultron case reader, and
-            ``ledger_dir`` is not used.  It starts with ``http://`` or
-            ``https://``.  Default ``None``.
+            mode, such as ``http://case-actor:7999/api/v2``.  It prefills
+            the page's running-node source, which follows each case on that
+            node's case ledger through the live Vultron case reader.  It
+            starts with ``http://`` or ``https://``.  Default ``None``.
         node_actor_id: The actor id of the CASE_MANAGER on that node whose
             case ledger the live reader reads, such as ``case-actor``, or
-            its full id.  The two are set together: a run with only one of
-            them is refused before any case is read.  Default ``None``.
+            its full id.  It prefills the running-node source with
+            ``node_url``; the source is read only with both.  Default
+            ``None``.
     """
 
     # A validation error names the field but never quotes its input, so a

@@ -44,6 +44,7 @@ from vultron.shadow.dashboard.view import (
     RM_BADGES,
     TOP_MARK,
 )
+from vultron.shadow.readers import CaseSource
 
 #: Seconds one script run may take; the first run imports the measures.
 _TIMEOUT = 60
@@ -435,10 +436,13 @@ def test_a_ledger_with_a_hole_shows_the_hole_not_a_standing(tmp_path):
 def test_a_connector_that_is_not_installed_stops_the_page_with_why():
     with config_override(VULTRON_SHADOW__CONNECTOR="no-such-connector"):
         at = AppTest.from_file(str(APP_PATH), default_timeout=_TIMEOUT).run()
+        at.sidebar.radio[0].set_value(CaseSource.OUTSIDE).run()
     assert not at.exception
     (error,) = _texts(at.error)
     assert "'no-such-connector'" in error
     assert not at.selectbox and not at.text_input
+    # The menu stays, so the analyst can pick another source.
+    assert at.sidebar.radio[0].value == CaseSource.OUTSIDE
 
 
 def test_a_setting_that_does_not_load_stops_the_page_with_why(monkeypatch):
@@ -467,27 +471,9 @@ def test_suggestions_are_the_ledger_files_under_the_ledger_dir(tmp_path):
     ]
 
 
-def test_a_run_through_a_connector_or_with_no_ledger_dir_suggests_none(
-    tmp_path,
-):
-    (tmp_path / "b.jsonl").write_text("")
+def test_with_no_ledger_dir_there_is_no_suggestion(tmp_path):
     assert ledger_suggestions(ShadowConfig()) == []
     assert ledger_suggestions(ShadowConfig(ledger_dir=tmp_path / "gone")) == []
-    assert (
-        ledger_suggestions(ShadowConfig(connector="x", ledger_dir=tmp_path))
-        == []
-    )
-
-
-def test_a_run_through_a_vultron_node_suggests_no_ledger_file(tmp_path):
-    """A node's cases are named by case id, not by a file under ledger_dir."""
-    (tmp_path / "b.jsonl").write_text("")
-    config = ShadowConfig(
-        ledger_dir=tmp_path,
-        node_url="http://case-actor:7999/api/v2",
-        node_actor_id="case-actor",
-    )
-    assert ledger_suggestions(config) == []
 
 
 @pytest.mark.spec("SHD-04-005")

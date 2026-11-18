@@ -40,6 +40,8 @@ from vultron.errors import VultronMissingCredentialError
 
 #: The environment variable that carries the VINCE API credential.
 VINCE_API_TOKEN_ENV_VAR = env_var_name(("vince", "api_token"))
+#: The environment variable that names the VINCE API's base URL.
+VINCE_BASE_URL_ENV_VAR = env_var_name(("vince", "base_url"))
 
 
 class VinceConfig(BaseModel):

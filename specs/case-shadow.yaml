@@ -30,8 +30,8 @@ groups:
       An import test asserts that no module of the case shadow tool imports, directly
       or transitively, the outbox, an activity emitter, or an HTTP delivery
       adapter. A run against the recorded transport of SHD-01-002 also fails on
-      any request to a host other than the configured outside system or Vultron
-      node.
+      any request to a host other than the chosen outside system or the Vultron
+      node, configured or typed on the page.
   - id: SHD-01-002
     priority: MUST_NOT
     kind: project

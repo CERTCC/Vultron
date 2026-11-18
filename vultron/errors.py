@@ -554,23 +554,24 @@ class VultronSecretInConfigFileError(VultronConfigError, ValueError):
 
 
 class ShadowConnectorError(VultronConfigError):
-    """Raised when the case shadow tool's configured connector cannot serve it.
+    """Raised when the case shadow tool's outside-system connector cannot serve it.
 
-    The ``shadow.connector`` setting names a connector entry point that is
-    not installed, or whose plugin implements no
-    :class:`~vultron.core.ports.case_reader.CaseReader`.  The tool stops at
-    start rather than read cases through some other reader than the one the
-    analyst configured.
+    The connector the outside-system source reads through, the one the
+    ``shadow.connector`` setting names or ``vince`` when it is unset, is not
+    installed, or its plugin implements no
+    :class:`~vultron.core.ports.case_reader.CaseReader`.  The page shows the
+    reason when the analyst chooses that source, rather than read cases
+    through some other reader than the one chosen.
 
     Attributes:
-        connector: The entry-point name the setting gave.
+        connector: The connector's entry-point name.
     """
 
     def __init__(self, connector: str, reason: str) -> None:
         self.connector = connector
         super().__init__(
             f"The case shadow tool cannot read cases through connector"
-            f" {connector!r} (VULTRON_SHADOW__CONNECTOR): {reason}"
+            f" {connector!r}: {reason}"
         )
 
 

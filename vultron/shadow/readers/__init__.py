@@ -27,22 +27,43 @@
   events of a node's ledger event stream, read from its lines.
 * :func:`~vultron.shadow.readers.ledger_reading.ledger_reading` — the case
   reading both Vultron readers build from a ledger's parsed rows.
-* :func:`~vultron.shadow.readers.selection.select_case_reader` — the reader a
-  run uses: the configured outside-system reader, else the live reader when
-  a node is configured, else the Vultron case reader.
+* :class:`~vultron.shadow.readers.selection.CaseSource` — the sources the
+  analyst picks from on the page: the recorded demo cases, an outside
+  system, or a running Vultron node.
+* :func:`~vultron.shadow.readers.selection.select_case_reader` — the reader
+  a source reads through.
 * :func:`~vultron.shadow.readers.configured.configured_case_reader` — that
-  choice made from the run's ``shadow:`` settings.
+  reader set up from the run's ``shadow:`` settings, with
+  :func:`~vultron.shadow.readers.configured.typed_node` checking a node the
+  analyst typed and
+  :func:`~vultron.shadow.readers.configured.outside_source_ready` saying
+  whether the outside system can be chosen.
 """
 
-from vultron.shadow.readers.configured import configured_case_reader
-from vultron.shadow.readers.selection import VultronNode, select_case_reader
+from vultron.shadow.readers.configured import (
+    configured_case_reader,
+    configured_node,
+    outside_connector,
+    outside_source_ready,
+    typed_node,
+)
+from vultron.shadow.readers.selection import (
+    CaseSource,
+    VultronNode,
+    select_case_reader,
+)
 from vultron.shadow.readers.vultron_ledger import VultronCaseReader
 from vultron.shadow.readers.vultron_node import VultronNodeCaseReader
 
 __all__ = [
+    "CaseSource",
     "VultronCaseReader",
     "VultronNode",
     "VultronNodeCaseReader",
     "configured_case_reader",
+    "configured_node",
+    "outside_connector",
+    "outside_source_ready",
     "select_case_reader",
+    "typed_node",
 ]

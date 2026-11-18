@@ -94,6 +94,17 @@ NO_ENTRY_NOTE = (
 HEARTBEAT_KEY = "follow_heartbeats"
 
 
+def forget_case() -> None:
+    """Drop the case entered and the reading kept for it.
+
+    The source menu calls this when the analyst switches sources, so a case
+    read from one source is never shown as if another source gave it.  It
+    runs before the page draws the case box, so the box starts empty.
+    """
+    st.session_state.pop(CASE_KEY, None)
+    st.session_state.pop(LAST_READING_KEY, None)
+
+
 def _table(rows: Sequence[view.Row], empty: str) -> None:
     if rows:
         st.dataframe(list(rows), hide_index=True, width="stretch")
@@ -368,5 +379,6 @@ __all__ = [
     "RECONNECTING_NOTE",
     "TITLE",
     "WAITING_NOTE",
+    "forget_case",
     "render",
 ]
