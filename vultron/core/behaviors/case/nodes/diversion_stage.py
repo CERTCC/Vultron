@@ -36,7 +36,11 @@ guard.  When it holds, the stage runs the effects and then fails, so the
 received activity is never committed and no effect of the admitted path runs;
 the handler reads :attr:`DiversionStage.taken` to report the delivery.  The
 stage fails whatever the effects return, and an exception the effects raise
-ends the tree as an internal error (ADR-0095).
+ends the tree as an internal error (ADR-0095).  A diversion that refuses the
+delivery says so (``refuses``): once its answer completes, the stage declares
+the refusal for its condition's reason
+(:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`), and the
+runner reports the delivery ``REFUSED`` with it (HP-01-003).
 
 Where a diversion may run is read from the tree's path declaration, never
 declared a second time beside it (HP-01-038, ADR-0153).  A tree that declares
@@ -73,6 +77,8 @@ class Diversion:
         effects: The receiver's answer, run in order once diverted.
         emit_exemption: The registered decision covering the emits of a
             diversion that a non-manager receiver may reach (BT-17-008).
+        refuses: The diversion refuses the delivery, for the reason its
+            condition gives when it holds; see :class:`DiversionStage`.
     """
 
     name: str
@@ -81,6 +87,7 @@ class Diversion:
         default_factory=tuple
     )
     emit_exemption: ReplicaEmitExemption | None = None
+    refuses: bool = False
 
 
 class DiversionStage(py_trees.composites.Composite):
@@ -99,6 +106,11 @@ class DiversionStage(py_trees.composites.Composite):
 
         RUNNING while a child is running.
 
+    A stage built ``refuses`` declares the refusal of a delivery it diverted
+    once its answer completed (:attr:`declared_refusal`); one whose answer
+    did not complete declares none, so the handler's reading decides that
+    run.
+
     Only the received-tree factory constructs one.
     """
 
@@ -107,9 +119,12 @@ class DiversionStage(py_trees.composites.Composite):
         name: str,
         condition: py_trees.behaviour.Behaviour,
         effects: py_trees.behaviour.Behaviour,
+        *,
+        refuses: bool = False,
     ) -> None:
         super().__init__(name=name, children=[condition, effects])
         self.taken = False
+        self.refuses = refuses
 
     @property
     def condition(self) -> py_trees.behaviour.Behaviour:
@@ -135,6 +150,27 @@ class DiversionStage(py_trees.composites.Composite):
     def effects_succeeded(self) -> bool:
         """True when the delivery was diverted and its answer completed."""
         return self.taken and self.effects.status == Status.SUCCESS
+
+    @property
+    def declared_refusal(self) -> str | None:
+        """The refusal of a delivery this stage diverted and answered.
+
+        The condition's reason, which names why the delivery was diverted
+        and the requirement it cites (HP-01-005), or one naming the stage
+        when the condition gave none.  ``None`` unless the stage is built
+        ``refuses``, failed on this run, and its answer completed
+        (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`).
+        """
+        if not (
+            self.refuses
+            and self.status == Status.FAILURE
+            and self.effects_succeeded
+        ):
+            return None
+        return (
+            self.condition.feedback_message
+            or f"{self.name}: the delivery was answered, not recorded"
+        )
 
     def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
         """Tick the condition, then the effects if it holds."""

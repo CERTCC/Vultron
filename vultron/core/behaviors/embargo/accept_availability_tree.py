@@ -102,6 +102,9 @@ def never_held_embargo_fault(*, case_id: str, embargo_id: str) -> Diversion:
     """
     return Diversion(
         name=NEVER_HELD_EMBARGO_FAULT,
+        # The Accept is answered, never recorded: refused for the
+        # condition's reason (HP-01-003).
+        refuses=True,
         condition=EmbargoAvailabilityIsNode(
             case_id=case_id,
             embargo_id=embargo_id,
@@ -163,6 +166,9 @@ def unavailable_embargo_refusal(
     )
     return Diversion(
         name=UNAVAILABLE_EMBARGO_REFUSAL,
+        # The Accept is answered, never recorded: refused for the
+        # condition's reason (HP-01-003).
+        refuses=True,
         condition=condition,
         effects=(
             ActTransaction(

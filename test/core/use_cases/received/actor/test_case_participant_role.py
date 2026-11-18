@@ -160,6 +160,49 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         # The path stage, a door, refused it before intake (CLP-10-010).
         assert not _archived_by_intake(dl, offer.id_)
 
+    @pytest.mark.spec("CLP-10-018")
+    @pytest.mark.spec("HP-01-003")
+    def test_an_offer_naming_no_case_is_refused_by_its_guard(
+        self, make_payload
+    ):
+        """Intake records an Offer that names no case, and the tree's
+        incomplete-activity guard refuses it; no handler reading decides
+        it (ADR-0195)."""
+        from vultron.core.behaviors.case.nodes.incomplete_activity import (
+            ActivityIncompleteNode,
+        )
+        from vultron.core.behaviors.case.offer_case_participant_role_received_tree import (
+            create_offer_case_participant_role_received_tree,
+        )
+
+        dl = self._store(self._CASE_ACTOR_URI)
+        offer = self._make_offer()
+        event = make_payload(
+            offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
+        )
+        event = event.model_copy(
+            update={
+                "activity": event.activity.model_copy(update={"context": None})
+            }
+        )
+
+        result = self._execute_at_case_manager(dl, event)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason == "Offer(CaseParticipantRole) names no case"
+        assert _archived_by_intake(dl, offer.id_)
+        tree = create_offer_case_participant_role_received_tree(
+            offer_id=offer.id_,
+            case_id=None,
+            role=CVDRole.COORDINATOR,
+            target_actor_id=self._TARGET_URI,
+            sender_id=self._VENDOR_URI,
+            sender_rule=OfferCaseParticipantRoleReceivedUseCase.sender_entitlement,
+        )
+        assert any(
+            isinstance(n, ActivityIncompleteNode) for n in tree.iterate()
+        )
+
     def test_offer_case_participant_role_uses_store_owner_when_no_receiving_actor(
         self, make_payload
     ):
