@@ -20,7 +20,7 @@ supersedes:
 stakeholder_type: [project-contributor]
 ---
 
-# A Participant Is Created by Its Invite, Is Active Only While Entitled, and Is Removed by Withdrawing Entitlement
+# How a Participant Joins, Becomes Active and Is Removed
 
 ## Context and Problem Statement
 

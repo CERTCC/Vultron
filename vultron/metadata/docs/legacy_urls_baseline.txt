@@ -222,7 +222,6 @@ adr/0209-a-local-gate-runs-only-what-answers-before-the-required-ci-gate-and-the
 adr/0210-a-reported-p-x-or-a-value-is-adopted-through-one-gate-and-its-adoption-ends-the-embargo-in-the-same-act.md
 adr/0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
 adr/0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
-adr/0213-a-participant-is-created-by-its-invite-is-active-only-while-entitled-and-is-removed-by-withdrawing-entitlement.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md

@@ -15,10 +15,10 @@ partially_supersedes:
 - 0114-joining-a-case-stub-invite-inert-participant.md
 - 0116-removing-a-participant-withdraws-entitlement-not-membership.md
 stakeholder_type: [project-contributor]
-superseded_by: 0213-a-participant-is-created-by-its-invite-is-active-only-while-entitled-and-is-removed-by-withdrawing-entitlement.md
+superseded_by: 0213-how-a-participant-joins-becomes-active-and-is-removed.md
 ---
 
-> **Superseded by [ADR-0213](../0213-a-participant-is-created-by-its-invite-is-active-only-while-entitled-and-is-removed-by-withdrawing-entitlement.md).**
+> **Superseded by [ADR-0213](../0213-how-a-participant-joins-becomes-active-and-is-removed.md).**
 > ADR-0213 states how a participant joins, when it is active, and what removal changes as one decision, consolidating ADR-0114, ADR-0116 and ADR-0172.
 > This record is kept as it stood when it was superseded.
 
