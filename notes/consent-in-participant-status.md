@@ -3,8 +3,12 @@ title: Consent in Participant Status, and Replicas That Copy Only the Case Manag
 status: active
 kind: plan
 tracks:
-  - "#6615"   # source Idea; replaced by the implementation issues
-  - "#5746"   # parent epic
+  - "#6654"   # status claims carry only what changed
+  - "#6655"   # consent moves into the status; exemption retired
+  - "#6656"   # follow-up: Case Owner decisions
+  - "#6657"   # follow-up: Invite answers and role grants
+  - "#6658"   # follow-up: participant content
+  - "#6653"   # epic
 description: >
   The build plan for ADR-0212: a participant's embargo consent moves from
   its own rows into each participant status; a participant reports a status
@@ -78,15 +82,15 @@ that meets the new ones. Until then, they describe the code as it is.
   and its siblings in `relay_effect.py`) are removed, not left as dead
   effect slots. The status entry after the answer carries the change.
 - **The received-time exemption for consent rows** (CLP-15-011, added by PR
-  #6611) is removed only after no received object is a consent row.
+  #6611) is removed with the consent rows, in the same change.
 
 ## Order of the work
 
 1. The status claim type, the merge, and both ledger entries for a
-   participant's own status claim.
-2. Consent moves into the status, and replicas copy the statuses only.
-3. The consent-row exemption from the received-time rule is removed.
+   participant's own status claim (#6654).
+2. Consent moves into the status, replicas copy the statuses only, and the
+   consent-row exemption from the received-time rule goes with the consent
+   rows (#6655). It starts after #6512 and #6510 land.
 
 The Case Owner's decisions, case Invite answers, role grants, and content that
-participants add come under the replica rule in later work under the same
-ADR.
+participants add come under the replica rule in #6656, #6657 and #6658.
