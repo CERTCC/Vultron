@@ -103,6 +103,9 @@ class PortRemappingHooks:
 class BehaviourWithPortHooks(PortRemappingHooks, BehaviourWithPorts):
     """A ports behaviour whose every binding comes from the hooks."""
 
+    INPUT_PORTS: dict[str, PortInformation] = {}
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
+
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
             port_remappings=self.bound_port_remappings(),
