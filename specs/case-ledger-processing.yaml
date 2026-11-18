@@ -365,7 +365,7 @@ groups:
       none. Activities about the ledger itself are not case events: the CASE_MANAGER's
       refusal notice (CLP-05-001) and a replica's `Reject(CaseLedgerEntry)` that asks
       for redelivery. A replica's receipt of `Announce(VulnerabilityCase)` is not one,
-      which CLP-10-034 leaves unledgered (ADR-0111). An activity only the CASE_MANAGER
+      which CLP-10-034 leaves unledgered (ADR-0214). An activity only the CASE_MANAGER
       sends is not a case event where a participant receives it. Examples are the
       bootstrap `Create(VulnerabilityCase)`, its `Announce(EmbargoEvent)` notice, and
       its `Accept` or `Reject` of a recommender's `Offer(Actor)`. A participant never
@@ -1297,7 +1297,7 @@ groups:
       loses some of its consequences, a state no single act produces. Nothing commits
       the missing parts later: a repeated trigger starts a new act, and an idempotency
       guard stops a redelivered one. So an act succeeds or fails as a whole (ADR-0146).
-      A received act's own entry is in the same transaction (ADR-0151), so a failed
+      A received act's own entry is in the same transaction (ADR-0214), so a failed
       received act keeps nothing and a later delivery runs it again.
     verification: >-
       A test fails the second commit of a two-entry act and asserts the CASE_MANAGER
@@ -1319,7 +1319,7 @@ groups:
       spec_id: CLP-07-013
     adr:
     - ADR-0146
-    - ADR-0151
+    - ADR-0214
     stories:
     - story_2026_078
   - id: CLP-07-023
@@ -2100,7 +2100,7 @@ groups:
       that chooses between trees, puts a protocol decision outside the tree. A helper
       that `execute()` calls is part of `execute()`, so the rule follows it. One tree
       from one factory keeps each decision where the architecture tests can check it
-      (ADR-0022, ADR-0135).
+      (ADR-0022, ADR-0214).
     verification: '`test/architecture/test_single_bt_execution_received_side.py` greps
       every module under `vultron/core/use_cases/` for imports of `create_guarded_commit_case_ledger_entry_tree`;
       any match outside the guarded-commit factory''s own module is a violation. Known
@@ -2125,7 +2125,7 @@ groups:
     adr:
     - ADR-0021
     - ADR-0022
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-028
     priority: MUST
     kind: project
@@ -2160,7 +2160,7 @@ groups:
     rationale: >-
       Python code that runs a second tree, or that chooses between trees, puts a protocol
       decision outside the tree, where the guards, the stage order and the architecture
-      tests cannot see it (ADR-0135).
+      tests cannot see it (ADR-0214).
     verification: >-
       `test/architecture/test_single_bt_execution_received_side.py` sums the
       `execute_with_setup()` calls on alternative branches of a received `execute()` and
@@ -2172,7 +2172,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-030
     priority: MUST_NOT
     kind: project
@@ -2260,7 +2260,7 @@ groups:
     rationale: >-
       Receipt is a fact whether or not the CASE_MANAGER admits the assertion, so the
       record of what arrived is written before any precondition guard judges it,
-      once the door guards have admitted it (ADR-0111, ADR-0154). The
+      once the door guards have admitted it (ADR-0214). The
       commit comes after the guards, so a refused activity commits nothing. Effects
       come after the commit, so an admitted assertion's effects follow the ledger
       record of their cause. A refusal effect runs only on a refused path, which has no
@@ -2282,9 +2282,8 @@ groups:
       `test/core/behaviors/case/nodes/test_refusal_stage.py`
       asserts no refusal effect runs on an admitted delivery.'
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0022
-    - ADR-0135
     relationships:
     - rel_type: uses_definition
       spec_id: CLP-10-017
@@ -2299,7 +2298,7 @@ groups:
     kind: project
     statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
       subtree, the ordering MUST be: (1) door guards, in order: the addressee
-      check (HP-01-005), the seen-before door (ADR-0154), the path stage
+      check (HP-01-005), the seen-before door (ADR-0214), the path stage
       (ADR-0153), the post-close write boundary (CM-23-013), the closed-sender
       door (CM-23-018) and the sender guard (HP-01-006), (2) intake (CLP-10-017),
       (2a) the ledger-position answer (SYNC-18-004, SYNC-18-005, SYNC-18-007),
@@ -2329,9 +2328,9 @@ groups:
       Each door asks a question whose answer can end the run, so the cheapest
       questions come first and nothing is stored before the last answer: a message
       that is not for the receiver costs one read and one receipt stub, not a held
-      copy (ADR-0154). Whether the message is addressed to the receiver is asked
+      copy (ADR-0214). Whether the message is addressed to the receiver is asked
       first. Whether it was seen before is asked next, from the one record that holds
-      it, so a resend is answered from what was recorded and runs nothing (ADR-0154).
+      it, so a resend is answered from what was recorded and runs nothing (ADR-0214).
       Inbox runs are serialized per actor, so a resend never meets a run in progress;
       a record in holding that owes no replay was left by a run that ended with no
       verdict, and running it again is how it reaches its outcome. Whether a closed
@@ -2341,7 +2340,7 @@ groups:
       replicates it to all participants, so cause precedes effects. A clock decision
       is the CASE_MANAGER's own act, ledgered even when the activity is then admitted
       (CM-21-014), so it runs before the guards that read it, and after the door
-      guards so an unentitled sender never makes it write (ADR-0135). The ledger-
+      guards so an unentitled sender never makes it write (ADR-0214). The ledger-
       position answer runs before the guards because it answers the sender's stated
       position whatever the act's own outcome (SYNC-18-007), and after the door guards
       for the same reason as a clock decision. The path stage runs among the door
@@ -2360,10 +2359,8 @@ groups:
       a receipt stub, an archive, a record owed a replay and a record left in holding,
       and assert each answer and that nothing after the door ran.
     adr:
-    - ADR-0111
-    - ADR-0135
+    - ADR-0214
     - ADR-0153
-    - ADR-0154
     relationships:
     - rel_type: uses_definition
       spec_id: CLP-10-017
@@ -2462,7 +2459,7 @@ groups:
       CASE_MANAGER commits the entry once, any other receiver skips it, and a refused
       activity leaves no entry.
     adr:
-    - ADR-0111
+    - ADR-0214
   - id: CLP-10-033
     priority: MUST
     kind: project
@@ -2482,7 +2479,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-013
     adr:
-    - ADR-0111
+    - ADR-0214
     see_also:
     - spec_id: CLP-10-004
       reason: 'context for the reader'
@@ -2509,7 +2506,7 @@ groups:
     - rel_type: supersedes
       spec_id: CLP-10-013
     adr:
-    - ADR-0111
+    - ADR-0214
     see_also:
     - spec_id: CLP-02-013
       reason: 'context for the reader'
@@ -2658,10 +2655,10 @@ groups:
       of what arrived is written before any precondition guard judges it. It is
       written after the door guards, so a message a door turns away costs one read
       and a receipt stub, never a held copy, and a resend is answered from its record
-      before anything is written (ADR-0154). One shared node gives every received tree
-      the same step (ADR-0111). Keeping the body permanently is a separate question
+      before anything is written (ADR-0214). One shared node gives every received tree
+      the same step (ADR-0214). Keeping the body permanently is a separate question
       from recording the receipt, and it is answered by the verdict, so the archive a
-      reader loads holds only messages the receiver applied (ADR-0154).
+      reader loads holds only messages the receiver applied (ADR-0214).
     verification: >-
       `test/architecture/test_receive_side_staged_order.py` asserts every receive-side
       factory returns the tree `create_receive_activity_tree` builds, and
@@ -2672,9 +2669,8 @@ groups:
       an applied or skipped delivery's record is archived with the sealed body intake
       wrote.
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0149
-    - ADR-0154
   - id: CLP-10-036
     priority: MUST
     kind: project
@@ -2693,7 +2689,7 @@ groups:
       A unit test for the intake node archives a received activity, asserts the activity
       is readable through `ReceivedActivityRecord.build_id` and not under the sender's
       id, asserts a second run keeps the body as it is and moves the record only from
-      `HELD` to `HANDLED` (ADR-0154), and a third changes nothing, and asserts a sender
+      `HELD` to `HANDLED` (ADR-0214), and a third changes nothing, and asserts a sender
       activity whose id equals a receiver-derived record id does not block the later
       `create()` of that record. `test/core/behaviors/case/nodes/test_intake.py` also
       asserts the archive is exactly the body the parser sealed.
@@ -2703,7 +2699,7 @@ groups:
     - rel_type: uses_definition
       spec_id: VM-08-002
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0149
   - id: CLP-10-037
     priority: MUST
@@ -2744,7 +2740,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-017
     adr:
-    - ADR-0111
+    - ADR-0214
   - id: CLP-10-018
     priority: MUST
     kind: project
@@ -2765,7 +2761,7 @@ groups:
       copies never addressed to the receiver, costs storage that grows with refused
       traffic and gives the receiver content it will never act on; the digest keeps
       enough to tell a resend of the same body from a reused id without the body
-      (ADR-0154). The cost is that the receiver no longer holds evidence of what a
+      (ADR-0214). The cost is that the receiver no longer holds evidence of what a
       misbehaving sender sent, which is then only in the process log.
     verification: >-
       `test/adapters/driving/fastapi/test_received_outcome_stage.py` drives a refused
@@ -2787,8 +2783,7 @@ groups:
         the body a replay still owes is IO-03-009's hold, named here only to say which
         delivery this rule leaves alone
     adr:
-    - ADR-0111
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-019
     priority: MUST_NOT
     kind: project
@@ -2802,7 +2797,7 @@ groups:
       A second store path can store the activity in a different form, or store it twice.
       One shared intake node is the DRY form (CS-22-001), and every received tree gets
       it from the shared factory. The outcome stage writes no body and runs once, after
-      the tree, so it cannot store a second form of the activity (ADR-0154).
+      the tree, so it cannot store a second form of the activity (ADR-0214).
     see_also:
     - spec_id: CLP-10-073
       reason: >-
@@ -2813,7 +2808,7 @@ groups:
       helper, so a handler-local store path fails the build unless enumerated in
       `KNOWN_VIOLATIONS`.'
     adr:
-    - ADR-0111
+    - ADR-0214
   - id: CLP-10-039
     priority: MUST_NOT
     kind: project
@@ -2822,7 +2817,7 @@ groups:
       anywhere but an effect node of its tree.
     rationale: >-
       A core record written in an effect node comes after the guards, so a refused
-      activity writes none (ADR-0111).
+      activity writes none (ADR-0214).
     verification: >-
       `test/architecture/test_no_dl_mutations_in_execute.py` (CLP-10-020) flags any
       DataLayer write an `execute()` body reaches through a use-case-layer helper, and
@@ -2832,7 +2827,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-019
     adr:
-    - ADR-0111
+    - ADR-0214
   - id: CLP-10-020
     priority: MUST
     kind: process
@@ -2854,7 +2849,7 @@ groups:
       `execute()` is flagged, that a helper two calls deep is flagged, and that a write
       inside a BT node the tree runs is not.
     adr:
-    - ADR-0111
+    - ADR-0214
     relationships:
     - rel_type: verifies
       spec_id: CLP-10-030
@@ -2876,7 +2871,7 @@ groups:
     - rel_type: refines
       spec_id: ARCH-18-001
     adr:
-    - ADR-0111
+    - ADR-0214
   - id: CLP-10-021
     priority: MUST
     kind: project
@@ -2926,7 +2921,7 @@ groups:
       asserts every received tree that commits and has a precondition guard holds one
       notice or a registered exemption.
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0141
     relationships:
     - rel_type: implements
@@ -2951,7 +2946,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0141
   - id: CLP-10-042
     priority: MUST
@@ -2976,7 +2971,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0141
   - id: CLP-10-043
     priority: MUST
@@ -2996,7 +2991,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0141
   - id: CLP-10-044
     priority: MUST_NOT
@@ -3012,7 +3007,7 @@ groups:
       `test/core/use_cases/received/test_refusal_notice.py` asserts the seen-before door
       refuses a redelivery from its receipt stub before any refusal effect runs, and
       `test/adapters/driving/fastapi/test_seen_before_door.py` that a resend of a
-      refused message sends nothing (ADR-0154). For the re-run of a record a run left
+      refused message sends nothing (ADR-0214). For the re-run of a record a run left
       in holding, `test_a_rerun_from_holding_skips_the_refusal_effects` in
       `test/core/behaviors/case/nodes/test_refusal_stage.py` asserts the stage skips the
       effects, and `test_a_rerun_of_a_refused_rm_regression_records_no_second_note` in
@@ -3021,7 +3016,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0141
   - id: CLP-10-045
     priority: MUST
@@ -3041,7 +3036,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0141
   - id: CLP-10-046
     priority: MUST
@@ -3063,7 +3058,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0141
   - id: CLP-10-047
     priority: MUST
@@ -3081,7 +3076,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0141
   - id: CLP-10-048
     priority: MUST_NOT
@@ -3107,7 +3102,7 @@ groups:
     - rel_type: uses_definition
       spec_id: RSH-06-004
     adr:
-    - ADR-0111
+    - ADR-0214
     - ADR-0141
   - id: CLP-10-025
     priority: MUST
@@ -3123,7 +3118,7 @@ groups:
       An expiry must be in the ledger even when the activity that revealed it is then
       admitted, so it cannot be a refusal effect or wait for the activity's commit. A
       separate tree would break the one-tree rule (CLP-10-005). A named stage keeps the
-      decision in the one tree (ADR-0135).
+      decision in the one tree (ADR-0214).
     verification: >-
       `test_every_received_embargo_tree_with_a_case_takes_the_sweep` in
       `test/core/use_cases/received/test_embargo_overdue_invite_sweep.py` asserts every
@@ -3135,7 +3130,7 @@ groups:
     - rel_type: constrains
       spec_id: CM-28-015
     adr:
-    - ADR-0135
+    - ADR-0214
     see_also:
     - spec_id: CM-21-043
       reason: 'context for the reader'
@@ -3161,7 +3156,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-010
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-050
     priority: MUST
     kind: project
@@ -3181,7 +3176,7 @@ groups:
     - rel_type: refines
       spec_id: BT-17-001
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-051
     priority: MUST
     kind: project
@@ -3211,7 +3206,7 @@ groups:
     - rel_type: uses_definition
       spec_id: HP-01-007
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-052
     priority: MUST
     kind: project
@@ -3223,7 +3218,7 @@ groups:
       update and re-issued stub Invite it needs.
     rationale: >-
       The decision runs before the guards. If it committed the activity's own effects, a
-      refused activity would leave a change in the ledger (ADR-0135).
+      refused activity would leave a change in the ledger (ADR-0214).
     verification: >-
       `test_receive_side_bt_commit_ordering.py` accepts a commit ahead of the guards
       only inside the clock-decision stage, and there only from the decision's own
@@ -3235,7 +3230,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-053
     priority: MUST
     kind: project
@@ -3260,7 +3255,7 @@ groups:
     - rel_type: derives_from
       spec_id: EP-08-004
     adr:
-    - ADR-0135
+    - ADR-0214
     - ADR-0122
   - id: CLP-10-054
     priority: MUST
@@ -3280,7 +3275,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-055
     priority: MAY
     kind: project
@@ -3295,7 +3290,7 @@ groups:
       `test/core/use_cases/received/test_note_and_announce_sender_rules.py` asserts that
       a participant's note prompts the end-time decision for its case.
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-056
     priority: MAY
     kind: project
@@ -3313,7 +3308,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-15-003
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-057
     priority: MUST
     kind: project
@@ -3331,7 +3326,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-058
     priority: MUST
     kind: project
@@ -3349,7 +3344,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-059
     priority: MUST_NOT
     kind: project
@@ -3370,7 +3365,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0214
     see_also:
     - spec_id: EMB-17-001
       reason: 'context for the reader'
@@ -3391,7 +3386,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0214
     - ADR-0095
   - id: CLP-10-026
     priority: MUST
@@ -3408,7 +3403,7 @@ groups:
     rationale: >-
       Some deliveries get an answer from the receiver in place of the admitted path. If
       the use case chooses between trees to give that answer, the choice is outside the
-      tree, which the one-tree rule forbids (ADR-0135). These answers are not refusal
+      tree, which the one-tree rule forbids (ADR-0214). These answers are not refusal
       effects. The late-Accept answer commits and writes consent. The P/X/A `Reject` of
       the Invite is owed by a participant too, and its derived id lets a redelivery
       find it already sent (HP-01-014). A diversion keeps each answer in the one tree,
@@ -3429,7 +3424,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-010
     adr:
-    - ADR-0135
+    - ADR-0214
     see_also:
     - spec_id: CLP-02-005
       reason: 'context for the reader'
@@ -3458,7 +3453,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-062
     priority: MUST
     kind: project
@@ -3477,7 +3472,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-063
     priority: MUST
     kind: project
@@ -3497,7 +3492,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-064
     priority: MUST_NOT
     kind: project
@@ -3514,7 +3509,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-065
     priority: MUST
     kind: project
@@ -3536,7 +3531,7 @@ groups:
     - rel_type: refines
       spec_id: BT-17-001
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-066
     priority: MUST
     kind: project
@@ -3556,7 +3551,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-067
     priority: MUST
     kind: project
@@ -3576,7 +3571,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0214
     see_also:
     - spec_id: RSH-08-003
       reason: 'context for the reader'
@@ -3595,7 +3590,7 @@ groups:
       `test/core/behaviors/case/nodes/test_diversion_stage.py` builds a receiver
       diversion that answers from the activity it holds.
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-069
     priority: MUST
     kind: project
@@ -3616,7 +3611,7 @@ groups:
     - rel_type: uses_definition
       spec_id: BT-17-008
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-070
     priority: MUST
     kind: project
@@ -3638,7 +3633,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-10-022
     adr:
-    - ADR-0135
+    - ADR-0214
   - id: CLP-10-027
     priority: MUST
     kind: project
@@ -3715,7 +3710,7 @@ groups:
     rationale: >-
       Every stage reads the record, the store and the one input its boundary hands
       over (CLP-10-084), so a later stage cannot be fooled by what an earlier one
-      happened to leave in memory (ADR-0154).
+      happened to leave in memory (ADR-0214).
       One stage rather than a write in each tree means a tree cannot forget
       it or disagree with another about what a refusal keeps (CS-22-001). It runs after
       the tree because a node in the run embeds the body of the message being handled —
@@ -3738,7 +3733,7 @@ groups:
     - rel_type: uses_definition
       spec_id: UCORG-05-010
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-074
     priority: MUST
     kind: project
@@ -3750,13 +3745,13 @@ groups:
       and no body (CLP-10-018).
     rationale: >-
       A dispatch that raised is not a verdict on the assertion, so it is not an
-      outcome. The act rolled back and kept nothing (ADR-0151), so a resend or a re-run
+      outcome. The act rolled back and kept nothing (ADR-0214), so a resend or a re-run
       must be able to run it again from the body the receiver holds; reducing that
       record to a receipt stub would record a refusal the receiver never made and take
-      the body the re-run needs (ADR-0154). A message no use case handles is different:
+      the body the re-run needs (ADR-0214). A message no use case handles is different:
       nothing will ever apply it, its disposition is `REFUSED`, and keeping its body
       would let any sender make the receiver keep an arbitrary body indefinitely by
-      choosing a type the receiver does not handle (ADR-0154: a message the receiver
+      choosing a type the receiver does not handle (ADR-0214: a message the receiver
       will not act on costs one read and one stub, not a permanent copy).
     verification: >-
       `test/adapters/driving/fastapi/test_received_outcome_stage.py` asserts the body
@@ -3774,7 +3769,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-10-018
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-075
     priority: MUST_NOT
     kind: project
@@ -3783,7 +3778,7 @@ groups:
     rationale: >-
       Keeping it would make the refusal cost the same storage as an applied message,
       permanently, for content the receiver will never act on, which is what the stub
-      exists to avoid (ADR-0154). The digest the stub keeps is enough to tell a resend
+      exists to avoid (ADR-0214). The digest the stub keeps is enough to tell a resend
       of the same body from a reused id (IE-10-002).
     verification: >-
       `test/core/models/test_received_activity_record.py` refuses a stub that carries a
@@ -3794,7 +3789,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-018
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-076
     priority: MUST_NOT
     kind: project
@@ -3814,7 +3809,7 @@ groups:
     - rel_type: uses_definition
       spec_id: IO-03-009
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-077
     priority: MUST
     kind: project
@@ -3824,7 +3819,7 @@ groups:
     rationale: >-
       A refusal is whole and final for that activity, so the record of why it was
       refused is the first verdict's; a later refusal would otherwise rewrite history
-      (ADR-0154). The seen-before door answers a resend of a refused message from its
+      (ADR-0214). The seen-before door answers a resend of a refused message from its
       stub before intake runs, so nothing writes over the stub and the first reason is
       the one a resend is refused with.
     verification: >-
@@ -3834,7 +3829,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-018
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-078
     priority: MUST_NOT
     kind: project
@@ -3844,7 +3839,7 @@ groups:
     rationale: >-
       Every stage reads the record, the store and the one input its boundary hands
       over (CLP-10-084), so a later one cannot be fooled by what an earlier one
-      happened to leave in memory (ADR-0154).
+      happened to leave in memory (ADR-0214).
       The handler's result is the one channel from the handling tree
       (UCORG-05-010); whether a delivery was seen before is a question for the record.
     verification: >-
@@ -3859,7 +3854,7 @@ groups:
     - rel_type: uses_definition
       spec_id: UCORG-05-010
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-079
     priority: MUST_NOT
     kind: project
@@ -3877,7 +3872,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-073
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-080
     priority: MUST
     kind: project
@@ -3890,7 +3885,7 @@ groups:
       run may already have answered the ledger position, judged the sender's number
       or answered a refusal. Intake is the one stage that can tell the two runs
       apart: no earlier write marks a first run, and a later write would leave a
-      crash window in which a re-run reads as a first run (ADR-0154).
+      crash window in which a re-run reads as a first run (ADR-0214).
     verification: >-
       `test/core/behaviors/case/nodes/test_intake.py` asserts that a second intake
       moves the record to `HANDLED` with its body unchanged.
@@ -3900,7 +3895,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-074
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-082
     priority: MUST
     kind: project
@@ -3910,7 +3905,7 @@ groups:
       earlier stage wrote.
     rationale: >-
       Memory does not survive a restart, and a door that keeps its answer in memory
-      ties the stages that read it to one run of one process (ADR-0154). The record
+      ties the stages that read it to one run of one process (ADR-0214). The record
       carries the answer (CLP-10-080).
     verification: >-
       `test/architecture/test_received_stages_read_the_record.py` fails when a
@@ -3920,7 +3915,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-10-080
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-081
     priority: MUST
     kind: project
@@ -3945,7 +3940,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-010
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-083
     priority: MUST
     kind: project
@@ -3954,7 +3949,7 @@ groups:
       door guards, never resumed at a later stage.
     rationale: >-
       A run that starts over asks every door question again, so no stage depends on
-      an answer that only an earlier, lost run held in memory (ADR-0154). The record
+      an answer that only an earlier, lost run held in memory (ADR-0214). The record
       tells the re-run what the first run already did (CLP-10-080), and every handling
       tree tolerates the second run. Resuming at a later stage would need each door
       answer kept on the record, a persistence change no use needs.
@@ -3970,7 +3965,7 @@ groups:
     - rel_type: uses_definition
       spec_id: IE-06-014
     adr:
-    - ADR-0154
+    - ADR-0214
   - id: CLP-10-084
     priority: MUST_NOT
     kind: project
@@ -3996,7 +3991,7 @@ groups:
     - rel_type: uses_definition
       spec_id: HP-01-036
     adr:
-    - ADR-0154
+    - ADR-0214
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair

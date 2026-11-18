@@ -66,7 +66,7 @@ class ShadowConfig(BaseModel):
             Default ``None``.
         node_url: The API root of a running Vultron node in prototype run
             mode, such as ``http://case-actor:7999/api/v2``.  When it is set
-            and no connector is named, the tool reads each case from that
+            and no connector is named, the tool follows each case on that
             node's case ledger through the live Vultron case reader, and
             ``ledger_dir`` is not used.  It starts with ``http://`` or
             ``https://``.  Default ``None``.

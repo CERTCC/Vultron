@@ -82,11 +82,13 @@ from test.demo._helpers import (
     make_testclient_call,
 )
 from test.demo.conftest import (
+    node_config,
     submit_report_through_reporter,
 )
 from test.support.act_runner import run_in_act
 from test.support.objects import authored_at
 from test.support.received import received_event, received_of_type
+from vultron.config import app_config_scope
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -199,9 +201,11 @@ def two_app_setup():
     deliveries in-process so the full outbox → inbox → handler chain is
     exercised without real HTTP.
 
-    The ``VULTRON_SERVER__BASE_URL`` is patched to ``{_VENDOR_BASE}/api/v2``
-    so that IDs minted from the server base URL are routable — the
-    ``InProcessRouter`` maps this base URL to the vendor's ASGI app.
+    Each node holds its own config (ADR-0206, :func:`node_config`): its own
+    server base URL, and the vendor as the CaseActor service, since in this
+    single-vendor setup the vendor IS the case-actor service
+    (``case_actor_identity()`` reads ``case_actor_service_url``, CP-08-002).
+    The test body runs in the vendor's config scope, as the driver.
 
     Yields:
         Tuple of (vendor_iso, reporter_iso, vendor_tc, reporter_tc).
@@ -210,46 +214,46 @@ def two_app_setup():
         configure_default_emitter,
         get_default_emitter,
     )
-    from vultron.config import config_override
 
-    # config_override atomically sets env vars, reloads the cache, and
-    # restores both on exit — the ordering footgun (#2086) is impossible
-    # by construction (CFG-06-006).
-    with config_override(
-        VULTRON_SERVER__BASE_URL=f"{_VENDOR_BASE}/api/v2",
-        # case_actor_identity() reads case_actor_service_url from ActorConfig
-        # (CP-08-002); in this single-vendor test setup the vendor IS the
-        # case-actor service, so we point it at the same base URL.
-        VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_VENDOR_BASE}/api/v2",
-    ) as cfg:
-        router = InProcessRouter()
-        # `actor_slug` matters: it decides which actor's store `iso.dl` is.  These
-        # tests create their actors under the module slugs below, and a store
-        # belongs to exactly one actor (ADR-0073), so leaving the default
-        # `"primary"` would point `dl` at an empty database and the assertions
-        # would fail for the wrong reason.
-        vendor_iso = create_isolated_actor_app(
-            base_url=_VENDOR_BASE, router=router, actor_slug=_VENDOR_SLUG
-        )
-        reporter_iso = create_isolated_actor_app(
-            base_url=_REPORTER_BASE, router=router, actor_slug=_REPORTER_SLUG
-        )
+    vendor_config = node_config(_VENDOR_BASE, _VENDOR_BASE)
+    router = InProcessRouter()
+    # `actor_slug` matters: it decides which actor's store `iso.dl` is.  These
+    # tests create their actors under the module slugs below, and a store
+    # belongs to exactly one actor (ADR-0073), so leaving the default
+    # `"primary"` would point `dl` at an empty database and the assertions
+    # would fail for the wrong reason.
+    vendor_iso = create_isolated_actor_app(
+        base_url=_VENDOR_BASE,
+        router=router,
+        actor_slug=_VENDOR_SLUG,
+        config=vendor_config,
+        background_work=False,
+    )
+    reporter_iso = create_isolated_actor_app(
+        base_url=_REPORTER_BASE,
+        router=router,
+        actor_slug=_REPORTER_SLUG,
+        config=node_config(_REPORTER_BASE, _VENDOR_BASE),
+        background_work=False,
+    )
 
-        # Register the configured base URL so CaseActor deliveries route to
-        # the vendor app (IDs are minted from the configured base URL).
-        config_base_url = cfg.server.base_url.rstrip("/")
-        router.register(config_base_url, vendor_iso.client)
+    # Register the vendor's configured base URL so CaseActor deliveries
+    # route to the vendor app (its ids are minted from that base URL).
+    router.register(
+        vendor_config.server.base_url.rstrip("/"), vendor_iso.client
+    )
 
-        previous_emitter = get_default_emitter()
-        configure_default_emitter(router)  # type: ignore[arg-type]
+    previous_emitter = get_default_emitter()
+    configure_default_emitter(router)  # type: ignore[arg-type]
 
+    with app_config_scope(vendor_config):
         with vendor_iso.client as vendor_tc:
             with reporter_iso.client as reporter_tc:
                 yield vendor_iso, reporter_iso, vendor_tc, reporter_tc
 
-        configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-        vendor_iso.close()
-        reporter_iso.close()
+    configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+    vendor_iso.close()
+    reporter_iso.close()
 
 
 # ---------------------------------------------------------------------------

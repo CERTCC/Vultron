@@ -239,9 +239,8 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
     including reports about other participants.
 
 !!! info "See also"
-    - [ADR-0046: Received Status Authorization](../../adr/0046-received-status-authorization.md)
+    - [ADR-0210: How the Case Manager Accepts a Reported P, X or A Value](../../adr/0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md)
     - [ADR-0076: Security-Significant Gates Default to Require Case Owner Approval](../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)
     - [ADR-0080: Protocol Asks, Not Suspended Behaviors](../../adr/0080-protocol-asks-not-suspended-behaviors.md)
-    - [ADR-0166: Adopting P, X or A and Ending the Embargo Are One Authorized Step](../../adr/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md)
 
 ---

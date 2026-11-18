@@ -13,10 +13,7 @@ from typing import TYPE_CHECKING, ClassVar
 from vultron.core.behaviors.case.offer_case_participant_role_received_tree import (
     create_offer_case_participant_role_received_tree,
 )
-from vultron.core.behaviors.case.received_run import (
-    ReceivedOutcome,
-    run_received_tree,
-)
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -109,8 +106,8 @@ class OfferCaseParticipantRoleReceivedUseCase:
             sender_rule=self.sender_entitlement,
         )
         # A redelivered Offer is a repeat its guard reports, so the runner
-        # reads it SKIPPED (HP-01-014).  With no case, the tree only records
-        # the Offer: any failure past its doors is a local fault.
+        # reads it SKIPPED (HP-01-014).  An Offer naming no case is refused
+        # by the tree's incomplete-activity guard (CLP-10-018).
         return run_received_tree(
             tree,
             dl=self._dl,
@@ -119,18 +116,4 @@ class OfferCaseParticipantRoleReceivedUseCase:
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            reader=_no_case_refusal if case_id is None else None,
-            judges=case_id is not None,
         )
-
-
-def _no_case_refusal(outcome: ReceivedOutcome) -> HandlerResult | None:
-    """Refuse an Offer whose tree recorded it but found no case to act on.
-
-    Intake recorded the Offer; there is no case to act on.  A door guard's
-    refusal (an unaddressed copy, HP-01-005) is read ahead of this.
-    """
-    if not outcome.succeeded:
-        return None
-    # The runner logs the refusal, with the activity and the receiver.
-    return HandlerResult.refused("Offer(CaseParticipantRole) names no case")

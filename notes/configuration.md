@@ -23,6 +23,7 @@ relevant_packages:
   - vultron/metadata
   - vultron/adapters
   - vultron/core
+  - vultron/demo
 related_notes:
   - notes/case-ledger-authority.md
   - notes/case-proposal.md
@@ -176,8 +177,22 @@ stack and imports neither core nor config.
 - **An app holding its own config runs a node's background work.** Its
   lifespan starts the outbox monitor, startup replay, position statements and
   hold timer on its own deployment (`deps.app_node_deployment`), as its
-  container would; an app with no config starts none (DEMOMA-01-007). A harness
-  whose tests count outbox traffic stops what it does not want.
+  container would; an app with no config starts none (DEMOMA-01-007). A
+  harness node driven by its scenario alone passes `background_work=False`:
+  the monitor and hold timer act on the clock, so their drains race the
+  inline ones, and the monitor alone made two in-process `rv` recordings
+  differ (#6538). A restart-recovery scenario leaves it on.
+- **An in-process container's config comes from the compose file.**
+  `ContainerTopology.config_for()` (`vultron/demo/recordings/topology.py`)
+  builds it from the service's env; `docker/seed-configs/` holds only seed
+  actors. A new per-container `AppConfig` env var must be added to
+  `CARRIED_IN_PROCESS` or `NOT_CARRIED_IN_PROCESS`, or `load_topology()`
+  refuses it, so no per-container setting stays silently shared.
+- **An ad-hoc in-process node holds its own config too.** A test running
+  nodes on made-up hosts builds each with `node_config()`
+  (`test/demo/conftest.py`), passes `background_work=False`, and runs its
+  body in a driver's `app_config_scope`. A test that plays the CaseActor
+  itself names `UNSERVED_CASE_ACTOR_BASE`, never its own node (#6538).
 - **Build an app's own config with `AppConfig().model_copy(update=...)`.**
   `AppConfig(...)` keyword arguments are not a settings source and are dropped
   without error (`settings_customise_sources`).

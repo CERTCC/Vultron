@@ -17,10 +17,13 @@
 own config is a copy of the loaded one with its values changed
 (:func:`own_app_config`).  While an app holding its own config runs, a read in
 no app scope raises for the whole process, so a test that leaves one running
-is caught by :func:`release_leaked_app_config_holds`.
+is caught by :func:`release_leaked_app_config_holds`.  Which kinds of node
+work an app holding its config started is read by :func:`node_work`.
 """
 
 from typing import Any
+
+from fastapi import FastAPI
 
 from vultron.config import AppConfig, app as app_config
 
@@ -51,3 +54,16 @@ def release_leaked_app_config_holds(before: frozenset[object]) -> int:
     for token in leaked:
         app_config._HELD_APP_CONFIGS.release(token)
     return len(leaked)
+
+
+def node_work(app: FastAPI) -> dict[str, object]:
+    """Each of the four kinds of node work *app*'s lifespan started.
+
+    A kind that did not start reads ``None``.  Read while the app runs.
+    """
+    return {
+        "outbox monitor": getattr(app.state, "outbox_monitor", None),
+        "hold timer": app.state.sender_sequence_hold_timer,
+        "position statements": app.state.ledger_position_statements,
+        "startup replay": app.state.startup_inbox_replay,
+    }

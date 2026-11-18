@@ -58,6 +58,7 @@ from typing import Any
 import pytest
 
 from test.demo.conftest import (
+    node_config,
     submit_report_through_reporter,
 )
 from test.support.received import (
@@ -66,6 +67,7 @@ from test.support.received import (
     refused_received,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.config import app_config_scope
 from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.demo.in_process import (
@@ -98,21 +100,20 @@ def three_app_setup():
     outbox → inbox → inbox-handler chain is exercised without real HTTP.
 
     Lifecycle:
-      1. Patches ``VULTRON_SERVER__BASE_URL`` to ``{_OWNER_BASE}/api/v2`` so
-         that IDs minted from the server base URL are routable (e.g.
-         ``http://owner-late-joiner.test/api/v2/actors/…``).
+      1. Gives each node its own config, whose server base URL is the
+         node's own ``{base}/api/v2``, so that IDs minted from it are
+         routable (e.g. ``http://owner-late-joiner.test/api/v2/actors/…``).
          Without this the default ``http://localhost:7999`` is used, which
-         lacks the ``/api/v2/`` prefix and gets a 404 from the owner's ASGI
-         app (its routes are at ``/api/v2/actors/…``).
+         lacks the ``/api/v2/`` prefix and gets a 404 from the ASGI app
+         (its routes are at ``/api/v2/actors/…``).
       2. Enters all three TestClient contexts (triggers lifespan startup).
       3. Configures the module-level default emitter to the shared router so
          all outbox_handler deliveries POST to each target TestClient inbox
          instead of making real HTTP requests (ADR-0042).
-      4. Registers the patched ``base_url`` with the router pointing to the
+      4. Registers the owner's configured ``base_url`` with the router pointing to the
          owner's app so that CaseActor deliveries are routed correctly.
       5. Yields the three ``IsolatedActorApp`` instances and their clients.
-      6. On teardown restores the previous default emitter, closes DLs, and
-         restores config to remove the patched env vars.
+      6. On teardown restores the previous default emitter and closes DLs.
 
     Yields:
         Tuple of (owner_iso, reporter_iso, late_joiner_iso,
@@ -122,45 +123,46 @@ def three_app_setup():
         configure_default_emitter,
         get_default_emitter,
     )
-    from vultron.config import config_override
 
-    # config_override atomically sets env vars, reloads the cache, and
-    # restores both on exit — the ordering footgun (#2086) is impossible
-    # by construction (CFG-06-006).
-    with config_override(
-        # Patch the server base URL so IDs minted from it are routable to the
-        # owner's app.  Without this the default http://localhost:7999 yields
-        # IDs under http://localhost:7999/actors/... and the owner's app
-        # returns 404 for /actors/ paths (it expects /api/v2/actors/).
-        VULTRON_SERVER__BASE_URL=f"{_OWNER_BASE}/api/v2",
-        # case_actor_identity() reads case_actor_service_url from ActorConfig
-        # (CP-08-002); in this single-owner test setup the owner IS the
-        # case-actor service, so we point it at the same base URL.
-        VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OWNER_BASE}/api/v2",
-    ) as cfg:
-        router = InProcessRouter()
-        owner_iso = create_isolated_actor_app(
-            base_url=_OWNER_BASE, router=router
-        )
-        reporter_iso = create_isolated_actor_app(
-            base_url=_REPORTER_BASE, router=router
-        )
-        late_joiner_iso = create_isolated_actor_app(
-            base_url=_LATE_JOINER_BASE, router=router
-        )
+    # Each node holds its own config (ADR-0206, ``node_config``): its own
+    # server base URL, so IDs minted from it are routable to its app, and the
+    # owner as the CaseActor service, since in this single-owner setup the
+    # owner IS the case-actor service (``case_actor_identity()`` reads
+    # ``case_actor_service_url``, CP-08-002).  The body runs in the owner's
+    # config scope, as the driver.
+    owner_config = node_config(_OWNER_BASE, _OWNER_BASE)
+    router = InProcessRouter()
+    owner_iso = create_isolated_actor_app(
+        base_url=_OWNER_BASE,
+        router=router,
+        config=owner_config,
+        background_work=False,
+    )
+    reporter_iso = create_isolated_actor_app(
+        base_url=_REPORTER_BASE,
+        router=router,
+        config=node_config(_REPORTER_BASE, _OWNER_BASE),
+        background_work=False,
+    )
+    late_joiner_iso = create_isolated_actor_app(
+        base_url=_LATE_JOINER_BASE,
+        router=router,
+        config=node_config(_LATE_JOINER_BASE, _OWNER_BASE),
+        background_work=False,
+    )
 
-        # Register the patched base_url with the router so CaseActor deliveries
-        # (whose IDs now use http://owner-late-joiner.test/api/v2) route to
-        # the owner's ASGI app.
-        config_base_url = cfg.server.base_url.rstrip("/")
-        router.register(config_base_url, owner_iso.client)
+    # Register the owner's configured base_url with the router so CaseActor
+    # deliveries (whose IDs use http://owner-late-joiner.test/api/v2) route
+    # to the owner's ASGI app.
+    router.register(owner_config.server.base_url.rstrip("/"), owner_iso.client)
 
-        # Replace the module-level default emitter so outbox_handler calls from
-        # trigger endpoints use the router instead of HttpDeliveryAdapter (real
-        # HTTP with retry backoff).
-        previous_emitter = get_default_emitter()
-        configure_default_emitter(router)  # type: ignore[arg-type]
+    # Replace the module-level default emitter so outbox_handler calls from
+    # trigger endpoints use the router instead of HttpDeliveryAdapter (real
+    # HTTP with retry backoff).
+    previous_emitter = get_default_emitter()
+    configure_default_emitter(router)  # type: ignore[arg-type]
 
+    with app_config_scope(owner_config):
         with owner_iso.client as owner_tc:
             with reporter_iso.client as reporter_tc:
                 with late_joiner_iso.client as late_joiner_tc:
@@ -173,11 +175,11 @@ def three_app_setup():
                         late_joiner_tc,
                     )
 
-        # Restore previous emitter to avoid polluting other tests.
-        configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-        owner_iso.close()
-        reporter_iso.close()
-        late_joiner_iso.close()
+    # Restore previous emitter to avoid polluting other tests.
+    configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+    owner_iso.close()
+    reporter_iso.close()
+    late_joiner_iso.close()
 
 
 # ---------------------------------------------------------------------------

@@ -52,6 +52,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.delegation import (
     AutoAcceptCaseParticipantRoleNode,
     EmitRejectCaseParticipantRoleNode,
@@ -108,8 +111,8 @@ def create_offer_case_participant_role_received_tree(
         offer_id: ID of the received ``Offer(CaseParticipantRole)``; the
             recorded Offer's id the forward names in ``in_reply_to``.
         case_id: ID of the VulnerabilityCase context; ``None`` for an Offer
-            that names no case, which intake records and nothing else
-            touches (CLP-10-018); its handler refuses it.
+            that names no case, which intake records and the
+            incomplete-activity guard refuses (CLP-10-018).
         role: The CVDRole offered; ``None`` when the Offer carries none,
             which is refused, never read as a default (CM-33-014).
         target_actor_id: Actor ID of the target the role is offered to.
@@ -120,10 +123,11 @@ def create_offer_case_participant_role_received_tree(
         Root ``OfferCaseParticipantRoleReceivedBT`` Sequence node.
     """
     if case_id is None:
-        return create_receive_activity_tree(
-            name="OfferCaseParticipantRoleReceivedBT",
-            case_id=None,
-            precondition_guards=[],
+        # Intake records the Offer; there is no case to act on, so the
+        # incomplete-activity guard refuses it (CLP-10-018).
+        return create_incomplete_activity_received_tree(
+            "OfferCaseParticipantRoleReceivedBT",
+            "Offer(CaseParticipantRole) names no case",
         )
 
     sender_context = SenderCheckContext(

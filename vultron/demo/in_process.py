@@ -26,7 +26,7 @@ recording runs on the same harness the tests trust.
 import functools
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -58,11 +58,55 @@ from vultron.adapters.driving.fastapi.deps import (
 )
 from vultron.adapters.media_types import AS2_CONTENT_TYPE
 from vultron.config import AppConfig
+from vultron.config.actor import ActorConfig
+from vultron.config.app import ServerConfig
 from vultron.core.models.object_fetch import ObjectReference
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
 _NODE_NAME_UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def node_app_config(
+    base: AppConfig,
+    *,
+    case_actor_service_url: str | None,
+    base_url: str | None = None,
+    default_case_roles: Sequence[CVDRole] | None = None,
+) -> AppConfig:
+    """Return *base* with one in-process node's own settings (ADR-0206).
+
+    The settings a container sets for itself: the CaseActor service it
+    proposes to (``None`` when it names none), its server base URL when
+    given, and its default case roles when given (else *base*'s).  Each
+    section is validated rather than set with ``model_copy(update=...)``,
+    which would store the URL and role names as plain strings, and the
+    result is a copy of *base*, since ``AppConfig(...)`` keyword arguments
+    are no settings source.
+
+    Args:
+        base: The config the node's settings are applied to.
+        case_actor_service_url: The CaseActor service URL the node holds.
+        base_url: The node's server base URL, or ``None`` to keep *base*'s.
+        default_case_roles: The node's default case roles, or ``None`` to
+            keep *base*'s.
+    """
+    actor_settings: dict[str, object] = {
+        "case_actor_service_url": case_actor_service_url
+    }
+    if default_case_roles is not None:
+        actor_settings["default_case_roles"] = list(default_case_roles)
+    update: dict[str, object] = {
+        "actor": ActorConfig.model_validate(
+            base.actor.model_dump() | actor_settings
+        )
+    }
+    if base_url is not None:
+        update["server"] = ServerConfig.model_validate(
+            base.server.model_dump() | {"base_url": base_url}
+        )
+    return base.model_copy(update=update)
 
 
 def node_db_url(base_url: str) -> str:
@@ -360,6 +404,8 @@ def create_isolated_actor_app(
     router: InProcessRouter,
     actor_slug: str = "primary",
     config: AppConfig | None = None,
+    *,
+    background_work: bool = True,
 ) -> IsolatedActorApp:
     """Create an isolated FastAPI app for a single actor in tests.
 
@@ -391,6 +437,9 @@ def create_isolated_actor_app(
             outbox monitor, startup inbox replay, ledger position statements
             and sender-sequence hold timer) on its own stores.  ``None``
             keeps the process-wide config and starts none of that work.
+        background_work: ``False`` keeps a node given a *config* from
+            starting that background work, for a test or recording driven by
+            the scenario alone (see :func:`create_app`).
 
     Returns:
         An :class:`IsolatedActorApp` whose ``client`` context manager has
@@ -428,6 +477,7 @@ def create_isolated_actor_app(
         openapi_url=None,
         node_base_url=node_root,
         config=config,
+        background_work=background_work,
     )
     app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl
     # Declared on the app, not only wired into the override: routes whose subject

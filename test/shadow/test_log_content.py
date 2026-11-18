@@ -94,6 +94,18 @@ from vultron.shadow.dashboard.page import render
 render(marked_vince_reader())
 """
 
+# The case is followed: a follower yields the case's reading, then ends.
+_FOLLOWED_PAGE = """
+from test.support.case_reader import FAKE_CASE, FakeCaseReader, marked_case_records
+from vultron.shadow.dashboard.page import render
+
+class Follower(FakeCaseReader):
+    def follow_case(self, case_id, *, heartbeat=None):
+        yield self.read_case(case_id)
+
+render(Follower({FAKE_CASE: marked_case_records()}))
+"""
+
 # The analysis fails after the case is read.  The Vultron error quotes the
 # case's title, and the exception that caused it quotes the marker.
 _FAILING_PAGE = """
@@ -197,6 +209,16 @@ def test_a_shadow_run_logs_the_case_and_never_its_content():
     texts = [_text(record) for record in records]
     assert any(f"Read case {FAKE_CASE}" in text for text in texts)
     # The entries' source records are named, so the check is not vacuous.
+    assert any("source record rec-open" in text for text in texts)
+
+
+@pytest.mark.spec("VSD-01-003")
+@pytest.mark.usefixtures("debug_logs")
+def test_a_followed_case_logs_each_reading_and_never_its_content():
+    records = _run(_FOLLOWED_PAGE)
+    _assert_marker_nowhere(records)
+    texts = [_text(record) for record in records]
+    assert any(f"Read case {FAKE_CASE}" in text for text in texts)
     assert any("source record rec-open" in text for text in texts)
 
 

@@ -246,7 +246,12 @@ def diversion_stage(
     body: py_trees.behaviour.Behaviour = py_trees.composites.Sequence(
         name=f"{diversion.name}Answer", memory=False, children=effects
     )
-    return DiversionStage(diversion.name, diversion.condition, body)
+    return DiversionStage(
+        diversion.name,
+        diversion.condition,
+        body,
+        refuses=diversion.refuses,
+    )
 
 
 def precondition_guard_nodes(

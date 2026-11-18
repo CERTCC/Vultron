@@ -81,7 +81,7 @@ groups:
       spec_id: ARCH-25-005
     adr:
     - ADR-0036
-    - ADR-0099
+    - ADR-0211
   - id: SDO-01-005
     priority: MUST
     kind: project
@@ -100,7 +100,7 @@ groups:
       spec_id: SDO-01-004
     adr:
     - ADR-0036
-    - ADR-0099
+    - ADR-0211
 - id: SDO-02
   title: transition() Contract
   specs:
@@ -263,7 +263,7 @@ groups:
     rationale: >-
       DataLayer round-trip compatibility is a binding design constraint per LST-05-003
       and ADR-0033. A dimension field serializes as its bare state value and rehydrates
-      via Pydantic model_validate (SDO-01-004, ADR-0099). See ADR-0036.
+      via Pydantic model_validate (SDO-01-004, ADR-0211). See ADR-0036.
     adr:
     - ADR-0033
     - ADR-0036
@@ -320,7 +320,7 @@ groups:
     - ADR-0062
     - ADR-0063
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
     - ADR-0175
     see_also:
     - spec_id: MV-11-002
@@ -353,7 +353,7 @@ groups:
       spec_id: ARCH-12-003
       note: ARCH-12-003 supplies the `extra="forbid"` configuration that replaces the per-class reject-guard.
     adr:
-    - ADR-0099
+    - ADR-0211
   - id: SDO-03-009
     priority: MUST_NOT
     kind: project
@@ -364,7 +364,7 @@ groups:
     rationale: >-
       `extra="forbid"` already refuses the key (SDO-03-008), so a reject-guard only
       duplicates it and needs upkeep for each key. No wire→core recovery is attempted:
-      there is no backstop (ADR-0082), and `extra="forbid"` is the guard (ADR-0099).
+      there is no backstop (ADR-0082), and `extra="forbid"` is the guard (ADR-0211).
     verification: >-
       `TestParticipantStatusCarriesNoFlatShim` in
       `test_no_reject_guard_validator` in
@@ -376,7 +376,7 @@ groups:
       spec_id: SDO-03-008
     adr:
     - ADR-0082
-    - ADR-0099
+    - ADR-0211
   - id: SDO-03-006
     priority: MUST
     kind: project

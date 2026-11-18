@@ -102,7 +102,7 @@ class _Cast:
     exactly why a recording is blind to them (#5596).
     """
 
-    nodes: runner._Nodes
+    nodes: runner.ScenarioNodes
     acts: list[str] = field(default_factory=list)
 
     def ledger(self) -> str:
@@ -129,9 +129,9 @@ class TestFixtureStoryMutations:
 
         with TestClient(app) as client:
             yield _Cast(
-                nodes=runner._Nodes(
+                nodes=runner.ScenarioNodes(
                     clients={
-                        runner._node_base(slot.compose_url): client
+                        runner.node_base(slot.compose_url): client
                         for slot in (VENDOR_SLOT, OTHER_SLOT)
                     }
                 ),

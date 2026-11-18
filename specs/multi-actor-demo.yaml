@@ -146,7 +146,10 @@ groups:
       `test_startup_replay_reads_its_own_apps_retry_budget` do the same for each path
       run outside a request, and
       `test_lifespan_work_that_lost_its_scope_raises_at_shutdown` shows a path that
-      lost its scope raises.
+      lost its scope raises. `test/demo/test_container_configs.py` runs the reporter,
+      vendor and case-actor containers in process, each with its compose service's
+      config, and shows a CaseActor that seats the proposer from its own
+      `default_case_roles` fails there (#1876).
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-01-004
@@ -674,7 +677,7 @@ groups:
         at least one of CS.P, CS.X, or CS.A and an active embargo exists, trigger
         embargo teardown automatically via ThreatTerminationBranchNode (RSH-03-001).
         The teardown runs in the act that adopts the value, with no separate
-        teardown gate: the adoption also authorizes it (RSH-07-001, ADR-0166).
+        teardown gate: the adoption also authorizes it (RSH-07-001, ADR-0210).
         The teardown fires for any adopted participant's CS.P/X/A, not only the
         Case Owner's. See ThreatTerminationBranchNode (RSH-03-002: no
         sender-role gate) and ADR-0046.

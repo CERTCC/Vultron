@@ -351,7 +351,7 @@ does not re-queue an `Announce` the outbox already holds for that peer
   by its own id (SYNC-14-009). That delivery's tree replays the next, so the
   cascade needs no loop and runs the in-order path by construction
   (SYNC-14-008). Reason: running the successor inline made one delivery run
-  several trees (CLP-10-005, ADR-0135).
+  several trees (CLP-10-005, ADR-0214).
 - **Every tree that seeds a case drains**, and its use case's semantic is in
   `_LEDGER_REPLAY_SEMANTICS` so it gets the port. Reason: the reporter's case
   arrives from the report receiver (CBT-01-001), not the CASE_MANAGER whose

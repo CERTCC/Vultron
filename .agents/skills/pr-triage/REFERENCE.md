@@ -216,7 +216,7 @@ if the PR modifies any of:
 
 The flag is informational. `pr-execute`'s local gate comes from
 `targeted-tests`, which gates these paths by their importers and leaves the
-rest to CI (PAD-18-012, ADR-0143), so execute does not read the flag to
+rest to CI (PAD-18-012, ADR-0209), so execute does not read the flag to
 choose its test scope.
 
 ---
@@ -237,7 +237,7 @@ by GitHub, so check both.
 |---|---|---|
 | `CLEAN` | Mergeable, checks green | none |
 | `UNSTABLE` | Mergeable, but a non-required check is failing/pending | none — Phase 11 owns CI |
-| `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (`fix-now`: execute clears it with `gh pr update-branch`, PAD-18-014) |
+| `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0209) | **IMPROVE** (`fix-now`: execute clears it with `gh pr update-branch`, PAD-18-014) |
 | `DIRTY` | Conflicts — authoritative even if `mergeable` says otherwise | **FAIL** |
 | `BLOCKED` | A required check is not green — usually `CI gate`, required by `main-3` with no bypass actor (#5945) — or a required review is missing | **IMPROVE** (name the cause from `verify-merge-gate.sh`'s `ci_gate=` line, never a hand-rolled reading; a red gate is execute's to fix, a missing review is not) |
 | `DRAFT` | PR is a draft **and** the draft state is what blocks the merge. Not the only draft shape: a draft whose checks all pass is `CLEAN` with `is_draft: true`, so judge a draft on `is_draft` (SKILL.md Phase 12) | **IMPROVE** |

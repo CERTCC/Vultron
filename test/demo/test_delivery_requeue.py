@@ -23,11 +23,13 @@ import asyncio
 
 import pytest
 
+from test.demo.conftest import UNSERVED_CASE_ACTOR_BASE, node_config
 from vultron.adapters.driving.fastapi.outbox_handler import (
     configure_default_emitter,
     get_default_emitter,
     outbox_handler,
 )
+from vultron.config import app_config_scope
 from vultron.demo.in_process import (
     InProcessRouter,
     create_isolated_actor_app,
@@ -57,12 +59,30 @@ def test_delivery_failure_triggers_requeue():
          the outbox is empty.
     """
     router = InProcessRouter()
-    vendor_iso = create_isolated_actor_app(_VENDOR_BASE, router, "vendor")
+    # Each node holds its own config (ADR-0206, ``node_config``); no node
+    # here is the CaseActor service.  The body drives the vendor's outbox, so
+    # it runs in the vendor's config scope.
+    vendor_config = node_config(_VENDOR_BASE, UNSERVED_CASE_ACTOR_BASE)
+    vendor_iso = create_isolated_actor_app(
+        _VENDOR_BASE,
+        router,
+        "vendor",
+        config=vendor_config,
+        background_work=False,
+    )
     reporter_iso = create_isolated_actor_app(
-        _REPORTER_BASE, router, "reporter"
+        _REPORTER_BASE,
+        router,
+        "reporter",
+        config=node_config(_REPORTER_BASE, UNSERVED_CASE_ACTOR_BASE),
+        background_work=False,
     )
 
-    with vendor_iso.client, reporter_iso.client:
+    with (
+        app_config_scope(vendor_config),
+        vendor_iso.client,
+        reporter_iso.client,
+    ):
         vendor_actor_id = vendor_iso.actor_id
         reporter_actor_id = reporter_iso.actor_id
 

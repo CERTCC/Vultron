@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-09-29
 created: 2026-09-29
 updated: 2026-09-29
@@ -17,7 +17,12 @@ partially_superseded_by:
   - 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
   - 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 stakeholder_type: [project-contributor]
+superseded_by: 0214-how-a-received-message-is-checked-applied-and-kept.md
 ---
+
+> **Superseded by [ADR-0214](../0214-how-a-received-message-is-checked-applied-and-kept.md).**
+> ADR-0214 states the received-side stage order, the staged record, the atomic act and what the receiver keeps as one decision, consolidating ADR-0111, ADR-0135, ADR-0151 and ADR-0154.
+> This record is kept as it stood when it was superseded.
 
 # Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It
 
@@ -158,9 +163,9 @@ CLP-10-017 says so; the handler migrations that still store under the sender's i
 
 ## More Information
 
-- [ADR-0022](0022-single-bt-execution-for-received-side-case-actor-routing.md) set the single-tree contract and the guards, commit, effects ordering this record extends with a stage in front.
-- [ADR-0107](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md) decides what the commit records and how a replica resolves a reference. Intake is where the receiver keeps what arrived so both are possible.
-- [ADR-0019](0019-separate-case-ledger-from-process-log.md) separates the case ledger from the process log. Intake writes to neither; it writes the receiver's own record of receipt.
+- [ADR-0022](../0022-single-bt-execution-for-received-side-case-actor-routing.md) set the single-tree contract and the guards, commit, effects ordering this record extends with a stage in front.
+- [ADR-0107](../0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md) decides what the commit records and how a replica resolves a reference. Intake is where the receiver keeps what arrived so both are possible.
+- [ADR-0019](../0019-separate-case-ledger-from-process-log.md) separates the case ledger from the process log. Intake writes to neither; it writes the receiver's own record of receipt.
 
 Generated spec requirements: `case-ledger-processing.yaml` CLP-10-006 and CLP-10-010 (amended), CLP-10-017 through CLP-10-020, CLP-10-022; `case-management.yaml` CM-15-005 (amended).
 

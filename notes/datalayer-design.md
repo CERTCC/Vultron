@@ -72,7 +72,7 @@ Declare `CaseOutboxPersistence` only where core code queues outbound activities:
 the port adds `outbox_append` and `outbox_list` to `CasePersistence` (DL-04-004),
 so the type shows which code sends. A received use case declares it when its
 tree's effects stage emits, which is the received-tree order by design
-(ADR-0111), not a defect to split out.
+(ADR-0214), not a defect to split out.
 
 ## Write Path Stores Verbatim; the Boundary Is `extra="forbid"`
 

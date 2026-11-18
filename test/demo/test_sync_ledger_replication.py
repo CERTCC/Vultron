@@ -22,6 +22,7 @@ from typing import cast
 import anyio
 import pytest
 
+from test.demo.conftest import node_config
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import in_act, run_in_act
 from test.support.objects import authored_at, make, with_times
@@ -37,6 +38,7 @@ from vultron.adapters.driving.fastapi.outbox_handler import (
     get_default_emitter,
     outbox_handler,
 )
+from vultron.config import app_config_scope
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import (
@@ -149,17 +151,30 @@ def _make_log_entry(
 def two_app_setup() -> Iterator[tuple]:
     """Create two isolated actor apps connected by ``InProcessRouter``."""
     router = InProcessRouter()
+    # Each node holds its own config, the CaseActor's host being the
+    # CaseActor service (ADR-0206, ``node_config``).  The body drives the
+    # CaseActor's commits, so it runs in the CaseActor host's config scope.
+    case_actor_config = node_config(_CASE_ACTOR_BASE, _CASE_ACTOR_BASE)
     case_actor_iso = create_isolated_actor_app(
-        base_url=_CASE_ACTOR_BASE, router=router
+        base_url=_CASE_ACTOR_BASE,
+        router=router,
+        config=case_actor_config,
+        background_work=False,
     )
-    peer_iso = create_isolated_actor_app(base_url=_PEER_BASE, router=router)
+    peer_iso = create_isolated_actor_app(
+        base_url=_PEER_BASE,
+        router=router,
+        config=node_config(_PEER_BASE, _CASE_ACTOR_BASE),
+        background_work=False,
+    )
 
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]
 
-    with case_actor_iso.client as case_actor_tc:
-        with peer_iso.client as peer_tc:
-            yield case_actor_iso, peer_iso, case_actor_tc, peer_tc
+    with app_config_scope(case_actor_config):
+        with case_actor_iso.client as case_actor_tc:
+            with peer_iso.client as peer_tc:
+                yield case_actor_iso, peer_iso, case_actor_tc, peer_tc
 
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
     case_actor_iso.close()

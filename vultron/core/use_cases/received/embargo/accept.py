@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.case.received_run import (
-    OutcomeReader,
     ReceivedOutcome,
     failure_reason,
     first_reading,
@@ -60,32 +59,27 @@ logger = logging.getLogger(__name__)
 _TREE_LABEL = "AcceptInviteToEmbargoBT"
 
 
-def _unavailable_embargo_reader(where: str) -> OutcomeReader:
-    """The verdict of an Accept a not-available-embargo diversion answered.
+def _unanswered_unavailable_embargo(
+    outcome: ReceivedOutcome,
+) -> HandlerResult | None:
+    """Raise when a not-available-embargo diversion's answer did not complete.
 
-    The Accept was answered, never recorded: a fault for terms the register
-    never held (MSM-07-039), the refusal notice for terms no longer
-    available (MSM-07-012).  *where* names the Invite and the case.
+    The Accept was diverted to be answered, never recorded: a fault for
+    terms the register never held (MSM-07-039), the refusal notice for
+    terms no longer available (MSM-07-012).  A completed answer is the
+    stage's declared refusal, which the runner reads (HP-01-003); one that
+    did not complete is our fault, not the sender's (ADR-0095).
 
     Raises:
         VultronBTInternalError: the diversion's answer did not complete.
     """
-
-    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
-        for name in (NEVER_HELD_EMBARGO_FAULT, UNAVAILABLE_EMBARGO_REFUSAL):
-            if (stage := taken_diversion(outcome.tree, name)) is None:
-                continue
-            if not stage.effects_succeeded:
-                raise VultronBTInternalError(
-                    f"{name}: {failure_reason(stage.effects, outcome.result)}"
-                )
-            return HandlerResult.refused(
-                stage.condition.feedback_message
-                or f"{name}: {where} answered, not recorded"
+    for name in (NEVER_HELD_EMBARGO_FAULT, UNAVAILABLE_EMBARGO_REFUSAL):
+        stage = taken_diversion(outcome.tree, name)
+        if stage is not None and not stage.effects_succeeded:
+            raise VultronBTInternalError(
+                f"{name}: {failure_reason(stage.effects, outcome.result)}"
             )
-        return None
-
-    return read
+    return None
 
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
@@ -148,12 +142,14 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-            # A diversion answered the Accept itself; a repeat of an answer
-            # already recorded the runner reports SKIPPED from the repeat
-            # guard's declaration (CM-13-005, HP-01-014).
+            # A diversion answered the Accept itself: a not-available
+            # embargo's stage declares its refusal (MSM-07-012, MSM-07-039),
+            # and a repeat of an answer already recorded the runner reports
+            # SKIPPED from the repeat guard's declaration (CM-13-005,
+            # HP-01-014).
             reader=first_reading(
                 pxa_refusal_reader(PXA_ACCEPT_REFUSAL, where),
-                _unavailable_embargo_reader(where),
+                _unanswered_unavailable_embargo,
             ),
         )
         if verdict.disposition is HandlerDisposition.SKIPPED:
