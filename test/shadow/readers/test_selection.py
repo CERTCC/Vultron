@@ -13,10 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The case shadow's reader choice (#6441, #6530).
+"""The case shadow tool's reader for each source (#6441, #6530, #6642).
 
-An outside-system reader when one is set, else the live Vultron case reader
-when a node is set, else the Vultron case reader over ledger files.
+The recorded demo cases are read through the Vultron case reader over ledger
+files, a running node through the live Vultron case reader, and an outside
+system through its own reader.
 """
 
 import pytest
@@ -25,6 +26,7 @@ from test.support.case_reader import FakeCaseReader
 from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import CaseLedgerFileError
 from vultron.shadow.readers import (
+    CaseSource,
     VultronCaseReader,
     VultronNode,
     VultronNodeCaseReader,
@@ -34,31 +36,49 @@ from vultron.shadow.readers import (
 _NODE = VultronNode("http://case-actor:7999/api/v2", "case-actor")
 
 
-def test_with_no_outside_reader_the_run_reads_vultron_ledger_files():
-    reader = select_case_reader()
-    assert isinstance(reader, VultronCaseReader)
-    assert isinstance(select_case_reader(None), VultronCaseReader)
+def test_the_recordings_are_the_default_source_read_from_ledger_files():
+    assert isinstance(select_case_reader(), VultronCaseReader)
+    assert isinstance(
+        select_case_reader(CaseSource.RECORDINGS), VultronCaseReader
+    )
 
 
-def test_a_configured_outside_reader_is_the_one_used():
+def test_the_outside_source_is_read_through_its_reader():
     outside = FakeCaseReader({})
-    reader = select_case_reader(outside)
+    reader = select_case_reader(CaseSource.OUTSIDE, outside=outside)
     assert reader is outside
     assert isinstance(reader, CaseReader)
 
 
-def test_the_default_reader_keeps_to_the_ledger_root(tmp_path):
+def test_the_recordings_reader_keeps_to_the_ledger_root(tmp_path):
     reader = select_case_reader(ledger_root=tmp_path)
     with pytest.raises(CaseLedgerFileError, match="outside the ledger"):
         reader.read_case(str(tmp_path.parent / "other.jsonl"))
 
 
-def test_a_configured_node_is_read_through_the_live_reader():
-    reader = select_case_reader(node=_NODE)
+def test_the_node_source_is_read_through_the_live_reader():
+    reader = select_case_reader(CaseSource.NODE, node=_NODE)
     assert isinstance(reader, VultronNodeCaseReader)
     assert reader.node_url == _NODE.url
 
 
-def test_an_outside_reader_is_used_even_when_a_node_is_set():
+def test_each_source_reads_through_its_own_reader_whatever_else_is_given():
     outside = FakeCaseReader({})
-    assert select_case_reader(outside, node=_NODE) is outside
+    assert isinstance(
+        select_case_reader(CaseSource.RECORDINGS, outside=outside, node=_NODE),
+        VultronCaseReader,
+    )
+    assert isinstance(
+        select_case_reader(CaseSource.NODE, outside=outside, node=_NODE),
+        VultronNodeCaseReader,
+    )
+    assert (
+        select_case_reader(CaseSource.OUTSIDE, outside=outside, node=_NODE)
+        is outside
+    )
+
+
+@pytest.mark.parametrize("source", [CaseSource.OUTSIDE, CaseSource.NODE])
+def test_a_source_without_what_it_reads_is_refused(source):
+    with pytest.raises(ValueError, match="needs"):
+        select_case_reader(source)

@@ -10,6 +10,9 @@
 # - SHD-02-001: the image declares no VOLUME and the container has no mount.
 # - SHD-02-002: `docker compose up shadow` publishes the port on 127.0.0.1
 #   only, and the dashboard answers `ok` on /_stcore/health there.
+# - The live reader (#6642): with the demo stack's `case-actor` node started
+#   beside it on the Compose network, the shadow image's own live reader
+#   reads a case created on the node (.github/scripts/shadow_live_read.py).
 
 name: Case shadow image
 
@@ -36,6 +39,7 @@ on:
       - .github/workflows/shadow-image.yml
       - .github/actions/build-demo-images/**
       - .github/scripts/find_in_image.py
+      - .github/scripts/shadow_live_read.py
   pull_request:
     branches: [ "main" ]
     paths:
@@ -48,6 +52,7 @@ on:
       - .github/workflows/shadow-image.yml
       - .github/actions/build-demo-images/**
       - .github/scripts/find_in_image.py
+      - .github/scripts/shadow_live_read.py
   workflow_dispatch:
 
 permissions:
@@ -63,10 +68,10 @@ jobs:
     name: Case shadow image
     runs-on: ubuntu-latest
     # A cold build installs every locked dependency, a few minutes; the
-    # service start and the layer search take about a minute more. Cap at
-    # 20 min so a hang fails fast instead of holding a runner until GitHub's
+    # service start, the layer search and the live read take a few minutes
+    # more. Cap at 25 min so a hang fails fast instead of holding a runner until GitHub's
     # 6-h limit (TB-14-006).
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       # docker/docker-compose.yml names its images ${PROJECT_NAME}-<service>.
       PROJECT_NAME: vultron
@@ -89,11 +94,13 @@ jobs:
           printf 'VULTRON_VINCE__API_TOKEN=%s\n' "$VULTRON_VINCE__API_TOKEN" \
             | tee -a docker/.env > .env
 
+      # api-dev is the image the demo stack's case-actor node runs. One bake
+      # builds both, so they share the dependency layers.
       - name: Build the shadow image
         uses: ./.github/actions/build-demo-images
         with:
           compose-file: docker-compose.yml
-          targets: shadow
+          targets: shadow api-dev
 
       - name: Check that no image layer holds the marker credential
         run: |
@@ -163,9 +170,65 @@ jobs:
           echo "::error::The dashboard did not answer ok at $HEALTH_URL within ${DEADLINE_SECONDS}s (SHD-02-002)"
           exit 1
 
-      - name: Show the service's logs
+      # The demo stack's Compose file shares this one's project name
+      # (docker/.env), so the node joins the network the shadow service is
+      # on and the shadow container reaches it as case-actor.
+      - name: Start the demo stack's case-actor node
+        timeout-minutes: 4
+        run: |
+          docker compose -f docker/docker-compose-multi-actor.yml \
+            up --detach --no-build --no-deps --wait --wait-timeout 180 case-actor
+
+      # The node seeds its own actor, then creates one case as its own
+      # CASE_MANAGER, which commits the case's first ledger entry.
+      - name: Create a demo case on the case-actor node
+        id: seed
+        timeout-minutes: 3
+        env:
+          CREATE_CASE_URL: http://localhost:7999/api/v2/actors/case-actor/trigger/create-case
+          CASE_BODY: '{"name": "Case shadow tool CI case", "content": "A case the case shadow tool reads in CI."}'
+        run: |
+          set -euo pipefail
+          compose=(docker compose -f docker/docker-compose-multi-actor.yml)
+          "${compose[@]}" exec -T case-actor vultron-demo seed
+          answer=$("${compose[@]}" exec -T case-actor curl --silent --show-error \
+            --fail --max-time 30 -X POST -H 'Content-Type: application/json' \
+            -d "$CASE_BODY" "$CREATE_CASE_URL")
+          case_id=$(jq -r '.activity.object.id // empty' <<<"$answer")
+          if [ -z "$case_id" ]; then
+            echo "::error::The node created no case: $answer"
+            exit 1
+          fi
+          echo "Created case $case_id on the case-actor node."
+          echo "case-id=$case_id" >> "$GITHUB_OUTPUT"
+
+      # The script runs in the shadow container, on the image's own installed
+      # reader, built the way the page builds it for a typed node.
+      - name: Check that the shadow image's live reader reads the demo case
+        timeout-minutes: 3
+        env:
+          CASE_ID: ${{ steps.seed.outputs.case-id }}
+          NODE_URL: http://case-actor:7999/api/v2
+        run: |
+          set -euo pipefail
+          docker compose -f docker/docker-compose.yml exec -T shadow \
+            python - "$NODE_URL" case-actor "$CASE_ID" --deadline 120 \
+            < .github/scripts/shadow_live_read.py
+
+      - name: Show the services' logs
         if: failure() || cancelled()
-        run: docker compose -f docker/docker-compose.yml logs shadow
+        run: |
+          docker compose -f docker/docker-compose.yml logs shadow
+          docker compose -f docker/docker-compose-multi-actor.yml logs case-actor
+
+      # The node goes first, so the shared network is free when the shadow
+      # service's project takes it down. Two steps, so a failure to stop the
+      # node still leaves the shadow service stopped.
+      - name: Stop the case-actor node
+        if: always()
+        run: |
+          docker compose -f docker/docker-compose-multi-actor.yml \
+            rm --stop --force case-actor
 
       - name: Stop the shadow service
         if: always()

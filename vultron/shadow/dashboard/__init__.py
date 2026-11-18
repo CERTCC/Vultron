@@ -18,6 +18,9 @@
 * :mod:`~vultron.shadow.dashboard.view` — what the page shows, as words,
   icons and rows, with no Streamlit call.
 * :mod:`~vultron.shadow.dashboard.page` — the page, laid out with Streamlit.
+* :mod:`~vultron.shadow.dashboard.source_menu` — the menu the analyst picks
+  the page's source from: the recorded demo cases, VINCE, or a running
+  Vultron node.
 * :mod:`~vultron.shadow.dashboard.app` — the script ``streamlit run`` runs.
 * :mod:`~vultron.shadow.dashboard.cli` — ``vultron-shadow``, which starts it.
 

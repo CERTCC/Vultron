@@ -342,6 +342,7 @@ def test_the_job_runs_on_a_change_to_what_it_checks() -> None:
             ".github/workflows/shadow-image.yml",
             ".github/actions/build-demo-images/**",
             ".github/scripts/find_in_image.py",
+            ".github/scripts/shadow_live_read.py",
         }, event
 
 
