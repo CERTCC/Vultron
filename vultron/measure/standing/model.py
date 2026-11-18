@@ -23,10 +23,10 @@ participant stands in it.
 Everything that follows from the states is read from them, never stored
 beside them, so it cannot disagree: each desideratum's status is read from
 the score, an original one's from the sequence's completions and an extended
-one's from the vendor's walk (:class:`DesideratumStanding`), each allowed move
-from the states (:mod:`~vultron.measure.standing.moves`), and each CVD
-action a participant's case state makes possible from the action rules
-(:class:`ActionAdvice`, :mod:`~vultron.core.states.cs_actions`).
+one's from the vendor's walk (:mod:`~vultron.measure.standing.desiderata`),
+each allowed move from the states (:mod:`~vultron.measure.standing.moves`),
+and each CVD action a participant's case state makes possible from the
+action rules (:class:`ActionAdvice`, :mod:`~vultron.core.states.cs_actions`).
 
 A ledger with a hole yields no reading at all, only the
 :class:`StandingGap` that names the hole: a measure over a history with a
@@ -35,7 +35,6 @@ hole is wrong, not imprecise (CEH-02-006).
 
 from __future__ import annotations
 
-from enum import StrEnum
 from fractions import Fraction
 from typing import Annotated
 
@@ -57,13 +56,6 @@ from vultron.core.states.cs_invariants import (
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.measure.baselines import (
-    Desideratum,
-    EventKind,
-    Group,
-    ordered_cs_events,
-    scope_desiderata,
-)
 from vultron.measure.history import (
     BY_NAME,
     CaseEventHistory,
@@ -75,11 +67,13 @@ from vultron.measure.preferences import PathPreferences
 from vultron.measure.scoring import (
     ExtendedScore,
     SequenceScore,
-    TermScore,
     UnscoredScope,
-    met_desiderata,
 )
 from vultron.measure.sequences import UnprojectableParticipant
+from vultron.measure.standing.desiderata import (
+    DesideratumStanding,
+    desiderata_standing,
+)
 from vultron.measure.standing.moves import (
     CSMove,
     CSName,
@@ -90,136 +84,6 @@ from vultron.measure.standing.moves import (
     rm_moves,
 )
 from vultron.primitives import NonEmptyString
-
-
-class DesideratumStatus(StrEnum):
-    """Whether a vendor's case has met a desideratum (ADR-0190)."""
-
-    #: Every valid completion of the sequence meets it: nothing left can
-    #: break it.
-    MET = "met"
-    #: No valid completion meets it: it is already broken.
-    BROKEN = "broken"
-    #: Some completions meet it and some do not: the moves still to come
-    #: decide it.
-    OPEN = "open"
-    #: It orders an event the case's source cannot observe, so the case
-    #: cannot say whether it is met (CRD-02-005).
-    UNKNOWN = "unknown"
-    #: An extended desideratum of a vendor whose case stands in no state of
-    #: the one-vendor model, so no walk reads it (``UnscoredScope``).
-    UNSCORED = "unscored"
-
-
-class DesideratumStanding(BaseModel):
-    """One desideratum of a vendor's scope and whether its case has met it.
-
-    Fields:
-        notation: The desideratum as the Measuring CVD pages print it.  The
-            first of a group of equivalent desiderata stands for the group
-            (ADR-0200 rule 2).
-        group: Its group on ``process_model_desiderata.md``.
-        before: The event the desideratum wants first.
-        after: The event it wants after *before*.
-        status: Met, broken, still open, unknown when it orders an event
-            the source cannot observe, or unscored when no walk reads it.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    notation: NonEmptyString
-    group: Group
-    before: EventKind
-    after: EventKind
-    status: DesideratumStatus
-
-
-def _status(meeting: int, met_by: list[set[Desideratum]]) -> DesideratumStatus:
-    """Met when every completion meets it, broken when none does, else
-    open."""
-    if meeting == len(met_by):
-        return DesideratumStatus.MET
-    if meeting == 0:
-        return DesideratumStatus.BROKEN
-    return DesideratumStatus.OPEN
-
-
-def _chance_status(term: TermScore) -> DesideratumStatus:
-    """Met when the walk meets *term* from every end it can reach, broken
-    when from none, else open.
-
-    *term*'s expected outcome is 1 exactly when every reachable end meets it
-    or never enters its scope, and 0 exactly when none does, since every
-    step the walk can take has a chance above 0.
-    """
-    if term.met == 1:
-        return DesideratumStatus.MET
-    if term.met == 0:
-        return DesideratumStatus.BROKEN
-    return DesideratumStatus.OPEN
-
-
-def _terms(extended: ExtendedScore | UnscoredScope) -> dict[str, TermScore]:
-    if isinstance(extended, UnscoredScope):
-        return {}
-    return {
-        t.notation: t for t in (*extended.end.terms, *extended.embargo.terms)
-    }
-
-
-def _standing(
-    desideratum: Desideratum, status: DesideratumStatus
-) -> DesideratumStanding:
-    (ordering,) = desideratum.query.orderings
-    return DesideratumStanding(
-        notation=desideratum.notation,
-        group=desideratum.group,
-        before=ordering.before.kind,
-        after=ordering.after.kind,
-        status=status,
-    )
-
-
-def desiderata_standing(
-    score: SequenceScore,
-    extended: ExtendedScore | UnscoredScope,
-    unobservable: frozenset[CSEvent] = frozenset(),
-) -> tuple[DesideratumStanding, ...]:
-    """Each desideratum of a vendor's scope and its status, in the order of
-    :func:`~vultron.measure.baselines.scope_desiderata`.
-
-    A desideratum that orders an event in *unobservable* is unknown: the
-    sequence reads that event as not yet happened, which the source cannot
-    say (CRD-02-005).  Of the rest, an original one is read from *score*'s
-    completions: met when every completion meets it, broken when none does,
-    and open otherwise.  An extended one is read from its term in
-    *extended*, the vendor's walk from where it stands, in the same three
-    ways (:func:`_chance_status`), and is unscored when *extended* is an
-    :class:`~vultron.measure.scoring.UnscoredScope`.  Each status agrees
-    with the score it is read from.
-
-    Raises:
-        ValueError: *extended* holds no term for an extended desideratum of
-            the scope, so it was not scored from the same list.
-    """
-    met_by = [set(met_desiderata(c.history)) for c in score.completions]
-    terms = _terms(extended)
-    standings = []
-    for desideratum in scope_desiderata():
-        if ordered_cs_events(desideratum) & unobservable:
-            status = DesideratumStatus.UNKNOWN
-        elif desideratum.group is Group.ORIGINAL:
-            status = _status(sum(desideratum in met for met in met_by), met_by)
-        elif isinstance(extended, UnscoredScope):
-            status = DesideratumStatus.UNSCORED
-        elif desideratum.notation in terms:
-            status = _chance_status(terms[desideratum.notation])
-        else:
-            raise ValueError(
-                f"the vendor's score has no term for {desideratum.notation}"
-            )
-        standings.append(_standing(desideratum, status))
-    return tuple(standings)
 
 
 class CaseStanding(BaseModel):

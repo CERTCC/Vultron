@@ -112,11 +112,14 @@ The page shows the case as it stands at its last ledger entry.
 
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
 - **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳).
-  The count also shows the desiderata it cannot know (❔) when the source cannot observe an event, and those it cannot score (➖) when the Vendor's case stands in no state of the chance model.
+  The count also shows the desiderata it cannot know (❔) when the source cannot observe an event, and those it cannot score (▫️) when the Vendor's case stands in no state of the chance model.
 - **Desiderata** lists in words each desideratum that move advice weighs, with one column for each Vendor.
   These are the twelve original desiderata, the report-handling desiderata, and the embargo desiderata of [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md).
   Each group of equivalent desiderata shows once, under its first: Embargo Start before Public Awareness also stands for Embargo Start before Exploit Public and before Attacks Observed.
-  The table leaves out the multi-party desideratum that every Vendor is aware before any fix is ready, because move advice does not use it.
+  A desideratum that applies only on some paths shows as met when the case can no longer take such a path, as the case score counts it.
+  For example, Report Acceptance before Public Awareness applies only to a report that reaches Valid, so it shows as met for a report that the Vendor closes before it reaches Valid.
+  Of the multi-party desiderata, every Vendor's fix before public awareness is each Vendor's Fix Ready before Public Awareness row.
+  The table leaves out the other one, that every Vendor is aware before any fix is ready, because move advice does not use it.
 - **Move advice** puts each open move in one of three bands, by the method that [Move Bands Against Pathology Cases](../topics/measuring_cvd/move_bands.md) tests.
   A move's band is set by its end desiderata, or by its embargo desiderata when it changes no end desideratum.
   A **Harm-free** move raises at least one Vendor above the chance value and lowers none.

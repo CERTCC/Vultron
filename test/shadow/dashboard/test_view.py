@@ -237,7 +237,7 @@ def test_an_unwalked_vendor_reads_not_scored_and_its_tally_counts_them():
     assert by_code["V ≺ P"] == view.DESIDERATUM_BADGES[DesideratumStatus.MET]
     (row,) = view.participant_rows([unwalked], NAMES)
     unscored = len(scope_desiderata()) - len(ORIGINAL)
-    assert f"➖ {unscored}" in str(row["Desiderata"])
+    assert f"▫️ {unscored}" in str(row["Desiderata"])
 
 
 def test_vendors_that_share_a_label_keep_their_own_columns():
@@ -281,7 +281,7 @@ def test_a_tally_with_no_unknown_desideratum_shows_no_unknown_count():
     assert rows
     for row in rows:
         assert "❔" not in str(row["Desiderata"])
-        assert "➖" not in str(row["Desiderata"])
+        assert "▫️" not in str(row["Desiderata"])
 
 
 def _reading_with_d_unobservable() -> CaseReading:

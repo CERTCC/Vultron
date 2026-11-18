@@ -78,9 +78,11 @@ EVENT_LABELS: Mapping[CSEvent, str] = {
 }
 
 #: Each event a desideratum can order, by name: the six case-state events
-#: as :data:`EVENT_LABELS` spells them, and the report-handling and embargo
-#: events as ``_case_events.md`` names them.  Every kind has a name, so a
-#: desideratum added to the catalog reads in words with no change here.
+#: as :data:`EVENT_LABELS` spells them, the report and embargo events as
+#: ``_case_events.md`` and ``process_model_desiderata.md`` name them where
+#: they do, and the rest as :class:`~vultron.measure.baselines.EventKind`
+#: describes them.  Every kind has a name, so a desideratum added to the
+#: catalog reads in words with no change here.
 DESIDERATUM_EVENT_LABELS: Mapping[EventKind, str] = {
     **{EventKind(e.value): label for e, label in EVENT_LABELS.items()},
     EventKind.INVALIDATED: "Report Invalidation",
@@ -97,7 +99,7 @@ DESIDERATUM_EVENT_LABELS: Mapping[EventKind, str] = {
     EventKind.EXIT: "Embargo Exit",
     EventKind.EXIT_OWN_TERMS: "Embargo Exit on Its Own Terms",
     EventKind.EXIT_THREAT: "Embargo Exit on a Threat Signal",
-    EventKind.EXIT_OTHER: "Embargo Exit for Another Reason",
+    EventKind.EXIT_OTHER: "Other Early Embargo Exit",
 }
 
 #: A desideratum's status as an icon and a word.
@@ -106,7 +108,7 @@ DESIDERATUM_BADGES: Mapping[DesideratumStatus, str] = {
     DesideratumStatus.BROKEN: "❌ broken",
     DesideratumStatus.OPEN: "⏳ open",
     DesideratumStatus.UNKNOWN: "❔ unknown",
-    DesideratumStatus.UNSCORED: "➖ not scored",
+    DesideratumStatus.UNSCORED: "▫️ not scored",
 }
 
 #: The statuses a tally counts only when a desideratum has one: a source
@@ -117,7 +119,8 @@ _COUNTED_WHEN_SEEN = frozenset(
 )
 
 #: Why the Desiderata table has no row for ``V_i ≺ F_j``, which the
-#: desiderata page lists.
+#: desiderata page lists.  The page's other multi-party desideratum,
+#: ``F_i ≺ P``, is each vendor's ``F ≺ P`` row, so it needs no note.
 DESIDERATA_NOTE = (
     "The table leaves out V_i ≺ F_j (every vendor aware before any fix is"
     " ready): move advice does not use it (ADR-0200)."

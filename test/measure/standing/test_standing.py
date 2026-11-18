@@ -355,6 +355,21 @@ def test_an_extended_desideratum_over_an_unobservable_event_is_unknown():
     assert statuses[r"$\evVa_i \prec \evP$"] is not DesideratumStatus.UNKNOWN
 
 
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_event_reads_unknown_even_with_no_walk():
+    """Unknown says what the source cannot see, which holds whether or not
+    a walk reads the vendor, so it wins over unscored."""
+    statuses = {
+        s.notation: s.status
+        for s in desiderata_standing(
+            score_prefix("VFDPXA"), _NOT_WALKED, frozenset({CSEvent.F})
+        )
+    }
+    assert statuses[r"$\evF_i \prec \evExOwn$"] is DesideratumStatus.UNKNOWN
+    assert statuses[r"$\evAc_i \prec \evF_i$"] is DesideratumStatus.UNKNOWN
+    assert statuses[r"$\evVa_i \prec \evP$"] is DesideratumStatus.UNSCORED
+
+
 def test_a_score_with_a_part_missing_is_refused():
     """A vendor score with no report-handling terms was not scored from the
     scope's list, so its standing cannot be read from it."""

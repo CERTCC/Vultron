@@ -22,6 +22,8 @@ ledger through the layers below it and adds no rule of its own.
 * :mod:`~vultron.measure.standing.moves` — the allowed moves, one typed
   class per machine; a case-state move extends a history a measure can
   score.
+* :mod:`~vultron.measure.standing.desiderata` — each desideratum of a
+  vendor's scope and its status, read from the vendor's score.
 * :mod:`~vultron.measure.standing.model` — the standing record, the CVD
   actions each participant's case state makes possible, and the gap a ledger
   with a hole yields in its place.
@@ -31,6 +33,11 @@ ledger through the layers below it and adds no rule of its own.
   allowed move with each vendor's change in expected outcome (#6449).
 """
 
+from vultron.measure.standing.desiderata import (
+    DesideratumStanding,
+    DesideratumStatus,
+    desiderata_standing,
+)
 from vultron.measure.standing.joint import (
     NoJointStep,
     case_prefix,
@@ -41,14 +48,11 @@ from vultron.measure.standing.model import (
     ActionAdvice,
     CaseStanding,
     DesideratumChange,
-    DesideratumStanding,
-    DesideratumStatus,
     ParticipantStanding,
     ScoredMove,
     StandingGap,
     StandingRecord,
     action_advice,
-    desiderata_standing,
 )
 from vultron.measure.standing.moves import (
     CSMove,
