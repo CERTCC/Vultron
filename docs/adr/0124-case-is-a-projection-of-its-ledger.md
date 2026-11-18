@@ -1,20 +1,21 @@
 ---
 status: accepted-provisional
 status_override: >-
+  Revision 3 edited in place in epoch 2, not superseded, with the maintainer's explicit
+  approval on 2026-11-18 (Idea #6615, PR #6646, ADR-0212): an act's own entry is a record,
+  and a replica changes state only from the CASE_MANAGER's entries.
   Revision 2 rewritten in place by the maintainer's #4425 planning interview while the
   ADR was unreleased, rather than superseded.
 date: 2026-10-07
 created: 2026-10-07
-updated: 2026-10-12
-revision: 2
+updated: 2026-11-18
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Concern #4284, Issue #4178, Concern #4425; ADR-0107, ADR-0111,
   ADR-0116, ADR-0119, ADR-0122; specs/case-ledger-processing.yaml CLP-07, CLP-10;
   specs/sync-ledger-replication.yaml SYNC-00-002; specs/case-management.yaml CM-23-016
 informed: []
-partially_superseded_by:
-  - 0212-a-replica-changes-state-only-from-the-case-managers-entries-and-consent-is-part-of-a-participants-status.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -73,10 +74,9 @@ Each entry's payload is an AS2 activity (CLP-07-011).
 
 An act and the changes it causes are different facts (CLP-07-002).
 The act's entry comes first: the message as received, or the message the CASE_MANAGER sent.
-When the act's own activity states a change, the act's entry is that change's entry, and no second entry records it again.
-Examples are `Add(Note, target=Case)` with the note inline, and an invitee's `Accept` of the stub Invite, which is the entry for its own consent row and `joined` mark.
-Applying such an entry writes only what the activity states, with any time taken from the entry.
-Each other change the act causes follows as its own CASE_MANAGER-authored entry, in the order the CASE_MANAGER writes them, and carries the changed object in full (CLP-07-006):
+An entry that a participant or the Case Owner authored is a record of what its author said, and a replica changes nothing because of it (ADR-0212).
+Consent and a participant's own status claims follow this rule; the Case Owner's decisions, case Invite answers, role grants and the content participants add adopt it in later work, and until then their own entries carry their changes as ADR-0122 and CLP-07-021 describe.
+Each change the act causes follows as its own CASE_MANAGER-authored entry, in the order the CASE_MANAGER writes them, and carries the changed object in full (CLP-07-006):
 
 - a record the CASE_MANAGER brings into existence is `Create(Object)`, such as the inert invitee's `Create(CaseParticipant)` (`create_case_participant`) after a stub Invite;
 - a changed record is `Update(Object)`, such as the old and new owners' `Update(CaseParticipant)` after an ownership transfer, or a status entry for each RM step a Leave causes (CM-23-001).
@@ -84,7 +84,7 @@ Each other change the act causes follows as its own CASE_MANAGER-authored entry,
 The CASE_MANAGER's records of clock-driven acts, such as an expired invitation (CM-28-009), and its decisions from local policy, such as agreeing to a proposal by its own embargo policy, are entries too: attributed to the CASE_MANAGER and committed like any other message.
 
 An object the case file holds must therefore have a wire form.
-`EmbargoConsent` becomes an AS2 object for this reason; a register entry changes only by a register step, which the act's own activity carries, so it needs no ledger form of its own (ADR-0122, epic #4283).
+A participant's embargo consent is part of its status, so it travels in the CASE_MANAGER's status entries (ADR-0122, ADR-0212).
 
 A message the CASE_MANAGER has no use for receiving is not part of the protocol just because the vocabulary defines it.
 Nobody sends `Update(VulnerabilityCase)` to the CASE_MANAGER, so its received path is removed (#4443); the class stays, as the form of the CASE_MANAGER's own entry if it ever changes a case field.
@@ -194,5 +194,6 @@ This was revision 1 of this ADR.
 
 Revision 1 was decided in the maintainer's design session of 2026-10-07, recorded in Concern #4284.
 Revision 2, the copy model, was decided in the planning of Concern #4425 on 2026-10-09.
+Revision 3, that an act's own entry is a record and a replica changes state only from the CASE_MANAGER's entries, was decided in the planning of Idea #6615 on 2026-11-18 (ADR-0212); its adoption is tracked under epic #6653.
 Implementation is tracked under epic #4283: embargo and consent in #4294, RM and participant records in #4295, and the remaining gaps in #4439, #4440, #4441, #4442, #4443 and #4444.
 ADR-0122 is the first domain designed against this rule; its activation consequences become consequence entries under #4294.

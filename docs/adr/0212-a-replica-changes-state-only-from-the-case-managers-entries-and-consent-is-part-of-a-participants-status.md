@@ -12,10 +12,6 @@ consulted: >-
   SDO-03; specs/received-status-handling.yaml RSH-09;
   specs/case-ledger-processing.yaml CLP-07, CLP-15-011
 informed: []
-partially_supersedes:
-  - 0122-per-embargo-participant-consent.md
-  - 0124-case-is-a-projection-of-its-ledger.md
-  - 0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -110,17 +106,14 @@ The parse edge reads a participant's received claim into the claim type, because
 
 ### Effect on earlier decisions
 
-- ADR-0122 is partly superseded.
-  Its consent states, triggers and register stand.
-  The decision that consent is held as rows on the participant record, every one written, "not asked" included, is replaced: consent is a table on each status, and "not asked" is the absence of an embargo from it.
-  The decision that a row is built with no `published` or `updated` time is replaced: every status carries the time of its act.
-- ADR-0124 is partly superseded.
-  Its single apply function and its rule that a replica copies stand.
-  The rule that the act's own entry is the entry of the change it states is replaced: the act's entry is a record, and the CASE_MANAGER's entries after it carry the change.
-  `EmbargoConsent` is no longer a case-file object with a wire form of its own.
-- ADR-0198 is partly superseded.
-  Its rule that every received whole object carries `published` stands, with its other exemptions.
-  Its exemption for an embargo consent row is removed, because no received object is a consent row once consent is part of a status.
+ADR-0122, ADR-0124 and ADR-0198 are edited in place to match, with the maintainer's approval on 2026-11-18.
+
+- ADR-0122 keeps its consent states, triggers and register.
+  Consent becomes a table on each status, "not asked" is read from the register, and each consent change is a CASE_MANAGER status entry that carries its time.
+- ADR-0124 keeps its single apply function and its rule that a replica copies.
+  An act's own entry becomes a record, and the CASE_MANAGER's entries after it carry each change.
+- ADR-0198 keeps its rule that every received whole object carries `published`, with its other exemptions.
+  The exemption for an embargo consent row is removed.
 
 ### Consequences
 

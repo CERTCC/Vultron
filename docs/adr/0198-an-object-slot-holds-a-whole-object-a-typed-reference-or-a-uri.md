@@ -1,14 +1,17 @@
 ---
 status: accepted-provisional
 status_override: >-
+  Revision 3 edited in place in epoch 2, not superseded, with the maintainer's explicit
+  approval on 2026-11-18 (Idea #6615, PR #6646, ADR-0212): an embargo consent row is no
+  longer exempt, because consent is part of a participant status, which carries its time.
   Revision 2 edited in place in epoch 2, not superseded, with the maintainer's explicit
   approval on 2026-11-17 (Issue #6456, PR #6611). It records the maintainer's ruling that a
   case stub (until it travels only as a case reference's preview, ADR-0205) and an embargo
   consent row are exempt from the received-time rule, beside actor profiles and collections.
 date: 2026-11-13
 created: 2026-11-13
-updated: 2026-11-17
-revision: 2
+updated: 2026-11-18
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0103; ADR-0159; ADR-0165; planning interview of
@@ -17,8 +20,6 @@ informed: []
 partially_supersedes:
   - 0103-object-time-is-carried-never-minted.md
   - 0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md
-partially_superseded_by:
-  - 0212-a-replica-changes-state-only-from-the-case-managers-entries-and-consent-is-part-of-a-participants-status.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -93,10 +94,9 @@ This codebase's senders keep inlining the object of every outbound activity (AKM
 Which senders move to typed references is later, separate work.
 
 A received whole object carries its `published` time, and one that does not is refused at message validation, as an activity without one already is (CLP-15-008).
-Four kinds of whole object are exempt: an actor profile, a collection, a case stub and an embargo consent row.
+Three kinds of whole object are exempt: an actor profile, a collection and a case stub.
 An actor profile and a collection describe an actor or a container, not an act made at a moment, and many ActivityPub servers serve profiles without `published`.
 A case stub carries exactly the keys CM-17-010 names, none of them a time; its exemption is temporary, until the stub travels only as the `preview` of a case reference (ADR-0205).
-An embargo consent row is a row of the consent table, which each replica copies without reading a clock (CM-23-044), so it carries no time of its own.
 A typed reference, a URI and a `Link` carry no time, so the rule does not reach them.
 `updated` stays optional, and is carried as received when present.
 A ledger entry's `payloadSnapshot` is kept as the received JSON and is not validated into objects (CLP-07-011), so the objects nested in it are untouched by the rule.
@@ -111,7 +111,7 @@ It also widens ADR-0159: the id-and-type form is no longer an exception for acto
 - Good, because a receiver can classify an activity whose object it does not hold, and fetches only when a handler needs the content.
 - Good, because a partial inline object is refused rather than read as a reference or completed with invented state, which is the fix #5265 needs.
 - Good, because a reader of a received object's `published` no longer checks whether its type is one of the refused ones, and the core classes every author stamps can declare `published` as required.
-- Neutral, because the exempt kinds widened from two to four in revision 2: the case stub and the embargo consent row, which the specs already fix without a time.
+- Neutral, because the exempt kinds are three, not two: the case stub, whose keys the specs already fix without a time, is exempt as well.
 - Good, because the case stub can become the `preview` of a typed case reference (#6244) without a second shape rule.
 - Neutral, because the case stub keeps its own type and position rules until #6244 moves it.
 - Bad, because a peer that sends a whole object without `published`, which AS2 allows, is now refused.
@@ -165,3 +165,12 @@ ADR-0193 decides that only a preview may carry a `Redacted` marker.
 Issue #6257 tracks previews beyond the case stub, and #6244 moves the stub into a case reference's `preview`.
 
 Generated spec requirements: `message-validation.yaml` MV-10-009 (amended), MV-10-011 and MV-10-012; `case-ledger-processing.yaml` CLP-15-007 (amended) and CLP-15-011.
+
+## Amendment — 2026-11-18
+
+Corrected in place by instruction of Allen D. Householder (Idea #6615, PR #6646).
+
+Replaced: "Four kinds of whole object are exempt: an actor profile, a collection, a case stub and an embargo consent row."
+A participant's embargo consent is part of its status (ADR-0212), and a status carries the `published` time of the act that wrote it.
+No received whole object is a consent row, so the consent row's exemption is removed.
+The rest of the decision is unchanged.
