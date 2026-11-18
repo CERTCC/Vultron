@@ -130,7 +130,8 @@ def test_stored_validate_report_accept_carries_inline_typed_object(dl):
 
     Production adapter persists the Accept with ``dl.create(activity)`` and does
     NOT separately persist the Offer under ``offer_id``: a received Offer is
-    held only as received (DL-06-006). Reading the activity back (as the pre-#2655 delivery path did) yielded
+    held only as received (DL-06-006). Reading the activity back (as the
+    pre-#2655 delivery path did) yielded
     ``object_`` as a bare string -> AKM-03-003 rejection.  Delivery now relays the
     sealed body, but the stored record's read-back is still what the domain side
     sees, so it stays inline-typed here.
