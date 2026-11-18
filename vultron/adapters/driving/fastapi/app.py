@@ -18,7 +18,7 @@ Vultron API v2 Application
 
 import logging
 import threading
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import (
     AbstractAsyncContextManager,
     AbstractContextManager,
@@ -29,13 +29,21 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Path, Request
 
-from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.actor_hosts import (
+    CONFIGURED_NODE,
+    canonical_actor_uri,
+    registry_store,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
 from vultron.adapters.driving.fastapi.app_config_scope import (
     AppConfigScopeMiddleware,
 )
-from vultron.adapters.driving.fastapi.deps import get_actor_dl, node_base_url
+from vultron.adapters.driving.fastapi.deps import (
+    app_node_deployment,
+    get_actor_dl,
+    node_base_url,
+)
 from vultron.adapters.driving.fastapi.inbox_handler import (
     init_dispatcher,
     make_dispatcher,
@@ -70,6 +78,8 @@ from vultron.config import (
     get_config,
     holding_app_config,
 )
+from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.errors import VultronWiringError
 from vultron.logging_setup import (
     restore_third_party_log_levels,
     suppress_third_party_info_noise,
@@ -164,11 +174,7 @@ def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
         canonical = canonical_actor_uri(
             actor_id, base_url=node_base_url(request)
         )
-        if canonical not in registry:
-            registry[canonical] = SqliteDataLayer(
-                db_url=db_url, actor_id=canonical
-            )
-        return registry[canonical]
+        return registry_store(registry, db_url, canonical)
 
     application.dependency_overrides[get_actor_dl] = _isolated_actor_dl
     application.state.actor_dls = registry
@@ -192,6 +198,100 @@ def _teardown_per_app_state(application: FastAPI) -> None:
     # an in-memory database lives only while a connection to it is open.
     for actor_dl in registry.values():
         actor_dl.close()
+
+
+def _require_declared_node_storage(application: FastAPI) -> None:
+    """Refuse an app with its own config whose stores the work cannot find.
+
+    Such an app runs a node's background work on the stores its
+    ``app.state.db_url`` names (ADR-0206).  A host that registers its own
+    ``get_actor_dl`` override declares no template unless it sets one, and
+    the work would then read the configured deployment, which may hold
+    another node's stores in the same process (DL-07-011).
+
+    Raises:
+        VultronWiringError: the app has a ``get_actor_dl`` override and no
+            declared ``app.state.db_url``.
+    """
+    if get_actor_dl not in application.dependency_overrides:
+        return
+    if app_node_deployment(application).db_url is not None:
+        return
+    raise VultronWiringError(
+        "an app given its own config with a get_actor_dl override must "
+        "declare app.state.db_url, the template its stores are opened "
+        "under, so its background work reads its own node's stores "
+        "(DL-07-011, ADR-0206)"
+    )
+
+
+async def _finish_outbox_monitor(monitor: OutboxMonitor | None) -> None:
+    """Stop the outbox monitor, if one was started, and wait for its task."""
+    if monitor is not None:
+        await monitor.aclose()
+
+
+async def _finish_background_work(
+    application: FastAPI,
+    finishes: tuple[tuple[str, Coroutine[Any, Any, None]], ...],
+) -> None:
+    """Await each ``(state attribute, finish)`` pair, then raise the first error.
+
+    Every finish is awaited, and its ``app.state`` attribute cleared, even
+    when an earlier one raised, a cancellation included: a finish stops its
+    own task before it waits for it, so skipping one would leave that task
+    running while the teardown closes the stores it reads.  A cancellation
+    or other ``BaseException`` is raised in preference to an ordinary error;
+    every error not raised is logged, so none is lost.
+    """
+    errors: list[BaseException] = []
+    for attribute, finish in finishes:
+        try:
+            await finish
+        except BaseException as error:  # noqa: BLE001 - re-raised below
+            errors.append(error)
+        finally:
+            setattr(application.state, attribute, None)
+    if not errors:
+        return
+    first = next(
+        (found for found in errors if not isinstance(found, Exception)),
+        errors[0],
+    )
+    for other in errors:
+        if other is not first:
+            logger.error(
+                "Background work also ended on an error at shutdown: %s",
+                other,
+                exc_info=other,
+            )
+    raise first
+
+
+def _finish_teardown(
+    application: FastAPI,
+    undo_global_installs: list[Callable[[], None]],
+    configure_globals: bool,
+) -> None:
+    """Undo the lifespan's startup installs and close the app's own state.
+
+    Run even when awaiting the background work raised, so a failed task does
+    not leave a global install or an app's stores behind.  Every background
+    task, the outbox monitor's included, has ended by the time this runs.
+    """
+    # Clear the per-app emitter reference so it cannot leak between
+    # TestClient lifetimes on the same app singleton.
+    if configure_globals:
+        application.state.emitter = None
+        # configure_logging() pinned third-party logger levels globally;
+        # undo it so a TestClient lifetime does not reconfigure logging
+        # for everything that runs after it.
+        restore_third_party_log_levels()
+    for undo in reversed(undo_global_installs):
+        undo()
+
+    if not configure_globals:
+        _teardown_per_app_state(application)
 
 
 def _lifespan_config_scope(
@@ -246,15 +346,23 @@ def _make_lifespan(
             statements (SYNC-17-007), and the timer that ends each
             sender-sequence hold once its wait has passed (SYNC-21-011).
             When ``False`` (used by :func:`create_app` for isolated test apps),
-            these global side-effects are skipped, the startup replay
-            included, so that multiple apps
+            these global side-effects are skipped, so that multiple apps
             running in the same process do not contaminate each other's state.
         config: The app's own config, read by ``get_config()`` throughout the
-            lifespan (ADR-0206).  ``None`` reads the process-wide config.
+            lifespan and by every task it starts (ADR-0206).  ``None`` reads
+            the process-wide config.  When ``configure_globals`` is ``False``
+            and *config* is set, the app is a node of its own: it starts the
+            outbox monitor, the startup replay, the position statements and
+            the hold timer, scoped to its own deployment
+            (:func:`~vultron.adapters.driving.fastapi.deps.app_node_deployment`),
+            with its own dispatcher, and installs no global.  With neither,
+            none of that work starts.
     """
 
     @asynccontextmanager
     async def _lifespan(application: FastAPI) -> AsyncIterator[dict[str, Any]]:
+        if not configure_globals and config is not None:
+            _require_declared_node_storage(application)
         if configure_globals:
             configure_logging()
 
@@ -269,13 +377,28 @@ def _make_lifespan(
         # Startup's process-wide installs, undone at shutdown so they do not
         # outlive this lifespan (#5874).
         undo_global_installs: list[Callable[[], None]] = []
+        # The dispatcher the background work replays through: the production
+        # app's is the process-wide one (``None``), any other app's its own.
+        dispatcher: ActivityDispatcher | None = None
         if configure_globals:
             undo_global_installs.append(init_dispatcher())
         else:
-            application.state.dispatcher = make_dispatcher()
+            dispatcher = make_dispatcher()
+            application.state.dispatcher = dispatcher
 
         if not configure_globals:
             _auto_inject_isolated_datalayer(application)
+
+        # An app holding its own config is a node of its own, as a container
+        # is: it runs the work a node runs outside a request, on its own
+        # deployment's stores and in its own config scope (ADR-0206).  A
+        # ``create_app`` app with no config runs none of it, as before.
+        runs_node_work = configure_globals or config is not None
+        node = (
+            CONFIGURED_NODE
+            if configure_globals
+            else app_node_deployment(application)
+        )
 
         monitor = None
         if configure_globals:
@@ -283,17 +406,30 @@ def _make_lifespan(
             application.state.emitter = emitter
             undo_global_installs.append(configure_default_emitter(emitter))
             monitor = OutboxMonitor()
+        elif config is not None:
+            # Node-scoped, so it never drains another node's outbox in the
+            # process (DL-07-011).  The emitter is the one a host set on the
+            # app, else the process default, as the app's routes use.
+            monitor = OutboxMonitor(
+                actor_datalayers_factory=node.stores,
+                emitter=getattr(application.state, "emitter", None),
+            )
+        if monitor is not None:
             monitor.start()
             # Exposed so a host (or a test) can see that the safety-net
             # drain is running, and stop it where inline drains alone are
             # wanted.
             application.state.outbox_monitor = monitor
 
+        emitter_for_work = getattr(application.state, "emitter", None)
+
         # Replay what a previous run left in any hosted actor's inbox queue;
         # nothing else would until that actor's next delivery (IE-06-006).
         startup_replay = (
-            start_startup_inbox_replay(application.state.emitter)
-            if configure_globals
+            start_startup_inbox_replay(
+                emitter_for_work, dispatcher=dispatcher, node=node
+            )
+            if runs_node_work
             else None
         )
 
@@ -303,22 +439,24 @@ def _make_lifespan(
         # recovered (SYNC-17-007).
         position_statements = (
             start_ledger_position_statements(
-                application.state.emitter, after=startup_replay
+                emitter_for_work, after=startup_replay, node=node
             )
-            if configure_globals
+            if runs_node_work
             else None
         )
 
         # End each sender-sequence hold once its wait has passed, whether or
         # not anything else arrives (SYNC-21-011).
         hold_timer = (
-            start_sender_sequence_hold_timer(application.state.emitter)
-            if configure_globals
+            start_sender_sequence_hold_timer(
+                emitter_for_work, dispatcher=dispatcher, node=node
+            )
+            if runs_node_work
             else None
         )
         # Exposed, as the outbox monitor is, so a test harness that serves
-        # actors under another base URL than the configured one can stop
-        # it: the timer works on the configured node's actor ids.
+        # actors under another base URL than its node's can stop it: the
+        # timer works on *node*'s actor ids.
         application.state.sender_sequence_hold_timer = hold_timer
         # Exposed so a harness that keeps this lifespan open across tests can
         # wait for the startup work to end before it closes the stores that
@@ -330,29 +468,33 @@ def _make_lifespan(
 
         ledger_stream_shutdown.set()
         undo_shutdown_hook()
-        await finish_sender_sequence_hold_timer(hold_timer)
-        application.state.sender_sequence_hold_timer = None
-        await finish_ledger_position_statements(position_statements)
-        application.state.ledger_position_statements = None
-        await finish_startup_inbox_replay(startup_replay)
-        application.state.startup_inbox_replay = None
-
-        if monitor is not None:
-            monitor.stop()
-            application.state.outbox_monitor = None
-        # Clear the per-app emitter reference so it cannot leak between
-        # TestClient lifetimes on the same app singleton.
-        if configure_globals:
-            application.state.emitter = None
-            # configure_logging() pinned third-party logger levels globally;
-            # undo it so a TestClient lifetime does not reconfigure logging
-            # for everything that runs after it.
-            restore_third_party_log_levels()
-        for undo in reversed(undo_global_installs):
-            undo()
-
-        if not configure_globals:
-            _teardown_per_app_state(application)
+        # Each background task is stopped and awaited in turn, every one even
+        # when an earlier one raised, so none is left running while the
+        # stores it reads are closed.  The first error, such as a task that
+        # lost its config scope (ADR-0206), is raised after the teardown.
+        try:
+            await _finish_background_work(
+                application,
+                (
+                    (
+                        "sender_sequence_hold_timer",
+                        finish_sender_sequence_hold_timer(hold_timer),
+                    ),
+                    (
+                        "ledger_position_statements",
+                        finish_ledger_position_statements(position_statements),
+                    ),
+                    (
+                        "startup_inbox_replay",
+                        finish_startup_inbox_replay(startup_replay),
+                    ),
+                    ("outbox_monitor", _finish_outbox_monitor(monitor)),
+                ),
+            )
+        finally:
+            _finish_teardown(
+                application, undo_global_installs, configure_globals
+            )
 
     return _in_config_scope(_lifespan, config)
 
@@ -448,8 +590,16 @@ def create_app(
             each read their own node's settings, as separate containers do.
             While the app's lifespan runs, a ``get_config()`` call in no app
             scope raises ``VultronWiringError`` rather than read the
-            process-wide config.  Leave ``None`` to read the process-wide
-            config, as one node per process does.
+            process-wide config.  An app given a config also runs the work a
+            node runs outside a request (the outbox monitor, the startup
+            inbox replay, the ledger position statements and the
+            sender-sequence hold timer) on its own deployment's stores and in
+            its own scope, as its container would.  An app given a config
+            and its own ``get_actor_dl`` override must also set
+            ``app.state.db_url``, the template its stores are opened under,
+            or its lifespan raises ``VultronWiringError``.  Leave ``None``
+            to read the process-wide config, as one node per process does;
+            such an app starts none of that work.
 
     Returns:
         A new :class:`FastAPI` instance with the Vultron router included.

@@ -471,8 +471,9 @@ read past red, so the next real failure is read past too. Two shapes of it:
 
 ### A Lifespan Task That Outlives Its Test Segfaults a Later Worker
 
-A fixture that keeps the production lifespan open past one test MUST stop its
-background work on the app's loop, and wait for it, before the test ends. The
+A fixture that keeps a lifespan that starts background work (the production
+app's, or a `create_app(config=...)` app's, ADR-0206) open past one test MUST
+stop that work on the app's loop, and wait for it, before the test ends. The
 root conftest closes the actor stores after every test, and closing a SQLite
 connection while another thread reads it segfaults the xdist worker: the run
 reports `node down` with an innocent test as the victim (#6148). Stop by

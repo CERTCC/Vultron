@@ -41,6 +41,7 @@ from vultron.adapters.driven.datalayer import get_all_actor_datalayers
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.ports.emitter import ActivityEmitter
+from vultron.errors import VultronConfigScopeLostError
 
 logger = logging.getLogger(__name__)
 
@@ -62,13 +63,15 @@ class OutboxMonitor:
     The ``actor_datalayers_factory`` and ``emitter`` parameters allow
     injection of test doubles without patching module globals.
 
-    Production-only: the monitor is started only by the single-node
-    production lifespan (``configure_globals=True``), where every store this
-    process opened belongs to the node's own configured ``db_url``.  That is
-    why its default factory, ``get_all_actor_datalayers()``, is unscoped; an
-    app built by ``create_app`` never starts it, so in a process running
-    several in-memory nodes it never drains another node's outbox
-    (DL-07-011).
+    Its default factory, ``get_all_actor_datalayers()``, is unscoped, which
+    is right only in the single-node production lifespan
+    (``configure_globals=True``), where every store this process opened
+    belongs to the node's own configured ``db_url``.  An app built by
+    ``create_app`` with its own config starts it with its own deployment's
+    :meth:`~vultron.adapters.driven.actor_hosts.NodeDeployment.stores`, so in
+    a process running several nodes it never drains another node's outbox
+    (DL-07-011, ADR-0206).  A ``create_app`` app with no config never starts
+    it.
 
     Args:
         poll_interval: Maximum seconds between drain passes (default 1.0).
@@ -116,7 +119,9 @@ class OutboxMonitor:
 
         Skips actors whose outbox is empty.  Delivery errors for a single
         actor are caught, logged at ERROR level, and do not abort processing
-        for other actors.
+        for other actors.  A ``VultronConfigScopeLostError`` is raised: the
+        drain has lost its app's config scope, which is every actor's
+        failure (ADR-0206).
         """
         factory = (
             self._actor_datalayers_factory
@@ -155,6 +160,9 @@ class OutboxMonitor:
                     dl,
                     emitter=self._emitter,
                 )
+            except VultronConfigScopeLostError:
+                # A lost config scope is no one actor's failure (ADR-0206).
+                raise
             except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
                 logger.error(  # noqa: TRY400  # ruff-baseline #3353
                     "OutboxMonitor: unhandled error draining outbox"
@@ -240,14 +248,50 @@ class OutboxMonitor:
         self._running = True
         self._task = asyncio.create_task(self._run_loop())
 
+    async def aclose(self) -> None:
+        """Stop the drain loop and wait until its task has ended.
+
+        :meth:`stop` only cancels the task, which then ends at its next
+        await, possibly after the caller has closed the stores a drain in
+        progress writes back to.  A lifespan that closes its stores at
+        shutdown awaits this instead.
+
+        Raises:
+            VultronConfigScopeLostError: as for :meth:`stop`.
+        """
+        task = self._task
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.wait({task})
+        self.stop()
+
     def stop(self) -> None:
         """Signal the drain loop to stop and cancel the asyncio task.
 
         Safe to call even if the monitor was never started.
+
+        Raises:
+            VultronConfigScopeLostError: the drain loop ended because it
+                lost its app's config scope (ADR-0206).  Raised here, at
+                shutdown, so the failure is not left as a task exception
+                nobody reads.
         """
+        task = self._task
         self._running = False
         self._loop = None
-        if self._task is not None and not self._task.done():
-            self._task.cancel()
+        if task is not None and not task.done():
+            task.cancel()
         self._task = None
         self._registered_actors.clear()
+        if task is not None and task.done() and not task.cancelled():
+            error = task.exception()
+            if isinstance(error, VultronConfigScopeLostError):
+                raise error
+            if error is not None:
+                # Reading the exception marks it retrieved, so asyncio would
+                # no longer report it; the crash is logged here instead.
+                logger.error(
+                    "OutboxMonitor: drain loop ended on an error: %s",
+                    error,
+                    exc_info=error,
+                )
