@@ -119,7 +119,9 @@ The page shows the case as it stands at its last ledger entry.
   A **Trade-off** move raises one Vendor at another's cost.
   An **Unhelpful** move raises no Vendor; its band is closed until you open it.
 - In the harm-free and trade-off bands, each move's row is shaded by its layer.
-  Each band shows a color legend labeled from better (layer 1) to dominated (deeper layers).
+  Above its rows, each band shows a color legend labeled from better (layer 1) to dominated (deeper layers).
+  The legend has one numbered cell per layer, in the shade that layer's rows take.
+  The two bands use different color maps, so compare a row only with its own band's legend.
   Layer 1 holds the moves that no other open move beats, and each move in a deeper layer is beaten by a move in layer 1.
   A ⭐ marks a top move: a harm-free or trade-off move in layer 1.
   A 👉 marks a coordinator's move that none of the coordinator's other moves beats.
