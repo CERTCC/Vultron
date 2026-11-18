@@ -28,6 +28,10 @@ each tagged with the migration Task that removes it.  A new site fails; a
 listed site that is gone fails until its entry is removed, so the list only
 shrinks.  The close-out Task (#6593) asserts it is empty.
 
+Every module-level function is read, tick-time helpers included, as the
+#6514 plan and its factory Tasks list them.  Each factory Task decides per
+helper whether the parameter goes or becomes a stated exemption.
+
 The reading is by parameter name, so it can miss a per-act value passed under
 a name it does not know (``case``, ``report``); it cannot invent one.  A
 ``**kwargs`` parameter is not read here; the one-channel check
