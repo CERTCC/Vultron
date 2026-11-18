@@ -395,6 +395,23 @@ def test_a_shade_reads_as_a_cells_css():
     )
 
 
+def test_band_legend_shades_returns_nine_evenly_spaced_shades():
+    """Each colour map's legend has nine shades from better to dominated."""
+    for colour_map in ColourMap:
+        shades = view.band_legend_shades(colour_map)
+        assert len(shades) == 9
+        assert all(isinstance(s, view.Shade) for s in shades)
+
+
+def test_band_legend_shades_spans_the_colour_map():
+    """The legend's first and last shades match the map's dark and light ends."""
+    viridis = view.band_legend_shades(ColourMap.VIRIDIS)
+    # Layer 1 (better) is the darkest
+    assert viridis[0].background == view.COLOUR_STOPS[ColourMap.VIRIDIS][0]
+    # Layer 9 (dominated) is the lightest
+    assert viridis[8].background == view.COLOUR_STOPS[ColourMap.VIRIDIS][-1]
+
+
 _SHADE = view.Shade(background="#440154", text="#ffffff")
 
 

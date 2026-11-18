@@ -345,6 +345,28 @@ def test_the_page_shows_the_marks_help_text_and_harm_note(advice_app):
     assert DOMINATED_BY_HARM_FREE in trade_off["Dominated by"].tolist()
 
 
+@pytest.mark.spec("SHD-03-003")
+def test_each_shaded_band_shows_a_colour_legend(advice_app):
+    """AC-1 of #6673: each shaded band shows a legend strip labelled from
+    better (layer 1) to dominated (deeper layers), and the help text no
+    longer says 'darkest'."""
+    at = advice_app
+    # The help text no longer says "darkest"
+    captions = _texts(at.caption)
+    help_line = next(c for c in captions if "Prefer the harm-free" in c)
+    assert "darkest" not in help_line.lower()
+    assert "better" in help_line and "dominated" in help_line
+    # Each shaded band (harm-free, trade-off) shows a legend with labels
+    markdowns = _texts(at.markdown)
+    legend_html = [m for m in markdowns if "better (layer 1)" in m]
+    assert len(legend_html) >= 2  # At least harm-free and trade-off
+    for html in legend_html:
+        assert "better (layer 1)" in html
+        assert "dominated (deeper layers)" in html
+        # The legend contains shaded divs
+        assert "background-color:" in html
+
+
 def test_the_moves_with_no_band_are_listed_with_why(advice_app):
     """AC-6: each unbanded move, with its reason."""
     unbanded = _table(advice_app, "Moves with no band")

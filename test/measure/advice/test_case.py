@@ -256,7 +256,8 @@ def test_the_record_says_how_to_show_each_band(two_vendors):
     assert unhelpful.collapsed and unhelpful.colour_map is None
     assert two_vendors.help_text == HELP_TEXT
     assert HELP_TEXT == (
-        "Choose the darkest move in the highest band that has one."
+        "Prefer the harm-free band; inside a band, moves at the 'better' end"
+        " are dominated by no other move."
     )
 
 
