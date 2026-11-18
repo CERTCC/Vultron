@@ -25,11 +25,19 @@ of the ask clears it (SYNC-11-003).  BTND-07-005.
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    CASE_MANAGER_ID,
+    EMBARGO_ID,
+)
 from vultron.core.behaviors.bridge.act_instant import read_act_instant
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes.chosen_cause import (
     ChosenTermination,
 )
-from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
+from vultron.core.behaviors.embargo.nodes.emit import (
+    _SendEmbargoActivityForCaseKey,
+)
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
@@ -63,23 +71,26 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
     manager's announced commit (SYNC-11-003), or it timed out (SYNC-11-005).
     Raises :class:`VultronWiringError` when the executing actor is unknown:
     a FAILURE there would read as "not pending" and send the ask anyway.
+
+    The case is read from ``/case_id`` (BTND-01-008).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
         "embargo_id": PortInformation(data_type=str, required=True),
     }
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"embargo_id": "/embargo_id"}
+        return {CASE_ID.name: CASE_ID.path, "embargo_id": EMBARGO_ID.path}
 
     def initialise(self) -> None:
         super().initialise()
+        self._case_id: str = self.get_input(CASE_ID.name)
         self.embargo_id: str = self.get_input("embargo_id")
 
     def update(self) -> Status:
@@ -105,7 +116,7 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
+class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
     """Ask the CASE_MANAGER to end the embargo: queue ``Remove(EmbargoEvent)``.
 
     The non-manager arm of ``terminate_embargo_bt`` on the cascades, where no
@@ -131,23 +142,24 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
     manager; the bridge reports it by type.  A failure to record the queued
     ask also escapes ``update()`` rather than reporting a success the next
     repeat would not be suppressed by (BT-HELPER-01).
+
+    The case is read from ``/case_id`` (BTND-01-008).
     """
 
     def __init__(
         self,
-        case_id: str,
         reason: TerminationReason,
         name: str | None = None,
         *,
         cause: TerminationCause | ChosenTermination | None = None,
     ) -> None:
-        super().__init__(case_id=case_id, name=name)
+        super().__init__(name=name)
         self._reason = reason
         self._cause = cause
         self._resolved_cause: TerminationCause | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
-        **_SendEmbargoActivityBase.INPUT_PORTS,
+        **_SendEmbargoActivityForCaseKey.INPUT_PORTS,
         "embargo_id": PortInformation(data_type=str, required=True),
         "case_manager_id": PortInformation(data_type=str, required=True),
     }
@@ -155,8 +167,9 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
-            "embargo_id": "/embargo_id",
-            "case_manager_id": "/case_manager_id",
+            **super()._domain_port_remappings(),
+            "embargo_id": EMBARGO_ID.path,
+            "case_manager_id": CASE_MANAGER_ID.path,
         }
 
     def initialise(self) -> None:
@@ -250,9 +263,10 @@ def ask_case_manager_to_terminate_once(
         name="AskCaseManagerToTerminateOnce",
         memory=False,
         children=[
-            TeardownAskPendingNode(case_id=case_id),
-            SendTerminateEmbargoActivityNode(
-                case_id=case_id, reason=reason, cause=cause
+            with_case_id(TeardownAskPendingNode(), case_id),
+            with_case_id(
+                SendTerminateEmbargoActivityNode(reason=reason, cause=cause),
+                case_id,
             ),
         ],
     )

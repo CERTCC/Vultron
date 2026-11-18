@@ -17,7 +17,11 @@
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.embargo_termination import (
     CASE_MANAGER_ONLY_CAUSE_KINDS,
     EmbargoTermination,
@@ -52,19 +56,33 @@ class TerminationCauseIsAdmissibleNode(DataLayerConditionWithPorts):
     (ARCH-24-001, ARCH-24-007, CM-02-011).  It asks about the *sender*, not
     the receiver, so it is no second asker of the receiver's question
     (ARCH-24-003).
+
+    The case is read from ``/case_id`` and *sender_actor_id* from
+    ``/sender_id`` (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
+        SENDER_ID.name: PortInformation(data_type=str, required=True),
+    }
 
     def __init__(
         self,
-        case_id: str,
-        sender_actor_id: str,
         termination: EmbargoTermination,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self._sender_actor_id = sender_actor_id
         self._termination = termination
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {CASE_ID.name: CASE_ID.path, SENDER_ID.name: SENDER_ID.path}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = self.get_input(CASE_ID.name)
+        self._sender_actor_id: str = self.get_input(SENDER_ID.name)
 
     def update(self) -> Status:
         cause = self._termination.cause

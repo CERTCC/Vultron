@@ -47,7 +47,7 @@ the meaning what the attribute must mean for that default to hold.
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from types import MappingProxyType
 
 from vultron.core.behaviors.bridge.act_instant import ACT_INSTANT_KEY
@@ -59,6 +59,8 @@ __all__ = [
     "CASE_ACTOR_ID",
     "CASE_ID",
     "CASE_MANAGER_ID",
+    "CAUSE_ID",
+    "EMBARGO",
     "EMBARGO_ID",
     "EMBARGO_PROPOSER_ID",
     "INVITEE_ID",
@@ -74,6 +76,7 @@ __all__ = [
     "SENDER_ID",
     "SENDER_PROPOSED_EMBARGO",
     "SENDER_PROPOSED_EMBARGO_DURATION",
+    "TERMINATED_AT",
     "ActKey",
     "RunKey",
     "require_act_key",
@@ -171,6 +174,14 @@ NOTE_ID = _act_key(
     str,
     "The id of the note the act adds or removes.",
 )
+CAUSE_ID = _act_key(
+    "cause_id",
+    str,
+    "The id of what a CASE_MANAGER decision is about: the Invite whose"
+    " deadline passed, or the case when the ledger names no Invite.  It"
+    " seeds the id of the entry that records the decision, so a re-run"
+    " commits the same entry (ID-04-004).",
+)
 OBJECT_ID = _act_key(
     "object_id",
     str,
@@ -228,6 +239,19 @@ SENDER_PROPOSED_EMBARGO_DURATION = _act_key(
     timedelta,
     "The time left on the Reporter's proposed embargo, measured from the"
     " act's instant (EP-04-003, ADR-0176).",
+)
+
+EMBARGO = _act_key(
+    "embargo",
+    EmbargoEvent,
+    "The EmbargoEvent the act carries in full: a received activity's inline"
+    " copy (EMB-18-003), or the terms a trigger proposes.",
+)
+TERMINATED_AT = _act_key(
+    "terminated_at",
+    datetime,
+    "The time a received termination claims: the ``published`` time of the"
+    " ``Remove(EmbargoEvent)`` (ADR-0122).",
 )
 
 #: Every per-act key, by name.

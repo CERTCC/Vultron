@@ -52,12 +52,16 @@ from datetime import datetime
 from enum import StrEnum
 from typing import cast
 
+import py_trees
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
+from vultron.core.behaviors.act_keys import CASE_ID
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models.embargo_termination import EmbargoTermination
@@ -141,9 +145,10 @@ def embargo_ending_notice(
 class ActiveEmbargoSnapshot:
     """The active embargo a case named before an EM write.
 
-    Shared by one :class:`CaptureActiveEmbargoNode` and the
-    :class:`SendEmbargoEndingNoticesNode` built with it, so neither reads a
-    blackboard key a nested tree could overwrite.
+    Owned by one :class:`CaptureActiveEmbargoNode` and read by the
+    :class:`SendEmbargoEndingNoticesNode` paired with it, so neither reads a
+    blackboard key a nested tree could overwrite.  It holds no value at
+    build time: the capture fills it when it ticks.
     """
 
     def __init__(self) -> None:
@@ -155,18 +160,32 @@ class CaptureActiveEmbargoNode(DataLayerActionWithPorts):
     """Record the case's active embargo ahead of an EM write.
 
     Read-only.  Fails like any Regime 1 read when the case is missing
-    (ADR-0087).
+    (ADR-0087).  The case is read from ``/case_id`` (BTND-01-008); the
+    record goes to :attr:`snapshot`, which the paired
+    :class:`SendEmbargoEndingNoticesNode` reads.
     """
 
-    def __init__(
-        self,
-        case_id: str,
-        snapshot: ActiveEmbargoSnapshot,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self._snapshot = snapshot
+        self._snapshot = ActiveEmbargoSnapshot()
+
+    @property
+    def snapshot(self) -> ActiveEmbargoSnapshot:
+        """What this node recorded when it last ticked."""
+        return self._snapshot
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {CASE_ID.name: CASE_ID.path}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = self.get_input(CASE_ID.name)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -203,19 +222,33 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
     wiring fault and fails the node (BT-14-001); so does a capture node that
     never ran.  A factory or outbox error escapes to ``BTBridge``: the EM
     write is already done, so it is an internal fault, not a refusal.
+
+    The case is read from ``/case_id`` (BTND-01-008), and the embargo before
+    the write from the snapshot of *capture*, the paired capture node.
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_EmitSingleActivityBase.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
+    }
 
     def __init__(
         self,
-        case_id: str,
-        snapshot: ActiveEmbargoSnapshot,
+        capture: CaptureActiveEmbargoNode,
         requested_by: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self._snapshot = snapshot
+        self._snapshot = capture.snapshot
         self._requested_by = requested_by
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {CASE_ID.name: CASE_ID.path}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = self.get_input(CASE_ID.name)
 
     def _send(
         self,
@@ -328,18 +361,22 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
 
 def embargo_ending_notice_nodes(
     case_id: str, requested_by: str | None = None
-) -> tuple[CaptureActiveEmbargoNode, SendEmbargoEndingNoticesNode]:
+) -> tuple[py_trees.behaviour.Behaviour, py_trees.behaviour.Behaviour]:
     """Return the linked capture and notice nodes for one EM write.
 
     Place the capture node before the write and the notice node after it,
     behind the CASE_MANAGER gate.  *requested_by* names the actor whose
-    request the CASE_MANAGER is carrying out, for ``attributedTo``.
+    request the CASE_MANAGER is carrying out, for ``attributedTo``.  Each
+    node is seeded with *case_id* (``with_case_id``).
     """
-    snapshot = ActiveEmbargoSnapshot()
+    capture = CaptureActiveEmbargoNode()
     return (
-        CaptureActiveEmbargoNode(case_id=case_id, snapshot=snapshot),
-        SendEmbargoEndingNoticesNode(
-            case_id=case_id, snapshot=snapshot, requested_by=requested_by
+        with_case_id(capture, case_id),
+        with_case_id(
+            SendEmbargoEndingNoticesNode(
+                capture=capture, requested_by=requested_by
+            ),
+            case_id,
         ),
     )
 

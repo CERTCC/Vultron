@@ -91,8 +91,11 @@ def owner_or_non_owner_effects(
     # write), so it does not stop the closure.
     owner_leave_children: list[py_trees.behaviour.Behaviour] = (
         [
-            ExpirePendingInvitesOnCloseNode(
-                case_id=case_id, name="ExpirePendingInvitesOnClose"
+            with_case_id(
+                ExpirePendingInvitesOnCloseNode(
+                    name="ExpirePendingInvitesOnClose"
+                ),
+                case_id,
             )
         ]
         if receiving_actor_id is not None

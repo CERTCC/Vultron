@@ -22,6 +22,7 @@ runs, and the Add tree's admission backfill is its gate.
 import py_trees
 import pytest
 
+from vultron.core.behaviors.act_key_scope import unscoped
 from vultron.core.behaviors.case.nodes.path_branch import PathBranch
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
@@ -121,7 +122,7 @@ def test_activate_embargo_backfill_is_the_factory_gate() -> None:
     # the signatories bound before the write, run the ACTIVATE through the
     # lifecycle, send the CM-31-009 notices, backfill what the activation
     # admitted, then re-issue stale stub Invites (CM-11-016).
-    assert [type(n) for n in gate.gated_branch.children] == [
+    assert [type(unscoped(n)) for n in gate.gated_branch.children] == [
         CaptureActiveEmbargoNode,
         CommitAndApplyEmbargoActivationNode,
         SendEmbargoEndingNoticesNode,

@@ -42,6 +42,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.act_key_scope import unscoped
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
@@ -259,7 +260,7 @@ def test_each_reason_call_out_is_followed_by_its_cause(index, kind):
     )
     branch = tree.children[1].children[index]
     assert isinstance(branch, py_trees.composites.Sequence)
-    choose = branch.children[1]
+    choose = unscoped(branch.children[1])
     assert isinstance(choose, ChooseTerminationCauseNode)
     assert choose._kind is kind
 
@@ -664,7 +665,6 @@ def test_a_termination_read_before_a_cause_is_chosen_is_a_wiring_fault():
 def test_a_voluntary_termination_cannot_choose_a_threat_signal():
     with pytest.raises(VultronWiringError):
         ChooseTerminationCauseNode(
-            case_id=CASE_ID,
             kind=TerminationCauseKind.THREAT_SIGNAL,
             chosen=ChosenTermination(),
         )
@@ -720,7 +720,5 @@ def test_an_unchosen_cause_at_the_commit_is_a_wiring_fault():
     ],
 )
 def test_choose_node_names(kind, name):
-    node = ChooseTerminationCauseNode(
-        case_id=CASE_ID, kind=kind, chosen=ChosenTermination()
-    )
+    node = ChooseTerminationCauseNode(kind=kind, chosen=ChosenTermination())
     assert node.name == name

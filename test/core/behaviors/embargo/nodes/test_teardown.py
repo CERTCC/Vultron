@@ -34,6 +34,8 @@ from test.support.act_runner import in_act
 from test.support.embargo_register import propose
 from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
@@ -101,8 +103,10 @@ class TestHasEmbargoActiveNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = HasEmbargoActiveNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
+        node = HasEmbargoActiveNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(node, {act_keys.CASE_ID: case.id_})
+        )
         bt.setup()
         with in_act():
             bt.tick()
@@ -119,8 +123,10 @@ class TestHasEmbargoActiveNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = HasEmbargoActiveNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
+        node = HasEmbargoActiveNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(node, {act_keys.CASE_ID: case.id_})
+        )
         bt.setup()
         with in_act():
             bt.tick()
@@ -137,8 +143,10 @@ class TestHasEmbargoActiveNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = HasEmbargoActiveNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
+        node = HasEmbargoActiveNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(node, {act_keys.CASE_ID: case.id_})
+        )
         bt.setup()
         with in_act():
             bt.tick()
@@ -153,10 +161,13 @@ class TestHasEmbargoActiveNode:
         )
         setup_blackboard(dl)
 
-        node = HasEmbargoActiveNode(
-            case_id="https://example.org/cases/nonexistent"
+        node = HasEmbargoActiveNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: "https://example.org/cases/nonexistent"},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -173,12 +184,12 @@ class TestTerminationCauseIsAdmissibleNode:
     ) -> TerminationCauseIsAdmissibleNode:
         case, _, dl = make_case_with_manager(suffix)
         setup_blackboard(dl)
-        node = TerminationCauseIsAdmissibleNode(
-            case_id=case.id_,
-            sender_actor_id=sender,
-            termination=termination,
+        node = TerminationCauseIsAdmissibleNode(termination=termination)
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node, {act_keys.CASE_ID: case.id_, act_keys.SENDER_ID: sender}
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -230,11 +241,17 @@ class TestTerminationCauseIsAdmissibleNode:
         dl.create(case)
         setup_blackboard(dl)
         node = TerminationCauseIsAdmissibleNode(
-            case_id=case.id_,
-            sender_actor_id=CASE_MANAGER_ACTOR,
-            termination=EmbargoTermination.threat([ThreatSignal.X]),
+            termination=EmbargoTermination.threat([ThreatSignal.X])
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.SENDER_ID: CASE_MANAGER_ACTOR,
+                },
+            )
+        )
         bt.setup()
         with in_act():
             bt.tick()
@@ -249,11 +266,17 @@ class TestTerminationCauseIsAdmissibleNode:
         )
         setup_blackboard(dl)
         node = TerminationCauseIsAdmissibleNode(
-            case_id="https://example.org/cases/nonexistent",
-            sender_actor_id=CASE_MANAGER_ACTOR,
-            termination=EmbargoTermination.threat([ThreatSignal.P]),
+            termination=EmbargoTermination.threat([ThreatSignal.P])
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {
+                    act_keys.CASE_ID: "https://example.org/cases/nonexistent",
+                    act_keys.SENDER_ID: CASE_MANAGER_ACTOR,
+                },
+            )
+        )
         bt.setup()
         with in_act():
             bt.tick()
@@ -274,12 +297,13 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(
-            case_id=case.id_,
-            embargo_id=_e1(case),
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -318,12 +342,13 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(
-            case_id=case.id_,
-            embargo_id=_e1(case),
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -350,12 +375,13 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl, actor_id=ACTOR_ID)
-        node = ClearActiveEmbargoNode(
-            case_id=case.id_,
-            embargo_id=_e1(case),
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
         with caplog.at_level(logging.INFO):
@@ -385,12 +411,13 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(
-            case_id=case.id_,
-            embargo_id=_e1(case),
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
         with caplog.at_level(logging.DEBUG):
@@ -416,12 +443,13 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(
-            case_id=case.id_,
-            embargo_id=_e1(case),
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -441,12 +469,13 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(
-            case_id=case.id_,
-            embargo_id=_e1(case),
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -469,12 +498,13 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(
-            case_id=case.id_,
-            embargo_id=_e1(case),
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
         with caplog.at_level(logging.INFO):
@@ -503,12 +533,16 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(
-            case_id=case.id_,
-            embargo_id=f"{case.id_}/embargo_events/e2",
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.EMBARGO_ID: f"{case.id_}/embargo_events/e2",
+                },
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -527,12 +561,16 @@ class TestClearActiveEmbargoNode:
         )
         setup_blackboard(dl)
 
-        node = ClearActiveEmbargoNode(
-            case_id="https://example.org/cases/nonexistent",
-            embargo_id="https://example.org/cases/nonexistent/embargo_events/e1",
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {
+                    act_keys.CASE_ID: "https://example.org/cases/nonexistent",
+                    act_keys.EMBARGO_ID: "https://example.org/cases/nonexistent/embargo_events/e1",
+                },
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -549,12 +587,13 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(
-            case_id=case.id_,
-            embargo_id=_e1(case),
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
         writes: list[object] = []
@@ -591,12 +630,13 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(
-            case_id=case.id_,
-            embargo_id=_e1(case),
-            termination=EmbargoTermination.early(),
+        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
         with patch.object(
@@ -967,10 +1007,13 @@ class TestSendAnnounceEmbargoEventNode:
         factory = self._make_factory()
 
         _setup_blackboard_with_factory(dl, factory)
-        node = SendAnnounceEmbargoEventNode(
-            case_id=case.id_, embargo_id=embargo.id_
+        node = SendAnnounceEmbargoEventNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: embargo.id_},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -992,10 +1035,13 @@ class TestSendAnnounceEmbargoEventNode:
         _, embargo = make_case_and_embargo("saee2")
 
         setup_blackboard(dl, actor_id=ACTOR_ID)
-        node = SendAnnounceEmbargoEventNode(
-            case_id=case.id_, embargo_id=embargo.id_
+        node = SendAnnounceEmbargoEventNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: embargo.id_},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -1011,11 +1057,16 @@ class TestSendAnnounceEmbargoEventNode:
         factory = self._make_factory()
 
         _setup_blackboard_with_factory(dl, factory)
-        node = SendAnnounceEmbargoEventNode(
-            case_id="https://example.org/cases/missing",
-            embargo_id="https://example.org/cases/missing/embargo_events/e1",
+        node = SendAnnounceEmbargoEventNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {
+                    act_keys.CASE_ID: "https://example.org/cases/missing",
+                    act_keys.EMBARGO_ID: "https://example.org/cases/missing/embargo_events/e1",
+                },
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -1034,10 +1085,13 @@ class TestSendAnnounceEmbargoEventNode:
         factory = self._make_factory()
 
         _setup_blackboard_with_factory(dl, factory)
-        node = SendAnnounceEmbargoEventNode(
-            case_id=case.id_, embargo_id=embargo.id_
+        node = SendAnnounceEmbargoEventNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: embargo.id_},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -1065,10 +1119,13 @@ class TestSendAnnounceEmbargoEventNode:
         factory = self._make_factory()
 
         _setup_blackboard_with_factory(dl, factory)
-        node = SendAnnounceEmbargoEventNode(
-            case_id=case.id_, embargo_id=embargo.id_
+        node = SendAnnounceEmbargoEventNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: embargo.id_},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -1084,10 +1141,13 @@ class TestSendAnnounceEmbargoEventNode:
         factory.announce_embargo.side_effect = RuntimeError("boom")
 
         _setup_blackboard_with_factory(dl, factory)
-        node = SendAnnounceEmbargoEventNode(
-            case_id=case.id_, embargo_id=embargo.id_
+        node = SendAnnounceEmbargoEventNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: embargo.id_},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         with in_act():
             bt.tick()
@@ -1101,10 +1161,13 @@ class TestSendAnnounceEmbargoEventNode:
         factory = self._make_factory()
 
         _setup_blackboard_with_factory(dl, factory)
-        node = SendAnnounceEmbargoEventNode(
-            case_id=case.id_, embargo_id=embargo.id_
+        node = SendAnnounceEmbargoEventNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(
+                node,
+                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: embargo.id_},
+            )
         )
-        bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
         patch_target = (

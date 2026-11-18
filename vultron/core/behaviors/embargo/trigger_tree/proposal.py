@@ -21,6 +21,8 @@ The CASE_MANAGER's own proposal takes the shape of one it receives
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import EMBARGO
 from vultron.core.behaviors.embargo.nodes import (
     EMBARGO_INVITE_SEMANTIC_TYPE,
     CollectEmbargoInviteRecipientsNode,
@@ -126,7 +128,7 @@ def _propose_arms(
         ],
         otherwise=[
             ResolveCaseManagerNode(case_id=case_id),
-            PersistEmbargoEventNode(embargo=embargo),
+            with_act_keys(PersistEmbargoEventNode(), {EMBARGO: embargo}),
             ConstructActivitiesNode(
                 activity_builder=_asserting(activity_builder, result_out)
             ),

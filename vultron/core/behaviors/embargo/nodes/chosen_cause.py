@@ -30,7 +30,11 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.act_keys import CASE_ID
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
@@ -118,19 +122,24 @@ def fix_ready_vendors(
     return sorted(vendors)
 
 
-class ChooseTerminationCauseNode(DataLayerAction):
+class ChooseTerminationCauseNode(DataLayerActionWithPorts):
     """Record the cause its reason call-out stands for (EMB-14-001).
 
     It follows one reason call-out in the reason Selector and sets *chosen*
     to the matching cause: ``FIX_DEPLOYED``, ``OTHER``, or ``FIX_READY``
     naming the case's fix-ready vendors (VP-09-007).  FAILURE when the
     reason is ``FIX_READY`` and no vendor in the case is fix-ready, so the
-    Selector tries the next reason; nothing is written.
+    Selector tries the next reason; nothing is written.  The case is read
+    from ``/case_id`` (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
+    }
 
     def __init__(
         self,
-        case_id: str,
         kind: TerminationCauseKind,
         chosen: ChosenTermination,
         name: str | None = None,
@@ -142,9 +151,16 @@ class ChooseTerminationCauseNode(DataLayerAction):
                 "a voluntary termination cannot choose a THREAT_SIGNAL"
                 " cause: only the CASE_MANAGER names one (EMB-13-005)"
             )
-        self._case_id = case_id
         self._kind = kind
         self._chosen = chosen
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {CASE_ID.name: CASE_ID.path}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id: str = self.get_input(CASE_ID.name)
 
     def _fix_ready_cause(self) -> FixReadyCause | Status:
         """The case's fix-ready vendors as a cause, or the FAILURE to return."""

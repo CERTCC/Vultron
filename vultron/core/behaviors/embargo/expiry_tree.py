@@ -49,6 +49,13 @@ from typing import Any
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    CAUSE_ID,
+    EMBARGO_ID,
+    INVITEE_ID,
+)
 from vultron.core.behaviors.embargo.nodes.expiry import (
     IS_EXPIRED_KEY,
     NEEDS_APPLY_KEY,
@@ -92,12 +99,14 @@ def create_commit_and_record_expiry_tree(
             ``None`` when the caller cannot name it, and the case seeds it.
         embargo_id: The embargo the Invite proposed.
     """
-    return CommitAndApplyInviteExpiryNode(
-        case_id=case_id,
-        invitee_id=invitee_id,
-        embargo_id=embargo_id,
-        cause_object_id=invite_id or case_id,
-        name="CommitAndApplyExpiry",
+    return with_act_keys(
+        CommitAndApplyInviteExpiryNode(name="CommitAndApplyExpiry"),
+        {
+            CASE_ID: case_id,
+            INVITEE_ID: invitee_id,
+            EMBARGO_ID: embargo_id,
+            CAUSE_ID: invite_id or case_id,
+        },
     )
 
 
@@ -161,11 +170,13 @@ def invite_expiry_decision(
         name="EvaluateInviteExpiry",
         memory=False,
         children=[
-            EvaluateInviteExpiryNode(
-                case_id=case_id,
-                invitee_id=invitee_id,
-                embargo_id=embargo_id,
-                result_out=result_out,
+            with_act_keys(
+                EvaluateInviteExpiryNode(result_out=result_out),
+                {
+                    CASE_ID: case_id,
+                    INVITEE_ID: invitee_id,
+                    EMBARGO_ID: embargo_id,
+                },
             ),
             commit_and_apply_if_due,
         ],

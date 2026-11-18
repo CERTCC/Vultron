@@ -39,11 +39,15 @@ from typing import Any, ClassVar, cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.expiry_tree import (
     create_commit_and_record_expiry_tree,
 )
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -122,14 +126,28 @@ class ExpireInvitationsNode(DataLayerActionWithPorts, StateWriteCapable, ABC):
     holds no change the ledger lacks (CLP-07-013).  A refusal is logged as a
     WARNING and the next invitation is tried, and the node still succeeds.
     An internal error is not a refusal and is raised (ADR-0095, #4113).
+
+    The case is read from ``/case_id`` (BTND-01-008).
     """
 
     #: The requirement whose expiries the subclass commits, for the log.
     _SPEC: ClassVar[str]
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {CASE_ID.name: CASE_ID.path}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id: str = self.get_input(CASE_ID.name)
 
     @abstractmethod
     def _invitations(

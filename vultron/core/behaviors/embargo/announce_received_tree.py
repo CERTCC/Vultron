@@ -42,10 +42,13 @@ No ledger entry is committed: the announcement is a notice, not a record.
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, EMBARGO, EMBARGO_ID
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes import (
     ApplyAnnouncedEmbargoRevisionNode,
     AwaitsEmbargoEndingNoticeNode,
@@ -102,12 +105,17 @@ def announce_embargo_received_tree(
                 children=[
                     py_trees.decorators.Inverter(
                         name="SkipUnlessEndingNoticeAwaited",
-                        child=AwaitsEmbargoEndingNoticeNode(case_id=case_id),
+                        child=with_case_id(
+                            AwaitsEmbargoEndingNoticeNode(), case_id
+                        ),
                     ),
-                    ApplyAnnouncedEmbargoRevisionNode(
-                        case_id=case_id,
-                        embargo_id=embargo_id,
-                        embargo=embargo,
+                    with_act_keys(
+                        ApplyAnnouncedEmbargoRevisionNode(),
+                        {
+                            CASE_ID: case_id,
+                            EMBARGO_ID: embargo_id,
+                            EMBARGO: embargo,
+                        },
                     ),
                 ],
             )

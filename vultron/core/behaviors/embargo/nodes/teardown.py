@@ -20,19 +20,28 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    EMBARGO,
+    EMBARGO_ID,
+    TERMINATED_AT,
+)
 from vultron.core.behaviors.embargo.copy_commit import (
     read_embargo_case_file,
     save_case_file,
     trial_apply,
 )
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
-from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
+from vultron.core.behaviors.embargo.nodes.emit import (
+    _SendEmbargoActivityForCaseKey,
+)
 from vultron.core.behaviors.embargo.nodes.ending_notice_replica import (
     adopted_revision_timing_violations,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.node_logger import fail_with_reason
@@ -83,12 +92,25 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
     Returns FAILURE when EM is EXITED (teardown already done — idempotent
     guard) or when the case is not found.
 
-    Uses ``ReadEmStateNode`` to read EM state (AC-1 of issue #1554).
+    Uses ``ReadEmStateNode`` to read EM state (AC-1 of issue #1554).  The
+    case is read from ``/case_id`` (BTND-01-008).
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {CASE_ID.name: CASE_ID.path}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = self.get_input(CASE_ID.name)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -127,23 +149,49 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
     activated is adopted ahead of the teardown (CM-31-042), so the claim is
     judged against that revision's own end time: the stored record, else
     *embargo*, the ``Remove``'s inline copy (EMB-18-003).
+
+    The case is read from ``/case_id`` (BTND-01-008), and, each when the
+    ``Remove`` carries it, *terminated_at* from ``/terminated_at``,
+    *embargo_id* from ``/embargo_id`` and *embargo* from ``/embargo``.
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
+        TERMINATED_AT.name: PortInformation(
+            data_type=datetime, required=False
+        ),
+        EMBARGO_ID.name: PortInformation(data_type=str, required=False),
+        EMBARGO.name: PortInformation(data_type=EmbargoEvent, required=False),
+    }
 
     def __init__(
         self,
-        case_id: str,
         termination: EmbargoTermination,
-        terminated_at: datetime | None,
         name: str | None = None,
-        embargo_id: str | None = None,
-        embargo: EmbargoEvent | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
         self._termination = termination
-        self._terminated_at = terminated_at
-        self._embargo_id = embargo_id
-        self._embargo = embargo
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            key.name: key.path
+            for key in (CASE_ID, TERMINATED_AT, EMBARGO_ID, EMBARGO)
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = self.get_input(CASE_ID.name)
+        self._terminated_at = cast(
+            datetime | None, self._try_get_input(TERMINATED_AT.name)
+        )
+        self._embargo_id = cast(
+            str | None, self._try_get_input(EMBARGO_ID.name)
+        )
+        self._embargo = cast(
+            EmbargoEvent | None, self._try_get_input(EMBARGO.name)
+        )
 
     def _violations(self, case: VulnerabilityCase) -> list[str]:
         dl = cast(CasePersistence, self.datalayer)
@@ -218,25 +266,46 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     ``EXITED`` is an idempotent no-op, and a named embargo that is not the
     one in force changes nothing (ADR-0122); both return SUCCESS, and
     :attr:`applied` tells a caller which happened.
+
+    The case is read from ``/case_id`` and *embargo_id* from
+    ``/embargo_id`` (BTND-01-008); *terminated_at* from ``/terminated_at``,
+    which a ``Remove`` that claims no time leaves unset.
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
+        EMBARGO_ID.name: PortInformation(data_type=str, required=True),
+        TERMINATED_AT.name: PortInformation(
+            data_type=datetime, required=False
+        ),
+    }
 
     def __init__(
         self,
-        case_id: str,
-        embargo_id: str,
         termination: EmbargoTermination,
-        terminated_at: datetime | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self._embargo_id = embargo_id
         self._termination = termination
-        self._terminated_at = terminated_at
         #: True only when this tick terminated an embargo.
         self.applied = False
         #: True when this tick's termination was refused (ADR-0122).
         self.refused = False
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            key.name: key.path for key in (CASE_ID, EMBARGO_ID, TERMINATED_AT)
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = self.get_input(CASE_ID.name)
+        self._embargo_id: str = self.get_input(EMBARGO_ID.name)
+        self._terminated_at = cast(
+            datetime | None, self._try_get_input(TERMINATED_AT.name)
+        )
 
     def _refuse(self, exc: VultronError) -> Status:
         self.refused = True
@@ -390,7 +459,7 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
         return super().update()
 
 
-class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
+class SendAnnounceEmbargoEventNode(_SendEmbargoActivityForCaseKey):
     """Emit an ``Announce(EmbargoEvent)`` after embargo teardown.
 
     Resolves the Case Manager actor ID from the case, builds the outbound
@@ -408,17 +477,30 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
     that all participants receive a protocol-level announcement of the
     embargo termination; a participant replica's arm never runs it
     (BT-17-008).
+
+    The case is read from ``/case_id`` and the embargo from ``/embargo_id``
+    (BTND-01-008).
     """
 
-    def __init__(
-        self,
-        case_id: str,
-        embargo_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(case_id=case_id, name=name)
-        self._embargo_id = embargo_id
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_SendEmbargoActivityForCaseKey.INPUT_PORTS,
+        EMBARGO_ID.name: PortInformation(data_type=str, required=True),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name)
         self._recipients: list[str] = []
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            EMBARGO_ID.name: EMBARGO_ID.path,
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._embargo_id: str = self.get_input(EMBARGO_ID.name)
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (

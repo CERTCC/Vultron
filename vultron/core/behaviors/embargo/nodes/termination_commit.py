@@ -42,6 +42,7 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
@@ -60,6 +61,7 @@ from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
     EmbargoActivityBuilder,
 )
+from vultron.core.behaviors.helpers import PortInformation
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.node_logger import fail_with_error
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
@@ -106,18 +108,24 @@ class CommitAndApplyEmbargoTerminationNode(
     (BT-14-001); nothing has been written by then.  On SUCCESS
     ``result_out`` holds ``em_before``, ``em_after`` and the
     ``lifecycle_result`` the trigger use case reports.
+
+    The case is read from ``/case_id`` (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_CommitCaseManagerActivityBase.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
+    }
 
     def __init__(
         self,
-        case_id: str,
         result_out: dict[str, object],
         termination: TerminationRequest | ChosenTermination,
         builder: EmbargoActivityBuilder | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(
-            case_id=case_id,
+            case_id=None,
             semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             notify_participants=True,
             name=name,
@@ -127,6 +135,14 @@ class CommitAndApplyEmbargoTerminationNode(
         self._builder = builder
         self._step: RegisterStep | None = None
         self._ended: VulnerabilityCase | None = None
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {CASE_ID.name: CASE_ID.path}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id = self.get_input(CASE_ID.name)
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         if self._builder is not None:

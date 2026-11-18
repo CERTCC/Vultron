@@ -37,12 +37,21 @@ from typing import ClassVar, cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    CAUSE_ID,
+    EMBARGO_ID,
+    INVITEE_ID,
+)
 from vultron.core.behaviors.embargo.copy_commit import (
     commit_and_apply_embargo_entries,
     consent_row_entry,
     read_embargo_case_file,
 )
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.embargo_consent_move import consent_row_move
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -64,11 +73,21 @@ class _CommitConsentRowDecisionNode(
        built through the trigger-activity port and committed from its sealed
        blob, and only then is the row written.
 
-    *cause_object_id* is what the decision is about (the Invite answered, or
-    the case when it cannot be named); with :attr:`_CAUSE` it seeds the
+    The case, the invitee and the embargo are read from ``/case_id``,
+    ``/invitee_id`` and ``/embargo_id``, and what the decision is about (the
+    Invite answered, or the case when it cannot be named) from
+    ``/cause_id`` (BTND-01-008); with :attr:`_CAUSE` the last seeds the
     ``Update``'s derived id, so a re-run after a failure commits the same
     entry (ID-04-004).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        CASE_ID.name: PortInformation(data_type=str, required=True),
+        INVITEE_ID.name: PortInformation(data_type=str, required=True),
+        EMBARGO_ID.name: PortInformation(data_type=str, required=True),
+        CAUSE_ID.name: PortInformation(data_type=str, required=True),
+    }
 
     #: Names the occasion in the ``Update``'s derived id.
     _CAUSE: ClassVar[str]
@@ -78,20 +97,22 @@ class _CommitConsentRowDecisionNode(
     #: no-op.
     _REQUIRES_PARTICIPANT: ClassVar[bool] = False
 
-    def __init__(
-        self,
-        *,
-        case_id: str,
-        invitee_id: str,
-        embargo_id: str,
-        cause_object_id: str,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, *, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._invitee_id = invitee_id
-        self._embargo_id = embargo_id
-        self._cause_object_id = cause_object_id
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            key.name: key.path
+            for key in (CASE_ID, INVITEE_ID, EMBARGO_ID, CAUSE_ID)
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id: str = self.get_input(CASE_ID.name)
+        self._invitee_id: str = self.get_input(INVITEE_ID.name)
+        self._embargo_id: str = self.get_input(EMBARGO_ID.name)
+        self._cause_object_id: str = self.get_input(CAUSE_ID.name)
 
     def _fail(self, message: str) -> Status:
         self.feedback_message = message
