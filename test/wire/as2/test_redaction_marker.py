@@ -11,9 +11,10 @@ marker as a ``Redacted`` value it does not admit, whether or not the marker
 carries a ``summary`` (a marker is never read as a typed reference).  A field
 that admits any embedded object, such as a full case's ``tag``, holds no
 marker either: the parse edge refuses one there, naming its path.  Accepting
-the marker in a preview, and so refusing a marker that carries the withheld
-value there, need a preview field that admits the marker; those rows are
-strict ``xfail`` until #6372 builds them.
+the marker in a preview needs a preview field that admits the marker, so that
+row is a strict ``xfail`` until #6372 opens one.  The row refusing a marker
+that carries the withheld value is held for Concern #6641, which makes that
+the sender's rule.
 """
 
 from typing import Any, ClassVar
@@ -193,7 +194,7 @@ def test_a_marker_in_a_case_preview_free_form_field_is_refused() -> None:
 
 class _PreviewOpeningNameAndTag(BaseModel):
     """A stand-in preview type that opens ``name`` and ``tag`` to the marker,
-    as a real preview type will once #6372 decides its fields."""
+    as a real preview type will once Concern #6641 decides its fields."""
 
     redactable_fields: ClassVar[frozenset[str]] = frozenset({"name", "tag"})
     name: Redacted | str | None = None
@@ -230,6 +231,35 @@ def test_a_marker_mixed_with_other_values_in_an_opened_list_is_refused() -> (
     preview = _PreviewOpeningNameAndTag(tag=["a tag", Redacted()])
 
     assert _misplaced_markers(preview) == ["tag[1]"]
+
+
+@pytest.mark.spec("MV-12-001")
+def test_an_empty_list_in_an_opened_field_holds_no_misplaced_marker() -> None:
+    """An empty list is not admitted as a marker list, but walking it finds
+    nothing to refuse."""
+    preview = _PreviewOpeningNameAndTag(tag=[])
+
+    assert _misplaced_markers(preview) == []
+
+
+class _HoldsASummary(BaseModel):
+    summary: Redacted | str | None = None
+
+
+class _PreviewOpeningDetail(BaseModel):
+    """A stand-in preview type whose opened field may also hold an object."""
+
+    redactable_fields: ClassVar[frozenset[str]] = frozenset({"detail"})
+    detail: Redacted | _HoldsASummary | None = None
+
+
+@pytest.mark.spec("MV-12-002")
+def test_an_object_in_an_opened_field_is_walked_for_markers() -> None:
+    """An opened field admits the marker as its value; an object there is
+    walked like any other, so a marker inside it is refused."""
+    preview = _PreviewOpeningDetail(detail=_HoldsASummary(summary=Redacted()))
+
+    assert _misplaced_markers(preview) == ["detail.summary"]
 
 
 @pytest.mark.spec("MV-12-002")
@@ -275,7 +305,8 @@ def test_a_marker_in_a_case_preview_field_parses_as_the_marker() -> None:
     raises=VultronParseValidationError,
     reason=(
         "MV-12-003, MV-12-005: no preview field admits the marker yet, "
-        f"so no marker parses. {TRACKED}"
+        "so no marker parses. Concern #6641 moves the leaky-marker rule to "
+        "the sender; the receiver keeps MV-11-003's unknown-key handling."
     ),
 )
 @pytest.mark.spec("MV-12-005")

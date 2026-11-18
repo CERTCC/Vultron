@@ -1150,8 +1150,9 @@ groups:
       requires the marker type to refuse a marker carrying `content`, `id` or `name`.
       `test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
       requires a case stub with a clean marker to parse and one whose marker carries the
-      withheld value to be refused; it is a strict `xfail` until #6372 opens a case
-      preview field to the marker.
+      withheld value to be refused; it is a strict `xfail`, held for Concern #6641,
+      which moves the leaky-marker rule to the sender and keeps the receiver's
+      MV-11-003 unknown-key handling.
     relationships:
     - rel_type: refines
       spec_id: MV-12-001
@@ -1193,8 +1194,9 @@ groups:
     verification: >-
       `test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
       requires a case stub with a clean marker to parse and one whose marker carries the
-      withheld value to be refused; it is a strict `xfail` until #6372 opens a case
-      preview field to the marker.
+      withheld value to be refused; it is a strict `xfail`, held for Concern #6641,
+      which moves the leaky-marker rule to the sender and keeps the receiver's
+      MV-11-003 unknown-key handling.
     relationships:
     - rel_type: constrains
       spec_id: MV-12-003

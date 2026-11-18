@@ -5,6 +5,7 @@ kind: plan
 tracks:
   - "#3258"
   - "#6372"
+  - "#6641"
 description: >
   Design direction for referencing objects without inlining them, and the
   preview-only redaction marker (ADR-0193). The marker type exists, but no
@@ -87,13 +88,13 @@ every activity slot, because none of their types admits the marker.
 (`tag`, `attachment`) refuses one at the parse edge
 (`refuse_misplaced_forms`), unless its preview type names it in
 `redactable_fields` (`opens_to_redaction`). `CasePreview` opens no field yet;
-Issue #6372 decides which.
+Concern #6641 decides which, and #6372 opens them.
 
-- **A received marker's extra keys never reach the type.** The parse edge sets
-  aside an unknown key before the class validates (MV-11-003), so a marker
-  carrying `content` or `id` arrives at `Redacted` without them and the type's
-  `extra="forbid"` refuses nothing. MV-12-005 at the parse edge therefore needs
-  the edge itself to refuse those keys on a marker
-  (`test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`).
-  Opening a preview field alone turns that row's `xfail` into a failure, not
-  a pass: the clean marker then parses, and so does the one with extra keys.
+- **A leaky marker is the sender's fault, not the receiver's.** The parse edge
+  sets aside an unknown key before the class validates (MV-11-003), so a marker
+  carrying `content` or `id` arrives at `Redacted` without them. Do not add a
+  parse-edge refusal of those keys: the receiver keeps the normal unknown-key
+  handling, and MV-12-005 becomes a sender-side rule, the preview builder never
+  putting a withheld value in a marker (MV-12-004; Concern #6641 plans it).
+  `test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
+  still asserts the receiver-side refusal; #6641's amendment replaces it.
