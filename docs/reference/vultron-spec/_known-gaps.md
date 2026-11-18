@@ -284,16 +284,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#6372](https://github.com/CERTCC/Vultron/issues/6372)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "MV-12-001",
-    "MV-12-005",
-))
-```
-
 ### Tracked by [#6410](https://github.com/CERTCC/Vultron/issues/6410)
 
 ```python exec="true" idprefix=""
@@ -311,6 +301,15 @@ print(requirement_callout(
     "CM-31-043",
     "CM-31-044",
     "CM-31-045",
+))
+```
+
+### Tracked by [#6641](https://github.com/CERTCC/Vultron/issues/6641)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "MV-12-005",
 ))
 ```
 
@@ -365,8 +364,7 @@ print(requirement_callout(
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
-    "MV-12-002",
-    "MV-12-003",
+    "MV-12-001",
 ))
 ```
 
@@ -406,6 +404,15 @@ from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "CM-31-011",
     "CM-31-036",
+))
+```
+
+### Tracked by [#6641](https://github.com/CERTCC/Vultron/issues/6641)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "MV-12-003",
 ))
 ```
 
