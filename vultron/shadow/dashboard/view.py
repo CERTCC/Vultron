@@ -66,8 +66,8 @@ from vultron.measure.history import (
 )
 from vultron.measure.ledger import (
     MISSING_SLOT,
+    UNNAMED_ACTOR,
     display_label,
-    friendly_actor_name,
 )
 from vultron.measure.standing import (
     DesideratumStanding,
@@ -129,6 +129,16 @@ UNOBSERVABLE_NOTE = (
 )
 
 
+def actor_label(actor: str, names: Mapping[str, str]) -> str:
+    """*actor* by its display name, never a bare URI or UUID (DRPT-03-009).
+
+    An actor no payload names reads by the last segment of its URI, and one
+    whose id is opaque, as an outside system's ``urn:uuid:`` id is, reads
+    as :data:`~vultron.measure.ledger.UNNAMED_ACTOR`.
+    """
+    return display_label(actor, "Actor", names) or UNNAMED_ACTOR
+
+
 def desideratum_label(desideratum: DesideratumStanding) -> str:
     """The desideratum in words: ``Fix Ready before Public Awareness``."""
     return (
@@ -177,7 +187,7 @@ def participant_rows(
     for p in participants:
         rows.append(
             {
-                "Participant": friendly_actor_name(p.participant, names),
+                "Participant": actor_label(p.participant, names),
                 "Roles": ", ".join(p.roles) or "—",
                 "Joined": "✔️ joined" if p.joined else "✉️ invited",
                 "Report": RM_BADGES[p.rm],
@@ -203,7 +213,7 @@ def _vendor_columns(
     that a fixed column already uses, takes the vendor's actor id as well,
     so no vendor's column overwrites another's.
     """
-    labels = [friendly_actor_name(p.participant, names) for p in scored]
+    labels = [actor_label(p.participant, names) for p in scored]
     taken = Counter(labels) + Counter(_DESIDERATA_COLUMNS)
     return [
         label if taken[label] == 1 else f"{label} ({p.participant})"
@@ -250,7 +260,7 @@ def _move_cells(move: AllowedMove, names: Mapping[str, str]) -> Row:
     """Who makes *move*, in which machine, and from which state to which."""
     machine, label = _move_label(move)
     return {
-        "Who": friendly_actor_name(move.participant, names),
+        "Who": actor_label(move.participant, names),
         "Machine": machine,
         "Move": label,
         "From → to": f"{move.source.name} → {move.destination.name}",
@@ -384,7 +394,7 @@ def harm_text(move: AdvisedMove, names: Mapping[str, str]) -> str:
     """Each negative part of *move*'s shift, by vendor, with its size."""
     return (
         "; ".join(
-            f"{friendly_actor_name(h.vendor, names)}: {h.part} {_size(h.size)}"
+            f"{actor_label(h.vendor, names)}: {h.part} {_size(h.size)}"
             for h in move.harms
         )
         or "none"
@@ -558,7 +568,7 @@ def change_text(
     (DRPT-03-009).
     """
     who = (
-        f"{display_label(change.participant, 'Actor', names)} "
+        f"{actor_label(change.participant, names)} "
         if change.participant is not None
         else ""
     )
@@ -664,6 +674,7 @@ __all__ = [
     "NOT_TRANSLATED_NOTE",
     "RM_BADGES",
     "UNOBSERVABLE_NOTE",
+    "actor_label",
     "Row",
     "desiderata_rows",
     "desideratum_code",

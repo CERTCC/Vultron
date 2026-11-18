@@ -669,3 +669,31 @@ def test_a_vince_reading_has_a_narrative_line_per_entry():
     changes = " ".join(str(row["State changes"]) for row in rows)
     assert "EM: " in changes
     assert "VFD: v?? → V??" in changes
+
+
+@pytest.mark.spec("DRPT-03-009")
+def test_a_vince_participant_never_reads_as_its_opaque_id():
+    """#6685: a reading whose payloads name no actor shows no ``urn:uuid``."""
+    analysis = analyse(translate(ACTIVE))
+    assert analysis.standing is not None
+    participants = analysis.standing.participants
+    rows = view.participant_rows(participants, analysis.actor_names)
+    assert rows
+    assert {row["Participant"] for row in rows} == {UNNAMED_ACTOR}
+    assert all(str(row["Actor"]).startswith("urn:uuid:") for row in rows)
+    columns = view.desiderata_rows(participants, analysis.actor_names)
+    assert len(columns) == 12
+    for row in columns:
+        vendor_columns = [c for c in row if c not in ("Desideratum", "Events")]
+        assert len(set(vendor_columns)) == len(vendor_columns)
+        assert all(c.startswith(UNNAMED_ACTOR) for c in vendor_columns)
+
+
+def test_an_actor_with_no_name_reads_by_its_uri_or_as_unnamed():
+    assert view.actor_label(VENDOR, NAMES) == "Vendor"
+    assert view.actor_label("https://example.org/actors/reporter", {}) == (
+        "Reporter"
+    )
+    assert view.actor_label(
+        "urn:uuid:1e7a421f-b727-4c1d-9a3e-0f6b2c9d8e71", {}
+    ) == (UNNAMED_ACTOR)
