@@ -291,6 +291,9 @@ leaves subtrees no walk can reach.
   Reason: a scoped copy and the seed can differ (a resolved case id against a
   short id), and tick order would choose between them. Pinned by
   `test_a_seeded_case_id_under_the_clock_decision_stage_has_two_sources`.
+- **A case trigger tree declares `/case_id` seeded only once #6678 has landed.**
+  Reason: until the trigger adapter resolves a short case id to the full id at
+  the edge (ADR-0032), the request's `case_id` may be a short id.
 - **Review every attribute-name seed.** `test/architecture/_act_seeding_table.py`
   records each act type's seeds, so a new property that matches a key is a
   reviewed diff. Withhold a match whose value means something else with
