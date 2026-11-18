@@ -137,5 +137,5 @@ Review confirms that the child is created with nothing from the parent but the e
 - Embargo split rules: VP-10 in `specs/vultron-protocol-spec.yaml`; reader-facing discussion in `docs/topics/process_models/em/split_merge.md`.
 - Merge, the companion decision: [ADR-0105](0105-case-merge-freeze-and-redirect-by-owner-consent.md).
 - Creation flow reused here: [ADR-0023](0023-case-proposal-protocol.md) and [ADR-0041](0041-caseactor-authoritative-case-initialization.md).
-- Embargo relay through the CASE_MANAGER: [ADR-0113](0113-embargo-revision-negotiation-relays-through-the-case-manager.md); per-embargo consent: [ADR-0122](0122-per-embargo-participant-consent.md).
+- Embargo relay through the CASE_MANAGER: [ADR-0113](0113-embargo-revision-negotiation-relays-through-the-case-manager.md); per-embargo consent: [ADR-0122](archived/0122-per-embargo-participant-consent.md).
 - Case cross-reference fields: `parent_cases`, `child_cases`, and `sibling_cases` in `vultron/core/models/case.py`.

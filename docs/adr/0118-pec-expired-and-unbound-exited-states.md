@@ -11,7 +11,9 @@ consulted: >-
   specs/em-behavior.yaml EMB-01, EMB-03, EMB-17; specs/handler-protocol.yaml HP-01;
   specs/message-semantics-mapping.yaml MSM-07
 informed: []
-partially_superseded_by: docs/adr/0122-per-embargo-participant-consent.md
+partially_superseded_by:
+  - docs/adr/0122-per-embargo-participant-consent.md
+  - 0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
 stakeholder_type: [project-contributor]
 ---
 

@@ -31,7 +31,7 @@ Defined in `vultron/core/models/case/vulnerability_case.py`.
 | `case_references` | The case's `CaseReference` entries (objects or URIs). Empty by default ([CM-05-021](vultron-spec/requirements/case-management.md#cm-05-021)) |
 | `case_statuses` | Append-only history of `CaseStatus` snapshots |
 | `notes` | URIs of notes attached to the case |
-| `embargo_register` | One entry per embargo ever proposed on the case, appended and never removed: the embargo (object or URI), its status (`PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`) and the embargo an activated revision replaced. The case's Embargo Management (EM) state, its active embargo and its open proposals are all read from it (ADR-0122) |
+| `embargo_register` | One entry per embargo ever proposed on the case, appended and never removed: the embargo (object or URI), its status (`PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`) and the embargo an activated revision replaced. The case's Embargo Management (EM) state, its active embargo and its open proposals are all read from it (ADR-0212) |
 | `pending_embargo_proposal_index` | Map: embargo URI → the proposal activity that offered it, for open proposals only |
 | `case_activity` | Activity IDs recorded against this case (not the case ledger — see `genesis_hash`) |
 | `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity: the case id, creation time and owner (`attributed_to`), computed when the case is created; a replica keeps the hash it receives, or derives the same value from the carried case when none arrives ([CLP-08-002](vultron-spec/requirements/ledger-replication.md#clp-08-002)) |
@@ -49,7 +49,7 @@ Defined in `vultron/core/models/case_participant/participant.py`.
 | `attributed_to` | The actor this record stands for; `actor_participant_index` is keyed on it |
 | `case_roles` | `list[CVDRole]` — the roles this actor holds in this case |
 | `participant_statuses` | Append-only history of `ParticipantStatus` snapshots |
-| `embargo_consents` | `list[EmbargoConsent]` — one Participant Embargo Consent (PEC) row for every entry in the case's embargo register, each holding the embargo URI, one of `UNINVITED`, `INVITED`, `AGREED`, `DECLINED` or `TIMED_OUT`, and, on an `INVITED` row only, that invitation's `rsvp_deadline` (ADR-0122). A row is written `UNINVITED` when an embargo is proposed and when the participant joins the case; a missing row is a defect. Each row is an AS2 object of type `EmbargoConsent`, attributed to the participant's actor (`attributedTo`) under an id derived from that actor and the embargo, so the `CASE_MANAGER` can commit a changed row as its own ledger entry and every replica copies it. "Signatory" and "lapsed" are read from these rows and the register, never stored |
+| `embargo_consents` | `list[EmbargoConsent]` — one Participant Embargo Consent (PEC) row for every entry in the case's embargo register, each holding the embargo URI, one of `UNINVITED`, `INVITED`, `AGREED`, `DECLINED` or `TIMED_OUT`, and, on an `INVITED` row only, that invitation's `rsvp_deadline` (ADR-0212). A row is written `UNINVITED` when an embargo is proposed and when the participant joins the case; a missing row is a defect. Each row is an AS2 object of type `EmbargoConsent`, attributed to the participant's actor (`attributedTo`) under an id derived from that actor and the embargo, so the `CASE_MANAGER` can commit a changed row as its own ledger entry and every replica copies it. "Signatory" and "lapsed" are read from these rows and the register, never stored |
 | `joined` | Whether the participant has joined the case: it was seated by case initialization or accepted its stub Invite. Defaults to `true`. One input to `VulnerabilityCase.is_active_participant`, which decides whether the participant is sent case content (CM-10-004, ADR-0114) |
 | `removal_activity` | The removal fact: the id of the `Remove(CaseParticipant)` activity that took this participant out of active participation, or `None` when it is not removed. The record stays on the roster. One input to `VulnerabilityCase.is_active_participant`: a removed participant is inert whatever its embargo consent (CM-31-001, ADR-0116) |
 | `participant_case_name` | Optional human-readable name for this participant in this case |
@@ -64,7 +64,7 @@ Stored in `VulnerabilityCase.case_statuses`.
 
 | Field | Description |
 |---|---|
-| `em` | `EmDimension` — the Embargo Management (EM) state (None / Proposed / Active / Revise / eXited). On a case's status this is a read-only copy the case stamps from its `embargo_register`, so it never disagrees with the register (ADR-0122). Assigning it, or its `state`, raises (SDO-03-006) |
+| `em` | `EmDimension` — the Embargo Management (EM) state (None / Proposed / Active / Revise / eXited). On a case's status this is a read-only copy the case stamps from its `embargo_register`, so it never disagrees with the register (ADR-0212). Assigning it, or its `state`, raises (SDO-03-006) |
 | `pxa` | `PxaDimension` — the Publication/eXploit/Active-attacks (PXA) state |
 | `context` | The URI of the case this status belongs to |
 | `attributed_to` | The actor who reported this status (optional) |
@@ -180,6 +180,6 @@ classDiagram
 - [The CASE_MANAGER and the Case Ledger](../topics/case_lifecycle/case_manager_and_ledger.md) — who writes the case history
 - ADR-0036: Per-Machine Dimension Objects for `CaseStatus` and `ParticipantStatus`
 - ADR-0051: CaseActor Has Its Own RM Lifecycle Tracked via CaseParticipant
-- ADR-0122: Participant embargo consent is recorded per (participant, embargo)
+- ADR-0212: Each embargo carries its own status, each participant holds a consent row per embargo, and EM is computed from them
 - ADR-0057: Observer role (`CVDRole.OBSERVER`)
 - ADR-0078: Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient Role

@@ -267,7 +267,7 @@ groups:
     - rel_type: uses_definition
       spec_id: MSM-07-008
     adr:
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_087
     - story_2022_023
@@ -340,7 +340,7 @@ groups:
     - rel_type: uses_definition
       spec_id: MSM-07-008
     adr:
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_087
     - story_2022_023
@@ -474,7 +474,7 @@ groups:
       changes only the sender's consent row and moves no register entry, both for a
       first proposal (EM PROPOSED) and for a proposed revision (EM REVISE).
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_087
     relationships:
@@ -1312,7 +1312,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_001
     see_also:
@@ -1348,7 +1348,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_001
   - id: MSM-07-005
@@ -1386,8 +1386,7 @@ groups:
       spec_id: EMB-18-005
     adr:
     - ADR-0093
-    - ADR-0122
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_001
   - id: MSM-07-020
@@ -1415,7 +1414,7 @@ groups:
       spec_id: CM-18-001
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_089
   - id: MSM-07-021
@@ -1435,7 +1434,7 @@ groups:
       proposal changes no participant's consent to the embargo in force.
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_089
   - id: MSM-07-022
@@ -1456,7 +1455,7 @@ groups:
       spec_id: MSM-07-021
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_089
   - id: MSM-07-023
@@ -1481,7 +1480,7 @@ groups:
       spec_id: EP-05-003
     adr:
     - ADR-0124
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_089
   - id: MSM-07-024
@@ -1532,7 +1531,7 @@ groups:
       spec_id: MSM-02-007
     adr:
     - ADR-0118
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_095
   - id: MSM-07-025
@@ -1560,7 +1559,7 @@ groups:
       spec_id: MSM-07-006
     adr:
     - ADR-0118
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_095
     see_also:
@@ -1652,8 +1651,7 @@ groups:
     - rel_type: uses_definition
       spec_id: VAM-05-008
     adr:
-    - ADR-0122
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-027
@@ -1675,7 +1673,7 @@ groups:
     - rel_type: refines
       spec_id: HP-01-006
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-028
@@ -1700,8 +1698,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-18-003
     adr:
-    - ADR-0122
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-037
@@ -1730,7 +1727,7 @@ groups:
     - rel_type: refines
       spec_id: MSM-07-028
     adr:
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-038
@@ -1756,7 +1753,7 @@ groups:
       spec_id: MSM-07-004
     adr:
     - ADR-0152
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-029
@@ -1781,7 +1778,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-02-002
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-009
@@ -1813,8 +1810,7 @@ groups:
     - rel_type: uses_definition
       spec_id: EMB-18-005
     adr:
-    - ADR-0122
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-030
@@ -1836,7 +1832,7 @@ groups:
     - rel_type: refines
       spec_id: HP-01-006
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-031
@@ -1856,7 +1852,7 @@ groups:
     - rel_type: extends
       spec_id: MSM-07-009
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-032
@@ -1889,7 +1885,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-04-002
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_033
   - id: MSM-07-033
@@ -1909,7 +1905,7 @@ groups:
     - rel_type: extends
       spec_id: MSM-07-009
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-010
@@ -1939,7 +1935,7 @@ groups:
       spec_id: VP-13-017
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_090
   - id: MSM-07-034
@@ -1965,7 +1961,7 @@ groups:
       spec_id: EP-08-004
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_090
   - id: MSM-07-035
@@ -1984,7 +1980,7 @@ groups:
       withdrawer holds no AGREED row for an open revision afterwards.
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_090
   - id: MSM-07-036
@@ -2009,7 +2005,7 @@ groups:
       spec_id: MSM-07-010
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_090
     see_also:
@@ -2033,7 +2029,7 @@ groups:
     - rel_type: extends
       spec_id: MSM-07-003
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-012
@@ -2074,7 +2070,7 @@ groups:
       spec_id: CLP-05-001
     adr:
     - ADR-0065
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_064
   - id: MSM-07-039
@@ -2130,7 +2126,7 @@ groups:
     - rel_type: extends
       spec_id: MSM-07-004
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_087
   - id: MSM-07-014
@@ -2157,7 +2153,7 @@ groups:
       spec_id: MSM-07-004
       note: In the case it names, the refusal replaces the DECLINE
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_090
     see_also:
@@ -2192,7 +2188,7 @@ groups:
       spec_id: MSM-07-004
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_090
   - id: MSM-07-016

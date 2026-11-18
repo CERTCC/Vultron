@@ -327,7 +327,7 @@ groups:
       because the consent already given to its terms stays valid (ADR-0130). Revise
       records both facts. The ledger commit of the EA acknowledges it.
     adr:
-    - ADR-0130
+    - ADR-0212
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EA in EM PROPOSED
       with CS matching ...pxa and no other open proposal transitions EM to ACTIVE
@@ -415,7 +415,7 @@ groups:
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
     adr:
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_033
     see_also:
@@ -779,7 +779,7 @@ groups:
       change, so no separate EK message is necessary (ADR-0113).
     adr:
     - ADR-0113
-    - ADR-0130
+    - ADR-0212
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
       with CS matching ...pxa and no other open proposal transitions EM back to
@@ -832,7 +832,7 @@ groups:
       (`test_rejecting_one_of_two_open_revisions_stays_in_revise`) confirms rejecting
       one of two open revisions leaves EM in REVISE.
     adr:
-    - ADR-0130
+    - ADR-0212
     testable: true
     preconditions:
     - em_state:
@@ -942,8 +942,7 @@ groups:
       (ADR-0113).
     adr:
     - ADR-0113
-    - ADR-0130
-    - ADR-0180
+    - ADR-0212
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
       with CS matching ...pxa and no other open proposal transitions EM back to
@@ -1001,7 +1000,7 @@ groups:
       confirms accepting one of two open revisions leaves EM in REVISE with the
       accepted revision in force.
     adr:
-    - ADR-0130
+    - ADR-0212
     testable: true
     preconditions:
     - em_state:
@@ -1100,7 +1099,7 @@ groups:
       case. While another proposal is open, EM stays in Proposed, because that proposal
       still waits for an answer (ADR-0130). The ledger commit of the ER acknowledges it.
     adr:
-    - ADR-0130
+    - ADR-0212
     verification: >-
       Integration tests in `test/demo/` confirm that receiving ER in EM PROPOSED
       with no other open proposal transitions EM to NONE with no EK message
@@ -1690,7 +1689,7 @@ groups:
       derived from the case, so it is not copied onto each participant record.
     adr:
     - ADR-0118
-    - ADR-0122
+    - ADR-0212
     testable: true
     preconditions:
     - em_state:
@@ -1760,7 +1759,7 @@ groups:
         END_TIME_REACHED, every open proposal CANCELLED, EM EXITED, and the
         teardown announced
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2022_010
     - story_2022_026
@@ -1783,7 +1782,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-003
@@ -1807,7 +1806,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-003
@@ -1841,7 +1840,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-003
@@ -1872,7 +1871,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2022_080
     - story_2022_026
@@ -1896,7 +1895,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-004
@@ -1933,7 +1932,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-004
@@ -1963,7 +1962,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-010
@@ -1995,7 +1994,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: uses_definition
       spec_id: EMB-13-010
@@ -2023,7 +2022,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-005
@@ -2049,7 +2048,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-005
@@ -2077,7 +2076,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-005
@@ -2101,7 +2100,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2022_080
     - story_2022_026
@@ -2128,7 +2127,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-005
@@ -2153,7 +2152,7 @@ groups:
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0212
     relationships:
     - rel_type: extends
       spec_id: EMB-13-016
@@ -2724,7 +2723,7 @@ groups:
       (`test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_declines`)
       confirms the owner's Reject of an Invite declines only its own row.
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_087
     relationships:
@@ -2875,7 +2874,7 @@ groups:
         EM state is NONE; the abandonment is committed; proposed embargo
         abandoned
     adr:
-    - ADR-0122
+    - ADR-0212
     - ADR-0152
     stories:
     - story_2022_080
@@ -2899,7 +2898,7 @@ groups:
     - rel_type: extends
       spec_id: EMB-16-001
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2022_080
     - story_2022_023
@@ -2925,7 +2924,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-07-015
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2022_080
     - story_2022_023
@@ -3661,7 +3660,7 @@ groups:
       and the shared starting-state and EM checks. Also, the EM value the register
       derives overwrites a status EM that a path assigns directly.
     adr:
-    - ADR-0122
+    - ADR-0212
     - ADR-0124
     see_also:
     - spec_id: CM-23-016
@@ -3682,7 +3681,7 @@ groups:
     - rel_type: derives_from
       spec_id: EMB-18-001
     adr:
-    - ADR-0122
+    - ADR-0212
     - ADR-0124
   - id: EMB-18-002
     priority: MUST_NOT
@@ -3902,7 +3901,7 @@ groups:
       transitions: `test_every_register_step_moves_em_along_an_em_transition`
       in `test/core/states/test_em_transition_table.py`.
     adr:
-    - ADR-0130
+    - ADR-0212
     stories:
     - story_2026_086
     testable: true
@@ -3925,7 +3924,7 @@ groups:
       `test/core/states/test_em_transition_table.py` asserts the table is
       declared.
     adr:
-    - ADR-0130
+    - ADR-0212
     testable: true
     relationships:
     - rel_type: implements
@@ -3946,7 +3945,7 @@ groups:
       `test_a_refused_em_move_leaves_the_case_unchanged` that the refusal writes
       nothing to the case.
     adr:
-    - ADR-0130
+    - ADR-0212
     testable: true
     relationships:
     - rel_type: extends

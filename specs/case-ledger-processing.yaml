@@ -3256,7 +3256,7 @@ groups:
       spec_id: EP-08-004
     adr:
     - ADR-0208
-    - ADR-0122
+    - ADR-0212
   - id: CLP-10-054
     priority: MUST
     kind: project

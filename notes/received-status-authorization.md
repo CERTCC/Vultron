@@ -151,7 +151,7 @@ sent or refuses all of it; `CheckCaseStatusAcceptableNode` does the same for
   `refusal_effects` (CLP-10-041).
 - **`em` is never judged from a participant status.** EM is derived from the
   embargo register; a received `CaseStatus` whose EM differs from
-  `case.em_state` is refused (RSH-09-005, ADR-0122).
+  `case.em_state` is refused (RSH-09-005, ADR-0212).
 - **Emit, receive and replica-apply share one entailment evaluator**,
   `composite_state_violations()` in
   `vultron/core/states/composite_state_invariants.py`, evaluated on the status
