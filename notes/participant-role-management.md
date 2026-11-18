@@ -81,7 +81,7 @@ The two on-behalf exceptions target an **existing** participant only. An
 on-behalf assertion for an actor that is not a participant is refused before
 any write and never creates one (PRM-06-006, ADR-0121): a status update is
 never a way into a case — joining is the Invite flow
-([case-joining.md](case-joining.md), ADR-0114).
+([case-joining.md](case-joining.md), ADR-0213).
 `CheckOnBehalfTargetIsParticipantNode` enforces this as the second guard of the
 on-behalf tree, ahead of the only write: it refuses, naming the target, when
 the target is not in `actor_participant_index` or lacks the asserted

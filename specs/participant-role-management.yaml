@@ -393,7 +393,7 @@ groups:
       reporting ``vf`` is refused with a PRM-06-002 violation.
     adr:
     - ADR-0121
-    - ADR-0114
+    - ADR-0213
     tags:
     - protocol
     stories:

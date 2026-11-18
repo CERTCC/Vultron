@@ -214,8 +214,8 @@ The activity guides break the steps out individually because the individual step
 
 Participants that are not known when the case is created are not attached later with an `Add`.
 A Reporter may report a vulnerability to a Coordinator, who creates a case before the affected Vendors have been identified.
-The Coordinator seats itself and the Reporter at case creation, then invites each Vendor as it is identified, and each Vendor joins by accepting its Invite ([ADR-0114](../adr/0114-joining-a-case-stub-invite-inert-participant.md)).
-`Add(CaseParticipant)` has one meaning: the Case Owner reinstates a participant it removed ([ADR-0116](../adr/0116-removing-a-participant-withdraws-entitlement-not-membership.md)).
+The Coordinator seats itself and the Reporter at case creation, then invites each Vendor as it is identified, and each Vendor joins by accepting its Invite ([ADR-0213](../adr/0213-how-a-participant-joins-becomes-active-and-is-removed.md)).
+`Add(CaseParticipant)` has one meaning: the Case Owner reinstates a participant it removed ([ADR-0213](../adr/0213-how-a-participant-joins-becomes-active-and-is-removed.md)).
 
 ### `Create(VulnerabilityReport)` and `Offer(VulnerabilityReport)`
 
@@ -300,7 +300,7 @@ The asymmetry follows from what exists at the moment of closure.
 `as:Leave` needs something to leave, and a participant can only leave a case it joined, so `Leave` is the right verb once a case exists ([ADR-0050](../adr/0050-leave-vul-case-canonical-rm-closure.md)).
 Before a case exists there is no membership to end — there is only an outstanding `Offer(VulnerabilityReport)`.
 Closing at that point means refusing the offer, which `as:Reject` already says.
-`Reject(Offer(VulnerabilityReport))` is therefore reachable only from `RM.RECEIVED` or `RM.INVALID` (both have a close edge, [ADR-0114](../adr/0114-joining-a-case-stub-invite-inert-participant.md)), because a report that reached `RM.VALID` has a case, and closing that case is `Leave(VulnerabilityCase)`'s job.
+`Reject(Offer(VulnerabilityReport))` is therefore reachable only from `RM.RECEIVED` or `RM.INVALID` (both have a close edge, [ADR-0213](../adr/0213-how-a-participant-joins-becomes-active-and-is-removed.md)), because a report that reached `RM.VALID` has a case, and closing that case is `Leave(VulnerabilityCase)`'s job.
 
 This is the second design rule at work.
 Reusing `as:Leave` for a report the sender never joined would have claimed a membership that never existed, and minting a third verb for report closure was unnecessary when `as:Reject` expresses refusal.

@@ -6,7 +6,7 @@ description: >
   Rules for post-creation case messaging: every participant message routes
   through the CASE_MANAGER and state reaches replicas only via CaseLedgerEntry
   broadcast; which resolver to use; "active participant" excludes closed
-  participants (ADR-0172); Invite/Accept routing; the embargo relay
+  participants (ADR-0213); Invite/Accept routing; the embargo relay
   (EP-09, ADR-0113), where ledger entries carry state but never ask; the
   delegated-message pattern; and identity-spoofing antipatterns, including
   reading the CASE_MANAGER gate as a sender check (HP-01-006, ADR-0115).
@@ -88,7 +88,7 @@ CASE_MANAGER cannot validate or order it.
 
 Never address `to:` from the roster (`case.actor_participant_index` or similar). From a
 participant it bypasses the CASE_MANAGER (PCR-08-001); from the CASE_MANAGER it reaches
-inert participants (CM-10-004, ADR-0114). A participant sends to the CASE_MANAGER only.
+inert participants (CM-10-004, ADR-0213). A participant sends to the CASE_MANAGER only.
 The one stated exception is RK: an addressee of the report's `Offer` sends it to the
 reporter directly, case or no case, because it answers that Offer outside the case
 (PCR-08-001, RMB-08-003, #4560).
@@ -100,7 +100,7 @@ and `invitation_recipients()` for consent Invites.
 `test/architecture/test_active_participant_recipient_selection.py` keeps every other
 module from listing roster ids for addressing.
 
-## "Active Participant" Excludes Closed Participants (ADR-0172)
+## "Active Participant" Excludes Closed Participants (ADR-0213)
 
 Write "active participant" for a participant that may still act and receive new case
 content, and never add "and not closed": an active participant is one whose closure
@@ -151,7 +151,7 @@ normal flow.
 
 The stub Invite creates an **inert** record, which receives no case content
 (CM-10-004), so the broadcast cannot deliver the invite; the CASE_MANAGER still owns the
-exchange. The full join model is in [case-joining](case-joining.md) (ADR-0114,
+exchange. The full join model is in [case-joining](case-joining.md) (ADR-0213,
 ADR-0121).
 
 ### Correct Flow

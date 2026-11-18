@@ -295,7 +295,7 @@ its role does not license, you reopen this.**
 
 ### RM closure walks the table; only the CASE_MANAGER walks it
 
-- **Closure goes through the RM table, never an override** (ADR-0114,
+- **Closure goes through the RM table, never an override** (ADR-0213,
   RMB-14-004/005/008/009). RM closes from *Received* (`R → C`); from *Valid* it is
   written as `V → D → C`. CASE_MANAGER closure sites use `RMClosureWriter`
   (`case/nodes/participant/rm_closure.py`), which walks `rm_closure_path()` with

@@ -412,6 +412,9 @@ plugins:
         adr/0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md: adr/archived/0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md
         adr/0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md: adr/archived/0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md
         adr/0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md: adr/archived/0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md
+        adr/0114-joining-a-case-stub-invite-inert-participant.md: adr/archived/0114-joining-a-case-stub-invite-inert-participant.md
+        adr/0116-removing-a-participant-withdraws-entitlement-not-membership.md: adr/archived/0116-removing-a-participant-withdraws-entitlement-not-membership.md
+        adr/0172-an-active-participant-is-not-closed.md: adr/archived/0172-an-active-participant-is-not-closed.md
         # ADR-0146 was renamed when it widened from embargo acts to every
         # CASE_MANAGER act (#4983).
         adr/0146-one-atomic-commit-per-embargo-act.md: adr/0146-one-atomic-commit-per-case-manager-act.md

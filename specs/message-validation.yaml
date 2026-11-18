@@ -454,7 +454,7 @@ groups:
       stub that carries its `id`, `type` and `summary`.
     adr:
     - ADR-0090
-    - ADR-0114
+    - ADR-0213
     - ADR-0159
     - ADR-0205
     stories:
@@ -479,7 +479,7 @@ groups:
       spec_id: MV-10-001
     adr:
     - ADR-0090
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_039
   - id: MV-10-008
@@ -506,7 +506,7 @@ groups:
       spec_id: CM-11-013
     adr:
     - ADR-0090
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_039
   - id: MV-10-009
@@ -712,7 +712,7 @@ groups:
     stories:
     - story_2026_013
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0090
     - ADR-0205
   - id: MV-10-003
@@ -756,7 +756,7 @@ groups:
       to it, and not to a seated participant whose consent is still `INVITED` or to an
       invitee that never answered its stub Invite.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2026_054
     - story_2022_023

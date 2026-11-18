@@ -283,7 +283,7 @@ groups:
       actor holding the CASE_MANAGER role, is addressed to each active participant
       individually, and is not addressed to an inert participant.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2026_075
     - story_2022_046
@@ -3350,7 +3350,7 @@ groups:
     - rel_type: uses_definition
       spec_id: SYNC-17-001
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0155
     verification: >-
       Tests marked `SYNC-17-002` send `Read(CaseLedgerEntry)` with a lagging position

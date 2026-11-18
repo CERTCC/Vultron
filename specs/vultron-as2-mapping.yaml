@@ -751,7 +751,7 @@ groups:
       previewed reference matches the stub Invite pattern.
     adr:
     - ADR-0205
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_013
     - story_2022_052
@@ -777,7 +777,7 @@ groups:
       Invite maps to `ACCEPT_INVITE_ACTOR_TO_CASE`.
     adr:
     - ADR-0205
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_013
     - story_2022_054
@@ -802,7 +802,7 @@ groups:
       Invite maps to `REJECT_INVITE_ACTOR_TO_CASE`.
     adr:
     - ADR-0205
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_006
   - id: VAM-04-007
@@ -918,7 +918,7 @@ groups:
       missing or non-parsing `ledgerPosition` is refused at the parse edge.
     adr:
     - ADR-0121
-    - ADR-0114
+    - ADR-0213
     - ADR-0156
     - ADR-0205
     stories:
@@ -1506,7 +1506,7 @@ groups:
       `remove_participant_from_case` vocabulary example maps to
       `REMOVE_CASE_PARTICIPANT_FROM_CASE`.
     adr:
-    - ADR-0116
+    - ADR-0213
     stories:
     - story_2022_066
     - story_2022_067

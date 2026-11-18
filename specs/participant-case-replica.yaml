@@ -194,7 +194,7 @@ groups:
       confirms that a participant that accepts the stub Invite gets
       `Announce(VulnerabilityCase)` from the CASE_MANAGER.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_092
     relationships:
@@ -223,7 +223,7 @@ groups:
       `test/core/behaviors/sync/nodes/test_fanout_embargo_gate.py` confirms that a
       participant that has not agreed to the embargo in force gets no pre-seed copy.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_092
   - id: PCR-02-003
@@ -676,7 +676,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-11-013
     adr:
-    - ADR-0114
+    - ADR-0213
     verification: >-
       `test/core/behaviors/inbox/nodes/test_defer_check_node.py` asserts the deferral gate
       passes a stub Invite for an unknown case and still defers a full-case Invite, an
@@ -707,7 +707,7 @@ groups:
     - rel_type: uses_definition
       spec_id: PCR-03-004
     adr:
-    - ADR-0114
+    - ADR-0213
     verification: >-
       `test_stub_invite_is_processed_on_arrival_and_archived` in
       `test/adapters/driving/fastapi/test_stub_invite_on_arrival.py` delivers the
@@ -968,7 +968,7 @@ groups:
       invitee's RM state as CM-11-011 states and lists the invitee as a case
       participant.
     adr:
-    - ADR-0114
+    - ADR-0213
     - ADR-0121
     stories:
     - story_2022_054
@@ -1131,7 +1131,7 @@ groups:
     - rel_type: refines
       spec_id: CM-11-001
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_054
     - story_2022_006
@@ -1153,7 +1153,7 @@ groups:
     - rel_type: refines
       spec_id: CM-11-004
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_054
     - story_2022_006

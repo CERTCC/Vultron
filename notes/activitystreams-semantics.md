@@ -133,7 +133,7 @@ type or message semantic.
 the CASE_MANAGER. So the invitee's `CaseParticipant` is created on the sending
 side when the CASE_MANAGER issues the stub Invite (inert, at `RM.RECEIVED`), and
 the CASE_MANAGER's reply handlers update it; the invitee's handler never creates
-it (ADR-0114, CM-11-006). Embargo invitations follow the same shape. The
+it (ADR-0213, CM-11-006). Embargo invitations follow the same shape. The
 full-case Invite that follows a stub Accept is described in
 [case-joining.md](case-joining.md).
 

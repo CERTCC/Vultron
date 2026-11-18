@@ -1543,7 +1543,7 @@ groups:
       `docs/topics/process_models/rm/formal_model.md` states the same
       transition function.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_006
     relationships:
@@ -1568,7 +1568,7 @@ groups:
     - rel_type: refines
       spec_id: VP-02-004
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_006
   - id: RMB-14-005
@@ -1586,7 +1586,7 @@ groups:
     verification: >-
       An architecture test confirms no closure path calls `force_rm_state`.
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_006
   - id: RMB-14-009
@@ -1608,7 +1608,7 @@ groups:
     - rel_type: refines
       spec_id: CM-23-038
     adr:
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_006
   - id: RMB-14-006

@@ -61,7 +61,7 @@ protocol phase recorded in the replicated ledger.
   `Reject(Invite(VulnerabilityCase preview)[target=Actor])`, so
   `accept_invite_actor_to_case` is absent. The
   stub Reject is an RM message that closes the Vendor's inert record, `R → C`
-  (ADR-0114, CM-11-007).
+  (ADR-0213, CM-11-007).
 - No scenario lists an `add_case_participant_to_case` entry at a joiner's
   acceptance: the CASE_MANAGER adds the record when it sends the stub Invite
   (CM-11-023), and the `accept_invite_actor_to_case` entry adds none (CM-31-012).

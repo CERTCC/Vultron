@@ -989,7 +989,7 @@ groups:
       sender's participant reaches the target RM state and the receiving actor's participant is unchanged.
     adr:
     - ADR-0108
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2022_062
     see_also:
@@ -1122,7 +1122,7 @@ groups:
       carries the marker or is pinned as writing no case state.
     adr:
     - ADR-0108
-    - ADR-0116
+    - ADR-0213
     see_also:
     - spec_id: BT-17-001
       reason: 'context for the reader'

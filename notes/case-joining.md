@@ -6,7 +6,7 @@ description: >
   Rules for how an actor goes from invited to participating: the stub-Invite
   flow, the one "active participant" predicate, authority to act, edge cases
   (expiry, refusals, re-invite, supersede), and removal and reinstatement, which
-  withdraw and restore entitlement without touching membership (ADR-0116).
+  withdraw and restore entitlement without touching membership (ADR-0213).
 related_specs:
   - specs/case-management.yaml
   - specs/participant-role-management.yaml
@@ -55,8 +55,8 @@ relevant_packages:
 
 # Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
 
-Decisions: ADR-0114 (joining, inert participants, the stub type), ADR-0121 (judging
-the case), ADR-0116 (removal and reinstatement). The participant-facing flow is in
+Decisions: ADR-0213 (joining, inert participants, removal and reinstatement),
+ADR-0121 (judging the case). The participant-facing flow is in
 `docs/reference/vultron-spec/_participant-lifecycle.md`.
 
 ## The flow
@@ -185,7 +185,7 @@ from its role (CLP-09).
   named; `Reject` of it is honoured. The check compares each stub's embargo with the
   one a new stub would carry, so it runs after any step that may change the embargo,
   and does nothing while a proposal is open. Retracting with `Undo` was rejected
-  (ADR-0114).
+  (ADR-0213).
 - **Joining while a proposal is open (EP-09-011).** The admission ends by inviting the
   joiner to each open proposal, attributed to the proposer and ledgered; otherwise a
   longer revision lapses the joiner unasked.
@@ -194,7 +194,7 @@ from its role (CLP-09).
 
 ## Removal and reinstatement
 
-Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
+Removal withdraws entitlement; it does not delete the record (ADR-0213, CM-31).
 
 | Step | Message | Ledger | Effect |
 |---|---|---|---|
@@ -232,7 +232,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   a participant not removed or never joined. An acceptance of a stub Invite adds no
   record (CM-31-012): the record was added when the Invite went out (CM-11-023), and
   replicas learn of the new member from the entries for the messages exchanged
-  (ADR-0114).
+  (ADR-0213).
 - **Catch-up follows the active check.** The reinstatement entry is withheld while the
   participant is still removed and recorded in its pause (`embargo_paused_from_index`);
   `BackfillAdmittedParticipantsNode` then sends every entry from that index, so the

@@ -2029,7 +2029,7 @@ groups:
       spec_id: CM-24-002
     adr:
     - ADR-0113
-    - ADR-0114
+    - ADR-0213
     - ADR-0119
     stories:
     - story_2026_085
@@ -2616,7 +2616,7 @@ groups:
       spec_id: CM-18-001
     adr:
     - ADR-0113
-    - ADR-0114
+    - ADR-0213
     stories:
     - story_2026_085
     see_also:
