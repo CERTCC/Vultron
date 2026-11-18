@@ -195,12 +195,7 @@ class ClassifySequenceNumberNode(
             VultronWiringError: Nothing seeded the port; the stage builder
                 always does (BTND-01-006).
         """
-        if not self._case_id:
-            raise VultronWiringError(
-                f"{self.name}: no case seeded on /case_id for the sender"
-                " sequence stage (BTND-01-006)"
-            )
-        return self._case_id
+        return self._seeded(self._case_id, "case", "/case_id", "BTND-01-006")
 
     @property
     def sender_id(self) -> str:
@@ -210,12 +205,20 @@ class ClassifySequenceNumberNode(
             VultronWiringError: Nothing seeded the port; the stage builder
                 always does (BTND-01-008).
         """
-        if not self._sender_id:
+        return self._seeded(
+            self._sender_id, "sender", "/sender_id", "BTND-01-008"
+        )
+
+    def _seeded(
+        self, value: str | None, what: str, path: str, spec: str
+    ) -> str:
+        """*value*, kept from the port at ``initialise()``, or raise."""
+        if not value:
             raise VultronWiringError(
-                f"{self.name}: no sender seeded on /sender_id for the sender"
-                " sequence stage (BTND-01-008)"
+                f"{self.name}: no {what} seeded on {path} for the sender"
+                f" sequence stage ({spec})"
             )
-        return self._sender_id
+        return value
 
     def _takes_a_number(self, dl: CasePersistence) -> bool:
         event = self.activity

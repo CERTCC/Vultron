@@ -89,8 +89,9 @@ def _to_persistable_entry(
 class ReconstructChainTailNode(DataLayerActionWithPorts):
     """Publish the local chain tail of the case, for the entry built next.
 
-    The case is ``/case_id`` when a tree seeds it (the commit tree), else the
-    case of the ``CaseLedgerEntry`` the received ``/activity`` carries.
+    The case is ``/case_id`` when the run holds one (the commit tree seeds
+    it), else the case of the ``CaseLedgerEntry`` the received ``/activity``
+    carries.
     """
 
     def __init__(self, name: str | None = None) -> None:

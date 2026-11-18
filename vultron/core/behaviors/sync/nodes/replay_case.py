@@ -101,8 +101,9 @@ NAMED_CASE_REMAPPINGS: dict[str, str] = {_NAMED_CASE_PORT: CASE_ID.path}
 
 
 class CaseNamedReplayNode(DataLayerActionWithPorts):
-    """A replay node whose case the tree may name: ``/case_id``, else the
-    activity's ``replay_case_id`` (SYNC-17-004, SYNC-18-007).
+    """A replay node whose case the tree may name: ``/case_id`` when the run
+    holds one (a seed or an earlier node's write), else the activity's
+    ``replay_case_id`` (SYNC-17-004, SYNC-18-007).
 
     A subclass adds :data:`NAMED_CASE_PORTS` to its ``INPUT_PORTS`` and
     :data:`NAMED_CASE_REMAPPINGS` to its ``_domain_port_remappings()``.  A

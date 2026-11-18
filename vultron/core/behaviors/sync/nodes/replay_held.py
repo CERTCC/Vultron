@@ -75,9 +75,9 @@ class ReplayHeldSuccessorNode(DataLayerActionWithPorts):
       is a composition fault, never a reason to apply the entry inline.
     - Otherwise: queues the replay, drops the index row, ``SUCCESS``.
 
-    The case whose held ``Announce``\\ s it looks in is ``/case_id`` when a
-    tree seeds it, else the case of the ``CaseLedgerEntry`` carried by
-    ``/activity``.
+    The case whose held ``Announce``\\ s it looks in is ``/case_id`` when the
+    run holds one (a seed or an earlier node's write), else the case of the
+    ``CaseLedgerEntry`` carried by ``/activity``.
 
     Args:
         name: Node name.

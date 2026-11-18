@@ -324,8 +324,9 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
 
     The case is ``/case_id``, the peer is ``/sender_id`` (the fault's
     sender), and *refused_entry*, read from ``/refused_entry``, is the entry
-    the peer's divergence fault reports refusing (BTND-01-008).  When the peer's last re-seed named a ledger position at or
-    after it, the copy the peer was sent already reflected that entry.
+    the peer's divergence fault reports refusing (BTND-01-008).  When the
+    peer's last re-seed named a ledger position at or after it, the copy the
+    peer was sent already reflected that entry.
 
     - If the peer's acknowledged position (``last_acknowledged_hash``) is at
       or past the re-seed's position, the peer applied that copy.  When

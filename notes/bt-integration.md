@@ -298,6 +298,13 @@ leaves subtrees no walk can reach.
   family stays reviewable. `test_per_act_parameter_ratchet.py` lists each
   remaining per-act parameter, tagged with its Task; delete an entry when its
   site moves, never add one.
+- **A moved node declares and reads its keys through `behaviors/act_key_ports.py`**
+  (`act_key_ports`, `act_key_remappings`, `act_value`, `optional_act_value`).
+  Reason: one read gives every node the same answer to an unseeded key, a
+  `VultronWiringError` naming it (BT-25-008). Read a key a later sibling inspects
+  in `initialise()` and keep it on the node, since the seeding scope has ended by
+  then (`ClassifySequenceNumberNode`). An optional read sees any `/case_id` on the
+  blackboard, a seed or an earlier node's write, before it falls back.
 - **A case trigger tree declares `/case_id` seeded only once #6678 has landed.**
   Reason: until the trigger adapter resolves a short case id to the full id at
   the edge (ADR-0032), the request's `case_id` may be a short id.
