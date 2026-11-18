@@ -42,6 +42,12 @@ The tool holds a case only in memory, and it removes its temporary files when it
 To run the tool without Docker, run `uv run vultron-shadow` from the repository root.
 It listens on `127.0.0.1:8501`; `--port` changes the port.
 
+The tool writes its log to standard error, at `INFO` and above; `--log-level DEBUG` adds a record for each ledger entry it reads.
+A log record names the case, its activity and actor ids, and the case's tracker reference, such as its VINCE case URL.
+The tool removes the case's content, such as a title, a description, or a contact name, from each log record.
+It removes a whole value, or a whole line of a value, wherever a record quotes it.
+You can share the log records to report a problem.
+
 ---
 
 ## Step 2: Read a Vultron case

@@ -76,7 +76,8 @@ The same activity also carries a revision, Embargo Revision Proposal (EV).
 The receiver does not use the activity to distinguish a revision from an initial proposal.
 The receiver uses the EM state of the case (MSM-02).
 
-1. Send `Invite(EmbargoEvent)` with the proposed `EmbargoEvent` inline as its `object` and the case as its `context`.
+1. Send `Invite(EmbargoEvent)` to the CASE_MANAGER, with the proposed `EmbargoEvent` inline as its `object`, the CASE_MANAGER as its `target` and the case as its `context`.
+   The `target` names the invitee, the one actor the Invite is addressed to.
    The case moves to `EM.PROPOSED`.
    The protocol names `Invite(EmbargoEvent)` as the only form.
 
@@ -89,7 +90,7 @@ The receiver uses the EM state of the case (MSM-02).
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal.md" %}
 
 2. The CASE_MANAGER asks each other participant about the terms with an `Invite(EmbargoEvent)` of its own.
-   This Invite is addressed to that participant and names the proposer in `attributedTo`.
+   This Invite is addressed to that participant, names it in `target` and names the proposer in `attributedTo`.
    If you are the CASE_MANAGER, you send this Invite.
    If you are not the CASE_MANAGER, you answer this Invite.
 

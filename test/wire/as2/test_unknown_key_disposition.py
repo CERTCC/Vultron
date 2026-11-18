@@ -78,7 +78,13 @@ FOREIGN_KEY_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
     (
         "inline generic AS2 object",
         _with_inline_object(
-            {"type": "Note", "id": NOTE_ID, "content": "hi", FOREIGN_KEY: 1}
+            {
+                "type": "Note",
+                "published": PUBLISHED,
+                "id": NOTE_ID,
+                "content": "hi",
+                FOREIGN_KEY: 1,
+            }
         ),
         "object",
     ),
@@ -100,6 +106,7 @@ FOREIGN_KEY_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
             {
                 **INBOUND_CASE_OWNERSHIP,
                 "type": "VulnerabilityCase",
+                "published": PUBLISHED,
                 "id": "https://example.org/cases/1",
                 "name": "a case",
                 FOREIGN_KEY: 1,
@@ -123,7 +130,14 @@ NEAR_MISS_POSITIONS: list[tuple[str, dict[str, Any], str, str]] = [
     ),
     (
         "inline generic AS2 object case variant",
-        _with_inline_object({"type": "Note", "id": NOTE_ID, "Content": "hi"}),
+        _with_inline_object(
+            {
+                "type": "Note",
+                "published": PUBLISHED,
+                "id": NOTE_ID,
+                "Content": "hi",
+            }
+        ),
         "Content",
         "content",
     ),
@@ -133,6 +147,7 @@ NEAR_MISS_POSITIONS: list[tuple[str, dict[str, Any], str, str]] = [
             {
                 **INBOUND_CASE_OWNERSHIP,
                 "type": "VulnerabilityCase",
+                "published": PUBLISHED,
                 "id": "https://example.org/cases/1",
                 "name": "a case",
                 "case-statuses": [],
@@ -248,6 +263,7 @@ def test_snake_case_field_name_is_declared(
 def _inline_case_status(**extra: Any) -> dict[str, Any]:
     return {
         "type": "CaseStatus",
+        "published": PUBLISHED,
         "id": "https://example.org/case-status/1",
         "context": "https://example.org/cases/1",
         **extra,
@@ -317,6 +333,7 @@ def test_flat_participant_status_spelling_is_a_near_miss_of_its_wire_spelling(
 def _inline_participant_status(**extra: Any) -> dict[str, Any]:
     return {
         "type": "ParticipantStatus",
+        "published": PUBLISHED,
         "id": "https://example.org/status/1",
         "actor": SENDER,
         "context": "https://example.org/cases/1",
@@ -328,6 +345,7 @@ def _inline_participant_status(**extra: Any) -> dict[str, Any]:
 def _inline_case_participant(**extra: Any) -> dict[str, Any]:
     return {
         "type": "CaseParticipant",
+        "published": PUBLISHED,
         "id": "https://example.org/participants/1",
         "attributedTo": SENDER,
         "context": "https://example.org/cases/1",
@@ -356,6 +374,7 @@ def _inline_case(**extra: Any) -> dict[str, Any]:
     return {
         **INBOUND_CASE_OWNERSHIP,
         "type": "VulnerabilityCase",
+        "published": PUBLISHED,
         "id": "https://example.org/cases/1",
         "name": "c",
         **extra,
@@ -418,6 +437,7 @@ FORMER_NAME_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
         _with_inline_object(
             {
                 "type": "Note",
+                "published": PUBLISHED,
                 "id": "https://example.org/notes/1",
                 "content": "hello",
                 "eventType": "create_case",
@@ -506,9 +526,12 @@ def test_every_near_miss_is_named_in_one_refusal() -> None:
         object={
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": PUBLISHED,
             "id": "https://example.org/cases/1",
             "Name": "a case",
-            "caseStatuses": [{"type": "CaseStatus", "Context": "x"}],
+            "caseStatuses": [
+                {"type": "CaseStatus", "published": PUBLISHED, "Context": "x"}
+            ],
         },
     )
     with pytest.raises(VultronParseValidationError) as exc_info:
@@ -550,6 +573,7 @@ def test_untyped_dict_in_a_core_slot_is_partitioned_by_the_slot(
         {
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": PUBLISHED,
             "id": "https://example.org/cases/1",
             "caseStatuses": [
                 {
@@ -579,22 +603,38 @@ def test_untyped_dict_in_a_core_slot_is_partitioned_by_the_slot(
 #: ``Any`` the partition carried such a dict unexamined, so a foreign key
 #: reached the object silently; typed to AS2's ``Object | Link`` range (#3894)
 #: the slot names its classes, and the dict is judged against them (MV-11-001).
+#: An untyped dict with keys beyond its ``id`` is a whole object, so it carries
+#: its ``published`` (CLP-15-011).
 AS2_SLOT_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
     (
         "to list item",
         _envelope(
-            to=[{"id": "https://example.org/actors/bob", FOREIGN_KEY: 1}]
+            to=[
+                {
+                    "id": "https://example.org/actors/bob",
+                    "published": PUBLISHED,
+                    FOREIGN_KEY: 1,
+                }
+            ]
         ),
         "to[0]",
     ),
     (
         "context",
-        _envelope(context={"id": "https://example.org/x", FOREIGN_KEY: 1}),
+        _envelope(
+            context={
+                "id": "https://example.org/x",
+                "published": PUBLISHED,
+                FOREIGN_KEY: 1,
+            }
+        ),
         "context",
     ),
     (
         "attributedTo",
-        _envelope(attributedTo={"id": SENDER, FOREIGN_KEY: 1}),
+        _envelope(
+            attributedTo={"id": SENDER, "published": PUBLISHED, FOREIGN_KEY: 1}
+        ),
         "attributedTo",
     ),
     (
@@ -689,7 +729,13 @@ def test_foreign_key_is_reported_at_info_only(
 def test_set_aside_key_survives_only_in_the_received_evidence() -> None:
     """The evidence is the only copy of a set-aside key; the body is untouched."""
     body = _with_inline_object(
-        {"type": "Note", "id": NOTE_ID, "content": "hi", FOREIGN_KEY: 1}
+        {
+            "type": "Note",
+            "published": PUBLISHED,
+            "id": NOTE_ID,
+            "content": "hi",
+            FOREIGN_KEY: 1,
+        }
     )
     activity = parse_activity(body)
 
@@ -707,7 +753,12 @@ def test_opaque_payload_snapshot_is_carried_unexamined() -> None:
         as_Announce,
     )
 
-    snapshot = {"type": "Announce", "Actor": "x", FOREIGN_KEY: 1}
+    snapshot = {
+        "type": "Announce",
+        "published": PUBLISHED,
+        "Actor": "x",
+        FOREIGN_KEY: 1,
+    }
     body = _envelope(
         type="Announce",
         object={"type": "CaseLedgerEntry", "payloadSnapshot": snapshot},
@@ -824,7 +875,11 @@ def test_near_miss_of_a_stub_key_is_refused(misspelled: str) -> None:
                 "type": "CasePreview",
                 "id": "https://example.org/previews/1",
                 "summary": "A case to join",
-                misspelled: {"type": "CaseStatus", "context": "x"},
+                misspelled: {
+                    "type": "CaseStatus",
+                    "published": PUBLISHED,
+                    "context": "x",
+                },
             },
         },
         target=INVITEE,
@@ -858,8 +913,13 @@ def test_a_sparse_case_carrying_stub_keys_is_still_a_case(
         target={
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": PUBLISHED,
             "id": "https://example.org/cases/1",
-            "caseStatus": {"type": "CaseStatus", "context": "x"},
+            "caseStatus": {
+                "type": "CaseStatus",
+                "published": PUBLISHED,
+                "context": "x",
+            },
         },
     )
     caplog.set_level(logging.INFO)
@@ -877,23 +937,27 @@ def test_a_sparse_case_carrying_stub_keys_is_still_a_case(
         {
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": PUBLISHED,
             "id": "urn:uuid:c1",
         },
         {
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": PUBLISHED,
             "id": "urn:uuid:c1",
             FOREIGN_KEY: 1,
         },
         {
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": PUBLISHED,
             "id": "urn:uuid:c1",
             "name": "n",
         },
         {
             **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
+            "published": PUBLISHED,
             "id": "urn:uuid:c1",
             "caseStatus": {},
         },
@@ -964,9 +1028,13 @@ def test_a_body_nested_too_deeply_is_refused_not_crashed(depth: int) -> None:
     handler would not catch it and the sender would get a server error for a
     malformed message.
     """
-    inner: dict[str, Any] = {"type": "Note", "content": "leaf"}
+    inner: dict[str, Any] = {
+        "type": "Note",
+        "published": PUBLISHED,
+        "content": "leaf",
+    }
     for _ in range(depth):
-        inner = {"type": "Note", "inReplyTo": inner}
+        inner = {"type": "Note", "published": PUBLISHED, "inReplyTo": inner}
     with pytest.raises(VultronParseValidationError, match="too deeply"):
         parse_activity(_with_inline_object(inner))
 
@@ -1016,10 +1084,16 @@ JSONLD_KEYWORDS: list[tuple[str, str]] = [("@id", "id"), ("@type", "type")]
 _KEYWORD_VALUE = {"@id": "https://example.org/objects/2", "@type": "Unrelated"}
 _AS2_CONTEXT = "https://www.w3.org/ns/activitystreams"
 
-_NOTE: dict[str, Any] = {"type": "Note", "id": NOTE_ID, "content": "hi"}
+_NOTE: dict[str, Any] = {
+    "type": "Note",
+    "published": PUBLISHED,
+    "id": NOTE_ID,
+    "content": "hi",
+}
 _CASE: dict[str, Any] = {
     **INBOUND_CASE_OWNERSHIP,
     "type": "VulnerabilityCase",
+    "published": PUBLISHED,
     "id": "https://example.org/cases/1",
     "name": "a case",
 }

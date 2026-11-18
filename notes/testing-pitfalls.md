@@ -635,7 +635,7 @@ that exercises that guarantee *through the new caller*. The per-piece tests
 stay; they are not the ones at risk. In a flat sequence the guarantee needs a
 carrier: #5534's answer is a `StoryProp` the gate keeps and the dependent
 reads, so a failed gate leaves the artifact absent and the runner stops the
-story (`notes/demo-scenario-tree.md` § "Composition"). ADR-0208's "compose,
+story (`notes/demo-scenario-tree.md` § "Composition"). ADR-0212's "compose,
 never chain" rule for BT helpers is the same shape seen from the design side.
 
 ### A Patch on a Moved Name Can Take and Intercept Nothing

@@ -4,7 +4,6 @@ Each state dimension is coerced from its wire form to its core enum, and a
 received status must carry its ``published`` (CLP-15-010).
 """
 
-from datetime import datetime
 from typing import Any
 
 from vultron.core.models.case_status import CaseStatus
@@ -23,28 +22,11 @@ from vultron.core.models.participant_status import (
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.wire.as2.errors import (
-    VultronParseMissingPublishedError,
+from vultron.wire.as2.extractor._builders.fields import (
+    _get_id,
+    _get_timestamp,
+    _required_published,
 )
-from vultron.wire.as2.extractor._builders.fields import _get_id, _get_timestamp
-
-
-def _status_published(status: object) -> datetime:
-    """A received ``CaseStatus``'s ``published``, which it must carry.
-
-    ``parse_activity`` refuses a status without one (CLP-15-010), so this
-    never mints a time to stand in for a missing one.
-
-    Raises:
-        VultronParseMissingPublishedError: When *status* carries no
-            ``published``, naming the status.
-    """
-    published = _get_timestamp(status, "published")
-    if published is None:
-        raise VultronParseMissingPublishedError(
-            f"CaseStatus {_get_id(status)!r} carries no 'published' (CLP-15-010)"
-        )
-    return published
 
 
 def _coerce_em(raw: object) -> EM:
@@ -112,7 +94,7 @@ def _build_case_status_object(obj: object) -> dict[str, Any]:
                 pxa=PxaDimension(
                     state=_coerce_pxa(dimension_state(obj, "pxa"))
                 ),
-                published=_status_published(obj),
+                published=_required_published(obj),
                 updated=_get_timestamp(obj, "updated"),
             )
         }
@@ -156,7 +138,7 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                             dimension_state(wire_case_status, "pxa")
                         )
                     ),
-                    published=_status_published(wire_case_status),
+                    published=_required_published(wire_case_status),
                     updated=_get_timestamp(wire_case_status, "updated"),
                 )
         return {
@@ -181,7 +163,7 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     getattr(obj, "cvd_role", getattr(obj, "cvd_roles", None))
                 ),
                 case_status=core_case_status,
-                published=_get_timestamp(obj, "published"),
+                published=_required_published(obj),
                 updated=_get_timestamp(obj, "updated"),
             )
         }

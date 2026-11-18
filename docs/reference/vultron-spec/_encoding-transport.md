@@ -38,15 +38,22 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 Every object an Activity embeds carries its own `id` too, at any depth, and a receiver refuses a message that embeds one without it.
 A Link, such as a `Mention` in `tag`, is not an object: it needs no `id` and names its resource by `href`.
 
+Every whole object an Activity embeds, at any depth, also carries the `published` timestamp its author stamped on it, except an actor profile, a collection or an embargo consent row; a typed reference is not a whole object, and the case preview it may carry is a projection of the object it names.
+A receiver refuses a message that embeds one without it, and names where the object sits.
+An actor profile describes an actor and a collection is a container, so neither is an act made at a moment.
+A case preview carries only the keys it defines, and a consent row is copied without a time, so neither carries one.
+A typed reference, a URI and a Link are not whole objects, so they carry no time.
+`updated` stays optional, and a receiver carries it as sent.
+
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-01-001", "OX-02-002", "OID-01-001", "OID-01-013", "OID-01-014", "CLP-15-006", "CLP-15-008"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-01-001", "OX-02-002", "OID-01-001", "OID-01-013", "OID-01-014", "CLP-15-006", "CLP-15-008", "CLP-15-011"))
 ```
 
 Vultron uses AS2 verbs rather than defining its own:
 `Create`, `Offer`, `Accept`, `Reject`, `TentativeReject`, `Announce`, `Update`, `Add`, `Remove`, `Invite`, `Read`, `Join`, `Leave`, `Ignore` and `Undo`.
 
 Because the verbs are generic, meaning often comes from **nesting**: an Activity whose object is itself an Activity.
-Accepting an embargo is `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`, an `Accept` whose object is the `Invite` being accepted, which in turn carries the embargo.
+Accepting an embargo is `Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])`, an `Accept` whose object is the `Invite` being accepted, which in turn carries the embargo.
 The nesting is what distinguishes accepting an embargo from accepting a report, `Accept(Offer(VulnerabilityReport))`.
 
 This version uses the AS2 vocabulary, not full ActivityPub server behavior.
@@ -192,7 +199,7 @@ Once an actor's profile is known, its inbox is the endpoint the profile names.
 The exchanges below show occasions of [§4 Messages](layers.md#4-messages-n) as they appear on the wire.
 Each one is given first in Wire Activity notation and then as the JSON a sender delivers.
 The identifiers, timestamps and hashes are illustrative, and optional fields such as `name` and `updated` are left out.
-Every activity carries the `published` timestamp its sender stamps on it ([CLP-15-006](requirements/ledger-replication.md#clp-15-006)).
+Every activity carries the `published` timestamp its sender stamps on it ([CLP-15-006](requirements/ledger-replication.md#clp-15-006)), and so does every whole object it embeds other than the exempt kinds ([CLP-15-011](requirements/ledger-replication.md#clp-15-011)).
 
 #### Submitting a report
 
@@ -222,6 +229,7 @@ No case exists yet, so both messages go directly between the two actors.
       "object": {
         "type": "VulnerabilityReport",
         "id": "https://vultron.example/reports/FDR-8675309",
+        "published": "2026-05-30T09:30:00.000000+00:00",
         "content": "I found a vulnerability!",
         "attributedTo": "https://vultron.example/users/finndervul"
       }
@@ -249,6 +257,7 @@ No case exists yet, so both messages go directly between the two actors.
         "object": {
           "type": "VulnerabilityReport",
           "id": "https://vultron.example/reports/FDR-8675309",
+          "published": "2026-05-30T09:30:00.000000+00:00",
           "content": "I found a vulnerability!",
           "attributedTo": "https://vultron.example/users/finndervul"
         }
@@ -267,9 +276,9 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
 
     | Step | Sender | Send to | Wire activity | Shorthand |
     |---|---|---|---|---|
-    | 1 | Vendor | the CASE_MANAGER | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | `EP` |
-    | 2 | the CASE_MANAGER | Coordinator | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | — |
-    | 3 | Coordinator | the CASE_MANAGER | `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` | — |
+    | 1 | Vendor | the CASE_MANAGER | `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]` | `EP` |
+    | 2 | the CASE_MANAGER | Coordinator | `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]` | — |
+    | 3 | Coordinator | the CASE_MANAGER | `Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])` | — |
 
 === "Wire JSON"
 
@@ -289,6 +298,7 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
       "object": {
         "type": "EmbargoEvent",
         "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
+        "published": "2026-06-01T18:00:00.000000+00:00",
         "context": "https://vultron.example/cases/1",
         "startTime": "2026-06-01T19:12:00.000000+00:00",
         "endTime": "2026-08-30T00:00:00.000000+00:00"
@@ -314,6 +324,7 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
       "object": {
         "type": "EmbargoEvent",
         "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
+        "published": "2026-06-01T18:00:00.000000+00:00",
         "context": "https://vultron.example/cases/1",
         "startTime": "2026-06-01T19:12:00.000000+00:00",
         "endTime": "2026-08-30T00:00:00.000000+00:00"
@@ -345,6 +356,7 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
         "object": {
           "type": "EmbargoEvent",
           "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
+          "published": "2026-06-01T18:00:00.000000+00:00",
           "context": "https://vultron.example/cases/1",
           "startTime": "2026-06-01T19:12:00.000000+00:00",
           "endTime": "2026-08-30T00:00:00.000000+00:00"
@@ -381,6 +393,7 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
       "object": {
         "type": "ParticipantStatus",
         "id": "https://vultron.example/cases/1/participants/vendorco/status/3",
+        "published": "2026-07-15T14:00:00.000000+00:00",
         "context": "https://vultron.example/cases/1",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "rmState": "ACCEPTED",

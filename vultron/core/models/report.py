@@ -15,6 +15,7 @@
 
 """Domain representation of a vulnerability report."""
 
+from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, Field, field_validator
@@ -78,6 +79,10 @@ class VulnerabilityReport(CoreObject):
     omits an absent ``attachment`` and an empty list would be a key the
     sender never sent.
     """
+
+    # Every author states it (ADR-0176), and a receiver refuses a received
+    # one without it (CLP-15-011).
+    published: datetime
 
     type_: Literal["VulnerabilityReport"] = Field(
         default="VulnerabilityReport",

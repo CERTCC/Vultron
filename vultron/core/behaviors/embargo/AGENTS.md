@@ -150,7 +150,7 @@ node that commits a consequence of the act (`ReissueStubInvitesNode`, a
 `RelayEmbargoInviteToEachNode`) must run with the act's commit node in one
 `ActTransaction` (`core/behaviors/act_transaction.py`): a trigger arm passes
 `as_one_act=True` to `create_case_manager_gated_tree`; every received tree that
-commits to a case gets one by default, holding its own commit too (ADR-0208),
+commits to a case gets one by default, holding its own commit too (ADR-0212),
 and only a registered `OneActExemption` opts it out.
 Call it from a node's `update()`, never from `execute()`. The replica slot
 for the same entry subclasses `ApplyEmbargoChangeFromLedgerNode`

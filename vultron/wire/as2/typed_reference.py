@@ -12,7 +12,9 @@ object, which its class validates in full and refuses when it fails
 This module is the one place that reads that shape:
 
 - :func:`is_typed_reference_shape` answers whether a received mapping is a
-  typed reference, and :func:`carries_preview` whether it carries a preview;
+  typed reference (defined in :mod:`vultron.wire.as2.reference_shape`, so
+  the vocabulary's inbound validator can ask it, and re-exported here), and
+  :func:`carries_preview` whether it carries a preview;
 - :func:`refuse_undefined_preview` refuses a preview for a type that defines
   none, or one that is not its type's preview (MV-10-012);
 - :class:`as_TypedReference` is what the parser reads one as, for every type
@@ -52,7 +54,7 @@ case's preview is a previewed reference, read by the preview's rules
 from collections.abc import Mapping
 from datetime import datetime
 from types import MappingProxyType
-from typing import Any, TypeGuard
+from typing import Any, ClassVar, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -61,6 +63,10 @@ from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.reference_shape import (
+    TYPED_REFERENCE_KEYS,
+    is_typed_reference_shape,
+)
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -71,12 +77,6 @@ from vultron.wire.as2.vocab.base.registry import (
     resolved_wire_type_name,
 )
 from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
-
-#: The keys a typed reference may carry: its ``id`` and ``type``, the JSON-LD
-#: ``@context`` any object may cite, and an AS2 ``preview`` (MV-10-011).
-TYPED_REFERENCE_KEYS: frozenset[str] = frozenset(
-    {"@context", "id", "type", "preview"}
-)
 
 #: The key a typed reference carries its preview under.
 PREVIEW_KEY = "preview"
@@ -94,20 +94,6 @@ DEFINED_PREVIEWS: Mapping[str, type[BaseModel]] = MappingProxyType(
 
 #: The types whose preview the protocol defines (MV-10-012, ADR-0198).
 TYPES_WITH_DEFINED_PREVIEW: frozenset[str] = frozenset(DEFINED_PREVIEWS)
-
-
-def is_typed_reference_shape(value: Mapping[str, Any]) -> bool:
-    """Whether the received *value* is a typed reference (MV-10-011).
-
-    An ``id``, a ``type``, and no other key but ``@context`` and ``preview``.
-    The shape alone decides, whatever the type: a mapping with any other key
-    is a whole object, which its class judges (ADR-0198).
-    """
-    return (
-        "id" in value
-        and "type" in value
-        and set(value) <= TYPED_REFERENCE_KEYS
-    )
 
 
 def carries_preview(value: Mapping[str, Any]) -> bool:
@@ -241,9 +227,11 @@ class as_TypedReference(as_Object):
         ..., validation_alias="id", serialization_alias="id"
     )
     # Nobody asserted a time for a reference, so none is stamped from this
-    # process's clock (AKM-02-006, ADR-0159).
+    # process's clock (AKM-02-006, ADR-0159).  A reference is no whole
+    # object, so a received one carries no time (CLP-15-011).
     published: datetime | None = None
     updated: datetime | None = None
+    _received_without_published: ClassVar[bool] = True
     # The one defined preview (DEFINED_PREVIEWS, which a test holds to this
     # annotation); the parser refuses any other before this class reads it
     # (MV-10-012).
@@ -336,6 +324,18 @@ def is_of_kind(cls: type, kind: type) -> bool:
     )
 
 
+def class_named_by(type_value: object) -> type[BaseModel] | None:
+    """The wire class a received ``type`` value names, or ``None`` if unknown.
+
+    A wire-only lookup (VM-06-013): a core class name such as ``CoreActor``
+    is not an AS2 ``type``, so it names no class here.
+    """
+    try:
+        return resolve_wire_type(type_value)
+    except KeyError:
+        return None
+
+
 def referenced_class(reference: as_TypedReference) -> type[BaseModel] | None:
     """The class of the object *reference* names, or ``None`` if unknown.
 
@@ -343,10 +343,7 @@ def referenced_class(reference: as_TypedReference) -> type[BaseModel] | None:
     object by its own (MV-10-011), so a reference to an ``EmbargoEvent``
     satisfies a pattern that asks for any ``Event``.
     """
-    try:
-        return resolve_wire_type(reference.type_)
-    except KeyError:
-        return None
+    return class_named_by(reference.type_)
 
 
 __all__ = [
@@ -357,6 +354,7 @@ __all__ = [
     "as_TypedReference",
     "carries_preview",
     "case_reference",
+    "class_named_by",
     "is_case_reference",
     "is_of_kind",
     "is_previewed_reference",

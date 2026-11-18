@@ -272,10 +272,11 @@ def test_a_received_status_requires_only_what_the_model_refuses_without(
     def required(name: str) -> set[str]:
         return {k for k, f in fields[name].items() if f.required}
 
-    assert required("ParticipantStatus") == {"context"}
-    # A received CaseStatus without its sender's time is refused (CLP-15-010).
+    # A received whole object without its author's time is refused
+    # (CLP-15-011); a consent row carries none (CM-23-044).
+    assert required("ParticipantStatus") == {"context", "published"}
     assert required("CaseStatus") == {"context", "published"}
-    assert required("CaseParticipant") == set()
+    assert required("CaseParticipant") == {"published"}
     assert required("EmbargoConsent") == {"embargoId", "state"}
 
 

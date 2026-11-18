@@ -91,7 +91,7 @@ storing it. "Signatory" and "lapsed" are reads, never writes (ADR-0122); see
 
 ---
 
-## Received Trees: Doors, Then Intake (ADR-0208)
+## Received Trees: Doors, Then Intake (ADR-0212)
 
 Every received tree is built by `create_receive_activity_tree`
 (`case/receive_activity_tree.py`): **doors → intake → guards → guarded commit →

@@ -58,7 +58,8 @@ before claiming a shorthand maps to a wire form.
   state* is `rmState` on a participant-status broadcast. A disagreement is
   flagged (RSH-06), not resolved by preferring one (RSH-08-002). Do not propose
   retiring either form.
-- **`EP` is `Invite(EmbargoEvent)[context=VulnerabilityCase]` and nothing else**
+- **`EP` is `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]` and nothing
+  else**
   (MSM-02-001). `Announce(EmbargoEvent)` reports the terms in force, or that a Case
   Owner's termination has been applied, and does not propose, so it is not
   tagged `EP`. The proposal carries its terms inline;

@@ -31,7 +31,9 @@ from pydantic.alias_generators import to_camel
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     absent_times_as_none,
+    own_type,
     refuse_absent_id,
+    refuse_absent_published,
 )
 from vultron.core.models.base import (
     VULTRON_CONTEXT_URI,
@@ -49,6 +51,7 @@ from vultron.core.models.base.context import (
 )
 from vultron.core.models.type_terms import type_terms
 from vultron.primitives import NonEmptyString
+from vultron.wire.as2.reference_shape import is_typed_reference_shape
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
@@ -57,6 +60,7 @@ from vultron.wire.as2.vocab.base.registry import (
     declared_wire_type,
     declares_registrable_type,
     narrow_type_list,
+    resolve_wire_type,
     wire_type_value,
 )
 from vultron.wire.as2.vocab.base.utils import generate_new_id
@@ -80,6 +84,14 @@ __all__ = [
     "as_Base",
     "vultron_property",
 ]
+
+
+def _named_class(data: dict[str, Any]) -> type[BaseModel] | None:
+    """The class *data*'s ``type`` names, or ``None`` when it names none."""
+    try:
+        return resolve_wire_type(data.get("type"), include_core=True)
+    except KeyError:
+        return None
 
 
 class as_Base(BaseModel):
@@ -114,6 +126,9 @@ class as_Base(BaseModel):
     #: (``as_Link`` and its subtypes): a received one may omit its ``id``, and
     #: keeps none rather than one minted for it (OID-01-013).
     _inbound_requires_id: ClassVar[bool] = True
+    #: Set on a kind received without a ``published``, which every subclass
+    #: inherits (``received_without_published``, CLP-15-011).
+    _received_without_published: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
@@ -166,11 +181,15 @@ class as_Base(BaseModel):
     def carry_absent_times_on_inbound(
         cls, data: Any, info: ValidationInfo
     ) -> Any:
-        """Read an absent required timestamp as ``None`` when inbound.
+        """Refuse a received whole object with no ``published``, and read
+        any other absent timestamp as ``None``, when inbound.
 
         The same classes author outbound activities and validate inbound ones.
-        An authored object states its time (ADR-0176); a received one may
-        omit it, and the omission is the sender claiming no time, never the
+        An authored object states its time (ADR-0176).  A received whole
+        object carries its author's ``published``, and one without it is
+        refused with ``MissingClaimedTimeError`` unless its kind is exempt or
+        it is a typed reference (CLP-15-011, MV-10-011).  Any other time it
+        omits, such as ``updated``, is the sender claiming none, never the
         receiver's clock presented as the sender's claim (ISSUE-3257,
         CLP-15-007).  The two directions are told apart by
         validation context rather than by a field default: ``parse_activity``
@@ -203,6 +222,17 @@ class as_Base(BaseModel):
         elif data.get("id") is None and data.get("id_") is None:
             # A received Link may omit its id; it keeps none (OID-01-013).
             data["id"] = None
+        # A received whole object carries its author's time, unless its kind
+        # is exempt, and ``updated`` stays optional (CLP-15-011, CLP-15-007).
+        # A typed reference is no whole object (MV-10-011): the parser reads
+        # one of a known type as ``as_TypedReference``, and this skips only
+        # one whose ``type`` the validating class does not hold, such as an
+        # unknown type a generic slot reads.
+        if not (
+            is_typed_reference_shape(data)
+            and data.get("type") != own_type(cls)
+        ):
+            refuse_absent_published(cls, data, _named_class(data))
         return absent_times_as_none(cls, data)
 
     @model_validator(mode="before")

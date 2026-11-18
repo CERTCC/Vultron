@@ -239,8 +239,8 @@ them apart by `object_form` (SE-01-009). The stub has no `caseId` and no `/stub`
 See `vultron/wire/as2/extractor/_instances.py` and
 [stub-objects.md](stub-objects.md).
 
-**To build (embargo Invite).** `Invite(EmbargoEvent)[target=Actor]`, adding the
-`target` it lacks (the invitee is only in `to` today). Owner: #6498.
+**Built (embargo Invite).** `Invite(EmbargoEvent)[target=Actor]` names the invitee
+in `target` as well as `to` (#6498).
 
 **AS2 basis.** VOC Invite: object is the event, target the invitees ("Sally invited
 John and Lisa to a party"); issue #619 confirms Invite is the one verb whose `target`

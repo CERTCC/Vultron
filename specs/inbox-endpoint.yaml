@@ -548,7 +548,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-10-074
     adr:
-    - ADR-0208
+    - ADR-0212
   - id: IE-06-015
     priority: MUST
     kind: project
@@ -572,7 +572,7 @@ groups:
     - rel_type: uses_definition
       spec_id: IE-06-004
     adr:
-    - ADR-0208
+    - ADR-0212
 - id: IE-07
   title: Error Responses
   specs:

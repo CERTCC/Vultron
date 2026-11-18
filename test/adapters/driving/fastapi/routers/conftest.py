@@ -321,7 +321,11 @@ def case_with_proposal(dl, actor):
     )
     dl.create(embargo)
     proposal = em_propose_embargo_activity(
-        embargo, context=case_obj.id_, actor=actor.id_, at=authored_at()
+        embargo,
+        context=case_obj.id_,
+        actor=actor.id_,
+        invitee=actor.id_,
+        at=authored_at(),
     )
     dl.create(proposal)
     propose(case_obj, embargo.id_)

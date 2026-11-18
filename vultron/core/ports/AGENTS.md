@@ -82,7 +82,7 @@ missing port is a `VultronWiringError`, never a fallback to a stored summary.
 
 `InboxReplayPort` (`inbox_replay.py`) replays a held received activity, a
 held `Announce(CaseLedgerEntry)`, through the receiving actor's own inbox as
-a delivery of its own (SYNC-14-009, ADR-0208). The adapter
+a delivery of its own (SYNC-14-009, ADR-0212). The adapter
 (`InboxReplayAdapter`) only queues: it checks the activity's record still owes
 a replay and appends its id to the actor's inbox queue,
 which the running inbox loop drains through `process_payload`. It never

@@ -118,7 +118,7 @@ RecommendActorToCaseBT
 (`case/nodes/suggest_actor/conditions.py`) read open/closed state from the
 ledger via `find_protocol_pair`. Neither counts the request the recommendation
 being handled sent itself (its id is derived from the recommendation), so a
-re-run from holding answers as its first run did, not as a duplicate (ADR-0208).
+re-run from holding answers as its first run did, not as a duplicate (ADR-0212).
 Two sibling trees handle the `Accept` and the `Reject`.
 
 `VultronOfferRecord` (`vultron/core/models/offer_record.py`) is the reference

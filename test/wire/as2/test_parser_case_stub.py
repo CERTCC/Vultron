@@ -65,6 +65,7 @@ def _enriched_stub() -> dict:
         "summary": "Security issue — embargo active, details shared after acceptance",
         "activeEmbargo": {
             "type": "EmbargoEvent",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": f"{_CASE_ID}/embargoes/e0",
             "context": _CASE_ID,
             "endTime": days_from_now(30).isoformat(),
@@ -129,6 +130,7 @@ def test_an_answer_embedding_an_act_keeps_its_reference():
     """An Accept embeds the Offer it answers, reference and all."""
     offer = {
         "type": "Offer",
+        "published": "2026-01-01T00:00:00+00:00",
         "id": "urn:uuid:offer",
         "actor": "https://example.org/actors/m",
         "object": dict(_REFERENCE),
@@ -185,7 +187,12 @@ def test_a_case_reference_inside_an_inline_report_is_refused():
 def test_a_sparse_case_is_a_case_not_a_stub():
     """One key past ``id`` and ``type``: a case, because the type says so."""
     resolved = _inline_vocab_class(
-        {"type": "VulnerabilityCase", "id": _CASE_ID, "name": "sparse"}
+        {
+            "type": "VulnerabilityCase",
+            "published": "2026-01-01T00:00:00+00:00",
+            "id": _CASE_ID,
+            "name": "sparse",
+        }
     )
     assert resolved is VulnerabilityCase
 
@@ -198,6 +205,7 @@ def test_a_sparse_case_validates_as_a_case():
             {
                 "attributed_to": CASE_OWNER_ID,
                 "type": "VulnerabilityCase",
+                "published": "2026-01-01T00:00:00+00:00",
                 "id": _CASE_ID,
             },
         )
@@ -265,6 +273,7 @@ def test_an_invite_whose_object_is_a_sparse_case_parses_it_as_a_case():
             {
                 **INBOUND_CASE_OWNERSHIP,
                 "type": "VulnerabilityCase",
+                "published": "2026-01-01T00:00:00+00:00",
                 "id": _CASE_ID,
             }
         )

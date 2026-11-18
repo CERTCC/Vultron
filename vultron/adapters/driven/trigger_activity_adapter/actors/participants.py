@@ -28,7 +28,7 @@ from vultron.adapters.received_archive import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     accept_case_participant_offer_activity,
@@ -218,31 +218,32 @@ class _ParticipantsMixin:
                 pass
         return _create_and_seal(self._dl, activity, "offer_actor_to_case")
 
-    def _rebuilt_recommendation(
-        self,
-        recommender_id: str,
-        recommendation_id: str,
-        recommended_id: str,
-        case_id: str,
-        *,
-        at: datetime,
-    ) -> as_Offer:
-        """The recommender's ``Offer(Actor)``, rebuilt for the answer to embed.
+    def _held_recommendation(self, recommendation_id: str) -> as_Offer:
+        """The recommender's ``Offer(Actor)`` as this actor received it.
 
-        Built only from what this actor knows: the recommended actor as held
-        (:func:`_held_actor`), and no ``published`` or ``updated``, which the
-        recommender stated and this actor does not know (AKM-02-006).  The
-        factory authors it at *at*, and the rebuild drops both times, so
-        every rebuild under the same ids produces the same body (OX-06-002).
+        The answer embeds the Offer as its sender sent it, parsed from the
+        body intake recorded on arrival (:func:`read_received_as_received`),
+        with its ``published`` and every other field as sent.  Nothing is
+        rebuilt: a rebuild could carry only what this actor knows, which left
+        out the recommender's time and drew the recommender's refusal of the
+        answer (CLP-15-011, DL-06-004).  The same held body serves the answer
+        sent at once (CM-16-009) and the one sent after the Case Owner
+        decides (CM-16-006), so every build under the same ids embeds the
+        same Offer (OX-06-002).
+
+        Raises:
+            VultronNotFoundError: when no activity with *recommendation_id*
+                was received.
+            VultronValidationError: when the activity received under
+                *recommendation_id* is not an Offer.
         """
-        rebuilt = recommend_actor_activity(
-            recommended=_held_actor(self._dl, recommended_id),
-            target=case_id,
-            id_=recommendation_id,
-            actor=recommender_id,
-            at=at,
-        )
-        return rebuilt.model_copy(update={"published": None, "updated": None})
+        held = read_received_as_received(self._dl, recommendation_id, "Offer")
+        if not isinstance(held, as_Offer):
+            raise VultronValidationError(
+                f"recommendation '{recommendation_id}' is held as"
+                f" {type(held).__name__}, not as an Offer"
+            )
+        return held
 
     def emit_accept_actor_recommendation(
         self,
@@ -263,9 +264,7 @@ class _ParticipantsMixin:
         actor already invited or joined (CM-16-009).  ``inReplyTo`` names
         the recommendation it answers.
         """
-        recommendation = self._rebuilt_recommendation(
-            recommender_id, recommendation_id, recommended_id, case_id, at=at
-        )
+        recommendation = self._held_recommendation(recommendation_id)
         extra = _addressing(actor, to or [recommender_id], id_)
         activity = accept_actor_recommendation_activity(
             offer=recommendation,
@@ -296,9 +295,7 @@ class _ParticipantsMixin:
         the Offer(CaseParticipant) (CM-16-007 step 3).  ``inReplyTo``
         names the recommendation it answers.
         """
-        recommendation = self._rebuilt_recommendation(
-            recommender_id, recommendation_id, recommended_id, case_id, at=at
-        )
+        recommendation = self._held_recommendation(recommendation_id)
         extra = _addressing(actor, to or [recommender_id], id_)
         activity = reject_actor_recommendation_activity(
             offer=recommendation,

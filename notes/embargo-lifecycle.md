@@ -302,7 +302,7 @@ catch-up path.
   deadline on an open proposal or the embargo in force. It shares
   `ExpireInvitationsNode` with the settle step, so the expiry path is one copy,
   and it runs before the activity's own guards, so a refused activity still
-  leaves its expiries recorded (ADR-0208). See
+  leaves its expiries recorded (ADR-0212). See
   `notes/participant-embargo-consent.md` § "Sweep due expiries before the owner
   decides".
 
@@ -466,8 +466,9 @@ every other participant learns the result from the ledger.
    in the manager's store only.
 4. A participant answers the Invite addressed to it through the response
    decision tree and writes **no** case, consent or deadline state on receipt;
-   consent moves when the CASE_MANAGER commits the answer (EP-09-003). Anything
-   but the sole `to` recipient is refused as misrouting (EP-09-026). A revision
+   consent moves when the CASE_MANAGER commits the answer (EP-09-003). The
+   invitee is the Invite's `target`, which must be its sole `to` recipient;
+   anything else is refused as misrouting (EP-09-026, ADR-0205). A revision
    Invite lands on the revision's own row; the signatory keeps its `AGREED` row
    (EP-09-004).
 5. The owner's answer is consent *and* decision. The owner MAY decide without

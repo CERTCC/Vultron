@@ -171,6 +171,8 @@ def _own_proposal_case(
         case_id=case.id_,
         actor=CASE_MANAGER_ACTOR,
         at=authored_at(),
+        # Ledgered, not sent, so it names the CASE_MANAGER (ADR-0205).
+        invitee=CASE_MANAGER_ACTOR,
     )
     propose(case, embargo.id_)
     case.pending_embargo_proposal_index = {embargo.id_: invite_id}

@@ -61,8 +61,6 @@ ACTOR = "https://example.org/actors/alice"
 CASE_ID = "https://example.org/cases/c1"
 PUBLISHED = "2026-01-02T03:04:05+00:00"
 
-REQUIRED_PUBLISHED_TASK = "#6456"
-
 #: Types whose ``{id, type}`` form was once accepted as a hollow whole object
 #: (#5265); each is now read as a typed reference.
 REFERENCED_TYPES = ["Note", "Event", "CaseParticipant", "VulnerabilityReport"]
@@ -114,11 +112,6 @@ def test_a_typed_reference_with_an_undefined_preview_is_refused() -> None:
         parse_activity(_body(reference, target=CASE_ID))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CLP-15-011: a received whole object without published is carried."
-    f" Tracked by {REQUIRED_PUBLISHED_TASK}.",
-)
 @pytest.mark.spec("CLP-15-011")
 def test_a_whole_object_without_published_is_refused() -> None:
     """A whole note with no ``published`` is malformed, not untimed."""
@@ -133,11 +126,6 @@ def test_a_whole_object_without_published_is_refused() -> None:
         parse_activity(_body(note, "Create"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CLP-15-011: a nested whole object without published is carried."
-    f" Tracked by {REQUIRED_PUBLISHED_TASK}.",
-)
 @pytest.mark.spec("CLP-15-011")
 def test_a_nested_whole_object_without_published_is_refused() -> None:
     """The rule reaches a whole object at any depth, not only the top slot."""
@@ -188,6 +176,118 @@ def test_an_actor_profile_or_collection_without_published_is_accepted(
     assert isinstance(parsed, as_TransitiveActivity)
     assert parsed.object_ is not None
     assert getattr(parsed.object_, "published", None) is None
+
+
+#: The forms an object slot holds that are not whole objects, so carry no
+#: time (CLP-15-011): a typed reference of a known type, one of a type the
+#: receiver does not know, a bare URI and a ``Link``.
+NOT_WHOLE_OBJECTS: dict[str, object] = {
+    **{
+        f"reference-{type_}": {
+            "id": f"https://example.org/objects/{type_}",
+            "type": type_,
+        }
+        for type_ in REFERENCED_TYPES
+    },
+    "reference-unknown-type": {
+        "id": "https://example.org/widgets/1",
+        "type": "FooWidget",
+    },
+    "uri": "https://example.org/notes/1",
+    "link": {"type": "Link", "href": "https://example.org/notes/1"},
+}
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.spec("MV-10-011")
+@pytest.mark.parametrize(
+    "value", list(NOT_WHOLE_OBJECTS.values()), ids=list(NOT_WHOLE_OBJECTS)
+)
+def test_a_reference_uri_or_link_without_published_is_accepted(
+    value: object,
+) -> None:
+    """None of these is a whole object, so none carries a time: the rule
+    does not reach them, at the top or nested (CLP-15-011)."""
+    inner = {
+        "id": "https://example.org/activities/2",
+        "type": "Remove",
+        "actor": ACTOR,
+        "published": PUBLISHED,
+        "object": value,
+        "target": CASE_ID,
+    }
+
+    top = parse_activity(_body(value, target=CASE_ID))  # type: ignore[arg-type]
+    nested = parse_activity(_body(inner, "Undo"))
+
+    assert getattr(top, "object_", None) is not None
+    assert getattr(_object_of(nested), "object_", None) is not None
+
+
+def _stub_invite(stub: dict[str, Any]) -> dict[str, Any]:
+    """An Invite to a case whose object is a case reference previewed by
+    *stub* (ADR-0205)."""
+    return {
+        "type": "Invite",
+        "id": "https://example.org/activities/invite-1",
+        "published": PUBLISHED,
+        "actor": ACTOR,
+        "object": {
+            "id": CASE_ID,
+            "type": "VulnerabilityCase",
+            "preview": stub,
+        },
+        "target": "https://example.org/actors/bob",
+    }
+
+
+def _stub(**extra: Any) -> dict[str, Any]:
+    """A case preview (ADR-0205), as a stub Invite's case reference carries it."""
+    return {
+        "type": "CasePreview",
+        "id": "https://example.org/previews/1",
+        "summary": "A remote code execution vulnerability in widget.",
+        **extra,
+    }
+
+
+def _stub_embargo(**extra: Any) -> dict[str, Any]:
+    return {
+        "type": "EmbargoEvent",
+        "id": f"{CASE_ID}/embargoes/1",
+        "context": CASE_ID,
+        "startTime": "2026-01-01T00:00:00+00:00",
+        "endTime": "2027-01-01T00:00:00+00:00",
+        **extra,
+    }
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.spec("CM-17-010")
+def test_a_case_preview_carries_no_time_of_its_own() -> None:
+    """A case reference's preview, whose keys CM-17-010 fixes without a
+    ``published``, is a projection of the case it names, so neither the
+    reference nor it is refused for one; the embargo it carries is a whole
+    object and has its own."""
+    stub = _stub(activeEmbargo=_stub_embargo(published=PUBLISHED))
+
+    parsed = parse_activity(_stub_invite(stub))
+
+    preview = getattr(_object_of(parsed), "preview", None)
+    assert preview is not None
+    assert getattr(preview, "published", 0) is None
+
+
+@pytest.mark.spec("CLP-15-011")
+def test_an_embargo_in_a_case_preview_without_published_is_refused() -> None:
+    """The rule reaches the whole objects inside a preview, naming where."""
+    stub = _stub(activeEmbargo=_stub_embargo())
+
+    with pytest.raises(
+        VultronParseMissingPublishedError,
+        match=r"at 'object\.preview\.activeEmbargo'.*CLP-15-011",
+    ):
+        parse_activity(_stub_invite(stub))
 
 
 def _object_of(activity: object) -> object:
@@ -249,6 +349,7 @@ def test_an_object_with_one_more_key_is_a_whole_object_not_a_reference() -> (
         "id": "https://example.org/notes/1",
         "type": "Note",
         "content": "the vendor confirmed the fix",
+        "published": PUBLISHED,
     }
 
     parsed = parse_activity(_body(note, "Create"))

@@ -15,6 +15,7 @@ partially_supersedes:
   - 0074-wire-activity-artifact-immutability.md
 partially_superseded_by:
   - 0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md
+  - 0208-core-owns-the-as2-base-vocabulary.md
 superseded_by: 0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
 ---
 

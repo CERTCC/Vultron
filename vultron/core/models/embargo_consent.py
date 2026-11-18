@@ -34,7 +34,7 @@ clock (CM-23-044).
 """
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -101,6 +101,9 @@ class EmbargoConsent(CoreObject):
     # A row is copied, never stamped: no clock is read to build one.
     published: datetime | None = None
     updated: datetime | None = None
+    #: A row of the consent table, not an act made at a moment: it carries no
+    #: time (CM-23-044), so a received one is not refused for lacking one.
+    _received_without_published: ClassVar[bool] = True
 
     @classmethod
     def build_id(cls, embargo_id: str, actor_id: str | None) -> str:

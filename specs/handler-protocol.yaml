@@ -159,7 +159,7 @@ groups:
       spec_id: CLP-10-010
     adr:
     - ADR-0095
-    - ADR-0208
+    - ADR-0212
   - id: HP-01-015
     priority: MUST
     kind: project
@@ -772,7 +772,7 @@ groups:
       spec_id: HP-01-012
     adr:
     - ADR-0153
-    - ADR-0208
+    - ADR-0212
   - id: HP-01-036
     priority: MUST
     kind: architecture

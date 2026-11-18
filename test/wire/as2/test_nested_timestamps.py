@@ -15,10 +15,12 @@
 
 """A nested object's time is taken as received — never the receiver's clock.
 
-AS2 makes ``published`` and ``updated`` optional on every object, and nested
-objects routinely omit them.  The top-level activity's ``published`` is refused
-when missing (CLP-15-008); a nested object's is not, so absence must survive the
-wire→core boundary as absence.  Before ISSUE-3257 it did not: the wire
+AS2 makes ``published`` and ``updated`` optional on every object.  Vultron
+requires ``published`` on every received whole object other than an actor
+profile or a collection, at any depth, and refuses one without it, naming
+where it sat (CLP-15-011, ADR-0198); the top-level activity's is refused the
+same way (CLP-15-008).  ``updated`` stays optional, and an absent one is
+carried as absent (CLP-15-007).  Before ISSUE-3257 neither held: the wire
 ``default_factory=now_utc`` filled an omitted value with the receiver's clock,
 ``_get_timestamp`` did the same for ``None``, and four builders dropped even a
 real sender value.  Downstream every one of those read as the sender's claim.
@@ -26,14 +28,14 @@ real sender value.  Downstream every one of those read as the sender's claim.
 Each body is raw JSON through ``parse_activity`` → ``extract_event``, the real
 inbound path, so the test sees what a receiver sees.
 
-Most nested kinds now validate into a *core* class (ARCH-25-003, ADR-0099), which is
+Most nested kinds validate into a *core* class (ARCH-25-003, ADR-0099), which is
 why the rule is held twice: ``as_Base.carry_absent_times_on_inbound`` and its
 core twin ``CoreObject._carry_absent_times_on_inbound`` both call
-``absent_times_as_none``.  That helper finds the timestamp fields by class
-introspection, as every datetime field with a ``default_factory`` in the class's
-own ``model_fields``, and checks each under its field name, ``alias`` and
-``validation_alias``.  It therefore needs no per-class list and works the same
-for either branch (ISSUE-3589).
+``refuse_absent_published`` and ``absent_times_as_none``.  Both find the
+timestamp fields by class introspection, so they need no per-class list and
+work the same for either branch (ISSUE-3589); the kinds exempt from the
+``published`` rule declare it on their base class
+(``received_without_published``).
 """
 
 from collections.abc import Callable
@@ -84,9 +86,9 @@ def _body(
     return body
 
 
-#: One inbound shape per nested object type the extractor builds.  ``Case``
-#: carries a ``genesisHash`` so that its time is not needed for a decision —
-#: the no-hash case is pinned separately below.
+#: One inbound shape per nested object type the extractor builds, each a whole
+#: object carrying its author's ``published`` (CLP-15-011).  ``Case`` carries a
+#: ``genesisHash`` so that the hash is the sender's, not one derived here.
 KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
     "VulnerabilityReport": (
         {
@@ -95,6 +97,7 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
             "name": "r",
             "content": "x",
             "attributedTo": ACTOR,
+            "published": SENDER_PUBLISHED,
         },
         {},
     ),
@@ -102,6 +105,7 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
         {
             "type": "VulnerabilityCase",
             "id": CASE_ID,
+            "published": SENDER_PUBLISHED,
             "name": "c",
             "attributedTo": ACTOR,
             "genesisHash": SENDER_GENESIS,
@@ -123,6 +127,7 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
         {
             "type": "CaseParticipant",
             "id": "https://example.org/participants/1",
+            "published": SENDER_PUBLISHED,
             "attributedTo": ACTOR,
             "context": CASE_ID,
         },
@@ -132,6 +137,7 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
         {
             "type": "Note",
             "id": "https://example.org/notes/1",
+            "published": SENDER_PUBLISHED,
             "content": "hi",
             "attributedTo": ACTOR,
             "context": CASE_ID,
@@ -143,7 +149,6 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
             "type": "CaseStatus",
             "id": "https://example.org/case-statuses/1",
             "context": CASE_ID,
-            # Required on a received status (CLP-15-010).
             "published": SENDER_PUBLISHED,
             "emState": "NONE",
             "pxaState": "pxa",
@@ -154,6 +159,7 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
         {
             "type": "ParticipantStatus",
             "id": "https://example.org/participant-statuses/1",
+            "published": SENDER_PUBLISHED,
             "context": CASE_ID,
             "attributedTo": ACTOR,
             "rmState": "RECEIVED",
@@ -168,6 +174,7 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
         {
             "type": "EmbargoEvent",
             "id": "https://example.org/embargoes/1",
+            "published": SENDER_PUBLISHED,
             "context": CASE_ID,
             "startTime": "2026-01-01T00:00:00+00:00",
             "endTime": "2027-01-01T00:00:00+00:00",
@@ -204,11 +211,6 @@ def _parsed(obj: dict[str, Any], extra: dict[str, Any]) -> Any:
 #: ``as_Base.carry_absent_times_on_inbound`` which was written first (ISSUE-3589).
 CORE_KINDS = [k for k in KINDS if k != "Note"]
 
-#: The nested kinds whose ``published`` the sender may omit.  A ``CaseStatus``
-#: is not one: every status carries its author's time (SM-05-003), so a received
-#: status without one is refused (CLP-15-010) — pinned separately below.
-TIME_OPTIONAL_KINDS = [k for k in KINDS if k != "CaseStatus"]
-
 
 @pytest.mark.spec("ARCH-12-001")
 @pytest.mark.parametrize("kind", CORE_KINDS)
@@ -227,27 +229,30 @@ def test_collapsed_nested_kind_parses_into_a_core_class(kind: str):
     assert not isinstance(nested, as_Base)
 
 
-@pytest.mark.spec("CLP-15-007")
+@pytest.mark.spec("CLP-15-011")
 @pytest.mark.parametrize("spelling", list(ABSENT))
-@pytest.mark.parametrize("kind", TIME_OPTIONAL_KINDS)
-def test_parsed_nested_object_without_times_has_none(kind: str, spelling: str):
-    """An omitted nested time is ``None`` straight out of the parser.
+@pytest.mark.parametrize("kind", list(KINDS))
+def test_parse_refuses_a_nested_whole_object_without_published(
+    kind: str, spelling: str
+):
+    """Every nested whole object carries its author's time (CLP-15-011).
 
-    Pinned below extraction on purpose.  The extraction tests would still pass
-    if the parser minted a time and a builder later dropped it, and a parsed
-    activity is also what the inbox stores and rehydrates, so the parser's own
-    result must already be free of the receiver's clock (ISSUE-3257).  Holds
-    for the core classes the parser now builds as well as for the wire ones
-    (ISSUE-3589).
+    Every spelling of absence is one omission (ADR-0090), and the refusal
+    names the field, the object's position and the rule, so the sender can
+    tell it from the activity-level refusal of CLP-15-008.  Holds for the core
+    classes the parser builds as well as for the wire ones (ISSUE-3589).
     """
     obj, extra = KINDS[kind]
     obj = dict(obj)
     ABSENT[spelling](obj)
+    extra = dict(extra)
+    activity_type = extra.pop("activity_type", "Create")
 
-    nested = _parsed(obj, extra)
-
-    assert nested.published is None
-    assert nested.updated is None
+    with pytest.raises(
+        VultronParseMissingPublishedError,
+        match=r"Missing 'published' at 'object'.*CLP-15-011",
+    ):
+        parse_activity(_body(obj, activity_type, **extra))
 
 
 @pytest.mark.spec("CLP-15-007")
@@ -285,23 +290,30 @@ def test_extracted_object_carries_sender_published_and_updated(kind: str):
 @pytest.mark.spec("CLP-15-007")
 @pytest.mark.spec("MV-03-002")
 @pytest.mark.parametrize("spelling", list(ABSENT))
-@pytest.mark.parametrize("kind", TIME_OPTIONAL_KINDS)
-def test_nested_object_without_published_extracts_with_no_published(
+@pytest.mark.parametrize("kind", list(KINDS))
+def test_nested_object_without_updated_extracts_with_no_updated(
     kind: str, spelling: str
 ):
-    """No claimed time on the wire means no time in core — not the receiver's.
+    """``updated`` stays optional: no time on the wire means none in core.
 
-    Every spelling of absence reads the same (ADR-0090), and none of them may
-    come out as a clock reading the sender never made.
+    Every spelling of absence reads the same (ADR-0090), none of them comes
+    out as a clock reading the sender never made, and the parser's own result
+    is free of it too, since a parsed activity is also what the inbox stores
+    and rehydrates (ISSUE-3257).
     """
     obj, extra = KINDS[kind]
-    obj = dict(obj)
-    ABSENT[spelling](obj)
+    obj = {**obj, "updated": SENDER_UPDATED}
+    scratch = {"published": obj.pop("updated")}
+    ABSENT[spelling](scratch)
+    if "published" in scratch:
+        obj["updated"] = scratch["published"]
 
+    nested = _parsed(dict(obj), extra)
     domain = _extracted(obj, extra)
 
-    assert domain.published is None
+    assert nested.updated is None
     assert domain.updated is None
+    assert domain.published == datetime.fromisoformat(SENDER_PUBLISHED)
 
 
 @pytest.mark.spec("CLP-15-007")
@@ -354,7 +366,7 @@ def test_parse_refuses_inline_case_status_without_published(spelling: str):
     body = _body(_untimed_status(spelling), "Add", target=CASE_ID)
 
     with pytest.raises(
-        VultronParseMissingPublishedError, match=r"at 'object'.*CLP-15-010"
+        VultronParseMissingPublishedError, match=r"at 'object'.*CLP-15-011"
     ):
         parse_activity(body)
 
@@ -426,30 +438,32 @@ def test_extracted_case_keeps_the_sender_genesis_hash():
 @pytest.mark.spec("MV-03-002")
 @pytest.mark.parametrize("spelling", list(ABSENT))
 @pytest.mark.spec("CLP-15-009")
+@pytest.mark.spec("CLP-15-011")
 def test_case_needing_its_time_for_genesis_is_refused_at_parse(spelling: str):
-    """The one decision that needs a nested time refuses loudly when it is absent.
+    """A case with no time is refused before any genesis is derived from it.
 
     A case with no ``genesisHash`` has its genesis computed from ``published``
-    (CLP-08-002).  Blank and ``null`` were already refused; *omitted* was filled
-    with the receiver's clock and accepted, so each receiver derived its own
-    genesis.  All three spellings are one omission and draw one refusal.
+    (CLP-08-002).  *Omitted* was once filled with the receiver's clock and
+    accepted, so each receiver derived its own genesis.  Every spelling is one
+    omission, and a received case is a whole object, so all three draw the
+    CLP-15-011 refusal.
     """
     obj = {
         key: value
         for key, value in KINDS["VulnerabilityCase"][0].items()
         if key not in ("genesisHash", "ledgerPosition")
     }
-    obj["published"] = SENDER_PUBLISHED
     ABSENT[spelling](obj)
 
-    with pytest.raises(VultronParseValidationError, match="genesis_hash"):
+    with pytest.raises(
+        VultronParseMissingPublishedError, match=r"at 'object'.*CLP-15-011"
+    ):
         parse_activity(_body(obj))
 
 
-@pytest.mark.spec("CLP-15-007")
-def test_nested_activity_without_published_parses_with_no_published():
-    """An inner activity (the ``Invite`` inside an ``Accept``) is nested too."""
-    body = _body(
+def _accepted_invite(**invite_extra: Any) -> dict[str, Any]:
+    """An ``Accept`` of an ``Invite`` of an actor to a case, inline."""
+    return _body(
         {
             "type": "Invite",
             "id": "urn:uuid:invite-1",
@@ -459,16 +473,53 @@ def test_nested_activity_without_published_parses_with_no_published():
                 **INBOUND_CASE_OWNERSHIP,
                 "type": "VulnerabilityCase",
                 "id": CASE_ID,
+                "published": SENDER_PUBLISHED,
             },
+            **invite_extra,
         },
         activity_type="Accept",
     )
 
-    activity = parse_activity(body)
+
+@pytest.mark.spec("CLP-15-011")
+def test_nested_activity_without_published_is_refused():
+    """An inner activity (the ``Invite`` inside an ``Accept``) is a whole
+    object too, so it carries its sender's time."""
+    with pytest.raises(
+        VultronParseMissingPublishedError,
+        match=r"Missing 'published' at 'object'.*CLP-15-011",
+    ):
+        parse_activity(_accepted_invite())
+
+
+@pytest.mark.spec("CLP-15-007")
+@pytest.mark.spec("CLP-15-011")
+def test_nested_activity_with_published_keeps_it_and_no_updated():
+    """The inner activity's time is the sender's, and ``updated`` stays
+    absent; the actor profile it invites carries no time and is accepted."""
+    activity = parse_activity(_accepted_invite(published=SENDER_PUBLISHED))
 
     inner = getattr(activity, "object_", None)
-    assert getattr(inner, "published", "missing") is None
+    assert getattr(inner, "published", None) == datetime.fromisoformat(
+        SENDER_PUBLISHED
+    )
     assert getattr(inner, "updated", "missing") is None
+    assert getattr(getattr(inner, "object_", None), "published", 0) is None
+
+
+@pytest.mark.spec("CLP-15-011")
+def test_a_deeply_nested_whole_object_is_refused_naming_its_position():
+    """The rule reaches every depth, and the refusal names the full path."""
+    invite = _accepted_invite(published=SENDER_PUBLISHED)
+    target = invite["object"]["target"]
+    del target["published"]
+
+    with pytest.raises(
+        VultronParseMissingPublishedError,
+        match=r"Missing 'published' at 'object\.target'.*CLP-15-011",
+    ) as refused:
+        parse_activity(invite)
+    assert str(refused.value).count("'object.target'") == 1
 
 
 @pytest.mark.spec("CLP-15-007")
@@ -527,17 +578,26 @@ def test_replicated_ledger_entry_keeps_the_case_actor_stamps():
 
 
 @pytest.mark.spec("CLP-14-002")
-@pytest.mark.parametrize("key", ["published", "receivedAt"])
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize(
+    ("key", "refusal"),
+    [
+        ("published", VultronParseMissingPublishedError),
+        ("receivedAt", VultronParseValidationError),
+    ],
+)
 def test_replicated_ledger_entry_without_its_stamp_is_refused_at_parse(
-    key: str,
+    key: str, refusal: type[Exception]
 ):
     """An entry missing a time it must carry is refused, not stamped locally.
 
     Refused for that field: no model default supplies the time (ADR-0176).
+    An entry is a whole object, so its missing ``published`` is the
+    CLP-15-011 refusal.
     """
     entry = {k: v for k, v in LEDGER_ENTRY.items() if k != key}
 
-    with pytest.raises(VultronParseValidationError, match=key):
+    with pytest.raises(refusal, match=key):
         parse_activity(_body(entry, "Announce"))
 
 
@@ -641,6 +701,36 @@ def test_extractor_refuses_a_case_status_that_bypassed_the_parser():
         _build_case_status_object(untimed)
 
 
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize("builder", ["report", "note"])
+def test_extractor_refuses_a_whole_object_that_bypassed_the_parser(
+    builder: str,
+):
+    """No builder mints a time the parser would have refused.
+
+    An object built without validation carries no ``published``; each
+    builder names it rather than letting a stand-in time through.
+    """
+    from types import SimpleNamespace
+
+    from vultron.wire.as2.extractor._builders.objects import (
+        _build_note_object,
+        _build_report_object,
+    )
+
+    untimed = SimpleNamespace(
+        id_="https://example.org/objects/untimed-1",
+        content="x",
+        published=None,
+    )
+    build = {"report": _build_report_object, "note": _build_note_object}
+
+    with pytest.raises(
+        VultronParseMissingPublishedError, match=r"untimed-1.*CLP-15-011"
+    ):
+        build[builder](untimed)
+
+
 @pytest.mark.spec("CLP-15-010")
 @pytest.mark.spec("EH-07-001")
 def test_untimed_status_refusal_names_every_fault_in_the_activity():
@@ -697,3 +787,115 @@ def test_authored_case_without_statuses_is_seeded():
     case = make(VulnerabilityCase, attributed_to=ACTOR, id_=CASE_ID)
 
     assert len(case.case_statuses) == 1
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.spec("CM-23-044")
+def test_a_consent_row_in_a_participant_needs_no_published():
+    """A participant's consent rows carry no time (CM-23-044), so they are
+    exempt, while the participant holding them still carries its own."""
+    participant = dict(KINDS["CaseParticipant"][0])
+    participant["embargoConsents"] = [
+        {
+            "type": "EmbargoConsent",
+            "embargoId": "https://example.org/embargoes/1",
+            "state": "UNINVITED",
+            "attributedTo": ACTOR,
+        }
+    ]
+
+    parsed = _parsed(participant, KINDS["CaseParticipant"][1])
+
+    (row,) = parsed.embargo_consents
+    assert row.published is None
+
+
+def _untimed(type_: object) -> dict[str, Any]:
+    """An object with no ``published`` whose ``type`` is *type_*."""
+    return {"type": type_, "id": "https://example.org/objects/1", "name": "x"}
+
+
+def _inbound(cls: type[Any], data: dict[str, Any]) -> Any:
+    return cls.model_validate(
+        data, context={as_Base.INBOUND_CONTEXT_KEY: True}
+    )
+
+
+def _generic(name: str) -> type[Any]:
+    """The generic class a slot admitting any object validates into."""
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+    return {"as_Object": as_Object, "CoreObject": CoreObject}[name]
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize(
+    ("generic", "type_"),
+    [
+        *(
+            pytest.param(generic, type_, id=f"{generic}-{type_}")
+            for generic in ("as_Object", "CoreObject")
+            for type_ in ("Person", "Organization", "Service")
+        ),
+        # Core receives the narrowed term, never the list (ADR-0196).
+        pytest.param("as_Object", ["Foo", "Person"], id="as_Object-list"),
+    ],
+)
+def test_a_generic_slot_passes_an_untimed_object_whose_type_is_exempt(
+    generic: str, type_: object
+):
+    """A slot that admits any object reads a nested profile through a
+    generic class; the profile its ``type`` names is exempt, so it passes."""
+    parsed = _inbound(_generic(generic), _untimed(type_))
+
+    assert parsed.published is None
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.spec("ARCH-25-034")
+@pytest.mark.parametrize("type_", ["Collection", "OrderedCollection"])
+@pytest.mark.parametrize("generic", ["as_Object", "CoreObject"])
+def test_a_generic_slot_passes_an_untimed_collection(generic: str, type_: str):
+    """A collection is exempt in a generic slot on both sides: core owns the
+    collection classes (ADR-0208), so its generic slot knows one by class."""
+    parsed = _inbound(_generic(generic), _untimed(type_))
+
+    assert parsed.published is None
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize(
+    "type_",
+    ["Note", "Bogus", ["Note", "Person"], ["Person", "Note"]],
+    ids=[
+        "non-exempt",
+        "unknown",
+        "ambiguous-list",
+        "ambiguous-list-reordered",
+    ],
+)
+@pytest.mark.parametrize("generic", ["as_Object", "CoreObject"])
+def test_a_generic_slot_refuses_an_untimed_object_whose_type_is_not_exempt(
+    generic: str, type_: object
+):
+    """The exemption follows only a ``type`` naming an exempt class: a
+    non-exempt type and an unknown one are refused without ``published``,
+    and a list naming no single class is refused before its time is read."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match=r"CLP-15-011|none is a subtype"):
+        _inbound(_generic(generic), _untimed(type_))
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize("spoof", ["Actor", "Person", "Collection"])
+def test_a_typed_class_is_not_exempted_by_the_type_its_data_names(spoof: str):
+    """A class that declares its own type is judged by itself: a ``Note``
+    whose data calls it an exempt kind is still refused without
+    ``published``, though ``as_Note`` admits that ``type`` value."""
+    from pydantic import ValidationError
+
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    with pytest.raises(ValidationError, match="CLP-15-011"):
+        _inbound(as_Note, _untimed(spoof))

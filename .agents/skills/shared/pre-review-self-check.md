@@ -36,7 +36,7 @@ blank is not.
    on redelivery or retry, and the test that pins it. The established patterns
    are in `notes/bt-pitfalls.md` (partial writes, idempotency selectors, emit
    nodes that fail loudly), `notes/bt-integration.md` § "The Received-Side
-   Stages (ADR-0208)" (commit before effects such as an outbox
+   Stages (ADR-0212)" (commit before effects such as an outbox
    write), `notes/outbox-delivery-reliability.md` § "A
    Response to an Inbound Activity Takes Its Id From the Request" (a send and
    its commit in one transaction, retry-stable ids) and `vultron/core/AGENTS.md`

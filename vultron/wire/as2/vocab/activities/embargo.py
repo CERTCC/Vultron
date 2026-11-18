@@ -104,7 +104,7 @@ class _EmRejectEmbargoActivity(RepliesToObject, as_Reject):
 class _EmUndoEmbargoInviteActivity(as_Undo):
     """The CASE_MANAGER withdraws an embargo Invite it sent (EMB-16-001).
 
-    ``Undo(Invite(EmbargoEvent)[context=VulnerabilityCase])``: an actor
+    ``Undo(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])``: an actor
     undoes only an activity it performed, so withdrawing an invitation one
     sent is an ``Undo`` and declining one received is a ``Reject``
     (ADR-0152).  The CASE_MANAGER sends it when it abandons an open

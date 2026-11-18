@@ -125,7 +125,7 @@ export interface ParticipantStatus {
   duration?: string | null
   startTime?: string | null
   endTime?: string | null
-  published?: string | null
+  published: string
   updated?: string | null
   content?: string | null
   summary?: string | null
@@ -204,7 +204,7 @@ export interface CaseParticipant {
   duration?: string | null
   startTime?: string | null
   endTime?: string | null
-  published?: string | null
+  published: string
   updated?: string | null
   content?: string | null
   summary?: string | null
@@ -332,7 +332,7 @@ export const LEDGER_SHAPES = {
       { key: "duration", required: false, nullable: true, shape: { kind: "duration" } },
       { key: "startTime", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "endTime", required: false, nullable: true, shape: { kind: "datetime" } },
-      { key: "published", required: false, nullable: true, shape: { kind: "datetime" } },
+      { key: "published", required: true, nullable: false, shape: { kind: "datetime" } },
       { key: "updated", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "content", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "summary", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
@@ -415,7 +415,7 @@ export const LEDGER_SHAPES = {
       { key: "duration", required: false, nullable: true, shape: { kind: "duration" } },
       { key: "startTime", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "endTime", required: false, nullable: true, shape: { kind: "datetime" } },
-      { key: "published", required: false, nullable: true, shape: { kind: "datetime" } },
+      { key: "published", required: true, nullable: false, shape: { kind: "datetime" } },
       { key: "updated", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "content", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "summary", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },

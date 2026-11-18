@@ -7,7 +7,7 @@ Proposes a revision to the terms of the active embargo. The wire form is the sam
 === "Details"
 
     - **When…** a Participant proposes revised terms for the active embargo
-    - **Send:** `Invite(EmbargoEvent)[context=VulnerabilityCase]`
+    - **Send:** `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the CASE_MANAGER or an active participant
     - **Distinguished by:** EM state `ACTIVE` or `REVISE`

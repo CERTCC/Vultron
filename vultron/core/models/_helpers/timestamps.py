@@ -23,6 +23,7 @@ from typing import (
 )
 
 from pydantic import BaseModel, SerializerFunctionWrapHandler, field_serializer
+from pydantic_core import PydanticUndefined
 
 from vultron.core.models._helpers.clock import _datetime_type
 
@@ -149,31 +150,84 @@ def parse_published(value: Any) -> datetime | None:
 
 
 class MissingClaimedTimeError(ValueError):
-    """A received object that must carry its sender's time carries none.
+    """A received whole object carries no ``published`` (CLP-15-011).
 
     Raised from an inbound ``mode="before"`` validator, so a
     :class:`ValueError` subclass: pydantic converts only ``ValueError`` and
     ``AssertionError`` into a ``ValidationError``.  The parser finds this cause
     in the error list and refuses the activity as missing a ``published``,
-    naming where the object sat (CLP-15-010).
+    naming where the object sat (CLP-15-011).
     """
+
+
+def received_without_published(cls: type[BaseModel]) -> bool:
+    """Whether a received object of *cls* may carry no ``published``.
+
+    The one rule for every class an inbound body validates into (CLP-15-011,
+    ADR-0198): a received whole object carries the time its author made it.
+    A class with no ``published`` field (a ``Link``) is not reached.  A kind
+    that is not an act made at a moment opts out by setting the class
+    attribute ``_received_without_published`` on its base class, and every
+    subclass inherits it: an actor profile and a collection (CLP-15-011), a
+    typed reference, which is no whole object (MV-10-011), a case preview, a
+    projection of the object it names (ADR-0205) whose keys CM-17-010 fixes
+    without one, and an embargo consent row, which a replica copies without
+    reading a clock (CM-23-044).
+    """
+    return "published" not in cls.model_fields or bool(
+        getattr(cls, "_received_without_published", False)
+    )
+
+
+def own_type(cls: type[BaseModel]) -> object:
+    """The ``type`` value *cls* declares as its own: its field's default.
+
+    ``None`` when *cls* has no ``type_`` field or defaults it to ``None``,
+    and ``PydanticUndefined`` when the field is required.
+    """
+    field = cls.model_fields.get("type_")
+    return None if field is None else field.default
+
+
+def declares_own_type(cls: type[BaseModel]) -> bool:
+    """Whether *cls* declares a ``type`` of its own (:func:`own_type`).
+
+    A generic class (``as_Object``, ``CoreObject``) declares none: it is what
+    a slot that admits any object validates into, whatever ``type`` the data
+    names.
+    """
+    return own_type(cls) not in (None, PydanticUndefined)
 
 
 def refuse_absent_published(
-    cls: type[BaseModel], data: Mapping[str, Any]
+    cls: type[BaseModel],
+    data: Mapping[str, Any],
+    named: type[BaseModel] | None = None,
 ) -> None:
     """Raise :class:`MissingClaimedTimeError` when *data* has no ``published``.
 
-    Absent, ``None`` and blank are the same omission (CS-08-001).  For use on
-    the inbound path only, before ``absent_times_as_none`` would read the
-    omission as ``None``: an object this process authors takes the clock
-    default instead.
+    Absent, ``None`` and blank are the same omission (CS-08-001).  A class
+    :func:`received_without_published` exempts is never refused.  Nor is
+    *data* a generic class reads (one that :func:`declares_own_type` says
+    declares no type) when its ``type`` names an exempt class (*named*): an
+    actor profile read through a slot that admits any object is still a
+    profile.  A class that declares its own type is judged by itself, so a
+    ``Note`` slot does not pass an untimed object that calls itself an
+    ``Actor``.  For use on the inbound path only, before
+    ``absent_times_as_none`` would read the omission as ``None``: an object
+    this process authors states its time (ADR-0176) and is not validated
+    through here.
     """
+    if received_without_published(cls) or (
+        named is not None
+        and not declares_own_type(cls)
+        and received_without_published(named)
+    ):
+        return
     value = data.get("published")
     if value is None or (isinstance(value, str) and not value.strip()):
         raise MissingClaimedTimeError(
-            f"{cls.__name__} carries no 'published'; a received"
-            f" {cls.__name__} must carry the time its sender claims it was"
-            " made, and the receiver does not supply its own clock"
-            " (SM-05-003, CLP-15-010)"
+            f"{cls.__name__} carries no 'published'; a received whole object"
+            " must carry the time its author made it, and the receiver does"
+            " not supply its own clock (CLP-15-011)"
         )
