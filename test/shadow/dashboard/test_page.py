@@ -317,7 +317,7 @@ def test_each_state_is_shown_on_its_machines_map(recordings_app):
         expected.extend(m for m in (p.rm, p.vfd) if m is not None)
     charts = at.get("graphviz_chart")
     assert [c.proto.spec for c in charts] == [m.dot for m in expected]
-    assert [t.label for t in at.tabs] == [p.label for p in participants]
+    assert [t.label for t in at.tabs] == [p.tab for p in participants]
     captions = _texts(at.caption)
     assert all(m.caption in captions for m in expected)
     assert any(p.vfd is None for p in participants)
@@ -329,6 +329,49 @@ from vultron.shadow.dashboard.page import _show_participant_minimaps
 
 _show_participant_minimaps([], {})
 """
+
+
+#: One participant whose name, from the case's source, is Markdown.
+_MARKDOWN_NAME_PAGE = """
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.measure.sequences import (
+    UnprojectableParticipant,
+    UnprojectableReason,
+)
+from vultron.measure.standing import CaseStanding, ParticipantStanding
+from vultron.shadow.dashboard.page import _show_participant_minimaps
+
+VENDOR = "https://vendor.example/actors/vendor"
+_show_participant_minimaps(
+    [
+        ParticipantStanding(
+            participant=VENDOR,
+            rm=RM.RECEIVED,
+            case=CaseStanding(em=EM.NONE, pxa=CS_pxa.pxa),
+            unscored=UnprojectableParticipant(
+                participant=VENDOR,
+                reason=UnprojectableReason.NO_CASE_STATE_EVENTS,
+                detail="it has no event of its own",
+            ),
+        )
+    ],
+    {VENDOR: "![x](https://host.example/p.png)"},
+)
+"""
+
+
+def test_a_participants_tab_shows_its_name_as_literal_text():
+    """A name from the case's source reaches its tab escaped, so the page
+    never renders it as Markdown (an image would fetch an outside URL)."""
+    at = AppTest.from_string(
+        _MARKDOWN_NAME_PAGE, default_timeout=_TIMEOUT
+    ).run()
+    assert not at.exception
+    assert [t.label for t in at.tabs] == [
+        minimap.markdown_literal("![x](https://host.example/p.png)")
+    ]
 
 
 def test_a_standing_with_no_participant_draws_no_participant_tabs():

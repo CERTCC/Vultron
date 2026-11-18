@@ -61,7 +61,11 @@ from vultron.measure.standing import (
     ParticipantStanding,
     StandingGap,
 )
-from vultron.shadow.dashboard.case_state import PXA_NOTATION, vfd_badge
+from vultron.shadow.dashboard.case_state import (
+    PXA_NOTATION,
+    unknown_events,
+    vfd_badge,
+)
 
 #: A row of a table the page shows, column name to cell: text, or a number
 #: that sorts as one, such as a move's layer.
@@ -134,7 +138,8 @@ def public_badges(
 ) -> tuple[str, str, str]:
     """The case's public state as three badges: public, exploit, attacks.
 
-    An event the source cannot observe reads as unknown (CRD-02-005).
+    An event the source cannot observe, and the reading does not show as
+    happened, reads as unknown (CRD-02-005).
     """
     state = pxa.value
     known = (
@@ -148,8 +153,9 @@ def public_badges(
         if state.attack_observation is AttackObservation.ATTACKS_OBSERVED
         else "🛡️ No attacks observed",
     )
+    unknown = unknown_events(pxa.name, PXA_NOTATION, unobservable)
     public, exploit, attacks = (
-        f"❔ {EVENT_LABELS[event]} unknown" if event in unobservable else badge
+        f"❔ {EVENT_LABELS[event]} unknown" if event in unknown else badge
         for event, badge in zip(PXA_NOTATION, known, strict=True)
     )
     return public, exploit, attacks

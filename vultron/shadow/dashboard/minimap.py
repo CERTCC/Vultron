@@ -15,13 +15,14 @@
 
 """Each state as a small map of its state machine, current state marked (#6674).
 
-A :class:`MachineMap` is one protocol state machine drawn from its transition
+Each machine is drawn as a
+:class:`~vultron.shadow.dashboard.machine_map.MachineMap` from its transition
 table in :mod:`vultron.core.states`, never from a hand-drawn diagram, so the
 map cannot drift from the code: RM from the RM table, EM from
 :data:`~vultron.core.states.em.EM_TRANSITIONS`, PXA from the PXA table, and
 the Vendor Fix Path (VFD) from the VF and D tables over the four VFD states
-the compound case state allows.  :meth:`MachineMap.dot` draws it as Graphviz
-DOT source with one state marked, for the page to lay out.
+the compound case state allows.  The map draws itself as Graphviz DOT source
+with one state marked, for the page to lay out.
 
 A :class:`Minimap` reads only the state it is given, so the page can draw
 one for any standing, the ledger's last or an earlier one.  An event the
@@ -37,7 +38,7 @@ from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict
 
 from vultron.core.states.cs import (
     CS,
@@ -51,7 +52,6 @@ from vultron.core.states.em import EM, EM_Trigger, em_transition_rows
 from vultron.core.states.rm import RM, rm_transition_rows
 from vultron.measure.ledger import friendly_actor_name
 from vultron.measure.standing import CaseStanding, ParticipantStanding
-from vultron.primitives import NonEmptyString
 from vultron.shadow.dashboard import view
 from vultron.shadow.dashboard.case_state import (
     PXA_NOTATION,
@@ -62,151 +62,7 @@ from vultron.shadow.dashboard.case_state import (
     vfd_badge,
     vfd_name,
 )
-
-
-class MapState(BaseModel):
-    """One state of a machine map.
-
-    Fields:
-        id: The state's node id: its enum name, or its VFD notation.
-        label: What its node reads.
-        tooltip: The state in words, shown on hover.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    id: str
-    label: str
-    tooltip: str
-
-
-class MapEdge(BaseModel):
-    """One arrow of a machine map: every trigger from one state to another.
-
-    Fields:
-        source: The node id it leaves.
-        dest: The node id it enters.
-        triggers: Each trigger of the table that moves *source* to *dest*,
-            in table order and in words, shown on hover.
-        label: What the arrow reads: a case-state trigger's event letter,
-            or ``None``, so a small map is not crowded with words.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    source: str
-    dest: str
-    triggers: tuple[str, ...]
-    label: NonEmptyString | None = None
-
-
-#: How the map draws its graph, its states and its arrows.  Streamlit draws
-#: a Graphviz chart in the same colours whatever the app's theme, so the map
-#: is a white card: its greys and reds read on it in a light and a dark
-#: theme alike.
-_GRAPH = (
-    'graph [rankdir=LR, bgcolor="#ffffff", size="4,2",'
-    ' nodesep=0.15, ranksep=0.3, pad=0.1, fontname="sans-serif"];'
-)
-_NODE = (
-    'node [shape=box, style="rounded,filled", fillcolor="#f0f2f6",'
-    ' color="#9aa0a6", fontcolor="#31333f", fontname="sans-serif",'
-    ' fontsize=10, height=0.25, margin="0.06,0.03"];'
-)
-_EDGE = (
-    'edge [color="#80868b", fontcolor="#3c4043", fontname="sans-serif",'
-    " fontsize=8, arrowsize=0.5];"
-)
-#: The current state: filled, and drawn with a double border, so it is told
-#: apart by its shape as well as its colour.
-_CURRENT = (
-    'fillcolor="#ff4b4b", color="#ff4b4b", fontcolor="#ffffff",'
-    " penwidth=2, peripheries=2"
-)
-#: One of several states the reading allows, when its source cannot observe
-#: an event of the machine: dashed, so it reads as possible, not as known.
-_POSSIBLE = (
-    'style="rounded,filled,dashed", fillcolor="#ffd6d6", color="#ff4b4b",'
-    " penwidth=2"
-)
-
-
-def _quoted(text: str) -> str:
-    """*text* as a DOT quoted string."""
-    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
-
-
-class MachineMap(BaseModel):
-    """One state machine as a map: its states and its arrows.
-
-    Fields:
-        name: The machine's name, such as ``RM``.
-        title: Its name in words, the map's heading.
-        states: Each state, in the machine's order.
-        edges: Each arrow, in the order the table first names it.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    name: str
-    title: str
-    states: tuple[MapState, ...]
-    edges: tuple[MapEdge, ...]
-
-    @model_validator(mode="after")
-    def _edges_join_its_states(self) -> MachineMap:
-        """Each state once, and each arrow between two of them."""
-        problems: list[str] = []
-        ids = [s.id for s in self.states]
-        twice = sorted(i for i, n in Counter(ids).items() if n > 1)
-        if twice:
-            problems.append(f"states listed twice: {twice}")
-        for edge in self.edges:
-            for end in (edge.source, edge.dest):
-                if end not in ids:
-                    problems.append(f"arrow end {end!r} is not a state")
-        if problems:
-            raise ValueError("; ".join(problems))
-        return self
-
-    def dot(self, *marked: str) -> str:
-        """The map as Graphviz DOT source, with the *marked* states marked.
-
-        One state marked is the current state.  Several are each a state
-        the reading allows, when its source cannot observe an event of the
-        machine (CRD-02-005), and are drawn as possible.
-
-        Raises:
-            ValueError: no state is marked, or one is not one of its states.
-        """
-        ids = {s.id for s in self.states}
-        unknown = [m for m in marked if m not in ids]
-        if not marked or unknown:
-            raise ValueError(
-                f"{unknown or 'no state'} is not a {self.name} state"
-            )
-        mark = _CURRENT if len(set(marked)) == 1 else _POSSIBLE
-        lines = [f"digraph {_quoted(self.name)} {{", _GRAPH, _NODE, _EDGE]
-        for state in self.states:
-            attributes = (
-                f"label={_quoted(state.label)},"
-                f" tooltip={_quoted(state.tooltip)}"
-            )
-            if state.id in marked:
-                attributes += f", {mark}"
-            lines.append(f"{_quoted(state.id)} [{attributes}];")
-        for edge in self.edges:
-            attributes = f"tooltip={_quoted(', '.join(edge.triggers))}"
-            if edge.label:
-                attributes = f"label={_quoted(edge.label)}, {attributes}"
-            lines.append(
-                f"{_quoted(edge.source)} -> {_quoted(edge.dest)}"
-                f" [{attributes}];"
-            )
-        lines.append("}")
-        return "\n".join(lines)
-
+from vultron.shadow.dashboard.machine_map import MachineMap, MapEdge, MapState
 
 #: One transition as a map draws it: ``(words, label, source, dest)``,
 #: its trigger in words and as its arrow reads it (``None`` for no label),
@@ -518,9 +374,6 @@ __all__ = [
     "PXA_MAP",
     "RM_MAP",
     "VFD_MAP",
-    "MachineMap",
-    "MapEdge",
-    "MapState",
     "Minimap",
     "ParticipantMinimaps",
     "case_minimaps",

@@ -88,6 +88,15 @@ def test_an_unobservable_public_event_reads_as_unknown_never_as_false():
     )
 
 
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_public_event_the_reading_says_happened_stays_happened():
+    assert view.public_badges(CS_pxa.PXa, {CSEvent.P}) == (
+        "📢 Public aware",
+        "💥 Exploit public",
+        "🛡️ No attacks observed",
+    )
+
+
 def test_the_public_state_reads_as_three_badges():
     assert view.public_badges(CS_pxa.pxa) == (
         "🤫 Not public",

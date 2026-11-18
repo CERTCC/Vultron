@@ -55,3 +55,12 @@ def test_only_an_event_not_yet_read_as_happened_may_have_happened_unseen():
         "PXa",
     )
     assert case_state.possible_states("pxa", _PXA, events, ()) == ("pxa",)
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_event_is_unknown_only_while_not_read_as_happened():
+    events = case_state.PXA_NOTATION
+    unseen = {CSEvent.P, CSEvent.A}
+    assert case_state.unknown_events("pxa", events, unseen) == unseen
+    assert case_state.unknown_events("PXa", events, unseen) == {CSEvent.A}
+    assert case_state.unknown_events("PXA", events, unseen) == frozenset()

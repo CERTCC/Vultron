@@ -67,6 +67,26 @@ VFD_BADGES: Mapping[tuple[CS_vf, CS_d], str] = {
 }
 
 
+def unknown_events(
+    state: str,
+    events: Sequence[CSEvent],
+    unobservable: Collection[CSEvent],
+) -> frozenset[CSEvent]:
+    """Each of *events* the reading of *state*, in notation, leaves unknown.
+
+    *events* are the events the notation's letters spell, in order.  An
+    event the source cannot observe and *state* has not happened is unknown,
+    never false (CRD-02-005): it may have happened.  An unobservable event
+    the reading says happened is not unknown, so nothing the reading states
+    is read as possibly false.
+    """
+    return frozenset(
+        event
+        for event, letter in zip(events, state, strict=True)
+        if event in unobservable and letter.islower()
+    )
+
+
 def possible_states(
     state: str,
     states: Sequence[str],
@@ -75,17 +95,11 @@ def possible_states(
 ) -> tuple[str, ...]:
     """Each of *states*, in notation, that the reading of *state* allows.
 
-    *events* are the events the notation's letters spell, in order.  An
-    event the source cannot observe and *state* has not happened is unknown,
-    never false (CRD-02-005): it may have happened.  Every other letter is
-    as *state* spells it, an unobservable event the reading says happened
-    included, so nothing the reading states is read as possibly false.
+    Each letter of an event :func:`unknown_events` names may read either
+    way; every other letter is as *state* spells it.
     """
-    free = {
-        i
-        for i, event in enumerate(events)
-        if event in unobservable and state[i].islower()
-    }
+    unknown = unknown_events(state, events, unobservable)
+    free = {i for i, event in enumerate(events) if event in unknown}
     return tuple(
         s
         for s in states
@@ -124,6 +138,7 @@ __all__ = [
     "VFD_STATES",
     "VFD_WORDS",
     "possible_states",
+    "unknown_events",
     "vfd_badge",
     "vfd_name",
 ]

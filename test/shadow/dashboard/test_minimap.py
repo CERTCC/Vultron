@@ -36,7 +36,7 @@ from vultron.measure.sequences import (
 )
 from vultron.measure.standing import CaseStanding, ParticipantStanding
 from vultron.shadow.analysis import analyse
-from vultron.shadow.dashboard import case_state, minimap, view
+from vultron.shadow.dashboard import case_state, machine_map, minimap, view
 from vultron.shadow.readers import VultronCaseReader
 
 _NODE = re.compile(r'^"(?P<id>[^"]+)" \[label="(?P<label>[^"]*)"', re.M)
@@ -193,13 +193,15 @@ def test_an_unobservable_public_event_reads_as_unknown_on_its_map():
 
 
 def test_a_map_refuses_an_arrow_to_no_state_and_a_state_listed_twice():
-    state = minimap.MapState(id="a", label="A", tooltip="a")
+    state = machine_map.MapState(id="a", label="A", tooltip="a")
     with pytest.raises(ValidationError) as caught:
-        minimap.MachineMap(
+        machine_map.MachineMap(
             name="M",
             title="M",
             states=(state, state),
-            edges=(minimap.MapEdge(source="a", dest="b", triggers=("go",)),),
+            edges=(
+                machine_map.MapEdge(source="a", dest="b", triggers=("go",)),
+            ),
         )
     message = str(caught.value)
     assert "states listed twice: ['a']" in message
@@ -207,10 +209,10 @@ def test_a_map_refuses_an_arrow_to_no_state_and_a_state_listed_twice():
 
 
 def test_a_label_with_a_quote_is_escaped():
-    machine = minimap.MachineMap(
+    machine = machine_map.MachineMap(
         name='say "hi"',
         title="M",
-        states=(minimap.MapState(id="a", label='"A"\\', tooltip="a"),),
+        states=(machine_map.MapState(id="a", label='"A"\\', tooltip="a"),),
         edges=(),
     )
     dot = machine.dot("a")
@@ -307,8 +309,10 @@ def test_an_unobservable_event_the_reading_says_happened_stays_happened():
     reading spells upper-case is never read back as possibly false."""
     vfd = minimap.vfd_minimap(CS.VFdPxa, {CSEvent.F})
     assert _current(vfd.dot) == ["VFd"]
+    assert vfd.caption == "🩹 Fix ready"
     pxa = minimap.pxa_minimap(CS_pxa.PXa, {CSEvent.P})
     assert _current(pxa.dot) == ["PXa"]
+    assert pxa.caption.startswith("📢 Public aware · ")
 
 
 def _reading_with_d_unobservable() -> CaseReading:
