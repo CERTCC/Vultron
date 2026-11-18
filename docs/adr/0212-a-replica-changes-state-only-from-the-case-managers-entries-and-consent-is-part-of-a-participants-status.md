@@ -72,10 +72,11 @@ Each new status copies the table forward from the status before it, as it copies
 The latest status is therefore the participant's whole state.
 
 An embargo that is in the case's register but not in the table has not been asked about.
-The register lists every embargo of the case, so this read is complete and unambiguous, and a proposal writes no status.
+The register lists every embargo of the case, so this read is complete and unambiguous, and a proposal writes no status for a participant whose consent it does not change.
 
 The CASE_MANAGER writes a new status when a participant's consent changes.
 This includes an `Accept`, a `Reject` or a `Leave` from the participant, and also the CASE_MANAGER's own changes: a carry-over, a time-out, and its own consent as a stakeholder.
+One act writes at most one new status for each participant whose consent it changes, carrying every row the act changed.
 The status is attributed to the participant whose consent it records, is dated to the act, and is ledgered as the CASE_MANAGER's `Add(ParticipantStatus)`.
 
 **Signatory** and **Lapsed** are read from the latest status and the register.
