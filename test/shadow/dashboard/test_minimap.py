@@ -20,6 +20,7 @@ from vultron.core.states.cs.transitions import (
     _pxa_transitions,
     _vf_transitions,
 )
+from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM, EM_TRANSITIONS
 from vultron.core.states.rm import RM, _transitions as _rm_transitions
 from vultron.demo.recordings.layout import RECORDINGS_DIR
@@ -141,9 +142,43 @@ def test_a_map_marks_only_the_state_it_is_given(machine):
         assert _current(machine.dot(state.id)) == [state.id]
 
 
-def test_a_map_refuses_a_state_it_does_not_have():
-    with pytest.raises(ValueError, match="'VFD' is not a RM state"):
+def test_a_map_refuses_a_state_it_does_not_have_or_none():
+    with pytest.raises(ValueError, match=r"\['VFD'\] is not a RM state"):
         minimap.RM_MAP.dot("VFD")
+    with pytest.raises(ValueError, match="no state is not a RM state"):
+        minimap.RM_MAP.dot()
+
+
+def _possible(dot: str) -> list[str]:
+    return re.findall(r'^"([^"]+)" \[[^\n]*dashed', dot, re.M)
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_fix_path_event_marks_every_state_it_allows():
+    """A source that cannot observe F and D (VINCE) leaves a vendor aware
+    of the case anywhere from aware to deployed, never fix not ready."""
+    unknown = {CSEvent.F, CSEvent.D}
+    vfd = minimap.vfd_minimap(CS.VfdPxa, unknown)
+    assert _current(vfd.dot) == []
+    assert _possible(vfd.dot) == ["Vfd", "VFd", "VFD"]
+    assert vfd.caption == "❔ Vendor aware, fix ready or fix deployed"
+    # An unobservable event that no other state allows changes nothing.
+    alone = minimap.vfd_minimap(CS.VfdPxa, {CSEvent.D})
+    assert _current(alone.dot) == ["Vfd"]
+    assert alone.caption == view.VFD_BADGES[(CS_vf.Vf, CS_d.d)]
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_public_event_reads_as_unknown_on_its_map():
+    pxa = minimap.pxa_minimap(CS_pxa.Pxa, {CSEvent.A})
+    assert _current(pxa.dot) == []
+    assert _possible(pxa.dot) == ["Pxa", "PxA"]
+    assert pxa.caption.endswith("❔ Attacks Observed unknown")
+    case = CaseStanding(
+        em=EM.NONE, pxa=CS_pxa.Pxa, unobservable=frozenset({CSEvent.A})
+    )
+    _, from_case = minimap.case_minimaps(case)
+    assert from_case == pxa
 
 
 def test_a_map_refuses_an_arrow_to_no_state_and_a_state_listed_twice():

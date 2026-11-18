@@ -24,14 +24,16 @@ the compound case state allows.  :meth:`MachineMap.dot` draws it as Graphviz
 DOT source with one state marked, for the page to lay out.
 
 A :class:`Minimap` reads only the state it is given, so the page can draw
-one for any standing, the ledger's last or an earlier one.  Nothing here
-calls Streamlit.
+one for any standing, the ledger's last or an earlier one.  An event the
+source cannot observe is unknown, never false (CRD-02-005): a map whose
+machine has one marks every state the reading allows, as possible.
+Nothing here calls Streamlit.
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -42,7 +44,7 @@ from vultron.core.states.cs.transitions import (
     _pxa_transitions,
     _vf_transitions,
 )
-from vultron.core.states.cs_invariants import cs_dimensions
+from vultron.core.states.cs_invariants import CSEvent, cs_dimensions
 from vultron.core.states.em import EM, EM_Trigger, em_transition_rows
 from vultron.core.states.rm import RM, _transitions as _rm_transitions
 from vultron.measure.ledger import friendly_actor_name
@@ -106,6 +108,12 @@ _CURRENT = (
     'fillcolor="#ff4b4b", color="#ff4b4b", fontcolor="#ffffff",'
     " penwidth=2, peripheries=2"
 )
+#: One of several states the reading allows, when its source cannot observe
+#: an event of the machine: dashed, so it reads as possible, not as known.
+_POSSIBLE = (
+    'style="rounded,filled,dashed", fillcolor="#ffd6d6", color="#ff4b4b",'
+    " penwidth=2"
+)
 
 
 def _quoted(text: str) -> str:
@@ -147,22 +155,31 @@ class MachineMap(BaseModel):
             raise ValueError("; ".join(problems))
         return self
 
-    def dot(self, current: str) -> str:
-        """The map as Graphviz DOT source, with state *current* marked.
+    def dot(self, *marked: str) -> str:
+        """The map as Graphviz DOT source, with the *marked* states marked.
+
+        One state marked is the current state.  Several are each a state
+        the reading allows, when its source cannot observe an event of the
+        machine (CRD-02-005), and are drawn as possible.
 
         Raises:
-            ValueError: *current* is not one of its states.
+            ValueError: no state is marked, or one is not one of its states.
         """
-        if current not in {s.id for s in self.states}:
-            raise ValueError(f"{current!r} is not a {self.name} state")
+        ids = {s.id for s in self.states}
+        unknown = [m for m in marked if m not in ids]
+        if not marked or unknown:
+            raise ValueError(
+                f"{unknown or 'no state'} is not a {self.name} state"
+            )
+        mark = _CURRENT if len(set(marked)) == 1 else _POSSIBLE
         lines = [f"digraph {_quoted(self.name)} {{", _GRAPH, _NODE, _EDGE]
         for state in self.states:
             attributes = (
                 f"label={_quoted(state.label)},"
                 f" tooltip={_quoted(state.tooltip)}"
             )
-            if state.id == current:
-                attributes += f", {_CURRENT}"
+            if state.id in marked:
+                attributes += f", {mark}"
             lines.append(f"{_quoted(state.id)} [{attributes}];")
         for edge in self.edges:
             attributes = f"tooltip={_quoted(', '.join(edge.triggers))}"
@@ -233,9 +250,11 @@ def _word_states[S: Enum](
     )
 
 
-def _public_words(state: CS_pxa) -> str:
+def _public_words(
+    state: CS_pxa, unobservable: Collection[CSEvent] = ()
+) -> str:
     """A public state as its three badges."""
-    return " · ".join(view.public_badges(state))
+    return " · ".join(view.public_badges(state, unobservable))
 
 
 def _rm_map() -> MachineMap:
@@ -279,24 +298,25 @@ VFD_STATES: tuple[tuple[CS_vf, CS_d], ...] = tuple(
 )
 
 
-def vfd_id(vf: CS_vf, d: CS_d) -> str:
-    """A Vendor Fix Path state in its notation: ``VFd``."""
-    return f"{vf.value}{d.value}"
-
-
 def _vfd_rows() -> list[_Row]:
     """The VF and D tables over :data:`VFD_STATES`: each VF row with D held,
     and each D row with VF held, wherever both ends are VFD states."""
     rows: list[_Row] = []
     for t in _vf_transitions:
         rows.extend(
-            _letter_row(t["trigger"], vfd_id(vf, d), vfd_id(t["dest"], d))
+            _letter_row(
+                t["trigger"], view.vfd_name(vf, d), view.vfd_name(t["dest"], d)
+            )
             for vf, d in VFD_STATES
             if vf is t["source"] and (t["dest"], d) in VFD_STATES
         )
     for t in _d_transitions:
         rows.extend(
-            _letter_row(t["trigger"], vfd_id(vf, d), vfd_id(vf, t["dest"]))
+            _letter_row(
+                t["trigger"],
+                view.vfd_name(vf, d),
+                view.vfd_name(vf, t["dest"]),
+            )
             for vf, d in VFD_STATES
             if d is t["source"] and (vf, t["dest"]) in VFD_STATES
         )
@@ -309,8 +329,8 @@ def _vfd_map() -> MachineMap:
         title="Vendor fix path",
         states=tuple(
             MapState(
-                id=vfd_id(vf, d),
-                label=vfd_id(vf, d),
+                id=view.vfd_name(vf, d),
+                label=view.vfd_name(vf, d),
                 tooltip=view.VFD_BADGES[(vf, d)],
             )
             for vf, d in VFD_STATES
@@ -342,36 +362,70 @@ class Minimap(BaseModel):
     caption: str
 
 
-def _minimap(machine: MachineMap, current: str, caption: str) -> Minimap:
+def _minimap(
+    machine: MachineMap, marked: Sequence[str], caption: str
+) -> Minimap:
     return Minimap(
-        title=machine.title, dot=machine.dot(current), caption=caption
+        title=machine.title, dot=machine.dot(*marked), caption=caption
+    )
+
+
+def _possible(
+    machine: MachineMap,
+    state: str,
+    events: Sequence[CSEvent],
+    unobservable: Collection[CSEvent],
+) -> tuple[str, ...]:
+    """Each state of *machine* the reading of *state* allows."""
+    return view.possible_states(
+        state, [s.id for s in machine.states], events, unobservable
     )
 
 
 def rm_minimap(state: RM) -> Minimap:
     """A participant's report-management state on the RM map."""
-    return _minimap(RM_MAP, state.name, view.RM_BADGES[state])
+    return _minimap(RM_MAP, (state.name,), view.RM_BADGES[state])
 
 
 def em_minimap(state: EM) -> Minimap:
     """The case's embargo-management state on the EM map."""
-    return _minimap(EM_MAP, state.name, view.EM_BADGES[state])
+    return _minimap(EM_MAP, (state.name,), view.EM_BADGES[state])
 
 
-def pxa_minimap(state: CS_pxa) -> Minimap:
-    """The case's public state on the PXA map."""
-    return _minimap(PXA_MAP, state.name, _public_words(state))
+def pxa_minimap(
+    state: CS_pxa, unobservable: Collection[CSEvent] = ()
+) -> Minimap:
+    """The case's public state on the PXA map.
+
+    When the source cannot observe a public-state event, every state the
+    reading allows is marked as possible (CRD-02-005).
+    """
+    return _minimap(
+        PXA_MAP,
+        _possible(PXA_MAP, state.name, view.PXA_EVENTS, unobservable),
+        _public_words(state, unobservable),
+    )
 
 
-def vfd_minimap(state: CS) -> Minimap:
-    """The Vendor Fix Path of compound case state *state* on the VFD map."""
+def vfd_minimap(state: CS, unobservable: Collection[CSEvent] = ()) -> Minimap:
+    """The Vendor Fix Path of compound case state *state* on the VFD map.
+
+    When the source cannot observe a fix-path event, every state the
+    reading allows is marked as possible (CRD-02-005).
+    """
     vf, d, _ = cs_dimensions(state)
-    return _minimap(VFD_MAP, vfd_id(vf, d), view.vfd_badge(state))
+    return _minimap(
+        VFD_MAP,
+        _possible(
+            VFD_MAP, view.vfd_name(vf, d), view.VFD_EVENTS, unobservable
+        ),
+        view.vfd_badge(state, unobservable),
+    )
 
 
 def case_minimaps(case: CaseStanding) -> tuple[Minimap, Minimap]:
     """The case's EM and public state, each on its map."""
-    return em_minimap(case.em), pxa_minimap(case.pxa)
+    return em_minimap(case.em), pxa_minimap(case.pxa, case.unobservable)
 
 
 #: What the page says in place of a participant's VFD map when it has no
@@ -412,7 +466,9 @@ def participant_minimaps(
             if counts[label] == 1
             else f"{label} ({p.participant})",
             rm=rm_minimap(p.rm),
-            vfd=None if p.case_state is None else vfd_minimap(p.case_state),
+            vfd=None
+            if p.case_state is None
+            else vfd_minimap(p.case_state, p.case.unobservable),
         )
         for label, p in zip(labels, participants, strict=True)
     ]
@@ -435,6 +491,5 @@ __all__ = [
     "participant_minimaps",
     "pxa_minimap",
     "rm_minimap",
-    "vfd_id",
     "vfd_minimap",
 ]

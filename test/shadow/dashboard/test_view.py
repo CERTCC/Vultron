@@ -90,6 +90,23 @@ def test_each_vendor_fix_path_state_reads_in_words():
         assert state.name not in view.vfd_badge(state)
 
 
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_event_reads_as_unknown_never_as_false():
+    """A fix path the source cannot see through names every state it may
+    be in; a public-state event it cannot see reads as unknown."""
+    assert view.vfd_badge(CS.VfdPxa, {CSEvent.F, CSEvent.D}) == (
+        "❔ Vendor aware, fix ready or fix deployed"
+    )
+    assert view.vfd_badge(CS.vfdpxa, {CSEvent.V}) == (
+        "❔ Vendor unaware or vendor aware"
+    )
+    assert view.public_badges(CS_pxa.pxa, {CSEvent.A}) == (
+        "🤫 Not public",
+        "🛡️ No public exploit",
+        "❔ Attacks Observed unknown",
+    )
+
+
 def test_the_public_state_reads_as_three_badges():
     assert view.public_badges(CS_pxa.pxa) == (
         "🤫 Not public",

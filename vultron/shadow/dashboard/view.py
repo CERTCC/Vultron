@@ -31,7 +31,7 @@ one score, and nothing here reorders a move (SHD-03-002).
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from fractions import Fraction
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -141,16 +141,78 @@ def desideratum_code(desideratum: DesideratumStanding) -> str:
     return f"{desideratum.before.value} ≺ {desideratum.after.value}"
 
 
-def vfd_badge(state: CS) -> str:
-    """The Vendor Fix Path of compound case state *state*, in words."""
-    vf, d, _ = cs_dimensions(state)
-    return VFD_BADGES[(vf, d)]
+#: The case-state events of the Vendor Fix Path, and of the public state,
+#: in the order their notation spells them: ``VFd``, ``PXa``.
+VFD_EVENTS = (CSEvent.V, CSEvent.F, CSEvent.D)
+PXA_EVENTS = (CSEvent.P, CSEvent.X, CSEvent.A)
 
 
-def public_badges(pxa: PxaName) -> tuple[str, str, str]:
-    """The case's public state as three badges: public, exploit, attacks."""
-    state = pxa.value
+def vfd_name(vf: CS_vf, d: CS_d) -> str:
+    """A Vendor Fix Path state in its notation: ``VFd``."""
+    return f"{vf.value}{d.value}"
+
+
+#: Each Vendor Fix Path state by its notation.
+_VFD_BY_NAME: Mapping[str, tuple[CS_vf, CS_d]] = {
+    vfd_name(vf, d): (vf, d) for vf, d in VFD_BADGES
+}
+
+
+def possible_states(
+    state: str,
+    states: Sequence[str],
+    events: Sequence[CSEvent],
+    unobservable: Collection[CSEvent],
+) -> tuple[str, ...]:
+    """Each of *states*, in notation, that the reading of *state* allows.
+
+    *events* are the events the notation's letters spell, in order.  A state
+    is possible when it spells *state*'s letter for every event the source
+    observes: an event the source cannot observe is unknown, never false,
+    so either of its letters is possible (CRD-02-005).
+    """
+    seen = [i for i, event in enumerate(events) if event not in unobservable]
+    return tuple(s for s in states if all(s[i] == state[i] for i in seen))
+
+
+def _either(words: Sequence[str]) -> str:
+    """*words* as one choice: ``a, b or c``."""
     return (
+        words[0]
+        if len(words) == 1
+        else f"{', '.join(words[:-1])} or {words[-1]}"
+    )
+
+
+def vfd_badge(state: CS, unobservable: Collection[CSEvent] = ()) -> str:
+    """The Vendor Fix Path of compound case state *state*, in words.
+
+    When the source cannot observe one of its events, the badge names each
+    state the path may be in (CRD-02-005).
+    """
+    vf, d, _ = cs_dimensions(state)
+    possible = possible_states(
+        vfd_name(vf, d), list(_VFD_BY_NAME), VFD_EVENTS, unobservable
+    )
+    if len(possible) == 1:
+        return VFD_BADGES[(vf, d)]
+    words = [
+        VFD_BADGES[_VFD_BY_NAME[name]].split(" ", 1)[1].lower()
+        for name in possible
+    ]
+    choice = _either(words)
+    return f"❔ {choice[0].upper()}{choice[1:]}"
+
+
+def public_badges(
+    pxa: PxaName, unobservable: Collection[CSEvent] = ()
+) -> tuple[str, str, str]:
+    """The case's public state as three badges: public, exploit, attacks.
+
+    An event the source cannot observe reads as unknown (CRD-02-005).
+    """
+    state = pxa.value
+    known = (
         "📢 Public aware"
         if state.public_awareness is PublicAwareness.PUBLIC_AWARE
         else "🤫 Not public",
@@ -161,6 +223,11 @@ def public_badges(pxa: PxaName) -> tuple[str, str, str]:
         if state.attack_observation is AttackObservation.ATTACKS_OBSERVED
         else "🛡️ No attacks observed",
     )
+    public, exploit, attacks = (
+        f"❔ {EVENT_LABELS[event]} unknown" if event in unobservable else badge
+        for event, badge in zip(PXA_EVENTS, known, strict=True)
+    )
+    return public, exploit, attacks
 
 
 def _tally(desiderata: Sequence[DesideratumStanding]) -> str:
@@ -186,7 +253,7 @@ def participant_rows(
                 "Roles": ", ".join(p.roles) or "—",
                 "Joined": "✔️ joined" if p.joined else "✉️ invited",
                 "Report": RM_BADGES[p.rm],
-                "Fix path": vfd_badge(p.case_state)
+                "Fix path": vfd_badge(p.case_state, p.case.unobservable)
                 if p.case_state is not None
                 else "—",
                 "Desiderata": _tally(p.desiderata) if p.desiderata else "—",
@@ -573,7 +640,9 @@ __all__ = [
     "NOT_TRANSLATED_NOTE",
     "RM_BADGES",
     "UNOBSERVABLE_NOTE",
+    "PXA_EVENTS",
     "VFD_BADGES",
+    "VFD_EVENTS",
     "Row",
     "desiderata_rows",
     "desideratum_code",
@@ -585,8 +654,10 @@ __all__ = [
     "shade",
     "unbanded_rows",
     "participant_rows",
+    "possible_states",
     "public_badges",
     "unobservable_rows",
     "untranslated_rows",
     "vfd_badge",
+    "vfd_name",
 ]

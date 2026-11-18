@@ -151,7 +151,9 @@ def _show_standing(analysis: CaseAnalysis) -> None:
     columns = st.columns(4)
     columns[0].metric("Embargo", view.EM_BADGES[standing.case.em])
     for column, badge in zip(
-        columns[1:], view.public_badges(standing.case.pxa), strict=True
+        columns[1:],
+        view.public_badges(standing.case.pxa, standing.case.unobservable),
+        strict=True,
     ):
         column.metric("Public state", badge)
     for column, case_map in zip(
