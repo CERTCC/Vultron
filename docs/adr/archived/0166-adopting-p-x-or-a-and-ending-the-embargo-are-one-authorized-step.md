@@ -1,5 +1,5 @@
 ---
-status: accepted-provisional
+status: superseded
 date: 2026-10-29
 created: 2026-10-29
 updated: 2026-10-29
@@ -12,7 +12,12 @@ consulted: >-
 informed: []
 partially_supersedes: 0046-received-status-authorization.md
 stakeholder_type: [project-contributor]
+superseded_by: 0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md
 ---
+
+> **Superseded by [ADR-0210](../0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md).**
+> ADR-0210 states the status adoption gate and the teardown that adoption makes as one decision, consolidating ADR-0046 and ADR-0166.
+> This record is kept as it stood when it was superseded.
 
 # Adopting P, X or A and Ending the Embargo Are One Authorized Step
 

@@ -36,7 +36,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
 )
 from test.support.act_runner import run_tree
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
     DiversionStage,
@@ -60,13 +60,22 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.case.receive_stages.tree import (
     ReceivedActivityTree,
 )
+from vultron.core.behaviors.case.received_run.reading import (
+    ReceivedOutcome,
+    read_outcome,
+)
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.emit_capable import EmitCapable
+from vultron.core.behaviors.idempotency import (
+    ReportsRefusal,
+    refusal_ending_run,
+)
 from vultron.core.behaviors.replica_emit_exemptions import (
     EMBARGO_INVITE_FAULT,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes.chain import CreateLogEntryNode
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronWiringError
 
@@ -117,11 +126,29 @@ def _tick(root: py_trees.behaviour.Behaviour) -> None:
     py_trees.trees.BehaviourTree(root=root).tick()
 
 
-def _stage(condition_status: Status, effects_status: Status = Status.SUCCESS):
-    condition = _Counted("Condition", condition_status)
+class _Reasoned(_Counted):
+    """A condition that gives its reason when it holds."""
+
+    def __init__(self, name: str, status: Status, reason: str) -> None:
+        super().__init__(name, status)
+        self._reason = reason
+
+    def update(self) -> Status:
+        self.feedback_message = self._reason
+        return super().update()
+
+
+def _stage(
+    condition_status: Status,
+    effects_status: Status = Status.SUCCESS,
+    *,
+    refuses: bool = False,
+    reason: str = "",
+):
+    condition = _Reasoned("Condition", condition_status, reason)
     effects = _Counted("Effects", effects_status)
     after = _Counted("After")
-    stage = DiversionStage("Probe", condition, effects)
+    stage = DiversionStage("Probe", condition, effects, refuses=refuses)
     root = py_trees.composites.Sequence(
         name="Root", memory=False, children=[stage, after]
     )
@@ -162,6 +189,100 @@ class TestDiversionStage:
         assert stage.taken and not stage.effects_succeeded
         assert after.ticks == 0
         assert root.status is Status.FAILURE
+
+
+class TestDiversionStageDeclaredRefusal:
+    """A refusing diversion declares the refusal the runner reads (HP-01-003)."""
+
+    @pytest.mark.spec("HP-01-003")
+    def test_a_refusing_diversion_it_answered_declares_its_conditions_reason(
+        self,
+    ) -> None:
+        root, stage, _, _ = _stage(
+            Status.SUCCESS, refuses=True, reason="embargo 'e' ended (X-1)"
+        )
+
+        assert isinstance(stage, ReportsRefusal)
+        assert stage.declared_refusal == "embargo 'e' ended (X-1)"
+        assert refusal_ending_run(root) == "embargo 'e' ended (X-1)"
+
+    @pytest.mark.spec("HP-01-003")
+    def test_a_condition_with_no_reason_is_named_by_the_stage(self) -> None:
+        _, stage, _, _ = _stage(Status.SUCCESS, refuses=True)
+
+        assert stage.declared_refusal == (
+            "Probe: the delivery was answered, not recorded"
+        )
+
+    @pytest.mark.spec("HP-01-003")
+    def test_an_answer_that_failed_declares_no_refusal(self) -> None:
+        _, stage, _, _ = _stage(
+            Status.SUCCESS, Status.FAILURE, refuses=True, reason="why"
+        )
+
+        assert stage.status is Status.FAILURE
+        assert stage.declared_refusal is None
+
+    @pytest.mark.spec("HP-01-003")
+    def test_a_diversion_not_taken_declares_no_refusal(self) -> None:
+        _, stage, _, _ = _stage(Status.FAILURE, refuses=True, reason="why")
+
+        assert stage.declared_refusal is None
+
+    @pytest.mark.spec("HP-01-003")
+    def test_a_diversion_that_does_not_refuse_declares_nothing(self) -> None:
+        _, stage, _, _ = _stage(Status.SUCCESS, reason="why")
+
+        assert stage.declared_refusal is None
+
+    @pytest.mark.spec("HP-01-003")
+    def test_the_runner_reports_the_declared_refusal(self) -> None:
+        """With no handler reader, the run is ``REFUSED`` for exactly the
+        condition's reason (ADR-0195)."""
+        root, _, _, _ = _stage(
+            Status.SUCCESS, refuses=True, reason="embargo 'e' ended (X-1)"
+        )
+        result = BTExecutionResult(
+            status=Status.FAILURE,
+            feedback_message=BTBridge.get_failure_reason(root),
+        )
+
+        verdict = read_outcome(
+            ReceivedOutcome.of(
+                root, result, "ProbeBT", receiving_actor_id=CASE_MANAGER_ACTOR
+            )
+        )
+
+        assert verdict.disposition is HandlerDisposition.REFUSED
+        assert verdict.reason == "embargo 'e' ended (X-1)"
+
+    @pytest.mark.spec("HP-01-003")
+    def test_the_factory_carries_the_declaration_to_the_stage(self) -> None:
+        refusing = _tree(
+            Diversion(
+                name="Probe",
+                condition=_Counted("Condition"),
+                effects=(_Counted("Answer"),),
+                refuses=True,
+            ),
+            paths={ReceivedPath.CASE_MANAGER},
+        )
+        quiet = _tree(
+            Diversion(
+                name="Probe",
+                condition=_Counted("Condition"),
+                effects=(_Counted("Answer"),),
+            ),
+            paths={ReceivedPath.CASE_MANAGER},
+        )
+
+        def stage_of(tree: py_trees.behaviour.Behaviour) -> DiversionStage:
+            return next(
+                n for n in tree.iterate() if isinstance(n, DiversionStage)
+            )
+
+        assert stage_of(refusing).refuses
+        assert not stage_of(quiet).refuses
 
 
 #: The declaration a tree that reaches a diversion at any receiver makes.

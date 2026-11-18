@@ -27,7 +27,7 @@ Pull Request's first push, a fix commit, a conflict merge — runs the test set
 `targeted-tests` derives from a diff (PAD-18-001, PAD-18-002, PAD-18-015). No
 local gate runs the whole unit or integration suite: CI runs both on every
 push, faster than a 2-CPU slot does, and GitHub's required `CI gate` refuses
-the merge until that run passes (PAD-18-003, PAD-18-008, ADR-0179). The gate
+the merge until that run passes (PAD-18-003, PAD-18-008, ADR-0209). The gate
 command is in § "The Targeted Gate" below.
 
 | Run | Command |
@@ -124,7 +124,7 @@ infrastructure — `conftest.py`, `pyproject.toml`, `uv.lock`,
 the gate is the set it could select plus the always-selected directories
 (PAD-18-012). CI's required full run covers the reach beyond it. An
 integration-bearing path is gated by its importers like any other
-(ADR-0143).
+(ADR-0209).
 
 `targeted-tests` cannot see CI: when the fix is for a CI failure in a test
 outside the printed set, append that test's file to the printed command

@@ -59,8 +59,11 @@ node's own reason; any other `FAILURE` →
 only stores what the handler already accepted: any failure left after those
 readings raises, since it can only be the DataLayer's. A new repeat, no-op or
 "this guard failed, refuse with its reason" is a node declaration, never a
-handler reading. A declared reason stands alone, so it names the condition
-and the requirement it cites (HP-01-005).
+handler reading; a `Diversion` that refuses the delivery it answers says so
+with `refuses=True`. A declared reason stands alone, so it names the condition
+and the requirement it cites (HP-01-005). A reader that still returns a
+refusal is listed, with why, in
+`test/architecture/test_received_readers_return_no_refusal.py`.
 
 A handler that owes a reading no declaration expresses passes an optional
 `reader`, which receives only the finished run and asks which node decided

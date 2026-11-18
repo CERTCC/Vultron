@@ -59,7 +59,7 @@ Who a translated entry credits:
 ## Decision Outcome
 
 1. **A read-only case reader port.** The core declares a `CaseReader` port. Given an outside system's case identifier, it returns that case translated. It has no method that writes to the outside system. A read-write port, for the later gateway, is a separate interface and a separate decision. Adapters that implement both may share translation components.
-2. **Straight to core.** An adapter translates into core domain objects directly. The core and wire classes are the same classes for domain types ([ADR-0099](0099-one-object-model-as2-is-a-serialization.md)), so a detour through wire adds a parse step and no protection. Where a ledger entry stores an activity payload, the payload is rendered from the core object.
+2. **Straight to core.** An adapter translates into core domain objects directly. The core and wire classes are the same classes for domain types ([ADR-0099](archived/0099-one-object-model-as2-is-a-serialization.md)), so a detour through wire adds a parse step and no protection. Where a ledger entry stores an activity payload, the payload is rendered from the core object.
 3. **A ledger, projected by the core.** The translation is a case ledger. The snapshot is the core's projection of that ledger, never a second model the adapter builds alongside it.
 4. **Entries credit the participant who acted, and cite their source.** A translated entry names as its actor the participant who performed the act in the outside system, and cites the outside-system record it was translated from. The ledger carries no mark that it is a translation, because in this version a translation is not stored and does not enter a protocol path ([ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md)).
 5. **Nothing untranslatable is dropped.** A fact the adapter cannot translate is returned with the result and shown, never silently left out.
@@ -133,3 +133,8 @@ A narrowing projection the core owns in front of a port is [ADR-0186](0186-one-p
 The measures read a case ledger as JSONL ([ADR-0174](0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md)).
 
 Generated spec requirements: `case-reader.yaml` CRD-01; `architecture.yaml` ARCH-05-004.
+
+## Amendment — 2026-11-18 (editorial)
+
+The link to ADR-0099 in detail 2 now points to `archived/`, where ADR-0099 moved when ADR-0211 superseded it.
+The decision is unchanged.

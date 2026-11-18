@@ -13,12 +13,18 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The case shadow's case readers, and which one a run reads through.
+"""The case shadow tool's case readers, and which one a run reads through.
 
 * :class:`~vultron.shadow.readers.vultron_ledger.VultronCaseReader` — reads
   a Vultron case-ledger JSONL file, untranslated.
 * :class:`~vultron.shadow.readers.vultron_node.VultronNodeCaseReader` — the
-  live Vultron case reader: a running node's case ledger, untranslated.
+  live Vultron case reader: a running node's case ledger, untranslated,
+  read once or followed as it grows.
+* :class:`~vultron.shadow.readers.following.CaseFollower` — a reader that
+  can follow a case, which the dashboard follows instead of reading once;
+  the shadow tool's own, not a core port.
+* :func:`~vultron.shadow.readers.event_stream.server_sent_events` — the
+  events of a node's ledger event stream, read from its lines.
 * :func:`~vultron.shadow.readers.ledger_reading.ledger_reading` — the case
   reading both Vultron readers build from a ledger's parsed rows.
 * :func:`~vultron.shadow.readers.selection.select_case_reader` — the reader a

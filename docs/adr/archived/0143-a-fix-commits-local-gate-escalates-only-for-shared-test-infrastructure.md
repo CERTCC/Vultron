@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-10-16
 created: 2026-10-16
 updated: 2026-10-16
@@ -14,7 +14,12 @@ partially_supersedes:
   - 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 partially_superseded_by:
   - 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
+superseded_by: 0209-which-checks-run-locally-which-run-only-in-ci-and-when-to-merge-the-base-branch.md
 ---
+
+> **Superseded by [ADR-0209](../0209-which-checks-run-locally-which-run-only-in-ci-and-when-to-merge-the-base-branch.md).**
+> ADR-0209 states the local gates, the CI-only checks and the rule for merging the base as one decision, consolidating ADR-0126, ADR-0138, ADR-0143, ADR-0173 and ADR-0179.
+> This record is kept as it stood when it was superseded.
 
 # A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure
 

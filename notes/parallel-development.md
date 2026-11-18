@@ -189,14 +189,14 @@ The merger, right before merging one PR (work-epic-tasks; PAD-18-009):
 ```
 
 Only a conflict costs an agent and a local merge; every clean merge into the
-branch is GitHub's, tested by CI (ADR-0138). An overlap costs no local run at
+branch is GitHub's, tested by CI (ADR-0209). An overlap costs no local run at
 all: CI on each push tests this branch merged into its base, so a test run on
-a scratch merge of the two would only repeat it (PAD-18-024, ADR-0179). Every
+a scratch merge of the two would only repeat it (PAD-18-024, ADR-0209). Every
 push, of any kind, runs `prepush-ci-mirror` first. Check only the PR about to merge,
 never every open PR after a merge, and update it at most once: re-syncing on
-every movement of `main` is the loop ADR-0138 removed. A semantic conflict
+every movement of `main` is the loop ADR-0209 removed. A semantic conflict
 between files neither side shares is caught by CI on `main` after merge
-(ADR-0126). Before the first push there is nothing published to rewrite, so
+(ADR-0209). Before the first push there is nothing published to rewrite, so
 `create-pr` cherry-picks instead.
 
 ## Shared `.git` and Worktree Pruning (Danger)
