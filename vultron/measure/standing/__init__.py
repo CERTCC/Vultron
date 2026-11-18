@@ -15,8 +15,9 @@
 
 The first level of the shadow's insights reads a case ledger as it stands:
 each participant's states, the desiderata each vendor's case has met, broken
-or left open (or cannot know, where its source cannot observe an event), and
-the moves the state machines allow from here.  It reads a
+or left open (or cannot know, where its source cannot observe an event, or
+cannot score, where the vendor's walk cannot go on), and the moves the state
+machines allow from here.  It reads a
 ledger through the layers below it and adds no rule of its own.
 
 * :mod:`~vultron.measure.standing.moves` — the allowed moves, one typed

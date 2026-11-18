@@ -238,6 +238,10 @@ def test_an_unwalked_vendor_reads_not_scored_and_its_tally_counts_them():
     (row,) = view.participant_rows([unwalked], NAMES)
     unscored = len(scope_desiderata()) - len(ORIGINAL)
     assert f"▫️ {unscored}" in str(row["Desiderata"])
+    assert row["Not scored because"] == (
+        "report-handling and embargo desiderata:"
+        " the case stands in no joint state"
+    )
 
 
 def test_vendors_that_share_a_label_keep_their_own_columns():

@@ -56,6 +56,7 @@ from vultron.measure.advice.case import AllowedMove
 from vultron.measure.baselines import EventKind
 from vultron.measure.history import PxaName
 from vultron.measure.ledger import friendly_actor_name
+from vultron.measure.scoring import UnscoredScope
 from vultron.measure.standing import (
     DesideratumStanding,
     DesideratumStatus,
@@ -197,6 +198,24 @@ def _tally(desiderata: Sequence[DesideratumStanding]) -> str:
     )
 
 
+def _not_scored_because(participant: ParticipantStanding) -> str:
+    """Why the participant, or part of its scope, has no score; empty when
+    all of it is scored.
+
+    A participant with no case-state sequence says why it has none.  A
+    vendor whose walk cannot go on from its case keeps its original
+    desiderata's statuses, so the reason names the part left unscored.
+    """
+    if participant.unscored is not None:
+        return participant.unscored.detail
+    if isinstance(participant.extended, UnscoredScope):
+        return (
+            "report-handling and embargo desiderata:"
+            f" {participant.extended.reason}"
+        )
+    return ""
+
+
 def participant_rows(
     participants: Sequence[ParticipantStanding], names: Mapping[str, str]
 ) -> list[Row]:
@@ -213,9 +232,7 @@ def participant_rows(
                 if p.case_state is not None
                 else "—",
                 "Desiderata": _tally(p.desiderata) if p.desiderata else "—",
-                "Not scored because": p.unscored.detail
-                if p.unscored is not None
-                else "",
+                "Not scored because": _not_scored_because(p),
                 "Actor": p.participant,
             }
         )

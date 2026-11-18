@@ -23,6 +23,7 @@ score it is read from, so the page and the score cannot disagree.
 from __future__ import annotations
 
 from enum import StrEnum
+from fractions import Fraction
 
 from pydantic import BaseModel, ConfigDict
 
@@ -88,27 +89,19 @@ class DesideratumStanding(BaseModel):
     status: DesideratumStatus
 
 
-def _status(meeting: int, met_by: list[set[Desideratum]]) -> DesideratumStatus:
-    """Met when every completion meets it, broken when none does, else
-    open."""
-    if meeting == len(met_by):
-        return DesideratumStatus.MET
-    if meeting == 0:
-        return DesideratumStatus.BROKEN
-    return DesideratumStatus.OPEN
+def _status(share: Fraction) -> DesideratumStatus:
+    """Met when *share* is 1, broken when it is 0, else open.
 
-
-def _chance_status(term: TermScore) -> DesideratumStatus:
-    """Met when the walk meets *term* from every end it can reach, broken
-    when from none, else open.
-
-    *term*'s expected outcome is 1 exactly when every reachable end meets it
-    or never enters its scope, and 0 exactly when none does, since every
-    step the walk can take has a chance above 0.
+    *share* is the part of what can still happen that meets the
+    desideratum: of an original one's valid completions, or an extended
+    one's expected outcome on the vendor's walk.  That outcome is 1 exactly
+    when every reachable end meets it or never enters its scope, and 0
+    exactly when none does, since every step the walk can take has a
+    chance above 0.
     """
-    if term.met == 1:
+    if share == 1:
         return DesideratumStatus.MET
-    if term.met == 0:
+    if share == 0:
         return DesideratumStatus.BROKEN
     return DesideratumStatus.OPEN
 
@@ -148,7 +141,7 @@ def desiderata_standing(
     completions: met when every completion meets it, broken when none does,
     and open otherwise.  An extended one is read from its term in
     *extended*, the vendor's walk from where it stands, in the same three
-    ways (:func:`_chance_status`), and is unscored when *extended* is an
+    ways (:func:`_status`), and is unscored when *extended* is an
     :class:`~vultron.measure.scoring.UnscoredScope`.  Each status agrees
     with the score it is read from.
 
@@ -163,11 +156,15 @@ def desiderata_standing(
         if ordered_cs_events(desideratum) & unobservable:
             status = DesideratumStatus.UNKNOWN
         elif desideratum.group is Group.ORIGINAL:
-            status = _status(sum(desideratum in met for met in met_by), met_by)
+            status = _status(
+                Fraction(
+                    sum(desideratum in met for met in met_by), len(met_by)
+                )
+            )
         elif isinstance(extended, UnscoredScope):
             status = DesideratumStatus.UNSCORED
         elif desideratum.notation in terms:
-            status = _chance_status(terms[desideratum.notation])
+            status = _status(terms[desideratum.notation].met)
         else:
             raise ValueError(
                 f"the vendor's score has no term for {desideratum.notation}"

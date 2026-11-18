@@ -343,6 +343,7 @@ def test_an_extended_desideratum_over_an_unobservable_event_is_unknown():
     unobservable neither has a status; ``Va_i ≺ P`` orders P alone."""
     record = case_standing(_ledger(recording_path("rv")))
     (vendor,) = [p for p in record.participants if p.score is not None]
+    assert vendor.score is not None
     assert isinstance(vendor.extended, ExtendedScore)
     statuses = {
         s.notation: s.status
