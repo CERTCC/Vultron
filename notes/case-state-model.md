@@ -12,6 +12,7 @@ description: >
 related_specs:
   - specs/architecture.yaml (ARCH-12-002)
   - specs/case-management.yaml
+  - specs/case-shadow.yaml (SHD-05)
   - specs/cs-behavior.yaml
   - specs/em-behavior.yaml
   - specs/received-status-handling.yaml
@@ -183,10 +184,10 @@ initialization (CM-12, CM-13). Full flow: [case-joining.md](case-joining.md).
 A case-level trigger or behavior-tree node (CASE_MANAGER or case owner
 perspective) MUST aggregate over all relevant participants: for example, an
 `EMBARGO_END` trigger MUST NOT fire because one vendor reached `FIX_READY` while
-others have not. Participant-level rules evaluate one participant's state. An
-action rule is advice that fires nothing, so it is read per vendor and names the
-vendor it matched, as move advice is (ADR-0216); the aggregation stays with
-whatever acts on it. No aggregation threshold is specified
+others have not. Participant-level triggers and nodes evaluate one participant's
+state. An action rule is advice that fires nothing, so it is read per vendor and
+names the vendor it matched, as move advice is (ADR-0216); the aggregation stays
+with whatever acts on it. No aggregation threshold is specified
 ("all engaged vendors at `FIX_READY`" versus "≥X% of vendors"); do not hard-code
 one in a node. It needs a spec, or a call-out that delegates the judgment.
 

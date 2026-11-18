@@ -397,6 +397,22 @@ alone. It marks a wrong rule or a chance-model blind spot, and it is shown, not
 resolved.
 *Avoid*: conflict, rule error
 
+**Misplaced rule**:
+A position at which an authored action rule names a move that the state machines do
+not allow there, or that the rule's role may not make. It marks an authoring error.
+*Avoid*: invalid rule, broken rule
+
+**Unclaimed move**:
+A move that is harm-free for a vendor at a position where no authored action rule
+names it: advice the authored rules miss.
+*Avoid*: missing rule, orphan move
+
+**Unscored rule**:
+An authored action rule whose action is allowed but has no band, such as a CVD action
+that changes no state, or a move that move advice does not score. It is shown with no
+number, never as an agreement.
+*Avoid*: unrated rule
+
 ---
 
 ## SSVC

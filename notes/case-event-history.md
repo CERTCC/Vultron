@@ -14,6 +14,7 @@ related_specs:
   - specs/cs-behavior.yaml
   - specs/em-behavior.yaml
   - specs/case-management.yaml
+  - specs/case-shadow.yaml (SHD-05)
 related_notes:
   - notes/case-ledger-parsing.md
   - notes/case-ledger-authority.md

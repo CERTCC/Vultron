@@ -32,11 +32,15 @@ The question: **what do the action rules read, what does each one claim, and how
 - A rule says why: its reason names the desiderata that the action serves, from the desiderata list that move advice uses.
 - A rule can read every state machine of a participant's position: CS, RM, EM and PEC.
 - A rule and move advice read the same positions, so that each can check the other.
-- Neither a rule nor the chance model is ground truth. A disagreement marks a wrong rule or a blind spot in the model, and only a person can say which.
-- A disagreement is shown. Nothing resolves it silently.
-- An action rule is advice. It fires no trigger and moves no state, so it is read for one vendor at a time, as move advice is.
+- Neither a rule nor the chance model is ground truth.
+  A disagreement marks a wrong rule or a blind spot in the model, and only a person can say which.
+- A disagreement is shown.
+  Nothing resolves it silently.
+- An action rule is advice.
+  It fires no trigger and moves no state, so it is read for one vendor at a time, as move advice is.
 - The CS action rules stay equal to the legacy test oracle (ADR-0060).
-- The demo stories already compare an authored narrative with "the story as the code tells it". The action rules use the same pattern: the claim beside the evidence.
+- The demo stories already compare an authored narrative with "the story as the code tells it".
+  The action rules use the same pattern: the claim beside the evidence.
 
 ## Considered Options
 
@@ -81,7 +85,8 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
    A move's **band for one vendor** is ADR-0200 rule 5 applied to that vendor's scope alone: the deciding part is the vendor's end part, or its embargo part when the end part is zero, and the move is harm-free for the vendor when that part is positive and unhelpful for the vendor when it is not.
    It can differ from the move's band in the whole case, because the rule is about one vendor.
    For each open move and each valid position of one vendor, the generated verdict is the move's band for that vendor.
-   A generated rule groups the positions in which a move gets the same band into one or more patterns, written in the same pattern language as the authored rules, with the role that move advice labels the move with.
+   A generated rule groups the positions in which a move gets the same band into one or more patterns, written in the same pattern language as the authored rules, with the role that move advice gives the move.
+   That role is the vendor for an RM or CS move, which names the vendor whose state it moves, and, for an EM move, the role that the EM trigger roles table gives its trigger, or any role when the table names none.
    One command rebuilds the generated rules, and nobody edits them by hand.
    A check fails when the move advice changes and the generated rules were not rebuilt.
    A move that move advice does not score, such as a PEC move while move advice has no PEC moves (#6677), has no generated rule.
@@ -90,7 +95,8 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
    For each position, each authored rule that matches it, and each generated verdict at it, the comparison gives one of five results:
    - An **agreement**: an authored rule claims that a move serves the vendor, and the move is harm-free for that vendor.
    - A **rule disagreement**: an authored rule claims that a move serves the vendor, and the move is unhelpful for that vendor.
-   - A **misplaced rule**: an authored rule names a move that the state machines do not allow at a position that the rule matches. It is an authoring error.
+   - A **misplaced rule**: an authored rule names a move that the state machines do not allow at a position that the rule matches, or a move that the rule's role may not make.
+     It is an authoring error.
    - An **unclaimed move**: a move is harm-free for the vendor, and no authored rule names it at that position.
    - An **unscored rule**: an authored rule whose action is allowed but has no band, such as a CVD action that changes no state, or a move that move advice does not score.
 
@@ -107,6 +113,7 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
    Thus a trade-off move shows as an agreement for a vendor that it helps and as a rule disagreement for a vendor that it harms.
 8. **The generated rules and the disagreements have a docs page.**
    A generated page in the measuring-CVD docs lists the generated rules and the result of the comparison over every valid position of one vendor.
+   The positions on the page hold no PEC state, because the chance model has none, so an authored rule with a PEC part is undecided there (rule 2).
    The command that rebuilds the generated rules rebuilds the page too, and the same staleness check covers it.
    The source table in `docs/topics/other_uses/action_rules.md` names, for each rule, the desiderata that the authored table names, so that the two tables do not disagree.
 9. **The action rules endpoint does not change.**
@@ -117,13 +124,17 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
 
 - Good, because each rule says which desiderata it serves, so the analyst sees what the rule is for.
 - Good, because a rule can read RM, EM and PEC, so it can say when a move suits a position and not only a case state.
-- Good, because a rule disagreement finds either a wrong rule or a blind spot in the chance model. For example, an authored rule that a coordinator proposes an extension to buy time for `D ≺ P` disagrees with move advice, which puts the extension in the unhelpful band (#6492).
+- Good, because a rule disagreement finds either a wrong rule or a blind spot in the chance model.
+  For example, an authored rule that a coordinator proposes an extension to buy time for `D ≺ P` disagrees with move advice, which puts the extension in the unhelpful band (#6492).
 - Good, because a misplaced rule finds an authoring error that a list of possible actions hides.
 - Good, because the generated rules state move advice in the language of the rules, so that a person can read and review it, rule by rule.
 - Good, because the comparison resolves nothing, so neither the model nor a person overrides the other in silence.
 - Good, because a rule is about one vendor, so no rule chooses a threshold over the vendors.
-- Bad, because a rule cannot read the state of a participant that is not a vendor, such as a coordinator's own RM state. Such rules wait for scopes for those participants (Epic #6461).
-- Bad, because the verdict is a band from all the desiderata of the vendor's scope, not from the desiderata that the authored rule names. An authored rule that names an end desideratum agrees with a move whose band comes from its embargo part only. The comparison shows the deciding part and the named desiderata's changes, so that the analyst can see this.
+- Bad, because a rule cannot read the state of a participant that is not a vendor, such as a coordinator's own RM state.
+  Such rules wait for scopes for those participants (Epic #6461).
+- Bad, because the verdict is a band from all the desiderata of the vendor's scope, not from the desiderata that the authored rule names.
+  An authored rule that names an end desideratum agrees with a move whose band comes from its embargo part only.
+  The comparison shows the deciding part and the named desiderata's changes, so that the analyst can see this.
 - Bad, because the generated rules read one vendor's position, so a trade-off between vendors shows only on a live case, not on the generated page.
 - Bad, because two tables must be kept, and the authored table needs a person to write the desiderata for each of the carried-over CS rules.
 - Neutral, because an authored rule for a move that move advice does not score, such as a PEC move (#6677), is an unscored rule.
@@ -176,6 +187,7 @@ The spec groups that carry these rules are in `specs/case-shadow.yaml`, beside t
 - **SHD-05 Action Rules**: the pattern, role, action and reason of a rule (rule 1 to rule 3), the authored table and the CS carry-over (rule 4), the generated rules and their rebuild and staleness check (rule 5), and the comparison and its five results (rule 6).
 - **SHD-06 Action Rules on the Page**: the case shadow tool's display of the matching authored rules beside the bands, with each rule disagreement flagged (rule 7), and the generated docs page (rule 8).
 
-CSB-17 keeps the CS validity rules that the CS part of a pattern reads. AR-07 and CM-07 do not change (rule 9).
+CSB-17 keeps the CS validity rules that the CS part of a pattern reads.
+AR-07 and CM-07 do not change (rule 9).
 
-Generated spec requirements: `case-shadow.yaml` SHD-05-001 through SHD-05-014 and SHD-06-001 through SHD-06-005.
+Generated spec requirements: `case-shadow.yaml` SHD-05-001 through SHD-05-021 and SHD-06-001 through SHD-06-007.
