@@ -34,12 +34,13 @@ on:
       # `vultron-shadow` command in python-app.yml on every `vultron/**` change.
       - vultron/shadow/**
       # The live-read step also runs the shadow tool's own settings, and the
-      # node's code it reads from: the seed command, the create-case trigger
-      # and the demo ledger routes.
+      # node's code it reads from: the seed command, the create-case trigger,
+      # the demo ledger routes and the ledger event stream they serve.
       - vultron/config/shadow.py
       - vultron/demo/cli/seed_command.py
       - vultron/adapters/driving/fastapi/routers/trigger_case.py
       - vultron/adapters/driving/fastapi/routers/demo_triggers/**
+      - vultron/adapters/driving/fastapi/ledger_stream.py
       - pyproject.toml
       - uv.lock
       # This workflow and the code it runs, so the pull request that changes
@@ -59,6 +60,7 @@ on:
       - vultron/demo/cli/seed_command.py
       - vultron/adapters/driving/fastapi/routers/trigger_case.py
       - vultron/adapters/driving/fastapi/routers/demo_triggers/**
+      - vultron/adapters/driving/fastapi/ledger_stream.py
       - pyproject.toml
       - uv.lock
       - .github/workflows/shadow-image.yml

@@ -341,6 +341,7 @@ def test_the_job_runs_on_a_change_to_what_it_checks() -> None:
             "vultron/demo/cli/seed_command.py",
             "vultron/adapters/driving/fastapi/routers/trigger_case.py",
             "vultron/adapters/driving/fastapi/routers/demo_triggers/**",
+            "vultron/adapters/driving/fastapi/ledger_stream.py",
             "pyproject.toml",
             "uv.lock",
             ".github/workflows/shadow-image.yml",

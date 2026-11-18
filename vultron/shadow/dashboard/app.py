@@ -64,7 +64,12 @@ def ledger_suggestions(config: ShadowConfig) -> list[str]:
 # many from holding a reader for each.
 @st.cache_resource(max_entries=16)
 def _reader(config: ShadowConfig, chosen: ChosenSource) -> CaseReader:
-    """The source's case reader, built once: the connector loader runs once."""
+    """The source's case reader, built once per source.
+
+    The cache keeps only a reader that was built, so a source whose reader
+    is refused, such as a connector that is not installed, runs the
+    connector loader again on each rerun until it can be read.
+    """
     return configured_case_reader(config, chosen.source, node=chosen.node)
 
 
