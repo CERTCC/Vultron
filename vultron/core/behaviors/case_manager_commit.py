@@ -43,6 +43,7 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.helpers import (
     TRIGGER_FACTORY_UNAVAILABLE,
 )
@@ -96,6 +97,11 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         super().__init__(name=name or self.__class__.__name__)
         if case_id is not None:
             self._case_id = case_id
+        elif CASE_ID.name not in type(self).INPUT_PORTS:
+            raise VultronWiringError(
+                f"{self.name}: no case_id and no '{CASE_ID.path}' port to"
+                " read it from (BTND-01-008)"
+            )
         self._semantic_type = semantic_type
         self._notify_participants = notify_participants
         #: The ids of the activities the last :meth:`update` committed.

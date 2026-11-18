@@ -24,6 +24,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.use_cases._helpers import add_activity_to_outbox
+from vultron.errors import VultronWiringError
 
 
 class _SendEmbargoActivityBase(DataLayerActionWithPorts, EmitCapable):
@@ -57,6 +58,11 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts, EmitCapable):
         super().__init__(name=name or self.__class__.__name__)
         if case_id is not None:
             self._case_id = case_id
+        elif CASE_ID.name not in type(self).INPUT_PORTS:
+            raise VultronWiringError(
+                f"{self.name}: no case_id and no '{CASE_ID.path}' port to"
+                " read it from (BTND-01-008)"
+            )
 
     def _on_factory_unavailable(self) -> Status:
         """Status to return when ``trigger_activity_factory`` is ``None``.

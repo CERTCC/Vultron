@@ -33,6 +33,9 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case.nodes.leave.settle import (
     ExpirePendingInvitesOnCloseNode,
 )
+from vultron.core.behaviors.case_manager_commit import (
+    _CommitCaseManagerActivityBase,
+)
 from vultron.core.behaviors.embargo.end_time_tree import (
     EmbargoAlreadyEndedNode,
     EmbargoEndTimePassedNode,
@@ -44,6 +47,7 @@ from vultron.core.behaviors.embargo.nodes.chosen_cause import (
     ChooseTerminationCauseNode,
     ChosenTermination,
 )
+from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.embargo.nodes.ending_notice import (
     CaptureActiveEmbargoNode,
     SendEmbargoEndingNoticesNode,
@@ -83,6 +87,7 @@ from vultron.core.models.embargo_termination import (
     TerminationCauseKind,
 )
 from vultron.core.states.embargo_register import TerminationReason
+from vultron.errors import VultronWiringError
 
 #: Each moved node, built from configuration alone, and the first key it
 #: reads when it ticks.
@@ -165,3 +170,22 @@ def test_a_node_ticked_without_its_key_seeded_raises_naming_the_key(
 
     with in_act(), pytest.raises(NoDataAvailable, match=key):
         tree.tick()
+
+
+@pytest.mark.spec("BTND-01-008")
+@pytest.mark.parametrize(
+    "base", [_SendEmbargoActivityBase, _CommitCaseManagerActivityBase]
+)
+def test_a_base_built_with_no_case_and_no_case_port_is_a_wiring_fault(
+    base: type,
+) -> None:
+    """``case_id=None`` is only for a subclass that reads ``/case_id``."""
+
+    class _NoCasePort(base):  # type: ignore[misc, valid-type]
+        pass
+
+    kwargs: dict[str, object] = {"case_id": None}
+    if base is _CommitCaseManagerActivityBase:
+        kwargs["semantic_type"] = "Remove"
+    with pytest.raises(VultronWiringError, match="/case_id"):
+        _NoCasePort(**kwargs)
