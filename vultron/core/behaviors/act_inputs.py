@@ -148,28 +148,38 @@ def declare_inputs[NodeT: py_trees.behaviour.Behaviour](
         VultronWiringError: A key is given both sources (BT-25-011).
         TypeError: A key is not an :class:`ActKey` of the vocabulary.
     """
-    sources: dict[ActKey, KeySource] = {}
+    declaration = declared_inputs(tree)
     for keys, source in (
         (seeded, KeySource.SEEDED),
         (published, KeySource.PUBLISHED),
     ):
-        for key in keys:
-            if ACT_KEYS.get(getattr(key, "name", "")) is not key:
-                raise TypeError(
-                    f"{tree.name}: {key!r} is not a key of the act-key"
-                    " vocabulary (BTND-03-022)"
+        declaration = declaration.merged(
+            TreeInputs(
+                MappingProxyType(
+                    {
+                        _vocabulary_act_key(key, tree.name): source
+                        for key in keys
+                    }
                 )
-            if sources.setdefault(key, source) is not source:
-                raise VultronWiringError(
-                    f"{tree.name}: '{key.path}' is declared both seeded by"
-                    " the runner and published by a node; a key has one"
-                    " source in a tree (BT-25-011)"
-                )
-    declaration = declared_inputs(tree).merged(
-        TreeInputs(MappingProxyType(sources)), where=tree.name
-    )
+            ),
+            where=tree.name,
+        )
     setattr(tree, _INPUTS_ATTR, declaration)
     return tree
+
+
+def _vocabulary_act_key(key: ActKey, where: str) -> ActKey:
+    """*key*, when it is the vocabulary's own :class:`ActKey` of its name.
+
+    Raises:
+        TypeError: *key* is not a key of the vocabulary (BTND-03-022).
+    """
+    if ACT_KEYS.get(getattr(key, "name", "")) is not key:
+        raise TypeError(
+            f"{where}: {key!r} is not a key of the act-key vocabulary"
+            " (BTND-03-022)"
+        )
+    return key
 
 
 def declared_inputs(node: py_trees.behaviour.Behaviour) -> TreeInputs:
@@ -336,7 +346,9 @@ def _seed_value(
             f"{where}: declared input '{key.path}' could not be read from"
             f" {act_name}.{attribute}: {exc} (BT-25-008)"
         ) from exc
-    if value is None:
+    # An empty string is no value either ("if present, then non-empty",
+    # CS-08-002).
+    if value is None or value == "":
         raise VultronWiringError(
             f"{where}: declared input '{key.path}' has no value: this"
             f" {act_name} carries no {attribute} (BT-25-008)"

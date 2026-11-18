@@ -39,10 +39,13 @@ from test.support.received import (
     with_evidence,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors import act_inputs
 from vultron.core.behaviors.act_inputs import (
     KeySource,
+    act_key_bindings,
     declare_inputs,
     declare_seeds,
+    declared_inputs,
     published_act_keys,
     seed_act_inputs,
     seeding_declaration,
@@ -232,6 +235,52 @@ def test_a_relative_binding_publishes_no_flat_key():
     assert published_act_keys(_RelativeBinding()) == frozenset()
 
 
+class _InstanceBinding(_PublishesCaseId, register=False):
+    """Binds its output port in the instance hook, not the class hook."""
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {}
+
+    def _instance_port_remappings(self) -> dict[str, str]:
+        return {"case_id": CASE_ID.path}
+
+
+class _OddHook:
+    """A node whose remapping hook returns something other than a mapping."""
+
+    OUTPUT_PORTS = {"case_id": PortInformation(data_type=str)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> list[str]:
+        return ["/case_id"]
+
+
+def test_an_instance_hook_binding_publishes_its_key():
+    assert act_key_bindings(_InstanceBinding(name="Bound")) == {
+        "case_id": CASE_ID.path
+    }
+    assert published_act_keys(_InstanceBinding(name="Bound")) == {CASE_ID}
+
+
+def test_a_hook_that_returns_no_mapping_binds_nothing():
+    assert act_key_bindings(_OddHook()) == {}
+
+
+@pytest.mark.spec("BT-25-006")
+def test_declaring_again_adds_to_a_nodes_declaration():
+    node = declare_inputs(_Probe(), seeded=[CASE_ID])
+    declare_inputs(node, seeded=[NOTE_ID])
+    assert declared_inputs(node).seeded == {CASE_ID, NOTE_ID}
+
+
+@pytest.mark.spec("BT-25-011")
+def test_declaring_again_with_the_other_source_conflicts():
+    node = declare_inputs(_Probe(), seeded=[CASE_ID])
+    with pytest.raises(VultronWiringError, match=r"'/case_id'.*BT-25-011"):
+        declare_inputs(node, published=[CASE_ID])
+
+
 # --- The seeding declaration (BT-25-007) -------------------------------------
 
 
@@ -253,13 +302,25 @@ def test_a_trigger_request_seeds_its_case_but_never_its_executing_actor():
     }
 
 
+@pytest.fixture(autouse=True)
+def _isolated_seed_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give each test its own copy of the explicit-seed registry."""
+    monkeypatch.setattr(
+        act_inputs,
+        "_EXPLICIT_SEEDS",
+        {t: dict(e) for t, e in act_inputs._EXPLICIT_SEEDS.items()},
+    )
+
+
 @dataclass
 class _Act:
     case_id: str | None = None
 
 
 @pytest.mark.spec("BT-25-007")
-def test_an_explicit_entry_renames_or_withholds_and_subclasses_inherit_it():
+def test_an_explicit_entry_renames_or_withholds_and_subclasses_inherit_it() -> (
+    None
+):
     # Types local to the test, so their entries reach no other test.
     @dataclass
     class _Renamed:
@@ -389,6 +450,36 @@ def test_a_declared_key_the_caller_also_passes_fails_the_one_source_check():
         seed_act_inputs(tree, _note_event(), context={"case_id": _CASE_ID})
 
 
+@pytest.mark.spec("BT-25-011")
+def test_a_published_key_the_caller_also_passes_fails_the_one_source_check():
+    tree = declare_inputs(
+        _sequence(_PublishesCaseId(name="Lookup"), _Probe()),
+        published=[CASE_ID],
+    )
+    with pytest.raises(VultronWiringError, match="also passed by the caller"):
+        seed_act_inputs(tree, _note_event(), context={"case_id": _CASE_ID})
+
+
+@pytest.mark.spec("BT-25-008")
+def test_a_seeded_key_whose_attribute_is_an_empty_string_raises_naming_it():
+    tree = declare_inputs(_Probe(), seeded=[CASE_ID])
+    with pytest.raises(VultronWiringError, match="'/case_id' has no value"):
+        seed_act_inputs(tree, _Act(case_id=""))
+
+
+class _SlotlessAct:
+    """An act whose declared attribute is missing on the instance."""
+
+    __slots__ = ("case_id",)
+
+
+@pytest.mark.spec("BT-25-008")
+def test_a_seeded_key_whose_attribute_is_unset_is_a_wiring_fault_naming_it():
+    tree = declare_inputs(_Probe(), seeded=[CASE_ID])
+    with pytest.raises(VultronWiringError, match="'/case_id' could not be"):
+        seed_act_inputs(tree, _SlotlessAct())
+
+
 # --- The received-tree runner ------------------------------------------------
 
 
@@ -407,15 +498,33 @@ def test_the_received_runner_seeds_each_declared_key_from_the_event():
     }
 
 
+class _FailingProbe(_Probe):
+    """A probe that records what it read, then fails."""
+
+    def update(self) -> Status:
+        super().update()
+        self.feedback_message = "the probe refused"
+        return Status.FAILURE
+
+
 @pytest.mark.spec("BT-17-007")
-def test_the_received_runner_restores_the_seeded_keys_after_the_run():
+@pytest.mark.parametrize("probe_type", [_Probe, _FailingProbe])
+def test_the_received_runner_restores_the_seeded_keys_after_the_run(
+    monkeypatch: pytest.MonkeyPatch, probe_type: type[_Probe]
+):
+    """On success and on failure, a key held before the run gets its value
+    back and a key absent before the run is absent again."""
     storage = py_trees.blackboard.Blackboard.storage
-    _run_received(
-        declare_inputs(_sequence(_Probe()), seeded=[CASE_ID, NOTE_ID])
-    )
-    for key in ("case_id", "note_id"):
-        assert key not in storage
-        assert f"/{key}" not in storage
+    monkeypatch.setitem(storage, "/note_id", "a value from before the run")
+    monkeypatch.delitem(storage, "/case_id", raising=False)
+    monkeypatch.delitem(storage, "case_id", raising=False)
+    probe = probe_type()
+    _run_received(declare_inputs(_sequence(probe), seeded=[CASE_ID, NOTE_ID]))
+    assert probe.seen["note_id"] == _NOTE_ID
+    assert probe.seen["case_id"] == _CASE_ID
+    assert storage["/note_id"] == "a value from before the run"
+    assert "/case_id" not in storage
+    assert "case_id" not in storage
 
 
 @pytest.mark.spec("BT-25-008")

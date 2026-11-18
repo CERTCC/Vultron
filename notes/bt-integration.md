@@ -16,6 +16,7 @@ description: >
   where each is seeded or looked up, and how to translate a simulator tree.
 related_specs:
   - specs/behavior-tree-integration.yaml
+  - specs/behavior-tree-node-design.yaml
   - specs/handler-protocol.yaml
   - specs/inbox-endpoint.yaml
   - specs/case-ledger-processing.yaml
