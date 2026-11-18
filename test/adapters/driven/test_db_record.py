@@ -1235,6 +1235,27 @@ def test_a_typed_reference_to_another_type_is_stored_as_its_id():
     assert record.data_.get("object_") == note_id
 
 
+@pytest.mark.spec("MV-12-002")
+def test_a_stored_marker_of_only_id_and_type_is_not_read_as_a_reference():
+    """A ``Redacted`` marker is a value, never a reference, on the read path too.
+
+    ``reads_as_typed_reference`` excludes ``Redacted``, so a stored inline
+    ``{id, type: "Redacted"}`` is not retyped as a typed reference; the marker
+    type refuses the ``id`` and the field is left as stored.
+    """
+    from vultron.adapters.driven.db_record.codec import _retype_inline_ref
+    from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+
+    activity = make(
+        as_Activity,
+        id_="https://example.org/activities/stored-marker",
+        actor=_CASE_ACTOR_ID,
+    )
+    marker = {"id": "https://example.org/redactions/1", "type": "Redacted"}
+
+    assert _retype_inline_ref(activity, "object_", marker) is None
+
+
 def test_a_case_reference_round_trips_as_a_reference():
     """A Join's case reference is stored inline and read back as one.
 

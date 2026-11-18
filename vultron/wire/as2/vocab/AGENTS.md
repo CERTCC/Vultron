@@ -41,7 +41,7 @@
    in one line (`WIRE_TYPE_MAP["VulnerabilityReport"] = VulnerabilityReport`,
    ARCH-25-003). A new class MUST NOT share an existing class's `type` value:
    when a core class owns it, the wire name is an alias of the core class
-   (`as_Document = AttachedDocument`, ADR-0099), and a typed reference
+   (`as_Document = AttachedDocument`, ADR-0211), and a typed reference
    (`as_TypedReference`) declares no default `type_`, so it claims no key
    (VM-01-017). The only sharers are the five `as_Vultron*` actor shadows,
    enumerated in the ratchet `test/architecture/test_vocab_registry_keys.py`,
@@ -60,7 +60,7 @@
 just `ConfigDict(frozen=True)`. The old `validate_assignment=False` override on
 `as_Object` and the `_is_core_branch` sentinel are gone: they existed only to
 cancel what the wire branch inherited from the shared core root, which
-ADR-0099 deleted (ARCH-25-004). `validate_assignment` now lives on the core
+ADR-0211 deleted (ARCH-25-004). `validate_assignment` now lives on the core
 `CoreRecord` root, which no wire class inherits, so the wire branch stays
 lenient for inbound AS2 data without an override (ARCH-21-002).
 
@@ -69,7 +69,7 @@ field or hook. Ratchet: `test_wire_vocabulary_inherits_nothing_from_core` in
 `test/architecture/test_hierarchy_invariants.py`. Rationale:
 `notes/core-wire-rendering-port.md` § "The `as_Object.model_config` override is
 gone, and why".
-*Source: ISSUE-2294, ADR-0099*
+*Source: ISSUE-2294, ADR-0211*
 
 ## Related Files
 

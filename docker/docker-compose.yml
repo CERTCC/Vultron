@@ -110,7 +110,11 @@ services:
     # The case shadow tool: a read-only dashboard over one case at a time
     # (ADR-0190, ADR-0192). Start it with `docker compose up shadow` and open
     # http://127.0.0.1:8501. It reads the committed demo recordings by
-    # default; see docs/howto/run_the_case_shadow.md.
+    # default. With VULTRON_SHADOW__NODE_URL and VULTRON_SHADOW__NODE_ACTOR_ID
+    # set, it follows a case live on a running demo node instead, such as
+    # http://case-actor:7999/api/v2 and case-actor while the stack in
+    # docker-compose-multi-actor.yml is up; see
+    # docs/howto/run_the_case_shadow.md.
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -131,6 +135,15 @@ services:
       - VULTRON_SHADOW__CONNECTOR
       - VULTRON_VINCE__BASE_URL
       - VULTRON_VINCE__API_TOKEN
+      # The demo node and CASE_MANAGER the live Vultron case reader follows,
+      # passed through by name the same way.
+      - VULTRON_SHADOW__NODE_URL
+      - VULTRON_SHADOW__NODE_ACTOR_ID
+    # The demo stack's network, so the tool reaches a node by its service
+    # name. Both Compose files share one project name (docker/.env), so
+    # this is the network the demo nodes are on.
+    networks:
+      - vultron-network
 
 networks:
   vultron-network:

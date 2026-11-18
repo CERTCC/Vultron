@@ -5,7 +5,7 @@ kind: guidance
 description: >
   Why core needs wire-shaped JSON at all, why core-side renderings with per-field
   patches are the wrong way to get it, and the driven-port seam core uses
-  instead. Under ADR-0099 the port is the `CoreObject`'s own `by_alias` dump;
+  instead. Under ADR-0211 the port is the `CoreObject`'s own `by_alias` dump;
   core logic never dumps `by_alias` itself (ARCH-20-001, empty baseline in
   `test_core_by_alias_dumps.py`), and every received use case and trigger is
   given the port. Also: why `extra="forbid"` is the only guard for dropped flat
@@ -28,7 +28,7 @@ related_notes:
   - notes/sync-ledger-replication.md
 related_adrs:
   - ADR-0063
-  - ADR-0099
+  - ADR-0211
   - ADR-0107
 ---
 
@@ -36,7 +36,7 @@ related_adrs:
 
 Core logic obtains wire-shaped JSON through a driven port (`WireRenderPort`,
 `vultron/core/ports/wire_render.py`), never by dumping or patching its own objects
-(ADR-0063). Under ADR-0099 the adapter behind the port is
+(ADR-0063). Under ADR-0211 the adapter behind the port is
 the core object's own `by_alias` dump, because core types carry the AS2 spelling
 themselves (ARCH-25-002).
 

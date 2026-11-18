@@ -22,9 +22,9 @@ the branch is conflict-free against its base, the local gate passes, and all CI
 checks have completed successfully (or the cap of four counted iterations is
 reached; CI's first run on a draft is not counted, PAD-18-030).
 
-After a PR's first push, CI is the full-suite authority (ADR-0126). Execute
+After a PR's first push, CI is the full-suite authority (ADR-0209). Execute
 therefore merges the base only when the PR conflicts with it (PAD-18-004,
-ADR-0138), gates a conflict merge with the tests for the conflicted files,
+ADR-0209), gates a conflict merge with the tests for the conflicted files,
 and gates each fix push with the linters plus the targeted test set for the
 branch diff, not the full suite (PAD-18-002). A PR GitHub reports `BEHIND` is
 refreshed on GitHub with `gh pr update-branch`, which needs no local run
@@ -71,7 +71,7 @@ Run /pr-triage first (or /pr-ship to run the full pipeline).
 5. Note `pr_metadata.needs_integration_tests`. It is informational: Phase 5's
    gate does not read it: `targeted-tests` gates those paths by their
    importers, integration-marked ones included, and CI runs the rest
-   (PAD-18-012, ADR-0143).
+   (PAD-18-012, ADR-0209).
 6. Note `pr_metadata.base_ref` — Phase 5 syncs against this branch, not
    necessarily `main`.
 
@@ -284,7 +284,7 @@ to read both sides and resolve it. Being behind the base, even when the base
 changed files this PR also changes, is not a reason to merge here: CI tests
 the PR merged into its base on every push, and the merger refreshes an
 overlapping PR on GitHub (`gh pr update-branch`) right before merging it, at
-no local cost (PAD-18-009, ADR-0138). Commit Phase 2 and CI fixes first, then
+no local cost (PAD-18-009, ADR-0209). Commit Phase 2 and CI fixes first, then
 let the script decide:
 
 ```bash
@@ -313,7 +313,7 @@ GitHub), and `false` only when every iteration's verdict was `no-merge`.
 **`BEHIND`, updated on GitHub.** `BEHIND` is the one state in which GitHub
 itself refuses the merge until the branch contains the base, and `pr-verify`
 blocks on it (PAD-18-005). GitHub reports it only when a ruleset requires
-up-to-date branches, which ADR-0126 found this repository does not set;
+up-to-date branches, which ADR-0209 found this repository does not set;
 seeing it means that changed. `merge-tree` already showed the merge is clean,
 so let GitHub make it. If this iteration has local commits not yet pushed,
 gate and push them first (Steps 3 and 4), then update:
@@ -429,7 +429,7 @@ go to stderr, and neither is an error:
   whose reach no index can see. The gate is still the set it could select
   plus the always-selected directories, and CI's required full run covers
   the rest (PAD-18-003, PAD-18-012). An integration-bearing path is gated by
-  its importers like any other (ADR-0143).
+  its importers like any other (ADR-0209).
 
 Run the command `targeted-tests --pytest` prints. It carries `-m ""` so
 integration-marked tests among the selected files are not deselected by the
@@ -549,7 +549,7 @@ green run as a pass (#3902).
 
 1. Run `merge-state.sh <number>` once more for the `merge_state` block. Do
    **not** return to Step 2 because the base moved during the wait, even onto
-   this PR's files: that loop is what ADR-0138 removed. A conflict that lands
+   this PR's files: that loop is what ADR-0209 removed. A conflict that lands
    after this point is caught by `pr-verify`'s live merge-state gate or by the
    merger's pre-merge check (PAD-18-009, PAD-18-018), which re-runs `pr-ship`.
 

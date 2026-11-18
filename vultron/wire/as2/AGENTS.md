@@ -17,7 +17,7 @@
     Do NOT use `VultronAS2Object` — that name is retired. See ARCH-14-002.
   - `TypeAlias` companion types also use the `as_` prefix:
     `as_VulnerabilityCaseRef`, `as_CaseParticipantRef`, etc. See ARCH-14-003.
-  - **IMPORTANT — this changed with ADR-0099 (ARCH-25-003).** For a *domain* type
+  - **IMPORTANT — this changed with ADR-0211 (ARCH-25-003).** For a *domain* type
     there is now only one class, and `as_X` is a `TypeAlias` onto it:
     `as_VulnerabilityCase is VulnerabilityCase` is `True`. All 27 paired
     classes were collapsed (#3487, #3488), so an `as_` prefix on a domain name

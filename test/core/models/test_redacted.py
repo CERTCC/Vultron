@@ -18,12 +18,17 @@ marker may stand is the parse edge's question, held by
 ``test/wire/as2/test_redaction_marker.py``.
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
-from vultron.core.models.redacted import REDACTED_TYPE, Redacted
+from vultron.core.models.case_preview import CasePreview
+from vultron.core.models.redacted import (
+    REDACTED_TYPE,
+    Redacted,
+    opens_to_redaction,
+)
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.vocab.objects.redacted import Redacted as WireRedacted
 
@@ -128,3 +133,40 @@ def test_the_wire_registry_resolves_redacted_to_the_core_marker() -> None:
     """The core class is the marker's only form (ARCH-25-003)."""
     assert WireRedacted is Redacted
     assert find_in_vocabulary("Redacted") is Redacted
+
+
+class _PreviewOpeningName(BaseModel):
+    """A stand-in preview type that opens its ``name`` to the marker."""
+
+    redactable_fields: ClassVar[frozenset[str]] = frozenset({"name"})
+    name: str | None = None
+    summary: str | None = None
+
+
+class _PreviewWithAMalformedDeclaration(BaseModel):
+    """A declaration that is not a frozenset of field names, a fault in the
+    type that ``opens_to_redaction`` raises on."""
+
+    redactable_fields: ClassVar[object] = ["name"]
+    name: str | None = None
+
+
+@pytest.mark.spec("MV-12-001")
+def test_a_preview_type_opens_only_the_fields_it_declares() -> None:
+    preview = _PreviewOpeningName()
+
+    assert opens_to_redaction(preview, "name")
+    assert not opens_to_redaction(preview, "summary")
+
+
+@pytest.mark.spec("MV-12-002")
+def test_the_case_preview_opens_no_field_yet() -> None:
+    """Which case fields the preview may redact is Concern #6641's to decide."""
+    assert not opens_to_redaction(CasePreview(summary="a case"), "name")
+
+
+def test_a_malformed_declaration_is_a_fault_in_the_type() -> None:
+    """A declaration that is not a frozenset of names is refused, not read
+    as opening nothing."""
+    with pytest.raises(TypeError, match="redactable_fields"):
+        opens_to_redaction(_PreviewWithAMalformedDeclaration(), "name")

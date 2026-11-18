@@ -46,7 +46,7 @@ and flattens group nesting.
 | `--topic A,B` | Select topics (spec files). |
 | `--group A-01,B-02` | Select groups. |
 | `--ids X,Y` | Select requirement IDs. |
-| `--adr ADR-0127,ADR-0099` | Select the requirements whose `adr:` field names one of these records. A record that no requirement names gets a stderr note pointing at its prose citations. |
+| `--adr ADR-0127,ADR-0211` | Select the requirements whose `adr:` field names one of these records. A record that no requirement names gets a stderr note pointing at its prose citations. |
 | `--deps` | Add transitive dependencies of the selection. |
 | `--cross-cutting` | Add the cross-cutting topics (see below). |
 | `--kind`, `--tag`, `--scope`, `--priority` | Narrow the selection. `--kind`/`--tag` take comma lists; all tags must match. |

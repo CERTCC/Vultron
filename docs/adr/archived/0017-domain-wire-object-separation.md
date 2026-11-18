@@ -14,7 +14,7 @@ stakeholder_type: [project-contributor]
 ---
 
 > **Superseded by
-> [ADR-0099](../0099-one-object-model-as2-is-a-serialization.md).** The Option D
+> [ADR-0099](0099-one-object-model-as2-is-a-serialization.md).** The Option D
 > shared root — `VultronBase` / `VultronObject` connecting a core branch and a
 > wire branch — is replaced by a single object model in which AS2 is a
 > serialization. The reason Option D was chosen over Option B in the first

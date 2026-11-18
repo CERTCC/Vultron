@@ -24,7 +24,7 @@ decision points and verification checkpoints.
 The skill reads which files changed, and `targeted-tests` derives the gate
 from them. There is no integration-tests-or-not decision to make: an
 integration-bearing path is gated by its importers like any other
-(PAD-18-003, ADR-0143). See [TESTING-LOGIC.md](TESTING-LOGIC.md).
+(PAD-18-003, ADR-0209). See [TESTING-LOGIC.md](TESTING-LOGIC.md).
 
 ## During Code Fix Phase
 

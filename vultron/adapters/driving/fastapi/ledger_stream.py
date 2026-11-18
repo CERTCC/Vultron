@@ -67,6 +67,11 @@ EVENT_STREAM_MEDIA_TYPE = "text/event-stream"
 #: ``app.state`` does not.
 SHUTDOWN_STATE_KEY = "ledger_stream_shutdown"
 
+#: Seconds a stream may send nothing before it sends a keepalive comment,
+#: so a client reading with a timeout sees a quiet case as live rather than
+#: as a lost connection.
+KEEPALIVE_SECONDS = 5.0
+
 #: Signals a server treats as "exit".  The hook chains onto whichever of these
 #: already has a Python-level handler.
 _EXIT_SIGNALS = (signal.SIGINT, signal.SIGTERM)
@@ -99,6 +104,11 @@ def format_entry_event(entry: CaseLedgerEntry) -> str:
     """Frame *entry* as one SSE event: ``id:`` is its ``log_index``."""
     data = json.dumps(ledger_entry_payload(entry))
     return f"id: {entry.log_index}\ndata: {data}\n\n"
+
+
+def format_keepalive_comment() -> str:
+    """Frame the comment a quiet stream sends; a client ignores its text."""
+    return ": keepalive\n\n"
 
 
 def format_close_event() -> str:
@@ -143,6 +153,7 @@ async def stream_case_ledger(
     poll_seconds: float,
     is_disconnected: Callable[[], Awaitable[bool]],
     shutdown: threading.Event,
+    keepalive_seconds: float = KEEPALIVE_SECONDS,
 ) -> AsyncIterator[str]:
     """Yield SSE frames for the case's ledger entries, then follow new ones.
 
@@ -152,11 +163,15 @@ async def stream_case_ledger(
     ``log_index`` order, holding an out-of-order one until its predecessor
     lands (SYNC-14), so "above the last one sent" misses nothing.
 
+    A stream that has sent nothing for *keepalive_seconds*, counted in
+    polls, sends :func:`format_keepalive_comment`, which a client skips.
+
     Ends when the client disconnects, or yields :func:`format_close_event`
     and ends once *shutdown* is set.  *actor_id* names the actor whose store
     is read, for the lifecycle log lines.
     """
     last_sent = after_index
+    quiet_polls = 0
     # Overwritten on every other way out; a disconnect may arrive as a
     # cancellation or a generator close, which pass through ``finally`` only.
     reason = "client disconnected"
@@ -175,6 +190,11 @@ async def stream_case_ledger(
                 if last_sent is None or entry.log_index > last_sent:
                     yield format_entry_event(entry)
                     last_sent = entry.log_index
+                    quiet_polls = 0
+            # Quiet time is counted in polls, not read from a clock.
+            if quiet_polls * poll_seconds >= keepalive_seconds:
+                yield format_keepalive_comment()
+                quiet_polls = 0
             if shutdown.is_set():
                 reason = "server shutting down"
                 yield format_close_event()
@@ -182,6 +202,7 @@ async def stream_case_ledger(
             if await is_disconnected():
                 return
             await asyncio.sleep(poll_seconds)
+            quiet_polls += 1
     except Exception:
         # Re-raised for the server to report; recorded here so the close
         # line does not blame the client.

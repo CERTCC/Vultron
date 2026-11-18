@@ -142,8 +142,8 @@ Write the status file, then run up to the agent cap at once. Per task:
 
    Update at most once per merge: if `main` moves again during the CI wait,
    merge on green anyway unless GitHub now reports a conflict. Repeating the
-   update on every movement is the loop ADR-0138 removed; a semantic conflict
-   between files neither PR shares is caught by CI on `main` (ADR-0126).
+   update on every movement is the loop ADR-0209 removed; a semantic conflict
+   between files neither PR shares is caught by CI on `main` (ADR-0209).
 
    After a merge, leave every other open PR alone. Each gets this same check
    when its own turn to merge comes; a PR still in `pr-ship` needs no nudge,

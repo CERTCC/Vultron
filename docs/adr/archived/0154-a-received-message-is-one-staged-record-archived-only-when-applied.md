@@ -1,5 +1,5 @@
 ---
-status: accepted-provisional
+status: superseded
 status_override: >-
   Maintainer decision, planning #6003 (2026-11-12): a received run starts over
   from its entry checks and never resumes partway; the rewrite of detail 8
@@ -20,7 +20,12 @@ partially_supersedes:
   - 0135-compose-received-trees-never-chain-them.md
   - 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
 stakeholder_type: [project-contributor]
+superseded_by: 0214-how-a-received-message-is-checked-applied-and-kept.md
 ---
+
+> **Superseded by [ADR-0214](../0214-how-a-received-message-is-checked-applied-and-kept.md).**
+> ADR-0214 states the received-side stage order, the staged record, the atomic act and what the receiver keeps as one decision, consolidating ADR-0111, ADR-0135, ADR-0151 and ADR-0154.
+> This record is kept as it stood when it was superseded.
 
 # A Received Message Is One Staged Record, Archived Only When Applied
 

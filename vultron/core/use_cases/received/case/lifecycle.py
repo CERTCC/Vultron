@@ -17,12 +17,8 @@ from vultron.core.behaviors.case.received_run import (
     OutcomeReader,
     ReceivedOutcome,
     closed_sender_reader,
-    failure_reason,
-    find_named,
     run_received_tree,
 )
-from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
-from vultron.core.behaviors.idempotency import repeat_ending_run
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
@@ -39,8 +35,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import sender_guard_refused
-from vultron.errors import VultronBTInternalError
 
 logger = logging.getLogger(__name__)
 
@@ -198,14 +192,15 @@ class CloseCaseReceivedUseCase:
 def _read_close() -> OutcomeReader:
     """The close tree's own reading, asked after the doors.
 
-    - A sender already closed repeats a closing act: its effect is in place,
-      so it is ``SKIPPED`` whatever its activity id, with nothing committed
-      or sent (CM-23-018, ID-05-003).
-    - A sender guard refusal is the generic refusal (HP-01-006).
-    - Any other failure is refused for the close's reason (BT-13-001): a
-      guard's refusal, such as the CM-23-011 refusal of the Case Owner's
-      close while its embargo is in force, whether or not the refusal
-      notice that answers it could be sent.
+    A sender already closed repeats a closing act: its effect is in place,
+    so it is ``SKIPPED`` whatever its activity id, with nothing committed or
+    sent (CM-23-018, ID-05-003); any other act of a closed sender is
+    refused.  Every other run is the runner's to read: a sender guard
+    refusal (HP-01-006) and a refused close, such as the CM-23-011 refusal
+    of the Case Owner's close while its embargo is in force, are refused for
+    the failing node's reason (BT-13-001), whether or not the refusal notice
+    that answers it could be sent, since the refusal effects never fail the
+    run.
     """
     closed_sender = closed_sender_reader(closes=True)
 
@@ -215,30 +210,6 @@ def _read_close() -> OutcomeReader:
         )
         if closed is not None:
             logger.info("CloseCaseReceivedUseCase: %s", closed.reason)
-            return closed
-        if sender_guard_refused(outcome.tree):
-            return None
-        arm = _close_arm(outcome.tree)
-        if (
-            outcome.succeeded
-            or arm is None
-            or repeat_ending_run(outcome.tree) is not None
-        ):
-            return None
-        reason = failure_reason(arm, outcome.result)
-        if reason in WIRING_UNAVAILABLE_MESSAGES:
-            raise VultronBTInternalError(f"{outcome.label}: {reason}")
-        return HandlerResult.refused(f"{outcome.label}: {reason}")
+        return closed
 
     return read
-
-
-def _close_arm(
-    tree: py_trees.behaviour.Behaviour,
-) -> py_trees.behaviour.Behaviour | None:
-    """The close, whose failure names why the close failed (BT-13-001).
-
-    Read below the CASE_MANAGER gate, so the reason is the close's own, not
-    the gate's.
-    """
-    return find_named(tree, "CloseCaseReceive")

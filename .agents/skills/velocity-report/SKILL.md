@@ -143,7 +143,7 @@ explicitly in the narrative and flag it as a future improvement.
 
 ### 9. Pipeline cost (`pipeline_cost`)
 
-The `pipeline_cost` section is the empirical check for ADR-0126.
+The `pipeline_cost` section is the empirical check for ADR-0209.
 It is absent when the script ran with `--no-pipeline-cost`.
 It has four sub-keys:
 
@@ -205,7 +205,8 @@ bad merge that breaks three workflows is one failed CI run on `main`.
 
 **Open-to-merge time trend** (`open_to_merge_hours`)
 
-- Is the median falling week-over-week since ADR-0126 was put in effect?
+- Is the median falling week-over-week since 2026-10-09, when CI became the full-suite
+  authority (ADR-0209)?
 - A sustained drop with no corresponding rise in `failed_ci_runs_on_main`
   is the primary positive signal the decision targeted.
 - A flat or rising median despite fewer local reruns suggests the bottleneck
@@ -227,7 +228,7 @@ bad merge that breaks three workflows is one failed CI run on `main`.
 
 - Counts merge commits (two or more parents) in the PR whose headline
   names `main`.
-- Under ADR-0138 (PAD-18-004, PAD-18-009), an agent merges `main` locally
+- Under ADR-0209 (PAD-18-004, PAD-18-009), an agent merges `main` locally
   only on conflict, and every other sync is one `gh pr update-branch` by
   GitHub: for `BEHIND`, or by the merger for an overlapping PR right before it
   merges. GitHub's update is a merge commit naming `main` too, so it counts
@@ -239,8 +240,8 @@ bad merge that breaks three workflows is one failed CI run on `main`.
   PAD-11-002 the branch was rebased, and `create-pr` cherry-picks onto a
   fresh base; neither leaves a merge commit, and a force-push replaces the
   PR's commit list.
-  Do not compare post-ADR-0126 values to a pre-ADR-0126 `merges_from_main`
-  baseline; read it as a trend from ADR-0126 onward.
+  Do not compare values from 2026-10-09 on to an earlier `merges_from_main`
+  baseline; read it as a trend from 2026-10-09 onward.
 
 **Suite runs** (`total_full_suite_runs`, `total_targeted_suite_runs`)
 
@@ -252,7 +253,7 @@ bad merge that breaks three workflows is one failed CI run on `main`.
   and a docs-only PR, which runs no test, reads `0 targeted`.
 - The script takes the line from the PR's latest summary, since the count is
   cumulative (PAD-18-006).
-- `full_suite_runs` reads `0` on every PR merged since ADR-0179: no local gate
+- `full_suite_runs` reads `0` on every PR merged since 2026-11-06: no local gate
   can produce a full run (PAD-18-003, PAD-18-008, PAD-18-015). The field stays
   because merged comments carry it and the series spans the change — a non-zero
   figure on a PR merged after it is a pipeline defect, not a cost signal.
@@ -262,7 +263,7 @@ bad merge that breaks three workflows is one failed CI run on `main`.
 
 **Failed CI runs on main** (`failed_ci_runs_on_main` in `weekly_main_failures`)
 
-This is the field that **falsifies ADR-0126**.
+This is the field that **falsifies ADR-0209**.
 A material rise in `failed_ci_runs_on_main` alongside a fall in
 `open_to_merge_hours` means the time was saved by moving failures onto `main`
 rather than catching them pre-merge — the trade was mispriced.
@@ -291,7 +292,7 @@ several workflows with one `first_red_sha` are one break; classify it once.
 Only semantic conflicts count toward the reopen condition; report the
 classified count per 100 merges for the month, not the raw episode rate.
 
-#### Integrated read: the ADR-0126 trade
+#### Integrated read: the ADR-0209 trade
 
 The decision accepted rare semantic-conflict failures on `main` in exchange for
 eliminating per-PR full reruns and merge-from-main loops.
@@ -302,8 +303,8 @@ The data supports the decision when all of the following hold:
    100 merges over a month (see the red-episode lens above);
    `failed_ci_runs_on_main` alone overstates breaks that stay red across
    several merges.
-3. `median_merges_from_main` stays low and is not rising from ADR-0126 onward.
-   The pre-ADR-0126 sync cost (captured in Concern #4015 at
+3. `median_merges_from_main` stays low and is not rising from 2026-10-09 onward.
+   The sync cost before 2026-10-09 (captured in Concern #4015 at
    `plan/history/2610/learning/CONCERN-4015.md`) was paid in rebases, which
    this field cannot see; compare against that write-up, not against this
    field's pre-ADR values.

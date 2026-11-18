@@ -37,7 +37,7 @@ spellings, all of which occur in real devlogs. A consumer that misses one report
 - **Depth**: the snapshot root, `object` / `object_` (an `Add` activity), a
   nested `caseStatus` / `case_status`, and each item of a case's
   `caseStatuses` list.
-- **Spelling**: the bare value (`{"rm": "ACCEPTED"}`, ADR-0099), the one-key
+- **Spelling**: the bare value (`{"rm": "ACCEPTED"}`, ADR-0211), the one-key
   mapping (`{"rm": {"state": "ACCEPTED"}}`, ADR-0036), and the flat keys
   (`rmState`, and the legacy `rm_state`). `ParticipantStatus` no longer accepts
   `rm_state` (SDO-03-003), but a log reader still tolerates it, consistent with

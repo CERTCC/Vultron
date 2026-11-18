@@ -315,7 +315,7 @@ the pipeline runs:
 | Phase | Check | Role |
 |---|---|---|
 | `pr-triage` Phase 12 | Read merge state, emit a FAIL finding | Early warning; recorded in `pr_metadata` |
-| `pr-execute` Phase 5 (CI Loop) | Merge the base locally **only** on conflict (`CONFLICTING`, `DIRTY`, or `git merge-tree` finds one), resolve, and gate with the tests for the conflicted files (`targeted-tests --paths`); clear GitHub's `BEHIND` with `gh pr update-branch`; record an overlap as `deferred`, never merge for it (PAD-18-004, ADR-0138) | The only phase that **fixes** conflicts. Runs after all other mutation so execute's own fixes are included. Does not loop back when the base moves during the CI wait |
+| `pr-execute` Phase 5 (CI Loop) | Merge the base locally **only** on conflict (`CONFLICTING`, `DIRTY`, or `git merge-tree` finds one), resolve, and gate with the tests for the conflicted files (`targeted-tests --paths`); clear GitHub's `BEHIND` with `gh pr update-branch`; record an overlap as `deferred`, never merge for it (PAD-18-004, ADR-0209) | The only phase that **fixes** conflicts. Runs after all other mutation so execute's own fixes are included. Does not loop back when the base moves during the CI wait |
 | `pr-verify` Phase 2 | Live re-check as a hard gate | The **authoritative** answer. Blocks `READY-TO-MERGE` on `CONFLICTING`, `DIRTY`, or GitHub's `BEHIND` — never on its own base-tip comparison (PAD-18-005) |
 
 Execute resolves rather than verify because verify is a read-only reporter by

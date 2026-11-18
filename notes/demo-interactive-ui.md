@@ -135,7 +135,7 @@ exporters to the files they write.
 | Recordings (`ui/src/recordings/<scenario>/case-actor.jsonl`, the canonical ledger only, and `steps.json`, the ledger tail at each declared step) | `uv run export-demo-recordings` (`vultron/demo/recordings/`), each scenario run in process with seeded ids and a stepping clock; every replica is checked against the canonical ledger and not stored | Log Replay, offline mode | golden replay files in `ui/src/utils/replay-golden/` (`replayGolden.test.ts`, rewritten by `npm test -- -u`); the daily `demo-recordings` workflow also regenerates the tree index and files a refresh Task (artifact rooted at `ui/src/`, holding `recordings/` and `data/scenario_tree.json`) when a recording differs from a fresh run on `main` (PRs are never blocked; a few days of lag is accepted, #5462); a smoke test in `test/demo_recordings/`; `CaseLedgerEntry` validation in `test/demo_unit/test_recordings.py` | built (#3901) |
 | Ledger types (`ui/src/data/ledgerTypes.ts`: `CaseLedgerEntry`, `ParticipantStatus`, `CaseStatus`, `CaseParticipant` and `EmbargoConsent` as TypeScript interfaces and as `LEDGER_SHAPES` field lists) | `uv run export-demo-ledger-types`, from the core models | `ui/src/utils/caseLedgerParser.ts` (types), `ledgerShape.ts` (each loaded line checked; a failing line is shown, not replayed) and `replayLanes.ts` (lane labels from `caseRoles`) | drift test in `test/metadata/demo_scenarios/` and the `demo-ledger-types-sync` hook | built (#4729) |
 | Scenario-tree index (`ui/src/data/scenario_tree.json`) | `uv run export-demo-tree`, from the branch-point table, the choices of each scenario's story and the recordings' case ids | offline mode, live branch points (no reader yet) | drift test in `test/metadata/demo_scenarios/` and the `demo-tree-sync` hook; byte-identical shared-prefix check over every pair of recordings (`test/demo_unit/test_recordings.py`) | built (#4727) |
-| Live ledger stream | `GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream` | live mode (#3642) | stream integration tests | server built (#3641); client planned |
+| Live ledger stream | `GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream` | live mode (#3642); the case shadow tool's live reader | stream integration tests | server built (#3641); shadow tool client built (#6531); UI client planned |
 | Branch-point choices | trigger endpoints (`/actors/{id}/trigger/{behavior}` and `/actors/{id}/demo/{behavior}`) | live mode (#3643) | — | planned |
 
 Rules for the TypeScript side:
@@ -188,8 +188,10 @@ The stream is built (#3641): `GET
 (TRIG-09), in
 `vultron/adapters/driving/fastapi/routers/demo_triggers/ledger.py` and
 `vultron/adapters/driving/fastapi/ledger_stream.py`. Each event's `id:` is the
-entry's `log_index`, `?since=` or `Last-Event-ID` resumes, and the stream is
-demo tooling, not a replication channel (SYNC-02-001).
+entry's `log_index`, `?since=` or `Last-Event-ID` resumes, a quiet stream
+sends a `: keepalive` comment so a client reading with a timeout keeps its
+connection (#6531), and the stream is demo tooling, not a replication channel
+(SYNC-02-001).
 
 ---
 

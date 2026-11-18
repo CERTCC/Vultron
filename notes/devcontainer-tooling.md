@@ -82,7 +82,7 @@ base overlap now runs no local test (PAD-18-024). Every slot container on a
 host shares one Docker VM, and each such command sizes itself to its own
 container without seeing the others, so concurrent runs end in memory kills
 and per-test timeouts (#5947). The 6-CPU slot cap is a ceiling, not a reserved
-share (ADR-0143); the lock adds the missing limit on how many heavy checks run
+share (ADR-0209); the lock adds the missing limit on how many heavy checks run
 at once.
 
 - **Where it lives.** Slot lock files `heavy-<i>.lock` in
