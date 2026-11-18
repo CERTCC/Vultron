@@ -218,6 +218,7 @@ adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md
 adr/0206-each-app-resolves-its-own-configuration.md
 adr/0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md
 adr/0208-core-owns-the-as2-base-vocabulary.md
+adr/0212-a-replica-changes-state-only-from-the-case-managers-entries-and-consent-is-part-of-a-participants-status.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
