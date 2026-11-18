@@ -596,9 +596,11 @@ nothing is written before the last one admits the message (ADR-0154).
    write nothing. A guard whose failure refuses the activity returns
    `self._refuse(reason)` (`DeclaredRefusalMixin`, `ReportsRefusal`), so the
    received runner reports `REFUSED` with that reason and no handler reader
-   names it; a local fault stays a plain FAILURE. A refusal goes to the
-   process log and, where the protocol calls for an answer, back to the
-   sender — never to the ledger (CLP-04-007).
+   names it; a local fault stays a plain FAILURE. A `Diversion` that answers
+   a delivery it refuses sets `refuses=True`, so its `DiversionStage`
+   declares the condition's reason once the answer completes (MSM-07-012).
+   A refusal goes to the process log and, where the protocol calls for an
+   answer, back to the sender — never to the ledger (CLP-04-007).
    The factory adds that answer, the refusal notice, to every tree that commits
    to a case and has precondition guards, unless the tree names a registered
    `RefusalNoticeExemption`; a tree passes only further feedback (the RSH-06-004
