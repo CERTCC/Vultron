@@ -76,6 +76,8 @@ class TriggerRolesPort(Protocol):
 
         Raises:
             VultronNotFoundError: when no Offer ``offer_id`` was received.
+            VultronValidationError: when the activity received under
+                ``offer_id`` is not an Offer.
         """
         ...
 
@@ -96,5 +98,7 @@ class TriggerRolesPort(Protocol):
 
         Raises:
             VultronNotFoundError: when no Offer ``offer_id`` was received.
+            VultronValidationError: when the activity received under
+                ``offer_id`` is not an Offer.
         """
         ...

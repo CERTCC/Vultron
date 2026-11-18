@@ -38,7 +38,7 @@ from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.services.received_activity import held_received_record
+from vultron.core.services.received_activity import holds_received_body
 from vultron.errors import VultronBTInternalError
 
 
@@ -201,17 +201,15 @@ class EmitAcceptActorRecommendationNode(_AnswerRecommenderNode):
         contradictory answer.  So it escapes as an internal error
         (BT-14-001, ARCH-15-001).
         """
-        if self.datalayer is not None:
-            record = held_received_record(
-                cast(CaseOutboxPersistence, self.datalayer),
-                self.recommendation_id,
+        if self.datalayer is not None and not holds_received_body(
+            cast(CaseOutboxPersistence, self.datalayer),
+            self.recommendation_id,
+        ):
+            raise VultronBTInternalError(
+                f"{self.name}: recommendation '{self.recommendation_id}'"
+                " is not held, so there is nothing to embed in the"
+                " answer (DL-06-004)"
             )
-            if record is None or record.is_receipt_stub:
-                raise VultronBTInternalError(
-                    f"{self.name}: recommendation '{self.recommendation_id}'"
-                    " is not held, so there is nothing to embed in the"
-                    " answer (DL-06-004)"
-                )
         return super().update()
 
 

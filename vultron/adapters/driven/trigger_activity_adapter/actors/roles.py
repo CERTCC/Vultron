@@ -140,6 +140,8 @@ class _RolesMixin:
 
         Raises:
             VultronNotFoundError: when the Offer was not received.
+            VultronValidationError: when the activity received under
+                *offer_id* is not an Offer.
         """
         offer = self._held_role_offer(offer_id)
         activity = build(offer=offer, **_addressing(actor, to, id_), at=at)

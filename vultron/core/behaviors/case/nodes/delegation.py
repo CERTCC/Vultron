@@ -53,7 +53,7 @@ from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_offer import role_offer_forward_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
-from vultron.core.services.received_activity import held_received_record
+from vultron.core.services.received_activity import holds_received_body
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 
@@ -307,10 +307,9 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
 
     def _require_offer_held(self) -> None:
         """Raise unless this store holds the received Offer to embed."""
-        record = held_received_record(
+        if not holds_received_body(
             cast(CasePersistence, self.datalayer), self.offer_id
-        )
-        if record is None or record.is_receipt_stub:
+        ):
             raise VultronBTInternalError(
                 f"{self.name}: role offer '{self.offer_id}' is not held, so"
                 " there is nothing to embed in the answer (DL-06-004)"
