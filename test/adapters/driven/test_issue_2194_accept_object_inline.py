@@ -129,8 +129,8 @@ def test_stored_validate_report_accept_carries_inline_typed_object(dl):
     gate without a DataLayer expansion round-trip.
 
     Production adapter persists the Accept with ``dl.create(activity)`` and does
-    NOT separately persist the Offer under ``offer_id`` on the reconstitution
-    path. Reading the activity back (as the pre-#2655 delivery path did) yielded
+    NOT separately persist the Offer under ``offer_id``: a received Offer is
+    held only as received (DL-06-006). Reading the activity back (as the pre-#2655 delivery path did) yielded
     ``object_`` as a bare string -> AKM-03-003 rejection.  Delivery now relays the
     sealed body, but the stored record's read-back is still what the domain side
     sees, so it stays inline-typed here.
@@ -138,8 +138,8 @@ def test_stored_validate_report_accept_carries_inline_typed_object(dl):
     accept, _offer_id = _build_validate_report_accept()
 
     # Production path: TriggerActivityAdapter.validate_report() -> dl.create.
-    # The submit-report Offer is intentionally NOT stored under offer_id
-    # (reconstitution path), matching the failing invite-path scenarios.
+    # The submit-report Offer is intentionally NOT stored under offer_id:
+    # a received Offer is held only as received (DL-06-006).
     dl.create(accept)
 
     # Outbox delivery reads the queued activity back before the AKM-03-003 gate.

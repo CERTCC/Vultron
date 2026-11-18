@@ -42,6 +42,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
 )
@@ -57,6 +58,10 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.role_offer import role_offer_forward_id
+from vultron.core.services.received_activity import (
+    held_received_record,
+    sealed_body_of,
+)
 from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
     AcceptCaseParticipantRoleReceivedUseCase,
     RejectCaseParticipantRoleReceivedUseCase,
@@ -712,6 +717,26 @@ def test_target_answers_the_forward_to_the_case_manager_only(make_payload):
     ]
     assert len(answers) == 1
     assert getattr(answers[0], "to", None) == [_CASE_MANAGER_ID]
+
+
+@pytest.mark.spec("DL-06-004")
+@pytest.mark.spec("AKM-02-006")
+def test_target_answer_embeds_the_forward_as_received(make_payload):
+    """The answer's Offer is the body intake held, ``published`` included."""
+    dl = _store(_TARGET_ID)
+
+    _deliver_offer(dl, make_payload, _forward())
+
+    held = json.loads(sealed_body_of(held_received_record(dl, _FORWARD_ID)))
+    (answer_id,) = [
+        item.id_
+        for item in _queued(dl)
+        if _type_of(item) in ("Accept", "Reject")
+    ]
+    sealed = read_sealed_body_dict(dl, answer_id)
+    assert sealed is not None
+    assert sealed["object"] == held
+    assert sealed["object"]["published"] == held["published"]
 
 
 @pytest.mark.spec("CM-33-005")

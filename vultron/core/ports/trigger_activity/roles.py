@@ -59,10 +59,6 @@ class TriggerRolesPort(Protocol):
     def accept_case_participant_role(
         self,
         offer_id: str,
-        case_id: str,
-        role: CVDRole,
-        target_actor_id: str,
-        vendor_id: str,
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
@@ -71,23 +67,21 @@ class TriggerRolesPort(Protocol):
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
-        Ephemerally reconstructs the original Offer (using ``offer_id``,
-        ``case_id``, ``role``, ``target_actor_id``, and ``vendor_id``)
-        before building the Accept so that ``Accept.object_`` is a typed
-        ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
-        ``id_`` allows callers to supply a deterministic ID for idempotency.
+        The Accept embeds the received Offer ``offer_id`` as this actor
+        received it, ``published`` included; it is never rebuilt
+        (DL-06-004).  ``id_`` allows callers to supply a deterministic ID
+        for idempotency (OX-06-002).
 
         Returns ``(activity_id, activity_dict)``.
+
+        Raises:
+            VultronNotFoundError: when no Offer ``offer_id`` was received.
         """
         ...
 
     def reject_case_participant_role(
         self,
         offer_id: str,
-        case_id: str,
-        role: CVDRole,
-        target_actor_id: str,
-        vendor_id: str,
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
@@ -96,11 +90,11 @@ class TriggerRolesPort(Protocol):
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
-        Ephemerally reconstructs the original Offer before building the
-        Reject so that ``Reject.object_`` is a typed
-        ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
-        ``id_`` allows callers to supply a deterministic id for idempotency.
+        Embeds the received Offer as for :meth:`accept_case_participant_role`.
 
         Returns ``(activity_id, activity_json)``.
+
+        Raises:
+            VultronNotFoundError: when no Offer ``offer_id`` was received.
         """
         ...

@@ -174,7 +174,8 @@ def _dehydrate_data(
         if key in ref_fields and isinstance(value, dict):
             # Keep Activity-type and CaseLedgerEntry nested objects inline.
             # These may not have independent DataLayer records (e.g. a
-            # reconstituted Offer in validate-report, or a CaseLedgerEntry
+            # received Offer in validate-report, held only as received
+            # (DL-06-006), or a CaseLedgerEntry
             # inside an Announce envelope), so collapsing them to a bare ID
             # would make rehydration impossible on outbox read-back, causing
             # AKM-03-003 gate failures.  See _KEEP_INLINE_NESTED_TYPES.

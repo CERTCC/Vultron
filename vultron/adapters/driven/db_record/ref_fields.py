@@ -122,7 +122,7 @@ def object_ref_fields(cls: type[BaseModel]) -> frozenset[str]:
 # string for two independent reasons:
 #
 # 1. Technical: Activities may not have independent DataLayer records (e.g. a
-#    reconstituted Offer in the validate-report path, a CaseLedgerEntry inside
+#    received Offer in the validate-report path (DL-06-006), a CaseLedgerEntry inside
 #    an Announce envelope), so dehydrating them would make rehydration
 #    impossible on read-back and cause AKM-03-003 outbox-gate failures.
 #

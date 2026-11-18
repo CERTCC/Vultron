@@ -313,8 +313,8 @@ class TestApplyOfferReportFromLedgerNode:
         carried no embedded report (AKM-02-004 path is empty), so the report
         object only ever reaches the participant inside the add_report_to_case
         ledger snapshot.  ApplyOfferReportFromLedgerNode must therefore store the
-        report object too — otherwise _reconstitute_offer 404s on the report
-        lookup even though the offer record exists.
+        report object too, or the participant holds no copy of the report
+        the case names.
         """
         from vultron.core.behaviors.sync.nodes.offer_report_effect import (
             ApplyOfferReportFromLedgerNode,

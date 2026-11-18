@@ -31,6 +31,7 @@ from test.support.received import (
     delivered_body,
 )
 from test.support.signing import resigned, signed_body
+from vultron.core.services.received_activity import sealed_body_of
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
@@ -39,6 +40,7 @@ from vultron.errors import (
 from vultron.wire.as2.factories import (
     offer_case_ownership_transfer_activity,
     offer_case_participant_activity,
+    offer_case_participant_role_activity,
     recommend_actor_activity,
     rm_invite_to_case_activity,
 )
@@ -784,14 +786,18 @@ class TestAnswerCaseParticipantOffer:
 
 _VENDOR = "https://example.org/actors/vendor"
 _CASE_ACTOR = "https://example.org/actors/case-actor"
-_OFFER_ID = "https://example.org/activities/offer-role-1"
+
+_ROLE_ANSWERS = pytest.mark.parametrize(
+    ("method", "verb"),
+    [
+        ("accept_case_participant_role", "Accept"),
+        ("reject_case_participant_role", "Reject"),
+    ],
+    ids=["accept", "reject"],
+)
 
 
 def _make_role_case(dl):
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCase,
-    )
-
     case = make(
         as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
@@ -802,114 +808,112 @@ def _make_role_case(dl):
     return case
 
 
-@pytest.mark.parametrize("store_owner", [_CASE_ACTOR])
-class TestAcceptCaseParticipantRole:
-    """Tests for accept_case_participant_role adapter method (ADR-0039)."""
+def _received_role_offer(dl) -> dict:
+    """Archive the CASE_MANAGER's role Offer as the target's intake keeps it.
 
-    def test_returns_id_and_dict(self, adapter, dl):
-        _make_role_case(dl)
-        from vultron.enums.roles import CVDRole
-
-        activity_id, activity_dict = adapter.accept_case_participant_role(
-            offer_id=_OFFER_ID,
-            case_id=_CASE_ID,
-            role=CVDRole.CASE_MANAGER,
-            target_actor_id=_CASE_ACTOR,
-            vendor_id=_VENDOR,
-            actor=_CASE_ACTOR,
-            to=[_VENDOR],
-            at=authored_at(),
-        )
-
-        assert activity_id
-        assert isinstance(activity_dict, str)
-        assert "id" in json.loads(activity_dict)
-
-    def test_persists_accept_activity(self, adapter, dl):
-        _make_role_case(dl)
-        from vultron.enums.roles import CVDRole
-
-        activity_id, _ = adapter.accept_case_participant_role(
-            offer_id=_OFFER_ID,
-            case_id=_CASE_ID,
-            role=CVDRole.CASE_MANAGER,
-            target_actor_id=_CASE_ACTOR,
-            vendor_id=_VENDOR,
-            actor=_CASE_ACTOR,
-            to=[_VENDOR],
-            at=authored_at(),
-        )
-
-        assert dl.read(activity_id) is not None
-
-
-@pytest.mark.parametrize("store_owner", [_CASE_ACTOR])
-class TestRejectCaseParticipantRole:
-    """Tests for reject_case_participant_role adapter method (ADR-0039)."""
-
-    def test_returns_activity_id(self, adapter, dl):
-        _make_role_case(dl)
-        from vultron.enums.roles import CVDRole
-
-        activity_id, activity_json = adapter.reject_case_participant_role(
-            offer_id=_OFFER_ID,
-            case_id=_CASE_ID,
-            role=CVDRole.CASE_MANAGER,
-            target_actor_id=_CASE_ACTOR,
-            vendor_id=_VENDOR,
-            actor=_CASE_ACTOR,
-            to=[_VENDOR],
-            at=authored_at(),
-        )
-
-        assert activity_id
-        assert activity_json
-
-    def test_persists_reject_activity(self, adapter, dl):
-        _make_role_case(dl)
-        from vultron.enums.roles import CVDRole
-
-        activity_id, _ = adapter.reject_case_participant_role(
-            offer_id=_OFFER_ID,
-            case_id=_CASE_ID,
-            role=CVDRole.CASE_MANAGER,
-            target_actor_id=_CASE_ACTOR,
-            vendor_id=_VENDOR,
-            actor=_CASE_ACTOR,
-            to=[_VENDOR],
-            at=authored_at(),
-        )
-
-        assert dl.read(activity_id) is not None
-
-
-@pytest.mark.spec("OX-06-002")
-@pytest.mark.parametrize(
-    "method", ["accept_case_participant_role", "reject_case_participant_role"]
-)
-@pytest.mark.parametrize("store_owner", [_CASE_ACTOR])
-def test_role_offer_answer_keeps_a_caller_supplied_id(adapter, dl, method):
-    """A deterministic id survives the adapter, so a retry rebuilds it."""
+    Nothing is held under the Offer's own id (DL-06-006).  Returns the body
+    the target received.
+    """
     from vultron.enums.roles import CVDRole
 
-    _make_role_case(dl)
-    given_id = f"https://example.org/activities/{method}-given"
-
-    activity_id, activity_json = getattr(adapter, method)(
-        offer_id=_OFFER_ID,
-        case_id=_CASE_ID,
-        role=CVDRole.CASE_MANAGER,
-        target_actor_id=_CASE_ACTOR,
-        vendor_id=_VENDOR,
-        actor=_CASE_ACTOR,
-        to=[_VENDOR],
-        id_=given_id,
+    offer = offer_case_participant_role_activity(
+        role=CVDRole.VENDOR,
+        target_actor=_CASE_ACTOR,
+        case=_CASE_ID,
+        actor=_VENDOR,
+        to=[_CASE_ACTOR],
         at=authored_at(),
     )
+    body = delivered_body(offer)
+    archive_delivered(dl, body)
+    assert dl.read(offer.id_) is None
+    return body
 
-    assert activity_id == given_id
-    assert json.loads(activity_json)["id"] == given_id
-    assert dl.read(given_id) is not None
+
+def _answer(adapter, method, offer_id, **extra):
+    return getattr(adapter, method)(
+        offer_id=offer_id,
+        actor=_CASE_ACTOR,
+        to=[_VENDOR],
+        at=authored_at(),
+        **extra,
+    )
+
+
+@_ROLE_ANSWERS
+@pytest.mark.parametrize("store_owner", [_CASE_ACTOR])
+class TestAnswerCaseParticipantRole:
+    """The answer to a role Offer embeds it as received (ADR-0039)."""
+
+    def test_returns_and_persists_the_answer(self, adapter, dl, method, verb):
+        _make_role_case(dl)
+        offer = _received_role_offer(dl)
+
+        activity_id, activity_json = _answer(adapter, method, offer["id"])
+
+        assert json.loads(activity_json)["type"] == verb
+        assert dl.read(activity_id) is not None
+
+    @pytest.mark.spec("DL-06-004")
+    @pytest.mark.spec("AKM-02-006")
+    def test_the_answer_embeds_the_offer_as_received(
+        self, adapter, dl, method, verb
+    ):
+        """Byte for byte the archived body, ``published`` included.
+
+        A key the answerer's vocabulary does not name survives too, so the
+        answer embeds what arrived, never a re-dump of the parsed Offer.
+        """
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
+
+        offer = offer_case_participant_role_activity(
+            role=CVDRole.VENDOR,
+            target_actor=_CASE_ACTOR,
+            case=_CASE_ID,
+            actor=_VENDOR,
+            to=[_CASE_ACTOR],
+            at=authored_at(),
+        )
+        body = resigned(
+            delivered_body(offer),
+            alter=lambda b: b.update({"x-vendorExtension": {"priority": 3}}),
+        )
+        record = archive_delivered(dl, body)
+
+        _, activity_json = _answer(adapter, method, offer.id_)
+
+        embedded = json.loads(activity_json)["object"]
+        assert embedded == json.loads(sealed_body_of(record))
+        assert embedded["published"] == body["published"]
+
+    @pytest.mark.spec("AKM-02-006")
+    def test_an_offer_not_received_is_refused_not_rebuilt(
+        self, adapter, dl, method, verb
+    ):
+        _make_role_case(dl)
+
+        with pytest.raises(VultronNotFoundError):
+            _answer(
+                adapter, method, "https://example.org/activities/never-held"
+            )
+
+        assert list(dl.list_objects(verb)) == []
+
+    @pytest.mark.spec("OX-06-002")
+    def test_a_caller_supplied_id_is_kept(self, adapter, dl, method, verb):
+        """A deterministic id survives the adapter, so a retry rebuilds it."""
+        _make_role_case(dl)
+        offer = _received_role_offer(dl)
+        given_id = f"https://example.org/activities/{method}-given"
+
+        activity_id, activity_json = _answer(
+            adapter, method, offer["id"], id_=given_id
+        )
+
+        assert activity_id == given_id
+        assert json.loads(activity_json)["id"] == given_id
+        assert dl.read(given_id) is not None
 
 
 _OWNER = "https://example.org/actors/owner"

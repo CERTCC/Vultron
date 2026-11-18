@@ -167,16 +167,12 @@ def create_offer_case_participant_role_received_tree(
                 AutoAcceptCaseParticipantRoleNode(
                     offer_id=offer_id,
                     case_id=case_id,
-                    role=role,
                     target_actor_id=target_actor_id,
-                    vendor_id=sender_id,
                 ),
                 EmitRejectCaseParticipantRoleNode(
                     offer_id=offer_id,
                     case_id=case_id,
-                    role=role,
                     target_actor_id=target_actor_id,
-                    vendor_id=sender_id,
                 ),
             ],
         ),
