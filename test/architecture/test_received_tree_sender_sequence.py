@@ -91,6 +91,7 @@ from vultron.core.models.events.base import (
     LedgerPositionedEvent,
     MessageSemantics,
 )
+from vultron.core.models.status_history import status_history_owner
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.factories import sender_sequence_case_ids
@@ -224,20 +225,19 @@ _CASE_MANAGER = "https://example.org/sender-sequence-ratchet/case-manager"
 def _seed_target_participant(
     dl: SqliteDataLayer, activity: as_Activity, case_id: str
 ) -> None:
-    """Store the participant an ``Add(ParticipantStatus)`` targets.
+    """Store the participant whose status history an
+    ``Add(ParticipantStatus)`` targets.
 
-    The use case reads the case from that record (HP-08-008); with no record
-    it names no case, and the sender guard refuses the activity at the door,
-    which counts no number (SYNC-21-023).  The example's target names
-    another case's participant, so the record is seeded under the example's
-    case.
+    The ``target`` is ``<participant>/statuses`` and the case is the
+    ``Add``'s ``context`` (ADR-0204); the tree judges the sender against the
+    history's owner, so that record is seeded under the example's case.
     """
     target = _as_id(activity.target)
     assert target is not None
     dl.create(
         make(
             CaseParticipant,
-            id_=target,
+            id_=status_history_owner(target),
             attributed_to=_as_id(activity.actor),
             context=case_id,
         )

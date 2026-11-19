@@ -981,7 +981,7 @@ class TestStatusUseCases:
         assert dl.read(unheld.id_) is None
 
     @pytest.mark.spec("HP-08-013")
-    @pytest.mark.spec("HP-01-039")
+    @pytest.mark.spec("HP-08-007")
     def test_add_participant_status_carried_by_reference_is_refused_before_the_commit(
         self, make_payload
     ):

@@ -336,6 +336,7 @@ def _ref_and_type(value: object) -> tuple[str | None, str | None]:
     if not isinstance(value, dict):
         return None, None
     ref = value.get("id") or value.get("id_")
+    ref = status_history_owner_or_none(ref) or ref
     # A type list names its own type first (VM-03-005, ADR-0196).
     terms = body_type_terms(value)
     obj_type = terms[0] if terms else None

@@ -122,15 +122,15 @@ def test_entry_references_unwrap_nested_wrappers_to_the_inner_object():
 
 def test_entry_references_name_a_participant_by_its_actor():
     payload = {
-        "object": {"type": "ParticipantStatus"},
-        "target": {
+        "type": "Create",
+        "object": {
             "id": "urn:uuid:p-1",
             "type": "CaseParticipant",
             "attributedTo": VENDOR,
         },
     }
     refs = entry_references(payload)
-    assert (refs.target_ref, refs.target_type) == (VENDOR, "CaseParticipant")
+    assert (refs.object_ref, refs.object_type) == (VENDOR, "CaseParticipant")
     assert entry_references({}) == EntryReferences()
 
 
@@ -143,6 +143,19 @@ def test_entry_references_name_a_status_history_by_its_owner():
     }
     refs = entry_references(payload)
     assert (refs.target_ref, refs.target_type) == ("urn:uuid:p-1", None)
+
+
+def test_entry_references_name_a_typed_status_history_by_its_owner():
+    """A history named by a typed reference reads as its owner too."""
+    payload = {
+        "object": {"type": "ParticipantStatus"},
+        "target": {"id": "urn:uuid:p-1/statuses", "type": "OrderedCollection"},
+    }
+    refs = entry_references(payload)
+    assert (refs.target_ref, refs.target_type) == (
+        "urn:uuid:p-1",
+        "OrderedCollection",
+    )
 
 
 @pytest.mark.spec("CEH-01-007")

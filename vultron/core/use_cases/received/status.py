@@ -156,9 +156,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
     """
 
     # Participant status is self-declared: the participant whose status
-    # history the target names sends it, or the CASE_MANAGER or Case Owner asserts an on-behalf
-    # v→V or d→D for it, whose shape the tree checks (RSH-08-014,
-    # PRM-06-003/004).  It is sent to the CASE_MANAGER alone: a replica
+    # history the target names sends it, or the CASE_MANAGER or Case Owner
+    # asserts an on-behalf v→V or d→D for it, whose shape the tree checks
+    # (RSH-08-014, PRM-06-003/004).  It is sent to the CASE_MANAGER alone: a replica
     # takes participant status from the ledger, never from an Add
     # (PCR-03-001, RSH-08-003), so the rule names the CASE_MANAGER side only.
     sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
