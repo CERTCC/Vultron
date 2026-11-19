@@ -50,7 +50,10 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.nodes import ProposeReportCaseToActorNode
-from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.behaviors.case.offer_provenance import (
+    find_offer_for_report,
+    offer_id_from_proposal,
+)
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -124,6 +127,40 @@ class TestFindOfferForReport:
         """
         datalayer.save(_offer_record())
         assert find_offer_for_report(datalayer, report_id) is None
+
+
+@pytest.mark.spec("CP-01-019")
+class TestOfferIdFromProposal:
+    """The CaseActor reads the Offer's id from the proposal's ``inReplyTo``."""
+
+    @pytest.mark.parametrize(
+        "proposal",
+        [
+            {"inReplyTo": _OFFER_URI},
+            {"inReplyTo": {"id": _OFFER_URI, "type": "Offer"}},
+            {"in_reply_to": {"id_": _OFFER_URI}},
+            {"in_reply_to": _OFFER_URI},
+        ],
+        ids=["wire-id", "wire-inline", "python-inline", "python-id"],
+    )
+    def test_the_offer_id_is_read_inline_or_by_id(self, proposal):
+        assert offer_id_from_proposal(proposal) == _OFFER_URI
+
+    @pytest.mark.parametrize(
+        "proposal",
+        [
+            None,
+            {},
+            {"inReplyTo": ""},
+            {"inReplyTo": {"type": "Offer"}},
+            {"offerId": _OFFER_URI},
+        ],
+        ids=["no-dump", "no-key", "blank", "inline-without-id", "old-key"],
+    )
+    def test_no_named_offer_reads_as_none(self, proposal):
+        """Absent, never guessed: the retired ``offerId`` key names nothing
+        (#6419), and an inline object without an id names no Offer."""
+        assert offer_id_from_proposal(proposal) is None
 
 
 @pytest.mark.spec("CP-01-007")
