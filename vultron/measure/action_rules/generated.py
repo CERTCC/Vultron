@@ -13,9 +13,15 @@
 """The generated action rules: move advice stated as rules (ADR-0216, SHD-05-007).
 
 For each move and each band, :func:`generated_rules` groups the valid
-positions of one vendor where move advice gives the move that band
+positions of one vendor where move advice always gives the move that band
 (:func:`~vultron.measure.action_rules.verdicts.vendor_points`) into patterns
-in the authored rules' pattern language (SHD-05-015).  A pattern may also
+in the authored rules' pattern language (SHD-05-015).  "Always" means for
+every set of desiderata a history can leave open there.  Where the band
+depends on which are open, :func:`conditional_verdicts` states each band
+with the desiderata that give it, rather than picking one history (#6676,
+D6; SHD-05-029).  A verdict on an event the position forces next is a rule
+of its own, marked forced: the public learning of the vul beside a public
+exploit is not a publication (#6676, D10).  A pattern may also
 cover combinations of states no walk reaches, since no position stands
 there, but never a valid position where the move gets another band or none.
 
@@ -24,7 +30,8 @@ walk order, seeds the pattern of its own states, which widens one CS letter,
 then one RM state, then one EM state at a time, in their enum orders,
 wherever it still covers no other position; a pattern the others cover is
 then dropped.  A part that does not reach every state is cut to the states
-of the positions the pattern covers.  The same advice always gives the same rules.
+of the positions the pattern covers.  The same advice always gives the same
+rules.
 
 A move move advice gives no band, such as a PEC move (#6677) or a chance
 event, has no generated rule (SHD-05-017).
@@ -36,10 +43,9 @@ from collections.abc import Iterable, Sequence
 from functools import cache
 from typing import Literal, NamedTuple
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.core.states.cs import CS
-from vultron.core.states.cs_actions import CSPattern
 from vultron.core.states.em import EM, EM_TRIGGER_ROLES, EM_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -48,10 +54,13 @@ from vultron.measure.action_rules.model import (
     Machine,
     MoveName,
     RulePattern,
+    cs_pattern_matches,
     machine_of,
+    move_advice_desiderata,
 )
 from vultron.measure.action_rules.verdicts import VendorPoint, vendor_points
 from vultron.measure.advice.bands import BAND_ORDER, Band
+from vultron.primitives import NonEmptyString
 
 
 class GeneratedRule(BaseModel):
@@ -62,7 +71,10 @@ class GeneratedRule(BaseModel):
         role: The role move advice gives the move: the vendor for an RM or
             CS move, and for an EM move the role the EM trigger roles table
             gives its trigger, or any role (SHD-05-016).
-        band: The band the move gets at every position the patterns match.
+        band: The band the move gets at every position the patterns match,
+            whatever desiderata are still open.
+        forced: Whether the move is the event those positions force next, so
+            it comes whatever anyone does.
         patterns: The patterns, none with a PEC part.
     """
 
@@ -71,7 +83,80 @@ class GeneratedRule(BaseModel):
     move: MoveName
     role: CVDRole | Literal["any"]
     band: Band
+    forced: bool = False
     patterns: tuple[RulePattern, ...] = Field(min_length=1)
+
+
+class ConditionalBranch(BaseModel):
+    """One band of a conditional verdict, and the history that gives it.
+
+    Fields:
+        band: The band.
+        open: The deciding desiderata still open on every history that
+            gives this band, by plain name.
+        settled: The deciding desiderata already met or broken on every
+            history that gives this band.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    band: Band
+    open: tuple[NonEmptyString, ...] = ()
+    settled: tuple[NonEmptyString, ...] = ()
+
+    @model_validator(mode="after")
+    def _names_its_history(self) -> ConditionalBranch:
+        if not (self.open or self.settled):
+            raise ValueError(
+                "a conditional branch names the desiderata that give it"
+            )
+        return self
+
+    @property
+    def caveat(self) -> str:
+        """The branch as text: its band, and when it holds."""
+        when = []
+        if self.open:
+            when.append(f"while {', '.join(self.open)} are still open")
+        if self.settled:
+            when.append(
+                f"once {', '.join(self.settled)} are already met or broken"
+            )
+        return f"{self.band} {' and '.join(when)}"
+
+
+class ConditionalVerdict(BaseModel):
+    """A move whose band at one position depends on its history (#6676, D6;
+    SHD-05-029).
+
+    Fields:
+        move: The move, by name.
+        role: The role move advice gives the move (:func:`move_role`).
+        position: The vendor's RM, CS and EM states.
+        branches: Each band, with the desiderata that give it, in band
+            order.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    move: MoveName
+    role: CVDRole | Literal["any"]
+    position: PositionKey
+    branches: tuple[ConditionalBranch, ...] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def _distinct_bands(self) -> ConditionalVerdict:
+        bands = [b.band for b in self.branches]
+        if len(set(bands)) != len(bands):
+            raise ValueError(
+                "each branch of a conditional verdict has its band"
+            )
+        return self
+
+    @property
+    def caveat(self) -> str:
+        """The verdict as text: each branch's band and when it holds."""
+        return "; ".join(b.caveat for b in self.branches)
 
 
 def move_role(move: str) -> CVDRole | Literal["any"]:
@@ -101,7 +186,7 @@ class _Cube(NamedTuple):
         return (
             key.rm in self.rm
             and key.em in self.em
-            and CSPattern("".join(self.letters)).matches(key.cs)
+            and cs_pattern_matches("".join(self.letters), key.cs)
         )
 
     def pattern(self) -> RulePattern:
@@ -191,52 +276,134 @@ def _key(point: VendorPoint) -> PositionKey:
     return PositionKey(p.rm, p.cs, p.em)
 
 
-def _bands(
+class _Variant(NamedTuple):
+    band: Band
+    forced: bool
+    open: frozenset[str]
+
+
+def _variants(
     points: Iterable[VendorPoint],
-) -> dict[tuple[str, Band], list[PositionKey]]:
-    """The positions where each move gets each band, in walk order."""
-    found: dict[tuple[str, Band], list[PositionKey]] = {}
+) -> dict[tuple[str, PositionKey], list[_Variant]]:
+    """Each scored move at each position, once for each point there, in walk
+    order."""
+    found: dict[tuple[str, PositionKey], list[_Variant]] = {}
     for point in points:
         key = _key(point)
+        opened = frozenset(point.open_desiderata or ())
         for verdict in point.verdicts:
             if verdict.score is None:
                 continue
-            entry = found.setdefault(
-                (verdict.move.name, verdict.score.band), []
+            found.setdefault((verdict.move.name, key), []).append(
+                _Variant(verdict.score.band, verdict.forced, opened)
             )
-            if key not in entry:
-                entry.append(key)
     return found
 
 
-def rules_from(points: Sequence[VendorPoint]) -> tuple[GeneratedRule, ...]:
-    """The generated rules over *points*: one for each move and band.
+def _conditional(
+    move: str, position: PositionKey, variants: Sequence[_Variant]
+) -> ConditionalVerdict:
+    """The verdict *variants* give *move* at *position*, by band."""
+    every_open = frozenset.intersection(*(v.open for v in variants))
+    deciding = frozenset.union(*(v.open for v in variants)) - every_open
+    order = list(move_advice_desiderata())
+    branches = []
+    for band in BAND_ORDER:
+        mine = [v.open for v in variants if v.band is band]
+        if not mine:
+            continue
+        always = frozenset.intersection(*mine) & deciding
+        never = deciding - frozenset.union(*mine)
+        branches.append(
+            ConditionalBranch(
+                band=band,
+                open=tuple(d for d in order if d in always),
+                settled=tuple(d for d in order if d in never),
+            )
+        )
+    return ConditionalVerdict(
+        move=move,
+        role=move_role(move),
+        position=position,
+        branches=tuple(branches),
+    )
 
-    In the order the moves are first scored in the walk, then in band order.
+
+def _split(
+    points: Sequence[VendorPoint],
+) -> tuple[
+    dict[tuple[str, Band, bool], list[PositionKey]],
+    list[ConditionalVerdict],
+]:
+    """The positions where each move always gets one band, and the
+    conditional verdicts where it does not.
+
+    Raises:
+        ValueError: A move is forced at a position on one history and not
+            on another, which no position can be.
     """
-    every = [_key(p) for p in points]
-    bands = _bands(points)
-    moves = list(dict.fromkeys(move for move, _ in bands))
+    groups: dict[tuple[str, Band, bool], list[PositionKey]] = {}
+    conditional: list[ConditionalVerdict] = []
+    for (move, position), variants in _variants(points).items():
+        if len({v.forced for v in variants}) > 1:
+            raise ValueError(
+                f"{move} is forced at {position} on some histories"
+            )
+        if len({v.band for v in variants}) == 1:
+            first = variants[0]
+            groups.setdefault((move, first.band, first.forced), []).append(
+                position
+            )
+        else:
+            conditional.append(_conditional(move, position, variants))
+    return groups, conditional
+
+
+def rules_from(points: Sequence[VendorPoint]) -> tuple[GeneratedRule, ...]:
+    """The generated rules over *points*: one for each move, band and
+    forced mark.
+
+    In the order the moves are first scored in the walk, then in band order,
+    the unforced rule first.
+    """
+    every = list(dict.fromkeys(_key(p) for p in points))
+    groups, _ = _split(points)
+    moves = list(dict.fromkeys(move for move, _, _ in groups))
     rules = []
     for move in moves:
         for band in BAND_ORDER:
-            targets = bands.get((move, band))
-            if not targets:
-                continue
-            held = set(targets)
-            others = [k for k in every if k not in held]
-            rules.append(
-                GeneratedRule(
-                    move=move,
-                    role=move_role(move),
-                    band=band,
-                    patterns=group_positions(targets, others),
+            for forced in (False, True):
+                targets = groups.get((move, band, forced))
+                if not targets:
+                    continue
+                held = set(targets)
+                others = [k for k in every if k not in held]
+                rules.append(
+                    GeneratedRule(
+                        move=move,
+                        role=move_role(move),
+                        band=band,
+                        forced=forced,
+                        patterns=group_positions(targets, others),
+                    )
                 )
-            )
     return tuple(rules)
+
+
+def conditionals_from(
+    points: Sequence[VendorPoint],
+) -> tuple[ConditionalVerdict, ...]:
+    """The conditional verdicts over *points*, in walk order."""
+    return tuple(_split(points)[1])
 
 
 @cache
 def generated_rules() -> tuple[GeneratedRule, ...]:
     """The generated action rules over every valid position of one vendor."""
     return rules_from(vendor_points())
+
+
+@cache
+def conditional_verdicts() -> tuple[ConditionalVerdict, ...]:
+    """The conditional verdicts over every valid position of one vendor."""
+    return conditionals_from(vendor_points())

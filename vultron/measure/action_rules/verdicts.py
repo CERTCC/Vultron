@@ -23,17 +23,19 @@ Two readings give each vendor's moves:
 
 * :func:`case_points` reads a live case's
   :class:`~vultron.measure.standing.StandingRecord`, so each vendor's band
-  comes from the case's own outcome shifts (ADR-0216, SHD-05-011).
+  comes from the case's own outcome shifts and its own history (ADR-0216,
+  SHD-05-011).
 * :func:`vendor_points` walks the one-vendor joint model and gives every
   valid position of one vendor, each with the moves the state machines allow
-  there, scored as move advice scores them (ADR-0216, SHD-05-007).  A
-  position's value depends on the walk that reached it as well as on the
-  position (``WalkPrefix``), so each position is read at the first walk that
-  reaches it, breadth first: its shortest history.  At some positions a
-  longer walk gives a move another band (``em.accept`` and ``em.reject`` at
-  EM PROPOSED or REVISE, ``rm.accept`` at RM DEFERRED); which walk a
-  position's verdict reads is an open decision on #6676.  A live case reads
-  its own history, so :func:`case_points` has no such choice.
+  there, scored as move advice scores them (ADR-0216, SHD-05-007).  Move
+  advice reads a position's history as well as its states, but only through
+  which desiderata are still open: one already met or broken changes by
+  nothing.  So the walk gives one point for each position and each set of
+  desiderata a history can leave open there (:func:`open_desiderata`), read
+  at the first walk, breadth first, that reaches it (#6676, D6).
+
+A verdict on the event an ephemeral state forces next, such as P beside a
+public exploit, is marked forced: it comes next whatever anyone does.
 """
 
 from __future__ import annotations
@@ -46,7 +48,11 @@ from functools import cache
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from vultron.core.states.cs import CS, CS_d, CS_vf
-from vultron.core.states.cs_invariants import CSEvent, cs_from_dimensions
+from vultron.core.states.cs_invariants import (
+    CSEvent,
+    cs_from_dimensions,
+    required_next_cs_events,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM, RM_Trigger
 from vultron.enums.roles import CVDRole
@@ -60,11 +66,15 @@ from vultron.measure.advice.case import AllowedMove, unbanded_reason
 from vultron.measure.advice.shifts import scope_shift
 from vultron.measure.baselines import (
     ONE_VENDOR_MODEL,
+    Event,
+    ModelName,
     VendorDesideratum,
     WalkPrefix,
     desideratum_by_notation,
 )
+from vultron.measure.baselines.desiderata import JOINT_TO_CS
 from vultron.measure.standing import (
+    CSMove,
     ScoredMove,
     StandingRecord,
     cs_moves,
@@ -118,6 +128,9 @@ class MoveVerdict(BaseModel):
     Fields:
         move: The move, naming the participant who can make it.
         roles: The roles that participant holds.
+        forced: Whether the move's event is the one the vendor's ephemeral
+            state forces next (CSB-17-009, CSB-17-012), so it comes whatever
+            anyone does.
         score: The move's band for the vendor, for a move move advice
             scores.
         unscored: Why it has no band: it keeps every state, it is a chance
@@ -129,6 +142,7 @@ class MoveVerdict(BaseModel):
 
     move: AllowedMove
     roles: frozenset[CVDRole]
+    forced: bool = False
     score: VendorScore | None = None
     unscored: NonEmptyString | None = None
 
@@ -149,12 +163,17 @@ class VendorPoint(BaseModel):
         verdicts: Each allowed move that bears on the vendor: its own RM and
             CS moves, and every participant's EM moves, in the record's
             order.
+        open_desiderata: For a point of :func:`vendor_points`, the
+            move-advice desiderata still open there, by plain name, in
+            catalog order; ``None`` for a live case's point, which reads the
+            case's own history.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     position: Position
     verdicts: tuple[MoveVerdict, ...] = ()
+    open_desiderata: tuple[NonEmptyString, ...] | None = None
 
 
 def vendor_score(scored: ScoredMove, vendor: str) -> VendorScore | None:
@@ -183,15 +202,26 @@ def vendor_score(scored: ScoredMove, vendor: str) -> VendorScore | None:
     )
 
 
+def _forced(move: AllowedMove, state: CS) -> bool:
+    return isinstance(move, CSMove) and move.event in required_next_cs_events(
+        state
+    )
+
+
 def _verdict(
-    scored: ScoredMove, vendor: str, roles: frozenset[CVDRole]
+    scored: ScoredMove, vendor: str, roles: frozenset[CVDRole], state: CS
 ) -> MoveVerdict:
+    forced = _forced(scored.move, state)
     score = vendor_score(scored, vendor)
     if score is not None:
-        return MoveVerdict(move=scored.move, roles=roles, score=score)
+        return MoveVerdict(
+            move=scored.move, roles=roles, forced=forced, score=score
+        )
     reason = unbanded_reason(scored)
     assert reason is not None, "a move with no score has a reason"
-    return MoveVerdict(move=scored.move, roles=roles, unscored=reason)
+    return MoveVerdict(
+        move=scored.move, roles=roles, forced=forced, unscored=reason
+    )
 
 
 def _bears_on(move: AllowedMove, vendor: str) -> bool:
@@ -204,14 +234,16 @@ def vendor_verdicts(
     scored: Iterable[ScoredMove],
     vendor: str,
     roles: Mapping[str, frozenset[CVDRole]],
+    state: CS,
 ) -> tuple[MoveVerdict, ...]:
-    """The verdict on each of *scored* that bears on *vendor*.
+    """The verdict on each of *scored* that bears on *vendor*, whose compound
+    case state is *state*.
 
     *roles* gives each participant's roles, which an EM move's participant
     holds.
     """
     return tuple(
-        _verdict(s, vendor, roles.get(s.move.participant, frozenset()))
+        _verdict(s, vendor, roles.get(s.move.participant, frozenset()), state)
         for s in scored
         if _bears_on(s.move, vendor)
     )
@@ -243,7 +275,7 @@ def case_points(record: StandingRecord) -> tuple[VendorPoint, ...]:
         position = Position(
             vendor=vendor, rm=standing.rm, cs=state, em=record.case.em
         )
-        verdicts = vendor_verdicts(record.moves, vendor, roles)
+        verdicts = vendor_verdicts(record.moves, vendor, roles, state)
         if standing.case_state is None:
             verdicts += _unnotified_awareness(position, verdicts)
         points.append(VendorPoint(position=position, verdicts=verdicts))
@@ -263,30 +295,66 @@ def _unnotified_awareness(
     ]
     receipts = [v for v in verdicts if v.move.name == _RECEIVE]
     return tuple(
-        receipt.model_copy(update={"move": move})
+        receipt.model_copy(
+            update={"move": move, "forced": _forced(move, position.cs)}
+        )
         for move in aware
         for receipt in receipts
     )
 
 
+def _had(prefix: CasePrefix) -> frozenset[Event]:
+    return frozenset(event for step in prefix.history for event in step)
+
+
+def open_desiderata(prefix: CasePrefix) -> tuple[str, ...]:
+    """The move-advice desiderata still open at *prefix*, by plain name.
+
+    A desideratum ``a ≺ b`` is open while neither ``a`` nor ``b`` has
+    occurred; once either has, it is met or broken and stays so, so no move
+    changes it.  A six-event desideratum reads the vendor's case-state
+    events.  In catalog order.
+    """
+    had = _had(prefix)
+    cs_had = frozenset(JOINT_TO_CS[e] for e in had if e in JOINT_TO_CS)
+    found = []
+    for name, desideratum in move_advice_desiderata().items():
+        (ordering,) = desideratum.query.orderings
+        events: frozenset[object] = (
+            cs_had if desideratum.model is ModelName.CASE_STATE else had
+        )
+        if ordering.before not in events and ordering.after not in events:
+            found.append(name)
+    return tuple(found)
+
+
+type _PointKey = tuple[RM, CS, EM, tuple[str, ...]]
+
+
+def _key(prefix: CasePrefix) -> _PointKey:
+    state = prefix.state
+    (vendor,) = state.vendors
+    cs = cs_from_dimensions(vendor.vf, vendor.d, state.pxa)
+    return (vendor.rm, cs, state.em, open_desiderata(prefix))
+
+
 @cache
-def _shortest_prefixes() -> Mapping[tuple[RM, CS, EM], CasePrefix]:
-    """The first walk of the one-vendor model to reach each position,
-    breadth first, keyed by the vendor's RM, CS and EM state."""
+def _first_prefixes() -> Mapping[_PointKey, CasePrefix]:
+    """The first walk of the one-vendor model, breadth first, to reach each
+    position with each set of open desiderata."""
     start: CasePrefix = WalkPrefix(ONE_VENDOR_MODEL.initial)
-    seen = {start.state}
-    found: dict[tuple[RM, CS, EM], CasePrefix] = {}
+    found: dict[_PointKey, CasePrefix] = {}
+    seen = {(start.state, _key(start)[3])}
     queue = deque([start])
     while queue:
         prefix = queue.popleft()
-        state = prefix.state
-        (vendor,) = state.vendors
-        cs = cs_from_dimensions(vendor.vf, vendor.d, state.pxa)
-        found.setdefault((vendor.rm, cs, state.em), prefix)
-        for step in ONE_VENDOR_MODEL.steps(state):
-            if step.state not in seen:
-                seen.add(step.state)
-                queue.append(prefix.then(step))
+        found.setdefault(_key(prefix), prefix)
+        for step in ONE_VENDOR_MODEL.steps(prefix.state):
+            after = prefix.then(step)
+            node = (after.state, _key(after)[3])
+            if node not in seen:
+                seen.add(node)
+                queue.append(after)
     return found
 
 
@@ -304,26 +372,49 @@ def _point(prefix: CasePrefix) -> VendorPoint:
     scored = [scored_move(prefix, numbers, move) for move in moves]
     return VendorPoint(
         position=Position(vendor=VENDOR, rm=path.rm, cs=cs, em=state.em),
-        verdicts=vendor_verdicts(scored, VENDOR, {VENDOR: every_role}),
+        verdicts=vendor_verdicts(scored, VENDOR, {VENDOR: every_role}, cs),
+        open_desiderata=open_desiderata(prefix),
     )
 
 
 @cache
 def vendor_points() -> tuple[VendorPoint, ...]:
-    """Every valid position of one vendor, and the verdict on each move it
-    allows (ADR-0216, SHD-05-007).
+    """Every valid position of one vendor, once for each set of desiderata a
+    history can leave open there, with the verdict on each move it allows
+    (ADR-0216, SHD-05-007).
 
     The vendor holds every role, so every EM move is listed for it.  A
     position holds no consent state: the chance model has none (ADR-0216,
     SHD-06-007).  In the order a breadth-first walk first reaches each.
     """
-    return tuple(_point(p) for p in _shortest_prefixes().values())
+    return tuple(_point(p) for p in _first_prefixes().values())
 
 
-def point_prefix(position: Position) -> CasePrefix:
-    """The walk :func:`vendor_points` reads *position* at.
+def point_at(
+    rm: RM, cs: CS, em: EM, opened: tuple[str, ...] | None = None
+) -> VendorPoint:
+    """The point of :func:`vendor_points` at one position, scored alone.
+
+    *opened* picks the set of open desiderata; ``None`` takes the first a
+    breadth-first walk reaches.
 
     Raises:
-        KeyError: *position* is not a valid position of one vendor.
+        KeyError: No walk of the one-vendor model reaches that point.
     """
-    return _shortest_prefixes()[(position.rm, position.cs, position.em)]
+    for (r, c, e, found), prefix in _first_prefixes().items():
+        if (r, c, e) == (rm, cs, em) and opened in (None, found):
+            return _point(prefix)
+    raise KeyError(f"no walk reaches {rm} {cs.name} {em} with {opened}")
+
+
+def point_prefix(point: VendorPoint) -> CasePrefix:
+    """The walk :func:`vendor_points` reads *point* at.
+
+    Raises:
+        KeyError: *point* is not a point of :func:`vendor_points`.
+    """
+    p = point.position
+    opened = point.open_desiderata
+    if opened is None:
+        raise KeyError("a live case's point has no walk of its own here")
+    return _first_prefixes()[(p.rm, p.cs, p.em, opened)]

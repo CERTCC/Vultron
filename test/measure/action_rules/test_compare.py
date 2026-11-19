@@ -32,7 +32,9 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.measure.action_rules import (
     ANY_ROLE,
+    FORCED_AWARENESS,
     NO_STATE_CHANGE,
+    NOT_MEASURED,
     AuthoredRule,
     ConsentReading,
     PointComparison,
@@ -46,6 +48,7 @@ from vultron.measure.action_rules import (
     compare_point,
     compare_points,
     generated_rules,
+    point_at,
     vendor_points,
 )
 from vultron.measure.advice import Band, Part
@@ -55,12 +58,7 @@ _K = ResultKind
 
 
 def _point(rm: RM, cs: CS, em: EM) -> VendorPoint:
-    (point,) = [
-        p
-        for p in vendor_points()
-        if (p.position.rm, p.position.cs, p.position.em) == (rm, cs, em)
-    ]
-    return point
+    return point_at(rm, cs, em)
 
 
 #: The #6492 example: the vendor's report accepted, its fix ready, an
@@ -73,6 +71,7 @@ def _rule(**fields: Any) -> AuthoredRule:
         "pattern": RulePattern(),
         "roles": ANY_ROLE,
         "action": Actions.MONITOR_FOR_ATTACKS,
+        "reason": "SA",
         "desiderata": ("D≺P",),
         "source": None,
     }
@@ -272,6 +271,42 @@ def test_a_publication_after_p_is_unscored_and_before_p_joins_the_p_move():
     before = _only(compare_point(_point(*_EXTENSION), [rule]), rule)
     assert before.move == "cs.public_becomes_aware"
     assert before.kind in (_K.AGREEMENT, _K.RULE_DISAGREEMENT)
+
+
+# --- SHD-05-028: a rule that names no desideratum is not measured ---
+
+
+@pytest.mark.spec("SHD-05-028")
+def test_a_rule_naming_no_desideratum_is_unscored_with_its_reason():
+    rule = _disagrees().model_copy(
+        update={"desiderata": (), "reason": "Coordination: a test reason"}
+    )
+    result = _only(compare_point(_point(*_EXTENSION), [rule]), rule)
+    assert result.kind is _K.UNSCORED_RULE
+    assert result.band is None
+    assert NOT_MEASURED in (result.reason or "")
+    assert "Coordination: a test reason" in (result.reason or "")
+
+
+def test_a_misplaced_rule_is_misplaced_even_with_no_desideratum():
+    rule = _not_allowed().model_copy(update={"desiderata": ()})
+    result = _only(compare_point(_point(*_EXTENSION), [rule]), rule)
+    assert result.kind is _K.MISPLACED_RULE
+
+
+# --- SHD-05-030: the public's awareness is not a publication ---
+
+
+@pytest.mark.spec("SHD-05-030")
+def test_a_publication_where_an_exploit_forces_awareness_is_not_joined():
+    rule = _rule(action=Actions.PUBLISH_VULNERABILITY, desiderata=("P≺A",))
+    point = _point(RM.ACCEPTED, CS.VFdpXa, EM.NONE)
+    forced = [v for v in point.verdicts if v.forced]
+    assert [v.move.name for v in forced] == ["cs.public_becomes_aware"]
+    result = _only(compare_point(point, [rule]), rule)
+    assert result.kind is _K.UNSCORED_RULE
+    assert result.move is None
+    assert result.reason == FORCED_AWARENESS
 
 
 # --- SHD-05-013: the comparison changes neither table ---

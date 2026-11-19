@@ -29,6 +29,7 @@ from test.measure.history.builders import (
     status,
 )
 from vultron.core.states.cs import CS
+from vultron.core.states.cs_invariants import required_next_cs_events
 from vultron.core.states.em import EM, EM_TRIGGER_ROLES, EM_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -41,9 +42,12 @@ from vultron.measure.action_rules import (
     PositionKey,
     VendorScore,
     case_points,
+    conditional_verdicts,
     generated_rules,
     group_positions,
     machine_of,
+    move_advice_desiderata,
+    point_at,
     point_prefix,
     vendor_points,
 )
@@ -57,18 +61,48 @@ def _key(point) -> tuple[RM, CS, EM]:
     return (p.rm, p.cs, p.em)
 
 
-def test_every_valid_position_of_one_vendor_is_read_once():
-    keys = [_key(p) for p in vendor_points()]
+def _bands_at(
+    rule_move: str,
+) -> dict[tuple[RM, CS, EM], set[tuple[Band, bool]]]:
+    """Each position's bands for *rule_move*, over every point there."""
+    found: dict[tuple[RM, CS, EM], set[tuple[Band, bool]]] = {}
+    for point in vendor_points():
+        for v in point.verdicts:
+            if v.move.name == rule_move and v.score is not None:
+                found.setdefault(_key(point), set()).add(
+                    (v.score.band, v.forced)
+                )
+    return found
+
+
+def test_each_position_and_open_set_of_one_vendor_is_read_once():
+    keys = [(*_key(p), p.open_desiderata) for p in vendor_points()]
     assert len(keys) == len(set(keys))
-    assert (RM.START, CS.vfdpxa, EM.NONE) == keys[0]
+    assert keys[0][:3] == (RM.START, CS.vfdpxa, EM.NONE)
+    assert keys[0][3] == tuple(move_advice_desiderata())
     assert all(p.position.consent is None for p in vendor_points())
+    positions = {_key(p) for p in vendor_points()}
+    assert (RM.DEFERRED, CS.Vfdpxa, EM.NONE) in positions
+
+
+def test_a_desideratum_is_open_until_either_of_its_events_happens():
+    deferred = [
+        p.open_desiderata
+        for p in vendor_points()
+        if _key(p) == (RM.DEFERRED, CS.Vfdpxa, EM.NONE)
+    ]
+    assert len(deferred) == 2
+    accepted, never = sorted(deferred, key=len)
+    assert "Ac_i≺P" in never
+    assert "Ac_i≺P" not in accepted
+    assert set(accepted) < set(never)
 
 
 @pytest.mark.spec("SHD-05-007")
 def test_each_verdict_is_the_band_of_a_case_whose_only_scope_is_the_vendor():
     checked = 0
     for point in vendor_points():
-        prefix = point_prefix(point.position)
+        prefix = point_prefix(point)
         advice = advise(
             move_shifts(prefix, open_moves(prefix)), lambda _: False
         )
@@ -137,8 +171,7 @@ def test_a_record_with_a_gap_has_no_points():
 
 
 def test_a_verdict_holds_a_band_or_why_not():
-    (point, *_) = vendor_points()
-    verdict = point.verdicts[0]
+    verdict = point_at(RM.START, CS.vfdpxa, EM.NONE).verdicts[0]
     with pytest.raises(ValidationError, match="a band or the reason"):
         MoveVerdict(move=verdict.move, roles=verdict.roles)
 
@@ -152,14 +185,9 @@ def test_each_generated_rules_patterns_hold_exactly_its_bands_positions():
     assert rules
     for rule in rules:
         expected = {
-            _key(p)
-            for p in vendor_points()
-            if any(
-                v.move.name == rule.move
-                and v.score is not None
-                and v.score.band is rule.band
-                for v in p.verdicts
-            )
+            key
+            for key, bands in _bands_at(rule.move).items()
+            if bands == {(rule.band, rule.forced)}
         }
         covered = {
             _key(p)
@@ -174,15 +202,67 @@ def test_each_generated_rules_patterns_hold_exactly_its_bands_positions():
 
 
 @pytest.mark.spec("SHD-05-015")
-def test_one_generated_rule_for_each_scored_move_and_band():
-    expected = {
-        (v.move.name, v.score.band)
+def test_one_generated_rule_for_each_scored_move_band_and_forced_mark():
+    moves = {
+        v.move.name
         for p in vendor_points()
         for v in p.verdicts
         if v.score is not None
     }
-    found = [(r.move, r.band) for r in generated_rules()]
-    assert sorted(found) == sorted(expected)
+    expected = {
+        (move, *only)
+        for move in moves
+        for bands in _bands_at(move).values()
+        if len(bands) == 1
+        for only in bands
+    }
+    found = [(r.move, r.band, r.forced) for r in generated_rules()]
+    assert len(found) == len(set(found))
+    assert set(found) == expected
+
+
+@pytest.mark.spec("SHD-05-029")
+def test_a_position_whose_band_depends_on_its_history_is_conditional():
+    conditional = conditional_verdicts()
+    assert conditional
+    for verdict in conditional:
+        key = (verdict.position.rm, verdict.position.cs, verdict.position.em)
+        assert {b.band for b in verdict.branches} == {
+            band for band, _ in _bands_at(verdict.move)[key]
+        }
+        opens = [frozenset(b.open) for b in verdict.branches]
+        assert len(set(opens)) == len(opens)
+    covered = {(v.move, v.position) for v in conditional}
+    for move in {v.move for v in conditional}:
+        for key, bands in _bands_at(move).items():
+            in_table = (move, PositionKey(*key)) in covered
+            assert in_table == (len({b for b, _ in bands}) > 1)
+
+
+@pytest.mark.spec("SHD-05-029")
+def test_accepting_a_deferred_report_is_good_only_if_it_was_never_accepted():
+    (verdict,) = [
+        v
+        for v in conditional_verdicts()
+        if v.move == "rm.accept"
+        and v.position == PositionKey(RM.DEFERRED, CS.Vfdpxa, EM.NONE)
+    ]
+    by_band = {b.band: b for b in verdict.branches}
+    assert "Ac_i≺P" in by_band[Band.HARM_FREE].open
+    assert "Ac_i≺P" in by_band[Band.UNHELPFUL].settled
+    assert "harm-free while" in verdict.caveat
+    assert "unhelpful once" in verdict.caveat
+
+
+@pytest.mark.spec("SHD-05-030")
+def test_a_verdict_on_a_forced_event_is_marked_forced():
+    for point in vendor_points():
+        required = required_next_cs_events(point.position.cs)
+        for v in point.verdicts:
+            event = getattr(v.move, "event", None)
+            assert v.forced == (event is not None and event in required)
+    forced = {(r.move, r.band) for r in generated_rules() if r.forced}
+    assert ("cs.public_becomes_aware", Band.UNHELPFUL) in forced
 
 
 @pytest.mark.spec("SHD-05-016")

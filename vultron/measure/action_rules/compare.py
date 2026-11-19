@@ -43,8 +43,11 @@ from fractions import Fraction
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from vultron.core.scoring.potential_actions import Actions
-from vultron.core.states.cs_invariants import cs_happened_events
+from vultron.core.states.cs_invariants import (
+    CSEvent,
+    cs_happened_events,
+    required_next_cs_events,
+)
 from vultron.core.states.em import EM_TRIGGER_ROLES, EM_Trigger
 from vultron.core.states.rm import RM_Trigger
 from vultron.enums.roles import CVDRole
@@ -79,6 +82,16 @@ _BANDED = frozenset({ResultKind.AGREEMENT, ResultKind.RULE_DISAGREEMENT})
 
 NO_STATE_CHANGE = "the action changes no state here"
 """Why a rule whose action changes no state at a position is unscored."""
+
+FORCED_AWARENESS = (
+    "a public exploit makes the public aware next, whatever is published;"
+    " a publication does not cause it"
+)
+"""Why a publication beside a public exploit and an unaware public is
+unscored (SHD-05-030)."""
+
+NOT_MEASURED = "not measured: the rule names no desideratum"
+"""Why a rule whose reason is not a desideratum is unscored (SHD-05-028)."""
 
 
 class DesideratumShift(BaseModel):
@@ -185,25 +198,36 @@ class PointComparison(BaseModel):
 
 def rule_move(rule: AuthoredRule, position: Position) -> str | None:
     """The move *rule*'s action is at *position*; ``None`` when it changes
-    no state there.
+    no state there (:func:`resolve_action`)."""
+    return resolve_action(rule, position)[0]
+
+
+def resolve_action(
+    rule: AuthoredRule, position: Position
+) -> tuple[str | None, str | None]:
+    """The move *rule*'s action is at *position*, or ``None`` and why it
+    changes no state there.
 
     A rule that names a move is that move.  An action of ``Actions`` is the
     move :data:`ACTION_MOVES` gives it, except where the CS event it causes
-    has already happened: then it changes no state (SHD-05-024).
+    has already happened (SHD-05-024), and except a publication where a
+    public exploit forces the public's awareness next: the public then
+    learns of the vul from the exploit, not from the publication
+    (SHD-05-030).
     """
     if isinstance(rule.action, str):
-        return rule.action
-    return _action_move(rule.action, position)
-
-
-def _action_move(action: Actions, position: Position) -> str | None:
-    move = ACTION_MOVES.get(action)
+        return rule.action, None
+    move = ACTION_MOVES.get(rule.action)
     if move is None:
-        return None
+        return None, NO_STATE_CHANGE
     event = CS_MOVE_EVENTS.get(move)
     if event is not None and event in cs_happened_events(position.cs):
-        return None
-    return move
+        return None, NO_STATE_CHANGE
+    if event is CSEvent.P and CSEvent.P in required_next_cs_events(
+        position.cs
+    ):
+        return None, FORCED_AWARENESS
+    return move, None
 
 
 def _role_refusal(rule: AuthoredRule, move: str) -> str | None:
@@ -243,7 +267,7 @@ def _rule_result(
     proposal: str | None,
 ) -> RuleResult:
     position = point.position
-    move = rule_move(rule, position)
+    move, no_state = resolve_action(rule, position)
 
     def result(kind: ResultKind, **fields: object) -> RuleResult:
         return RuleResult.model_validate(
@@ -258,7 +282,7 @@ def _rule_result(
         )
 
     if move is None:
-        return result(ResultKind.UNSCORED_RULE, reason=NO_STATE_CHANGE)
+        return result(ResultKind.UNSCORED_RULE, reason=no_state)
     refusal = _role_refusal(rule, move)
     if refusal is not None:
         return result(ResultKind.MISPLACED_RULE, reason=refusal)
@@ -275,6 +299,12 @@ def _rule_result(
                 f"the state machines allow no {move} here for the rule's"
                 f" roles ({rule.roles_label})"
             ),
+        )
+    if not rule.measured:
+        return result(
+            ResultKind.UNSCORED_RULE,
+            participant=joined[0].move.participant,
+            reason=f"{NOT_MEASURED}; its reason: {rule.reason}",
         )
     scored = [v for v in joined if v.score is not None]
     if not scored:

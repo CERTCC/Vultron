@@ -305,7 +305,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0203 An Embargo's End Is an Update of the Embargo, Announced to Every Signatory](0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md) *(revision 2)* — partially supersedes 0116-removing-a-participant-withdraws-entitlement-not-membership.md, 0122-per-embargo-participant-consent.md
 - [ADR-0204 The Case Ledger and Status Histories Are Named Ordered Collections](0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md) — partially supersedes 0137-case-records-are-attached-by-one-message-never-created-first.md, 0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md
 - [ADR-0208 Core Owns the AS2 Base Vocabulary](0208-core-owns-the-as2-base-vocabulary.md) — partially supersedes 0099-one-object-model-as2-is-a-serialization.md
-- [ADR-0216 Action Rules Span CS, RM, EM and PEC, and Authored Rules Are Compared With Rules Generated From Move Advice](0216-action-rules-span-cs-rm-em-and-pec-and-authored-rules-are-compared-with-rules-generated-from-move-advice.md)
+- [ADR-0216 Action Rules Span CS, RM, EM and PEC, and Authored Rules Are Compared With Rules Generated From Move Advice](0216-action-rules-span-cs-rm-em-and-pec-and-authored-rules-are-compared-with-rules-generated-from-move-advice.md) *(revision 2)*
 - [ADR-0217 A Case Preview Is Cut From the Case Field by Field, Inside an Envelope the Protocol Sets](0217-a-case-preview-is-cut-from-the-case-field-by-field-inside-an-envelope-the-protocol-sets.md)
 
 ## Rejected ADRs

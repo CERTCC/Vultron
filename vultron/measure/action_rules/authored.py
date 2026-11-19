@@ -15,12 +15,13 @@
 Each pattern and action of ``CS_ACTION_RULES`` carries over as one or more
 authored rules, in that table's order, each recording its source pair
 (SHD-05-006, SHD-05-022).  The decisions behind each rule are the user's,
-rule by rule, on #6676:
+rule by rule, on #6676 (D1 to D17 there):
 
 * A publication is any publication and always a valid action: only the
-  first causes P (D1).  A rule that publishes where P may already have
-  happened names its member of ``Actions``; one that matches only positions
-  where P has not names ``cs.public_becomes_aware``.
+  first causes P (D1).  A public exploit makes the public aware, but that is
+  not a publication (D10), so every publication rule names its member of
+  ``Actions`` and the comparison decides, position by position, whether it
+  is the move ``cs.public_becomes_aware``.
 * A rule suggests and never forbids, so a costly rule, such as publishing
   before the vendor is aware, stays (D2).
 * The Vulnerabilities Equities Process pair does not carry over (D3).
@@ -29,7 +30,16 @@ rule by rule, on #6676:
   state where an ephemeral state forces another event (``pX``) is split so
   it matches only positions where its move exists.
 * Closing the case is ``rm.close`` for a participant whose RM state is not
-  Closed, matched only where ``rm.close`` exists (``RM_CLOSABLE``) (D5).
+  Closed, matched only where ``rm.close`` exists (``RM_CLOSABLE``) (D5); it
+  is housekeeping, with no desideratum (D16).
+* Every rule has a reason; it names desiderata only where its reason is one
+  (D10, D11).  The reasons quote the legacy table where it has one.
+* Ending the embargo once the public knows, an exploit is public or attacks
+  are seen stays as a rule: Vultron ends it then, but the protocol only says
+  it should (D8, #6709).
+* The embargo rules carry the documentation's advice on terms: accept the
+  shortest proposal, propose a revision to extend, propose shorter terms,
+  and reject rarely (D14, ``docs/topics/process_models/em/defaults.md``).
 
 "Non-vendor" is :data:`NON_VENDOR`.  The table is built on first use
 (:func:`authored_rules`): checking a desideratum against the move-advice list
@@ -76,27 +86,36 @@ _VENDOR: frozenset[CVDRole] = frozenset({CVDRole.VENDOR})
 _DEPLOYER: frozenset[CVDRole] = frozenset({CVDRole.DEPLOYER})
 
 _IN_FORCE = frozenset(EM_EMBARGO_ACTIVE)
+_NOT_STARTED = frozenset({EM.NONE, EM.PROPOSED})
 _NO_ACTIVE_EMBARGO = frozenset({EM.NONE, EM.EXITED})
 _FIX_GATE = frozenset({RM.ACCEPTED, RM.DEFERRED})
 _CLOSABLE = frozenset(RM_CLOSABLE)
 _INVITED = frozenset({EmbargoConsentState.INVITED})
 
-_PUBLISH = "cs.public_becomes_aware"
+#: The documentation's advice on embargo terms (D14).
+_TERMS_ADVICE = (
+    "the shortest proposed embargo wins: accept the shorter proposal and"
+    " negotiate a longer one by revision"
+    " (docs/topics/process_models/em/defaults.md)"
+)
+_REJECT_REASON = (
+    f"Coordination; rejection is rarely the advised answer: {_TERMS_ADVICE}"
+)
 
 
 def _carry(
     source: str,
     source_action: Actions,
     *,
+    reason: str,
     action: Actions | str | None = None,
     roles: Roles = ANY_ROLE,
-    desiderata: tuple[str, ...],
+    desiderata: tuple[str, ...] = (),
     cs: str | None = None,
     rm: frozenset[RM] | None = None,
     em: frozenset[EM] | None = None,
     proposal: frozenset[EmbargoConsentState] | None = None,
     blind_spot: int | None = None,
-    note: str | None = None,
 ) -> AuthoredRule:
     """One carried-over rule from the pair *source*, *source_action*.
 
@@ -107,26 +126,26 @@ def _carry(
         pattern=RulePattern(cs=cs or source, rm=rm, em=em, proposal=proposal),
         roles=roles,
         action=source_action if action is None else action,
+        reason=reason,
         desiderata=desiderata,
         source=SourcePair(pattern=source, action=source_action),
         blind_spot=blind_spot,
-        note=note,
     )
 
 
-def _terminate(source: str, desiderata: tuple[str, ...]) -> AuthoredRule:
+def _terminate(source: str, event: str) -> AuthoredRule:
     return _carry(
         source,
         Actions.TERMINATE_ANY_EXISTING_EMBARGO,
         action="em.terminate",
         roles=_OWNER,
         em=_IN_FORCE,
-        desiderata=desiderata,
+        reason=f"Exit criteria met: {event}",
     )
 
 
 def _ask_to_terminate(
-    source: str, desiderata: tuple[str, ...]
+    source: str, event: str
 ) -> tuple[AuthoredRule, AuthoredRule]:
     return (
         _carry(
@@ -135,58 +154,55 @@ def _ask_to_terminate(
             action="em.terminate",
             roles=_OWNER,
             em=_IN_FORCE,
-            desiderata=desiderata,
+            reason=f"Exit criteria met: {event}",
         ),
         _carry(
             source,
             Actions.INITIATE_EMBARGO_TERMINATION,
             roles=NOT_THE_OWNER,
             em=_IN_FORCE,
-            desiderata=desiderata,
-            note="ask the case owner to end the embargo",
+            reason=(
+                f"Exit criteria met: {event}; ask the case owner to end the"
+                " embargo"
+            ),
         ),
     )
 
 
-def _publish(
-    source: str,
-    source_action: Actions,
-    desiderata: tuple[str, ...],
-    *,
-    move: bool,
-    em: frozenset[EM] | None = None,
-    note: str | None = None,
-) -> AuthoredRule:
-    return _carry(
-        source,
-        source_action,
-        action=_PUBLISH if move else None,
-        em=em,
-        desiderata=desiderata,
-        note=note,
-    )
-
-
-def _embargo_moves(em: EM, propose_note: str | None) -> list[AuthoredRule]:
-    """``..dpxa`` "negotiate or establish an embargo", split by EM (D4)."""
-    source, negotiate = (
-        "..dpxa",
-        Actions.NEGOTIATE_OR_ESTABLISH_DISCLOSURE_EMBARGO,
-    )
+def _embargo_moves(em: EM) -> list[AuthoredRule]:
+    """``..dpxa`` "negotiate or establish an embargo", split by EM (D4, D14)."""
+    source = "..dpxa"
+    negotiate = Actions.NEGOTIATE_OR_ESTABLISH_DISCLOSURE_EMBARGO
     at = frozenset({em})
-    if em in (EM.NONE, EM.ACTIVE):
-        revision = em is EM.ACTIVE
+    if em is EM.NONE:
         return [
             _carry(
                 source,
                 negotiate,
                 action="em.propose",
                 em=at,
-                desiderata=("D≺P",) if revision else ("E≺P", "D≺P"),
-                blind_spot=6492 if revision else None,
-                note=propose_note,
+                reason="Coordination: propose an embargo",
+                desiderata=("E≺P", "D≺P"),
             )
         ]
+    if em is EM.ACTIVE:
+        return [
+            _carry(
+                source,
+                negotiate,
+                action="em.propose",
+                em=at,
+                reason=(
+                    "Coordination: to extend the embargo, propose a revision"
+                    " (docs/topics/process_models/em/defaults.md)"
+                ),
+                desiderata=("D≺P",),
+                blind_spot=6492,
+            )
+        ]
+    starts = em is EM.PROPOSED
+    served = ("E≺P", "D≺P") if starts else ("D≺P",)
+    what = "proposed embargo" if starts else "proposed revision"
     return [
         _carry(
             source,
@@ -194,7 +210,8 @@ def _embargo_moves(em: EM, propose_note: str | None) -> list[AuthoredRule]:
             action="em.accept",
             roles=_OWNER,
             em=at,
-            desiderata=("E≺P", "D≺P") if em is EM.PROPOSED else ("D≺P",),
+            reason=f"Coordination: accept the {what}; {_TERMS_ADVICE}",
+            desiderata=served,
         ),
         _carry(
             source,
@@ -202,8 +219,17 @@ def _embargo_moves(em: EM, propose_note: str | None) -> list[AuthoredRule]:
             action="em.reject",
             roles=_OWNER,
             em=at,
-            desiderata=("P≺X", "P≺A"),
-            note="a refused proposal leaves publication free",
+            reason=_REJECT_REASON,
+        ),
+        _carry(
+            source,
+            negotiate,
+            action="em.propose",
+            em=at,
+            reason=(
+                f"Coordination: to shorten the {what}, propose shorter"
+                f" terms; {_TERMS_ADVICE}"
+            ),
         ),
         _carry(
             source,
@@ -212,8 +238,10 @@ def _embargo_moves(em: EM, propose_note: str | None) -> list[AuthoredRule]:
             roles=_VENDOR,
             em=at,
             proposal=_INVITED,
-            desiderata=("E≺P", "D≺P") if em is EM.PROPOSED else ("D≺P",),
-            note="the vendor's answer to the proposal; unscored until #6677",
+            reason=(
+                f"Coordination: agree to the {what}; unscored until #6677"
+            ),
+            desiderata=served,
         ),
         _carry(
             source,
@@ -222,20 +250,21 @@ def _embargo_moves(em: EM, propose_note: str | None) -> list[AuthoredRule]:
             roles=_VENDOR,
             em=at,
             proposal=_INVITED,
-            desiderata=("P≺X", "P≺A"),
-            note="the vendor's answer to the proposal; unscored until #6677",
+            reason=f"{_REJECT_REASON}; unscored until #6677",
         ),
     ]
 
 
-def _close(source: str, note: str | None) -> AuthoredRule:
+def _close(source: str, unless: str | None) -> AuthoredRule:
+    reason = "Housekeeping: no action required"
+    if unless is not None:
+        reason = f"{reason} (unless monitoring for {unless})"
     return _carry(
         source,
         Actions.CLOSE_CASE,
         action="rm.close",
         rm=_CLOSABLE,
-        desiderata=("X≺A",),
-        note=note,
+        reason=reason,
     )
 
 
@@ -245,114 +274,157 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
     ``CS_ACTION_RULES``."""
     a = Actions
     return (
-        # R1 ...P..
-        _terminate("...P..", ("P≺X", "P≺A")),
-        _publish(
-            "...P..", a.PUBLISH_VULNERABILITY, ("P≺X", "P≺A"), move=False
+        # R1 ...P.. (D8, D9)
+        _terminate("...P..", "the public is aware"),
+        _carry(
+            "...P..",
+            a.PUBLISH_VULNERABILITY,
+            reason="Defense; a record for future reference",
         ),
-        # R2 ....X.
-        _terminate("....X.", ("P≺A",)),
-        _publish("....X.", a.PUBLISH_VULNERABILITY, ("P≺A",), move=False),
-        _publish(
-            "....X.", a.PUBLICIZE_PUBLISHED_EXPLOITS, ("P≺A",), move=False
+        # R2 ....X. (D8, D10, D11)
+        _terminate("....X.", "an exploit is public"),
+        _carry("....X.", a.PUBLISH_VULNERABILITY, reason="Defense"),
+        _carry(
+            "....X.",
+            a.PUBLICIZE_PUBLISHED_EXPLOITS,
+            reason="SA: draw attention to the published exploit",
         ),
         _carry(
-            "....X.", a.MONITOR_FOR_EXPLOIT_REFINEMENT, desiderata=("D≺A",)
+            "....X.",
+            a.MONITOR_FOR_EXPLOIT_REFINEMENT,
+            reason="SA",
+            desiderata=("F≺A",),
         ),
-        _publish(
-            "....X.", a.PUBLISH_DETECTION_FOR_EXPLOITS, ("P≺A",), move=False
-        ),
-        # R3 .....A
-        _terminate(".....A", ("P≺X",)),
-        _publish(".....A", a.PUBLISH_VULNERABILITY, ("P≺X",), move=False),
-        _carry(
-            ".....A", a.MONITOR_FOR_ADDITIONAL_ATTACKS, desiderata=("P≺X",)
-        ),
-        _publish(
-            ".....A", a.PUBLISH_DETECTION_FOR_ATTACKS, ("P≺X",), move=False
-        ),
-        # R4 VfdpX., R5 Vfdp.A
-        *_ask_to_terminate("VfdpX.", ("P≺A",)),
-        *_ask_to_terminate("Vfdp.A", ("P≺X",)),
-        # R6, R7
+        _carry("....X.", a.PUBLISH_DETECTION_FOR_EXPLOITS, reason="Detection"),
+        # R3 .....A (D8, D10, D11)
+        _terminate(".....A", "attacks are observed"),
+        _carry(".....A", a.PUBLISH_VULNERABILITY, reason="Defense"),
+        _carry(".....A", a.MONITOR_FOR_ADDITIONAL_ATTACKS, reason="SA"),
+        _carry(".....A", a.PUBLISH_DETECTION_FOR_ATTACKS, reason="Detection"),
+        # R4 VfdpX., R5 Vfdp.A (D8)
+        *_ask_to_terminate("VfdpX.", "an exploit is public"),
+        *_ask_to_terminate("Vfdp.A", "attacks are observed"),
+        # R6, R7 (D11)
         _carry(
             "....x.",
             a.MONITOR_FOR_EXPLOIT_PUBLICATION,
+            reason="SA",
             desiderata=("F≺X", "D≺X"),
         ),
-        _carry(".....a", a.MONITOR_FOR_ATTACKS, desiderata=("F≺A", "D≺A")),
+        _carry(
+            ".....a",
+            a.MONITOR_FOR_ATTACKS,
+            reason="SA",
+            desiderata=("F≺A", "D≺A"),
+        ),
         # R8 vfdP..
         _carry(
             "vfdP..",
             a.PAY_ATTENTION_TO_PUBLIC_REPORTS,
             action="cs.vendor_becomes_aware",
             roles=_VENDOR,
+            reason="SA",
             desiderata=("V≺X", "V≺A"),
         ),
         _carry(
             "vfdP..",
             a.ESCALATE_VENDOR_NOTIFICATION_PRIORITY,
             roles=NON_VENDOR,
+            reason="Coordination",
             desiderata=("V≺X", "V≺A"),
         ),
-        # R9 ...pxa
+        # R9 ...pxa: vigilance split by EM (D11 entry 9)
         _carry(
             "...pxa",
             a.MAINTAIN_VIGILANCE_FOR_EMBARGO_EXIT_CRITERIA,
+            em=_IN_FORCE,
+            reason="SA: watch for the embargo's exit criteria",
             desiderata=("ExOwn≺P",),
+        ),
+        _carry(
+            "...pxa",
+            a.MAINTAIN_VIGILANCE_FOR_EMBARGO_EXIT_CRITERIA,
+            em=_NOT_STARTED,
+            reason="SA: avoid entering an embargo that should not start",
         ),
         _carry(
             "...pxa",
             a.MAINTAIN_ANY_EXISTING_EMBARGO,
             em=_IN_FORCE,
+            reason="Coordination",
             desiderata=("F≺P", "D≺P"),
         ),
-        # R10 VfdP..
+        # R10 VfdP.. (D11 entry 10, D12)
         _carry(
-            "VfdP..", a.ESCALATE_VIGILANCE_FOR_EXPLOITS, desiderata=("F≺X",)
+            "VfdP..",
+            a.ESCALATE_VIGILANCE_FOR_EXPLOITS,
+            reason="SA, Coordination",
+            desiderata=("F≺X", "D≺X"),
         ),
         _carry(
-            "VfdP..", a.ESCALATE_VIGILANCE_FOR_ATTACKS, desiderata=("F≺A",)
+            "VfdP..",
+            a.ESCALATE_VIGILANCE_FOR_ATTACKS,
+            reason="SA, Coordination",
+            desiderata=("F≺A", "D≺A"),
         ),
-        _publish("VfdP..", a.PUBLISH_MITIGATION, ("D≺A",), move=False),
-        _publish("VfdP..", a.PUBLICIZE_MITIGATION, ("D≺A",), move=False),
+        _carry("VfdP..", a.PUBLISH_MITIGATION, reason="Defense"),
+        _carry("VfdP..", a.PUBLICIZE_MITIGATION, reason="Defense"),
         _carry(
             "VfdP..",
             a.ESCALATE_FIX_PRIORITY,
             roles=NON_VENDOR,
+            reason="Coordination",
             desiderata=("F≺X", "F≺A"),
         ),
         # R11 V..p..
-        _publish(
+        _carry(
             "V..p..",
             a.PUBLISH_VULNERABILITY,
-            ("P≺X", "P≺A"),
-            move=True,
             em=_NO_ACTIVE_EMBARGO,
-            note="if no active embargo",
+            reason="Defense (if no active embargo)",
+            desiderata=("P≺X", "P≺A"),
         ),
-        _publish(
+        _carry(
             "V..p..",
             a.PUBLISH_MITIGATION,
-            ("P≺X", "P≺A"),
-            move=True,
             em=_NO_ACTIVE_EMBARGO,
-            note="if no active embargo",
+            reason="Defense (if no active embargo)",
+            desiderata=("P≺X", "P≺A"),
         ),
-        # R12 .fdP..
-        _publish(".fdP..", a.PUBLISH_MITIGATION, ("D≺A",), move=False),
-        # R13 ...pX.
-        _publish("...pX.", a.PUBLISH_VULNERABILITY, ("P≺A",), move=True),
-        _publish("...pX.", a.PUBLISH_MITIGATION, ("P≺A",), move=True),
-        # R14 ...PX.
-        _publish("...PX.", a.PUBLISH_VULNERABILITY, ("P≺A",), move=False),
-        _publish("...PX.", a.PUBLISH_MITIGATION, ("P≺A",), move=False),
+        # R12 .fdP.. (D12)
+        _carry(".fdP..", a.PUBLISH_MITIGATION, reason="Defense"),
+        # R13 ...pX.: the exploit makes the public aware (D10)
+        _carry("...pX.", a.PUBLISH_VULNERABILITY, reason="Defense"),
+        _carry("...pX.", a.PUBLISH_MITIGATION, reason="Defense"),
+        # R14 ...PX. (D9)
+        _carry("...PX.", a.PUBLISH_VULNERABILITY, reason="Defense"),
+        _carry("...PX.", a.PUBLISH_MITIGATION, reason="Defense"),
         # R15 ...p.A
-        _publish("...p.A", a.PUBLISH_VULNERABILITY, ("P≺X",), move=True),
-        _publish("...p.A", a.PUBLISH_MITIGATION, ("P≺X",), move=True),
+        _carry(
+            "...p.A",
+            a.PUBLISH_VULNERABILITY,
+            reason="Defense",
+            desiderata=("P≺X",),
+        ),
+        _carry(
+            "...p.A",
+            a.PUBLISH_MITIGATION,
+            reason="Defense",
+            desiderata=("P≺X",),
+        ),
         # R16 vfdp.. (D2: kept, unconditional; its cost shows in the advice)
-        _publish("vfdp..", a.PUBLISH_VULNERABILITY, ("P≺X", "P≺A"), move=True),
-        _publish("vfdp..", a.PUBLISH_MITIGATION, ("P≺X", "P≺A"), move=True),
+        _carry(
+            "vfdp..",
+            a.PUBLISH_VULNERABILITY,
+            reason="Defense (if no vendor exists)",
+            desiderata=("P≺X", "P≺A"),
+        ),
+        _carry(
+            "vfdp..",
+            a.PUBLISH_MITIGATION,
+            reason="Defense (if no vendor exists)",
+            desiderata=("P≺X", "P≺A"),
+        ),
         # R17 Vfd...: no F at VfdpX., where pX forces P
         _carry(
             "Vfd...",
@@ -361,6 +433,7 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
             roles=_VENDOR,
             cs="Vfdpx.",
             rm=_FIX_GATE,
+            reason="Defense",
             desiderata=("F≺P", "F≺X", "F≺A", "F_i≺ExOwn"),
         ),
         _carry(
@@ -370,12 +443,14 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
             roles=_VENDOR,
             cs="VfdP..",
             rm=_FIX_GATE,
+            reason="Defense",
             desiderata=("F≺X", "F≺A"),
         ),
         _carry(
             "Vfd...",
             a.ENCOURAGE_VENDOR_TO_CREATE_FIX,
             roles=NON_VENDOR,
+            reason="Coordination",
             desiderata=("F≺P", "F≺X", "F≺A"),
         ),
         # R18 VFd...: no D at VFdpX., where pX forces P
@@ -386,6 +461,7 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
             roles=_VENDOR,
             cs="VFdpx.",
             rm=_FIX_GATE,
+            reason="Defense",
             desiderata=("D≺P", "D≺X", "D≺A"),
         ),
         _carry(
@@ -395,6 +471,7 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
             roles=_DEPLOYER,
             cs="VFdpx.",
             rm=_FIX_GATE,
+            reason="Defense",
             desiderata=("D≺P", "D≺X", "D≺A"),
         ),
         _carry(
@@ -404,22 +481,26 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
             roles=_DEPLOYER,
             cs="VFdP..",
             rm=_FIX_GATE,
+            reason="Defense",
             desiderata=("D≺X", "D≺A"),
         ),
-        # R19 .fdPxA: narrowed to VfdPxA, where vP does not force V
+        # R19 .fdPxA: narrowed to VfdPxA, where vP does not force V (D13)
         _carry(
             ".fdPxA",
             a.PUBLISH_EXPLOIT_CODE,
             action="cs.exploit_made_public",
             cs="VfdPxA",
-            desiderata=("X≺A",),
-            note="defense and detection; X≺A is already lost here",
+            reason=(
+                "Defense, Detection; usually a move of negative value: it"
+                " costs F≺X and D≺X"
+            ),
         ),
         # R20 VFdPxa
         _carry(
             "VFdPxa",
             a.PUBLISH_EXPLOIT_CODE,
             action="cs.exploit_made_public",
+            reason="Defense, Detection, Accelerate deployment",
             desiderata=("X≺A",),
         ),
         # R21 vfd...: no V at vfdpX., where pX forces P
@@ -429,6 +510,7 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
             action="cs.vendor_becomes_aware",
             roles=NON_VENDOR,
             cs="vfdpx.",
+            reason="Coordination",
             desiderata=("V≺P", "V≺X", "V≺A"),
         ),
         _carry(
@@ -437,36 +519,71 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
             action="cs.vendor_becomes_aware",
             roles=NON_VENDOR,
             cs="vfdP..",
+            reason="Coordination",
             desiderata=("V≺X", "V≺A"),
         ),
-        # R22 to R26
+        # R22 to R26: kept unnarrowed (D17)
         _carry(
-            ".FdP..", a.ESCALATE_DEPLOYMENT_PRIORITY, desiderata=("D≺X", "D≺A")
+            ".FdP..",
+            a.ESCALATE_DEPLOYMENT_PRIORITY,
+            reason="Coordination",
+            desiderata=("D≺X", "D≺A"),
         ),
-        _carry(".f..X.", a.ESCALATE_FIX_PRIORITY, desiderata=("F≺A",)),
-        _carry(".f...A", a.ESCALATE_FIX_PRIORITY, desiderata=("F≺X",)),
-        _carry(".Fd.X.", a.ESCALATE_DEPLOYMENT_PRIORITY, desiderata=("D≺A",)),
-        _carry(".Fd..A", a.ESCALATE_DEPLOYMENT_PRIORITY, desiderata=("D≺X",)),
-        # R27 ..dpxa: split by EM (D4); EXITED has no EM move to suggest
-        *_embargo_moves(EM.NONE, None),
-        *_embargo_moves(EM.PROPOSED, None),
-        *_embargo_moves(
-            EM.ACTIVE,
-            "propose a revision that extends the embargo, to buy time",
+        _carry(
+            ".f..X.",
+            a.ESCALATE_FIX_PRIORITY,
+            reason="Coordination",
+            desiderata=("F≺A",),
         ),
-        *_embargo_moves(EM.REVISE, None),
+        _carry(
+            ".f...A",
+            a.ESCALATE_FIX_PRIORITY,
+            reason="Coordination",
+            desiderata=("F≺X",),
+        ),
+        _carry(
+            ".Fd.X.",
+            a.ESCALATE_DEPLOYMENT_PRIORITY,
+            reason="Coordination",
+            desiderata=("D≺A",),
+        ),
+        _carry(
+            ".Fd..A",
+            a.ESCALATE_DEPLOYMENT_PRIORITY,
+            reason="Coordination",
+            desiderata=("D≺X",),
+        ),
+        # R27 ..dpxa: split by EM (D4, D14); EXITED has no EM move to suggest
+        *_embargo_moves(EM.NONE),
+        *_embargo_moves(EM.PROPOSED),
+        *_embargo_moves(EM.ACTIVE),
+        *_embargo_moves(EM.REVISE),
         # R28 Vfdp..
         _carry(
             "Vfdp..",
             a.MOTIVATE_VENDOR_TO_FIX,
             roles=NON_VENDOR,
+            reason="Coordination",
             desiderata=("F≺P", "F≺X", "F≺A"),
         ),
-        _publish("Vfdp..", a.PUBLISH_VULNERABILITY, ("P≺X", "P≺A"), move=True),
-        # R29 VFdpxa
+        _carry(
+            "Vfdp..",
+            a.PUBLISH_VULNERABILITY,
+            reason=(
+                "Coordination: motivate the vendor to fix and deployers to"
+                " mitigate"
+            ),
+            desiderata=("P≺X", "P≺A"),
+        ),
+        # R29 VFdpxa: avoid starting an embargo unless exigent (D15)
         _carry(
             "VFdpxa",
             a.SCRUTINIZE_APPROPRIATENESS_OF_EMBARGO_INITIATION,
+            em=_NOT_STARTED,
+            reason=(
+                "Avoid starting an embargo unless exigent: the case is at the"
+                " edge of where an embargo helps"
+            ),
             desiderata=("D≺P",),
         ),
         # R30 VFdp..
@@ -474,22 +591,44 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
             "VFdp..",
             a.ENCOURAGE_VENDOR_TO_DEPLOY_FIX,
             roles=NON_VENDOR,
+            reason="Coordination",
             desiderata=("D≺P", "D≺X", "D≺A"),
         ),
-        _publish("VFdp..", a.PUBLISH_VULNERABILITY, ("P≺X", "P≺A"), move=True),
-        _publish("VFdp..", a.PUBLISH_FIX, ("P≺X", "P≺A"), move=True),
+        _carry(
+            "VFdp..",
+            a.PUBLISH_VULNERABILITY,
+            reason="Accelerate deployment",
+            desiderata=("P≺X", "P≺A"),
+        ),
+        _carry(
+            "VFdp..",
+            a.PUBLISH_FIX,
+            reason="Accelerate deployment",
+            desiderata=("P≺X", "P≺A"),
+        ),
         # R31, R32, R33
-        _carry("VFdP..", a.PROMOTE_FIX_DEPLOYMENT, desiderata=("D≺X", "D≺A")),
-        _publish("VFDp..", a.PUBLISH_VULNERABILITY, ("P≺X", "P≺A"), move=True),
+        _carry(
+            "VFdP..",
+            a.PROMOTE_FIX_DEPLOYMENT,
+            reason="Accelerate deployment",
+            desiderata=("D≺X", "D≺A"),
+        ),
+        _carry(
+            "VFDp..",
+            a.PUBLISH_VULNERABILITY,
+            reason="Document for future reference; acknowledge contributions",
+            desiderata=("P≺X", "P≺A"),
+        ),
         _carry(
             ".fd.xa",
             a.DISCOURAGE_EXPLOIT_PUBLICATION,
+            reason="Limit attacker advantage",
             desiderata=("F≺X", "D≺X"),
         ),
         # R34 vfdpx. INITIATE_VEP_USGOV: not carried over (D3)
-        # R35 to R38 (D5)
+        # R35 to R38: housekeeping (D5, D16)
         _close("VFDPXA", None),
-        _close("VFDPxa", "unless monitoring for X or A"),
-        _close("VFDPXa", "unless monitoring for A"),
-        _close("VFDPxA", "unless monitoring for X"),
+        _close("VFDPxa", "X or A"),
+        _close("VFDPXa", "A"),
+        _close("VFDPxA", "X"),
     )

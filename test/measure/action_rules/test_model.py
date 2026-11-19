@@ -69,6 +69,7 @@ def _rule(**fields: Any) -> AuthoredRule:
         "pattern": RulePattern(),
         "roles": ANY_ROLE,
         "action": Actions.MONITOR_FOR_ATTACKS,
+        "reason": "SA",
         "desiderata": ("D≺P",),
         "source": None,
     }
@@ -206,8 +207,8 @@ def test_a_proposal_part_matches_once_for_each_matching_proposal():
             None,
             "action",
         ),
-        ({"desiderata": ()}, None, "at least 1 item"),
-        ({}, "desiderata", r"desiderata\n  Field required"),
+        ({}, "reason", r"reason\n  Field required"),
+        ({"reason": ""}, None, "reason"),
         ({"desiderata": ("V_i≺F_j",)}, None, "not in the move-advice"),
         ({"desiderata": ("E≺X",)}, None, "not in the move-advice"),
         ({"desiderata": ("D≺P", "D≺P")}, None, "more than once"),
@@ -217,8 +218,8 @@ def test_a_proposal_part_matches_once_for_each_matching_proposal():
         "empty-role-set",
         "no-action",
         "two-actions",
-        "no-desideratum",
-        "missing-desiderata",
+        "no-reason",
+        "empty-reason",
         "multi-party-desideratum",
         "equivalent-desideratum",
         "repeated-desideratum",
@@ -231,6 +232,7 @@ def test_a_rule_without_roles_one_action_and_listed_desiderata_is_refused(
         "pattern": RulePattern(),
         "roles": ANY_ROLE,
         "action": Actions.MONITOR_FOR_ATTACKS,
+        "reason": "SA",
         "desiderata": ("D≺P",),
         "source": None,
     }
@@ -248,12 +250,61 @@ def test_a_rule_names_a_role_set_or_any_role():
 
 
 @pytest.mark.spec("SHD-05-004")
-def test_every_authored_desideratum_is_in_the_move_advice_list():
+def test_a_rule_with_a_reason_and_no_desideratum_is_accepted():
+    rule = _rule(reason="Housekeeping: no action required", desiderata=())
+    assert rule.desiderata == ()
+    assert not rule.measured
+    assert _rule().measured
+
+
+@pytest.mark.spec("SHD-05-004")
+def test_every_authored_rule_has_a_reason_and_listed_desiderata():
     listed = move_advice_desiderata()
     assert listed, "the move-advice list is not empty"
     for rule in authored_rules():
-        assert rule.desiderata
+        assert rule.reason
         assert set(rule.desiderata) <= set(listed)
+    assert any(not r.measured for r in authored_rules())
+    assert any(r.measured for r in authored_rules())
+
+
+def _sourced(action: Actions) -> list[AuthoredRule]:
+    return [
+        r
+        for r in authored_rules()
+        if r.source is not None and r.source.action is action
+    ]
+
+
+@pytest.mark.parametrize(
+    "action",
+    [
+        Actions.CLOSE_CASE,
+        Actions.TERMINATE_ANY_EXISTING_EMBARGO,
+        Actions.INITIATE_EMBARGO_TERMINATION,
+        Actions.MONITOR_FOR_ADDITIONAL_ATTACKS,
+        Actions.PUBLISH_DETECTION_FOR_EXPLOITS,
+        Actions.PUBLISH_DETECTION_FOR_ATTACKS,
+        Actions.PUBLICIZE_MITIGATION,
+    ],
+    ids=lambda a: a.name,
+)
+def test_a_rule_whose_reason_orders_no_events_names_no_desideratum(action):
+    """The user's review of #6676 (D8, D10 to D13, D16)."""
+    rules = _sourced(action)
+    assert rules
+    assert all(not r.measured for r in rules)
+
+
+def test_every_publication_rule_names_its_actions_member():
+    """A public exploit makes the public aware, but that is not a
+    publication (#6676, D10), so no publication rule names the P move."""
+    publications = {
+        a for a, m in ACTION_MOVES.items() if m == "cs.public_becomes_aware"
+    }
+    for rule in authored_rules():
+        if rule.source is not None and rule.source.action in publications:
+            assert rule.action is rule.source.action, rule
 
 
 # --- SHD-05-005, SHD-05-018, SHD-05-019: moves and actions ---
@@ -454,8 +505,30 @@ def test_the_r27_split_reads_em_and_drops_exited():
     for em in (EM.PROPOSED, EM.REVISE):
         assert by_em[em] == [
             "em.accept",
+            "em.propose",
             "em.reject",
             "pec.agree",
             "pec.decline",
         ]
     assert by_em[EM.EXITED] == []
+
+
+def test_the_embargo_rules_carry_the_terms_advice():
+    """Accept the shorter proposal, extend by revision, propose shorter
+    terms, and reject rarely (#6676, D14)."""
+    negotiate = _sourced(Actions.NEGOTIATE_OR_ESTABLISH_DISCLOSURE_EMBARGO)
+    rejects = [
+        r for r in negotiate if r.action in ("em.reject", "pec.decline")
+    ]
+    assert rejects
+    assert all("rarely" in r.reason and not r.measured for r in rejects)
+    shorter = [
+        r
+        for r in negotiate
+        if r.action == "em.propose" and r.pattern.em != {EM.NONE}
+    ]
+    assert {next(iter(r.pattern.em or ())) for r in shorter} == {
+        EM.PROPOSED,
+        EM.ACTIVE,
+        EM.REVISE,
+    }

@@ -20,8 +20,9 @@ the desiderata it serves (ADR-0216).
 * :class:`RulePattern` names a set of states for each part, or any state.
   :meth:`RulePattern.match` gives *matched*, *unmatched* or *undecided*: a
   part the reading does not hold is unknown, never false (SHD-05-003).
-* :class:`AuthoredRule` holds one pattern, its roles, one action and at least
-  one desideratum from the move-advice list (SHD-05-004).  A carried-over rule
+* :class:`AuthoredRule` holds one pattern, its roles, one action, its reason,
+  and the desiderata from the move-advice list that its reason is, if any
+  (SHD-05-004).  A carried-over rule
   records the ``CS_ACTION_RULES`` pair it came from and stays inside it
   (SHD-05-022, SHD-05-023).
 
@@ -297,6 +298,18 @@ class Position(BaseModel):
     consent: ConsentReading | None = None
 
 
+@cache
+def cs_pattern_matches(pattern: str, state: CS) -> bool:
+    """Whether the ``vfdpxa`` *pattern* matches *state*
+    (:meth:`~vultron.core.states.cs_actions.CSPattern.matches`), kept: the
+    comparison asks it for every rule at every position.
+
+    Raises:
+        ValueError: *pattern* is malformed.
+    """
+    return CSPattern(pattern).matches(state)
+
+
 def _a_cs_pattern(pattern: str) -> str:
     CSPattern(pattern)
     return pattern
@@ -367,7 +380,7 @@ class RulePattern(BaseModel):
 
     def matches_cs(self, state: CS) -> bool:
         """Whether the CS part matches *state*."""
-        return CSPattern(self.cs).matches(state)
+        return cs_pattern_matches(self.cs, state)
 
     def match(self, position: Position) -> PatternMatch:
         """How the pattern matches *position*.
@@ -459,8 +472,14 @@ def _pec_sources(trigger: str) -> frozenset[EmbargoConsentState]:
 
 
 class AuthoredRule(BaseModel):
-    """One authored action rule: the claim that its action serves the
-    desiderata it names (ADR-0216, SHD-05-004).
+    """One authored action rule: a suggested action, and why (ADR-0216,
+    SHD-05-004).
+
+    Every rule has a reason.  Where the reason is a desideratum, the rule
+    names it, and the rule claims that its action serves it; a reason such
+    as situation awareness, detection, defense or housekeeping orders no
+    events, so a rule with that reason names no desideratum, and the
+    comparison shows it with its reason and no number (SHD-05-028).
 
     Fields:
         pattern: The positions it matches.
@@ -468,15 +487,17 @@ class AuthoredRule(BaseModel):
         action: A move name, for an action that is a move at every position
             the rule matches (SHD-05-005), or a member of ``Actions``
             (SHD-05-018).
+        reason: Why a participant would take the action, in words, with any
+            condition that is not a pattern part, such as "unless monitoring
+            for X".
         desiderata: The desiderata the action serves, by plain name, from
-            the move-advice list (:func:`move_advice_desiderata`).
+            the move-advice list (:func:`move_advice_desiderata`); empty when
+            the reason is not a desideratum.
         source: The ``CS_ACTION_RULES`` pair it carries over; ``None`` for a
             new rule.
         blind_spot: The issue that tracks a chance-model blind spot the rule
             stands on, so a rule disagreement it gives carries it
             (SHD-05-014).
-        note: Reason text that is not a pattern part, such as "unless
-            monitoring for X".
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -484,10 +505,10 @@ class AuthoredRule(BaseModel):
     pattern: RulePattern
     roles: Roles
     action: ActionName | MoveName
-    desiderata: tuple[NonEmptyString, ...] = Field(min_length=1)
+    reason: NonEmptyString
+    desiderata: tuple[NonEmptyString, ...] = ()
     source: SourcePair | None
     blind_spot: int | None = Field(default=None, gt=0)
-    note: NonEmptyString | None = None
 
     @field_validator("roles", mode="after")
     @classmethod
@@ -529,11 +550,12 @@ class AuthoredRule(BaseModel):
         (SHD-05-023)."""
         if self.source is None:
             return []
-        source = CSPattern(self.source.pattern)
+        source = self.source.pattern
         wider = [
             state.name
             for state in CS
-            if self.pattern.matches_cs(state) and not source.matches(state)
+            if self.pattern.matches_cs(state)
+            and not cs_pattern_matches(source, state)
         ]
         if wider:
             return [
@@ -567,6 +589,11 @@ class AuthoredRule(BaseModel):
                 for problem in _within(label, part, sources, move)
             ]
         return []
+
+    @property
+    def measured(self) -> bool:
+        """Whether the rule names a desideratum, so a band can check it."""
+        return bool(self.desiderata)
 
     @property
     def move(self) -> str | None:

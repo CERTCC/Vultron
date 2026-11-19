@@ -62,6 +62,7 @@ from vultron.measure.baselines.desiderata import (
     ORIGINAL,
     Desideratum,
     ModelName,
+    Query,
     case_state_values,
     joint_values,
 )
@@ -182,8 +183,8 @@ def _project_case_state(
 def _reading(key: VendorDesideratum, prefix: CasePrefix) -> ChanceReading:
     desideratum, vendor, other = key
     if desideratum.model is ModelName.CASE_STATE:
-        return case_state_values(desideratum.query).reading(
-            _project_case_state(prefix, vendor)
+        return _case_state_reading(
+            desideratum.query, _project_case_state(prefix, vendor)
         )
     numbering = {vendor: 1} if other is None else {vendor: 1, other: 2}
     return joint_values(desideratum.model, desideratum.query).reading(
@@ -191,7 +192,20 @@ def _reading(key: VendorDesideratum, prefix: CasePrefix) -> ChanceReading:
     )
 
 
-@lru_cache(maxsize=1024)
+@lru_cache(maxsize=8192)
+def _case_state_reading(
+    query: Query, projected: WalkPrefix[CS, CSEvent]
+) -> ChanceReading:
+    """*query*'s reading from the six-event prefix *projected*.
+
+    Kept for the most recent prefixes: many joint prefixes, which differ only
+    in report-management or embargo steps, project onto one six-event
+    prefix.
+    """
+    return case_state_values(query).reading(projected)
+
+
+@lru_cache(maxsize=4096)
 def _readings(prefix: CasePrefix) -> Mapping[VendorDesideratum, ChanceReading]:
     """Each vendor's reading of each desideratum from *prefix*.
 
