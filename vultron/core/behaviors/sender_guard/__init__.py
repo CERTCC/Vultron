@@ -52,8 +52,9 @@ on one addressee base (``SenderIsRequestAddresseeNode``).  ``AUTHOR`` is one
 kind whatever the object: the context's ``authored_object`` names it, and the
 factory picks the note-author, proposal-author or participant-record check
 for it.  Every kind's node but the ownership-transfer checks (#6466) reads
-the sender, the case and the record it checks from their act keys (``/sender_id``, ``/case_id``, ``/offer_id`` and
-so on), which the factory seeds from the context with
+the sender, the case and the record it checks from their act keys
+(``/sender_id``, ``/case_id``, ``/offer_id`` and so on), which the factory
+seeds from the context with
 :func:`~vultron.core.behaviors.act_key_scope.with_act_keys` (BTND-01-008).
 
 An activity that carries a ``CaseLedgerEntry`` has no case at build time: the
