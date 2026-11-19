@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Direct tests for the held ledger Announce service (SYNC-14-001, SYNC-14-006).
+"""Direct tests for the held ledger Add service (SYNC-14-001, SYNC-14-006).
 
 The use-case tests in ``test/core/use_cases/received/test_sync.py`` reach
 these through the announce tree; these pin each operation on its own.

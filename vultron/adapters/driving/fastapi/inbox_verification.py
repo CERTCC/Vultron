@@ -62,7 +62,7 @@ from vultron.wire.as2.unknown_keys import normalise
 
 logger = logging.getLogger(__name__)
 
-#: The ``type`` of an inline ledger entry an ``Announce`` relays.
+#: The ``type`` of an inline ledger entry an ``Add`` relays.
 _LEDGER_ENTRY_TYPE = "CaseLedgerEntry"
 
 

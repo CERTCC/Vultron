@@ -28,6 +28,7 @@ from vultron.core.models.ledger_position import (
     LedgerPosition,
     accepted_entry_hash,
 )
+from vultron.errors import VultronCanonicalEntryError
 
 
 class AddLogEntryReceivedEvent(VultronEvent):
@@ -91,7 +92,10 @@ class AddLogEntryReceivedEvent(VultronEvent):
         The ``Add`` is that act's positive acknowledgement (SYNC-02-007).
         """
         act_id = self._required("acknowledged_act_id", self.in_reply_to)
-        committed = self.log_entry.payload_snapshot.get("id")
+        try:
+            committed = self.log_entry.committed_act_id()
+        except VultronCanonicalEntryError as exc:
+            raise ValueError(str(exc)) from exc
         if act_id != committed:
             raise ValueError(
                 f"{type(self).__name__} {self.activity_id!r}: inReplyTo names"

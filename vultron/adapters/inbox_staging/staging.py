@@ -471,7 +471,7 @@ class InlineObjectStaging:
             if not inline_rows:
                 # Held inside the tree, where no staged rows exist: a body
                 # the CASE_MANAGER holds for its sender's number
-                # (SYNC-21-010) or a held ledger Announce.  Its inline
+                # (SYNC-21-010) or a held ledger Add.  Its inline
                 # objects are staged from the body, as a first delivery's
                 # are, so the replay is routed as that delivery was.
                 _stage_inline_object(store, parsed)

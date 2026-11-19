@@ -996,7 +996,7 @@ class TestPreGenesisAnnounceBuffering:
         assert dl.outbox_list() == []
 
 
-class TestAnnounceLedgerEntryDisposition:
+class TestAddLedgerEntryDisposition:
     """Each ``Add(CaseLedgerEntry)`` exit reports what happened (#2255).
 
     APPLIED reads as "processed" in the InboxOutcome.  A duplicate or a

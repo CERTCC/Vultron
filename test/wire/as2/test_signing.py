@@ -817,7 +817,7 @@ def test_a_stack_that_runs_out_below_the_limit_is_still_a_refusal(
 
 
 def _full_case_announcement() -> str:
-    """``Announce(CaseLedgerEntry(Create(VulnerabilityCase)))`` as JSON text.
+    """``Add(CaseLedgerEntry(Create(VulnerabilityCase)))`` as JSON text.
 
     The deepest body the demos deliver is a ledger entry announced to a
     participant, whose snapshot is an activity carrying the whole case.  This

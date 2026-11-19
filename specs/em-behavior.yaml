@@ -62,7 +62,7 @@ groups:
     - order: 2
       actor: receiver
       action: >-
-        CASE_MANAGER commits the received EP and announces the ledger entry
+        CASE_MANAGER commits the received EP and adds the entry to the ledger
         (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
@@ -552,7 +552,7 @@ groups:
       expected: Receiver EM state is REVISE
     - order: 2
       actor: receiver
-      action: CASE_MANAGER commits the received EV and announces the ledger entry (discharges EK)
+      action: CASE_MANAGER commits the received EV and fans out its entry (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
@@ -799,7 +799,7 @@ groups:
       expected: Receiver EM state is ACTIVE
     - order: 2
       actor: receiver
-      action: CASE_MANAGER commits the received EJ and announces the ledger entry (discharges EK)
+      action: CASE_MANAGER commits the received EJ and fans out its entry (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
@@ -966,7 +966,7 @@ groups:
       actor: receiver
       action: >-
         CASE_MANAGER commits the Case Owner's
-        `Add(EmbargoEvent)[target=VulnerabilityCase]` and announces the ledger entry
+        `Add(EmbargoEvent)[target=VulnerabilityCase]` and adds the entry to the ledger
         (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:

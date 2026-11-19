@@ -41,6 +41,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _ACTOR_URI = "https://example.org/actors/alice"
 _LAST_HASH = "abc123def456"
@@ -103,23 +106,55 @@ def test_add_log_entry_refuses_an_entry_naming_no_act(sample_log_entry):
 @pytest.mark.spec("SYNC-02-007")
 @pytest.mark.spec("SYNC-02-009")
 @pytest.mark.parametrize(
-    "override",
+    ("override", "rule"),
     [
-        {"target": "https://example.org/cases/other/ledger"},
-        {"context": "https://example.org/cases/other"},
-        {"in_reply_to": "https://example.org/activities/other"},
-        {"result": "https://example.org/activities/follow-on"},
+        (
+            {"target": "https://example.org/cases/other/ledger"},
+            "target must be the case's ledger",
+        ),
+        (
+            {"context": "https://example.org/cases/other"},
+            "context must be the entry's case",
+        ),
+        (
+            {"in_reply_to": "https://example.org/activities/other"},
+            "inReplyTo must be the committed act",
+        ),
+        (
+            {"result": "https://example.org/activities/follow-on"},
+            "lists a result",
+        ),
     ],
     ids=["other-ledger", "other-case", "other-act", "a-result"],
 )
-def test_add_log_entry_refuses_a_misnamed_slot(sample_log_entry, override):
-    with pytest.raises(VultronActivityConstructionError):
+def test_add_log_entry_refuses_a_misnamed_slot(
+    sample_log_entry, override, rule
+):
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
         add_log_entry_activity(
             entry=sample_log_entry,
             actor=_ACTOR_URI,
             at=authored_at(),
             **override,
         )
+    assert rule in str(exc_info.value.__cause__)
+
+
+@pytest.mark.spec("SYNC-02-006")
+def test_add_log_entry_reads_an_inline_case_as_its_context(sample_log_entry):
+    """The case may be carried inline: its id is what the rule compares."""
+    case = make(
+        as_VulnerabilityCase,
+        id_="https://example.org/cases/case-001",
+        attributed_to=_ACTOR_URI,
+    )
+    result = add_log_entry_activity(
+        entry=sample_log_entry,
+        actor=_ACTOR_URI,
+        context=case,
+        at=authored_at(),
+    )
+    assert result.context == case
 
 
 @pytest.mark.spec("SYNC-02-004")

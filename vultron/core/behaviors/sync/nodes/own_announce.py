@@ -33,7 +33,7 @@ __all__ = ["AnnouncedEntryIsNotOwnEchoNode"]
 class AnnouncedEntryIsNotOwnEchoNode(_ActivityEventNode):
     """Guard: this ``Add`` was not sent by the actor receiving it.
 
-    An actor that announces a ledger entry holds the case's canonical ledger,
+    An actor that adds an entry to the ledger holds the canonical ledger,
     so it is that case's CASE_MANAGER (SYNC-13-006).  On the manager path its
     own echoed ``Add`` only confirms delivery, and this guard is not
     there.  Off that path the echo cannot happen: a replica receiver that

@@ -662,10 +662,10 @@ class TestNoneObjectRejected(unittest.TestCase):
 
     # --- sync.py (2 classes) ---
 
-    def test_announce_log_entry_rejects_none(self):
+    def test_add_log_entry_rejects_none(self):
         self._assert_none_rejected(_AddLogEntryActivity)
 
-    def test_announce_log_entry_rejects_missing(self):
+    def test_add_log_entry_rejects_missing(self):
         self._assert_missing_rejected(_AddLogEntryActivity)
 
     def test_reject_log_entry_rejects_none(self):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-r"""End-to-end: a held ledger Announce converges through the inbox replay.
+r"""End-to-end: a held ledger Add converges through the inbox replay.
 
 A held ``Add(CaseLedgerEntry)`` that a commit or a case seed makes
 appliable is replayed as its own delivery (SYNC-14-009, ADR-0135).  These

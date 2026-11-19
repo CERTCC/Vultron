@@ -323,7 +323,7 @@ class TestCoerceToSemanticClass:
         assert result.object_.id_ == "urn:uuid:invite-roundtrip-1"
         assert result.in_reply_to == "urn:uuid:invite-roundtrip-1"
 
-    def test_announce_log_entry_round_trip_returns_specific_class(self, dl):
+    def test_add_log_entry_round_trip_returns_specific_class(self, dl):
         """dl.read returns AddLogEntryActivity with as_CaseLedgerEntry object_."""
         from vultron.core.behaviors.sync.nodes.chain import (
             _to_persistable_entry,

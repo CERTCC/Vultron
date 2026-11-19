@@ -8,16 +8,15 @@ description: >
   the sync-port wiring rule, the commit as an `Add` to the case's named ledger
   that acknowledges the act it commits (ADR-0204), fan-out recipients and the
   embargo pause, ingress never writing the ledger, the held out-of-order `Add`,
-  arrival-order
-  independence (SYNC-19), divergence recovery,
-  the sender's ledger position on every case activity, replay rate limiting, the
-  resend of unanswered Invites on a position statement (SYNC-20), the sender
-  sequence that orders one participant's activities (SYNC-21, ADR-0178), what a
-  `Reject(CaseLedgerEntry)` names in `inReplyTo` (RF-08-004), and SYNC test
-  patterns.
+  arrival-order independence (SYNC-19), divergence recovery, the sender's ledger
+  position on every case activity, replay rate limiting, the resend of unanswered
+  Invites on a position statement (SYNC-20), the sender sequence that orders one
+  participant's activities (SYNC-21, ADR-0178), what a `Reject(CaseLedgerEntry)`
+  names in `inReplyTo` (RF-08-004), and SYNC test patterns.
 related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/response-format.yaml
+  - specs/message-semantics-mapping.yaml
   - specs/case-ledger-processing.yaml
   - specs/case-proposal.yaml
   - specs/case-management.yaml

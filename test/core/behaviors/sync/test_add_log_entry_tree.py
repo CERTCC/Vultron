@@ -204,7 +204,7 @@ def _make_event(
     return event
 
 
-def test_create_announce_log_entry_tree_is_doors_intake_then_path_branches():
+def test_create_add_log_entry_tree_is_doors_intake_then_path_branches():
     tree = create_add_log_entry_tree(
         sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
     )

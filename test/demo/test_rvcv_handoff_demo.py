@@ -1635,7 +1635,7 @@ class TestOwnershipTransferAnnounceReachesReporter:
     proposal, then delivers the Reporter's Accept(Offer) to the
     Coordinator's inbox
     via HTTP POST.  The outbox drains automatically (TestClient processes
-    BackgroundTasks synchronously), routing the Announce to Reporter's inbox.
+    BackgroundTasks synchronously), routing the Add to Reporter's inbox.
     Reporter's DataLayer is then checked for an Announce whose object is a
     CaseLedgerEntry with semantic_type == "accept_case_ownership_transfer".
     """
@@ -1667,7 +1667,7 @@ class TestOwnershipTransferAnnounceReachesReporter:
             ot_announces = [a for a in announce_values if _is_ot_announce(a)]
             assert len(ot_announces) >= 1, (
                 "Reporter's DataLayer must contain at least one "
-                "Announce(CaseLedgerEntry[semantic_type="
+                "Add(CaseLedgerEntry[semantic_type="
                 "accept_case_ownership_transfer]) "
                 "after ownership transfer — no manual trigger (AC-5c). "
                 f"Got announces: {announce_values!r}"

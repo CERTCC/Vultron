@@ -24,11 +24,13 @@ from typing import Self
 
 from pydantic import Field, model_validator
 
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import case_ledger_id
 from vultron.core.models.ledger_position import (
     LEDGER_POSITION_PROPERTY,
     LedgerPosition,
 )
+from vultron.errors import VultronCanonicalEntryError
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
@@ -38,14 +40,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry,
 )
-
-
-def _ref_id(value: object) -> str | None:
-    """The id a reference slot names: a bare IRI, or an inline object's id."""
-    if isinstance(value, str):
-        return value
-    ref = getattr(value, "id_", None)
-    return ref if isinstance(ref, str) else None
 
 
 class _AddLogEntryActivity(as_Add):
@@ -80,19 +74,22 @@ class _AddLogEntryActivity(as_Add):
         """Refuse an ``Add`` that misnames its ledger, case or act (ADR-0204)."""
         entry = self.object_
         ledger = case_ledger_id(entry.case_id)
-        if _ref_id(self.target) != ledger:
+        if _as_id(self.target) != ledger:
             raise ValueError(
                 f"Add(CaseLedgerEntry) {self.id_!r}: target must be the"
-                f" case's ledger {ledger!r}, not {_ref_id(self.target)!r}"
+                f" case's ledger {ledger!r}, not {_as_id(self.target)!r}"
                 " (SYNC-02-006)"
             )
-        if _ref_id(self.context) != entry.case_id:
+        if _as_id(self.context) != entry.case_id:
             raise ValueError(
                 f"Add(CaseLedgerEntry) {self.id_!r}: context must be the"
                 f" entry's case {entry.case_id!r}, not"
-                f" {_ref_id(self.context)!r} (SYNC-02-006)"
+                f" {_as_id(self.context)!r} (SYNC-02-006)"
             )
-        act_id = entry.payload_snapshot.get("id")
+        try:
+            act_id = entry.committed_act_id()
+        except VultronCanonicalEntryError as exc:
+            raise ValueError(str(exc)) from exc
         if self.in_reply_to != act_id:
             raise ValueError(
                 f"Add(CaseLedgerEntry) {self.id_!r}: inReplyTo must be the"

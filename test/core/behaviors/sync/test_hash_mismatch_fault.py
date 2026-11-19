@@ -251,7 +251,7 @@ def _manager(
     *, receiver_is_manager: bool = True
 ) -> tuple[SqliteDataLayer, CaseLedgerEntry, str]:
     """The CASE_MANAGER's store: its case, an active participant, a stored
-    ledger entry and the ``Announce`` of it the CASE_MANAGER sent.
+    ledger entry and the ``Add`` of it the CASE_MANAGER sent.
 
     With *receiver_is_manager* false, the store's actor holds only a
     participant's role, and another actor manages the case.  Returns the
