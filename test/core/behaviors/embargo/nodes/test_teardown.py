@@ -666,6 +666,7 @@ def _remove_entry(
             object_id=f"{case_id}/activities/remove",
             semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             payload_snapshot={
+                "id": f"{case_id}/activities/remove",
                 "type": "Remove",
                 "object": (
                     {"id": embargo_id, "type": "EmbargoEvent"}
@@ -963,9 +964,7 @@ class TestApplyEmbargoTeardownNode:
 
         assert status == py_trees.common.Status.FAILURE
         assert not node.refused_into_gap
-        assert "holding area bound dropped its Announce" in (
-            node.feedback_message
-        )
+        assert "holding area bound dropped its Add" in (node.feedback_message)
 
     @pytest.mark.spec("SYNC-14-001")
     def test_a_refused_step_with_no_activity_to_hold_is_a_wiring_error(self):

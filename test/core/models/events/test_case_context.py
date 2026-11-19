@@ -66,7 +66,7 @@ class TestIsCaseBootstrap:
         [
             MessageSemantics.ENGAGE_CASE,
             MessageSemantics.CLOSE_CASE,
-            MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+            MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
         ],
     )
     def test_non_bootstrap_semantics(self, semantic_type):
@@ -98,7 +98,7 @@ class TestIsDeferralExempt:
         [
             MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
             MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-            MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+            MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
         ],
     )
     def test_activities_presupposing_the_case_are_not_exempt(

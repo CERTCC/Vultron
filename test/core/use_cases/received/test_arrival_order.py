@@ -103,9 +103,9 @@ def _bodies_for(net: LedgerNetwork, recipient: str) -> list[dict[str, Any]]:
 
 
 def _entry(body: dict[str, Any]) -> dict[str, Any]:
-    """The ``CaseLedgerEntry`` an ``Announce`` carries, or ``{}``."""
+    """The ``CaseLedgerEntry`` an ``Add`` carries, or ``{}``."""
     obj = body.get("object")
-    if body.get("type") != "Announce" or not isinstance(obj, dict):
+    if body.get("type") != "Add" or not isinstance(obj, dict):
         return {}
     return obj if obj.get("type") == "CaseLedgerEntry" else {}
 

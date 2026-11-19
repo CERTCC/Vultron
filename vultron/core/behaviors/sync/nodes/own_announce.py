@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The anomaly in an ``Announce(CaseLedgerEntry)`` a store sent to itself.
+"""The anomaly in an ``Add(CaseLedgerEntry)`` a store sent to itself.
 
 Split from the announce tree's factory so the factory holds composition only
 (BTND-07-004).
@@ -31,19 +31,19 @@ __all__ = ["AnnouncedEntryIsNotOwnEchoNode"]
 
 
 class AnnouncedEntryIsNotOwnEchoNode(_ActivityEventNode):
-    """Guard: this ``Announce`` was not sent by the actor receiving it.
+    """Guard: this ``Add`` was not sent by the actor receiving it.
 
     An actor that announces a ledger entry holds the case's canonical ledger,
     so it is that case's CASE_MANAGER (SYNC-13-006).  On the manager path its
-    own echoed ``Announce`` only confirms delivery, and this guard is not
+    own echoed ``Add`` only confirms delivery, and this guard is not
     there.  Off that path the echo cannot happen: a replica receiver that
-    sent the ``Announce`` is not the manager of the case it holds, and the
+    sent the ``Add`` is not the manager of the case it holds, and the
     sender guard has already refused it.  What is left is the receiver that
     holds no replica of the case it announced — a Regime 1 anomaly
     (ADR-0087), because the manager always holds the case it manages.
 
     So this guard refuses it, at ERROR: the pre-genesis window the no-case
-    path otherwise takes is self-healing for a *peer's* ``Announce``, which
+    path otherwise takes is self-healing for a *peer's* ``Add``, which
     the genesis ``Reject`` repairs (SYNC-15-001), and that reading does not
     hold here — the store would buffer its own entry and ask itself for the
     case it is the authority for.  Reads only the blackboard.

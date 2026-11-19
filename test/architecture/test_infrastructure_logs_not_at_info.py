@@ -58,7 +58,7 @@ DEMOTED_FRAGMENTS: tuple[str, ...] = (
     "process_payload: outcome",
     "run_inbox_pipeline: status",
     "run_inbox_pipeline: replayed",
-    "sync adapter: queued Announce(CaseLedgerEntry)",
+    "sync adapter: queued Add(CaseLedgerEntry)",
     "store_embedded_participants: stored participant",
     "already exists locally",
     "already stored — skipping",

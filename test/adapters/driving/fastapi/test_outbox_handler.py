@@ -571,14 +571,14 @@ def test_processing_outbox_preamble_not_emitted_at_info(monkeypatch, caplog):
 def _make_announce_ledger_activity(
     ledger_entry_id: str, activity_id: str = "urn:uuid:announce"
 ) -> SealedOutboundBody:
-    """Return the sealed body of an Announce(CaseLedgerEntry) activity."""
+    """Return the sealed body of an Add(CaseLedgerEntry) activity."""
     return SealedOutboundBody(
         id_=sealed_body_id(activity_id),
         activity_id=activity_id,
         body=json.dumps(
             {
                 "id": activity_id,
-                "type": "Announce",
+                "type": "Add",
                 "object": {"type": "CaseLedgerEntry", "id": ledger_entry_id},
             }
         ),
@@ -617,7 +617,7 @@ def _mock_dl_for_ox14(
 def test_dead_letter_includes_ledger_entry_id_for_announce_ledger_activity(
     monkeypatch,
 ):
-    """Dead-letter record includes ledger_entry_id for Announce(CaseLedgerEntry).
+    """Dead-letter record includes ledger_entry_id for Add(CaseLedgerEntry).
 
     AC-1 (OX-14-001): a dead-lettered activity carrying a committed ledger
     event MUST be correlatable to that entry via the dead-letter record.
@@ -717,7 +717,7 @@ def test_dead_letter_includes_failed_recipients_and_ledger_entry_id(
 
 @pytest.mark.spec("OX-14-001", "OX-14-002", "OX-14-003")
 def test_resolve_ledger_entry_id_full_path(monkeypatch):
-    """_resolve_ledger_entry_id returns entry ID for Announce(CaseLedgerEntry).
+    """_resolve_ledger_entry_id returns entry ID for Add(CaseLedgerEntry).
 
     AC-7: full-path check — commit produces an activity in the DataLayer,
     exhaustion resolves the ledger entry ID from that stored activity, and the

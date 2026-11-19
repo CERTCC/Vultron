@@ -17,7 +17,7 @@
 
 A participant replica takes case state from the CASE_MANAGER's ledger
 (PCR-03-001, ADR-0108).  A ``semantic_type`` the CASE_MANAGER commits with no
-effect slot in ``AnnounceLogEntryReceivedBT`` is stored and ignored, so the
+effect slot in ``AddLogEntryReceivedBT`` is stored and ignored, so the
 replica silently stops following the case — and gating a received-side effect
 behind the CASE_MANAGER role (RSH-08-003) before the slot exists blinds every
 replica.
@@ -52,7 +52,7 @@ from typing import Any
 
 import pytest
 
-from test.architecture._announce_slots import (
+from test.architecture._add_log_entry_slots import (
     MANAGER,
     PROPOSER,
     matching_slots,

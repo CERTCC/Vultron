@@ -14,7 +14,7 @@
 
 Each actor has its own store (TB-06-007).  A participant sends an act to the
 CASE_MANAGER; the replica under test never receives that act, only the
-CASE_MANAGER's ``Announce(CaseLedgerEntry)`` broadcast, and still reaches the
+CASE_MANAGER's ``Add(CaseLedgerEntry)`` broadcast, and still reaches the
 CASE_MANAGER's state (RSH-08-004, PCR-03-001, ADR-0108).  The replica is
 handed the ledger broadcast and nothing else the CASE_MANAGER sends — not the
 ``Announce(VulnerabilityCase)`` an engage also triggers — so the state it
@@ -113,7 +113,13 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BROADCAST,
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    LedgerNetwork,
+)
 
 
 def _send(net: LedgerNetwork, activity: Any) -> None:
@@ -503,7 +509,7 @@ def test_a_redelivered_owner_activation_entry_changes_nothing():
     _replay(net, BYSTANDER)
     before = net.case(BYSTANDER).embargo_register
 
-    for activity in net.queued(MANAGER, to=BYSTANDER, type_="Announce"):
+    for activity in net.queued(MANAGER, to=BYSTANDER, type_=BROADCAST):
         body = read_sealed_body_dict(net.stores[MANAGER], activity.id_) or {}
         if (body.get("object") or {}).get("semanticType") != (
             "activate_embargo_on_case"

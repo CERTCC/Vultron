@@ -83,7 +83,7 @@ def vendor_rejects_invite(state: StoryState) -> None:
     # Gate on the Reject being committed before checking participant state.
     # The Reject is a case event, admitted and ledgered like an Accept
     # (CLP-02-012).  It is self-contained on the CaseActor (CLP-10-006) — no
-    # participant-effect Announce is sent, so the entry is only visible in the
+    # participant-effect Add(CaseLedgerEntry) is sent, so the entry is only visible in the
     # CaseActor's own store, on the dedicated case-actor container.  A
     # demo_gate here skips the participant checks rather than running them
     # against stale state.

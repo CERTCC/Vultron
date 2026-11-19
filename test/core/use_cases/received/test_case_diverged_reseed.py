@@ -476,7 +476,7 @@ def test_a_divergence_past_the_last_reseed_is_routine(
         [net.planned_consent_entry(change, _CAUSE)],
     )
     newer = net.sealed_bodies(
-        MANAGER, to=BYSTANDER, type_="Announce", object_type="CaseLedgerEntry"
+        MANAGER, to=BYSTANDER, type_="Add", object_type="CaseLedgerEntry"
     )[-1]
     assert newer["object"]["logIndex"] > (
         cast(
@@ -586,14 +586,14 @@ def test_a_fault_naming_an_announce_this_actor_did_not_send_is_refused() -> (
 ):
     """An Announce held here but sent by another actor names no copy this
     actor sent the peer, so it names no case either."""
-    from vultron.wire.as2.factories import announce_log_entry_activity
+    from vultron.wire.as2.factories import add_log_entry_activity
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         as_CaseLedgerEntry,
     )
 
     net, _ = _diverged("reseed-foreign-announce")
     (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
-    foreign = announce_log_entry_activity(
+    foreign = add_log_entry_activity(
         entry=as_CaseLedgerEntry.model_validate(
             with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
         ),

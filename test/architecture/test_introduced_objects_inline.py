@@ -58,13 +58,13 @@ from vultron.wire.as2 import factories as factories_package
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     add_case_reference_to_case_activity,
+    add_log_entry_activity,
     add_note_to_case_activity,
     add_participant_to_case_activity,
     add_report_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
     add_vulnerability_item_to_case_activity,
-    announce_log_entry_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
     create_embargo_consent_activity,
@@ -209,11 +209,11 @@ INTRODUCES: dict[
         ),
         _example_object("announce_case"),
     ),
-    "announce_log_entry_activity": (
-        lambda o: announce_log_entry_activity(
+    "add_log_entry_activity": (
+        lambda o: add_log_entry_activity(
             o, actor=_ACTOR, to=[_PEER], at=authored_at()
         ),
-        _example_object("announce_case_ledger_entry"),
+        _example_object("add_case_ledger_entry"),
     ),
 }
 

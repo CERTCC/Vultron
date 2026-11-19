@@ -95,8 +95,8 @@ def at_replica(
     )
 
 
-@applied(MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY)
-def announce_case_ledger_entry() -> Scenario:
+@applied(MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER)
+def add_case_ledger_entry() -> Scenario:
     """A replica applies the CASE_MANAGER's first entry, as announced."""
     net = _engaged("announce-ledger-entry")
     (body, *_) = net.ledger_announcements(BYSTANDER)

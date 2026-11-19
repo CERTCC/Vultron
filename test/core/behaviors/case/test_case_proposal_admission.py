@@ -834,7 +834,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
             )
             assert len(_cases(_dl)) == 1
             # Drain the first admission's mail: its Create and Accept, plus
-            # the Announce(CaseLedgerEntry) fan-out of every entry it
+            # the Add(CaseLedgerEntry) fan-out of every entry it
             # committed (SYNC-02-003).
             while _dl.outbox_list():
                 _dl.outbox_pop()

@@ -416,7 +416,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         0,
     ): frozenset({CM}),
     # --- sync: the ledger replication envelopes (#5044) ------------------
-    # Announce(CaseLedgerEntry) is the one replication message every
+    # Add(CaseLedgerEntry) is the one replication message every
     # receiver takes: the CASE_MANAGER gets its own announcement echoed
     # back, a replica applies the entry to its chain, and a receiver that
     # holds no replica yet is in the pre-genesis window, where the entry is
@@ -424,8 +424,8 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # is a ledger-activity guard with no side split, so the no-case path
     # costs nothing there (HP-01-024).
     (
-        f"{_SY}/announce_tree/factory.py",
-        "create_announce_log_entry_tree",
+        f"{_SY}/add_log_entry_tree/factory.py",
+        "create_add_log_entry_tree",
         0,
     ): frozenset({CM, PR, NC}),
     # The remaining four are directed at the holder of the canonical ledger

@@ -797,7 +797,10 @@ def _hold_pre_genesis_entries(
                 log_index=index,
                 object_id=f"https://example.org/activities/held-{index}",
                 semantic_type="test_event",
-                payload_snapshot={"index": index},
+                payload_snapshot={
+                    "id": f"https://example.org/activities/held-{index}",
+                    "index": index,
+                },
                 prev_log_hash=prev,
                 received_at=ACT_AT,
             )

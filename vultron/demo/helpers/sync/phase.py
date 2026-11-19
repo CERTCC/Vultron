@@ -57,7 +57,7 @@ def run_sync_verification_phase(
 
     1. The Reporter-case gate: the Reporter must hold the ``VulnerabilityCase`` (and
        so its per-case genesis hash) before any coverage wait, or every
-       ``Announce(CaseLedgerEntry)`` is rejected and replayed rather than
+       ``Add(CaseLedgerEntry)`` is rejected and replayed rather than
        accepted and the coverage timeout reports the wrong problem
        (SYNC-15-001, CLP-08-005, #1873).
     2. :func:`wait_for_replica_ledger_coverage` as the causal gate, nested in

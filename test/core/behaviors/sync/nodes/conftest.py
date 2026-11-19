@@ -15,8 +15,8 @@ from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
+from vultron.wire.as2.factories import add_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
@@ -74,7 +74,10 @@ def _make_entry(
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
             semantic_type="test_event",
-            payload_snapshot={"log_index": log_index},
+            payload_snapshot={
+                "id": f"https://example.org/activities/log-{log_index}",
+                "log_index": log_index,
+            },
             prev_log_hash=prev_hash,
             received_at=ACT_AT,
         )
@@ -83,8 +86,8 @@ def _make_entry(
 
 def _make_event(
     entry: CaseLedgerEntry, actor_id: str, to: list[str] | None = None
-) -> AnnounceLogEntryReceivedEvent:
-    """The CaseActor's ``Announce(CaseLedgerEntry)`` of *entry*, extracted.
+) -> AddLogEntryReceivedEvent:
+    """The CaseActor's ``Add(CaseLedgerEntry)`` of *entry*, extracted.
 
     Pass *to* when the event runs a whole received tree, whose addressee door
     guard refuses a copy that does not name the replica (HP-01-005).
@@ -92,10 +95,10 @@ def _make_event(
     wire_entry = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
-    activity = announce_log_entry_activity(
+    activity = add_log_entry_activity(
         entry=wire_entry,
         actor=actor_id,
         **({"to": to} if to else {}),
         at=authored_at(),
     )
-    return cast(AnnounceLogEntryReceivedEvent, received_event(activity))
+    return cast(AddLogEntryReceivedEvent, received_event(activity))

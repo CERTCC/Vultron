@@ -26,7 +26,7 @@ Verifies that the add-note-to-case trigger:
 - handles the optional in_reply_to field correctly,
 - records the Add(Note) in the pending-assertion store under
   ``add_note_to_case`` (SYNC-11-002) and that the store entry clears when the
-  matching Announce(CaseLedgerEntry) arrives (SYNC-11-003).
+  matching Add(CaseLedgerEntry) arrives (SYNC-11-003).
 """
 
 import pytest
@@ -496,7 +496,7 @@ class TestSvcAddNoteToCaseUseCase:
             at=now_utc(),
         ), (
             "Expected pending-assertion store to suppress the Add(Note) "
-            "activity until the matching Announce(CaseLedgerEntry) arrives"
+            "activity until the matching Add(CaseLedgerEntry) arrives"
         )
 
     def test_pending_assertion_cleared_lifts_suppression(self):
@@ -514,7 +514,7 @@ class TestSvcAddNoteToCaseUseCase:
             at=now_utc(),
         )
 
-        # Simulate the Announce(CaseLedgerEntry) round-trip clearing the entry
+        # Simulate the Add(CaseLedgerEntry) round-trip clearing the entry
         store.clear(
             self.case.id_,
             MessageSemantics.ADD_NOTE_TO_CASE.value,

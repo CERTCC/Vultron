@@ -116,7 +116,7 @@ def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
     ``_reparse_as_specific_type`` did (#3922).
 
     Ledger entries are exempt: per SYNC-13-003 routing an
-    ``Announce(CaseLedgerEntry)`` never depends on a stored entry, so
+    ``Add(CaseLedgerEntry)`` never depends on a stored entry, so
     ``FastAPIIngressAdapter.rehydrate`` carries the typed inline entry forward
     in memory instead (SYNC-13-002).
 
@@ -214,7 +214,7 @@ class InlineObjectStaging:
     def note_routed_in_place(self, activity: as_Activity) -> None:
         """Remember a parsed *activity* routed without a staged rebuild.
 
-        An ``Announce(CaseLedgerEntry)`` is hydrated in place, not rebuilt
+        An ``Add(CaseLedgerEntry)`` is hydrated in place, not rebuilt
         here (SYNC-13-003), but the inbox may still defer it; this keeps it
         so :meth:`hold_for_replay` can hold it whole.
         """

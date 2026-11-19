@@ -2151,7 +2151,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A participant MUST NOT treat an `Announce(CaseLedgerEntry)` that carries a
+      A participant MUST NOT treat an `Add(CaseLedgerEntry)` that carries a
       proposal or an Invite as an invitation to answer. A participant answers only an
       Invite addressed to it.
     rationale: >-
@@ -2293,7 +2293,7 @@ groups:
     kind: architecture
     statement: >-
       Every ledger semantic type the revision relay commits MUST have a replica apply
-      node reachable from `create_announce_log_entry_tree` (RSH-08-004). The node
+      node reachable from `create_add_log_entry_tree` (RSH-08-004). The node
       applies what the entry carries by copying it through the one apply function
       (ADR-0124, CM-23-016).
     rationale: >-
@@ -2485,7 +2485,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER's commit of a received embargo activity, fanned out as
-      `Announce(CaseLedgerEntry)`, is the acknowledgement the EMB behavioural requirements
+      `Add(CaseLedgerEntry)`, is the acknowledgement the EMB behavioural requirements
       express as "emit EK". Implementations MUST NOT define or emit an EK message to
       acknowledge an embargo activity.
     rationale: >-

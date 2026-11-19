@@ -23,7 +23,7 @@ describes an impossible composite state (RSH-09-006).
 Provides :class:`EmitImpossibleStateFaultNode`, which emits
 ``Create(ProcessingFault)`` with failure class
 ``StatusAssertionRefused/ImpossibleState`` to the CASE_MANAGER when the Apply
-node returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree/``
+node returns FAILURE.  The two nodes are wired in a Selector in ``add_log_entry_tree/``
 to guarantee that either the status is applied successfully or a fault is emitted.
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
@@ -69,7 +69,7 @@ class ApplyParticipantStatusFromLedgerNode(
     """Apply an ``add_participant_status_to_participant`` ledger entry locally.
 
     When a non-Case-Actor participant receives
-    ``Announce(CaseLedgerEntry)`` and the entry's ``semantic_type`` is
+    ``Add(CaseLedgerEntry)`` and the entry's ``semantic_type`` is
     ``add_participant_status_to_participant``, this node reconstructs the
     :class:`~vultron.core.models.participant_status.ParticipantStatus` from
     the entry's ``payload_snapshot`` and appends it to the matching
@@ -91,7 +91,7 @@ class ApplyParticipantStatusFromLedgerNode(
     Lenient on missing data: if the participant is not found in the local
     DataLayer (this actor may have a partial view of the case), or the
     payload snapshot is incomplete, the node returns SUCCESS without error to
-    avoid blocking the ``Announce`` processing flow.  An entry describing an
+    avoid blocking the ``Add`` processing flow.  An entry describing an
     impossible composite state yields FAILURE (RSH-09-006).
 
     Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,

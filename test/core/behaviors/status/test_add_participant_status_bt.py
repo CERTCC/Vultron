@@ -2953,4 +2953,4 @@ class TestReceiveVendorPathNotices:
             getattr(dl.read(a), "type_", None) for a in dl.outbox_list()
         ]
         assert outbound
-        assert all(t == "Announce" for t in outbound), outbound
+        assert all(t in ("Announce", "Add") for t in outbound), outbound

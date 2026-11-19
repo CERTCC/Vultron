@@ -428,22 +428,23 @@ groups:
     kind: protocol
     statement: >-
       A `Reject(CaseLedgerEntry)` MUST name in `inReplyTo` the inbound activity that
-      prompted it: the `Announce(CaseLedgerEntry)` it could not apply, or the
+      prompted it: the `Add(CaseLedgerEntry)` it could not apply, or the
       `Announce(VulnerabilityCase)` whose copy is ahead of the sender's chain.
     rationale: >-
       The `object` of this Reject is a ledger entry, or nothing, not an activity, so
       the response cannot name what it answers through its `object`. The inbound
       activity is the one each sender holds on every path. The `Create(ProcessingFault)`
-      for a refused entry names its `Announce` the same way (SYNC-16-003).
+      for a refused entry names its `Add` the same way (SYNC-16-003).
     verification: >-
       `test_send_reject_log_entry_node_sends_reject` in
       `test/core/behaviors/sync/nodes/test_receive.py` checks the hash-mismatch path,
       `test_a_genesis_reject_names_the_announce_that_prompted_it` in
-      `test/core/behaviors/sync/test_announce_tree.py` the genesis Reject for a case the
-      sender does not hold, and `test_a_copy_ahead_of_the_chain_asks_for_the_rest` and
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` the genesis Reject for a
+      case the sender does not hold, and
+      `test_a_copy_ahead_of_the_chain_asks_for_the_rest` and
       `test_a_replica_with_no_entry_asks_for_a_replay_from_genesis` in
-      `test/core/behaviors/sync/test_divergence_recovery.py` the two paths after a
-      case copy.
+      `test/core/behaviors/sync/test_divergence_recovery.py` the two paths after a case
+      copy.
     relationships:
     - rel_type: refines
       spec_id: RF-08-001

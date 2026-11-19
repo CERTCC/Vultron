@@ -634,15 +634,15 @@ class TestRemoveParticipantFromCaseActivity:
 # ---------------------------------------------------------------------------
 
 
-class TestAnnounceLogEntryActivity:
+class TestAddLogEntryActivity:
     from vultron.wire.as2.vocab.activities.sync import (
-        _AnnounceLogEntryActivity,
+        _AddLogEntryActivity,
     )
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         as_CaseLedgerEntry,
     )
 
-    cls = _AnnounceLogEntryActivity
+    cls = _AddLogEntryActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -662,9 +662,13 @@ class TestAnnounceLogEntryActivity:
                 case_id="https://example.org/cases/c1",
                 log_object_id="https://example.org/cases/c1/events/e1",
                 semantic_type="test_event",
+                payload_snapshot={"id": "https://example.org/activities/a1"},
                 received_at=ACT_AT,
                 published=ACT_AT,
             ),
+            target="https://example.org/cases/c1/ledger",
+            context="https://example.org/cases/c1",
+            in_reply_to="https://example.org/activities/a1",
         )
 
 

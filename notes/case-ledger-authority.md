@@ -98,7 +98,7 @@ the CaseActor here?". Conflating any two has produced bugs.
 The canonical object is a neutral `CaseLedgerEntry`, not a renamed copy of the
 activity and not the transport envelope. It carries the asserted activity (or a
 deterministic snapshot of it) plus the CASE_MANAGER's recording metadata
-(`log_index`, `entry_hash`, `received_at`, `prev_log_hash`, `term`). `Announce`
+(`log_index`, `entry_hash`, `received_at`, `prev_log_hash`, `term`). `Add`
 is only the replication wrapper around it.
 
 Replicas need the asserted content to rebuild state, so the hash chain is
@@ -280,9 +280,9 @@ events, and anything whose `payloadSnapshot` would be empty or whose
 force replicas to filter it, make the chain sensitive to runtime timing, and stop
 operators adding log detail freely.
 
-### `Announce` Envelope vs. `payloadSnapshot` Actor
+### `Add` Envelope vs. `payloadSnapshot` Actor
 
-The `Announce` envelope's `actor` is always the CASE_MANAGER. The
+The `Add` envelope's `actor` is always the CASE_MANAGER. The
 `payloadSnapshot.actor` keeps the original asserter, and replicas apply the
 snapshot's asserter. Never rewrite `payloadSnapshot.actor` to the CASE_MANAGER;
 it erases provenance (CLP-07-003).
@@ -307,7 +307,7 @@ CLP-07-013); the act's own entry changes nothing on a replica.
 ### A Sent Message Is Committed After Its Outbox Write (SYNC-09-002)
 
 Queue the activity, then commit the entry that records it; only
-`Announce(CaseLedgerEntry)` follows its commit, because it delivers the record
+`Add(CaseLedgerEntry)` follows its commit, because it delivers the record
 (SYNC-09-002, SBT-04-004, ADR-0119). A retry must rebuild the activity under its
 first id or it sends it twice; see
 [outbox-delivery-reliability](outbox-delivery-reliability.md) § "A Response to an

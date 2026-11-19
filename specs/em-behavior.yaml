@@ -36,7 +36,7 @@ groups:
       A Participant in EM None (q^em ∈ N) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EP MUST transition their EM state to Proposed
       (q^em N → P). "Emit EK" is discharged by the CASE_MANAGER's commit of the
-      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      received activity, fanned out as `Add(CaseLedgerEntry)`; no EK message
       is emitted (EP-09-009).
     rationale: >-
       EP is the EM message that initiates embargo negotiation. When no embargo
@@ -158,7 +158,7 @@ groups:
       public/exploit/attack (q^cs ∈ ···pxa) receiving a second or counter EP MUST stay
       in Proposed with no additional state transition. "Emit EK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
+      `Add(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       Multiple EP messages can arrive during negotiation. When already in
       Proposed, no additional state transition is needed. The receiver evaluates
@@ -317,7 +317,7 @@ groups:
       proposal was the last one open, and to Revise (q^em P → R) while another
       proposal stays open.
       "Emit EK" is discharged by the CASE_MANAGER's commit of the
-      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      received activity, fanned out as `Add(CaseLedgerEntry)`; no EK message
       is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       Every participant must agree on whether an embargo is in force. If the receiver
@@ -522,7 +522,7 @@ groups:
       A Participant in EM Active (q^em ∈ A) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EV MUST transition their EM state to Revise
       (q^em A → R). "Emit EK" is discharged by the CASE_MANAGER's commit of the
-      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      received activity, fanned out as `Add(CaseLedgerEntry)`; no EK message
       is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       A participant must know that a change to the embargo is open while the current
@@ -578,7 +578,7 @@ groups:
       public/exploit/attack (q^cs ∈ ···pxa) receiving a counter EV
       (counter-revision) MUST stay in Revise with no additional state
       transition. "Emit EK" is discharged by the CASE_MANAGER's commit of the
-      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      received activity, fanned out as `Add(CaseLedgerEntry)`; no EK message
       is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       Multiple revision proposals can arrive. When already in Revise, no further
@@ -769,7 +769,7 @@ groups:
       When it receives EJ for the last open proposal, it MUST move its EM state back to
       Active (q^em R → A).
       The CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`, discharges "Emit EK".
+      `Add(CaseLedgerEntry)`, discharges "Emit EK".
       No EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       EJ says that a revision proposal is rejected. A rejected revision leaves the
@@ -932,7 +932,7 @@ groups:
       When it receives EC for the last open proposal, it MUST move its EM state back to
       Active (q^em R → A) with the revised terms.
       The CASE_MANAGER's commit of the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`,
-      fanned out as `Announce(CaseLedgerEntry)`, discharges "Emit EK".
+      fanned out as `Add(CaseLedgerEntry)`, discharges "Emit EK".
       No EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       EC says that the Case Owner activates a revision. The revised terms replace the
@@ -1091,7 +1091,7 @@ groups:
       along the reject transition of EMB-18-005: back to None (q^em P → N) when the
       rejected proposal was the last one open, and staying in Proposed (q^em P → P)
       while another proposal is open. "Emit EK" is discharged by the CASE_MANAGER's
-      commit of the received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK
+      commit of the received activity, fanned out as `Add(CaseLedgerEntry)`; no EK
       message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       If the receiver stayed in Proposed after the last open proposal is rejected, it
@@ -1155,7 +1155,7 @@ groups:
       A Participant in EM Active (q^em ∈ A) receiving ET MUST transition their
       EM state to Exited (q^em A → X). "Emit EK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009,
+      `Add(CaseLedgerEntry)`; no EK message is emitted (EP-09-009,
       MSM-02-009).
     rationale: >-
       ET is the message that terminates an active embargo. The receiver records
@@ -1202,7 +1202,7 @@ groups:
       A Participant in EM Revise (q^em ∈ R) receiving ET MUST transition their
       EM state to Exited (q^em R → X). "Emit EK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009,
+      `Add(CaseLedgerEntry)`; no EK message is emitted (EP-09-009,
       MSM-02-009).
     rationale: >-
       ET terminates the embargo regardless of whether a revision is pending.
@@ -1250,7 +1250,7 @@ groups:
     statement: >-
       A Participant already in EM Exited (q^em ∈ X) receiving ET MUST remain in Exited
       with no state transition. "Emit EK" is discharged by the CASE_MANAGER's commit of
-      the received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message is
+      the received activity, fanned out as `Add(CaseLedgerEntry)`; no EK message is
       emitted (EP-09-009, MSM-02-009).
     rationale: >-
       Exited is already the terminal state, so a duplicate termination message
@@ -1333,7 +1333,7 @@ groups:
   description: >-
     Behaviors triggered when a participant receives the acknowledgment (EK) of an embargo
     activity it sent. No EK message exists (EP-09-009): the acknowledgment is the
-    CASE_MANAGER's commit of the activity, fanned out as `Announce(CaseLedgerEntry)`.
+    CASE_MANAGER's commit of the activity, fanned out as `Add(CaseLedgerEntry)`.
   trigger:
     type: message_received
     value: EK
@@ -1342,7 +1342,7 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A Participant that receives the CASE_MANAGER's `Announce(CaseLedgerEntry)` for an
+      A Participant that receives the CASE_MANAGER's `Add(CaseLedgerEntry)` for an
       embargo activity it sent MAY treat that entry as the acknowledgment (EK) of the
       activity, with no further state transition and no required response. No EK message
       exists (EP-09-009, MSM-02-009).

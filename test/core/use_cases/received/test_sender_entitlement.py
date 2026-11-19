@@ -1038,7 +1038,7 @@ def test_ledger_reject_from_non_participant_is_refused():
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
-    assert not dl.by_type("Announce")
+    assert not dl.by_type("Add")
     state_id = VultronReplicationState(
         case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID, updated_at=ACT_AT
     ).id_

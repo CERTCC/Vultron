@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""What a replica slot of ``AnnounceLogEntryReceivedBT`` reaches.
+"""What a replica slot of ``AddLogEntryReceivedBT`` reaches.
 
 Shared by the copy-only ratchets (CM-23-016, ADR-0124):
 ``test_embargo_replica_slots_copy.py`` for the embargo register and consent
@@ -34,11 +34,11 @@ from typing import Any, cast
 
 import vultron.core.models as core_models
 from test.architecture import _corpus
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 
 
@@ -195,11 +195,11 @@ def _walk(
 
 
 def _tree_slot_classes() -> set[type]:
-    """Every apply node class ``AnnounceLogEntryReceivedBT`` runs."""
+    """Every apply node class ``AddLogEntryReceivedBT`` runs."""
     return {
         type(node)
-        for node in create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        for node in create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ).iterate()
         if type(node).__name__.startswith("Apply")
     }

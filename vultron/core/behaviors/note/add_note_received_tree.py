@@ -16,7 +16,7 @@
 """Received-side BT factory for the add-note-to-case workflow (ADR-0022).
 
 The canonical notification mechanism for note additions is
-``Announce(CaseLedgerEntry)`` fan-out from the guarded-commit step
+``Add(CaseLedgerEntry)`` fan-out from the guarded-commit step
 (SYNC-02-001, SYNC-02-003), **not** a direct ``AddNoteToCase`` broadcast to
 participants.
 Only the CaseActor may update the canonical case replica; non-CaseActor
@@ -67,7 +67,7 @@ def create_add_note_to_case_received_tree(
     ``sync_port``) notifies all participants.  Non-CaseActors MUST NOT update
     their case replica directly from ``Add(Note)[target=VulnerabilityCase]`` messages — they
     receive the note attachment notification exclusively via
-    ``Announce(CaseLedgerEntry)`` fan-out (SYNC-02-001, SYNC-02-003).
+    ``Add(CaseLedgerEntry)`` fan-out (SYNC-02-001, SYNC-02-003).
 
     Structure (the four CLP-10-010 stages)::
 

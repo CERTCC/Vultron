@@ -63,7 +63,11 @@ def _entry(
         log_index=index,
         object_id=f"https://example.org/activities/{marker}-{index}",
         semantic_type="test_event",
-        payload_snapshot={"index": index, "marker": marker},
+        payload_snapshot={
+            "id": f"https://example.org/activities/{marker}-{index}",
+            "index": index,
+            "marker": marker,
+        },
         prev_log_hash=prev,
         received_at=ACT_AT,
     ).to_ledger_entry()

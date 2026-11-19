@@ -1817,7 +1817,7 @@ class TestParticipantStatusLogEntryCascade:
             if (
                 queued is None
                 or getattr(queued, "type_", None)
-                != as_TransitiveActivityType.ANNOUNCE
+                != as_TransitiveActivityType.ADD
             ):
                 continue
             queued_object = getattr(queued, "object_", None)

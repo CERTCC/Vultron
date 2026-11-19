@@ -72,7 +72,7 @@ from vultron.core.services.sender_sequence_order import (
     queue_due_sender_sequence_replays,
 )
 from vultron.semantic_registry import use_case_map
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import add_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -238,7 +238,7 @@ def rebuild_from_ledger(
     The store belongs to *as_actor*, a participant that is not the
     CASE_MANAGER.  It is seeded with *seed* when given (a ledger that starts on
     a case built outside it), otherwise with :func:`creation_records`.  Every
-    entry is then delivered as the CASE_MANAGER's ``Announce(CaseLedgerEntry)``
+    entry is then delivered as the CASE_MANAGER's ``Add(CaseLedgerEntry)``
     and must be applied; an entry the replica defers or refuses fails the
     rebuild, naming the entry.
     """
@@ -278,7 +278,7 @@ def _replay(
         wire_entry = as_CaseLedgerEntry.model_validate(
             with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
         )
-        announce = announce_log_entry_activity(
+        announce = add_log_entry_activity(
             entry=wire_entry, actor=manager_id, to=[as_actor], at=authored_at()
         )
         # Built here, not read from an outbox, so signed here (SIG-01-001).

@@ -133,7 +133,7 @@ class _BridgeSetup:
         one request that inheritance is intended — the ports belong to the
         execution in progress.  Across requests it is a store leak: a node
         hosting several actors runs actor A's trigger, then actor B's, and B's
-        ``Announce(CaseLedgerEntry)`` is persisted through A's adapter into A's
+        ``Add(CaseLedgerEntry)`` is persisted through A's adapter into A's
         store (ADR-0073, CM-01-001).  Rebinding on the way through makes the
         inheritance safe by construction instead of safe by luck, so the port a
         nested tree reads always writes the store that tree runs in.

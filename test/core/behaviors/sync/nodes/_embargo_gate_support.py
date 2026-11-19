@@ -187,8 +187,8 @@ def fan_out(bridge, entry, sync_port) -> None:
 
 
 def sends(sync_port) -> list[tuple[int, list[str]]]:
-    """``(log_index, recipients)`` per ``send_announce_log_entry`` call, in order."""
+    """``(log_index, recipients)`` per ``send_add_log_entry`` call, in order."""
     return [
         (call.kwargs["entry"].log_index, list(call.kwargs["to"]))
-        for call in sync_port.send_announce_log_entry.call_args_list
+        for call in sync_port.send_add_log_entry.call_args_list
     ]

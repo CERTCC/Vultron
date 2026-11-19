@@ -252,7 +252,7 @@ def demo_notify_published(
     description=(
         "Demo-only trigger. Commits a ``CaseLedgerEntry`` for the "
         "given case via the canonical BT commit path and queues an "
-        "``Announce(CaseLedgerEntry)`` per participant for fan-out delivery. "
+        "``Add(CaseLedgerEntry)`` per participant for fan-out delivery. "
         "Uses ``Announce(VulnerabilityCase)`` as the canonical payload type. "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: TRIG-09-001, SYNC-02-001, SYNC-02-003."

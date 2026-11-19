@@ -104,7 +104,7 @@ _OUTBOX_SEAMS = frozenset(
 #: ``EmitCapable``; see ``vultron/core/behaviors/emit_capable.py``.
 _LEDGER_REPLICATION_SEAMS = frozenset(
     {
-        "send_announce_log_entry",
+        "send_add_log_entry",
         "send_verified_log_entry",
         "send_reject_log_entry",
         "send_read_ledger_entry",

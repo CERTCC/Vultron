@@ -13,11 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Which ``AnnounceLogEntryReceivedBT`` effect slot replays a ledger entry.
+"""Which ``AddLogEntryReceivedBT`` effect slot replays a ledger entry.
 
 Shared by the replay ratchets (RSH-08-004): each evaluates an entry against
 the positive event condition of every effect slot in
-``create_announce_log_entry_tree`` — whatever module under
+``create_add_log_entry_tree`` — whatever module under
 ``vultron/core/behaviors/`` defines it — rather than matching slots by name.
 """
 
@@ -36,14 +36,14 @@ from test.support.embargo_register import activate, propose
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 
@@ -64,8 +64,8 @@ def effect_slot_conditions() -> list[py_trees.behaviour.Behaviour]:
     """
     (effects,) = [
         node
-        for node in create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        for node in create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ).iterate()
         if node.name == "LogEntryEventEffects"
     ]
@@ -119,7 +119,11 @@ def matching_slots(
             log_index=0,
             object_id=f"urn:{semantic_type}",
             semantic_type=semantic_type,
-            payload_snapshot={"context": CASE_ID, **snapshot},
+            payload_snapshot={
+                "id": f"urn:{semantic_type}",
+                "context": CASE_ID,
+                **snapshot,
+            },
             prev_log_hash="0" * 64,
             received_at=ACT_AT,
         )

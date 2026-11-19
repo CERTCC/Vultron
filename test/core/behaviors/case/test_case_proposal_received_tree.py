@@ -4418,7 +4418,7 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
 
     The outbox is FIFO (OX-01-002), so enqueue order is wire order.  If the
     native ledger commits fan out first, every recipient receives
-    ``Announce(CaseLedgerEntry)`` for a case it does not hold yet, enters the
+    ``Add(CaseLedgerEntry)`` for a case it does not hold yet, enters the
     pre-genesis path (SYNC-15), sends a ``Reject``, and the CASE_MANAGER
     replays the whole ledger — while ``Create(VulnerabilityCase)`` waits at
     the back of the queue.  That queue position is what timed out the rv and
@@ -4447,7 +4447,7 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
     )
 
     labels = _outbox_labels(dl)
-    announces = [lbl for lbl in labels if lbl.startswith("Announce(")]
+    announces = [lbl for lbl in labels if lbl == "Add(CaseLedgerEntry)"]
 
     # Not vacuous: without an injected sync port the fan-out is skipped and
     # any order assertion would pass trivially.
@@ -4459,7 +4459,7 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
         "Create(VulnerabilityCase)",
     ], f"Accept and Create must head the outbox, got {labels}"
     assert labels[2:] == announces, (
-        "every Announce(CaseLedgerEntry) must follow Create(VulnerabilityCase),"
+        "every Add(CaseLedgerEntry) must follow Create(VulnerabilityCase),"
         f" got {labels}"
     )
 

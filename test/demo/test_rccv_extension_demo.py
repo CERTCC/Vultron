@@ -352,7 +352,7 @@ class TestC2SuggestsTheVendor:
     def test_the_reporter_holds_the_case_before_the_vendors_triage(self):
         """Bug #2120: the Vendor's triage broadcasts to the Reporter too.
 
-        The triage cycle broadcasts ``Announce(CaseLedgerEntry)`` to all
+        The triage cycle broadcasts ``Add(CaseLedgerEntry)`` to all
         participants, so a Reporter without the case replica has no genesis
         hash to anchor the chain on.
         """

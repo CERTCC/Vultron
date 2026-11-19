@@ -416,7 +416,7 @@ The two digests below are illustrative: they show the fields' shape and are not 
 
     | Step | Sender | Send to | Wire activity | Shorthand |
     |---|---|---|---|---|
-    | 1 | the CASE_MANAGER | each participant | `Announce(CaseLedgerEntry)` | — |
+    | 1 | the CASE_MANAGER | each participant | `Add(CaseLedgerEntry)` | — |
 
 === "Wire JSON"
 

@@ -1224,17 +1224,19 @@ groups:
   title: Ledger replication
   mechanics: true
   occasions:
-  - anchor: announce-case-ledger-entry
-    heading: Announce case ledger entry
+  - anchor: add-case-ledger-entry
+    heading: Add case ledger entry
     when: the CASE_MANAGER has committed a case event to the case ledger
-    send: Announce(CaseLedgerEntry)
+    send: Add(CaseLedgerEntry)
     send_to: a participant
     sent_by: the CASE_MANAGER
-    semantics: announce_case_ledger_entry
+    semantics: add_case_ledger_entry_to_ledger
     status: none
-    description: Fans out the newly committed ledger entry to each active participant.
+    description: 'Fans out the newly committed ledger entry to each active participant, as
+      an Add to the case''s ledger that names the committed act in inReplyTo: the positive
+      acknowledgment of that act.'
     seen_in: []
-    example: announce_case_ledger_entry
+    example: add_case_ledger_entry
   - anchor: reject-case-ledger-entry
     heading: Reject case ledger entry
     when: a received ledger entry does not chain onto the Participant's own ledger

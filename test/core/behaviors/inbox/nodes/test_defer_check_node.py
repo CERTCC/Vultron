@@ -70,7 +70,7 @@ class _StubQueuePort:
 
 
 def _make_event(
-    semantic_type=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+    semantic_type=MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
     activity: VultronActivity | None = None,
 ):
     """Return a minimal VultronEvent stub for DeferCheckNode."""
@@ -98,7 +98,7 @@ def _enable_activity_stream():
 def _run_node(
     context_id: str,
     queue_port: _StubQueuePort | None,
-    semantic_type: MessageSemantics = MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+    semantic_type: MessageSemantics = MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
     activity: VultronActivity | None = None,
 ) -> Status:
     """Set up the blackboard and tick DeferCheckNode once."""
@@ -246,7 +246,7 @@ class TestDeferCheckNodeStubInviteProcessedOnArrival:
         [
             MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
             MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-            MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+            MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
         ],
     )
     def test_non_stub_activity_for_unknown_case_is_still_deferred(

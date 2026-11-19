@@ -58,7 +58,7 @@ SEEDING_TABLE: dict[str, str] = {
     "AddReportToCaseTriggerRequest": "case_id report_id",
     "AddVulnerabilityItemToCaseReceivedEvent": "case_id object_id sender_id<-actor_id",
     "AnnounceEmbargoEventToCaseReceivedEvent": "case_id embargo embargo_id object_id sender_id<-actor_id",
-    "AnnounceLogEntryReceivedEvent": "object_id sender_id<-actor_id",
+    "AddLogEntryReceivedEvent": "object_id sender_id<-actor_id",
     "AnnounceVulnerabilityCaseReceivedEvent": "object_id sender_id<-actor_id",
     "CloseCaseReceivedEvent": "case_id object_id sender_id<-actor_id",
     "CloseReportReceivedEvent": "object_id offer_id report_id sender_id<-actor_id",

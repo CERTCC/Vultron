@@ -422,7 +422,7 @@ groups:
       been archived (ADR-0214).
       The activity names there the case it waits on, so what waits for a case is read
       from the waiting activities and kept in no second list. A held out-of-order
-      `Announce(CaseLedgerEntry)` (SYNC-14-001) is kept the same way, released by its
+      `Add(CaseLedgerEntry)` (SYNC-14-001) is kept the same way, released by its
       replay or by the holding area's bound (SYNC-14-006).
     rationale: >-
       The record holds the activity too, because no copy under its sender's id is

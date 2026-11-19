@@ -125,7 +125,7 @@ def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
     value wins.  Some semantics use the sync port for more than their
     commit, and still take it from here:
 
-    - ``ANNOUNCE_CASE_LEDGER_ENTRY`` sends a ``Reject(CaseLedgerEntry)`` on a
+    - ``ADD_CASE_LEDGER_ENTRY_TO_LEDGER`` sends a ``Reject(CaseLedgerEntry)`` on a
       hash-chain mismatch or a pre-genesis arrival (SYNC-03-001, SYNC-15-001).
     - ``CREATE_CASE_PROPOSAL``'s accept path commits the genesis entries
       natively and fans them out (``CommitNativeLedgerEntriesNode``, ADR-0041
@@ -294,15 +294,15 @@ _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
 )
 
 
-# ANNOUNCE_CASE_LEDGER_ENTRY commits a replica entry, and ANNOUNCE_VULNERABILITY_CASE
+# ADD_CASE_LEDGER_ENTRY_TO_LEDGER commits a replica entry, and ANNOUNCE_VULNERABILITY_CASE
 # and CREATE_CASE seed the case (anchoring its genesis hash); any of them can
-# make a held Announce(CaseLedgerEntry) appliable.  That Announce, as it was
+# make a held Add(CaseLedgerEntry) appliable.  That Announce, as it was
 # received, is replayed through the receiving actor's own inbox as a delivery of its own,
 # through the InboxReplayPort (SYNC-14-009, SYNC-15-005, ADR-0135).  See
 # _inbox_replay_port_factory.
 _LEDGER_REPLAY_SEMANTICS = frozenset(
     {
-        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
         MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
         MessageSemantics.CREATE_CASE,
     }
@@ -313,7 +313,7 @@ def _inbox_replay_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Inject the ``InboxReplayPort`` that queues to *dl*'s own inbox.
 
     *dl* is the receiving actor's store (ADR-0073), so the replayed
-    ``Announce(CaseLedgerEntry)`` lands in the queue the same inbox loop
+    ``Add(CaseLedgerEntry)`` lands in the queue the same inbox loop
     drains after the current delivery (SYNC-14-009).
     """
     return {INBOX_REPLAY_KEY: InboxReplayAdapter(dl)}

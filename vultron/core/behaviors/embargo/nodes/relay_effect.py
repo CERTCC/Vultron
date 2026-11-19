@@ -9,7 +9,7 @@ relayed Invite like any other (ADR-0152); the owner's decision on a proposal
 has a semantic type of its own (``activation_effect.py``).  A participant
 replica writes none of that state when the activity reaches it directly
 (EP-09-003, RSH-08-003); it copies the state from the
-``Announce(CaseLedgerEntry)`` broadcast through these nodes (RSH-08-004,
+``Add(CaseLedgerEntry)`` broadcast through these nodes (RSH-08-004,
 ADR-0108).
 
 Each node copies; none runs ``EmbargoLifecycle`` (ADR-0124, CM-23-016).  A

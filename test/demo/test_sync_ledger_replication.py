@@ -61,7 +61,7 @@ from vultron.demo.in_process import (
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
-    announce_log_entry_activity,
+    add_log_entry_activity,
     reject_log_entry_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -367,7 +367,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     wire_entry2 = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry2.model_dump(mode="json"))
     )
-    out_of_chain_announce = announce_log_entry_activity(
+    out_of_chain_announce = add_log_entry_activity(
         entry=wire_entry2,
         actor=case_actor_id,
         to=[peer_actor_id],
@@ -452,9 +452,9 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
 def test_sync_duplicate_delivery_idempotency(
     two_app_setup, monkeypatch
 ) -> None:
-    """Duplicate delivery of Announce(CaseLedgerEntry) must produce one replica.
+    """Duplicate delivery of Add(CaseLedgerEntry) must produce one replica.
 
-    Delivers the same ``Announce(CaseLedgerEntry)`` twice to the peer actor
+    Delivers the same ``Add(CaseLedgerEntry)`` twice to the peer actor
     and verifies the peer replica contains exactly one copy of the entry
     (SYNC-03-003: replication MUST be idempotent; repeated delivery MUST NOT
     produce duplicate entries).
@@ -503,7 +503,7 @@ def test_sync_duplicate_delivery_idempotency(
     case.actor_participant_index[peer_actor_id] = peer_participant.id_
 
     # Peer needs the case and participants in its DataLayer to process inbound
-    # Announce(CaseLedgerEntry) as a participant, not as the CaseActor.
+    # Add(CaseLedgerEntry) as a participant, not as the CaseActor.
     peer_dl.save(case_actor_participant)
     peer_dl.save(peer_participant)
     peer_dl.save(case)
@@ -524,14 +524,14 @@ def test_sync_duplicate_delivery_idempotency(
     wire_entry = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
-    announce = announce_log_entry_activity(
+    announce = add_log_entry_activity(
         entry=wire_entry,
         actor=case_actor_id,
         to=[peer_actor_id],
         at=authored_at(),
     )
 
-    # Deliver the same Announce(CaseLedgerEntry) twice.
+    # Deliver the same Add(CaseLedgerEntry) twice.
     for _ in range(2):
         handle_inbox_item(
             actor_id=peer_actor_id,

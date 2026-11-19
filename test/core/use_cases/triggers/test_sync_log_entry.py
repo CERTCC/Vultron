@@ -168,7 +168,7 @@ def test_fans_the_entry_out_to_the_peer_participant(actor_and_dl):
     )
 
     new_ids = set(dl.outbox_list()) - before
-    assert new_ids, "the commit must queue an Announce(CaseLedgerEntry)"
+    assert new_ids, "the commit must queue an Add(CaseLedgerEntry)"
     recipients = {
         recipient
         for activity_id in new_ids

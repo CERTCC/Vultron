@@ -211,7 +211,7 @@ read from the `SenderSequenceOrder` record, never kept in a second list, and the
 `dispatch` queues it after every dispatch (`queue_due_held_activities`).
 
 An archive never owes a replay, and the record's validator refuses one: a replay of
-an applied message would apply it twice. A buffered `Announce(CaseLedgerEntry)` is
+an applied message would apply it twice. A buffered `Add(CaseLedgerEntry)` is
 the case that tempts it: intake recorded it and the handler then held it for its gap,
 so it stays `HELD`, owing a replay, and the outcome stage does not archive it. Its
 release hands the body to the replay, which records it again as a delivery of its own
@@ -274,7 +274,7 @@ under a held id is refused with a WARNING naming the activity id and sender, and
 neither body is routed nor anything written; routing the held copy in its place
 silently dropped the new body (#3762). The match is exact, with no normalisation,
 so a body re-serialized with a different key order is refused too. The rule covers
-every activity type: an `Announce(CaseLedgerEntry)` hydrated in place (SYNC-13-004)
+every activity type: an `Add(CaseLedgerEntry)` hydrated in place (SYNC-13-004)
 gets the same comparison, and only a same-body repeat reaches SYNC-12-003's gate.
 Both sides of the match are always sealed: a deferred record holds only the sealed
 body (ADR-0149), and an unsealed activity can neither be deferred nor compared, so it

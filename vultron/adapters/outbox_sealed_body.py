@@ -35,7 +35,7 @@ the delivered body, the ledger's ``payloadSnapshot`` and the relayed
 ``Announce`` all carry the author's proof (SIG-01-001, VM-08-003).  The
 author is always the store's own actor: an activity another actor wrote is
 refused, never signed with that actor's key (SIG-05-004).  A relay
-needs nothing of its own: an ``Announce(CaseLedgerEntry)`` is signed by the
+needs nothing of its own: an ``Add(CaseLedgerEntry)`` is signed by the
 CASE_MANAGER that sends it, and the snapshot nested in it keeps its original
 author's proof untouched, since signing never rewrites a nested object.
 

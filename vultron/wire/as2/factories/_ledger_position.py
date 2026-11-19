@@ -49,7 +49,7 @@ _Activity = TypeVar("_Activity", bound=as_Activity)
 #: are stamped.
 _STATES_ITS_OWN_POSITION: frozenset[tuple[str, str]] = frozenset(
     {
-        ("Announce", "CaseLedgerEntry"),
+        ("Add", "CaseLedgerEntry"),
         ("Announce", "VulnerabilityCase"),
         ("Create", "VulnerabilityCase"),
         ("Update", "VulnerabilityCase"),
@@ -65,7 +65,7 @@ def _type_name(value: object) -> str | None:
 def object_states_its_own_position(activity: as_Activity) -> bool:
     """Whether *activity*'s object already states a ledger position.
 
-    True for ``Announce(CaseLedgerEntry)``, ``Announce(VulnerabilityCase)``,
+    True for ``Add(CaseLedgerEntry)``, ``Announce(VulnerabilityCase)``,
     ``Create(VulnerabilityCase)`` and ``Update(VulnerabilityCase)`` with the
     object carried inline.
     """

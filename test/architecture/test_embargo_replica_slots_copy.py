@@ -16,7 +16,7 @@
 A replica writes the embargo register and consent rows by copying the
 CASE_MANAGER's entries through the one apply function (ADR-0124), never by
 re-running ``EmbargoLifecycle`` or a consent transition on its own state.
-Every slot of ``AnnounceLogEntryReceivedBT`` that writes either is covered:
+Every slot of ``AddLogEntryReceivedBT`` that writes either is covered:
 relay, activation, the owner's rejection, abandonment, expiry, teardown,
 withdrawal, the consent-row copy, and the stub Invite answers that carry a
 joiner's consent (:data:`_SLOTS`), and

@@ -13,22 +13,25 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Wire-layer AS2 activity classes for LedgerFanout/LedgerReconciliation log replication.
 
-Provides :class:`_AnnounceLogEntryActivity` used by the CaseActor to fan
-out canonical log entries to participant actors, and
+Provides :class:`_AddLogEntryActivity` used by the CASE_MANAGER to fan
+out canonical log entries to participant actors (ADR-0204), and
 :class:`_RejectLogEntryActivity` used by participants to report hash-chain
 mismatches back to the CaseActor, and :class:`_ReadLogEntryActivity` used by
 participants to state their ledger position (SYNC-17-001).
 """
 
-from pydantic import Field
+from typing import Self
 
+from pydantic import Field, model_validator
+
+from vultron.core.models.case_ledger_entry import case_ledger_id
 from vultron.core.models.ledger_position import (
     LEDGER_POSITION_PROPERTY,
     LedgerPosition,
 )
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Announce,
+    as_Add,
     as_Read,
     as_Reject,
 )
@@ -37,14 +40,32 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
 )
 
 
-class _AnnounceLogEntryActivity(as_Announce):
-    """The CaseActor is announcing a canonical as_CaseLedgerEntry for replication.
+def _ref_id(value: object) -> str | None:
+    """The id a reference slot names: a bare IRI, or an inline object's id."""
+    if isinstance(value, str):
+        return value
+    ref = getattr(value, "id_", None)
+    return ref if isinstance(ref, str) else None
 
-    Sent to each participant actor after a new log entry has been committed
-    to the case event log (SYNC-09-002).
 
-    object_: :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`
-        being replicated.
+class _AddLogEntryActivity(as_Add):
+    """The CASE_MANAGER commits an entry: ``Add(CaseLedgerEntry)`` to the ledger.
+
+    Sent to each active participant after the entry is committed to the case
+    ledger (SYNC-09-002).  The ``Add`` says the entry was added to the case's
+    ledger, ``<case>/ledger``, an ordered collection with identity only
+    (ADR-0204).  It is also the positive acknowledgement of the act the entry
+    commits, which it names in ``inReplyTo``; it lists nothing in
+    ``result``, because each act a commit causes names its cause in its own
+    ``inReplyTo``.
+
+    object_: the :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`
+        being replicated, inline (SYNC-02-005).
+    target: the case's ledger, ``case_ledger_id(entry.case_id)``.
+    context: the entry's case.
+    in_reply_to: the committed act, the id of the entry's snapshot.
+
+    Spec: SYNC-02-001, SYNC-02-006, SYNC-02-007, SYNC-02-009, MSM-05-009.
     """
 
     object_: as_CaseLedgerEntry = Field(
@@ -52,13 +73,46 @@ class _AnnounceLogEntryActivity(as_Announce):
         validation_alias="object",
         serialization_alias="object",
     )
+    in_reply_to: NonEmptyString = Field(default=...)
+
+    @model_validator(mode="after")
+    def _names_the_ledger_the_case_and_the_act(self) -> Self:
+        """Refuse an ``Add`` that misnames its ledger, case or act (ADR-0204)."""
+        entry = self.object_
+        ledger = case_ledger_id(entry.case_id)
+        if _ref_id(self.target) != ledger:
+            raise ValueError(
+                f"Add(CaseLedgerEntry) {self.id_!r}: target must be the"
+                f" case's ledger {ledger!r}, not {_ref_id(self.target)!r}"
+                " (SYNC-02-006)"
+            )
+        if _ref_id(self.context) != entry.case_id:
+            raise ValueError(
+                f"Add(CaseLedgerEntry) {self.id_!r}: context must be the"
+                f" entry's case {entry.case_id!r}, not"
+                f" {_ref_id(self.context)!r} (SYNC-02-006)"
+            )
+        act_id = entry.payload_snapshot.get("id")
+        if self.in_reply_to != act_id:
+            raise ValueError(
+                f"Add(CaseLedgerEntry) {self.id_!r}: inReplyTo must be the"
+                f" committed act {act_id!r}, not {self.in_reply_to!r}"
+                " (SYNC-02-007)"
+            )
+        if self.result is not None:
+            raise ValueError(
+                f"Add(CaseLedgerEntry) {self.id_!r} lists a result; an act a"
+                " commit causes names its cause in its own inReplyTo instead"
+                " (SYNC-02-009, ADR-0204)"
+            )
+        return self
 
 
 class _RejectLogEntryActivity(as_Reject):
     """Participant rejects a ``as_CaseLedgerEntry`` announcement due to hash-chain mismatch.
 
     Sent by a participant actor to the CaseActor when the incoming
-    ``Announce(CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
+    ``Add(CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
     participant's local tail hash.
 
     The sender's ledger tail, which tells the CaseActor which entries to
@@ -74,7 +128,7 @@ class _RejectLogEntryActivity(as_Reject):
         required (RF-08-003, RF-08-004).  The ``object`` is an entry, not an
         activity, so the class cannot derive it.  On a hash mismatch and on
         the genesis Reject for a case the sender does not hold it is the
-        ``Announce(CaseLedgerEntry)``; after a case copy ahead of the chain
+        ``Add(CaseLedgerEntry)``; after a case copy ahead of the chain
         it is the ``Announce(VulnerabilityCase)`` (SYNC-16-007).  The
         ``Create(ProcessingFault)`` for a refused entry names its
         ``Announce`` the same way (SYNC-16-003).

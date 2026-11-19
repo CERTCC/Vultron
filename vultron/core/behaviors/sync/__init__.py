@@ -18,8 +18,8 @@
 Provides BT nodes and tree factories for LedgerFanout/LedgerReconciliation log-entry
 replication flows:
 
-- :func:`~vultron.core.behaviors.sync.announce_tree.create_announce_log_entry_tree`
-  — handles inbound ``Announce(CaseLedgerEntry)``
+- :func:`~vultron.core.behaviors.sync.add_log_entry_tree.create_add_log_entry_tree`
+  — handles inbound ``Add(CaseLedgerEntry)``
 - :func:`~vultron.core.behaviors.sync.reject_tree.create_reject_log_entry_tree`
   — handles inbound ``Reject(CaseLedgerEntry)``
 - :func:`~vultron.core.behaviors.sync.commit_tree.create_commit_log_entry_tree`

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 r"""End-to-end: a held ledger Announce converges through the inbox replay.
 
-A held ``Announce(CaseLedgerEntry)`` that a commit or a case seed makes
+A held ``Add(CaseLedgerEntry)`` that a commit or a case seed makes
 appliable is replayed as its own delivery (SYNC-14-009, ADR-0135).  These
 tests drive the real chain: ``run_inbox_pipeline``, the FastAPI ingress and
 dispatch adapters, the real dispatcher and port factories, the received use
@@ -59,7 +59,7 @@ from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    announce_log_entry_activity,
+    add_log_entry_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
 )
@@ -109,7 +109,10 @@ def _chain(genesis_hash: str, length: int) -> list[CaseLedgerEntry]:
             log_index=index,
             object_id=f"https://example.org/activities/rp-{index}",
             semantic_type="test_event",
-            payload_snapshot={"index": index},
+            payload_snapshot={
+                "id": f"https://example.org/activities/rp-{index}",
+                "index": index,
+            },
             prev_log_hash=prev,
             received_at=ACT_AT,
         )
@@ -126,7 +129,7 @@ def _body(activity: as_Activity) -> dict[str, Any]:
 def _announce_entry(entry: CaseLedgerEntry) -> dict[str, Any]:
     """The CASE_MANAGER's fan-out of *entry* to the receiver."""
     return _body(
-        announce_log_entry_activity(
+        add_log_entry_activity(
             ledger_entry_to_wire(entry),
             actor=_CASE_MANAGER,
             to=[_RECEIVER],

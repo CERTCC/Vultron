@@ -2,7 +2,7 @@
 """Tests for the embargo revision relay ledger effect nodes (EP-09-007).
 
 Covers the relay classifier, the four apply nodes and their slots in
-``AnnounceLogEntryReceivedBT``.  Each test runs in the participant's replica
+``AddLogEntryReceivedBT``.  Each test runs in the participant's replica
 store (``PARTICIPANT_ACTOR_ID``, see ``conftest.py``) and applies an entry the
 CASE_MANAGER committed (ADR-0108, ADR-0113).
 """
@@ -37,8 +37,8 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.nodes.relay import (
     EMBARGO_INVITE_SEMANTIC_TYPE,
 )
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsEmbargoInviteRelayEventNode,
@@ -57,7 +57,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
@@ -139,7 +139,10 @@ def _entry(semantic_type: str, snapshot: dict[str, Any]) -> CaseLedgerEntry:
             log_index=0,
             object_id=str(snapshot.get("id") or f"urn:{semantic_type}"),
             semantic_type=semantic_type,
-            payload_snapshot=snapshot,
+            payload_snapshot={
+                "id": str(snapshot.get("id") or f"urn:{semantic_type}"),
+                **snapshot,
+            },
             prev_log_hash="0" * 64,
             received_at=ACT_AT,
         )
@@ -817,11 +820,11 @@ class TestApplyEmbargoAnswers:
 
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("RSH-08-004")
-def test_announce_tree_carries_a_slot_per_relay_semantic_type():
+def test_add_log_entry_tree_carries_a_slot_per_relay_semantic_type():
     names = {
         node.name
-        for node in create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        for node in create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ).iterate()
     }
     for label in (

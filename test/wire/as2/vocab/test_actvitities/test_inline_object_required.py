@@ -83,7 +83,7 @@ from vultron.wire.as2.vocab.activities.report import (
     _RmValidateReportActivity,
 )
 from vultron.wire.as2.vocab.activities.sync import (
-    _AnnounceLogEntryActivity,
+    _AddLogEntryActivity,
     _RejectLogEntryActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -156,6 +156,7 @@ _LOG_ENTRY = make(
     case_id=_CASE.id_,
     log_object_id=_REPORT.id_,
     semantic_type="CREATE_REPORT",
+    payload_snapshot={"id": "https://example.org/activities/create-report"},
     received_at=ACT_AT,
     published=ACT_AT,
 )
@@ -408,10 +409,15 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
         )
         assert isinstance(obj.object_, as_CaseLedgerEntry)
 
-    def test_announce_log_entry_still_accepts_typed(self):
-        """_AnnounceLogEntryActivity should still accept a as_CaseLedgerEntry."""
+    def test_add_log_entry_still_accepts_typed(self):
+        """_AddLogEntryActivity should still accept a as_CaseLedgerEntry."""
         obj = make(
-            _AnnounceLogEntryActivity, actor=_ACTOR.id_, object_=_LOG_ENTRY
+            _AddLogEntryActivity,
+            actor=_ACTOR.id_,
+            object_=_LOG_ENTRY,
+            target=f"{_CASE.id_}/ledger",
+            context=_CASE.id_,
+            in_reply_to="https://example.org/activities/create-report",
         )
         assert isinstance(obj.object_, as_CaseLedgerEntry)
 
@@ -657,10 +663,10 @@ class TestNoneObjectRejected(unittest.TestCase):
     # --- sync.py (2 classes) ---
 
     def test_announce_log_entry_rejects_none(self):
-        self._assert_none_rejected(_AnnounceLogEntryActivity)
+        self._assert_none_rejected(_AddLogEntryActivity)
 
     def test_announce_log_entry_rejects_missing(self):
-        self._assert_missing_rejected(_AnnounceLogEntryActivity)
+        self._assert_missing_rejected(_AddLogEntryActivity)
 
     def test_reject_log_entry_rejects_none(self):
         self._assert_none_rejected(_RejectLogEntryActivity)

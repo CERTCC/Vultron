@@ -1764,13 +1764,13 @@ groups:
     statement: >-
       When the CASE_MANAGER accepts a `Create(CaseProposal)`, it MUST enqueue
       `Accept(CaseProposal)` and `Create(VulnerabilityCase)` before it fans out
-      any `Announce(CaseLedgerEntry)` for the new case. The canonical ledger
+      any `Add(CaseLedgerEntry)` for the new case. The canonical ledger
       entries that record the initialization are committed after the
       `Create(VulnerabilityCase)` is queued, so that every recipient holds the case
       object before its first ledger entry arrives.
     rationale: >-
       The outbox is FIFO (OX-01-002), so the order of the queue is the order on the
-      wire. If a ledger entry is committed before the `Create` is queued, its `Announce`
+      wire. If a ledger entry is committed before the `Create` is queued, its `Add`
       reaches each recipient before the case does. Each recipient then holds an entry
       for a case it does not have and takes the SYNC-15 path for such entries (hold the
       entry, `Reject`, replay from the genesis entry), while the `Create` waits behind
@@ -1778,7 +1778,7 @@ groups:
       creation and delay the `Create`. This is CM-14-011's rule applied to the
       CASE_MANAGER path: the receiver must hold the case object before any fan-out that
       references it. It is also SYNC-09-002's order: the entries record a case whose
-      creation was sent, and only the `Announce(CaseLedgerEntry)` fan-out follows the
+      creation was sent, and only the `Add(CaseLedgerEntry)` fan-out follows the
       commit. The create-case trigger uses the same order. On both paths, the case, its
       records, the queued `Accept` and `Create`, and every creation entry are written in
       one DataLayer transaction (ADR-0146). If any creation entry fails, all of them

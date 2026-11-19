@@ -105,7 +105,7 @@ from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
 from vultron.core.models.events.sync import (
-    AnnounceLogEntryReceivedEvent,
+    AddLogEntryReceivedEvent,
     ReadLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
@@ -191,7 +191,7 @@ AnyReceivedEvent = (
     | AddParticipantStatusToParticipantReceivedEvent
     |
     # sync
-    AnnounceLogEntryReceivedEvent
+    AddLogEntryReceivedEvent
     | ReadLogEntryReceivedEvent
     | RejectLogEntryReceivedEvent
     |
@@ -286,7 +286,7 @@ __all__ = [
     "UnknownReceivedEvent",
     "UnresolvableObjectReceivedEvent",
     # sync
-    "AnnounceLogEntryReceivedEvent",
+    "AddLogEntryReceivedEvent",
     "ReadLogEntryReceivedEvent",
     "RejectLogEntryReceivedEvent",
     # fault

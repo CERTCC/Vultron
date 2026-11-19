@@ -36,7 +36,7 @@ relays a contested creation's revision:
   6. Emit ``Accept(CaseProposal)``
   7. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
   8. Commit canonical ledger entries (AC-4) — after the emits, so every
-     participant holds the case before its first ``Announce(CaseLedgerEntry)``
+     participant holds the case before its first ``Add(CaseLedgerEntry)``
      (CM-14-011, CP-09-009)
   9. Relay a contested creation's revision to the party whose terms won
      (EP-04-027) — after initialization is complete (CM-14-014)

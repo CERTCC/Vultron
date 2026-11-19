@@ -176,8 +176,8 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
     ): _ENDING_NOTICE,
     **{
         (
-            f"{_Y}/announce_tree/factory.py",
-            "create_announce_log_entry_tree",
+            f"{_Y}/add_log_entry_tree/factory.py",
+            "create_add_log_entry_tree",
             cls,
         ): (_REPLAY)
         for cls in (
@@ -283,7 +283,7 @@ _GENESIS_REJECT = (
     " case (SYNC-15-016, SYNC-15-021)"
 )
 _HELD_ANNOUNCE = (
-    "holds or releases a received out-of-order Announce(CaseLedgerEntry) for"
+    "holds or releases a received out-of-order Add(CaseLedgerEntry) for"
     " its replay, the receiver's inbox bookkeeping, never a ledger entry or"
     " a record of the case (SYNC-14-001, SYNC-14-005, SYNC-14-009)"
 )
@@ -439,8 +439,8 @@ def test_every_received_tree_factory_is_built() -> None:
     named = {(rel, factory) for rel, factory, _ in set(REPLICA_STATE_WRITES)}
     assert named <= built, sorted(named - built)
     assert (
-        f"{_Y}/announce_tree/factory.py",
-        "create_announce_log_entry_tree",
+        f"{_Y}/add_log_entry_tree/factory.py",
+        "create_add_log_entry_tree",
     ) in built
 
 

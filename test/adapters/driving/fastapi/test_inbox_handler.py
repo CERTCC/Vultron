@@ -1160,7 +1160,7 @@ def test_make_dispatcher_gives_ledger_replay_semantics_the_inbox_port(
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
     replay_semantics = {
-        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
         MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
         # The report receiver's introduction seeds the reporter's case too
         # (CBT-01-001, #5521).

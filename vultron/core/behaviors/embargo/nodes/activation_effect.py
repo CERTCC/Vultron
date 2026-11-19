@@ -72,7 +72,7 @@ EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE = (
 class IsActivateEmbargoEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is the owner's activation of an embargo.
 
-    Used in the ``EmbargoActivation`` slot of ``AnnounceLogEntryReceivedBT``.
+    Used in the ``EmbargoActivation`` slot of ``AddLogEntryReceivedBT``.
 
     Per RSH-08-004, BTND-08-001, SYNC-12-001.
     """
@@ -84,7 +84,7 @@ class IsRejectEmbargoProposalEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is the owner's rejection of a proposal.
 
     Used in the ``EmbargoProposalRejection`` slot of
-    ``AnnounceLogEntryReceivedBT``.
+    ``AddLogEntryReceivedBT``.
 
     Per RSH-08-004, BTND-08-001, SYNC-12-001.
     """

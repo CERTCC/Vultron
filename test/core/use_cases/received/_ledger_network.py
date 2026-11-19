@@ -17,7 +17,7 @@ replica store for the owner and a bystander, then moves activities between
 them only as the sealed body the sender's outbox would deliver, parsed and
 routed the way the inbox routes it.  Shared by the ledger-replay integration
 tests: a replica that never receives an activity directly still reaches the
-CASE_MANAGER's state, from the ``Announce(CaseLedgerEntry)`` broadcast alone
+CASE_MANAGER's state, from the ``Add(CaseLedgerEntry)`` broadcast alone
 (RSH-08-004, ADR-0108).
 """
 
@@ -99,6 +99,12 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 from .conftest import make_embargo_case_with_actor
 
 MANAGER = "https://example.org/users/coord"
+#: The activity types of the CASE_MANAGER's broadcast to a replica: a case
+#: copy is an ``Announce(VulnerabilityCase)`` and a ledger commit an
+#: ``Add(CaseLedgerEntry)`` (ADR-0204), delivered together in queue order.
+BROADCAST: tuple[str, ...] = ("Announce", "Add")
+#: One activity type, several, or ``None`` for every type.
+type ActivityTypes = str | tuple[str, ...] | None
 PROPOSER = "https://example.org/users/vendor"
 #: The case owner: its Accept/Reject of the embargo decides a proposal
 #: (EP-09-005, ADR-0122).
@@ -439,18 +445,24 @@ class LedgerNetwork:
         settle_as_the_inbox(self.stores[receiver], event, result)
         return result
 
-    def queued(self, sender: str, *, to: str, type_: str | None = None):
-        """*sender*'s outbox items addressed to *to*, oldest first."""
+    def queued(self, sender: str, *, to: str, type_: ActivityTypes = None):
+        """*sender*'s outbox items addressed to *to*, oldest first.
+
+        *type_* is one activity type or several, such as :data:`BROADCAST`.
+        """
         dl = self.stores[sender]
+        types = (type_,) if isinstance(type_, str) else type_
         items = []
         for activity_id in dl.outbox_list():
             activity = cast(VultronActivity, dl.read(activity_id))
             recipients = [*(activity.to or []), *(activity.cc or [])]
-            if to in recipients and (type_ is None or activity.type_ == type_):
+            if to in recipients and (types is None or activity.type_ in types):
                 items.append(activity)
         return items
 
-    def lose(self, sender: str, *, to: str, type_: str | None = None) -> None:
+    def lose(
+        self, sender: str, *, to: str, type_: ActivityTypes = None
+    ) -> None:
         """Drop every item *sender* queued for *to*: lost in transit.
 
         Every other pending item stays queued, in its order.
@@ -464,7 +476,7 @@ class LedgerNetwork:
         for activity_id in kept:
             dl.outbox_append(activity_id)
 
-    def deliver(self, sender: str, *, to: str, type_: str | None = None):
+    def deliver(self, sender: str, *, to: str, type_: ActivityTypes = None):
         """Deliver every not-yet-delivered item *sender* queued for *to*."""
         verdicts = []
         for activity in self.queued(sender, to=to, type_=type_):
@@ -480,12 +492,12 @@ class LedgerNetwork:
     def replay_ledger(self, replica: str) -> list[str]:
         """Hand *replica* the CASE_MANAGER's ledger broadcast, and only that.
 
-        Each ``Announce(CaseLedgerEntry)`` the CASE_MANAGER queued for
+        Each ``Add(CaseLedgerEntry)`` the CASE_MANAGER queued for
         *replica* is delivered in chain order and must be applied.  Returns
         the semantic types delivered, in that order.
         """
         semantic_types = []
-        for activity in self.queued(MANAGER, to=replica, type_="Announce"):
+        for activity in self.queued(MANAGER, to=replica, type_="Add"):
             body = read_sealed_body_dict(self.stores[MANAGER], activity.id_)
             entry = (body or {}).get("object") or {}
             if entry.get("type") != "CaseLedgerEntry":
@@ -553,11 +565,11 @@ class LedgerNetwork:
         return bodies
 
     def ledger_announcements(self, replica: str) -> list[dict[str, Any]]:
-        """The ``Announce(CaseLedgerEntry)`` bodies queued for *replica*."""
+        """The ``Add(CaseLedgerEntry)`` bodies queued for *replica*."""
         return self.sealed_bodies(
             MANAGER,
             to=replica,
-            type_="Announce",
+            type_="Add",
             object_type="CaseLedgerEntry",
         )
 
@@ -638,7 +650,7 @@ class LedgerNetwork:
         (body,) = self.sealed_bodies(
             MANAGER,
             to=replica,
-            type_="Announce",
+            type_="Add",
             object_type="CaseLedgerEntry",
         )
         return body

@@ -15,7 +15,7 @@
 
 """Per-recipient sync-queue lines are DEBUG, not INFO (SL-04-007).
 
-``send_announce_log_entry`` fires once per recipient per ledger entry, so at
+``send_add_log_entry`` fires once per recipient per ledger entry, so at
 INFO it scales with participant count and buries the protocol story.
 """
 
@@ -51,7 +51,10 @@ def entry() -> CaseLedgerEntry:
         log_index=0,
         object_id="https://example.org/activities/act-sync-log",
         semantic_type="test_event",
-        payload_snapshot={"key": "value"},
+        payload_snapshot={
+            "id": "https://example.org/activities/act-sync-log",
+            "key": "value",
+        },
         prev_log_hash=_ZERO_HASH,
         received_at=ACT_AT,
     )
@@ -62,7 +65,7 @@ def _queued_records(caplog) -> list[logging.LogRecord]:
     return [
         r
         for r in caplog.records
-        if "sync adapter: queued Announce(CaseLedgerEntry)" in r.getMessage()
+        if "sync adapter: queued Add(CaseLedgerEntry)" in r.getMessage()
     ]
 
 
@@ -71,7 +74,7 @@ def test_queued_announce_line_is_debug(dl, entry, caplog):
     adapter = SyncActivityAdapter(dl)
 
     with caplog.at_level(logging.DEBUG, logger=_ADAPTER_LOGGER):
-        adapter.send_announce_log_entry(
+        adapter.send_add_log_entry(
             entry=entry,
             actor_id=_CASE_ACTOR,
             to=[_PARTICIPANT],
@@ -88,7 +91,7 @@ def test_queued_announce_line_not_emitted_at_info(dl, entry, caplog):
     adapter = SyncActivityAdapter(dl)
 
     with caplog.at_level(logging.INFO, logger=_ADAPTER_LOGGER):
-        adapter.send_announce_log_entry(
+        adapter.send_add_log_entry(
             entry=entry,
             actor_id=_CASE_ACTOR,
             to=[_PARTICIPANT],
@@ -102,7 +105,7 @@ def test_announce_is_still_queued_to_the_outbox(dl, entry):
     """Demoting the log level does not change delivery behaviour."""
     adapter = SyncActivityAdapter(dl)
 
-    adapter.send_announce_log_entry(
+    adapter.send_add_log_entry(
         entry=entry, actor_id=_CASE_ACTOR, to=[_PARTICIPANT], at=authored_at()
     )
 

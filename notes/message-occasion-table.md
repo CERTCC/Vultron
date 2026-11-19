@@ -94,7 +94,7 @@ lookup table is mostly links.
   proposal"). It is `NAMED_ACTOR`; each use case's `SenderCheckContext` names the
   record holding its request (the case-proposal link, the report Offer, the
   ledgered ownership Offer), and each record has one small check on a shared
-  base. The sync check that the CASE_MANAGER's own `Announce(CaseLedgerEntry)`,
+  base. The sync check that the CASE_MANAGER's own `Add(CaseLedgerEntry)`,
   echoed back, came from itself is CASE_MANAGER standing and uses that kind's
   node. A `Reject(CaseLedgerEntry)` is a participant's, but a closed participant
   keeps it, so it is the `LEDGER_PEER` kind, not `ACTIVE_PARTICIPANT` (SYNC-03-005,

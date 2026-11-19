@@ -15,7 +15,7 @@
 
 A replica changes RM state, participant records, participant statuses and
 case statuses only by copying the objects the CASE_MANAGER's entries carry
-(CLP-07-013, ADR-0124).  So every slot of ``AnnounceLogEntryReceivedBT`` that
+(CLP-07-013, ADR-0124).  So every slot of ``AddLogEntryReceivedBT`` that
 writes one of them (:data:`_SLOTS`) must never mint an id, read a clock, walk
 the RM table, re-run an acceptance rule, or read the replica's own status to
 fill a field.  :data:`_FORBIDDEN` names those, and the check follows every

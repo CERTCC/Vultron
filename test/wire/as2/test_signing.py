@@ -45,7 +45,7 @@ from vultron.wire.as2.errors import (
     VultronRefusedJsonError,
     VultronUnsignableJsonError,
 )
-from vultron.wire.as2.factories.sync import announce_log_entry_activity
+from vultron.wire.as2.factories.sync import add_log_entry_activity
 from vultron.wire.as2.vocab.examples import (
     _base as examples,
     case as case_examples,
@@ -856,7 +856,7 @@ def _full_case_announcement() -> str:
         prev_log_hash=case.genesis_hash,
         received_at=examples.EXAMPLE_TIMESTAMP,
     )
-    announcement = announce_log_entry_activity(
+    announcement = add_log_entry_activity(
         record.to_ledger_entry(),
         actor=examples.case_actor().id_,
         at=examples.EXAMPLE_TIMESTAMP,

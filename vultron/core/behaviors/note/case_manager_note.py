@@ -25,7 +25,7 @@ ledger (CLP-07-013), and its own handler refuses an ``Add(Note)`` whose note
 it already holds (HP-08-006).  It records the note as its own act instead
 (CLP-10-001): it builds the ``Add(Note)`` carrying the note inline,
 addressed to nobody, commits its sealed blob as an ``add_note_to_case``
-entry, then attaches the note to its case.  The ``Announce(CaseLedgerEntry)``
+entry, then attaches the note to its case.  The ``Add(CaseLedgerEntry)``
 fan-out is the delivery, and each replica attaches the note from the entry
 (``ApplyNoteFromLedgerNode``, SYNC-02-001, SYNC-02-003).
 

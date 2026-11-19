@@ -2050,14 +2050,14 @@ def _reject(
     )
 
 
-def _announces(dl, outbox_before: list[str]) -> list[Any]:
-    """The ``Announce`` activities queued since *outbox_before*."""
+def _ledger_adds(dl, outbox_before: list[str]) -> list[Any]:
+    """The ledger ``Add`` activities queued since *outbox_before*."""
     return [
         item
         for item in (
             dl.read(i) for i in dl.outbox_list() if i not in outbox_before
         )
-        if getattr(getattr(item, "type_", None), "value", None) == "Announce"
+        if getattr(getattr(item, "type_", None), "value", None) == "Add"
     ]
 
 
@@ -2081,8 +2081,8 @@ class TestRejectOfOwnershipTransfer:
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert _semantic_types(dl).count("reject_case_ownership_transfer") == 1
-        assert _announces(dl, outbox_before), (
-            "the Reject's entry must be broadcast as Announce(CaseLedgerEntry)"
+        assert _ledger_adds(dl, outbox_before), (
+            "the Reject's entry must be broadcast as Add(CaseLedgerEntry)"
         )
         assert _owner(dl, case_id) == _VENDOR_ID
         assert _owner_roles(dl, case_id) == roles_before
@@ -2373,8 +2373,8 @@ class TestWithdrawalOfOwnershipTransfer:
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert _semantic_types(dl).count("undo_case_ownership_transfer") == 1
-        assert _announces(dl, outbox_before), (
-            "the Undo's entry must be broadcast as Announce(CaseLedgerEntry)"
+        assert _ledger_adds(dl, outbox_before), (
+            "the Undo's entry must be broadcast as Add(CaseLedgerEntry)"
         )
         assert _owner(dl, case_id) == _VENDOR_ID
         assert _owner_roles(dl, case_id) == roles_before
@@ -3011,7 +3011,7 @@ def test_an_accept_from_a_transferee_no_longer_active_is_refused(
     _assert_nothing_changed(dl, case_id, roles_before, entries_before)
     # At most the refusal notice of its own Accept goes back to it; no
     # case content does.
-    assert _announces(dl, outbox_before) == []
+    assert _ledger_adds(dl, outbox_before) == []
 
 
 @pytest.mark.spec("CM-21-022")

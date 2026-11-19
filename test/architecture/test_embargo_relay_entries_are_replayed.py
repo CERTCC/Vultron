@@ -17,7 +17,7 @@
 
 A participant replica takes embargo state from the CASE_MANAGER's ledger, never
 from the activity that reached its inbox (RSH-08-003, ADR-0108).  An entry type
-the CASE_MANAGER commits with no slot in ``AnnounceLogEntryReceivedBT`` is
+the CASE_MANAGER commits with no slot in ``AddLogEntryReceivedBT`` is
 stored and ignored, so the replica's state silently stops following the case
 (#3892).  This ratchet pins the embargo rows of that inventory:
 
@@ -37,7 +37,7 @@ from typing import Any
 
 import pytest
 
-from test.architecture._announce_slots import (
+from test.architecture._add_log_entry_slots import (
     CASE_ID,
     MANAGER,
     PROPOSER,

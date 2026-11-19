@@ -81,7 +81,7 @@ def _commit(net: LedgerNetwork, body: dict[str, Any]) -> None:
 
 
 def _announce_of(net: LedgerNetwork, activity_id: str) -> dict[str, Any]:
-    """The ``Announce(CaseLedgerEntry)`` relaying *activity_id* to the owner."""
+    """The ``Add(CaseLedgerEntry)`` relaying *activity_id* to the owner."""
     [announce] = [
         body
         for body in net.ledger_announcements(OWNER)

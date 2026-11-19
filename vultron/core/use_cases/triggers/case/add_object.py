@@ -60,7 +60,7 @@ class SvcAddObjectToCaseUseCase(SvcActivityTriggerBase):
 
     After queueing, the ``Add`` is recorded in the actor's pending-assertion
     store under its semantics, the semantic type the CASE_MANAGER commits; the
-    matching ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-002,
+    matching ``Add(CaseLedgerEntry)`` clears it (SYNC-11-002,
     SYNC-11-003).  Adding the same object to the same case again while that
     assertion is pending is suppressed before the tree runs and reported with
     no activity (:meth:`_suppressed_duplicate`).

@@ -63,7 +63,7 @@ OUT_OF_SCOPE: dict[MessageSemantics, str] = {
     MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE: _NO_LEDGER_YET,
     MessageSemantics.CREATE_CASE: _STATES_ITS_OWN,
     MessageSemantics.ANNOUNCE_VULNERABILITY_CASE: _STATES_ITS_OWN,
-    MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY: _STATES_ITS_OWN,
+    MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER: _STATES_ITS_OWN,
     MessageSemantics.UPDATE_CASE_OWNER: (
         "a CASE_MANAGER ledger record no received use case handles"
         " (ADR-0140); its object is the case copy"

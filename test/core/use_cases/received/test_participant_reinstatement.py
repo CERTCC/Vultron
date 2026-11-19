@@ -167,7 +167,7 @@ def _entry_ids_announced_to(case: _RemovalCase, actor_id: str) -> list[str]:
     """Ledger entries the manager announced to *actor_id*, in queue order."""
     return [
         entry_id
-        for announce in case.activities_to("Announce", actor_id)
+        for announce in case.ledger_adds_to(actor_id)
         if (entry_id := _as_id(getattr(announce, "object_", None)))
         and isinstance(case.dl.read(entry_id), CaseLedgerEntry)
     ]
@@ -202,8 +202,8 @@ def _replica(case: _RemovalCase, actor_id: str) -> SqliteDataLayer:
 def _announce_to_replica(
     replica: SqliteDataLayer, case: _RemovalCase, actor_id: str
 ) -> None:
-    """Deliver every ``Announce(CaseLedgerEntry)`` the manager sent *actor_id*."""
-    for announce in case.activities_to("Announce", actor_id):
+    """Deliver every ``Add(CaseLedgerEntry)`` the manager sent *actor_id*."""
+    for announce in case.ledger_adds_to(actor_id):
         if not isinstance(
             case.dl.read(_as_id(announce.object_) or ""), CaseLedgerEntry
         ):
@@ -734,7 +734,9 @@ def test_a_removed_participant_replaying_its_accept_is_sent_nothing(
     case.remove(VENDOR)
     entries = len(case.ledger())
     sent_before = len(case.activities_to("Invite", VENDOR))
-    announced_before = len(case.activities_to("Announce", VENDOR))
+    announced_before = len(case.activities_to("Announce", VENDOR)) + len(
+        case.ledger_adds_to(VENDOR)
+    )
 
     result = case.route(
         rm_accept_invite_to_case_activity(
@@ -745,7 +747,11 @@ def test_a_removed_participant_replaying_its_accept_is_sent_nothing(
     assert result.disposition is HandlerDisposition.SKIPPED
     assert len(case.ledger()) == entries
     assert len(case.activities_to("Invite", VENDOR)) == sent_before
-    assert len(case.activities_to("Announce", VENDOR)) == announced_before
+    assert (
+        len(case.activities_to("Announce", VENDOR))
+        + len(case.ledger_adds_to(VENDOR))
+        == announced_before
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -818,6 +824,7 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
         add
         for add in case.dl.list_objects("Add")
         if _as_id(getattr(add, "actor", None)) == MANAGER
+        and not isinstance(getattr(add, "object_", None), CaseLedgerEntry)
     ] == []
 
     _announce_to_replica(replica, case, OTHER)

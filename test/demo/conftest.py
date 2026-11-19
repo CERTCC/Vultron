@@ -143,7 +143,7 @@ def pytest_collection_modifyitems(
 #: URL.  Point the two at different hosts and the case's CASE_MANAGER participant
 #: names one CaseActor while the route opens another's store — so
 #: ``CheckIsCaseManagerNode`` finds no match, the guarded commit skips silently,
-#: no ``Announce(CaseLedgerEntry)`` is queued, and the fan-out that carries notes
+#: no ``Add(CaseLedgerEntry)`` is queued, and the fan-out that carries notes
 #: and status to the other participants never happens. Nothing raises.
 #:
 #: Tests using ``create_isolated_actor_app`` override this with their own host.
