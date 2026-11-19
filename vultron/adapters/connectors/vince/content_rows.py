@@ -28,7 +28,10 @@ from vultron.adapters.connectors.vince.translation import CaseTranslation
 from vultron.core.models.case_reading import UntranslatedReason as Reason
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.note import VultronNote
-from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.core.models.vulnerability_item import (
+    CVE_SYSTEM_NAME,
+    VulnerabilityItem,
+)
 
 #: The id system a vul's VINCE name is recorded under.
 VINCE_ID_SYSTEM = "VINCE"
@@ -70,12 +73,14 @@ def vuls(t: CaseTranslation) -> None:
 def _item(
     t: CaseTranslation, vul: VinceVul, at: datetime, source: str
 ) -> VulnerabilityItem:
-    """*vul* as a vulnerability item; a CVE id the item refuses is
-    returned untranslated, and the item kept without it."""
+    """*vul* as a vulnerability item; its CVE id, if any, is an ``ids``
+    entry with system ``CVE`` before its VINCE id (CM-05-018).  A CVE id the
+    item refuses is returned untranslated, and the item kept without it."""
+    vince_id = {"systemName": VINCE_ID_SYSTEM, "text": vul.name}
     data: dict[str, object] = {
         "id": t.ids.minted(f"vul:{vul.name}"),
         "title": vul.name,
-        "ids": [{"systemName": VINCE_ID_SYSTEM, "text": vul.name}],
+        "ids": [vince_id],
         "notes": (
             [{"category": "description", "text": vul.description}]
             if vul.description
@@ -87,8 +92,11 @@ def _item(
     }
     if vul.cve is None:
         return VulnerabilityItem.model_validate(data)
+    cve_id = {"systemName": CVE_SYSTEM_NAME, "text": vul.cve}
     try:
-        return VulnerabilityItem.model_validate({**data, "cve": vul.cve})
+        return VulnerabilityItem.model_validate(
+            {**data, "ids": [cve_id, vince_id]}
+        )
     except ValidationError:
         t.not_translated(source, f"cve = {vul.cve}", Reason.UNKNOWN_VALUE)
         return VulnerabilityItem.model_validate(data)

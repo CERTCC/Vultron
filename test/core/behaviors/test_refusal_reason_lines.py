@@ -36,6 +36,12 @@ from py_trees.common import Status
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_KEY,
+    REFUSED_ACTIVITY_ID,
+    SENDER_ID,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import full_case_invite
 from vultron.core.behaviors.case.nodes.carried_object_case import (
@@ -359,11 +365,13 @@ def test_the_received_refusal_notice_line_drops_the_group(
 ) -> None:
     """The asserter logs the CASE_MANAGER's refusal as a fact the notice
     carried; that refusal is the CASE_MANAGER's runner line, not this one."""
-    node = ClearRefusedAssertionNode(
-        case_id=_CASE,
-        refused_activity_id="urn:refused",
-        reason="stale — REFUSED (HP-01-006)",
-        sender_id="urn:manager",
+    node = with_act_keys(
+        ClearRefusedAssertionNode(reason="stale — REFUSED (HP-01-006)"),
+        {
+            CASE_KEY: _CASE,
+            REFUSED_ACTIVITY_ID: "urn:refused",
+            SENDER_ID: "urn:manager",
+        },
     )
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id="urn:asserter")
     with caplog.at_level(logging.DEBUG):

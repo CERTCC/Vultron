@@ -65,7 +65,6 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `cause` | plain | Why an embargo ended early: an object whose kind names the cause |
 | `childCases` | set of iri | The ids of a case's child cases |
 | `cvdRole` | set | The CVD roles a participant status reports its participant holding in the case |
-| `cve` | plain | The CVE ID of a vulnerability |
 | `dState` | plain | A deployer participant's fix-deployed (D) dimension of the Case State (CS) |
 | `emState` | plain | The Embargo Management (EM) state of a case: NONE, PROPOSED, ACTIVE, REVISE or EXITED |
 | `embargo` | iri | The embargo an embargo-register entry records: an EmbargoEvent or its id |

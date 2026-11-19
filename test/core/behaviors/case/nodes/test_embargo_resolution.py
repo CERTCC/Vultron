@@ -125,8 +125,7 @@ def _profile(
         id_=actor_id,
         embargo_policy=make(
             EmbargoPolicy,
-            actor_id=actor_id,
-            inbox=f"{actor_id}/inbox",
+            attributed_to=actor_id,
             preferred_duration=duration,
         ),
     )
@@ -139,8 +138,7 @@ def _store_policy_record(
     bt_scenario.dl.create(
         make(
             EmbargoPolicy,
-            actor_id=actor_id,
-            inbox=f"{actor_id}/inbox",
+            attributed_to=actor_id,
             preferred_duration=duration,
         )
     )

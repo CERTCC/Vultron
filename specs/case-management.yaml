@@ -1052,19 +1052,22 @@ groups:
     kind: protocol
     statement: >-
       A vulnerability item MUST carry the identity fields of a CSAF 2.1 vulnerability
-      entry: an optional `cve`, a list of `ids` that each pair a `system_name` with a
-      `text`, an optional `name` that holds the entry's `title`, a list of `notes`, and
-      a list of `references`.
+      entry: a list of `ids` that each pair a `system_name` with a `text`, an optional
+      `name` that holds the entry's `title`, a list of `notes`, and a list of
+      `references`. A CVE ID is an `ids` entry whose `system_name` is `CVE`; the item
+      has no `cve` field of its own.
     rationale: >-
       Shaped like a CSAF vulnerability entry, the item maps a CSAF report's
       vulnerabilities in and out field by field. Pairing each identifier with
       its tracking system names its namespace without parsing its value (CM-05-008,
-      ADR-0187). The `title` travels as AS2 `name`, which means the same, because a
-      Vultron term never duplicates an AS2 term (VM-10-009, ADR-0194).
+      ADR-0187). A reader finds all of a vul's identifiers in one list; CSAF's own
+      `cve` field maps to and from the `CVE` entry (CSAF-03-008). The `title` travels
+      as AS2 `name`, which means the same, because a Vultron term never duplicates an
+      AS2 term (VM-10-009, ADR-0194).
     verification: >-
-      A test marked `CM-05-018` builds a vulnerability item from each field and asserts
-      a CSAF 2.1 vulnerability entry's `cve`, `ids`, `title` (as the item's `name`),
-      `notes` and `references` round-trip through it.
+      A test marked `CM-05-018` builds a vulnerability item from each field, asserts it
+      refuses a `cve` key, and asserts a CSAF 2.1 vulnerability entry's `cve`, `ids`,
+      `title` (as the item's `name`), `notes` and `references` round-trip through it.
       `test/wire/as2/vocab/test_vulnerability_item.py::test_a_csaf_entrys_title_is_the_items_name`
       requires the item to declare no `title` and to hold it as `name`; it is a strict
       `xfail` until #6413 moves the title.
@@ -1077,14 +1080,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `cve` of a vulnerability item MUST match the CVE ID format that CSAF 2.1 gives
-      its `cve` field.
+      The `text` of a vulnerability item's `ids` entry whose `system_name` is `CVE` MUST
+      match the CVE ID format that CSAF 2.1 gives its `cve` field.
     rationale: >-
-      The `cve` field is CVE-typed on purpose, so its format is known, and a value that
-      passes it also passes CSAF. Identifiers in `ids` stay opaque (CM-05-008, ADR-0187).
+      The CSAF translation maps the `CVE` entry to CSAF's CVE-typed `cve` field, so a
+      value that passes this check also passes CSAF. This is the one exception to
+      CM-05-008: the identifier of every other system stays opaque (ADR-0187).
     verification: >-
       A test marked `CM-05-019` builds a vulnerability item with a well-formed and with a
-      malformed `cve` and asserts the second is refused.
+      malformed `CVE` entry and asserts the second is refused, and that a malformed text
+      under any other system is kept.
     adr:
     - ADR-0187
     stories:
@@ -12204,7 +12209,8 @@ groups:
       CASE_MANAGER an `Offer` whose `object` is an `Update` of that item.
     rationale: >-
       A CVE ID is usually assigned after the item exists, so the case learns of it as a
-      change to that item, not as a second item for the same vulnerability (ADR-0187).
+      change to that item, a new `ids` entry whose `system_name` is `CVE`, not as a
+      second item for the same vulnerability (ADR-0187).
     verification: >-
       A test marked `CM-34-002` runs the propose-change trigger and asserts one queued
       `Offer(Update(VulnerabilityItem))` addressed to the CASE_MANAGER.
@@ -12288,17 +12294,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An admitted update of a vulnerability item MUST replace the fields the update
-      supplies and leave every other field of the item unchanged.
+      An admitted update of a vulnerability item MUST change only the fields it
+      supplies, replacing a single-valued field and merging a list (CM-34-011).
     rationale: >-
-      This is the partial-update meaning ActivityStreams gives `Update`. Two admitted
-      updates to different fields of one item then both survive, and a full revision is
-      an update that supplies every field (ADR-0187).
+      This is the partial-update meaning ActivityStreams gives `Update`, so two admitted
+      updates to different fields of one item both survive. A list is merged, not
+      replaced, because a sender that holds a partial or stale view of the item would
+      otherwise erase entries it cannot see (ADR-0187).
     verification: >-
-      A test marked `CM-34-007` admits an update that supplies only `cve` to an item that
-      has a `title` and asserts the item keeps its `title` and gains the `cve`.
+      A test marked `CM-34-007` admits an update that supplies a new `title` and an
+      `ids` list holding one new entry with `system_name` `CVE`, to an item that has a
+      `title`, a note and another identifier, and asserts the item's `title` is the
+      supplied one, its note is kept, and its `ids` hold the other identifier and the
+      `CVE` entry.
     adr:
     - ADR-0187
+    relationships:
+    - rel_type: refines
+      spec_id: CM-34-011
     stories:
     - story_2022_030
   - id: CM-34-008
@@ -12347,5 +12360,30 @@ groups:
       offer is admitted with no further input.
     adr:
     - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-34-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      On admitting an offered update of a case-file object, the CASE_MANAGER MUST keep
+      held list entries and append each supplied entry a list lacks.
+    rationale: >-
+      A sender's view may be partial, such as a case preview (ADR-0217), or stale, and
+      two updates may cross, so replacing a list would drop entries silently. An entry
+      equal to a held one, or a reference with a held one's id, is not added again.
+      Taking an entry out needs an act that names it, as removing a note from a case
+      does; none exists yet for an item's lists (ADR-0187). A replica copies the result
+      the ledger carries, so this binds only the admission.
+    verification: >-
+      A test marked `CM-34-011` admits two updates of one item that each add a
+      different identifier, in both orders, and asserts the item ends with its original
+      identifiers in their order followed by both new ones; admits an update whose
+      `ids` hold one held identifier and one new one, and asserts the held one appears
+      once; and admits an update whose `notes` hold only a new note, and asserts the
+      item keeps its held note and gains the new one.
+    adr:
+    - ADR-0187
+    - ADR-0217
     stories:
     - story_2022_030

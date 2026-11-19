@@ -59,6 +59,16 @@ import py_trees
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    REFUSED_ACTIVITY_ID,
+    SENDER_ID,
+)
 from vultron.core.behaviors.case.nodes.case_lookup import (
     CaseIdInputPortMixin,
 )
@@ -344,23 +354,37 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
 
     Pending-assertion state is this actor's own in-memory record, not case
     state (CLP-06-002), so the node is not a state writer.
+
+    The case, the refused activity and the notice's sender are read from
+    ``/case_id``, ``/refused_activity_id`` and ``/sender_id`` (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, REFUSED_ACTIVITY_ID, SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, REFUSED_ACTIVITY_ID, SENDER_ID)
 
     def __init__(
         self,
-        case_id: str,
-        refused_activity_id: str,
         reason: str | None,
-        sender_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.refused_activity_id = refused_activity_id
         self.reason = reason
-        self.sender_id = sender_id
         self.cleared: list[PendingAssertion] = []
         """The pending entries the last run cleared."""
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self.refused_activity_id: str = act_value(
+            self, REFUSED_ACTIVITY_ID, str
+        )
+        self.sender_id: str = act_value(self, SENDER_ID, str)
 
     def update(self) -> Status:
         self.cleared = []
@@ -406,21 +430,34 @@ class ResumeOutboundSequenceNode(DataLayerActionWithPorts):
 
     The counter is this actor's own bookkeeping (SYNC-21-020), not case
     state, so the node is not a state writer.
+
+    The case and the notice's sender are read from ``/case_id`` and
+    ``/sender_id`` (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, SENDER_ID)
 
     def __init__(
         self,
-        case_id: str,
         expected: int,
-        sender_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
         self.expected = expected
-        self.sender_id = sender_id
         self.moved = False
         """Whether the last run moved the counter."""
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self.sender_id: str = act_value(self, SENDER_ID, str)
 
     def update(self) -> Status:
         self.moved = False
