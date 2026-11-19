@@ -162,14 +162,16 @@ The tool reads each line from the ledger; nobody writes it by hand.
 | ⚠️ sub-optimal | Any other trade-off move. |
 | ➖ neutral | An unhelpful move that changes no Vendor's values, or a move that keeps every state, such as a second embargo proposal. |
 | 👎 bad | An unhelpful move that leaves a Vendor below the chance value. |
-| 🎲 not graded | An event no participant chooses, such as an exploit made public. |
+| 🎲 not graded | An event no participant chooses: an exploit made public, attacks observed, or the public becoming aware of the vul, unless an embargo ended on its own terms before that. |
 | 💬 not graded | An act that is not a move, such as a note, or a participant's answer to an embargo invitation. |
 
 The icons differ in shape, so you can read them without color.
 A best, good or sub-optimal mark also takes the shade its layer has on its band's legend.
-Making the vul public is a participant's move, so the entry that first makes the case public is graded like any other move.
-When an exploit was already public, the public's awareness follows from it, so that entry is 🎲.
-The ledger does not record whether the public learned of the vul from a participant's publication or from a leak, so a leak with no public exploit before it is graded as a publication.
+The ledger records that the public became aware of the vul, but not whether a participant published it or it leaked.
+So the entry that makes the case public is 🎲, except after an embargo that ended on its own terms, at its end time or because a fix was ready or deployed.
+That entry is graded as a participant's publication.
+A public exploit always makes the public aware, so an entry that follows one is 🎲.
+A later publication changes no state, so it is 💬.
 
 To see whether a better move was open earlier, pick a narrative line in **Show the case as it stood just after**, above the scoreboard.
 The scoreboard then shows the case as it stood just after that entry: its states and their maps, its participants and their tabs, its desiderata, and its move bands with their color legends, worked out from the entries up to that line only.

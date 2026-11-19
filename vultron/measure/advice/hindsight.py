@@ -27,21 +27,21 @@ that makes the same change, and grades that move by its band and layer:
 
 Two marks grade nothing.  **Chance** marks an event no participant chooses:
 an exploit made public or attacks observed (X, A), and the public becoming
-aware of a vul whose exploit was already public, which X forces.  **Not a move** marks
+aware of the vul, unless an embargo ended on its own terms before it.  **Not a move** marks
 every other entry: one that changes no state the advice weighs, such as a
 note or a consent answer (PEC moves are not advised yet), one whose change no
 advised move makes, one whose move has no band, and an entry with no advice
 before it.
 
-Publication is a participant's move (:data:`~.shifts.CHANCE_EVENTS`), and
-only the first publication makes the case public, so an entry that makes the
-case public, with no public exploit before it, is graded as the advice's
-public-awareness move.  A later publication changes no state and grades
-nothing.  The case public state P means the public is aware the vul exists,
-not that anyone published: a public exploit forces it, and so may a leak.
-The ledger records only that the case became public, never whether a
-participant published, so a P that no public exploit forced is graded as the
-publication move even when a leak caused it.
+The case public state P means the public is aware the vul exists, not that
+anyone published: a public exploit forces it, and so may a leak.  The ledger
+records only that the case became public, never whether a participant
+published, so the vul becoming public is chance, with one exception: when the
+case's embargo had ended on its own terms at or before it, the entry is
+graded as the advice's public-awareness move, a participant's publication
+(:data:`~.shifts.CHANCE_EVENTS` holds publication as a move).  Only the first
+publication makes the case public; a later one changes no state and grades
+nothing.  Telling a publication from a leak is #6732.
 
 An entry is one step, so it gets one mark.  When it changes several machines,
 the first machine in this order decides: the public state, a fix path, the
@@ -86,8 +86,14 @@ from vultron.measure.advice.case import (
     CaseAdvice,
     UnbandedMove,
 )
-from vultron.measure.history import ReachedParticipant, ReachedState
-from vultron.measure.standing import CSMove, EMMove, RMMove
+from vultron.measure.baselines import EmbargoEnd
+from vultron.measure.history import (
+    CaseEventHistory,
+    EventKind as HistoryKind,
+    ReachedParticipant,
+    ReachedState,
+)
+from vultron.measure.standing import CSMove, EMMove, RMMove, embargo_end
 from vultron.primitives import NonEmptyString
 
 
@@ -148,6 +154,14 @@ FORCED_BY_EXPLOIT = (
     " vul: no participant chose this."
 )
 """Why public awareness that follows a public exploit grades nothing."""
+
+NO_KNOWN_PUBLISHER = (
+    "Neither a public exploit nor an embargo that ended on its own terms"
+    " comes before the vul became public, so the ledger cannot tell a"
+    " publication from a leak (#6732)."
+)
+"""Why the public becoming aware of the vul is chance unless an embargo
+ended on its own terms at or before it."""
 
 UNLISTED_CHANCE = "No participant chooses this event."
 """Why an X or A change the advice lists no move for grades nothing."""
@@ -422,6 +436,56 @@ def _forced_by_exploit(before: ReachedState, after: ReachedState) -> bool:
     )
 
 
+def _made_public(before: ReachedState, after: ReachedState) -> bool:
+    """Whether the entry made the public aware of the vul."""
+    was, now = before.pxa.value, after.pxa.value
+    return (
+        was.public_awareness is PublicAwareness.PUBLIC_UNAWARE
+        and now.public_awareness is PublicAwareness.PUBLIC_AWARE
+    )
+
+
+def _unchosen_publicity(
+    before: ReachedState, after: ReachedState, ended_on_own_terms: bool
+) -> str | None:
+    """Why the public becoming aware of the vul at this entry is chance, or
+    ``None`` when it is not: a public exploit forced it, or no embargo that
+    ended on its own terms precedes it, so the ledger cannot say that a
+    participant published.  An entry that also made an exploit public or
+    attacks observed is left to the chance event it records."""
+    if _forced_by_exploit(before, after):
+        return FORCED_BY_EXPLOIT
+    if (
+        _made_public(before, after)
+        and not _chance(before, after)
+        and not ended_on_own_terms
+    ):
+        return NO_KNOWN_PUBLISHER
+    return None
+
+
+def embargo_ended_on_own_terms(
+    history: CaseEventHistory, log_index: int
+) -> bool:
+    """Whether the case's embargo had ended on its own terms at or before
+    the entry at *log_index*, with no embargo in force again since.
+
+    It ended on its own terms when it reached its end time or a fix ended
+    it (:func:`~vultron.measure.standing.embargo_end`), the joint model's
+    own-terms exit.
+    """
+    events = [
+        event
+        for event in history.of_kind(
+            HistoryKind.EMBARGO_START, HistoryKind.EMBARGO_EXIT
+        )
+        if event.log_index <= log_index
+    ]
+    if not events or events[-1].kind is not HistoryKind.EMBARGO_EXIT:
+        return False
+    return embargo_end(events[-1]) is EmbargoEnd.OWN_TERMS
+
+
 def _chance(before: ReachedState, after: ReachedState) -> bool:
     """Whether the entry made an exploit public or attacks observed: the
     events no participant chooses (:data:`~.shifts.CHANCE_EVENTS`)."""
@@ -488,6 +552,8 @@ def hindsight_mark(
     after: ReachedState,
     advice_before: Callable[[], CaseAdvice | None],
     actor: str | None = None,
+    *,
+    ended_on_own_terms: bool = False,
 ) -> NarrativeMark:
     """The hindsight mark of the entry at *log_index* (#6672).
 
@@ -503,6 +569,10 @@ def hindsight_mark(
             none.
         actor: The entry's acting actor, whose own move is preferred when
             several participants' moves make the same change.
+        ended_on_own_terms: Whether the case's embargo had ended on its own
+            terms at or before the entry (:func:`embargo_ended_on_own_terms`):
+            the one case in which the vul becoming public, with no public
+            exploit before it, is graded as a participant's publication.
     """
 
     def not_graded(mark: HindsightMark, note: str) -> NarrativeMark:
@@ -511,8 +581,13 @@ def hindsight_mark(
     machine = _first_changed(before, after)
     if machine is None:
         return not_graded(HindsightMark.NOT_A_MOVE, NO_STATE_CHANGE)
-    if machine is _Machine.PUBLIC and _forced_by_exploit(before, after):
-        return not_graded(HindsightMark.CHANCE, FORCED_BY_EXPLOIT)
+    unchosen = (
+        _unchosen_publicity(before, after, ended_on_own_terms)
+        if machine is _Machine.PUBLIC
+        else None
+    )
+    if unchosen is not None:
+        return not_graded(HindsightMark.CHANCE, unchosen)
     advice = advice_before()
     if advice is None:
         return not_graded(HindsightMark.NOT_A_MOVE, NO_ADVICE)
@@ -537,11 +612,13 @@ __all__ = [
     "GRADED",
     "NO_ADVICE",
     "NO_ADVISED_MOVE",
+    "NO_KNOWN_PUBLISHER",
     "NO_STATE_CHANGE",
     "PUBLIC_EVENTS",
     "SHADED",
     "REGISTER_PROBLEM",
     "UNLISTED_CHANCE",
+    "embargo_ended_on_own_terms",
     "HindsightMark",
     "NarrativeMark",
     "hindsight_mark",

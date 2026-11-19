@@ -53,7 +53,11 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_reading import CaseReading
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.measure.advice import CaseAdvice, case_advice
-from vultron.measure.advice.hindsight import NarrativeMark, hindsight_mark
+from vultron.measure.advice.hindsight import (
+    NarrativeMark,
+    embargo_ended_on_own_terms,
+    hindsight_mark,
+)
 from vultron.measure.history import (
     NarrativeLine,
     ReachedState,
@@ -290,7 +294,7 @@ def narrative_marks(
     ledger = reading_ledger(reading)
     if ledger is None:
         return ()
-    _, steps = derive_case_steps(ledger)
+    history, steps = derive_case_steps(ledger)
     reached = [ReachedState(), *steps]
     unobservable = reading.unobservable_events
     return tuple(
@@ -300,6 +304,9 @@ def narrative_marks(
             reached[count + 1],
             partial(advice_of, reading.ledger[:count], unobservable),
             actor_uri(payload_of(row.data).get("actor")),
+            ended_on_own_terms=embargo_ended_on_own_terms(
+                history, row.log_index
+            ),
         )
         for count, row in enumerate(ledger.rows)
     )

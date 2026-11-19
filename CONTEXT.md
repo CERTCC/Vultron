@@ -310,9 +310,9 @@ trade-off, that holds any move), good (harm-free, not best), sub-optimal (trade-
 not best), neutral (unhelpful with every shift zero, or a move that keeps every state)
 or bad (unhelpful with some vendor's shift negative). Two marks grade nothing: chance,
 an event no participant chooses, such as a public exploit; and not a move, an act the
-advice weighs no move for, such as a note or a consent answer. A participant's
-publication that makes the vul public is a move, graded like any other; public awareness
-that a public exploit forces is chance.
+advice weighs no move for, such as a note or a consent answer. The vul becoming public
+is chance, since the ledger cannot tell a publication from a leak, except after an
+embargo that ended on its own terms, when it is graded as a participant's publication.
 *Avoid*: rating, score, verdict (a mark grades one step, never the case)
 
 **VINCE gateway**:

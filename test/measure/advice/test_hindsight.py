@@ -24,6 +24,17 @@ from fractions import Fraction
 import pytest
 from pydantic import ValidationError
 
+from test.measure.history.builders import (
+    CM,
+    OWNER,
+    VENDOR,
+    Ledger,
+    exit_embargo,
+    participant,
+    publish,
+    seat_vendor,
+    status,
+)
 from vultron.core.states.cs import CS, CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM, EM_Trigger
@@ -44,6 +55,7 @@ from vultron.measure.advice import (
     VendorHarm,
     VendorShift,
     band,
+    case_advice,
     harms,
     hindsight_mark,
 )
@@ -52,21 +64,29 @@ from vultron.measure.advice.hindsight import (
     ADVICE_GAP,
     DID_AS_WELL,
     FORCED_BY_EXPLOIT,
+    GRADED,
     NO_ADVICE,
     NO_ADVISED_MOVE,
+    NO_KNOWN_PUBLISHER,
     NO_STATE_CHANGE,
     REGISTER_PROBLEM,
     UNLISTED_CHANCE,
+    embargo_ended_on_own_terms,
     no_band,
     owns_state,
     register_trigger,
 )
-from vultron.measure.history import ReachedParticipant, ReachedState
+from vultron.measure.history import (
+    ReachedParticipant,
+    ReachedState,
+    derive_case_steps,
+)
 from vultron.measure.standing import (
     CSMove,
     EMMove,
     RMMove,
     StandingGap,
+    case_standing,
 )
 
 _VENDOR = "https://example.org/actors/vendor"
@@ -179,8 +199,17 @@ def _mark(
     advice: CaseAdvice | None,
     before: ReachedState = _BEFORE,
     actor: str | None = _VENDOR,
+    *,
+    ended_on_own_terms: bool = False,
 ) -> NarrativeMark:
-    return hindsight_mark(7, before, after, lambda: advice, actor)
+    return hindsight_mark(
+        7,
+        before,
+        after,
+        lambda: advice,
+        actor,
+        ended_on_own_terms=ended_on_own_terms,
+    )
 
 
 #: A harm-free move in layer 1, so harm-free is the first band with moves.
@@ -293,15 +322,16 @@ def test_attacks_the_advice_lists_no_move_for_are_still_chance():
 
 
 def test_making_the_vul_public_is_graded_as_the_move_it_is():
-    """Publication is a participant's move, not a chance event: the case
-    manager adopting the public state is graded by the advice's move."""
+    """After an embargo that ended on its own terms, the vul becoming public
+    is a participant's publication: the case manager adopting the public
+    state is graded by the advice's move."""
     advised = _advised(_PUBLISH, [(1, 0), (1, 0)], layer=1, top=True)
     case_managers = UnbandedMove(
         move=_PUBLISH.model_copy(update={"participant": _OWNER}),
         reason="rm.close by the owner moves no vendor's state",
     )
     advice = _advice(advised, unbanded=[case_managers])
-    mark = _mark(_PUBLIC, advice, actor=_OWNER)
+    mark = _mark(_PUBLIC, advice, actor=_OWNER, ended_on_own_terms=True)
     assert mark.mark is HindsightMark.BEST
     assert mark.move == _PUBLISH
 
@@ -384,7 +414,12 @@ def test_an_entry_that_changes_several_machines_is_graded_by_its_first():
         pxa=CS_pxa.Pxa,
         register={_EMBARGO: EmbargoRegisterStatus.TERMINATED},
     )
-    mark = _mark(after, _advice(publish, terminate), before=before)
+    mark = _mark(
+        after,
+        _advice(publish, terminate),
+        before=before,
+        ended_on_own_terms=True,
+    )
     assert mark.move == _PUBLISH
     assert mark.mark is HindsightMark.GOOD
 
@@ -395,7 +430,7 @@ def test_a_first_change_no_move_makes_is_never_passed_over():
     the line is not graded as the later machine's move."""
     accept = _advised(_ACCEPT, [(1, 0), (1, 0)], layer=1, top=True)
     after = _state(rm=RM.ACCEPTED, pxa=CS_pxa.Pxa)
-    mark = _mark(after, _advice(accept))
+    mark = _mark(after, _advice(accept), ended_on_own_terms=True)
     assert (mark.mark, mark.note) == (
         HindsightMark.NOT_A_MOVE,
         NO_ADVISED_MOVE,
@@ -528,3 +563,103 @@ def test_of_two_moves_that_make_one_change_the_actors_own_is_graded():
     for actor, move in ((_OWNER, owners), (_VENDOR, vendors)):
         mark = _mark(after, _advice(owners, vendors), actor=actor)
         assert mark.move == move.move
+
+
+def test_the_vul_becoming_public_with_no_known_publisher_is_chance():
+    """With no public exploit and no embargo that ended on its own terms
+    before it, the ledger cannot tell a publication from a leak (#6732)."""
+
+    def no_advice_wanted() -> CaseAdvice:
+        raise AssertionError("a chance event reads no advice")
+
+    mark = hindsight_mark(3, _BEFORE, _PUBLIC, no_advice_wanted)
+    assert (mark.mark, mark.note) == (
+        HindsightMark.CHANCE,
+        NO_KNOWN_PUBLISHER,
+    )
+
+
+# -- the embargo's end before the vul became public, over real ledgers ---
+
+
+def _vendor_case(*, with_embargo: bool = True) -> Ledger:
+    ledger = Ledger()
+    if with_embargo:
+        ledger.standard_genesis()
+    else:
+        ledger.genesis(
+            [
+                participant(
+                    OWNER,
+                    [status("owner-r", OWNER, "RECEIVED")],
+                    roles=("CASE_OWNER",),
+                )
+            ],
+            with_embargo=False,
+        )
+    seat_vendor(ledger, VENDOR, "Vf")
+    return ledger
+
+
+def _publication_mark(ledger: Ledger) -> NarrativeMark:
+    """The mark of the CASE_MANAGER making *ledger*'s case public next,
+    graded by the real advice before it."""
+    advice = case_advice(case_standing(ledger.case_ledger()))
+    log_index = publish(ledger, "Pxa")
+    history, steps = derive_case_steps(ledger.case_ledger())
+    return hindsight_mark(
+        log_index,
+        steps[-2],
+        steps[-1],
+        lambda: advice,
+        CM,
+        ended_on_own_terms=embargo_ended_on_own_terms(history, log_index),
+    )
+
+
+@pytest.mark.parametrize(
+    ("content", "cause"),
+    [("END_TIME_REACHED", None), ("EARLY", {"kind": "FIX_READY"})],
+    ids=["its end time", "a fix ready"],
+)
+def test_publication_after_an_embargo_ended_on_its_own_terms_is_graded(
+    content, cause
+):
+    """ExOwn before P: the publication is the advice's move, graded."""
+    ledger = _vendor_case()
+    exit_embargo(ledger, content=content, cause=cause)
+    mark = _publication_mark(ledger)
+    assert mark.mark in GRADED
+    assert isinstance(mark.move, CSMove) and mark.move.event is CSEvent.P
+
+
+def test_an_embargo_ended_on_its_own_terms_in_the_same_entry_counts():
+    """ExOwn in the entry that makes the case public: at or before P."""
+    ledger = _vendor_case()
+    ended = exit_embargo(ledger, content="END_TIME_REACHED")
+    history = ledger.history()
+    assert embargo_ended_on_own_terms(history, ended)
+    assert not embargo_ended_on_own_terms(history, ended - 1)
+
+
+def test_publication_with_no_embargo_is_chance():
+    mark = _publication_mark(_vendor_case(with_embargo=False))
+    assert (mark.mark, mark.note) == (
+        HindsightMark.CHANCE,
+        NO_KNOWN_PUBLISHER,
+    )
+
+
+@pytest.mark.parametrize(
+    "cause",
+    [None, {"kind": "THREAT_SIGNAL", "signals": ["X"]}, {"kind": "OTHER"}],
+    ids=["no cause", "a threat signal", "another cause"],
+)
+def test_publication_after_an_early_terminated_embargo_is_chance(cause):
+    ledger = _vendor_case()
+    exit_embargo(ledger, content="EARLY", cause=cause)
+    mark = _publication_mark(ledger)
+    assert (mark.mark, mark.note) == (
+        HindsightMark.CHANCE,
+        NO_KNOWN_PUBLISHER,
+    )

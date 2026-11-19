@@ -34,10 +34,14 @@ from vultron.core.models.case_reading import (
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.advice import HindsightMark, case_advice
-from vultron.measure.advice.hindsight import NO_ADVICE, NO_STATE_CHANGE
+from vultron.measure.advice.hindsight import (
+    NO_ADVICE,
+    NO_KNOWN_PUBLISHER,
+    NO_STATE_CHANGE,
+)
 from vultron.measure.history import case_narrative
 from vultron.measure.ledger import read_case_ledgers
-from vultron.measure.standing import CSMove, DesideratumStatus, case_standing
+from vultron.measure.standing import DesideratumStatus, case_standing
 from vultron.shadow.analysis import (
     analyse,
     analyse_prefix,
@@ -363,12 +367,15 @@ def test_each_line_is_graded_by_the_advice_for_the_entries_before_it():
     narrative = analyse(reading).narrative
     assert [m.log_index for m in marks] == [n.log_index for n in narrative]
     changed = [i for i, line in enumerate(narrative) if line.changes]
-    assert asked == changed
+    # The case's publication is chance whatever the advice, so it asks none.
+    unasked_changes = [i for i in changed if i not in asked]
+    assert asked == [i for i in changed if i not in unasked_changes]
+    assert [marks[i].note for i in unasked_changes] == [NO_KNOWN_PUBLISHER]
     assert marks[0].note == NO_ADVICE
     assert all(
         marks[i].note == NO_STATE_CHANGE
         for i in range(len(marks))
-        if i not in asked
+        if i not in changed
     )
     assert marks == narrative_marks(reading)
 
@@ -379,10 +386,13 @@ def test_the_advice_for_a_prefix_reads_its_entries_alone():
     assert ledger_advice(()) is None
 
 
-def test_making_the_case_public_is_graded_as_the_publication_move():
-    """The user's ruling for #6672: publishing is a participant's move, and
-    the first publication is the one that makes the case public, so its
-    line is graded as the advice's public-awareness move, never as chance."""
+def test_the_case_made_public_before_its_embargo_ended_is_chance():
+    """The user's rulings for #6672: P means the public is aware, not that
+    anyone published, and the ledger cannot tell a publication from a leak
+    (#6732).  This case goes public while its embargo is still in force, so
+    its line is chance; only after an embargo that ended on its own terms
+    is the vul becoming public graded as a publication
+    (``test/measure/advice/test_hindsight.py``)."""
     reading = _rv()
     narrative = analyse(reading).narrative
     marks = narrative_marks(reading)
@@ -391,9 +401,10 @@ def test_making_the_case_public_is_graded_as_the_publication_move():
         for line, mark in zip(narrative, marks, strict=True)
         if any(c.machine == "PXA" for c in line.changes)
     ]
-    assert isinstance(public.move, CSMove)
-    assert public.move.event is CSEvent.P
-    assert public.mark not in (HindsightMark.CHANCE, HindsightMark.NOT_A_MOVE)
+    assert (public.mark, public.note) == (
+        HindsightMark.CHANCE,
+        NO_KNOWN_PUBLISHER,
+    )
 
 
 def test_a_consent_answer_is_not_a_move():
