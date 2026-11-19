@@ -50,7 +50,7 @@ flowchart TB
     end
     subgraph as:Add
         AddStatusToParticipant["Vendor Awareness (CV) / Fix Readiness (CF) / Fix Deployed (CD)<br/>Add(ParticipantStatus)"]
-        AddParticipantToCase["Reinstate Participant in Case<br/>Add(Actor)"]
+        ReinstateParticipantInCase["Reinstate Participant in Case<br/>Add(Actor)"]
     end
     subgraph as:Remove
         RemoveParticipantFromCase["Remove Participant from Case<br/>Remove(Actor)"]
@@ -68,8 +68,8 @@ flowchart TB
     r -->|y| RemoveParticipantFromCase
     r -->|n| s
     RemoveParticipantFromCase --> b{Reinstate?}
-    b -->|y| AddParticipantToCase
-    AddParticipantToCase --> s
+    b -->|y| ReinstateParticipantInCase
+    ReinstateParticipantInCase --> s
 ```
 
 ---
@@ -146,7 +146,7 @@ Status is self-declaratory: send your own, and expect each participant to send i
 
 Only the Case Owner removes a participant.
 Call the `remove-participant` trigger with the case and the actor.
-It sends your own act, `Remove(<Actor>, origin=<case>)`, to the CASE_MANAGER.
+It sends your own act, `Remove(Actor)` with the case as its `origin`, to the CASE_MANAGER.
 The act names the actor as a typed reference (`id` and `type`), not its `CaseParticipant` record, and names the case in `origin`, the collection the actor leaves ([ADR-0199](../../../adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md)).
 If you are both the Case Owner and the CASE_MANAGER, the trigger sends the act to your own inbox, which admits it under the same rules.
 
@@ -160,7 +160,7 @@ A second removal of the same participant changes nothing.
 
 The CASE_MANAGER records your `Remove` as the one ledger entry and sends that entry to every active participant, the removed one included.
 It sends no `Accept`, and makes no `Remove` of its own.
-It sends the removed actor its own `Announce(<your Remove>)`, which carries your act as you sent it and names it in `inReplyTo`.
+It sends the removed actor its own `Announce(Activity)` carrying your `Remove`, which carries your act as you sent it and names it in `inReplyTo`.
 The `Announce` informs and asks nothing: the removed participant's replica takes the removal from the ledger entry, never from the `Announce`.
 The removed participant receives no later ledger entries, and no Invite of any kind.
 
@@ -183,7 +183,7 @@ See [How to Advance a Case Through Report Management](manage_case.md).
 
 Only the Case Owner reinstates a removed participant.
 Call the `reinstate-participant` trigger with the case and the actor.
-It sends your own act, `Add(<Actor>, target=<case>)`, to the CASE_MANAGER, naming the actor as a typed reference.
+It sends your own act, `Add(Actor)` with the case as its `target`, to the CASE_MANAGER, naming the actor as a typed reference.
 If you are both the Case Owner and the CASE_MANAGER, the trigger sends the act to your own inbox.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/reinstate-participant-in-case.md" %}
@@ -196,7 +196,7 @@ A reinstatement does not seat a new member; an actor joins only by accepting its
 
 The CASE_MANAGER records your `Add` as the one ledger entry.
 When the participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order.
-It also sends the participant its own `Announce(<your Add>)`, which informs and asks nothing.
+It also sends the participant its own `Announce(Activity)` carrying your `Add`, which informs and asks nothing.
 A participant that has not accepted the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and its catch-up waits until it accepts.
 
 ---
@@ -208,8 +208,8 @@ A participant that has not accepted the active embargo stays inert: the CASE_MAN
 | `Invite(VulnerabilityCase preview)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
 | `Accept(Invite(VulnerabilityCase preview))` | The roster holds the participant with its roles. |
 | `Add(ParticipantStatus)` | The participant's status history carries the new status. |
-| `Remove(<Actor>, origin=<case>)` | The roster still lists the participant, its record names your `Remove` as its `removalActivity`, and the actor holds the CASE_MANAGER's `Announce` of your `Remove`. |
-| `Add(<Actor>, target=<case>)` | The participant's record has no `removalActivity`, the participant holds the ledger entries it missed, and it holds the CASE_MANAGER's `Announce` of your `Add`. |
+| `Remove(Actor)` with the case as its `origin` | The roster still lists the participant, its record names your `Remove` as its `removalActivity`, and the actor holds the CASE_MANAGER's `Announce` of your `Remove`. |
+| `Add(Actor)` with the case as its `target` | The participant's record has no `removalActivity`, the participant holds the ledger entries it missed, and it holds the CASE_MANAGER's `Announce` of your `Add`. |
 | `Accept`, `TentativeReject` or `Reject` of the full-case Invite | The CASE_MANAGER's record of the participant shows RM `VALID`, `INVALID` or `CLOSED`. |
 
 ---

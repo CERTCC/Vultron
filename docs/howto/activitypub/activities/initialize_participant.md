@@ -68,7 +68,7 @@ If all participants are known when the case is created, seat them inline on the 
 
 !!! warning "An `Add` does not seat a member"
 
-    The Case Owner's `Add(<Actor>)` reinstates a participant it removed earlier.
+    The Case Owner's `Add(Actor)` reinstates a participant it removed earlier.
     The CASE_MANAGER refuses one that names an actor that never joined, so an `Add` cannot take the place of the Invite.
     See [How to Manage a Case Roster](manage_participants.md#reinstate-a-participant).
 
