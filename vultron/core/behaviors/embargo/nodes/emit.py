@@ -17,8 +17,18 @@
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
+from vultron.core.behaviors.case_id_scope import require_case_source
 from vultron.core.behaviors.emit_capable import EmitCapable
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 
 
@@ -37,11 +47,23 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts, EmitCapable):
     Subclasses must override all four hook methods.  Subclasses that read from
     the blackboard must also override ``setup()`` to register their keys (calling
     ``super().setup(**kwargs)`` first).
+
+    Args:
+        case_id: The case the activity is about, or ``None`` for a subclass
+            of :class:`_SendEmbargoActivityForCaseKey`, which reads it from
+            ``/case_id`` when it ticks (BTND-01-008).  #6578 moves every
+            subclass to the key and removes this parameter.
+        name: Node name; defaults to the class name.
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    #: The case the activity is about.
+    _case_id: str
+
+    def __init__(self, case_id: str | None, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+        require_case_source(self, given=case_id is not None)
+        if case_id is not None:
+            self._case_id = case_id
 
     def _on_factory_unavailable(self) -> Status:
         """Status to return when ``trigger_activity_factory`` is ``None``.
@@ -129,3 +151,29 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts, EmitCapable):
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
+
+
+class _SendEmbargoActivityForCaseKey(_SendEmbargoActivityBase):
+    """An embargo emit node that reads its case from ``/case_id``.
+
+    The case comes only from the ``/case_id`` input port (BTND-01-008); a
+    tree that names it at build time seeds the port with
+    :func:`~vultron.core.behaviors.case_id_scope.with_case_id`.  A subclass
+    that binds further ports merges this class's bindings with its own.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_SendEmbargoActivityBase.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(case_id=None, name=name)
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID)
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id = act_value(self, CASE_ID, str)

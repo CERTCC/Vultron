@@ -35,6 +35,7 @@ from test.support.future_dates import days_from_now
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes.chosen_cause import (
     ChosenTermination,
 )
@@ -181,25 +182,19 @@ def _run(
 
 class TestSendTerminateEmbargoActivityNodePorts:
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = SendTerminateEmbargoActivityNode(
-            case_id=CASE_ID, reason=TerminationReason.EARLY
-        )
+        node = SendTerminateEmbargoActivityNode(reason=TerminationReason.EARLY)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("datalayer")
 
     def test_missing_embargo_id_raises_no_data_available(self) -> None:
-        node = SendTerminateEmbargoActivityNode(
-            case_id=CASE_ID, reason=TerminationReason.EARLY
-        )
+        node = SendTerminateEmbargoActivityNode(reason=TerminationReason.EARLY)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("embargo_id")
 
     def test_missing_case_manager_id_raises_no_data_available(self) -> None:
-        node = SendTerminateEmbargoActivityNode(
-            case_id=CASE_ID, reason=TerminationReason.EARLY
-        )
+        node = SendTerminateEmbargoActivityNode(reason=TerminationReason.EARLY)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("case_manager_id")
@@ -217,8 +212,11 @@ class TestSendTerminateEmbargoActivityNodePorts:
         which builds its own bridge (CONCERN-3019).
         """
         result = bt_scenario.run(
-            SendTerminateEmbargoActivityNode(
-                case_id=CASE_ID, reason=TerminationReason.EARLY
+            with_case_id(
+                SendTerminateEmbargoActivityNode(
+                    reason=TerminationReason.EARLY
+                ),
+                CASE_ID,
             ),
             actor_id=ACTOR_ID,
             embargo_id="https://example.org/embargoes/emb-001",
@@ -230,8 +228,11 @@ class TestSendTerminateEmbargoActivityNodePorts:
     def test_failure_when_factory_unavailable(self) -> None:
         """No trigger-activity port: FAILURE, nothing queued or recorded."""
         dl, result = _run(
-            SendTerminateEmbargoActivityNode(
-                case_id=CASE_ID, reason=TerminationReason.EARLY
+            with_case_id(
+                SendTerminateEmbargoActivityNode(
+                    reason=TerminationReason.EARLY
+                ),
+                CASE_ID,
             ),
             _VENDOR_ID,
             factory=None,
@@ -250,8 +251,11 @@ class TestTeardownAsk:
         factory = _factory()
 
         _run(
-            SendTerminateEmbargoActivityNode(
-                case_id=CASE_ID, reason=TerminationReason.EARLY
+            with_case_id(
+                SendTerminateEmbargoActivityNode(
+                    reason=TerminationReason.EARLY
+                ),
+                CASE_ID,
             ),
             _VENDOR_ID,
             factory,
@@ -267,8 +271,11 @@ class TestTeardownAsk:
     @pytest.mark.spec("SYNC-11-002")
     def test_queued_ask_is_recorded_keyed_by_the_ended_embargo(self) -> None:
         dl, result = _run(
-            SendTerminateEmbargoActivityNode(
-                case_id=CASE_ID, reason=TerminationReason.EARLY
+            with_case_id(
+                SendTerminateEmbargoActivityNode(
+                    reason=TerminationReason.EARLY
+                ),
+                CASE_ID,
             ),
             _VENDOR_ID,
             _factory(),
@@ -297,8 +304,11 @@ class TestTeardownAsk:
             _boom,
         )
         _, result = _run(
-            SendTerminateEmbargoActivityNode(
-                case_id=CASE_ID, reason=TerminationReason.EARLY
+            with_case_id(
+                SendTerminateEmbargoActivityNode(
+                    reason=TerminationReason.EARLY
+                ),
+                CASE_ID,
             ),
             _VENDOR_ID,
             _factory(),
@@ -324,8 +334,11 @@ class TestTeardownAsk:
             _boom,
         )
         dl, result = _run(
-            SendTerminateEmbargoActivityNode(
-                case_id=CASE_ID, reason=TerminationReason.EARLY
+            with_case_id(
+                SendTerminateEmbargoActivityNode(
+                    reason=TerminationReason.EARLY
+                ),
+                CASE_ID,
             ),
             _VENDOR_ID,
             _factory(),
@@ -343,8 +356,11 @@ class TestTeardownAsk:
         factory = _factory()
 
         dl, result = _run(
-            SendTerminateEmbargoActivityNode(
-                case_id=CASE_ID, reason=TerminationReason.EARLY
+            with_case_id(
+                SendTerminateEmbargoActivityNode(
+                    reason=TerminationReason.EARLY
+                ),
+                CASE_ID,
             ),
             _MANAGER_ID,
             factory,
@@ -441,7 +457,8 @@ class TestAskCaseManagerToTerminateOnce:
 
     def test_pending_guard_without_an_actor_is_a_wiring_fault(self) -> None:
         """A FAILURE here would read as "not pending" and send the ask."""
-        node = TeardownAskPendingNode(case_id=CASE_ID)
+        node = TeardownAskPendingNode()
+        node._case_id = CASE_ID
         node.actor_id = None
         node.embargo_id = _EMBARGO_ID
 

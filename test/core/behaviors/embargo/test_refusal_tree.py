@@ -24,6 +24,7 @@ import pytest
 
 from test.support.future_dates import days_from_now
 from test.support.objects import make
+from vultron.core.behaviors.act_key_scope import unscoped
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     DiversionStage,
 )
@@ -85,7 +86,7 @@ def test_the_invite_refusal_stores_checks_then_sends_the_reject_last() -> None:
     # ahead of it does, so no exemption is recorded (BT-17-008, HP-01-038).
     assert refusal.emit_exemption is None
     assert isinstance(refusal.condition, PxaBarsEmbargoNode)
-    assert [type(n) for n in refusal.effects] == [
+    assert [type(unscoped(n)) for n in refusal.effects] == [
         PersistEmbargoEventNode,
         ReceiverIsInviteeNode,
         RefusalFactoryAvailableNode,
@@ -97,7 +98,7 @@ def test_the_invite_refusal_stores_checks_then_sends_the_reject_last() -> None:
 
 @pytest.mark.spec("EMB-01-002")
 def test_an_invite_naming_its_terms_by_uri_stores_no_terms() -> None:
-    types = [type(n) for n in _invite_refusal().effects]
+    types = [type(unscoped(n)) for n in _invite_refusal().effects]
 
     assert PersistEmbargoEventNode not in types
     assert types[0] is ReceiverIsInviteeNode

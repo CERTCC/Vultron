@@ -60,6 +60,7 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
 )
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes import (
     ChooseTerminationCauseNode,
     ChosenTermination,
@@ -91,8 +92,8 @@ def _reason_branch(
         memory=False,
         children=[
             call_out(call_out_name),
-            ChooseTerminationCauseNode(
-                case_id=case_id, kind=kind, chosen=chosen
+            with_case_id(
+                ChooseTerminationCauseNode(kind=kind, chosen=chosen), case_id
             ),
         ],
     )

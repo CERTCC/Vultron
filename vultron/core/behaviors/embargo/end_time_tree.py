@@ -51,13 +51,22 @@ from typing import cast
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EmbargoActivityBuilder,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
-from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.sync.nodes import CheckLedgerFreshnessNode
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
@@ -84,18 +93,30 @@ class EmbargoAlreadyEndedNode(DataLayerConditionWithPorts):
     end-time request finds the ``TERMINATED`` entry and commits nothing
     (ADR-0122).  Sets ``result_out[EMBARGO_ALREADY_ENDED_KEY]``.  FAILURE
     otherwise, a case that cannot be read included, so the termination
-    branch runs and reports it.
+    branch runs and reports it.  The case is read from ``/case_id``
+    (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
 
     def __init__(
         self,
-        case_id: str,
         result_out: dict[str, object],
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
         self._result_out = result_out
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID)
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -124,12 +145,25 @@ class EmbargoEndTimePassedNode(DataLayerConditionWithPorts):
     there is no embargo in force or its end time is still ahead.  The
     embargo is read inline from the register when carried there, else from
     the store; one that cannot be read is FAILURE with a WARNING, so the
-    lazy check never ends an embargo whose terms it cannot see.
+    lazy check never ends an embargo whose terms it cannot see.  The case is
+    read from ``/case_id`` (BTND-01-008).
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID)
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -185,7 +219,9 @@ def end_embargo_at_end_time_bt(
         name="EndEmbargoAtEndTimeBT",
         memory=False,
         children=[
-            EmbargoAlreadyEndedNode(case_id=case_id, result_out=result_out),
+            with_case_id(
+                EmbargoAlreadyEndedNode(result_out=result_out), case_id
+            ),
             terminate_embargo_bt(
                 case_id=case_id,
                 result_out=result_out,
@@ -220,7 +256,7 @@ def end_time_clock_decision(*, case_id: str) -> py_trees.behaviour.Behaviour:
         children=[
             py_trees.decorators.Inverter(
                 name="EndTimeNotPassed",
-                child=EmbargoEndTimePassedNode(case_id=case_id),
+                child=with_case_id(EmbargoEndTimePassedNode(), case_id),
             ),
             py_trees.composites.Sequence(
                 name="EndEmbargoOnAFreshLedger",

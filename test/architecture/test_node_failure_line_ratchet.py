@@ -109,7 +109,7 @@ KNOWN_NODE_FEEDBACK_WARNINGS: frozenset[str] = frozenset(
         "vultron/core/behaviors/embargo/nodes/teardown.py::SendAnnounceEmbargoEventNode._on_factory_unavailable",
         "vultron/core/behaviors/embargo/nodes/teardown.py::SendAnnounceEmbargoEventNode._on_outbox_write_failure",
         "vultron/core/behaviors/embargo/nodes/teardown.py::SendAnnounceEmbargoEventNode._resolve_embargo_and_manager",
-        "vultron/core/behaviors/embargo/nodes/teardown.py::TerminationIsTimelyNode.update",
+        "vultron/core/behaviors/embargo/nodes/teardown_guards.py::TerminationIsTimelyNode.update",
         "vultron/core/behaviors/embargo/nodes/terminate.py::SendTerminateEmbargoActivityNode._on_factory_unavailable",
         "vultron/core/behaviors/embargo/nodes/terminate.py::SendTerminateEmbargoActivityNode._on_outbox_write_failure",
         "vultron/core/behaviors/embargo/nodes/termination_cause_guard.py::TerminationCauseIsAdmissibleNode.update",

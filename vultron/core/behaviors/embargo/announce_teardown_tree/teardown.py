@@ -29,11 +29,20 @@ from datetime import datetime
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    EMBARGO,
+    EMBARGO_ID,
+    SENDER_ID,
+    TERMINATED_AT,
+)
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.admission_backfill_tree import (
     embargo_admission_backfill_nodes,
 )
@@ -99,18 +108,20 @@ def _teardown_if_active(
             ),
             py_trees.decorators.Inverter(
                 name="EmbargoAlreadyExited",
-                child=HasEmbargoActiveNode(case_id=case_id),
+                child=with_case_id(HasEmbargoActiveNode(), case_id),
             ),
             py_trees.composites.Sequence(
                 name=f"{prefix}ActiveTeardown",
                 memory=False,
                 children=[
                     *before_teardown,
-                    ClearActiveEmbargoNode(
-                        case_id=case_id,
-                        embargo_id=embargo_id,
-                        termination=termination,
-                        terminated_at=terminated_at,
+                    with_act_keys(
+                        ClearActiveEmbargoNode(termination=termination),
+                        {
+                            CASE_ID: case_id,
+                            EMBARGO_ID: embargo_id,
+                            TERMINATED_AT: terminated_at,
+                        },
                     ),
                     *after_teardown,
                 ],
@@ -222,17 +233,18 @@ def remove_embargo_from_case_tree(
             ValidateCaseExistsNode(case_id=case_id),
             # A threat signal arrives as a case status update, never on a
             # case owner's Remove (EMB-13-005).
-            TerminationCauseIsAdmissibleNode(
-                case_id=case_id,
-                sender_actor_id=sender_actor_id,
-                termination=termination,
+            with_act_keys(
+                TerminationCauseIsAdmissibleNode(termination=termination),
+                {CASE_ID: case_id, SENDER_ID: sender_actor_id},
             ),
-            TerminationIsTimelyNode(
-                case_id=case_id,
-                termination=termination,
-                terminated_at=terminated_at,
-                embargo_id=embargo_id,
-                embargo=embargo,
+            with_act_keys(
+                TerminationIsTimelyNode(termination=termination),
+                {
+                    CASE_ID: case_id,
+                    TERMINATED_AT: terminated_at,
+                    EMBARGO_ID: embargo_id,
+                    EMBARGO: embargo,
+                },
             ),
         ],
         # RSH-08-003/CM-31-010: an active replica takes the teardown from the
@@ -253,8 +265,8 @@ def remove_embargo_from_case_tree(
                     children=[
                         py_trees.decorators.Inverter(
                             name="SkipUnlessEndingNoticeAwaited",
-                            child=AwaitsEmbargoEndingNoticeNode(
-                                case_id=case_id
+                            child=with_case_id(
+                                AwaitsEmbargoEndingNoticeNode(), case_id
                             ),
                         ),
                         py_trees.composites.Sequence(
@@ -268,10 +280,13 @@ def remove_embargo_from_case_tree(
                                 # a longer revision): activate it first, so
                                 # either order ends the same (SYNC-19-001,
                                 # SYNC-19-003, CM-31-042).
-                                AdoptRemovedEmbargoRevisionNode(
-                                    case_id=case_id,
-                                    embargo_id=embargo_id,
-                                    embargo=embargo,
+                                with_act_keys(
+                                    AdoptRemovedEmbargoRevisionNode(),
+                                    {
+                                        CASE_ID: case_id,
+                                        EMBARGO_ID: embargo_id,
+                                        EMBARGO: embargo,
+                                    },
                                 ),
                                 _teardown_if_active(
                                     case_id,
@@ -296,8 +311,9 @@ def remove_embargo_from_case_tree(
                 embargo_id,
                 termination,
                 terminated_at,
-                SendAnnounceEmbargoEventNode(
-                    case_id=case_id, embargo_id=embargo_id
+                with_act_keys(
+                    SendAnnounceEmbargoEventNode(),
+                    {CASE_ID: case_id, EMBARGO_ID: embargo_id},
                 ),
                 notices,
                 *embargo_admission_backfill_nodes(case_id, actor_config),

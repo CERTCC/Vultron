@@ -236,12 +236,17 @@ _BRANCH_DECLARATIONS = frozenset(
 )
 
 
+#: The interim key seeders: each wraps one node, its first argument, in a
+#: seeding scope, so the stage member is the node it wraps.
+_SEEDERS = frozenset({"with_act_keys", "with_case_id"})
+
+
 def _stage_member_names(elements: list[ast.expr]) -> set[str]:
     """Bare callee names of the nodes *elements* puts in a stage.
 
     An ``OnPaths`` declaration contributes the nodes it names rather than
     itself: its positional arguments after the branch name, and its
-    ``children=`` keyword.
+    ``children=`` keyword.  A seeder call contributes the node it seeds.
     """
     names: set[str] = set()
     for elem in elements:
@@ -249,6 +254,9 @@ def _stage_member_names(elements: list[ast.expr]) -> set[str]:
             continue
         name = _corpus.callee_name(elem.func)
         if name is None:
+            continue
+        if name in _SEEDERS:
+            names |= _stage_member_names(list(elem.args[:1]))
             continue
         if name not in _BRANCH_DECLARATIONS:
             names.add(name)

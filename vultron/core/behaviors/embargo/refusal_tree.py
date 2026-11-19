@@ -56,6 +56,8 @@ The ``Reject`` is queued by a node of the tree, never by the use case's ``execut
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import EMBARGO
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
 )
@@ -132,7 +134,9 @@ def pxa_invite_refusal(
     """
     effects: list[py_trees.behaviour.Behaviour] = []
     if embargo is not None:
-        effects.append(PersistEmbargoEventNode(embargo=embargo))
+        effects.append(
+            with_act_keys(PersistEmbargoEventNode(), {EMBARGO: embargo})
+        )
     effects.append(
         ReceiverIsInviteeNode(invitee_id=invitee_id, invite_id=invite_id)
     )
