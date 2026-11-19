@@ -1087,7 +1087,12 @@ def test_late_joiner_after_accepted_invite_accepts_case_manager_announce(dl):
     assert accepted.activity["inReplyTo"] == invite.id_
     assert accepted.activity.get("to") == [_CASE_MANAGER_ID]
 
-    announced = _process(dl, _announce_from_case_manager(), _real_dispatcher())
+    # The production dispatcher wires the sync port: the seed states the
+    # copy's ledger position, index -1 here, to the CASE_MANAGER (SYNC-17-008,
+    # SYNC-16-027).
+    from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
+
+    announced = _process(dl, _announce_from_case_manager(), make_dispatcher())
 
     assert announced.status is InboxOutcomeStatus.PROCESSED, (
         announced.failure_reason

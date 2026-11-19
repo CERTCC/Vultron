@@ -20,7 +20,7 @@ mismatches back to the CaseActor, and :class:`_ReadLedgerActivity` used by
 participants to state their ledger position (SYNC-17-001).
 """
 
-from typing import Self
+from typing import ClassVar, Self
 
 from pydantic import (
     Field,
@@ -179,6 +179,10 @@ class _ReadLedgerActivity(as_Read):
     context: NonEmptyString = Field(  # type: ignore[assignment]
         default=...,
     )
+    #: The ledger is identity only and has no record of its own, so storage
+    #: keeps it inline: collapsed to its id, it could not be read back
+    #: (DL-08-001, ADR-0204).
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
     ledger_position: LedgerPosition = Field(  # type: ignore[assignment]
         default=...,
         validation_alias="ledgerPosition",
@@ -210,5 +214,11 @@ class _ReadLedgerActivity(as_Read):
             raise ValueError(
                 f"Read {self.id_!r}: object must be the case's ledger"
                 f" {ledger!r}, not {self.object_.id_!r} (SYNC-17-001)"
+            )
+        if self.object_.items:
+            raise ValueError(
+                f"Read {self.id_!r}: the ledger is identity only and carries"
+                " no items; the ledgerPosition states the position"
+                " (SYNC-17-001, ADR-0204)"
             )
         return self

@@ -1067,8 +1067,14 @@ class TestFirstSeedStatesLedgerPosition:
         # The redelivery replaces the case and asks for what the empty chain
         # lacks, in reply to the Announce (SYNC-16-027); the seed's own
         # statement, which answers nothing, is made once.
-        statements = [r for r in _queued_reads(dl) if r.in_reply_to is None]
+        reads = _queued_reads(dl)
+        statements = [r for r in reads if r.in_reply_to is None]
         assert len(statements) == 1
+        # Each redelivery is a new statement of the empty chain, answered
+        # under the CASE_MANAGER's replay rate bound (SYNC-17-004).
+        (backfill,) = [r for r in reads if r.in_reply_to is not None]
+        assert backfill.ledger_position is not None
+        assert backfill.ledger_position.log_index == EMPTY_LEDGER_LOG_INDEX
 
     @pytest.mark.spec("SYNC-17-001")
     @pytest.mark.spec("SYNC-16-027")

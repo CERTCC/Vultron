@@ -241,11 +241,15 @@ class LedgerPositionReadPattern(ActivityPattern):
     The object is the case's ledger, an ``OrderedCollection`` named by its
     id and type (ADR-0204).  What makes the ``Read`` a position statement is
     the ``ledgerPosition`` it carries (SYNC-17-001): a ``Read`` without one
-    is not matched here.
+    is not matched here.  Nor is one whose ledger lists ``items``: the
+    ledger is identity only, and the position is the ``ledgerPosition``'s
+    to state.
     """
 
     def match(self, activity: as_Activity) -> bool:
         if getattr(activity, "ledger_position", None) is None:
+            return False
+        if getattr(getattr(activity, "object_", None), "items", None):
             return False
         return super().match(activity)
 

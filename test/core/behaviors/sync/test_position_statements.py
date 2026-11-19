@@ -728,6 +728,38 @@ def test_a_read_of_another_ledger_is_refused_at_the_edge() -> None:
 
 
 @pytest.mark.spec("SYNC-17-001")
+def test_a_read_whose_ledger_carries_items_is_refused() -> None:
+    """The ledger is identity only (ADR-0204): a ``Read`` whose ledger lists
+    items is no position statement when it arrives, and is refused when it
+    is built."""
+    ledger = make(
+        as_OrderedCollection,
+        id_=case_ledger_id(CASE_ID),
+        items=["https://example.org/cases/case-001/log/0"],
+    )
+    activity = make(
+        as_Read,
+        actor=SIGNATORY_ID,
+        object_=ledger,
+        context=CASE_ID,
+        ledger_position=LedgerPosition(log_index=0, entry_hash="ab" * 32),
+    )
+
+    assert find_matching_semantics(activity) is not (
+        MessageSemantics.READ_CASE_LEDGER
+    )
+    with pytest.raises(VultronActivityConstructionError) as caught:
+        read_ledger_position_activity(
+            CASE_ID,
+            LedgerPosition(log_index=0, entry_hash="ab" * 32),
+            object_=ledger,
+            actor=SIGNATORY_ID,
+            at=authored_at(),
+        )
+    assert "identity only" in str(caught.value.__cause__)
+
+
+@pytest.mark.spec("SYNC-17-001")
 def test_a_read_event_without_a_parsed_position_is_refused_at_the_edge() -> (
     None
 ):

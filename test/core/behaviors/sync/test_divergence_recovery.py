@@ -1090,6 +1090,7 @@ def test_the_empty_chain_read_survives_the_inbox_rebuild() -> None:
     assert outcome.status is InboxOutcomeStatus.REJECTED, outcome
     assert outcome.failure_reason is not None
     assert "ReadLedgerReceivedBT" in outcome.failure_reason
+    assert "is not a participant" in outcome.failure_reason
     assert list(dl.list_objects("ReplicationState")) == []
 
 
