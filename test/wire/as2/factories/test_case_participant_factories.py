@@ -323,30 +323,23 @@ def test_all_case_participant_factories_importable_from_package():
 
 
 @pytest.mark.spec("VAM-06-008")
-def test_the_announce_class_refuses_a_missing_case_or_a_mismatched_reply():
+@pytest.mark.spec("AF-04-001")
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"case": None},
+        {"in_reply_to": "https://example.org/activities/other"},
+    ],
+    ids=["no-case", "mismatched-reply"],
+)
+def test_the_announce_refuses_a_missing_case_or_a_mismatched_reply(fields):
     """The CASE_MANAGER's own Announce names its case and the act it carries."""
-    from pydantic import ValidationError
-
-    from vultron.wire.as2.vocab.activities.case_participant import (
-        _AnnounceAdmittedActActivity,
-    )
-
     removal = remove_participant_activity(
         _REMOVED_URI, _CASE_URI, actor=_ACTOR_URI, at=authored_at()
     )
-    with pytest.raises(ValidationError, match="names its case"):
-        make(
-            _AnnounceAdmittedActActivity,
-            actor=_ACTOR_URI,
-            object_=removal,
-            in_reply_to=removal.id_,
-            context=None,
-        )
-    with pytest.raises(ValidationError, match="inReplyTo"):
-        make(
-            _AnnounceAdmittedActActivity,
-            actor=_ACTOR_URI,
-            object_=removal,
-            in_reply_to="https://example.org/activities/other",
-            context=_CASE_URI,
+    case = fields.pop("case", _CASE_URI)
+
+    with pytest.raises(VultronActivityConstructionError):
+        announce_admitted_act_activity(
+            removal, case, actor=_ACTOR_URI, at=authored_at(), **fields
         )
