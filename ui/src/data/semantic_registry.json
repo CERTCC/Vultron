@@ -134,7 +134,7 @@
     {
       "semanticType": "offer_case_ownership_transfer",
       "wire": "Offer(VulnerabilityCase)",
-      "phrase": "{actor} offered {object} case ownership"
+      "phrase": "{actor} offered {target} case ownership"
     },
     {
       "semanticType": "accept_case_ownership_transfer",
@@ -309,7 +309,7 @@
     {
       "semanticType": "add_participant_status_to_participant",
       "wire": "Add(ParticipantStatus)[target=CaseParticipant]",
-      "phrase": "{actor} updated {object}'s participant status"
+      "phrase": "{actor} updated {target}'s participant status"
     },
     {
       "semanticType": "create_processing_fault",

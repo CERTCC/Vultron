@@ -18,14 +18,18 @@
 :func:`render` asks the analyst for a case, reads it through the one
 :class:`~vultron.core.ports.case_reader.CaseReader` it is given, and shows
 the case's level 1 standing as a scoreboard, with its open moves in the
-bands of the case's move advice (ADR-0200).  Beside the analysis it always
+bands of the case's move advice (ADR-0200), and the case narrative: one
+line per ledger entry, naming who did what, when, and which states it
+changed.  Beside the analysis it always
 shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
 A reader that can follow a case
 (:class:`~vultron.shadow.readers.following.CaseFollower`), the live Vultron
 case reader, is followed instead of read once: the page shows the case's new
-standing after each ledger entry arrives (#6531).  The last accepted reading
+standing after each ledger entry arrives (#6531), and its narrative gains a
+line for it, keeping every line before it, since each reading holds every
+entry the node has sent (SHD-04-003).  The last accepted reading
 is kept in session state.  A reading the reader refuses shows its error
 above that reading, and a follow that ends marks it as no longer live; the
 reading stays on the page either way (SHD-04-005).
@@ -73,8 +77,8 @@ LAST_READING_KEY = "last_accepted_reading"
 
 #: What the page says of a followed case while it is live, and once not.
 LIVE_NOTE = (
-    "Live: the page follows the case and shows its new standing as each"
-    " ledger entry arrives."
+    "Live: the page follows the case and shows its new standing, and a new"
+    " narrative line, as each ledger entry arrives."
 )
 NOT_LIVE_NOTE = (
     "No longer live: the case's stream has ended. The page shows the case's"
@@ -88,6 +92,14 @@ RECONNECTING_NOTE = (
 NO_ENTRY_NOTE = (
     "No longer live: the case's stream ended before it sent any ledger"
     " entry, so there is no standing to show."
+)
+
+#: What the case narrative's table holds.
+NARRATIVE_NOTE = (
+    "Who did what, when, and which states it changed: one line per ledger"
+    " entry, in ledger order, read from the ledger. The time is the one the"
+    " actor's activity claims; the Case Manager's commit stamp shows only"
+    " where it differs. A state shown as ? is one the source never records."
 )
 
 #: The session-state key counting the follow's heartbeats.
@@ -209,6 +221,22 @@ def _show_advice(advice: CaseAdvice, names: Mapping[str, str]) -> None:
     )
 
 
+def _show_narrative(analysis: CaseAnalysis) -> None:
+    """The case narrative: one line per ledger entry, in ledger order."""
+    if not analysis.narrative:
+        return
+    st.subheader("Case narrative")
+    st.caption(NARRATIVE_NOTE)
+    _table(
+        view.narrative_rows(
+            analysis.narrative,
+            analysis.actor_names,
+            analysis.reading.unobservable_events,
+        ),
+        "None.",
+    )
+
+
 def _show_reader_report(reading: CaseReading) -> None:
     st.subheader("Not translated")
     st.caption(view.NOT_TRANSLATED_NOTE)
@@ -299,7 +327,9 @@ def _accept(case_log: CaseLog, case_id: str, reading: CaseReading) -> None:
 
 
 def _show_reading(reading: CaseReading) -> None:
-    _show_standing(analyse(reading))
+    analysis = analyse(reading)
+    _show_standing(analysis)
+    _show_narrative(analysis)
     _show_reader_report(reading)
 
 
@@ -374,6 +404,7 @@ __all__ = [
     "HEARTBEAT_KEY",
     "LAST_READING_KEY",
     "LIVE_NOTE",
+    "NARRATIVE_NOTE",
     "NOT_LIVE_NOTE",
     "NO_ENTRY_NOTE",
     "RECONNECTING_NOTE",

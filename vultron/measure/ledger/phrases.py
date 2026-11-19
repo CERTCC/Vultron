@@ -24,6 +24,7 @@ CEH-01-007).  The demo report and the measure layer render a summary through
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 
 from vultron.core.models.events.base import MessageSemantics
 from vultron.semantic_registry import lookup_entry
@@ -54,14 +55,19 @@ def event_phrase(semantic_type: str) -> str:
 
 
 def render_event_phrase(
-    semantic_type: str, actor: str | None, obj: str | None
+    semantic_type: str,
+    actor: str | None,
+    obj: str | None,
+    target: str | None = None,
 ) -> str:
     """Render the registry phrase of *semantic_type* with friendly labels.
 
-    *actor* fills ``{actor}``, and *obj* — the entry's object label, with its
-    destination as ``object → destination`` — fills both ``{object}`` and
-    ``{target}`` (DRPT-03-004); a slot left unfilled reads ``"—"``
-    (DRPT-03-012).  A semantic type that is not a ``MessageSemantics`` value
+    *actor* fills ``{actor}``, *obj* — the label of the activity's
+    ``object`` — fills ``{object}``, and *target* — the label of its
+    ``target`` — fills ``{target}`` (DRPT-03-004), so a phrase reads each
+    slot as the activity names it: ``invited {target} to the case`` names
+    the invitee, not the case it is invited to.  A slot left unfilled reads
+    ``"—"`` (DRPT-03-012).  A semantic type that is not a ``MessageSemantics`` value
     reads as its humanized string, never an error (DRPT-03-006).  With no
     actor, the leading dash is dropped, and the first letter is capitalized.
     """
@@ -74,10 +80,43 @@ def render_event_phrase(
         slots["actor"] = actor or MISSING_SLOT
         if obj:
             slots["object"] = obj
-            slots["target"] = obj
+        if target:
+            slots["target"] = target
         phrase = lookup_entry(semantics).phrase.format_map(slots)
     if (actor is None or actor == MISSING_SLOT) and phrase.startswith(
         MISSING_SLOT + " "
     ):
         phrase = phrase[2:]
     return phrase[:1].upper() + phrase[1:] if phrase else phrase
+
+
+@dataclass(frozen=True)
+class EntryLabels:
+    """The friendly labels of what one ledger entry's activity names.
+
+    Each is ``None`` when the activity names none.
+
+    Fields:
+        actor: The acting actor.
+        object: The activity's ``object``.
+        destination: The activity's ``target``.
+    """
+
+    actor: str | None = None
+    object: str | None = None
+    destination: str | None = None
+
+    @property
+    def object_cell(self) -> str | None:
+        """The object, with its destination when it has one
+        (``object → destination``)."""
+        if self.object and self.destination:
+            return f"{self.object} → {self.destination}"
+        return self.object or self.destination
+
+    def phrase(self, semantic_type: str) -> str:
+        """The registry phrase of *semantic_type*, each slot filled with
+        the label of what the activity names in it (DRPT-03-004)."""
+        return render_event_phrase(
+            semantic_type, self.actor, self.object, self.destination
+        )

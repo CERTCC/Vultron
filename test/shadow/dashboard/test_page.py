@@ -33,6 +33,7 @@ from vultron.shadow.dashboard.page import (
     HEARTBEAT_KEY,
     LAST_READING_KEY,
     LIVE_NOTE,
+    NARRATIVE_NOTE,
     NO_ENTRY_NOTE,
     NOT_LIVE_NOTE,
     TITLE,
@@ -216,6 +217,15 @@ _COLUMNS = {
         "From → to",
         "Why no band",
     ],
+    "Case narrative": [
+        "#",
+        "Time",
+        "Committed",
+        "Actor",
+        "Activity",
+        "Object",
+        "State changes",
+    ],
     "Not translated": ["Source record", "Fact", "Why"],
     "Inferred": ["Entry", "Rule", "Caveat"],
     "Not observable": ["Fact", "Why", "Reads as unknown"],
@@ -291,6 +301,26 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
     assert _texts(unhelpful.caption) == [BAND_EMPTY[Band.UNHELPFUL]]
     # The recording ends on the CASE_MANAGER's closure: nothing follows.
     assert not any("moved on" in c for c in _texts(at.caption))
+
+
+def test_a_recorded_case_shows_its_narrative_one_line_per_entry(
+    recordings_app,
+):
+    """#6670 AC-1, AC-2: one line per ledger entry, in log-index order,
+    naming who did what and which states it changed."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    assert not at.exception
+    assert "Case narrative" in _texts(at.subheader)
+    assert NARRATIVE_NOTE in _texts(at.caption)
+    narrative = _table(at, "Case narrative")
+    entries = recording_rows(
+        RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
+    )
+    assert narrative["#"].tolist() == list(range(len(entries)))
+    assert narrative["Activity"].tolist()[0] == "Case Actor created the case"
+    changes = " ".join(narrative["State changes"])
+    assert "EM: " in changes and "VFD: " in changes and "PXA: " in changes
 
 
 @pytest.fixture(scope="module")
@@ -402,6 +432,7 @@ def test_a_reading_with_no_entry_shows_its_report_and_no_standing():
     assert not at.exception
     assert any("translated no ledger entry" in w for w in _texts(at.warning))
     assert "Participants" not in _texts(at.subheader)
+    assert "Case narrative" not in _texts(at.subheader)
     assert _table(at, "Not translated")["Source record"].tolist() == ["rec-9"]
 
 
@@ -487,6 +518,18 @@ def test_a_followed_case_shows_its_new_standing_after_each_entry():
     assert "Participants" in _texts(at.subheader)
     assert not at.error
     assert _texts(at.warning) == [NOT_LIVE_NOTE]
+
+
+@pytest.mark.spec("SHD-04-003")
+def test_a_followed_case_adds_a_narrative_line_per_entry_and_keeps_the_rest():
+    """#6670 AC-3: each entry that arrives adds its line; none is lost."""
+    first = _table(
+        _follow_page("(sse_rows(rows[:1]) + CLOSE,)"), "Case narrative"
+    )
+    three = _table(_follow_page("(sse_rows(rows) + CLOSE,)"), "Case narrative")
+    assert first["#"].tolist() == [0]
+    assert three["#"].tolist() == [0, 1, 2]
+    assert three.iloc[:1].equals(first)
 
 
 @pytest.mark.spec("SHD-04-005")
