@@ -63,7 +63,7 @@ from vultron.measure.standing.moves import (
     em_moves,
     rm_moves,
 )
-from vultron.measure.standing.read import case_standing
+from vultron.measure.standing.read import case_standing, scored_move
 
 __all__ = [
     "ActionAdvice",
@@ -87,5 +87,6 @@ __all__ = [
     "em_moves",
     "joint_step",
     "rm_moves",
+    "scored_move",
     "vendor_numbers",
 ]

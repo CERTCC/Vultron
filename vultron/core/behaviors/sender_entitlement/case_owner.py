@@ -20,6 +20,12 @@ from typing import ClassVar
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import SENDER_ID
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
@@ -108,9 +114,10 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
     answer, the handler would report its ``REFUSED (HP-01-006)`` reason for
     a sender the guard admitted (#5903).
 
-    Reads ``case_id`` only from the ``/case_id`` input port (BTND-01-006); a
-    tree that names the case at build time seeds the port with
-    :func:`~vultron.core.behaviors.case_id_scope.with_case_id`.
+    Reads ``case_id`` only from the ``/case_id`` input port (BTND-01-006),
+    and the sender from ``/sender_id`` (BTND-01-008); a tree that names them
+    at build time seeds the ports with
+    :func:`~vultron.core.behaviors.act_key_scope.with_act_keys`.
 
     Merged from ``CheckIsCaseOwnerNode`` (ADR-0115, AC-2).
 
@@ -121,22 +128,18 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
         SenderEntitlementKind.CASE_OWNER
     )
 
-    def __init__(
-        self,
-        sender_actor_id: str,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._sender_actor_id = sender_actor_id
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=False),
+        **act_key_ports(SENDER_ID),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
+        return {"case_id": "/case_id", **act_key_remappings(SENDER_ID)}
 
     def initialise(self) -> None:
         super().initialise()
@@ -145,6 +148,7 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
             self._case_id_bb = self.get_input("case_id")
         except NoDataAvailable, NotImplementedError:
             pass
+        self._sender_actor_id: str = act_value(self, SENDER_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

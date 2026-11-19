@@ -87,9 +87,9 @@ def _make_participant_status_snapshot(
         obj["dState"] = d_state
     return {
         "object": obj,
-        "target": {
-            "id": participant_id,
-        },
+        # The participant's status history (ADR-0204).
+        "target": f"{participant_id}/statuses",
+        "context": CASE_ID,
     }
 
 
@@ -169,6 +169,35 @@ def test_apply_participant_status_roundtrip_preserves_vf_state(
     assert new_status.vf is not None
     assert new_status.vf.state == CS_vf.VF
     assert new_status.rm.state == RM.ACCEPTED
+
+
+@pytest.mark.spec("SYNC-12-001")
+def test_an_entry_targeting_no_status_history_is_skipped(
+    bridge, datalayer, case_actor, participant
+):
+    """ADR-0204: the participant is the owner of the target history, so an
+    entry whose target is the record itself names no participant; the node
+    skips it without error and appends nothing."""
+    initial_count = len(participant.participant_statuses)
+    entry = _make_status_entry(
+        status_id=f"urn:uuid:{uuid.uuid4()}",
+        participant_id=participant.id_,
+    )
+    entry.payload_snapshot["target"] = participant.id_
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    result = run_tree(
+        bridge,
+        tree=ApplyParticipantStatusFromLedgerNode(
+            name="ApplyParticipantStatusFromLedger"
+        ),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.status == Status.SUCCESS
+    updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
+    assert len(updated.participant_statuses) == initial_count
 
 
 @pytest.mark.spec("SYNC-12-003")

@@ -2,10 +2,10 @@
 
 !!! info "Fix Deployed (CD)"
 
-    Announces that the Deployer whose participant record is the target has deployed the fix.
+    Announces that the Deployer whose status history is the target has deployed the fix.
 
     - **When…** a Deployer has deployed the fix
-    - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+    - **Send:** `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the CASE_MANAGER or the Case Owner or the participant status's author (usually: deployer)
     - **Distinguished by:** `dState` = `D`

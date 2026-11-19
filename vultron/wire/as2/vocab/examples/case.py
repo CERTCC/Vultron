@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.core.models.case_reference import CaseReferenceLink
+from vultron.core.models.vulnerability_item import VulnerabilityItemId
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
@@ -298,7 +299,7 @@ def add_vulnerability_item_to_case() -> as_Add:
     _case = case()
     item = as_VulnerabilityItem(
         id_=f"{_case.id_}/items/1",
-        cve="CVE-2026-0001",
+        ids=[VulnerabilityItemId.cve("CVE-2026-0001")],
         name="Buffer overflow in the widget parser",
         context=_case.id_,
         **_example_stamp(),

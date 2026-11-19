@@ -581,9 +581,16 @@ CreateProcessingFaultPattern = ActivityPattern(
 # ---------------------------------------------------------------------------
 
 AddCaseStatusToCasePattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER adds a case status to the case's status history: "
+        "an ADD whose target is <case>/statuses, an ordered collection whose "
+        "newest item is the current status, and whose context is the case "
+        "(ADR-0204)."
+    ),
     activity_=TAtype.ADD,
     object_=VOtype.CASE_STATUS,
-    target_=VOtype.VULNERABILITY_CASE,
+    target_=AOtype.ORDERED_COLLECTION,
+    context_=VOtype.VULNERABILITY_CASE,
 )
 AddVulnerabilityItemToCasePattern = ActivityPattern(
     description=(
@@ -606,7 +613,14 @@ AddCaseReferenceToCasePattern = ActivityPattern(
     target_=VOtype.VULNERABILITY_CASE,
 )
 AddParticipantStatusToParticipantPattern = ActivityPattern(
+    description=(
+        "A participant status is added to the participant's status history: "
+        "an ADD whose target is <participant>/statuses, an ordered collection "
+        "whose newest item is the current status, and whose context is the "
+        "case (ADR-0204)."
+    ),
     activity_=TAtype.ADD,
     object_=VOtype.PARTICIPANT_STATUS,
-    target_=VOtype.CASE_PARTICIPANT,
+    target_=AOtype.ORDERED_COLLECTION,
+    context_=VOtype.VULNERABILITY_CASE,
 )

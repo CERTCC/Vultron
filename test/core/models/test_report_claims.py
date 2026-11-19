@@ -24,6 +24,7 @@ from vultron.core.models.report_claims import (
     CaseSplitSignal,
     ClaimedAcknowledgment,
     ClaimedReference,
+    ClaimedVulnerabilityId,
     ClaimOutcome,
     ClaimsReading,
     ReportClaims,
@@ -239,3 +240,12 @@ def test_a_malformed_record_is_refused(overrides) -> None:
     }
     with pytest.raises(ValidationError):
         ReportClaimsRecord(**fields)
+
+
+@pytest.mark.spec("CM-05-008", "CM-05-019")
+def test_a_claimed_cve_id_entry_must_be_a_cve_id() -> None:
+    """Only the ``CVE`` system's text is checked; the item would refuse it."""
+    assert ClaimedVulnerabilityId(system_name="CVE", text="CVE-2026-0001")
+    assert ClaimedVulnerabilityId(system_name="VU#", text="not a CVE ID")
+    with pytest.raises(ValidationError):
+        ClaimedVulnerabilityId(system_name="CVE", text="not a CVE ID")

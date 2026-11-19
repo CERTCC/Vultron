@@ -312,7 +312,7 @@ def trigger_add_report_to_case(
         "non-participant target is refused and no participant is created "
         "(PRM-06-006, ADR-0121). Writes a "
         "ParticipantStatus for the target and queues an "
-        "Add(ParticipantStatus)[target=CaseParticipant] activity to the Case "
+        "Add(ParticipantStatus, target=<participant>/statuses) activity to the Case "
         'Manager. Fix readiness (``vf_state="VF"``, f→F) is refused: it is '
         "only ever self-declared by the Vendor (PRM-06-005). Returns the ids "
         "of the queued activity and the stored status."

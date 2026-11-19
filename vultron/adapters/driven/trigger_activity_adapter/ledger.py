@@ -196,10 +196,10 @@ class _LedgerRecordsMixin:
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Build and seal ``Add(ParticipantStatus)[target=CaseParticipant]``."""
+        """Build and seal ``Add(ParticipantStatus, target=<participant>/statuses)``."""
         activity = add_status_to_participant_activity(
             status=status,
-            target=participant,
+            participant=participant,
             actor=actor,
             context=case_id,
             id_=derived_activity_id(
@@ -217,10 +217,10 @@ class _LedgerRecordsMixin:
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Build and seal ``Add(CaseStatus)[target=VulnerabilityCase]``."""
+        """Build and seal ``Add(CaseStatus, target=<case>/statuses)``."""
         activity = add_status_to_case_activity(
             status=status,
-            target=case_id,
+            case=case_id,
             actor=actor,
             context=case_id,
             id_=derived_activity_id("case-status-added", actor, status.id_),

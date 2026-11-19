@@ -85,7 +85,7 @@ def _declare_accepted_body(net: LedgerNetwork, sender: str) -> dict[str, Any]:
                 attributed_to=sender,
                 rm=RmDimension(state=RM.ACCEPTED),
             ),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=record.id_,
                 context=CASE_ID,

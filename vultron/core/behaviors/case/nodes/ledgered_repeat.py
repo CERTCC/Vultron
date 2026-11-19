@@ -30,6 +30,12 @@ from typing import cast
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.models.events.base import VultronEvent
@@ -44,27 +50,32 @@ class ActivityNotYetLedgeredNode(
 ):
     """Guard: the case ledger does not already record the received activity.
 
-    SUCCESS when no entry of *case_id*'s ledger names the received activity
+    SUCCESS when no entry of the case's ledger names the received activity
     (``/activity``), found by its id as every repeat is (ID-02-001).
     FAILURE, read by the handler as ``SKIPPED``, when one does: the activity
     was applied, so nothing downstream runs, no refusal effect answers it,
     and no second entry is committed (CLP-13-001, CLP-05-006, HP-01-014).
     Read-only, so it runs among the precondition guards, ahead of the guards
-    that judge the activity against the case.
+    that judge the activity against the case.  The case is read from
+    ``/case_id`` (BTND-01-008).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
         "activity": PortInformation(data_type=object, required=True),
+        **act_key_ports(CASE_ID),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
+        return {"activity": "/activity", **act_key_remappings(CASE_ID)}
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

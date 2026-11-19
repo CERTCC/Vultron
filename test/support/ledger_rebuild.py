@@ -84,15 +84,16 @@ _CREATION_RECORDS: Mapping[str, tuple[str, type[CoreObject]]] = {
     "create_case": ("object", VulnerabilityCase),
     "add_report_to_case": ("object", VulnerabilityReport),
     "create_case_participant": ("object", CaseParticipant),
-    "add_participant_status_to_participant": ("target", CaseParticipant),
     "add_case_status_to_case": ("object", CaseStatus),
 }
 
 #: Creation entries the replay stores rather than the seed, so a rebuild
 #: drives each one through its replica slot (``ApplyCreatedEmbargoFromLedgerNode``
-#: for ``create_embargo_event``, #5122).
+#: for ``create_embargo_event``, #5122).  A participant status entry names its
+#: participant's status history, not the record (ADR-0204): the record comes
+#: from its ``create_case_participant`` entry and the replay appends the status.
 _REPLAYED_CREATION_ENTRIES: frozenset[str] = frozenset(
-    {"create_embargo_event"}
+    {"create_embargo_event", "add_participant_status_to_participant"}
 )
 
 

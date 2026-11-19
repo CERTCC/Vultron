@@ -201,12 +201,14 @@ def create_recommend_actor_to_case_received_tree(
                 case_id=case_id,
                 recommendation_id=recommendation_id,
             ),
-            EmitNoteDuplicateRecommendationToOwnerNode(
-                recommendation_id=recommendation_id,
-                recommender_id=recommender_id,
-                recommended_id=recommended_id,
-                case_id=case_id,
-                offer_content=offer_content,
+            with_case_id(
+                EmitNoteDuplicateRecommendationToOwnerNode(
+                    recommendation_id=recommendation_id,
+                    recommender_id=recommender_id,
+                    recommended_id=recommended_id,
+                    offer_content=offer_content,
+                ),
+                case_id,
             ),
         ],
     )

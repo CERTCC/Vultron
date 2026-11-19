@@ -528,9 +528,10 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_item() -> None:
     manager, case = _created(receipt)
 
     first, second = _items(manager, case)
-    assert first.cve == "CVE-2026-0001"
+    # The CSAF ``cve`` is the item's first ``ids`` entry (CM-05-018).
     assert [(i.system_name, i.text) for i in first.ids] == [
-        ("Example tracker", "EX-17")
+        ("CVE", "CVE-2026-0001"),
+        ("Example tracker", "EX-17"),
     ]
     assert first.name == "Widget overflow"
     [note] = first.notes
@@ -546,7 +547,6 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_item() -> None:
         "The vendor's bulletin",
     )
     # An identifier is copied as written, never read as a CVE (CM-05-008).
-    assert second.cve is None
     assert [(i.system_name, i.text) for i in second.ids] == [
         ("VU#", "VU#123456")
     ]
@@ -576,7 +576,9 @@ def test_a_vulnerability_with_no_cve_and_no_ids_makes_no_item() -> None:
     manager, case = _created(receipt)
 
     [item] = _items(manager, case)
-    assert item.cve == "CVE-2026-0001"
+    assert ("CVE", "CVE-2026-0001") in [
+        (i.system_name, i.text) for i in item.ids
+    ]
     [record] = manager.records()
     assert (
         record.outcomes["vulnerabilities[1].title"]

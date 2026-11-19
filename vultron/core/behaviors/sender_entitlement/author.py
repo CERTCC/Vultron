@@ -20,7 +20,21 @@
 from typing import ClassVar
 
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    NOTE_ID,
+    PARTICIPANT_ID,
+    PROPOSAL_ID,
+    SENDER_ID,
+)
 from vultron.core.behaviors.sender_entitlement.base import (
     SenderEntitlementConditionNode,
 )
@@ -58,6 +72,9 @@ class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
     guard, and that tree then refuses every ``Remove(Note)`` (CM-30-003,
     #6430): the sender is judged before the removal is refused.
 
+    The note, the sender and the case are read from ``/note_id``,
+    ``/sender_id`` and ``/case_id`` (BTND-01-008).
+
     Spec: CM-30-001, CM-10-004, CM-23-018, HP-01-006.
     """
 
@@ -65,17 +82,23 @@ class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
         SenderEntitlementKind.AUTHOR
     )
 
-    def __init__(
-        self,
-        note_id: str,
-        sender_actor_id: str,
-        case_id: str,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **SenderEntitlementConditionNode.INPUT_PORTS,
+        **act_key_ports(NOTE_ID, SENDER_ID, CASE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(NOTE_ID, SENDER_ID, CASE_ID)
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.note_id = note_id
-        self.sender_actor_id = sender_actor_id
-        self.case_id = case_id
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.note_id: str = act_value(self, NOTE_ID, str)
+        self.sender_actor_id: str = act_value(self, SENDER_ID, str)
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -126,6 +149,9 @@ class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
     admits (``notes/bt-pitfalls.md`` § "A Refusal Arm in a Selector Fails
     Toward 'Admit'").
 
+    The proposal and the sender are read from ``/proposal_id`` and
+    ``/sender_id`` (BTND-01-008).
+
     Spec: CP-05-006, CP-05-010, HP-01-006, HP-01-009.
     """
 
@@ -140,15 +166,22 @@ class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
         ]
     ] = (CaseProposalAdmissionRecord, CaseProposalDeclineRecord)
 
-    def __init__(
-        self,
-        proposal_id: str,
-        sender_actor_id: str,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **SenderEntitlementConditionNode.INPUT_PORTS,
+        **act_key_ports(PROPOSAL_ID, SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(PROPOSAL_ID, SENDER_ID)
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.proposal_id = proposal_id
-        self.sender_actor_id = sender_actor_id
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.proposal_id: str = act_value(self, PROPOSAL_ID, str)
+        self.sender_actor_id: str = act_value(self, SENDER_ID, str)
 
     def _recorded_proposers(self) -> list[str]:
         """Every proposer this store recorded for the proposal id."""
@@ -199,6 +232,10 @@ class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
     The record is read first, so the case is the tree's when it names one,
     else the record's own (HP-08-008).
 
+    The record and the sender are read from ``/participant_id`` and
+    ``/sender_id``, and the tree's case, when it names one, from
+    ``/case_id`` (BTND-01-008).
+
     A pure read.  FAILURE names the record and the sender.
 
     Spec: RSH-08-007, HP-01-006, HP-01-009, CM-23-018.
@@ -208,17 +245,23 @@ class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
         SenderEntitlementKind.AUTHOR
     )
 
-    def __init__(
-        self,
-        participant_id: str,
-        sender_actor_id: str,
-        case_id: str | None,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **SenderEntitlementConditionNode.INPUT_PORTS,
+        **act_key_ports(PARTICIPANT_ID, SENDER_ID, CASE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(PARTICIPANT_ID, SENDER_ID, CASE_ID)
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.participant_id = participant_id
-        self.sender_actor_id = sender_actor_id
-        self.case_id = case_id
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.participant_id: str = act_value(self, PARTICIPANT_ID, str)
+        self.sender_actor_id: str = act_value(self, SENDER_ID, str)
+        self.case_id: str | None = optional_act_value(self, CASE_ID, str)
 
     def _refuse_citing(self, why: str) -> Status:
         """Compose the reason around *why*, then fail with it.

@@ -303,12 +303,12 @@
     },
     {
       "semanticType": "add_case_status_to_case",
-      "wire": "Add(CaseStatus)[target=VulnerabilityCase]",
+      "wire": "Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]",
       "phrase": "{actor} updated the case status"
     },
     {
       "semanticType": "add_participant_status_to_participant",
-      "wire": "Add(ParticipantStatus)[target=CaseParticipant]",
+      "wire": "Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]",
       "phrase": "{actor} updated {target}'s participant status"
     },
     {

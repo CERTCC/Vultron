@@ -51,12 +51,11 @@ def _make_policy(actor_id: str = ACTOR_ID) -> as_EmbargoPolicy:
     """A policy for *actor_id* — the profile that carries it (EP-01-001)."""
     return make(
         as_EmbargoPolicy,
-        actor_id=actor_id,
-        inbox=f"{actor_id}/inbox",
+        attributed_to=actor_id,
         preferred_duration=timedelta(days=90),
         minimum_duration=timedelta(days=45),
         maximum_duration=timedelta(days=180),
-        notes="Prefer 90 days.",
+        content="Prefer 90 days.",
     )
 
 

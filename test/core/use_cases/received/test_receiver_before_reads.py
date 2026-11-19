@@ -95,7 +95,11 @@ _CASES = [
     pytest.param(
         AddParticipantStatusToParticipantReceivedUseCase,
         _request(
-            status_id="s1", participant_id="p1", context_id=_CASE, status=None
+            status_id="s1",
+            participant_id="p1",
+            context_id=_CASE,
+            case_id=_CASE,
+            status=None,
         ),
         id="add-participant-status",
     ),

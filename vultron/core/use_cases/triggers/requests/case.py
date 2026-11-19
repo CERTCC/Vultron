@@ -102,7 +102,7 @@ class AddParticipantStatusTriggerRequest(
     """Trigger request to send a ParticipantStatus update to the case.
 
     The actor self-reports their current RM/VF/D/PXA state to the Case Manager.
-    Emits an Add(ParticipantStatus)[target=CaseParticipant] activity.  The
+    Emits an Add(ParticipantStatus, target=<participant>/statuses) activity.  The
     demo ``notify-*`` routes build this from their ``CaseTriggerRequest``-shaped
     bodies; no client supplies the state fields directly.
     """
