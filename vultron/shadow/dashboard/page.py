@@ -27,8 +27,10 @@ what its source never records (SHD-01-004, CRD-02-005).
 
 Above the scoreboard the analyst can pick a narrative line: the scoreboard
 then shows the case as it stood just after that entry, worked out from the
-entries up to it alone (:func:`~vultron.shadow.analysis.analyse_prefix`),
-so they can ask whether a better move was open earlier (#6671).  The pick
+entries up to it alone (:func:`~vultron.shadow.analysis.point_analysis`),
+so they can ask whether a better move was open earlier (#6671).  Everything
+the scoreboard draws follows the pick: its states and their maps, its
+participants, desiderata and move bands with their legends.  The pick
 is kept in session state by the entry's log index, so a followed case's new
 entries add narrative lines without moving it.
 
@@ -172,7 +174,7 @@ def _ask_for_case(suggestions: Sequence[str]) -> str | None:
     return choice.strip() if choice and choice.strip() else None
 
 
-def _show_standing(analysis: CaseAnalysis, past_point: bool = False) -> None:
+def _show_standing(analysis: CaseAnalysis, past_point: bool) -> None:
     """The scoreboard of *analysis*'s standing.
 
     At a *past_point* the case is known to have moved on, so the page does
