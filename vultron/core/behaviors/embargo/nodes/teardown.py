@@ -20,19 +20,28 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    EMBARGO_ID,
+    TERMINATED_AT,
+)
 from vultron.core.behaviors.embargo.copy_commit import (
     read_embargo_case_file,
     save_case_file,
-    trial_apply,
 )
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
-from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
-from vultron.core.behaviors.embargo.nodes.ending_notice_replica import (
-    adopted_revision_timing_violations,
+from vultron.core.behaviors.embargo.nodes.emit import (
+    _SendEmbargoActivityForCaseKey,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    DataLayerConditionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.node_logger import fail_with_reason
@@ -43,7 +52,6 @@ from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
 )
 from vultron.core.models._helpers import parse_published
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
     EmbargoChange,
@@ -51,7 +59,6 @@ from vultron.core.models.embargo_apply import (
     RegisterStepKind,
     apply_embargo_change,
 )
-from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -66,137 +73,12 @@ from vultron.core.states.embargo_register import (
     termination_reason_from_content,
 )
 from vultron.errors import (
-    INTERNAL_FAULTS,
     BtNodePreconditionError,
     VultronEntryRefusedError,
     VultronError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
 )
-
-
-class HasEmbargoActiveNode(DataLayerConditionWithPorts):
-    """Condition: EM state is ACTIVE or REVISE (embargo is active).
-
-    Returns SUCCESS when ``case.em_state`` is not EXITED
-    (i.e., the embargo is still active and teardown has not been applied).
-    Returns FAILURE when EM is EXITED (teardown already done — idempotent
-    guard) or when the case is not found.
-
-    Uses ``ReadEmStateNode`` to read EM state (AC-1 of issue #1554).
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        try:
-            em_state = read_case_em_state(self.datalayer, self.case_id)
-        except BtNodePreconditionError as exc:
-            self.feedback_message = str(exc)
-            return Status.FAILURE
-
-        if em_state == EM.EXITED:
-            self.feedback_message = f"Case '{self.case_id}' EM already EXITED — teardown not needed"
-            return Status.FAILURE
-
-        return Status.SUCCESS
-
-
-class TerminationIsTimelyNode(DataLayerConditionWithPorts):
-    """Guard: a received termination may end the embargo in force now.
-
-    FAILURE when *termination* is ``END_TIME_REACHED`` claimed at
-    *terminated_at* before the end time of the case's embargo in force, or
-    carries no time (ADR-0122); SUCCESS otherwise, an ``EARLY`` termination
-    or a case with no embargo in force included.  It runs among the received
-    tree's precondition guards, so a refused termination is never committed
-    (CLP-10-006).  An embargo that cannot be read fails closed (EMB-18-003).
-
-    With *embargo_id* (the embargo the ``Remove`` names) in force, the
-    ``TERMINATE`` step is also trial-applied through the one apply function
-    (ADR-0124): a step it refuses refuses the act before the guarded commit of its
-    entry, so no entry is ledgered for a change that cannot be applied.
-
-    At a paused signatory's replica (CM-31-010), a named revision it has not
-    activated is adopted ahead of the teardown (CM-31-042), so the claim is
-    judged against that revision's own end time: the stored record, else
-    *embargo*, the ``Remove``'s inline copy (EMB-18-003).
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        termination: EmbargoTermination,
-        terminated_at: datetime | None,
-        name: str | None = None,
-        embargo_id: str | None = None,
-        embargo: EmbargoEvent | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self._termination = termination
-        self._terminated_at = terminated_at
-        self._embargo_id = embargo_id
-        self._embargo = embargo
-
-    def _violations(self, case: VulnerabilityCase) -> list[str]:
-        dl = cast(CasePersistence, self.datalayer)
-        adopted = adopted_revision_timing_violations(
-            dl,
-            case,
-            self.actor_id,
-            self._embargo_id,
-            self._embargo,
-            self._termination,
-            self._terminated_at,
-        )
-        if adopted is not None:
-            return adopted
-        if (
-            self._embargo_id is None
-            or case.active_embargo_id != self._embargo_id
-        ):
-            return termination_timing_violations(
-                dl, case, self._termination, self._terminated_at
-            )
-        try:
-            step = decide_termination(
-                dl, case, self._termination, self._terminated_at
-            )
-            trial_apply(read_embargo_case_file(dl, self.case_id), [step])
-        except (
-            VultronInvalidStateTransitionError,
-            VultronEntryRefusedError,
-        ) as exc:
-            return [str(exc)]
-        return []
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure
-        try:
-            violations = self._violations(case)
-        except INTERNAL_FAULTS:
-            raise  # never a refusal, so never answered (ADR-0095)
-        except VultronError as exc:
-            violations = [str(exc)]
-        if not violations:
-            return Status.SUCCESS
-        self.feedback_message = (
-            f"Refused termination on case '{self.case_id}': "
-            + "; ".join(violations)
-        )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
@@ -218,25 +100,38 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     ``EXITED`` is an idempotent no-op, and a named embargo that is not the
     one in force changes nothing (ADR-0122); both return SUCCESS, and
     :attr:`applied` tells a caller which happened.
+
+    The case is read from ``/case_id`` and *embargo_id* from
+    ``/embargo_id`` (BTND-01-008); *terminated_at* from ``/terminated_at``,
+    which a ``Remove`` that claims no time leaves unset.
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, EMBARGO_ID, TERMINATED_AT),
+    }
 
     def __init__(
         self,
-        case_id: str,
-        embargo_id: str,
         termination: EmbargoTermination,
-        terminated_at: datetime | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self._embargo_id = embargo_id
         self._termination = termination
-        self._terminated_at = terminated_at
         #: True only when this tick terminated an embargo.
         self.applied = False
         #: True when this tick's termination was refused (ADR-0122).
         self.refused = False
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, EMBARGO_ID, TERMINATED_AT)
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self._embargo_id: str = act_value(self, EMBARGO_ID, str)
+        self._terminated_at = optional_act_value(self, TERMINATED_AT, datetime)
 
     def _refuse(self, exc: VultronError) -> Status:
         self.refused = True
@@ -390,7 +285,7 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
         return super().update()
 
 
-class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
+class SendAnnounceEmbargoEventNode(_SendEmbargoActivityForCaseKey):
     """Emit an ``Announce(EmbargoEvent)`` after embargo teardown.
 
     Resolves the Case Manager actor ID from the case, builds the outbound
@@ -408,17 +303,30 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
     that all participants receive a protocol-level announcement of the
     embargo termination; a participant replica's arm never runs it
     (BT-17-008).
+
+    The case is read from ``/case_id`` and the embargo from ``/embargo_id``
+    (BTND-01-008).
     """
 
-    def __init__(
-        self,
-        case_id: str,
-        embargo_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(case_id=case_id, name=name)
-        self._embargo_id = embargo_id
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_SendEmbargoActivityForCaseKey.INPUT_PORTS,
+        **act_key_ports(EMBARGO_ID),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name)
         self._recipients: list[str] = []
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(EMBARGO_ID),
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._embargo_id: str = act_value(self, EMBARGO_ID, str)
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (

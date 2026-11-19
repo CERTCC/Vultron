@@ -242,7 +242,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <tr markdown="1">
 <td markdown="span">`document.acknowledgments` and `vulnerabilities[].acknowledgments`</td>
 <td markdown="span">Names the people and organizations that receive public credit. In the Vulnerability Report profile, no acknowledgments means that the discoverer does not want public credit.</td>
-<td markdown="span">Undecided: Vultron could record which participants want public credit ([#5135](https://github.com/CERTCC/Vultron/issues/5135){:target="_blank"}). CSAF acknowledgments are not linked to involvement entities.</td>
+<td markdown="span">No counterpart, by decision ([ADR-0218](../../adr/0218-whether-a-case-records-public-credit.md)). Public credit is a publication choice, so a Vultron case does not record it. A projection takes its acknowledgments from its caller, and in the Vulnerability Report profile it leaves them out only when the caller says no one is to be credited. CSAF acknowledgments are not linked to involvement entities.</td>
 </tr>
 </tbody>
 </table>

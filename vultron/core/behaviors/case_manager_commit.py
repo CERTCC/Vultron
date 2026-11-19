@@ -43,6 +43,7 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case_id_scope import require_case_source
 from vultron.core.behaviors.helpers import (
     TRIGGER_FACTORY_UNAVAILABLE,
 )
@@ -71,6 +72,11 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     (:meth:`_EmitSingleActivityBase._emit_through_seam`, OX-14-001); unlike
     that base's ``update()``, this one catches nothing (see the module
     docstring).
+
+    *case_id* is the case the act is about, or ``None`` for a subclass that
+    declares a ``/case_id`` port and overrides :meth:`_act_case_id` to read
+    it (BTND-01-008); #6572 moves every subclass to the key and removes the
+    parameter.
     """
 
     #: Whether the commit refuses a gapped local ledger prefix
@@ -78,15 +84,20 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     #: .create_commit_log_entry_tree`.
     _CHECK_LEDGER_FRESHNESS: bool = True
 
+    #: The case the act is about.
+    _case_id: str
+
     def __init__(
         self,
-        case_id: str,
+        case_id: str | None,
         semantic_type: str,
         notify_participants: bool = False,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+        require_case_source(self, given=case_id is not None)
+        if case_id is not None:
+            self._case_id = case_id
         self._semantic_type = semantic_type
         self._notify_participants = notify_participants
         #: The ids of the activities the last :meth:`update` committed.

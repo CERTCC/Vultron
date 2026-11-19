@@ -33,10 +33,13 @@ from test.support.act_runner import in_act
 from test.support.embargo_register import activate
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.end_time_tree import (
     EmbargoEndTimePassedNode,
 )
-from vultron.core.behaviors.embargo.nodes.teardown import (
+from vultron.core.behaviors.embargo.nodes.teardown_guards import (
     TerminationIsTimelyNode,
 )
 from vultron.core.models._helpers import now_utc
@@ -83,24 +86,21 @@ def _tick(node, dl, at: datetime | None = None) -> Status:
 def test_timely_guard_fails_closed_on_an_unreadable_embargo() -> None:
     dl, case = _store()
     node = TerminationIsTimelyNode(
-        case_id=case.id_,
         termination=EmbargoTermination.end_time_reached(),
-        terminated_at=now_utc(),
+    )
+    seeded = with_act_keys(
+        node, {act_keys.CASE_ID: case.id_, act_keys.TERMINATED_AT: now_utc()}
     )
 
-    assert _tick(node, dl) == Status.FAILURE
+    assert _tick(seeded, dl) == Status.FAILURE
     assert "Refused termination" in node.feedback_message
 
 
 def test_timely_guard_has_nothing_to_check_for_an_early_termination() -> None:
     dl, case = _store()
-    node = TerminationIsTimelyNode(
-        case_id=case.id_,
-        termination=EmbargoTermination.early(),
-        terminated_at=None,
-    )
+    node = TerminationIsTimelyNode(termination=EmbargoTermination.early())
 
-    assert _tick(node, dl) == Status.SUCCESS
+    assert _tick(with_case_id(node, case.id_), dl) == Status.SUCCESS
 
 
 @pytest.mark.spec("EMB-13-003")
@@ -108,12 +108,13 @@ def test_end_time_passed_node_counts_the_end_time_itself() -> None:
     end = now_utc() - timedelta(minutes=1)
     dl, case = _store(end_time=end)
 
-    assert _tick(EmbargoEndTimePassedNode(case.id_), dl, at=end) == (
-        Status.SUCCESS
+    assert (
+        _tick(with_case_id(EmbargoEndTimePassedNode(), case.id_), dl, at=end)
+        == Status.SUCCESS
     )
     assert (
         _tick(
-            EmbargoEndTimePassedNode(case.id_),
+            with_case_id(EmbargoEndTimePassedNode(), case.id_),
             dl,
             at=end - timedelta(seconds=1),
         )
@@ -126,8 +127,8 @@ def test_end_time_passed_node_refuses_a_run_with_no_act_instant() -> None:
     """The node reads the act's instant when it ticks, never the clock."""
     dl, case = _store(end_time=now_utc() - timedelta(minutes=1))
     setup_blackboard(dl, actor_id=ACTOR)
-    node = EmbargoEndTimePassedNode(case.id_)
-    tree = py_trees.trees.BehaviourTree(root=node)
+    node = EmbargoEndTimePassedNode()
+    tree = py_trees.trees.BehaviourTree(root=with_case_id(node, case.id_))
     tree.setup()
 
     with pytest.raises(VultronMissingActInstantError):
@@ -139,7 +140,7 @@ def test_end_time_passed_node_never_ends_an_embargo_it_cannot_read(
     caplog,
 ) -> None:
     dl, case = _store()
-    node = EmbargoEndTimePassedNode(case.id_)
+    node = with_case_id(EmbargoEndTimePassedNode(), case.id_)
 
     with caplog.at_level(logging.WARNING):
         assert _tick(node, dl) == Status.FAILURE
@@ -163,21 +164,22 @@ def test_timely_guard_trial_applies_the_step_the_remove_names(
     a refused step refuses the act."""
     from unittest.mock import patch
 
-    from vultron.core.behaviors.embargo.nodes import teardown
+    from vultron.core.behaviors.embargo.nodes import teardown_guards
     from vultron.errors import VultronEntryRefusedError
 
     dl, case = _store(end_time=now_utc() + timedelta(days=1))
-    node = TerminationIsTimelyNode(
-        case_id=case.id_,
-        termination=EmbargoTermination.early(),
-        terminated_at=None,
-        embargo_id=f"{case.id_}/embargo_events/e1",
+    node = with_act_keys(
+        TerminationIsTimelyNode(termination=EmbargoTermination.early()),
+        {
+            act_keys.CASE_ID: case.id_,
+            act_keys.EMBARGO_ID: f"{case.id_}/embargo_events/e1",
+        },
     )
 
     with patch.object(
-        teardown,
+        teardown_guards,
         "trial_apply",
-        wraps=teardown.trial_apply,
+        wraps=teardown_guards.trial_apply,
         side_effect=(
             VultronEntryRefusedError("does not apply")
             if trial_refuses

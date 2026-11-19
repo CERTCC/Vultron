@@ -34,8 +34,14 @@ from vultron.core.behaviors.act_key_scope import (
     with_act_keys,
 )
 from vultron.core.behaviors.act_keys import CASE_ID
+from vultron.errors import VultronWiringError
 
-__all__ = ["seeded_case_id", "unscoped", "with_case_id"]
+__all__ = [
+    "require_case_source",
+    "seeded_case_id",
+    "unscoped",
+    "with_case_id",
+]
 
 
 def with_case_id(
@@ -58,3 +64,24 @@ def seeded_case_id(node: py_trees.behaviour.Behaviour) -> str | None:
     """
     value = seeded_value(node, CASE_ID)
     return value if isinstance(value, str) else None
+
+
+def require_case_source(
+    node: py_trees.behaviour.Behaviour, *, given: bool
+) -> None:
+    """Refuse a node built with no case and no ``/case_id`` port to read.
+
+    For a shared base that still takes a case argument while its subclasses
+    move to the key: no case (*given* false) is only for a subclass that
+    declares the port and reads the case when it ticks (BTND-01-008).
+
+    Raises:
+        VultronWiringError: No case was given and *node*'s class declares no
+            ``/case_id`` input port, so the node could never learn its case.
+    """
+    ports = getattr(type(node), "INPUT_PORTS", {})
+    if not given and CASE_ID.name not in ports:
+        raise VultronWiringError(
+            f"{node.name}: no case_id and no '{CASE_ID.path}' port to"
+            " read it from (BTND-01-008)"
+        )

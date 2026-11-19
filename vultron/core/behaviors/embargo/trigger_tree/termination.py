@@ -26,6 +26,7 @@ from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes import (
     AbandonEmbargoProposalsLifecycleNode,
     CommitAndApplyEmbargoTerminationNode,
@@ -213,11 +214,13 @@ def terminate_embargo_bt(
                 as_case_manager=[
                     capture,
                     # Decide, commit the Remove, then apply it (ADR-0124).
-                    CommitAndApplyEmbargoTerminationNode(
-                        case_id=case_id,
-                        result_out=result_out,
-                        termination=termination,
-                        builder=activity_builder,
+                    with_case_id(
+                        CommitAndApplyEmbargoTerminationNode(
+                            result_out=result_out,
+                            termination=termination,
+                            builder=activity_builder,
+                        ),
+                        case_id,
                     ),
                     _make_emit_node(case_id),
                     notices,

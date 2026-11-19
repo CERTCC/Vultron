@@ -17,17 +17,41 @@
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import EMBARGO
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.errors import VultronAlreadyExistsError
 
 
 class PersistEmbargoEventNode(DataLayerActionWithPorts):
-    """Persist the trigger-created embargo event before outbound fan-out."""
+    """Persist the embargo event the act carries before outbound fan-out.
 
-    def __init__(self, embargo: EmbargoEvent, name: str | None = None) -> None:
+    The embargo is read from ``/embargo`` (BTND-01-008).
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(EMBARGO),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._embargo = embargo
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(EMBARGO)
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._embargo: EmbargoEvent = act_value(self, EMBARGO, EmbargoEvent)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

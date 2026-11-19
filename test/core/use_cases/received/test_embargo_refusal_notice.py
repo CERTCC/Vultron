@@ -48,7 +48,7 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.nodes.answer_record import (
     EmbargoAnswerAppliesNode,
 )
-from vultron.core.behaviors.embargo.nodes.teardown import (
+from vultron.core.behaviors.embargo.nodes.teardown_guards import (
     TerminationIsTimelyNode,
 )
 from vultron.core.models._helpers import now_utc

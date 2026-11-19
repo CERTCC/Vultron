@@ -25,11 +25,24 @@ of the ask clears it (SYNC-11-003).  BTND-07-005.
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    CASE_MANAGER_ID,
+    EMBARGO_ID,
+)
 from vultron.core.behaviors.bridge.act_instant import read_act_instant
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes.chosen_cause import (
     ChosenTermination,
 )
-from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
+from vultron.core.behaviors.embargo.nodes.emit import (
+    _SendEmbargoActivityForCaseKey,
+)
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
@@ -63,24 +76,26 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
     manager's announced commit (SYNC-11-003), or it timed out (SYNC-11-005).
     Raises :class:`VultronWiringError` when the executing actor is unknown:
     a FAILURE there would read as "not pending" and send the ask anyway.
+
+    The case is read from ``/case_id`` (BTND-01-008).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
-        "embargo_id": PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID, EMBARGO_ID),
     }
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"embargo_id": "/embargo_id"}
+        return act_key_remappings(CASE_ID, EMBARGO_ID)
 
     def initialise(self) -> None:
         super().initialise()
-        self.embargo_id: str = self.get_input("embargo_id")
+        self._case_id: str = act_value(self, CASE_ID, str)
+        self.embargo_id: str = act_value(self, EMBARGO_ID, str)
 
     def update(self) -> Status:
         if not self.actor_id:
@@ -105,7 +120,7 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
+class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
     """Ask the CASE_MANAGER to end the embargo: queue ``Remove(EmbargoEvent)``.
 
     The non-manager arm of ``terminate_embargo_bt`` on the cascades, where no
@@ -131,38 +146,38 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
     manager; the bridge reports it by type.  A failure to record the queued
     ask also escapes ``update()`` rather than reporting a success the next
     repeat would not be suppressed by (BT-HELPER-01).
+
+    The case is read from ``/case_id`` (BTND-01-008).
     """
 
     def __init__(
         self,
-        case_id: str,
         reason: TerminationReason,
         name: str | None = None,
         *,
         cause: TerminationCause | ChosenTermination | None = None,
     ) -> None:
-        super().__init__(case_id=case_id, name=name)
+        super().__init__(name=name)
         self._reason = reason
         self._cause = cause
         self._resolved_cause: TerminationCause | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
-        **_SendEmbargoActivityBase.INPUT_PORTS,
-        "embargo_id": PortInformation(data_type=str, required=True),
-        "case_manager_id": PortInformation(data_type=str, required=True),
+        **_SendEmbargoActivityForCaseKey.INPUT_PORTS,
+        **act_key_ports(EMBARGO_ID, CASE_MANAGER_ID),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
-            "embargo_id": "/embargo_id",
-            "case_manager_id": "/case_manager_id",
+            **super()._domain_port_remappings(),
+            **act_key_remappings(EMBARGO_ID, CASE_MANAGER_ID),
         }
 
     def initialise(self) -> None:
         super().initialise()
-        self.embargo_id: str = self.get_input("embargo_id")
-        self.case_manager_id: str = self.get_input("case_manager_id")
+        self.embargo_id: str = act_value(self, EMBARGO_ID, str)
+        self.case_manager_id: str = act_value(self, CASE_MANAGER_ID, str)
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (
@@ -250,9 +265,10 @@ def ask_case_manager_to_terminate_once(
         name="AskCaseManagerToTerminateOnce",
         memory=False,
         children=[
-            TeardownAskPendingNode(case_id=case_id),
-            SendTerminateEmbargoActivityNode(
-                case_id=case_id, reason=reason, cause=cause
+            with_case_id(TeardownAskPendingNode(), case_id),
+            with_case_id(
+                SendTerminateEmbargoActivityNode(reason=reason, cause=cause),
+                case_id,
             ),
         ],
     )

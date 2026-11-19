@@ -75,7 +75,7 @@ All follow-up items are part of the Vultron Epic [#5130 CSAF 2.1 crosswalk and i
 | [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} | Vultron could produce a CSAF document from the copy of a case that a participant keeps. | [Overview](overview.md#a-case-can-produce-a-csaf-document) |
 | [#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"} | Vultron could define how TLP labels appear in its data and logic. This item is a concern. | [Overview](overview.md#tlp-marks-a-projection-not-a-case) |
 | [#5140](https://github.com/CERTCC/Vultron/issues/5140){:target="_blank"} | Vultron could track the fix path at the granularity of products and deployers. This item is a concern. | [Below](#the-fix-path-and-products) |
-| [#5135](https://github.com/CERTCC/Vultron/issues/5135){:target="_blank"} | Vultron could record which participants want public credit. This item is undecided. | [Coverage differences](coverage.md#vulnerability-detail) |
+| [#5135](https://github.com/CERTCC/Vultron/issues/5135){:target="_blank"} | Decided in [ADR-0218](../../adr/0218-whether-a-case-records-public-credit.md): a Vultron case does not record public credit, and a CSAF projection takes its acknowledgments from its caller. | [Coverage differences](coverage.md#vulnerability-detail) |
 
 ### Changes CSAF could make
 

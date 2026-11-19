@@ -32,6 +32,8 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import EMBARGO
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -206,7 +208,9 @@ def invite_to_embargo_on_case_tree(
     # (EP-09-003).
     intake: list[py_trees.behaviour.Behaviour] = []
     if embargo is not None:
-        intake.append(PersistEmbargoEventNode(embargo=embargo))
+        intake.append(
+            with_act_keys(PersistEmbargoEventNode(), {EMBARGO: embargo})
+        )
     adjudication: list[py_trees.behaviour.Behaviour] = [
         # Whose terms these are, which every node below reads (CM-24-002):
         # only a relay by the CASE_MANAGER may attribute them to another.

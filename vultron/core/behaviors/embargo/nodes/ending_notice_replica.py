@@ -35,12 +35,20 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, EMBARGO, EMBARGO_ID
 from vultron.core.behaviors.embargo.nodes.ending_notice import (
     embargo_ending_notice,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.node_logger import fail_with_error
@@ -142,11 +150,25 @@ class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
     (RSH-08-003), and a withheld one (CM-10-005) is bound by no embargo in
     force, so an ``Announce(EmbargoEvent)`` reaching it is the teardown
     announcement, never a shorter revision to apply.
+
+    The case is read from ``/case_id`` (BTND-01-008).
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID)
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -183,20 +205,30 @@ class _ObservedRevisionActivationNode(
     ``OBSERVED`` mode (EMB-18-001), which supersedes the embargo in force and
     carries its signatories over as the CASE_MANAGER did (EP-05-003).
     ``applied`` says whether this tick activated the revision.
+
+    The case is read from ``/case_id`` and the revision's id from
+    ``/embargo_id``; its inline copy from ``/embargo``, which a notice that
+    carries none leaves unset (BTND-01-008).
     """
 
-    def __init__(
-        self,
-        case_id: str,
-        embargo_id: str,
-        embargo: EmbargoEvent | None = None,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, EMBARGO_ID, EMBARGO),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.embargo_id = embargo_id
-        self._embargo = embargo
         self.applied = False
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, EMBARGO_ID, EMBARGO)
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self.embargo_id: str = act_value(self, EMBARGO_ID, str)
+        self._embargo = optional_act_value(self, EMBARGO, EmbargoEvent)
 
     def _hold_announced_embargo(
         self, datalayer: CasePersistence, case: VulnerabilityCase

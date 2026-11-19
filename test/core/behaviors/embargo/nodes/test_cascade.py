@@ -27,6 +27,8 @@ from test.core.behaviors.embargo.nodes.conftest import (
 from test.support.future_dates import days_from_now
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
 )
@@ -60,8 +62,10 @@ class TestPersistEmbargoEventNode:
         embargo = _make_core_embargo("pen1")
 
         setup_blackboard(dl)
-        node = PersistEmbargoEventNode(embargo=embargo)
-        bt = py_trees.trees.BehaviourTree(root=node)
+        node = PersistEmbargoEventNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(node, {act_keys.EMBARGO: embargo})
+        )
         bt.setup()
         bt.tick()
 
@@ -80,8 +84,10 @@ class TestPersistEmbargoEventNode:
         dl.create(embargo)  # pre-persist
 
         setup_blackboard(dl)
-        node = PersistEmbargoEventNode(embargo=embargo)
-        bt = py_trees.trees.BehaviourTree(root=node)
+        node = PersistEmbargoEventNode()
+        bt = py_trees.trees.BehaviourTree(
+            root=with_act_keys(node, {act_keys.EMBARGO: embargo})
+        )
         bt.setup()
 
         with caplog.at_level(logging.WARNING):
@@ -92,11 +98,9 @@ class TestPersistEmbargoEventNode:
 
     def test_returns_failure_when_datalayer_unavailable(self):
         """NoDataAvailable raised when datalayer port has no data (BTND-03-011)."""
-        embargo = _make_core_embargo("pen3")
-
         _setup_blackboard_null_dl()
 
-        node = PersistEmbargoEventNode(embargo=embargo)
+        node = PersistEmbargoEventNode()
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("datalayer")

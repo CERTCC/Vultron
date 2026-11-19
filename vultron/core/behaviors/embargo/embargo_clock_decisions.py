@@ -37,6 +37,7 @@ decisions, the sweep included.
 
 import py_trees
 
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes.invitation_expiry import (
     ExpireOverdueInvitesNode,
 )
@@ -58,7 +59,7 @@ def embargo_clock_decisions(
     composes them into the gated stage.
     """
     return [
-        ExpireOverdueInvitesNode(
-            case_id=case_id, name=OVERDUE_INVITES_SWEEP_NAME
+        with_case_id(
+            ExpireOverdueInvitesNode(name=OVERDUE_INVITES_SWEEP_NAME), case_id
         )
     ]
