@@ -170,14 +170,40 @@ def test_unresolvable_id_in_uri_list_slot_is_kept_as_string(
 ) -> None:
     """A ``list[str]`` slot admits a URI, so its IDs are kept and not read.
 
-    The ID is not in the store, and it stays the IRI it was: no placeholder
-    object is built for it (ARCH-25-031), and a URI slot has nothing to refuse.
+    The ID is not in the store, and it is kept all the same: a URI slot has
+    nothing to resolve and nothing to refuse.
     """
     data = {"id": CASE_ID, "case_activity": [MISSING_ID]}
     out = materialise_object_slots(_ActivityIdLogProbe, data, dl.as_port())
     assert out is data
     assert out["case_activity"] == [MISSING_ID]
     assert dl.reads == []
+
+
+def test_unresolvable_activity_id_is_refused_not_fabricated(
+    dl: FakeDataLayer,
+) -> None:
+    """No placeholder activity is built for an ID the store cannot resolve.
+
+    ``as_Activity.actor`` is required, so a stub would have to invent an actor
+    (ARCH-25-031).  The slot admits no URI, so the reference is refused, and
+    nothing that names the missing ID comes back.
+    """
+    with pytest.raises(VultronReferenceResolutionError) as excinfo:
+        materialise(
+            _ActivityLogProbe,
+            with_times(
+                _ActivityLogProbe,
+                {
+                    "id": CASE_ID,
+                    "attributedTo": CASE_OWNER,
+                    "case_activity": [MISSING_ID],
+                },
+            ),
+            dl.as_port(),
+        )
+    assert MISSING_ID in str(excinfo.value)
+    assert dl.reads == [MISSING_ID]
 
 
 def test_materialise_builds_a_valid_object_from_bare_ids(
@@ -264,8 +290,8 @@ def test_rehydrate_materialises_object_slots() -> None:
     result = rehydrate(stored, dl=dl.as_port())
 
     assert isinstance(result, as_CaseParticipant)
-    assert [s.id_ for s in result.participant_statuses] == [status.id_]
-    assert isinstance(result.participant_statuses[0], as_ParticipantStatus)
+    assert result.participant_statuses == [status]
+    assert status.id_ in dl.reads
 
 
 def test_rehydrate_materialises_from_a_bare_id() -> None:
@@ -277,8 +303,9 @@ def test_rehydrate_materialises_from_a_bare_id() -> None:
     result = rehydrate(stored.id_, dl=dl.as_port())
 
     assert isinstance(result, as_CaseParticipant)
-    assert isinstance(result.participant_statuses[0], as_ParticipantStatus)
-    assert result.participant_statuses[0].id_ == status.id_
+    assert result.participant_statuses == [status]
+    assert dl.reads[0] == stored.id_
+    assert status.id_ in dl.reads
 
 
 # ---------------------------------------------------------------------------

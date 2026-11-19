@@ -23,7 +23,6 @@ tracks:
   - "#6422"   # term check and owned ratchets
   - "#6411"   # ledger entry case in context
   - "#6413"   # vulnerability item title -> name
-  - "#6415"   # dead participantCaseName, caseActivity
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
   - "#6418"   # profile cites Controlled Identifiers context
@@ -609,15 +608,13 @@ derived `activeParticipants` is marked.
 **Field review.** Each row names the Task that fixes it. A row is a ratchet entry
 only when a rule refuses the field. The note's `audience` and
 `roles`/`suggestedRoles` break no rule (the first is an AS2 term, the last a
-judgment no check can make), and `caseActivity` is marked, so their owners' own
-acceptance criteria track them.
+judgment no check can make), so their owners' own acceptance criteria track
+them.
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
 | `caseId` (`CaseLedgerEntry`) | AS2 duplicate | `context` | #6411 |
 | `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
-| `participantCaseName` (`CaseParticipant`) | dead; duplicates `name` | deleted | #6415 |
-| `caseActivity` (`VulnerabilityCase`) | dead | deleted | #6415 |
 | `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
 | `roles` (`as_Invite`), `suggestedRoles` (`as_Offer`) | two names, one meaning | one name | #6417 |
@@ -627,8 +624,7 @@ acceptance criteria track them.
 Every other field is a Vultron term. `title` is a clash only until #6413 renames the
 item's. `state`, `status` and `kind` are each used once on the wire, and
 `caseStatus` is one meaning in two shapes (an object or a link), so none of them is
-a clash. `caseActivity` is dead, but it is marked a Vultron term,
-so no rule refuses it, and #6415 deletes it without a ratchet entry.
+a clash.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
 EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context

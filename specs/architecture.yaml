@@ -3105,11 +3105,11 @@ groups:
       A placeholder or a synthesized actor states facts that no actor asserted, and
       activity can then be attributed to the wrong actor.
     verification: >-
-      `test_unresolvable_id_in_uri_list_slot_is_kept_as_string` in
+      `test_unresolvable_activity_id_is_refused_not_fabricated` in
       `test/wire/as2/test_rehydration_materialisation.py` asserts an unresolvable
-      reference stays an IRI, and `test_materialised_activity_carries_its_own_actor`
-      asserts a resolved activity keeps its stored actor rather than one attributed to
-      the Case Owner.
+      activity reference is refused rather than replaced by a stub activity, and
+      `test_materialised_activity_carries_its_own_actor` asserts a resolved activity
+      keeps its stored actor rather than one attributed to the Case Owner.
     relationships:
     - rel_type: extends
       spec_id: ARCH-25-029

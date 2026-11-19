@@ -35,9 +35,6 @@ KNOWN_ITEM_TITLE_TERM_VIOLATIONS = frozenset(
     {"VulnerabilityItem.title: VM-10-007"}
 )
 
-# owner: #6415
-KNOWN_PARTICIPANT_TERM_VIOLATIONS: frozenset[str] = frozenset()
-
 # owner: #6416
 KNOWN_ITEM_NAME_CLASH_TERM_VIOLATIONS = frozenset(
     {
