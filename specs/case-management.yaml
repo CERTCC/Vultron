@@ -4214,7 +4214,7 @@ groups:
     kind: project
     statement: >-
       The CASE_MANAGER's Invite for the Case Owner's direct invite MUST carry the
-      offered roles, so its `caseRoles` is never empty (CM-17-003).
+      offered roles, so its `roles` is never empty (CM-17-003).
     rationale: >-
       The roles travel in the Offer, and the CASE_MANAGER reads them from the received
       Offer it stored. That is the stored activity, not a value the trigger response

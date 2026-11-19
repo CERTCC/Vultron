@@ -183,10 +183,6 @@
       "state": "vultron:state",
       "status": "vultron:status",
       "stubSummary": "vultron:stubSummary",
-      "suggestedRoles": {
-        "@id": "vultron:suggestedRoles",
-        "@container": "@set"
-      },
       "systemName": "vultron:systemName",
       "term": "vultron:term",
       "termination": "vultron:termination",

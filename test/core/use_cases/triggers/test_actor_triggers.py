@@ -370,7 +370,8 @@ class TestSvcInviteActorToCaseUseCase:
         assert activity["type"] == "Offer"
         assert activity["actor"] == harness.owner.id_
         assert activity.get("to") == [harness.manager.id_]
-        assert activity.get("suggestedRoles") == ["vendor"]
+        assert activity.get("roles") == ["vendor"]
+        assert "suggestedRoles" not in activity
         obj = activity["object"]
         assert (obj["id"] if isinstance(obj, dict) else obj) == (
             harness.invitee.id_

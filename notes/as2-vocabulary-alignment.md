@@ -598,10 +598,10 @@ ids (#6416). The check walks computed fields too, so the case's
 derived `activeParticipants` is marked.
 
 **Field review.** Each row names the Task that fixes it. A row is a ratchet entry
-only when a rule refuses the field. The note's `audience` and
-`roles`/`suggestedRoles` break no rule (the first is an AS2 term, the last a
-judgment no check can make), and `caseActivity` is marked, so their owners' own
-acceptance criteria track them.
+only when a rule refuses the field. The note's `audience` breaks no rule (it is
+an AS2 term), and `caseActivity` is marked, so their owners' own acceptance
+criteria track them. An Offer and an Invite carry the roles they propose in one
+field, `roles`, declared on `as_Offer` and inherited by `as_Invite` (#6417).
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
@@ -611,7 +611,6 @@ acceptance criteria track them.
 | `caseActivity` (`VulnerabilityCase`) | dead | deleted | #6415 |
 | `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
-| `roles` (`as_Invite`), `suggestedRoles` (`as_Offer`) | two names, one meaning | one name | #6417 |
 | `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 

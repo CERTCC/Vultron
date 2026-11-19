@@ -61,7 +61,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 def recommend_actor_activity(
     recommended: as_Actor | CoreActor | str,
     target: as_VulnerabilityCaseRef | None = None,
-    suggested_roles: list[str] | None = None,
+    roles: list[str] | None = None,
     *,
     at: datetime,
     **kwargs,
@@ -79,6 +79,8 @@ def recommend_actor_activity(
             (AKM-05-017).
         target: The ``VulnerabilityCase`` (or its URI) for which the
             actor is being recommended.
+        roles: The CVD roles the recommender proposes the actor hold in the
+            case, carried as ``roles`` (CM-16-003).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor`` for the recommending party).
 
@@ -95,7 +97,7 @@ def recommend_actor_activity(
         lambda: {
             "object_": carried_actor(recommended),
             "target": case_target_ref(target),
-            "suggested_roles": suggested_roles,
+            "roles": roles,
             **with_case_context(kwargs, target),
         },
     )

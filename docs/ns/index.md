@@ -100,7 +100,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `replaces` | iri | The id of the embargo that an activated revision replaced |
 | `rmState` | plain | A participant's Report Management (RM) state in a case |
 | `role` | plain | The CVD role offered to an actor in a case |
-| `roles` | set | The CVD roles an Invite to a case offers the invitee |
+| `roles` | set | The CVD roles an Offer or Invite proposes for the actor it names, to hold in the case |
 | `rsvpDeadline` | plain | The time by which an invited participant is to answer an embargo invitation, as a UTC date-time |
 | `semanticType` | plain | The Vultron message-semantics label of the act a case ledger entry records |
 | `senderSequence` | plain | A participant's number for a case activity it sends the CASE_MANAGER: a positive integer, 1 for its first on the case and one more for each next one, kept by a resend |
@@ -109,7 +109,6 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `state` | plain | A participant's consent to one embargo: UNINVITED, INVITED, AGREED, DECLINED or TIMED_OUT |
 | `status` | plain | The status of an embargo in its case's embargo register, such as PROPOSED, ACTIVE or TERMINATED |
 | `stubSummary` | plain | The summary a case owner chose for the case stub it sends to invitees, which may say less than the case's name |
-| `suggestedRoles` | set | The CVD roles an Offer that recommends an actor suggests it take in a case |
 | `systemName` | plain | The name of the system that issued a vulnerability identifier |
 | `term` | plain | The cluster term in which the CASE_MANAGER committed a case ledger entry; absent on a single-node deployment |
 | `termination` | plain | How a terminated embargo ended: an object that gives the reason and, when recorded, its cause |

@@ -122,26 +122,26 @@ class as_Offer(as_TransitiveActivity):
         validation_alias="type",
         serialization_alias="type",
     )
-    # Declared on the base rather than only on _RecommendActorActivity because
-    # VOCABULARY["Offer"] resolves to this class: an inbound Offer is
-    # reconstructed as a bare as_Offer, so without the field here the suggested
-    # roles are dropped on the DataLayer round-trip (#1990).  Aliased
-    # explicitly, matching the convention in this module.
-    suggested_roles: list[NonEmptyString] | None = Field(
+    # One field for the roles an Offer(Actor) recommends and an Invite offers
+    # (as_Invite inherits it), so both carry them under one wire name with one
+    # definition (VM-10-012, #6417).  Declared on the base rather than only on
+    # _RecommendActorActivity because VOCABULARY["Offer"] resolves to this
+    # class: an inbound Offer is reconstructed as a bare as_Offer, so without
+    # the field here the roles are dropped on the DataLayer round-trip
+    # (#1990).  Single-word, so the wire name needs no alias.
+    roles: list[NonEmptyString] | None = Field(
         default=None,
-        validation_alias="suggestedRoles",
-        serialization_alias="suggestedRoles",
         json_schema_extra=vultron_property(
             (
-                "The CVD roles an Offer that recommends an actor suggests it "
-                "take in a case"
+                "The CVD roles an Offer or Invite proposes for the actor it "
+                "names, to hold in the case"
             ),
             PropertyValueKind.SET,
         ),
     )
     # EP-04-004: a Reporter states embargo terms for *this* report by carrying
     # a proposed EmbargoEvent on the Offer(VulnerabilityReport).  Declared on
-    # the base for the same reason as ``suggested_roles``: an inbound Offer is
+    # the base for the same reason as ``roles``: an inbound Offer is
     # reconstructed as a bare as_Offer, and Pydantic's default ``extra="ignore"``
     # would otherwise drop the proposal silently (ADR-0096).  The event's
     # ``context`` is the report URI until the CASE_MANAGER rewrites it at case
@@ -192,13 +192,8 @@ class as_Invite(as_Offer):
         validation_alias="type",
         serialization_alias="type",
     )
-    roles: list[NonEmptyString] | None = Field(
-        default=None,
-        json_schema_extra=vultron_property(
-            "The CVD roles an Invite to a case offers the invitee",
-            PropertyValueKind.SET,
-        ),
-    )
+    # ``roles`` is inherited from as_Offer: the roles the Invite offers the
+    # invitee (CM-17-003).
 
 
 class as_Flag(as_TransitiveActivity):
