@@ -36,12 +36,13 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 ```
 
 Every object an Activity embeds carries its own `id` too, at any depth, and a receiver refuses a message that embeds one without it.
+An object inside a case preview is the exception: the preview shows what its sender chose, so the receiver reads such an object as sent, with or without its `id` or `published` ([MV-12-006](requirements/messages.md#mv-12-006)).
 A Link, such as a `Mention` in `tag`, is not an object: it needs no `id` and names its resource by `href`.
 
 Every whole object an Activity embeds, at any depth, also carries the `published` timestamp its author stamped on it, except an actor profile, a collection or an embargo consent row; a typed reference is not a whole object, and the case preview it may carry is a projection of the object it names.
 A receiver refuses a message that embeds one without it, and names where the object sits.
 An actor profile describes an actor and a collection is a container, so neither is an act made at a moment.
-A case preview carries only the keys it defines, and a consent row is copied without a time, so neither carries one.
+A case preview is a projection of the case, and a consent row is copied without a time, so neither needs one.
 A typed reference, a URI and a Link are not whole objects, so they carry no time.
 `updated` stays optional, and a receiver carries it as sent.
 
@@ -118,6 +119,7 @@ A receiver routes an activity by a typed reference's `type` as it routes by a wh
 A handler uses the object the receiver holds, or the receiver fetches the object first.
 Only the case defines a preview: a case reference may carry the case stub, inline, as its `preview` ([ADR-0205](../../adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md)).
 A typed reference that carries any other `preview` is refused, and the refusal names its position.
+Inside a case preview, an object with only an `id` and a `type`, in a field that holds a case's objects, is read as that object shown by its `id`, not as a reference ([MV-10-011](requirements/messages.md#mv-10-011)).
 A receiver reads a reference that carries a preview as received.
 It never puts the object it holds in the reference's place, never fetches that object, and never seeds or updates a replica from it.
 
