@@ -19,6 +19,7 @@ from typing import Any, cast
 from vultron.demo.actor_session.binding import SessionBinding
 from vultron.demo.actor_session.results import (
     WireActivityResult,
+    WireCaseInviteResult,
     WireTriggerResult,
 )
 from vultron.enums.roles import CVDRole
@@ -131,12 +132,12 @@ class CaseTriggers(SessionBinding):
 
     def invite_actor_to_case(
         self, *, invitee_id: str, roles: list[CVDRole] | None = None
-    ) -> WireActivityResult:
-        """Ask the CASE_MANAGER to invite *invitee_id* (invite-actor-to-case).
+    ) -> WireCaseInviteResult:
+        """Send the CASE_MANAGER this Case Owner's Invite (invite-actor-to-case).
 
-        The result is the owner's own Offer to the CASE_MANAGER, not the
-        Invite: the CASE_MANAGER emits the Invite (CM-17-007, ADR-0109), so a
-        caller finds it on the invitee's side with
+        The result is the owner's own Invite to the CASE_MANAGER, not the
+        stub Invite: the CASE_MANAGER makes that from it (CM-17-007,
+        ADR-0199), so a caller finds it on the invitee's side with
         :func:`~vultron.demo.helpers.polling.find_case_invite_for_actor`.
         """
         body: dict[str, Any] = {
@@ -145,9 +146,9 @@ class CaseTriggers(SessionBinding):
             **self._roles_body(roles),
         }
         return cast(
-            WireActivityResult,
+            WireCaseInviteResult,
             self._post(
-                "invite-actor-to-case", body, result_cls=WireActivityResult
+                "invite-actor-to-case", body, result_cls=WireCaseInviteResult
             ),
         )
 

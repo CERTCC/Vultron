@@ -51,6 +51,9 @@ from vultron.core.behaviors.case.nodes.invite_response import (
     EmitRejectFullCaseInviteNode,
     EmitTentativeRejectFullCaseInviteNode,
 )
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    owner_decided_stub_invite,
+)
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
     EmitProposeCaseOwnershipTransferNode,
@@ -60,9 +63,6 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
     EmitRejectCaseParticipantOfferNode,
-)
-from vultron.core.behaviors.case.stub_invite_send import (
-    owner_decided_stub_invite,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.ledger_position import LedgerPosition
@@ -92,8 +92,6 @@ def suggest_actor_to_case_trigger_bt(
 
 
 def case_manager_invite_actor_trigger_bt(
-    case_id: str,
-    invitee_id: str,
     roles: list[str],
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -102,13 +100,13 @@ def case_manager_invite_actor_trigger_bt(
     The Owner's decision needs no message to itself: it sends the stub
     Invite straight to the invitee, as its own act with neither
     ``attributedTo`` nor ``inReplyTo`` (CM-24-021), through the same
-    :func:`~vultron.core.behaviors.case.stub_invite_send.owner_decided_stub_invite`
+    :func:`~vultron.core.behaviors.case.nodes.owner_invite.owner_decided_stub_invite`
     the CASE_MANAGER runs on another Owner's Invite.  The Invite, its ledger
     entry and the inert participant's are one act (CLP-07-015, ADR-0146).
+    The caller seeds ``/case_id`` and ``/invitee_id`` with the values it
+    resolved (:func:`~vultron.core.behaviors.act_key_scope.with_act_keys`).
 
     Args:
-        case_id: ID of the VulnerabilityCase.
-        invitee_id: The invited actor.
         roles: The roles the Owner named; never empty (CM-11-019).
         captured: Optional dict; ``captured["activity"]`` is set to the
             stub Invite sent.
@@ -117,12 +115,7 @@ def case_manager_invite_actor_trigger_bt(
         name="CaseManagerInviteActorToCaseTriggerBT",
         children=[
             owner_decided_stub_invite(
-                invitee_id=invitee_id,
-                case_id=case_id,
-                roles=roles,
-                owner_id=None,
-                owner_invite_id=None,
-                captured=captured,
+                roles, credits_sender=False, captured=captured
             )
         ],
     )

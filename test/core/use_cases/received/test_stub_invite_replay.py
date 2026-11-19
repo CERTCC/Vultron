@@ -82,8 +82,7 @@ def _view(net: LedgerNetwork, holder: str) -> dict[str, Any]:
 def _the_owner_invites_the_joiner(
     net: LedgerNetwork, roles: list[CVDRole] | None = None
 ) -> None:
-    """The owner's Offer(Actor)[target=VulnerabilityCase] makes the CASE_MANAGER send
-    the stub."""
+    """The owner's own Invite makes the CASE_MANAGER send the stub (ADR-0199)."""
     owner_dl = net.stores[OWNER]
     for store in (net.stores[MANAGER], owner_dl):
         case = cast(VulnerabilityCase, store.read(net.case_id))
@@ -91,9 +90,12 @@ def _the_owner_invites_the_joiner(
         assert isinstance(owner_record, CaseParticipant)
         owner_record.add_role(CVDRole.CASE_OWNER)
         store.save(owner_record)
-    manager_case = net.case(MANAGER)
-    manager_case.stub_summary = "Details shared after acceptance"
-    net.stores[MANAGER].save(manager_case)
+    # Each sender's Invite carries its own preview of the case (CM-17-010):
+    # the owner's Invite and the CASE_MANAGER's stub (ADR-0199).
+    for holder in (MANAGER, OWNER):
+        held_case = net.case(holder)
+        held_case.stub_summary = "Details shared after acceptance"
+        net.stores[holder].save(held_case)
     owner_dl.save(make(as_Actor, id_=OWNER))
     owner_dl.save(make(as_Actor, id_=MANAGER))
     before = set(owner_dl.outbox_list())
@@ -310,8 +312,9 @@ def test_the_ledger_holds_the_messages_and_the_one_creation_entry() -> None:
     _the_joiner_accepts(net)
 
     new = _entry_types(net)[before:]
+    # The Owner's Invite, then the CASE_MANAGER's stub (ADR-0199).
     assert new[:4] == [
-        "offer_actor_to_case",
+        "invite_actor_to_case",
         "invite_actor_to_case",
         "create_case_participant",
         "accept_invite_actor_to_case",

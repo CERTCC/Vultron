@@ -1219,7 +1219,6 @@ class TestDuplicateDetectionTreeStructure:
             for n in self.all_nodes
             if isinstance(n, RecommenderIsNotCaseOwnerNode)
         )
-        assert guard.subject_actor_id == _RECOMMENDER
         assert guard not in list(self._duplicate_selector().iterate())
         order = [n.name for n in self.all_nodes]
         assert order.index(guard.name) < order.index(

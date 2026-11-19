@@ -1042,12 +1042,23 @@ class TestOwnerHoldingTheCaseManagerRoleInvitesDirectly:
         record = cast(Any, dl.read(case.actor_participant_index[owner.id_]))
         record.case_roles = [CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER]
         dl.save(record)
+        return (
+            TestOwnerHoldingTheCaseManagerRoleInvitesDirectly._run(
+                dl, owner, invitee, case.id_, roles
+            ),
+            dl,
+            owner,
+            invitee,
+        )
+
+    @staticmethod
+    def _run(dl, owner, invitee, case_id: str, roles) -> Any:
         result = run_in_act(
             SvcInviteActorToCaseUseCase(
                 dl,
                 InviteActorToCaseTriggerRequest(
                     actor_id=owner.id_,
-                    case_id=case.id_,
+                    case_id=case_id,
                     invitee_id=invitee.id_,
                     roles=roles,
                 ),
@@ -1057,7 +1068,23 @@ class TestOwnerHoldingTheCaseManagerRoleInvitesDirectly:
                 clock=SystemClock(),
             )
         )
-        return activity_of(result), dl, owner, invitee
+        return activity_of(result)
+
+    @pytest.mark.spec("CM-11-015", "CM-11-042")
+    def test_a_reinvite_replaces_the_stub_on_the_same_record(self):
+        first, dl, owner, invitee = self._invite([CVDRole.VENDOR])
+        case_id = first["object"]["id"]
+        record = cast(Any, dl.read(case_id)).actor_participant_index[
+            invitee.id_
+        ]
+
+        second = self._run(dl, owner, invitee, case_id, [CVDRole.VENDOR])
+
+        assert second["id"] != first["id"]
+        assert second["inReplyTo"] == first["id"]
+        assert "attributedTo" not in second
+        case = cast(Any, dl.read(case_id))
+        assert case.actor_participant_index[invitee.id_] == record
 
     @pytest.mark.spec("CM-24-021", "CM-17-006", "CM-11-006")
     def test_the_stub_goes_straight_to_the_invitee_and_is_its_own(self):

@@ -23,6 +23,8 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, INVITEE_ID, SENDER_ID
 from vultron.core.behaviors.case.nodes.invite_received import (
     LogInviteReceivedNode,
     RecordInviteTrustAnchorNode,
@@ -32,6 +34,7 @@ from vultron.core.behaviors.case.nodes.invite_reject_participant import (
 )
 from vultron.core.behaviors.case.nodes.owner_invite import (
     case_manager_admits_owner_invite_guard,
+    owner_decided_stub_invite,
 )
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import (
@@ -39,9 +42,6 @@ from vultron.core.behaviors.case.nodes.received_path import (
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
-)
-from vultron.core.behaviors.case.stub_invite_send import (
-    owner_decided_stub_invite,
 )
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
@@ -204,6 +204,13 @@ def create_invite_actor_to_case_received_tree(
     Returns:
         Root ``InviteActorToCaseReceivedBT`` Sequence node.
     """
+    # The keys the CASE_MANAGER's nodes read for the Owner's Invite
+    # (BTND-01-008).
+    owner_keys = {
+        CASE_ID: case_id,
+        INVITEE_ID: invitee_id,
+        SENDER_ID: inviter_id,
+    }
     return create_receive_activity_tree(
         name="InviteActorToCaseReceivedBT",
         case_id=case_id,
@@ -212,12 +219,8 @@ def create_invite_actor_to_case_received_tree(
             # invitee judges nothing here (HP-01-038).
             OnPaths.at_case_manager(
                 "OwnerInviteAdmissibleAtCaseManager",
-                case_manager_admits_owner_invite_guard(
-                    invite_id=invite_id,
-                    inviter_id=inviter_id,
-                    invitee_id=invitee_id,
-                    case_id=case_id,
-                    roles=roles,
+                with_act_keys(
+                    case_manager_admits_owner_invite_guard(roles), owner_keys
                 ),
             )
         ],
@@ -261,13 +264,13 @@ def create_invite_actor_to_case_received_tree(
             ),
         ],
         manager_effects=[
-            owner_decided_stub_invite(
-                invitee_id=invitee_id,
-                case_id=case_id,
-                roles=list(roles or []),
-                owner_id=inviter_id,
-                owner_invite_id=invite_id,
-                actor_config=actor_config,
+            with_act_keys(
+                owner_decided_stub_invite(
+                    list(roles or []),
+                    credits_sender=True,
+                    actor_config=actor_config,
+                ),
+                owner_keys,
             )
         ],
         manager_case_id=case_id,

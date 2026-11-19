@@ -49,11 +49,9 @@ from test.core.use_cases.triggers.embargo.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     activate,
-    agree_to_active_embargo,
 )
 from test.support.future_dates import days_from_now
 from test.support.objects import authored_at, make
-from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -69,7 +67,6 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.events.actor import OfferActorToCaseReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -84,9 +81,6 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
-from vultron.core.use_cases.received.actor.suggest import (
-    OfferActorToCaseReceivedUseCase,
-)
 from vultron.core.use_cases.triggers.actor import SvcInviteActorToCaseUseCase
 from vultron.core.use_cases.triggers.case import (
     AddOnBehalfStatusTriggerRequest,
@@ -102,7 +96,6 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
 from vultron.wire.as2.factories import rm_submit_report_activity
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
@@ -131,10 +124,9 @@ def _participant_of(
 def _hold_case_owner(dl: SqliteDataLayer, case_id: str, actor_id: str) -> None:
     """Give *actor_id*'s participant record ``CVDRole.CASE_OWNER``.
 
-    The invite trigger is the Case Owner's action, and the CASE_MANAGER emits
-    the Invite directly only for an Offer whose sender holds CASE_OWNER on the
-    roster (CM-17-007).  The store-owner seeds here name the CASE_MANAGER;
-    this adds the ownership the trigger presumes.
+    The invite trigger is the Case Owner's action, refused for anyone else
+    (CM-17-007).  The store-owner seeds here name the CASE_MANAGER; this adds
+    the ownership the trigger presumes.
     """
     case = dl.read_case(case_id)
     assert case is not None
@@ -152,20 +144,13 @@ def _send_stub_invite(
 ) -> dict[str, Any]:
     """Invite *invitee_id* as the owner *actor_id*; return the Invite emitted.
 
-    The owner's trigger sends its own ``Offer(Actor)[target=VulnerabilityCase]`` to the
-    CASE_MANAGER; the CASE_MANAGER emits the Invite (CM-17-007, ADR-0109).
-    *actor_id* is both here — the store's owner holds CASE_MANAGER — so the
-    Offer is delivered to the same store, as ADR-0109 lets an owner that is
-    also the CASE_MANAGER address it to itself.
+    *actor_id* is the store's owner and holds CASE_MANAGER, so its trigger
+    sends the stub Invite straight to the invitee, as its own act, with no
+    message to itself (CM-17-017, CM-24-021, ADR-0199).  The sealed body is
+    the wire form the outbox relays (OX-07-001).
     """
     _hold_case_owner(dl, case_id, actor_id)
-    case = dl.read_case(case_id)
-    assert case is not None
-    if case.embargo_in_force:
-        # The owner recommends, so it must be an active participant: a
-        # signatory to the embargo in force (CM-10-004, CM-23-018).
-        agree_to_active_embargo(dl, case, actor_id)
-    offer = activity_of(
+    invite = activity_of(
         run_in_act(
             SvcInviteActorToCaseUseCase(
                 dl,
@@ -182,33 +167,11 @@ def _send_stub_invite(
             )
         )
     )
-    already_queued = set(dl.outbox_list())
-    stored_offer = dl.read(offer["id"])
-    assert isinstance(stored_offer, as_Activity)
-    event = received_event(stored_offer, at=dl).model_copy(
-        update={"receiving_actor_id": actor_id}
-    )
-    assert isinstance(event, OfferActorToCaseReceivedEvent)
-    result = run_in_act(
-        OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        )
-    )
-    assert result.disposition is HandlerDisposition.APPLIED, result
-    for item in dl.outbox_list():
-        if item in already_queued:
-            continue
-        sealed = read_sealed_body(dl, item)
-        if sealed is None:
-            continue
-        body: dict[str, Any] = json.loads(sealed.body)
-        if body["type"] == "Invite":
-            return body
-    raise AssertionError("the CASE_MANAGER emitted no Invite")
+    assert invite["type"] == "Invite"
+    sealed = read_sealed_body(dl, invite["id"])
+    assert sealed is not None, "the stub Invite was not sealed"
+    body: dict[str, Any] = json.loads(sealed.body)
+    return body
 
 
 def _vendor_participant(

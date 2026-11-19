@@ -122,20 +122,12 @@ def _trigger_invite(
     invitee_name: str,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Have *inviter* send the CASE_MANAGER its own Invite of *invitee*.
-
-    The inviter's Invite carries its own preview of the case, which needs a
-    summary (CM-17-010), so its copy is seeded first, as the CASE_MANAGER's
-    is (ADR-0199).
-    """
-    session = (
+    """Have *inviter* send the CASE_MANAGER its own Invite of *invitee*."""
+    invite_offer = (
         ActorSession(client=inviter.client, actor=inviter.actor)
         .with_case(case)
         .quiet()
-    )
-    session.set_stub_summary(case.stub_summary or DEMO_STUB_SUMMARY)
-    invite_offer = session.invite_actor_to_case(
-        invitee_id=invitee.id_, roles=[inviter.role]
+        .invite_actor_to_case(invitee_id=invitee.id_, roles=[inviter.role])
     ).activity
     logger.info(
         "%s sent the CASE_MANAGER its Invite of %s: %s",
@@ -146,9 +138,15 @@ def _trigger_invite(
 
 
 def _seed_stub_summary(
-    case_manager_client: DataLayerClient, case: as_VulnerabilityCase
+    case_manager_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    inviter: CaseInviter | None = None,
 ) -> None:
-    """Seed ``stub_summary`` on the CASE_MANAGER's DataLayer copy of *case*."""
+    """Seed ``stub_summary`` on the CASE_MANAGER's copy of *case*.
+
+    With *inviter*, its own copy too: the Case Owner's Invite carries its
+    own preview of the case, which needs a summary (CM-17-007, CM-17-010).
+    """
     case_manager_id = find_case_actor_participant_id(
         case_manager_client, case.id_
     )
@@ -161,6 +159,10 @@ def _seed_stub_summary(
         client=case_manager_client,
         actor=get_actor_by_id(case_manager_client, case_manager_id),
     ).with_case(case).quiet().set_stub_summary(DEMO_STUB_SUMMARY)
+    if inviter is not None:
+        ActorSession(client=inviter.client, actor=inviter.actor).with_case(
+            case
+        ).quiet().set_stub_summary(DEMO_STUB_SUMMARY)
 
 
 def _await_and_answer(

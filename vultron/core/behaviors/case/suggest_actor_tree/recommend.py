@@ -21,6 +21,8 @@ recommending participant (CM-16-001..004).
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.case.nodes.actor import (
     EvaluateDefaultRolesNode,
 )
@@ -239,10 +241,11 @@ def create_recommend_actor_to_case_received_tree(
         precondition_guards=[
             # The Case Owner decides with its own Invite, so its Offer is
             # refused: the decision has one wire form (CM-17-007, ADR-0199).
-            RecommenderIsNotCaseOwnerNode(
-                actor_id=recommender_id,
-                case_id=case_id,
-                name="RecommenderIsNotCaseOwner",
+            with_act_keys(
+                RecommenderIsNotCaseOwnerNode(
+                    name="RecommenderIsNotCaseOwner"
+                ),
+                {CASE_ID: case_id, SENDER_ID: recommender_id},
             ),
             # The admission check is the CASE_MANAGER's adjudication; the
             # tree runs nowhere else (HP-01-038).

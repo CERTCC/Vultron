@@ -25,6 +25,8 @@ from typing import ClassVar, cast
 
 import py_trees.behaviour
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, INVITEE_ID
 from vultron.core.behaviors.call_out.bundles.actor_resolution import (
     ACTOR_RESOLUTION_DETERMINISTIC,
     ActorResolutionCallOutBundle,
@@ -39,7 +41,6 @@ from vultron.core.behaviors.case.nodes.suggest_actor.admission import (
     not_invitable_refusal,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -261,28 +262,25 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
                 " role; the Case Owner names at least one (CM-11-019,"
                 " CM-11-050)"
             )
-        manager_id = resolve_case_manager_id(self._case, self._dl)
-        if same_actor_id(invitee_id, self._actor_id) or (
-            manager_id is not None and same_actor_id(invitee_id, manager_id)
+        if same_actor_id(invitee_id, self._actor_id) or has_role(
+            invitee_id, case_id, CVDRole.CASE_MANAGER, self._dl
         ):
             raise VultronValidationError(
                 f"'{invitee_id}' is the Case Owner or the CASE_MANAGER of"
                 f" case '{case_id}' and is sent no stub Invite (CM-17-015)"
             )
-        refusal = not_invitable_refusal(
-            self._dl, self._case, invitee_id, case_id
-        )
+        refusal = not_invitable_refusal(self._dl, self._case, invitee_id)
         if refusal is not None:
             raise VultronInvalidStateTransitionError(refusal)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         roles = list(self._suggested_roles or [])
         if self._is_case_manager:
-            return case_manager_invite_actor_trigger_bt(
-                case_id=self._case.id_,
-                invitee_id=self._recommended_id,
-                roles=roles,
-                captured=self._captured,
+            return with_act_keys(
+                case_manager_invite_actor_trigger_bt(
+                    roles=roles, captured=self._captured
+                ),
+                {CASE_ID: self._case.id_, INVITEE_ID: self._recommended_id},
             )
 
         def _build_activities(case_manager_id: str) -> list[str]:

@@ -338,7 +338,13 @@ def _overdue() -> datetime:
         ),
         pytest.param(
             InviteActorToCaseReceivedUseCase,
-            SenderRule.on_every_path(SenderEntitlementKind.CASE_MANAGER),
+            # The Case Owner's Invite at the CASE_MANAGER, whose standing the
+            # tree's guard judges (CM-17-025); the stub Invite elsewhere.
+            SenderRule(
+                at_case_manager=frozenset({SenderEntitlementKind.PARTICIPANT}),
+                at_participant=frozenset({SenderEntitlementKind.CASE_MANAGER}),
+                outside_case=frozenset({SenderEntitlementKind.CASE_MANAGER}),
+            ),
             id="invite",
         ),
         pytest.param(

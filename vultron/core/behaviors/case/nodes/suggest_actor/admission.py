@@ -96,23 +96,22 @@ def removed_participant_refusal(
 def not_invitable_refusal(
     datalayer: CasePersistence,
     case: VulnerabilityCase,
-    invitee_id: str,
-    case_id: str,
+    invitee: str,
 ) -> str | None:
-    """The refusal for inviting *invitee_id* when it has joined or is closed.
+    """The refusal for inviting the actor *invitee* when it has joined or is closed.
 
     ``None`` for an actor with no record in the case, or an inert one that
     has not answered (:func:`awaiting_stub_reply`): the first is invited, the
     second re-invited on its record (CM-11-015).  A joined actor has nothing
     left to answer, and ``RM.CLOSED`` is terminal (CM-11-043, ADR-0085).
     """
-    record = invitee_record(datalayer, case, invitee_id)
+    record = invitee_record(datalayer, case, invitee)
     if record is None or awaiting_stub_reply(record):
         return None
     state = "joined" if record.joined else "at RM.CLOSED"
     return (
-        f"actor '{invitee_id}' has already {state} in case"
-        f" '{case_id}' and is sent no further stub Invite"
+        f"actor '{invitee}' has already {state} in case"
+        f" '{case.id_}' and is sent no further stub Invite"
         " — REFUSED (CM-11-015, CM-11-043)"
     )
 
@@ -236,9 +235,7 @@ class SuggestedActorIsInvitableNode(
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: the CASE_MANAGER holds its case
-        refusal = not_invitable_refusal(
-            self.datalayer, case, invitee_id, self.case_id
-        )
+        refusal = not_invitable_refusal(self.datalayer, case, invitee_id)
         return refusal_status(self, refusal)
 
 
