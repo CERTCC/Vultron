@@ -92,6 +92,7 @@ If the tool refuses a value, the menu shows why, and the tool sends no request.
 Type the case's id on that node in the **Case** box.
 The tool then follows the case live: the page shows the case's new standing each time the node adds an entry to the case's ledger.
 The case narrative gains a line for that entry and keeps every line before it.
+When you have picked an earlier point of the case, as Step 4 describes, a new entry adds its line and the scoreboard stays at the point you picked.
 The tool sends the node only `GET` requests of the case's demo ledger event-stream endpoint.
 When the connection drops, the tool connects again and asks only for the entries after the last one it received.
 A node that is not in prototype run mode does not serve that endpoint, so the tool shows an error that names the node and the case.
@@ -109,7 +110,7 @@ It still has no volume, and it still publishes its port on the loopback interfac
 
 ## Step 4: Read the scoreboard
 
-The page shows the case as it stands at its last ledger entry.
+The page shows the case as it stands at its last ledger entry, unless you pick an earlier point, as the end of this step describes.
 
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
   Below it, each of the two states is marked on a small map of its state machine, so you can see where the case could go next.
@@ -150,6 +151,15 @@ The tool reads each line from the ledger; nobody writes it by hand.
 - **State changes** lists each state the entry moved: a participant's report state (RM) and its fix path and deployment (VFD), and the case's embargo state (EM) and public state (PXA).
   A `?` in a VFD or PXA state is an event the source never records, which the page reads as unknown.
 - **Notes**, when shown, says what the tool could not read in an entry.
+
+To see whether a better move was open earlier, pick a narrative line in **Show the case as it stood just after**, above the scoreboard.
+The scoreboard then shows the case as it stood just after that entry: its states and their maps, its participants and their tabs, its desiderata, and its move bands with their color legends, worked out from the entries up to that line only.
+A note above the scoreboard names the entry, and the case narrative still lists every entry.
+A point before a missing entry has a standing, even when the whole ledger shows the missing entry instead.
+Pick **Now** to see where the case stands at its last entry again.
+The tool keeps one pick at a time.
+Another case shows where it stands now, and coming back to the first case shows its pick again.
+Picking a point in another case, or choosing another source, drops the pick.
 
 ---
 
