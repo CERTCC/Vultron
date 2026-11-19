@@ -594,7 +594,9 @@ class TestRelayEmbargoInviteToEachNode:
         assert {a.actor for a in invites} == {MANAGER}
         assert {a.attributed_to for a in invites} == {PROPOSER}
         # Each names the proposer's Invite it carries out (CM-24-020).
-        assert {a.in_reply_to for a in invites} == {PROPOSAL_INVITE_ID}
+        assert [a.in_reply_to for a in invites] == [PROPOSAL_INVITE_ID] * len(
+            invites
+        )
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("EP-09-002")

@@ -85,6 +85,7 @@ from vultron.wire.as2.factories import (
     reject_case_participant_offer_activity,
     rm_accept_invite_to_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -671,6 +672,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             for obj in (dl.read(a) for a in dl.outbox_list())
             if str(getattr(obj, "type_", "")) == "Invite"
         ]
+        assert isinstance(invite, as_Invite)
         assert invite.actor == CASE_ACTOR_ID
         assert invite.attributed_to == CASE_OWNER_ID
         assert invite.in_reply_to == event.activity_id
