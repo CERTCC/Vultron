@@ -139,3 +139,5 @@ def test_a_participant_destination_reads_the_actor_it_stands_for():
     events = build_timeline({"case-actor": [_seat(), status, named]})
     by_index = {event.log_index: event for event in events}
     assert by_index[1].target_label == "participant status → Vendor"
+    # Each phrase slot reads what the activity names in it (DRPT-03-004).
+    assert by_index[1].summary == "Vendor updated Vendor's participant status"

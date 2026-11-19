@@ -15,7 +15,8 @@
 The derivation compares each entry's state with the state already reached
 (CEH-04-001), so when the walk ends it holds what each dimension has reached.
 :class:`ReachedState` keeps that, for a measure that reads where a case
-stands rather than how it got there.
+stands rather than how it got there, and the walk can keep it after each
+entry, for a reader that asks which states an entry changed.
 
 It is the walk's own record, not a second reading of the ledger: a state an
 entry names behind the one reached is excluded here as it is from the events
@@ -37,7 +38,7 @@ from pydantic import (
     model_validator,
 )
 
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
@@ -55,13 +56,18 @@ PxaName = Annotated[CS_pxa, BY_NAME]
 
 
 class ReachedParticipant(BaseModel):
-    """What one participant has reached at the ledger's last entry.
+    """What one participant has reached at an entry of the ledger.
 
     Fields:
         participant: The participant's actor.
         rm: Its report-management state.  An inert participant's state is
             the one its records name, though it is no case event yet
             (CEH-04-010).
+        vf: Its vendor fix path, read only while it holds the Vendor role
+            or no role at all, as its vendor-awareness and fix-readiness
+            events are (CEH-04-003).
+        d: Its fix deployment, read only while it holds the Deployer role
+            or no role at all, as its fix-deployed event is (CEH-04-004).
         roles: Its case roles, upper-cased and sorted: those the latest
             participant record stating them names, or, when none does, every
             role its records name.
@@ -73,6 +79,8 @@ class ReachedParticipant(BaseModel):
 
     participant: NonEmptyString
     rm: RM = RM.START
+    vf: CS_vf = CS_vf.vf
+    d: CS_d = CS_d.d
     roles: tuple[NonEmptyString, ...] = ()
     joined: bool = True
 
@@ -84,7 +92,9 @@ class ReachedParticipant(BaseModel):
 
 
 class ReachedState(BaseModel):
-    """The states a case's ledger has reached at its last entry.
+    """The states a case's ledger has reached at one of its entries: its last
+    one from :func:`~vultron.measure.history.derive_case`, or each one in
+    turn from :func:`~vultron.measure.history.derive_case_steps`.
 
     Fields:
         participants: Every participant the ledger records, in the order
