@@ -179,6 +179,23 @@ def _show_standing(analysis: CaseAnalysis) -> None:
     _show_advice(case_advice(standing), names)
 
 
+def _show_legend(band: view.BandView) -> None:
+    """*band*'s legend strip: one cell per layer, numbered and in its rows'
+    shades, from better to dominated (SHD-03-003)."""
+    cells = "".join(
+        f'<div style="{s.css}; flex: 1; text-align: center;">{layer}</div>'
+        for layer, s in enumerate(band.legend, start=1)
+    )
+    st.markdown(
+        '<div style="display: flex; align-items: center; margin: 0.5em 0;">'
+        f'<span style="margin-right: 0.5em;">{view.LEGEND_BETTER}</span>'
+        f'<div style="display: flex; flex: 1;">{cells}</div>'
+        f'<span style="margin-left: 0.5em;">{view.LEGEND_DOMINATED}</span>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _shaded_table(band: view.BandView) -> None:
     """*band*'s moves, each row filled with its shade."""
     styles = [s.css for s in band.shades]
@@ -193,6 +210,7 @@ def _show_band(band: view.BandView) -> None:
     if not band.rows:
         st.caption(band.empty)
     elif band.shaded:
+        _show_legend(band)
         _shaded_table(band)
     else:
         _table(band.rows, band.empty)

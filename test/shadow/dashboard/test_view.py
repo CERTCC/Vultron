@@ -411,6 +411,79 @@ def test_a_shade_reads_as_a_cells_css():
     )
 
 
+@pytest.mark.parametrize("deepest", [1, 2, 4])
+def test_a_legend_is_each_layers_shade_from_better_to_dominated(deepest):
+    """#6673 AC-1: one cell per layer, each the shade that layer's rows
+    take, layer 1 at the dark end."""
+    for colour_map in ColourMap:
+        legend = view.band_legend_shades(colour_map, deepest)
+        assert legend == tuple(
+            view.shade(colour_map, layer, deepest)
+            for layer in range(1, deepest + 1)
+        )
+        assert legend[0].background == view.COLOUR_STOPS[colour_map][0]
+        if deepest > 1:
+            assert legend[-1].background == view.COLOUR_STOPS[colour_map][-1]
+
+
+def test_a_legend_needs_a_layer():
+    with pytest.raises(ValueError):
+        view.band_legend_shades(ColourMap.VIRIDIS, 0)
+
+
+@pytest.mark.spec("SHD-03-003")
+def test_a_bands_legend_holds_each_layers_shade_in_its_own_map(advice):
+    """#6673 AC-1: each shaded band's legend is drawn from its own map, and
+    every row's shade is its layer's cell on that legend."""
+    deepest = max(m.layer or 1 for m in advice.moves)
+    views = _views(advice)
+    for band in advice.bands[:2]:
+        assert band.colour_map is not None
+        band_view = views[band.band]
+        assert band_view.legend == view.band_legend_shades(
+            band.colour_map, deepest
+        )
+        for move, row_shade in zip(band.moves, band_view.shades, strict=True):
+            assert row_shade == band_view.legend[(move.layer or 0) - 1]
+    assert views[Band.HARM_FREE].legend != views[Band.TRADE_OFF].legend
+    assert views[Band.UNHELPFUL].legend == ()
+
+
+def test_a_shaded_band_has_a_legend_holding_its_rows_shades():
+    """A shaded band's legend is not optional, and a row shade that is not
+    on it is refused; the unhelpful band has none."""
+    dark, light = view.band_legend_shades(ColourMap.VIRIDIS, 2)
+    row: view.Row = {"Layer": 1}
+    with pytest.raises(ValueError, match="a shaded band has a legend"):
+        view.BandView(
+            band=Band.HARM_FREE,
+            title="Harm-free",
+            collapsed=False,
+            rows=(row,),
+            shades=(dark,),
+            empty="none",
+        )
+    with pytest.raises(ValueError, match="not on the legend"):
+        view.BandView(
+            band=Band.HARM_FREE,
+            title="Harm-free",
+            collapsed=False,
+            rows=(row,),
+            shades=(view.shade(ColourMap.CIVIDIS, 1, 2),),
+            legend=(dark, light),
+            empty="none",
+        )
+    with pytest.raises(ValueError, match="the unhelpful band has no legend"):
+        view.BandView(
+            band=Band.UNHELPFUL,
+            title="Unhelpful",
+            collapsed=True,
+            rows=(),
+            legend=(dark,),
+            empty="none",
+        )
+
+
 _SHADE = view.Shade(background="#440154", text="#ffffff")
 
 
