@@ -1622,7 +1622,7 @@ groups:
     kind: protocol
     statement: >-
       `ADD_CASE_STATUS_TO_CASE` MUST be represented as `Add(CaseStatus,
-      target=<case>/statuses)`, with `context` the case: the `target` is the case's
+      target=<case>/statuses)`, with `context` the case. The `target` is the case's
       status history, an ordered collection whose newest item is the case's current
       status (ADR-0204).
     rationale: >-
@@ -1652,8 +1652,8 @@ groups:
     kind: protocol
     statement: >-
       `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` MUST be represented as
-      `Add(ParticipantStatus, target=<participant>/statuses)`, with `context` the case:
-      the `target` is the participant's status history, an ordered collection whose
+      `Add(ParticipantStatus, target=<participant>/statuses)`, with `context` the case.
+      The `target` is the participant's status history, an ordered collection whose
       newest item is the participant's current status (ADR-0204).
     rationale: >-
       A participant status belongs to one participant in one case, so it joins that
