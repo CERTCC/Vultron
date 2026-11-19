@@ -95,7 +95,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        require_case_source(self, case_id)
+        require_case_source(self, given=case_id is not None)
         if case_id is not None:
             self._case_id = case_id
         self._semantic_type = semantic_type

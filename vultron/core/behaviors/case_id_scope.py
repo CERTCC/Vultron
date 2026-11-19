@@ -67,21 +67,20 @@ def seeded_case_id(node: py_trees.behaviour.Behaviour) -> str | None:
 
 
 def require_case_source(
-    node: py_trees.behaviour.Behaviour, case_id: str | None
+    node: py_trees.behaviour.Behaviour, *, given: bool
 ) -> None:
     """Refuse a node built with no case and no ``/case_id`` port to read.
 
-    For a shared base that still takes *case_id* while its subclasses move
-    to the key: ``None`` is only for a subclass that declares the port and
-    reads the case when it ticks (BTND-01-008).
+    For a shared base that still takes a case argument while its subclasses
+    move to the key: no case (*given* false) is only for a subclass that
+    declares the port and reads the case when it ticks (BTND-01-008).
 
     Raises:
-        VultronWiringError: *case_id* is ``None`` and *node*'s class declares
-            no ``/case_id`` input port, so the node could never learn its
-            case.
+        VultronWiringError: No case was given and *node*'s class declares no
+            ``/case_id`` input port, so the node could never learn its case.
     """
     ports = getattr(type(node), "INPUT_PORTS", {})
-    if case_id is None and CASE_ID.name not in ports:
+    if not given and CASE_ID.name not in ports:
         raise VultronWiringError(
             f"{node.name}: no case_id and no '{CASE_ID.path}' port to"
             " read it from (BTND-01-008)"
