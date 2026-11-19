@@ -115,6 +115,8 @@ class CoreRecord(ValidatedAssignmentMixin):
         # type_ are skipped (same guard as CoreObject).
         if "type_" not in own_annotations(cls):
             return
+        if shares_full_form_type(cls):
+            return
         annotation = concrete_type_annotation(cls)
         if annotation is None:
             return
@@ -132,6 +134,19 @@ class CoreRecord(ValidatedAssignmentMixin):
             and isinstance(literal_args[0], str)
         ):
             CORE_TYPE_MAP[literal_args[0]] = cls
+
+
+def shares_full_form_type(cls: type) -> bool:
+    """Whether *cls* is a loose form that reads under its full form's ``type``.
+
+    A preview reads each nested object in a loose form of the object's class
+    (ADR-0217), and that form keeps the full class's wire ``type``, since the
+    sender names the object it shows.  The type already names the full
+    class, so a loose form takes no registry slot: registering it would
+    replace the full class a stored row is read back as (ARCH-12-010).  A
+    loose form names its full class in its ``full_form`` class attribute.
+    """
+    return getattr(cls, "full_form", None) is not None
 
 
 def with_record_id(data: dict[str, Any], record_id: str) -> dict[str, Any]:

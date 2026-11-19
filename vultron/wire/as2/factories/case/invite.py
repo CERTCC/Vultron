@@ -28,6 +28,7 @@ from vultron.core.models.dimensions import (
     EmDimension,
 )
 from vultron.core.models.enums import VultronObjectType as VO_type
+from vultron.core.models.preview_object import to_loose
 from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._actor import carried_actor
 from vultron.wire.as2.factories._construct import build_activity
@@ -56,6 +57,11 @@ from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent as WireEmbargoEvent,
 )
+
+#: The ``CaseStatus`` fields a preview's ``caseStatus`` shows (CM-17-013): what
+#: identifies the status, the time it was made, and its EM state.
+#: ``published`` stays because every ``CaseStatus`` carries one.
+_PREVIEW_CASE_STATUS_FIELDS = ("id_", "type_", "context", "published", "em")
 
 
 def _project_case_to_preview(
@@ -118,10 +124,15 @@ def _project_case_to_preview(
     wire_status = as_CaseStatus(
         context=case_id, em=EmDimension(state=em_state), published=at
     )
+    # A preview holds its contents in loose forms (ADR-0217).  The embargo is
+    # shown whole, every term as held (CM-17-011); the status only by its
+    # identity, time and EM state, since it is built for the preview and its
+    # other properties are class defaults that say nothing true about the
+    # case (CM-17-013).
     return as_CasePreview(
         summary=stub_summary,
-        active_embargo=embargo,
-        case_status=wire_status,
+        active_embargo=to_loose(embargo),
+        case_status=to_loose(wire_status, _PREVIEW_CASE_STATUS_FIELDS),
     )
 
 

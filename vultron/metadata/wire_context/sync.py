@@ -395,7 +395,10 @@ def wire_field_classes() -> list[type[BaseModel]]:
     seen: set[type[BaseModel]] = set()
     pending = list(_wire_object_classes())
     while pending:
-        cls = pending.pop()
+        # A preview's loose form has its full class's fields and terms
+        # (ADR-0217), so it is judged as that class.
+        popped = pending.pop()
+        cls = getattr(popped, "full_form", None) or popped
         if cls in seen or not _serializes_its_fields(cls):
             continue
         seen.add(cls)
