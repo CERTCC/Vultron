@@ -15,7 +15,7 @@
 
 ADR-0053's stated validation criterion is that an actor *outside* the
 ownership negotiation learns of the completed transfer from
-``Announce(CaseLedgerEntry)`` alone.  Verifying ``attributed_to`` on the old and
+``Add(CaseLedgerEntry)`` alone.  Verifying ``attributed_to`` on the old and
 new owners' replicas does **not** establish that: both are parties to the
 transfer and would see the change through the offer/accept exchange itself.
 

@@ -158,7 +158,7 @@ def reporter_tells_the_vendor(
         )
 
         # CLP-08-005: the Reporter needs the case before any later step
-        # broadcasts Announce(CaseLedgerEntry) to it (Bug #2135).
+        # broadcasts Add(CaseLedgerEntry) to it (Bug #2135).
         await_reporter_case_replica(state, CASE_REPLICA_TIMEOUT)
 
         # Re-read the case as the Vendor now stores it: the triage and the

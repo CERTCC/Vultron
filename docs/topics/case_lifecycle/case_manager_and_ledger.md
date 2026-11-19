@@ -48,7 +48,7 @@ The flow of a change is always the same:
    Each such change then follows as its own CASE_MANAGER-authored entry, carrying the changed record in full.
    An example is a participant's new RM status after *my report is now validated* ([CLP-07-013](../../reference/vultron-spec/requirements/ledger-replication.md#clp-07-013)).
    If it refuses the assertion, it appends nothing and records the refusal in its structured logs instead.
-3. The CASE_MANAGER sends each new entry to every participant as `Announce(CaseLedgerEntry)`.
+3. The CASE_MANAGER sends each new entry to every participant as `Add(CaseLedgerEntry)`.
 4. Each participant records each entry and copies what it carries into its own replica, ids and times included, deriving nothing of its own ([CM-23-016](../../reference/vultron-spec/requirements/case-management.md#cm-23-016)).
 
 Because there is exactly one writer, no participant ever has to reconcile two competing versions of the case history.
@@ -95,7 +95,7 @@ The hashes link the entries into a chain, so a participant can tell whether a ne
 ## Fan-out: every participant gets every entry
 
 After it appends an entry, the CASE_MANAGER sends that entry to each participant individually ([SYNC-02-003](../../reference/vultron-spec/requirements/ledger-replication.md#sync-02-003)).
-The message is an `Announce` whose object is the entry itself, carried inline or by reference ([SYNC-02-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-02-001), [SYNC-02-004](../../reference/vultron-spec/requirements/ledger-replication.md#sync-02-004)).
+The message is an `Add` whose object is the entry itself, carried inline or by reference, and whose target is the case's ledger, `<case>/ledger` ([SYNC-02-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-02-001), [SYNC-02-004](../../reference/vultron-spec/requirements/ledger-replication.md#sync-02-004)).
 A participant needs every field of the entry to check it against the chain it already holds.
 The reference implementation never fetches a ledger entry by reference, so it always sends the whole entry inline ([SYNC-02-005](../../reference/specs/project.md#sync-02-005)).
 

@@ -80,7 +80,7 @@ KNOWN_READER_REFUSALS: dict[str, tuple[int, str]] = {
         " sent, which an effect inside the diversion decides, not a"
         " condition that could declare the reason",
     ),
-    "sync/announce.py::_held_or_not_manager": (
+    "sync/add_log_entry.py::_held_or_not_manager": (
         1,
         "rewords the composed sender guard's refusal with the announced"
         " entry; the guard is shared by every received tree and states"

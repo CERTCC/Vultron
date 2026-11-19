@@ -5,17 +5,18 @@ kind: guidance
 description: >
   Rules for replicating the canonical case ledger to participants: single-writer
   log, hash-chain sync, canonical serialization, commit and replica invariants,
-  the sync-port wiring rule, fan-out recipients and the embargo pause, ingress
-  never writing the ledger, the held out-of-order Announce, arrival-order
-  independence (SYNC-19), divergence recovery,
-  the sender's ledger position on every case activity, replay rate limiting, the
-  resend of unanswered Invites on a position statement (SYNC-20), the sender
-  sequence that orders one participant's activities (SYNC-21, ADR-0178), what a
-  `Reject(CaseLedgerEntry)` names in `inReplyTo` (RF-08-004), and SYNC test
-  patterns.
+  the sync-port wiring rule, the commit as an `Add` to the case's named ledger
+  that acknowledges the act it commits (ADR-0204), fan-out recipients and the
+  embargo pause, ingress never writing the ledger, the held out-of-order `Add`,
+  arrival-order independence (SYNC-19), divergence recovery, the sender's ledger
+  position on every case activity, replay rate limiting, the resend of unanswered
+  Invites on a position statement (SYNC-20), the sender sequence that orders one
+  participant's activities (SYNC-21, ADR-0178), what a `Reject(CaseLedgerEntry)`
+  names in `inReplyTo` (RF-08-004), and SYNC test patterns.
 related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/response-format.yaml
+  - specs/message-semantics-mapping.yaml
   - specs/case-ledger-processing.yaml
   - specs/case-proposal.yaml
   - specs/case-management.yaml
@@ -88,7 +89,7 @@ everything after the last hash a participant reports.
   check all call `ledger_entry_hash_intact()`. A second copy of the hashing logic
   can disagree with the first and blame the wrong side (SYNC-03-010, #5095).
 - **The CASE_MANAGER holds back an entry it cannot verify** (SYNC-03-009). Every
-  `send_announce_log_entry` call (fan-out, `Reject` replay, embargo backfill,
+  `send_add_log_entry` call (fan-out, `Reject` replay, embargo backfill,
   join-time backfill, and `Read` position-statement replay) goes through one core
   helper that checks first, so no send path can skip it. The helper sits at the port
   call, below `send_ledger_suffix`, because the fan-out of a new entry bypasses that
@@ -180,7 +181,7 @@ tree (SYNC-01-005).
 
 An entry is **committed** once durably appended; in single-node every append
 commits. **Emit after commit**: external messages, including the participant
-fan-out `Announce(CaseLedgerEntry)`, go out only after their entry is committed,
+fan-out `Add(CaseLedgerEntry)`, go out only after their entry is committed,
 so an act a node claims cannot be rolled back.
 
 Invariants every component touching state, messaging or storage must preserve:
@@ -211,7 +212,15 @@ always has its announcements queued. A rebuilt act that finds its entry recorded
 a second announcement goes out under a new id, which no receiver can tell from a
 new message (SYNC-09-002, #5047).
 
-**Keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them.** A
+**A commit is `Add(CaseLedgerEntry, target=<case>/ledger)`, with `context` the
+case and `inReplyTo` the committed act, and no `result`.** The factory reads all
+three from the entry, so no caller names them, and a replica refuses an `Add`
+that contradicts its entry at the parse edge. Reason: the `Add` is the act's
+positive acknowledgement, and an act a commit causes names its cause in its own
+`inReplyTo` (SYNC-02-006 to SYNC-02-010, MSM-05-009, ADR-0204). `<case>/ledger`
+is an identity only; do not add a route for it (IE-02-003).
+
+**Keep `Add(CaseLedgerEntry)` ids freshly minted; never derive them.** A
 replica refuses an entry that does not extend its tail or arrives before its case
 is seeded, then asks for a replay (SYNC-03-001, SYNC-15-001). A derived id would
 give the replayed copy the refused copy's id, the seen-before door would refuse it
@@ -307,13 +316,13 @@ if the core write path that applies effects is the sole writer. So:
    does not stage a `CaseLedgerEntry` even in the throwaway routing store
    (SYNC-13-002). An adapter pre-store makes the gate skip effects on first
    delivery.
-2. `FastAPIIngressAdapter.rehydrate` hydrates the in-memory `Announce(CaseLedgerEntry)`
+2. `FastAPIIngressAdapter.rehydrate` hydrates the in-memory `Add(CaseLedgerEntry)`
    instead of re-reading it by id, so the inline entry survives for routing
-   (SYNC-13-003/004). A bare-string `object_` matches no Announce
+   (SYNC-13-003/004). A bare-string `object_` matches no Add
    pattern (SE-01-006), so the entry would be read as
    `UNKNOWN_UNRESOLVABLE_OBJECT`, and a ledger entry is never fetched (AKM-05-007).
 3. Inline nested subtypes survive serialization end to end
-   (`serialize_as_any=True`; the entry inside a stored `Announce` stays inline in
+   (`serialize_as_any=True`; the entry inside a stored `Add` stays inline in
    `_dehydrate_data`).
 4. The wire parser never recurses into `payload_snapshot`; coercing it into a
    typed activity down-casts the entry to `as_Object`.
@@ -322,20 +331,24 @@ For tests: a participant must hold the case replica (with its genesis hash)
 before it can validate a replicated entry (CLP-08-005). Seed the case on the
 peer; never rely on a pre-stored entry.
 
-## Out-of-Order Delivery and the Held Ledger Announce (SYNC-10-004)
+## Out-of-Order Delivery and the Held Ledger Add (SYNC-10-004)
 
 The transport promises no order, and other implementations may share the wire,
 so a replica can get an entry before its predecessor. One drain per actor with
 per-recipient lanes (ADR-0112, OX-01-004/005/006) makes this rare, and a replay
-does not re-queue an `Announce` the outbox already holds for that peer
+does not re-queue an `Add` the outbox already holds for that peer
 (SYNC-15-012). The hold below is the backstop for loss, not the steady state.
 
-- **Hold the Announce, never the entry alone** (SYNC-14-010). The body intake
+- **The inbox never defers a ledger `Add`.** The `Add` names its case in
+  `context` (ADR-0204), so the unknown-case gate would otherwise queue a
+  pre-seed entry instead of letting the tree hold it; `SELF_HOLDING_SEMANTICS`
+  in `core/models/events/case_context.py` exempts it (SYNC-15-004).
+- **Hold the Add, never the entry alone** (SYNC-14-010). The body intake
   archived is marked as owing a replay on its own `ReceivedActivityRecord`
   (IO-03-009); a `HeldLedgerAnnounce` row indexes it. This is the one hold that
   lands on an already-archived record, so releasing or discarding it leaves the
   archive standing and only gives up the replay (CLP-10-018). Reason: an entry held alone
-  can only reach the inbox again inside an Announce the replica makes up and
+  can only reach the inbox again inside an Add the replica makes up and
   attributes to the CASE_MANAGER (ISSUE-5012). Both live in the receiver's store,
   never as a `CaseLedgerEntry` (SYNC-14-011), so a restart keeps them.
 - **Keyed on `prev_log_hash`**, so the successor of a new tail is one read
@@ -347,7 +360,7 @@ does not re-queue an `Announce` the outbox already holds for that peer
 - **On commit**, `ReplayHeldSuccessorNode` (`sync/nodes/replay_held.py`, last in
   the participant arm, and after the seed in every seed tree: the case
   Announce, and both arms of the `Create(VulnerabilityCase)` bootstrap) asks
-  `InboxReplayPort` to replay the one held Announce that extends the new tail,
+  `InboxReplayPort` to replay the one held Add that extends the new tail,
   by its own id (SYNC-14-009). That delivery's tree replays the next, so the
   cascade needs no loop and runs the in-order path by construction
   (SYNC-14-008). Reason: running the successor inline made one delivery run
@@ -366,7 +379,7 @@ does not re-queue an `Announce` the outbox already holds for that peer
 - **Replay only after success.** The node runs after the entry is stored (or
   found stored), never on a refusal: an entry refused and held is keyed on the
   current tail, so replaying on failure would loop it into itself.
-- **Bounded** (SYNC-14-006, SYNC-14-013): a full holding area drops the Announce
+- **Bounded** (SYNC-14-006, SYNC-14-013): a full holding area drops the Add
   farthest ahead, body and all, with a WARNING; the Reject already sent recovers it.
 
 Enqueuing for another actor means opening that actor's store explicitly
@@ -387,7 +400,7 @@ outside the ledger".
   Reason: CLP-14-001 makes that order the case's causal order.
 - **Never count on per-recipient order.** Our outbox delivers in order per
   recipient (OX-01-005), which hides reordering in end-to-end runs; a lost
-  `Announce` replayed later breaks it. Test a race by delivering the messages in
+  `Add` replayed later breaks it. Test a race by delivering the messages in
   every order through `LedgerNetwork.receive`, never through the outbox
   (SYNC-19-003).
 - **A direct message is stored, not applied.** A message the CASE_MANAGER sends
@@ -442,13 +455,13 @@ same entry forever (ADR-0142).
 - **Never ledger it.** A fault about applying an entry is replication signalling,
   like the gap Reject; the replica that sent it could not apply its entry
   (SYNC-16-002).
-- **Find the case through the refused `Announce`.** The fault carries no case
-  (ASK-07-006); its `inReplyTo` names the `Announce(CaseLedgerEntry)` the
+- **Find the case through the refused `Add`.** The fault carries no case
+  (ASK-07-006); its `inReplyTo` names the `Add(CaseLedgerEntry)` the
   CASE_MANAGER stored when it sent it, so `announced_ledger_entry()` reads the
   entry, and with it the case and index, from there (SYNC-16-003).
-- **A `Reject(CaseLedgerEntry)` names the Announce that prompted it.** Its
+- **A `Reject(CaseLedgerEntry)` names the Add that prompted it.** Its
   `object` is an entry or nothing, so `inReplyTo` is required and set by the
-  sender: the `Announce(CaseLedgerEntry)` on a mismatch or a genesis wait, the
+  sender: the `Add(CaseLedgerEntry)` on a mismatch or a genesis wait, the
   `Announce(VulnerabilityCase)` after a copy ahead of the chain (RF-08-004).
   `inReplyTo` does not key the derived id, so a resent body names the first copy.
 - **One response per failure class.** `CreateProcessingFaultReceivedUseCase`
@@ -480,7 +493,7 @@ same entry forever (ADR-0142).
 - **A case copy is judged by the position it names.** Chain already past it:
   stale, `SKIPPED`, because an old copy can arrive late. A different entry at its
   index: `REFUSED` at ERROR. Otherwise the copy replaces the case, position
-  included (SYNC-16-006). A repeat of an earlier Announce takes the same
+  included (SYNC-16-006). A repeat of an earlier Add takes the same
   judgement, so it replaces the case only while it is still current
   (`services/case_copy.py`).
 - **A copy carries each record as the store holds it now.** `_case_for_wire`
@@ -521,9 +534,9 @@ case seed first (CP-09-009, CM-17-009), so this is recovery, not the steady stat
 
 - `ReconstructChainTailNode` writes sentinels (`tail_hash=""`, `tail_index=-1`)
   before FAILURE, and the `ReconstructOrRejectOnMissingCase` Selector in
-  `announce_tree/factory.py` falls back to `SendGenesisRejectOnMissingCaseNode`, so a
-  Reject with `last_accepted_hash=""` ("replay from genesis") goes out
-  (SYNC-15-001/002).
+  `add_log_entry_tree/factory.py` falls back to
+  `SendGenesisRejectOnMissingCaseNode`, so a Reject with
+  `last_accepted_hash=""` ("replay from genesis") goes out (SYNC-15-001/002).
   Without it the CASE_MANAGER never learns of the failure.
 - **Ask once per wait, not once per held entry** (SYNC-15-016/017, ADR-0168). One
   genesis Reject asks for the case and the whole ledger, and the held entries
@@ -553,7 +566,7 @@ own hold, in the same holding area (ADR-0059):
 - Seeding the case is enough to anchor the chain, because the genesis hash comes
   from the case object alone (CLP-08). The `Announce(VulnerabilityCase)` tree ends
   in the same `ReplayHeldSuccessorNode` the announce path uses, which finds the
-  Announce keyed on the genesis hash and replays it (SYNC-15-005, SYNC-14-009).
+  Add keyed on the genesis hash and replays it (SYNC-15-005, SYNC-14-009).
 
 ## Reject/Replay Amplification (SYNC-15-003)
 

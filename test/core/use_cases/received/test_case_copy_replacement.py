@@ -50,7 +50,13 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.wire.as2.factories import genesis_replay_reject_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BROADCAST,
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    LedgerNetwork,
+)
 
 _REFLECTED = "storing it as a no-op"
 
@@ -78,12 +84,12 @@ def _case_copy(net: LedgerNetwork, to: str = BYSTANDER) -> dict[str, Any]:
 
 
 def _deliver_entries(net: LedgerNetwork, replica: str) -> None:
-    """Deliver every queued ``Announce(CaseLedgerEntry)`` once, in order.
+    """Deliver every queued ``Add(CaseLedgerEntry)`` once, in order.
 
     A replay resends entries the fan-out already queued, so a repeat is
     stored once and answered as a repeat; nothing is refused.
     """
-    for _type, verdict in net.deliver(MANAGER, to=replica, type_="Announce"):
+    for _type, verdict in net.deliver(MANAGER, to=replica, type_=BROADCAST):
         assert verdict.disposition in {
             HandlerDisposition.APPLIED,
             HandlerDisposition.SKIPPED,
@@ -192,7 +198,7 @@ def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
     net = LedgerNetwork("https://example.org/cases/copy-genesis")
     _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
     # The fan-out left the outbox and was lost in transit.
-    net.lose(MANAGER, to=BYSTANDER, type_="Announce")
+    net.lose(MANAGER, to=BYSTANDER, type_=BROADCAST)
     assert ledger_entries(net.stores[BYSTANDER], net.case_id) == []
 
     verdict = net.receive(BYSTANDER, _case_copy(net))

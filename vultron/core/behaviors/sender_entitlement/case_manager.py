@@ -86,7 +86,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
     replica, which takes the ownership change from the CASE_MANAGER alone
     (PCR-03-001).
 
-    The check that the CASE_MANAGER's own ``Announce(CaseLedgerEntry)``, echoed
+    The check that the CASE_MANAGER's own ``Add(CaseLedgerEntry)``, echoed
     back to it, came from itself is this check too: the identity compared is
     the one :func:`resolve_case_manager_id` resolves for the case (#4437).
 

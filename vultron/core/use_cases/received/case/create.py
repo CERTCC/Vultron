@@ -51,7 +51,7 @@ class CreateCaseReceivedUseCase:
     (CBT-01-001, ADR-0132), which it builds through *trigger_activity*.
 
     Seeding the replica anchors the case's genesis hash, so an
-    ``Announce(CaseLedgerEntry)`` held during the pre-genesis window
+    ``Add(CaseLedgerEntry)`` held during the pre-genesis window
     (SYNC-15-004) may now extend the chain.  The tree replays it, as it was
     received, through this actor's inbox via the injected
     :class:`~vultron.core.ports.inbox_replay.InboxReplayPort`, as a delivery

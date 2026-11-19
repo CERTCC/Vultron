@@ -207,7 +207,7 @@ def test_late_joiner_receives_the_added_report_through_backfill(dl):
     assert result.status == Status.SUCCESS
     sent = [
         call.kwargs["entry"]
-        for call in sync_port.send_announce_log_entry.call_args_list
+        for call in sync_port.send_add_log_entry.call_args_list
     ]
     report_entries = [
         e for e in sent if e.semantic_type == "add_report_to_case"

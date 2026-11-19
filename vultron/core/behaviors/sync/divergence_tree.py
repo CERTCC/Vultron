@@ -56,9 +56,9 @@ def create_case_diverged_fault_tree(
 ) -> py_trees.composites.Sequence:
     """Create the BT that re-seeds a replica reporting its case diverged.
 
-    *refused_entry* is the entry the fault's ``inReplyTo`` ``Announce``
+    *refused_entry* is the entry the fault's ``inReplyTo`` ``Add``
     carried; its case is the case the fault concerns.  ``None`` when the
-    fault names no ``Announce(CaseLedgerEntry)`` this store sent: there is no
+    fault names no ``Add(CaseLedgerEntry)`` this store sent: there is no
     case to answer for, so the tree only archives the fault and the handler
     refuses it.  At that case's
     CASE_MANAGER the tree logs a divergence the last re-seed's copy already
@@ -93,7 +93,7 @@ def create_case_diverged_fault_tree(
         name="CaseDivergedFaultReceivedBT",
         case_id=None,
         precondition_guards=[],
-        # The fault answers an Announce this store sent, so it reaches the
+        # The fault answers an Add this store sent, so it reaches the
         # CASE_MANAGER that holds the canonical ledger and nobody else; a
         # fault is replication signalling and is never relayed to a replica
         # (SYNC-16-002, HP-01-038).

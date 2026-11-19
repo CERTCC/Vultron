@@ -24,12 +24,12 @@ a subclass names the change its entry carries (:meth:`_change`), and the
 frame reads the case file, applies the change, and saves what changed.
 
 An entry whose starting state does not match this replica's case is refused,
-never patched over: the frame holds the received ``Announce`` that carried
+never patched over: the frame holds the received ``Add`` that carried
 it, keyed on its predecessor hash (``hold_ledger_announce``, SYNC-14-001),
 sends the CASE_MANAGER a ``LedgerEntryRefused/CaseDiverged`` fault
 (SYNC-16-001), and fails, so the entry is not persisted (SYNC-12-004), and the
 receive path reports it deferred.  The entry extends the stored chain, so the drain that
-follows every received announce for the case replays that ``Announce`` and
+follows every received announce for the case replays that ``Add`` and
 retries it; it stays held until this replica's case reaches the entry's
 start.  An entry this replica
 had already applied, but not stored, is in place and passes as a no-op
@@ -95,7 +95,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
     Subclasses implement :meth:`_change`.  SUCCESS when the change is applied
     and saved, when it is already in place (a re-applied entry), or when this
     replica holds no copy of the case (Regime 2, ADR-0087).  FAILURE when the entry is malformed, or when the apply
-    function refuses it; the refused entry's ``Announce`` is held,
+    function refuses it; the refused entry's ``Add`` is held,
     :attr:`refused_into_gap` is set, and the CASE_MANAGER is sent the
     divergence fault (SYNC-16-001).
     """
@@ -187,22 +187,22 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
     def _refuse(
         self, entry: CaseLedgerEntry, exc: VultronEntryRefusedError
     ) -> Status:
-        """Hold a refused entry's ``Announce`` and report the divergence.
+        """Hold a refused entry's ``Add`` and report the divergence.
 
         The entry is never patched over.  It extends this replica's chain and
         the case file is not past it, so no replay can fill the gap: the
         replica's case has diverged from the CASE_MANAGER's, and the
         CASE_MANAGER is told so with a ``LedgerEntryRefused/CaseDiverged``
-        fault (SYNC-16-001).  The ``Announce`` is held as a forward gap is,
+        fault (SYNC-16-001).  The ``Add`` is held as a forward gap is,
         and the fault is sent whether or not the holding area's bound let it
-        be held.  Each replay of the held ``Announce`` that is refused again
+        be held.  Each replay of the held ``Add`` that is refused again
         queues the same fault, under the same id, which the CASE_MANAGER
         drops as a repeat; the replay rate bound limits how often
         (SYNC-15-003).
 
         The hold and the fault share one transaction (ADR-0146): when the
         fault cannot be queued, the hold is rolled back with it, so the
-        replica keeps nothing of the act (ASK-07-010) and no ``Announce``
+        replica keeps nothing of the act (ASK-07-010) and no ``Add``
         stays held without its fault.
         """
         assert self.datalayer is not None
@@ -221,9 +221,9 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             f"{self.name}: entry '{entry.id_}' (log_index={entry.log_index})"
             f" does not apply to case '{entry.case_id}': {exc};"
             + (
-                " its Announce is held for replay (ADR-0124)"
+                " its Add is held for replay (ADR-0124)"
                 if buffered
-                else " the holding area bound dropped its Announce"
+                else " the holding area bound dropped its Add"
             )
         )
         self.logger.warning("%s", self.feedback_message)

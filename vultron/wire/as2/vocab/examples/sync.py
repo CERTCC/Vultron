@@ -1,6 +1,6 @@
 """Vocabulary examples for the ledger-replication message flow.
 
-Demonstrates ``Announce(CaseLedgerEntry)``,
+Demonstrates ``Add(CaseLedgerEntry)``,
 ``Reject(CaseLedgerEntry)`` and ``Read(CaseLedgerEntry)`` activities as
 specified in ADR-0077, ADR-0155 and ``specs/sync-ledger-replication.yaml``
 SYNC-09-002, SYNC-03-001, SYNC-03-002, SYNC-17-001.
@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories.sync import (
-    announce_log_entry_activity,
+    add_log_entry_activity,
     read_ledger_entry_activity,
     reject_log_entry_activity,
 )
@@ -50,14 +50,18 @@ def _example_record(
 ) -> HashChainLedgerRecord:
     # Built through the hashed record, so the example's ``entryHash`` is the
     # hash of its own content, as a receiver checks (SYNC-03-006).
+    act_id = (
+        "https://vultron.example/activities/"
+        f"00000000-0000-0000-0000-{log_index + 1:012d}"
+    )
     return HashChainLedgerRecord(
         case_id=_CASE_URI,
         log_index=log_index,
-        object_id=(
-            "https://vultron.example/activities/"
-            f"00000000-0000-0000-0000-{log_index + 1:012d}"
-        ),
+        object_id=act_id,
         semantic_type=semantic_type,
+        # The committed act, which the entry's Add names in inReplyTo
+        # (ADR-0204); trimmed to its id for the example.
+        payload_snapshot={"id": act_id},
         prev_log_hash=prev_log_hash,
         received_at=_RECEIVED_AT,
     )
@@ -73,14 +77,16 @@ def _example_ledger_entry() -> as_CaseLedgerEntry:
     return _ENTRY_0.to_ledger_entry()
 
 
-def announce_case_ledger_entry():
-    """Build ``Announce(CaseLedgerEntry)`` — fan-out replication to participants.
+def add_case_ledger_entry():
+    """Build ``Add(CaseLedgerEntry)`` — fan-out replication to participants.
 
-    Sent by the CaseActor to each participant after a log entry has been
-    committed to the case event log (SYNC-09-002).
+    Sent by the CASE_MANAGER to each participant after a log entry has been
+    committed to the case ledger (SYNC-09-002).  Its ``target`` is the case's
+    ledger, ``<case>/ledger``, its ``context`` the case, and its
+    ``inReplyTo`` the committed act (ADR-0204).
     """
     entry = _example_ledger_entry()
-    return announce_log_entry_activity(
+    return add_log_entry_activity(
         entry, actor=_CASE_ACTOR.id_, at=EXAMPLE_TIMESTAMP
     )
 
@@ -97,15 +103,15 @@ def reject_case_ledger_entry():
     The example participant holds only the first entry and missed the
     second, so the third entry's ``prev_log_hash`` does not match its tail,
     and its ``ledgerPosition`` names the first entry.  Its ``inReplyTo``
-    names the ``Announce`` that carried the third entry (RF-08-004).
+    names the ``Add`` that carried the third entry (RF-08-004).
     """
     entry = _ENTRY_2.to_ledger_entry()
-    announce = announce_log_entry_activity(
+    add = add_log_entry_activity(
         entry, actor=_CASE_ACTOR.id_, at=EXAMPLE_TIMESTAMP
     )
     return reject_log_entry_activity(
         entry,
-        in_reply_to=announce.id_,
+        in_reply_to=add.id_,
         ledger_position=LedgerPosition(
             log_index=_ENTRY_0.log_index, entry_hash=_ENTRY_0.entry_hash
         ),

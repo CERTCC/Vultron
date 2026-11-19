@@ -311,7 +311,7 @@ def _bootstrap(topo: _Topology, case_id: str):
     # Without this, each VulnerabilityCase() call uses _now_utc() independently;
     # if a wall-clock second ticks between the two _seed_case calls the two
     # replicas diverge, and CheckHashOrRejectOnMismatchNode fires when ca_host
-    # fans out Announce(CaseLedgerEntry) to owner (#2727).
+    # fans out Add(CaseLedgerEntry) to owner (#2727).
     case_published = datetime.now(UTC).replace(microsecond=0)
 
     owner_dl = topo.owner.store_for(topo.owner_actor_id)
@@ -391,7 +391,7 @@ class TestBootstrapInvariant:
         If the two VulnerabilityCase instances are constructed at different
         wall-clock seconds they receive different ``published`` timestamps,
         which feeds ``compute_genesis_hash`` and produces divergent hashes.
-        When ca_host later fans out ``Announce(CaseLedgerEntry)`` with
+        When ca_host later fans out ``Add(CaseLedgerEntry)`` with
         ``prev_log_hash`` derived from ca_host's genesis, owner's
         ``CheckHashOrRejectOnMismatchNode`` detects the mismatch and rejects
         the entry, so the owner's replica of the CaseActor's ledger diverges.
@@ -417,7 +417,7 @@ class TestBootstrapInvariant:
             "owner and ca_host case replicas have divergent genesis hashes:"
             f" owner={owner_genesis!r}, ca_host={ca_genesis!r}."
             " This causes CheckHashOrRejectOnMismatchNode to fire when"
-            " ca_host fans out Announce(CaseLedgerEntry) to owner (#2727)."
+            " ca_host fans out Add(CaseLedgerEntry) to owner (#2727)."
         )
 
 

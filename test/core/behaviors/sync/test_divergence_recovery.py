@@ -308,7 +308,7 @@ def _chain(
         ledger.append(
             object_id=f"{_CASE_ID}/notes/{index}",
             semantic_type="add_note_to_case",
-            payload_snapshot=snapshot,
+            payload_snapshot={"id": f"{_CASE_ID}/notes/{index}", **snapshot},
             at=ACT_AT,
         )
     return [record.to_ledger_entry() for record in ledger.entries]
@@ -453,7 +453,10 @@ def _commit(
             log_index=index,
             object_id=f"{case.id_}/activities/{index}",
             semantic_type="test_event",
-            payload_snapshot={"log_index": index},
+            payload_snapshot={
+                "id": f"{case.id_}/activities/{index}",
+                "log_index": index,
+            },
             prev_log_hash=prev,
             received_at=ACT_AT,
         )

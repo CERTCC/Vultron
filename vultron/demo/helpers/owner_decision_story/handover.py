@@ -91,7 +91,7 @@ def the_owner_hands_the_case_over(
     that was never made (ADR-0058, EDF-06-005, #3038).
 
     The transfer reaches a replica in two hops: Accept → CaseActor inbox →
-    commit (CM-21-007), then CaseActor outbox → ``Announce(CaseLedgerEntry)``
+    commit (CM-21-007), then CaseActor outbox → ``Add(CaseLedgerEntry)``
     of the ``update_case_participant`` and ``update_case_owner`` entries that
     follow it (CLP-07-021) → each participant copies them.  Nothing else
     updates a replica, so the old owner learns of its own loss of ownership
@@ -227,7 +227,7 @@ def the_owner_hands_the_case_over(
 
         with demo_check(
             f"{witness.label} replica received the ownership-transfer ledger"
-            " entry via Announce(CaseLedgerEntry) (CM-21-030, ADR-0053)"
+            " entry via Add(CaseLedgerEntry) (CM-21-030, ADR-0053)"
         ):
             wait_for_semantic_type_in_ledger(
                 client=state.client(witness.name),

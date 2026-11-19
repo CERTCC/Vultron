@@ -186,8 +186,8 @@ NO_COMMIT_TREES: dict[_Site, str] = {
         "create_report_received_tree",
     ): _BEFORE_ANY_CASE,
     (
-        "vultron/core/behaviors/sync/announce_tree/factory.py",
-        "create_announce_log_entry_tree",
+        "vultron/core/behaviors/sync/add_log_entry_tree/factory.py",
+        "create_add_log_entry_tree",
     ): _PARTICIPANT_SIDE,
     (
         "vultron/core/behaviors/sync/reject_tree.py",

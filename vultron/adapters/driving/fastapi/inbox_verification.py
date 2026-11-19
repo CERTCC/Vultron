@@ -25,7 +25,7 @@ and another way by a parser.
 :class:`~vultron.core.ports.proof_verification.ProofVerificationPort`.  It
 checks the activity's proof against the key its ``actor`` publishes
 (SIG-05-005: the actor is the signer), resolved from that actor's profile
-(SIG-02-001).  On an ``Announce(CaseLedgerEntry)`` it checks the
+(SIG-02-001).  On an ``Add(CaseLedgerEntry)`` it checks the
 ``payloadSnapshot``'s proof too, by the key of the snapshot's own ``actor``,
 so a replica refuses the whole entry when either fails (SIG-04-002).  The
 snapshot's proof is read from the body as received: the parser drops
@@ -62,7 +62,7 @@ from vultron.wire.as2.unknown_keys import normalise
 
 logger = logging.getLogger(__name__)
 
-#: The ``type`` of an inline ledger entry an ``Announce`` relays.
+#: The ``type`` of an inline ledger entry an ``Add`` relays.
 _LEDGER_ENTRY_TYPE = "CaseLedgerEntry"
 
 
@@ -133,13 +133,13 @@ def _has_type(document: Mapping[str, Any], type_name: str) -> bool:
 
 
 def _ledger_snapshots(document: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    """The snapshots an ``Announce(CaseLedgerEntry)`` carries, by any spelling.
+    """The snapshots an ``Add(CaseLedgerEntry)`` carries, by any spelling.
 
     Raises:
         VultronProofInvalidError: A snapshot is not a JSON object, so no
             author's proof on it can be read.
     """
-    if not _has_type(document, "Announce"):
+    if not _has_type(document, "Add"):
         return []
     snapshots: list[Mapping[str, Any]] = []
     for entry in _spelled(document, "object"):
@@ -180,7 +180,7 @@ class ProfileKeyProofVerifier:
         """Return what verified when *document*'s proofs do; raise if not.
 
         The activity's proof is checked against its ``actor``'s key.  An
-        ``Announce(CaseLedgerEntry)`` also needs its snapshot's proof, by the
+        ``Add(CaseLedgerEntry)`` also needs its snapshot's proof, by the
         key of the snapshot's own ``actor``: the CASE_MANAGER's for a native
         entry, the author's for a relayed act (SIG-04-002).  A snapshot
         naming no actor is refused.  The entry and its snapshot are found

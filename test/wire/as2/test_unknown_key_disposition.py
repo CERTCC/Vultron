@@ -427,7 +427,7 @@ FORMER_NAME_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
     (
         "CaseLedgerEntry.eventType",
         _envelope(
-            type="Announce",
+            type="Add",
             object=_inline_ledger_entry(eventType="create_case"),
         ),
         "eventType",
@@ -771,7 +771,7 @@ def test_opaque_payload_snapshot_is_carried_unexamined() -> None:
     """A ``payloadSnapshot`` is data, not an AS2 object: nothing is set aside."""
     from vultron.wire.as2.unknown_keys import partition_unknown_keys
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Announce,
+        as_Add,
     )
 
     snapshot = {
@@ -781,10 +781,10 @@ def test_opaque_payload_snapshot_is_carried_unexamined() -> None:
         FOREIGN_KEY: 1,
     }
     body = _envelope(
-        type="Announce",
+        type="Add",
         object={"type": "CaseLedgerEntry", "payloadSnapshot": snapshot},
     )
-    kept, set_aside = partition_unknown_keys(body, as_Announce)
+    kept, set_aside = partition_unknown_keys(body, as_Add)
     assert kept["object"]["payloadSnapshot"] == snapshot
     assert set_aside == []
 

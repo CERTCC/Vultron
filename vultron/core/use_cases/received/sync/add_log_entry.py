@@ -38,8 +38,8 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import sender_guard_refused
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes import (
     BufferOutOfOrderEntryNode,
@@ -51,7 +51,7 @@ from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import (
-    AnnounceLogEntryReceivedEvent,
+    AddLogEntryReceivedEvent,
 )
 from vultron.core.models.pending_assertion import (
     PendingAssertionStore,
@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
 
 
 def _announce_reading(entry: CaseLedgerEntry, sender_id: str) -> OutcomeReader:
-    """Classify a finished ``AnnounceLogEntryReceivedBT`` run (HP-01-003).
+    """Classify a finished ``AddLogEntryReceivedBT`` run (HP-01-003).
 
     A held entry is ``DEFERRED`` and a sender that is not the CASE_MANAGER
     is refused with the entry named; an own announcement echoed back, and an
@@ -117,7 +117,7 @@ def _held_or_not_manager(
     if node_succeeded(tree, BufferOutOfOrderEntryNode):
         return HandlerResult.deferred(
             f"ledger entry '{entry.id_}' (log_index={entry.log_index})"
-            " held in its Announce until its predecessor arrives"
+            " held in its Add until its predecessor arrives"
             " (SYNC-14-001)"
         )
     if any(
@@ -127,12 +127,12 @@ def _held_or_not_manager(
     ):
         return HandlerResult.deferred(
             f"ledger entry '{entry.id_}' does not apply to this replica's"
-            f" case '{entry.case_id}'; its Announce is held, never patched"
+            f" case '{entry.case_id}'; its Add is held, never patched"
             " over (ADR-0124)"
         )
     if node_succeeded(tree, BufferPreGenesisEntryNode):
         return HandlerResult.deferred(
-            f"ledger entry '{entry.id_}' held in its Announce until case"
+            f"ledger entry '{entry.id_}' held in its Add until case"
             f" '{entry.case_id}' is seeded (SYNC-15-004)"
         )
     if sender_guard_refused(tree):
@@ -144,8 +144,8 @@ def _held_or_not_manager(
     return None
 
 
-class AnnounceLedgerEntryReceivedUseCase:
-    """Process a received ``Announce(CaseLedgerEntry)`` activity.
+class AddLedgerEntryReceivedUseCase:
+    """Process a received ``Add(CaseLedgerEntry)`` activity.
 
     Refuses an entry whose content does not reproduce its own hash
     (SYNC-03-006) and reports it to the CASE_MANAGER with a
@@ -162,15 +162,15 @@ class AnnounceLedgerEntryReceivedUseCase:
     future emits for the same ``(case_id, semantic_type, log_object_id)``
     triple are no longer suppressed (SYNC-11-003).
 
-    Out-of-order delivery is tolerated: the received ``Announce`` of an entry
+    Out-of-order delivery is tolerated: the received ``Add`` of an entry
     whose predecessor has not yet arrived is held as it was received
     (:mod:`~vultron.core.services.held_ledger_announces`) rather than
     dropped.  Once the entry that closes the gap is committed, the tree
-    replays that held ``Announce`` through this actor's inbox via the
+    replays that held ``Add`` through this actor's inbox via the
     injected :class:`~vultron.core.ports.inbox_replay.InboxReplayPort`, as a
     delivery of its own; that delivery's tree replays the next one.  Nothing
     is rebuilt or attributed to a sender who did not send it.  This makes
-    convergence independent of ``Announce`` delivery order (issue #1556,
+    convergence independent of ``Add`` delivery order (issue #1556,
     SYNC-10-004) while each delivery still runs exactly one tree
     (SYNC-14-009, CLP-10-005).
 
@@ -188,7 +188,7 @@ class AnnounceLedgerEntryReceivedUseCase:
     def __init__(
         self,
         dl: CaseOutboxPersistence,
-        request: AnnounceLogEntryReceivedEvent,
+        request: AddLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         pending_assertions: PendingAssertionStore | None = None,
         wire_render_port: WireRenderPort | None = None,
@@ -217,18 +217,16 @@ class AnnounceLedgerEntryReceivedUseCase:
             request.actor_id,
             entry.log_index,
         )
-        # The tree replays a held successor's ``Announce`` through the inbox
+        # The tree replays a held successor's ``Add`` through the inbox
         # via *inbox_replay* rather than running it here (SYNC-14-009), and
         # builds the replica's fault about a refused entry through the
         # trigger port (RSH-09-006, SYNC-03-007, SYNC-16-001).
-        tree = create_announce_log_entry_tree(
-            sender_rule=self.sender_entitlement
-        )
+        tree = create_add_log_entry_tree(sender_rule=self.sender_entitlement)
         verdict = run_received_tree(
             tree,
             dl=self._dl,
             request=request,
-            label="AnnounceLogEntryReceivedBT",
+            label="AddLogEntryReceivedBT",
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,

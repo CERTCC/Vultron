@@ -1596,7 +1596,7 @@ def _otc_ownership_transferred(
                 # The Reporter accepts, at the Coordinator's inbox.  The
                 # Coordinator IS the CaseActor so it processes the Accept,
                 # updates attributed_to, commits the ledger entry, and fans
-                # out Announce(CaseLedgerEntry) to all case participants.
+                # out Add(CaseLedgerEntry) to all case participants.
                 accept = accept_case_ownership_transfer_activity(
                     offer=offer,
                     actor=reporter_id,
@@ -1627,7 +1627,7 @@ class TestOwnershipTransferAnnounceReachesReporter:
                     receives the Accept, commits the ledger entry,
                     broadcasts Announce
     - Reporter  — the transferee; must receive the
-                Announce(CaseLedgerEntry) without any manual trigger
+                Add(CaseLedgerEntry) without any manual trigger
 
     All three actors use isolated FastAPI apps wired via InProcessRouter.
     The test seeds the case and participants directly on the Coordinator's
@@ -1635,7 +1635,7 @@ class TestOwnershipTransferAnnounceReachesReporter:
     proposal, then delivers the Reporter's Accept(Offer) to the
     Coordinator's inbox
     via HTTP POST.  The outbox drains automatically (TestClient processes
-    BackgroundTasks synchronously), routing the Announce to Reporter's inbox.
+    BackgroundTasks synchronously), routing the Add to Reporter's inbox.
     Reporter's DataLayer is then checked for an Announce whose object is a
     CaseLedgerEntry with semantic_type == "accept_case_ownership_transfer".
     """
@@ -1644,10 +1644,10 @@ class TestOwnershipTransferAnnounceReachesReporter:
         with _otc_ownership_transferred(InProcessRouter()) as reporter_iso:
             # The TestClient processes BackgroundTasks synchronously;
             # the outbox drains during the POST and InProcessRouter
-            # delivers Announce(CaseLedgerEntry) to Reporter's inbox.
-            # A received Announce is held only as intake archived it
+            # delivers Add(CaseLedgerEntry) to Reporter's inbox.
+            # A received Add is held only as intake archived it
             # (DL-06-006).
-            announce_values = received_of_type(reporter_iso.dl, "Announce")
+            announce_values = received_of_type(reporter_iso.dl, "Add")
 
             def _is_ot_announce(a: object) -> bool:
                 obj = (
@@ -1667,7 +1667,7 @@ class TestOwnershipTransferAnnounceReachesReporter:
             ot_announces = [a for a in announce_values if _is_ot_announce(a)]
             assert len(ot_announces) >= 1, (
                 "Reporter's DataLayer must contain at least one "
-                "Announce(CaseLedgerEntry[semantic_type="
+                "Add(CaseLedgerEntry[semantic_type="
                 "accept_case_ownership_transfer]) "
                 "after ownership transfer — no manual trigger (AC-5c). "
                 f"Got announces: {announce_values!r}"

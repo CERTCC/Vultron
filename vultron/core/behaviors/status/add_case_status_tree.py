@@ -21,7 +21,7 @@ adopted, which it alone sends, and only to a participant (RSH-04-001,
 RSH-04-005).  The factory's sender guard refuses it from any other sender
 and at the CASE_MANAGER, so this tree runs only at a participant replica.
 A replica writes no case state on receipt: it takes the CASE_MANAGER's
-status from the ``Announce(CaseLedgerEntry)`` fan-out (RSH-08-003,
+status from the ``Add(CaseLedgerEntry)`` fan-out (RSH-08-003,
 PCR-03-001).  The CASE_MANAGER's own status writes, including a
 participant's adopted P, X or A, are in ``add_participant_status_tree`` and
 the embargo trees (RSH-01-003, RSH-04-006).

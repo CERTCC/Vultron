@@ -178,7 +178,7 @@ def create_case_proposal_received_tree(
       10. ``CommitNativeLedgerEntriesNode`` — canonical ledger entries
          committed (ADR-0041 AC-4).  Each commit fans out through the FIFO
          outbox, so it runs after the Create: every recipient must hold the
-         case object before its first ``Announce(CaseLedgerEntry)`` arrives
+         case object before its first ``Add(CaseLedgerEntry)`` arrives
          (CM-14-011, CP-09-009), or it enters the SYNC-15 pre-genesis
          reject/replay path on the normal case-creation route (#3033, #2898).
       11. ``RelayCreationTimeRevisionNode`` — relays the revision step 6

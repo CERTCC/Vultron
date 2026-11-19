@@ -57,7 +57,7 @@ from vultron.core.use_cases.received.case_proposal import (
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Announce,
+    as_Add,
     as_Create,
     as_Reject,
 )
@@ -195,7 +195,7 @@ class TestCreateCaseProposalReceivedUseCase:
             a
             for a in queued
             if not (
-                isinstance(a, as_Announce)
+                isinstance(a, as_Add)
                 and isinstance(a.object_, CaseLedgerEntry)
             )
         ]

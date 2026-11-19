@@ -873,7 +873,7 @@ class TestAdmittedAnswerIsLedgered:
         assert "accept_case_participant_role" in _semantic_types(dl)
         assert _target_holds(dl, CVDRole.VENDOR)
         assert any(
-            _type_of(dl.read(i)) == "Announce"
+            _type_of(dl.read(i)) == "Add"
             for i in dl.outbox_list()
             if i not in queued_before
         )
@@ -897,7 +897,7 @@ class TestAdmittedAnswerIsLedgered:
         assert "reject_case_participant_role" in _semantic_types(dl)
         assert not _target_holds(dl, CVDRole.VENDOR)
         assert any(
-            _type_of(dl.read(i)) == "Announce"
+            _type_of(dl.read(i)) == "Add"
             for i in dl.outbox_list()
             if i not in queued_before
         )

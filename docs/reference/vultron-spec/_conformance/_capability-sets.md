@@ -115,7 +115,7 @@ It holds the **CASE_MANAGER** role for each case it hosts, and so it is that cas
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-001", "CM-02-002", "BT-10-003", "BT-10-004"))
 ```
 
-It keeps the canonical case ledger, and replicates each entry to the participants as `Announce(CaseLedgerEntry)`.
+It keeps the canonical case ledger, and replicates each entry to the participants as `Add(CaseLedgerEntry)`.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-04-001", "CLP-04-004", "PCR-08-003"))

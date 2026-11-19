@@ -254,7 +254,7 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     notice (CM-21-014, CLP-05-001).
 
     An admitted Reject commits a ``reject_case_ownership_transfer`` entry and
-    broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
+    broadcasts ``Add(CaseLedgerEntry)``, which closes the Offer on every
     replica (CM-21-014) and is how the offerer learns of the decline.
     Ownership is unchanged.  A redelivery of the Reject that already closed
     the Offer is ``SKIPPED`` (HP-01-014).
@@ -317,7 +317,7 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     refusal notice, anyone else with nothing (CLP-05-001, HP-01-006).
 
     An admitted Undo commits an ``undo_case_ownership_transfer`` entry and
-    broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
+    broadcasts ``Add(CaseLedgerEntry)``, which closes the Offer on every
     replica (CM-21-014): the transferee learns it can no longer accept, and
     the case may be offered again.  Ownership is unchanged.  A redelivery of
     the Undo that already closed the Offer is ``SKIPPED`` (HP-01-014).

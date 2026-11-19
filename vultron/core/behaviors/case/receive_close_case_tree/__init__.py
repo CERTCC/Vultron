@@ -58,7 +58,7 @@ BTND-08-001/BTND-08-002 (role checks MUST be in the tree, not in action node
 Per ADR-0050: ``Leave(VulnerabilityCase)`` is the only canonical RM closure
 path.  The CaseActor's closure entries are written here on the Case Actor
 receive path; every replica whose closure the ledger does not already record
-learns of them via Announce(CaseLedgerEntry) fan-out.  A participant at RM
+learns of them via Add(CaseLedgerEntry) fan-out.  A participant at RM
 ``CLOSED`` — every earlier leaver, and the Case Owner once its own status
 entries are committed — is not sent them (CM-23-004): it receives the entries
 that record its own closure and nothing after them.

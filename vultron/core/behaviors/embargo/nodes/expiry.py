@@ -38,7 +38,7 @@ guard → commit → effect pattern (CLP-10-006, BT-06-006):
 
 A participant replica never evaluates a deadline and runs no ``TIME_OUT``:
 it copies the ``Update(EmbargoConsent)`` entry through the consent slot of
-``create_announce_log_entry_tree`` (RSH-08-004, CM-28-030).
+``create_add_log_entry_tree`` (RSH-08-004, CM-28-030).
 
 A late Accept is answered as an on-time one is, by whether the embargo it
 names is still available (EMB-17-001, MSM-07-012): one of the embargo in

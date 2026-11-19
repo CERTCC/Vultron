@@ -49,7 +49,7 @@ from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import add_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
@@ -135,7 +135,7 @@ def seeded_dl(dl):
             log_index=0,
             object_id=_CASE_ID,
             semantic_type="test_event_0",
-            payload_snapshot=_snapshot,
+            payload_snapshot={"id": _CASE_ID, **_snapshot},
             prev_log_hash=genesis_hash,
             received_at=ACT_AT,
         )
@@ -146,7 +146,7 @@ def seeded_dl(dl):
             log_index=1,
             object_id=_CASE_ID,
             semantic_type="test_event_1",
-            payload_snapshot=_snapshot,
+            payload_snapshot={"id": _CASE_ID, **_snapshot},
             prev_log_hash=entry0.entry_hash,
             received_at=ACT_AT,
         )
@@ -159,7 +159,7 @@ def _make_announce_body(entry: CaseLedgerEntry) -> dict[str, Any]:
     wire_entry = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
-    activity = announce_log_entry_activity(
+    activity = add_log_entry_activity(
         entry=wire_entry,
         actor=_CASE_ACTOR_ID,
         to=[_PEER_ID],

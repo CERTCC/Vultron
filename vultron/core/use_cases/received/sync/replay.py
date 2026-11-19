@@ -95,7 +95,7 @@ class _LedgerReplayRequestUseCase:
 class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     """CaseActor handles a participant's rejection of a log entry announcement.
 
-    When a participant rejects an ``Announce(CaseLedgerEntry)`` because the
+    When a participant rejects an ``Add(CaseLedgerEntry)`` because the
     ``prev_log_hash`` does not match their local tail, the CaseActor runs the
     reject tree (``create_reject_log_entry_tree``), whose nodes:
 

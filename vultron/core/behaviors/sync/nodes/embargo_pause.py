@@ -316,7 +316,7 @@ def backfill_admitted_peers(
         datalayer: The CASE_MANAGER's store, which holds the canonical ledger
             and the per-peer replication state.
         case: The case being replicated.
-        sync_port: The port that queues ``Announce(CaseLedgerEntry)``.
+        sync_port: The port that queues ``Add(CaseLedgerEntry)``.
         actor_id: The executing CASE_MANAGER, which sends the entries.
         through_index: Last ``log_index`` to backfill. The fan-out passes the
             index just before the entry it is about to send, so the backfill

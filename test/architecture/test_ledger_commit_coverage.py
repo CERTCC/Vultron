@@ -62,7 +62,7 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     # intake, before the proposer holds any case (CP-06-001, CP-06-002).
     "accept_case_proposal": NotACaseEvent.PRE_CASE,
     "reject_case_proposal": NotACaseEvent.PRE_CASE,
-    "announce_case_ledger_entry": NotACaseEvent.REPLICA_APPLY,
+    "add_case_ledger_entry_to_ledger": NotACaseEvent.REPLICA_APPLY,
     "reject_case_ledger_entry": NotACaseEvent.LEDGER_MECHANICS,
     # A stated ledger position changes nothing in the case file (SYNC-17-006).
     "read_case_ledger_entry": NotACaseEvent.LEDGER_MECHANICS,
@@ -122,7 +122,7 @@ def test_exemptions_name_a_ground_or_an_issue():
 _GROUND_IN_CLP_02_013: dict[NotACaseEvent, str] = {
     NotACaseEvent.PRE_CASE: "before a case exists",
     NotACaseEvent.OUTSIDE_THE_CASE: "RK is not one",
-    NotACaseEvent.REPLICA_APPLY: "`Announce(CaseLedgerEntry)`",
+    NotACaseEvent.REPLICA_APPLY: "`Add(CaseLedgerEntry)`",
     NotACaseEvent.LEDGER_MECHANICS: "about the ledger itself",
     NotACaseEvent.NOT_LEDGERED_BY_CLP_10_013: "`Announce(VulnerabilityCase)`",
     NotACaseEvent.SENT_BY_CASE_MANAGER: "only the CASE_MANAGER",

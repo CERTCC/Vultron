@@ -25,13 +25,13 @@ from test.support.future_dates import days_from_now
 from test.support.objects import authored_at, make
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import (
-    announce_log_entry_activity,
+    add_log_entry_activity,
     em_propose_embargo_activity,
     rm_submit_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Announce,
+    as_Add,
     as_Invite,
     as_Offer,
 )
@@ -323,8 +323,8 @@ class TestCoerceToSemanticClass:
         assert result.object_.id_ == "urn:uuid:invite-roundtrip-1"
         assert result.in_reply_to == "urn:uuid:invite-roundtrip-1"
 
-    def test_announce_log_entry_round_trip_returns_specific_class(self, dl):
-        """dl.read returns AnnounceLogEntryActivity with as_CaseLedgerEntry object_."""
+    def test_add_log_entry_round_trip_returns_specific_class(self, dl):
+        """dl.read returns AddLogEntryActivity with as_CaseLedgerEntry object_."""
         from vultron.core.behaviors.sync.nodes.chain import (
             _to_persistable_entry,
         )
@@ -340,12 +340,15 @@ class TestCoerceToSemanticClass:
             log_index=0,
             object_id="https://example.org/activities/logged-1",
             semantic_type="log_entry_committed",
-            payload_snapshot={"status": "ok"},
+            payload_snapshot={
+                "id": "https://example.org/activities/logged-1",
+                "status": "ok",
+            },
             prev_log_hash=_ZERO_HASH,
             received_at=ACT_AT,
         )
         entry = _to_persistable_entry(chain_entry)
-        announce = announce_log_entry_activity(
+        announce = add_log_entry_activity(
             entry,
             actor="https://example.org/actors/case-actor",
             at=authored_at(),
@@ -355,7 +358,7 @@ class TestCoerceToSemanticClass:
 
         result = dl.read(announce.id_)
 
-        assert isinstance(result, as_Announce)
+        assert isinstance(result, as_Add)
         assert isinstance(result.object_, WireCaseLedgerEntry)  # type: ignore[union-attr]
         assert result.object_.case_id == entry.case_id  # type: ignore[union-attr]
         assert result.object_.log_object_id == entry.log_object_id  # type: ignore[union-attr]
@@ -480,7 +483,10 @@ class TestCoerceByReferenceFields:
                 log_index=0,
                 object_id="https://example.org/activities/logged-5513",
                 semantic_type="log_entry_committed",
-                payload_snapshot={"status": "ok"},
+                payload_snapshot={
+                    "id": "https://example.org/activities/logged-5513",
+                    "status": "ok",
+                },
                 prev_log_hash=_ZERO_HASH,
                 received_at=ACT_AT,
             )

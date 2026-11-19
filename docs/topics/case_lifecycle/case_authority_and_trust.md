@@ -121,7 +121,7 @@ title: The path of every case-scoped message
 flowchart LR
     P[Participant] -->|assertion| M[CASE_MANAGER]
     M -->|judges and records| L[(Case ledger)]
-    L -->|"Announce(CaseLedgerEntry)"| R[Every active participant]
+    L -->|"Add(CaseLedgerEntry)"| R[Every active participant]
 ```
 
 The diagram shows the one path: a participant sends to the CASE_MANAGER, the CASE_MANAGER records, and the ledger entry goes out to every active participant.

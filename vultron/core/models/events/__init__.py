@@ -55,6 +55,7 @@ from vultron.core.models.events.case import (
 from vultron.core.models.events.case_context import (
     CASE_BOOTSTRAP_SEMANTICS,
     CASE_PRECEDING_SEMANTICS,
+    SELF_HOLDING_SEMANTICS,
     is_case_bootstrap,
     is_deferral_exempt,
     resolve_case_context_id,
@@ -105,7 +106,7 @@ from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
 from vultron.core.models.events.sync import (
-    AnnounceLogEntryReceivedEvent,
+    AddLogEntryReceivedEvent,
     ReadLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
@@ -191,7 +192,7 @@ AnyReceivedEvent = (
     | AddParticipantStatusToParticipantReceivedEvent
     |
     # sync
-    AnnounceLogEntryReceivedEvent
+    AddLogEntryReceivedEvent
     | ReadLogEntryReceivedEvent
     | RejectLogEntryReceivedEvent
     |
@@ -212,6 +213,7 @@ __all__ = [
     # case-context resolution
     "CASE_BOOTSTRAP_SEMANTICS",
     "CASE_PRECEDING_SEMANTICS",
+    "SELF_HOLDING_SEMANTICS",
     "is_case_bootstrap",
     "is_deferral_exempt",
     "resolve_case_context_id",
@@ -286,7 +288,7 @@ __all__ = [
     "UnknownReceivedEvent",
     "UnresolvableObjectReceivedEvent",
     # sync
-    "AnnounceLogEntryReceivedEvent",
+    "AddLogEntryReceivedEvent",
     "ReadLogEntryReceivedEvent",
     "RejectLogEntryReceivedEvent",
     # fault

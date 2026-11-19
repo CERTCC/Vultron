@@ -26,39 +26,48 @@ SYNC-03-001, SYNC-03-002, SYNC-17-001, SYNC-18-001.
 
 from datetime import datetime
 
-from vultron.core.models.case_ledger_entry import ledger_entry_id
+from vultron.core.models.case_ledger_entry import (
+    case_ledger_id,
+    ledger_entry_id,
+)
 from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
 )
+from vultron.errors import VultronCanonicalEntryError
 from vultron.wire.as2.factories._construct import (
     build_activity,
     guarded_build,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.sync import (
-    _AnnounceLogEntryActivity,
+    _AddLogEntryActivity,
     _ReadLogEntryActivity,
     _RejectLogEntryActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Announce,
+    as_Add,
     as_Read,
     as_Reject,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
 
-def announce_log_entry_activity(
+def add_log_entry_activity(
     entry: as_CaseLedgerEntry,
     *,
     at: datetime,
     **kwargs,
-) -> as_Announce:
-    """Build an Announce(CaseLedgerEntry) — fan-out replication to participants.
+) -> as_Add:
+    """Build an Add(CaseLedgerEntry): a commit, fanned out to participants.
 
-    Sent by the CaseActor to each participant actor after a new log
-    entry has been committed to the case event log (SYNC-09-002).
+    Sent by the CASE_MANAGER to each active participant after a new entry
+    has been committed to the case ledger (SYNC-09-002).  The ``Add`` adds
+    the entry to the case's ledger, ``<case>/ledger``, its ``target``; its
+    ``context`` is the case; and its ``inReplyTo`` is the act the entry
+    commits, so it is that act's positive acknowledgement (ADR-0204).  All
+    three are read from *entry*, so a caller cannot misname them.  It lists
+    nothing in ``result`` (SYNC-02-009).
 
     Args:
         entry: The ``CaseLedgerEntry`` being replicated.
@@ -66,17 +75,38 @@ def announce_log_entry_activity(
             (e.g. ``actor``, ``to``).
 
     Returns:
-        An ``as_Announce`` whose ``object_`` is the log entry.
+        An ``as_Add`` whose ``object_`` is the log entry.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails, or
+            the entry's snapshot names no committed act.
     """
     return build_activity(
-        "announce_log_entry_activity",
-        _AnnounceLogEntryActivity,
+        "add_log_entry_activity",
+        _AddLogEntryActivity,
         at,
-        lambda: {"object_": entry, **kwargs},
+        lambda: {**_ledger_add_fields(entry), **kwargs},
+        also=(VultronCanonicalEntryError,),
     )
+
+
+def _ledger_add_fields(entry: as_CaseLedgerEntry) -> dict[str, object]:
+    """The fields an ``Add`` of *entry* reads from it (ADR-0204).
+
+    Anything but an entry is passed on as the object alone, which the
+    activity class refuses.
+
+    Raises:
+        VultronCanonicalEntryError: *entry*'s snapshot names no act.
+    """
+    if not isinstance(entry, as_CaseLedgerEntry):
+        return {"object_": entry}
+    return {
+        "object_": entry,
+        "target": case_ledger_id(entry.case_id),
+        "context": entry.case_id,
+        "in_reply_to": entry.committed_act_id(),
+    }
 
 
 def reject_log_entry_activity(
@@ -89,7 +119,7 @@ def reject_log_entry_activity(
     """Build a Reject(CaseLedgerEntry) — hash-chain mismatch report.
 
     Sent by a participant to the CaseActor when an incoming
-    ``Announce(CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
+    ``Add(CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
     participant's local tail hash (SYNC-03-001).  ``context`` names the
     entry's case.  The participant's tail, which the CaseActor replays
     after, is the ``ledgerPosition`` every case activity states
@@ -99,7 +129,7 @@ def reject_log_entry_activity(
     Args:
         entry: The ``CaseLedgerEntry`` the receiver could not apply.
         in_reply_to: The id of the inbound activity that prompted the
-            Reject: the ``Announce(CaseLedgerEntry)``, or the
+            Reject: the ``Add(CaseLedgerEntry)``, or the
             ``Announce(VulnerabilityCase)`` whose copy is ahead of the
             chain (RF-08-004).
         **kwargs: Optional AS2 fields forwarded to the constructor

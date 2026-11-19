@@ -85,7 +85,7 @@ class SyncActivityPort(Protocol):
             to: List of recipient actor URIs (typically the CaseActor).
             in_reply_to: The id of the inbound activity that prompted the
                 Reject, which it names in ``inReplyTo`` (RF-08-004): the
-                ``Announce(CaseLedgerEntry)`` of *entry*, or the
+                ``Add(CaseLedgerEntry)`` of *entry*, or the
                 ``Announce(VulnerabilityCase)`` whose copy is ahead of the
                 chain (SYNC-16-007).
             asked_at: For a genesis Reject from a receiver that holds no
@@ -173,7 +173,7 @@ class SyncActivityPort(Protocol):
         """
         ...
 
-    def send_announce_log_entry(
+    def send_add_log_entry(
         self,
         entry: CaseLedgerEntry,
         actor_id: str,
@@ -181,10 +181,15 @@ class SyncActivityPort(Protocol):
         *,
         at: datetime,
     ) -> bool:
-        """Build and queue an ``Announce(CaseLedgerEntry)`` activity.
+        """Build and queue an ``Add(CaseLedgerEntry)`` activity.
+
+        The ``Add`` adds *entry* to its case's ledger, ``<case>/ledger``, with
+        ``context`` the case and ``inReplyTo`` the act the entry commits, so
+        it is that act's positive acknowledgement (ADR-0204).  *entry*'s
+        snapshot must state the act's id.
 
         Returns ``True`` when a row was queued and ``False`` when an
-        ``Announce`` of *entry* to every recipient in *to* was already pending
+        ``Add`` of *entry* to every recipient in *to* was already pending
         in the outbox and nothing was queued (SYNC-15-012).  Callers that fan
         out may ignore the value; a replay counts only ``True`` results as
         entries sent (SYNC-15-011).
@@ -193,8 +198,8 @@ class SyncActivityPort(Protocol):
         or replaying missing entries to a peer (SYNC-02-003, SYNC-03-002).
 
         Args:
-            entry: The domain log entry to announce.
-            actor_id: URI of the CaseActor sending the announcement.
+            entry: The domain log entry to add to the ledger.
+            actor_id: URI of the CASE_MANAGER sending the ``Add``.
             to: List of recipient actor URIs.
         """
         ...
