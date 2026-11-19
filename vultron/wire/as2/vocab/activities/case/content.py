@@ -75,10 +75,6 @@ class _AddReportToCaseActivity(as_Add):
     )
 
 
-# add CaseParticipant to VulnerabilityCase
-# see _AddParticipantToCaseActivity in case_participant.py
-
-
 # add CaseStatus to <case>/statuses
 class _AddStatusToCaseActivity(as_Add):
     """Add a CaseStatus to the case's status history (ADR-0204).

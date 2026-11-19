@@ -71,7 +71,7 @@ from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.case_participant import (
-    AddCaseParticipantToCaseReceivedUseCase,
+    ReinstateParticipantInCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.report import (
     CloseReportReceivedUseCase,
@@ -376,7 +376,7 @@ class TestCloseAndInvalidateReportCommit:
 @pytest.mark.spec("CLP-10-013")
 @pytest.mark.spec("CM-31-011")
 def test_add_case_participant_tree_commits():
-    """``Add(CaseParticipant)`` is no longer exempt: the reinstatement commits.
+    """The Case Owner's reinstatement, ``Add(<Actor>)``, commits.
 
     Its entry has a replica apply node since #4081
     (``ApplyReinstateCaseParticipantFromLedgerNode``, RSH-08-004), so the tree
@@ -385,8 +385,7 @@ def test_add_case_participant_tree_commits():
     ``test_participant_reinstatement.py``.
     """
     tree = create_add_case_participant_received_tree(
-        sender_rule=AddCaseParticipantToCaseReceivedUseCase.sender_entitlement,
-        participant_id=f"{CASE_ID}/participants/newcomer",
+        sender_rule=ReinstateParticipantInCaseReceivedUseCase.sender_entitlement,
         case_id=CASE_ID,
         sender_id=VENDOR_ID,
     )

@@ -189,13 +189,14 @@ A removed participant is inert: it receives no case content, and it has no autho
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-001", "CM-31-015", "CM-31-016", "CM-31-017"))
 ```
 
-Only the Case Owner requests a removal.
-It sends `Remove(CaseParticipant)[target=VulnerabilityCase]` to the CASE_MANAGER, which applies it.
-The CASE_MANAGER refuses the request in each of these cases:
+Only the Case Owner removes a participant.
+It sends its own act, `Remove(<Actor>, origin=VulnerabilityCase)`, to the CASE_MANAGER only.
+The act names the actor as a typed reference, not its participant record.
+The CASE_MANAGER refuses the act in each of these cases:
 
 - the sender does not hold the Case Owner role;
-- the request names the CASE_MANAGER's or the Case Owner's participant;
-- the request names no participant of the case.
+- the act names the CASE_MANAGER or the Case Owner;
+- the act names no participant of the case.
 
 A second removal of an already-removed participant is a no-op, and the CASE_MANAGER reports it as skipped.
 The CASE_MANAGER never removes a participant on its own initiative.
@@ -205,11 +206,11 @@ A participant that wants to stop taking part leaves the case with `Leave(Vulnera
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-004", "CM-31-022", "CM-31-023"))
 ```
 
-An accepted removal is one ledger entry: the Case Owner's received `Remove(CaseParticipant)`, committed by the CASE_MANAGER as received.
-The CASE_MANAGER commits no second entry of its own for the same removal.
-After the commit, the CASE_MANAGER sends the removed participant a direct `Remove(CaseParticipant)` that names it.
-The notice has `actor` set to the CASE_MANAGER, `attributedTo` set to the Case Owner and `inReplyTo` set to the Case Owner's `Remove`.
-This notice is delivery, not a record, and is not ledgered.
+An admitted removal is one ledger entry: the Case Owner's received `Remove(<Actor>)`, committed by the CASE_MANAGER as received.
+The CASE_MANAGER commits no second entry, sends no `Accept` and makes no act of its own for the same removal.
+After the commit, the CASE_MANAGER sends the removed actor its own `Announce(<the Case Owner's Remove>)`.
+The `Announce` carries the act as received and names it in `inReplyTo`.
+It is delivery, not a record, and is not ledgered.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-005", "CM-31-024", "CM-31-025", "CM-31-006", "CM-31-026", "CM-31-027", "CM-31-028"))
@@ -218,7 +219,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 The removal entry's fan-out selects its recipients before the removal is applied, so the removed participant receives that entry too.
 It is the last ledger entry the removed participant receives, by fan-out or by replay, until it is reinstated.
 Every replica, the removed participant's own included, applies the removal from that ledger entry.
-A replica never applies a removal from a directly received `Remove(CaseParticipant)`: it stores the notice and takes the removal from the ledger.
+A replica never applies a removal from the `Announce` of it: it records the `Announce` and takes the removal from the ledger.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-007", "CM-31-029"))
@@ -233,22 +234,22 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 ```
 
 Removal is reversible.
-The Case Owner reinstates a removed participant by sending `Add(CaseParticipant)[target=VulnerabilityCase]` to the CASE_MANAGER.
-The request follows the removal pipeline:
+The Case Owner reinstates a removed participant by sending its own act, `Add(<Actor>, target=VulnerabilityCase)`, to the CASE_MANAGER only.
+The act follows the removal pipeline:
 
 - only the Case Owner may send it;
 - the received `Add` is the one ledger entry;
-- the CASE_MANAGER sends the participant a direct `Add(CaseParticipant)` notice that names it;
-- every replica applies the reinstatement from the ledger entry.
+- the CASE_MANAGER sends the actor its own `Announce` of the `Add`;
+- every replica applies the reinstatement from the ledger entry, never from the `Announce`.
 
 Reinstatement clears the removal fact.
 The participant does not accept again, because it never withdrew.
 
-The CASE_MANAGER refuses an `Add` that names a participant that is not removed or that never joined the case.
-`Add` does not seat a new member, and an actor joins only by accepting its stub Invite.
+The CASE_MANAGER refuses a reinstatement that names a participant that is not removed or that never joined the case.
+A reinstatement does not seat a new member, and an actor joins only by accepting its stub Invite.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-011", "CM-31-034", "CM-31-035", "CM-31-036"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-011", "CM-31-043", "CM-31-044", "CM-31-045", "CM-31-034", "CM-31-035", "CM-31-036"))
 ```
 
 For the same reason, the CASE_MANAGER does not send `Add(CaseParticipant)` when an invitee accepts its stub Invite.

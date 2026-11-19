@@ -272,14 +272,19 @@
       "phrase": "{actor} stated its ledger position"
     },
     {
-      "semanticType": "add_case_participant_to_case",
-      "wire": "Add(CaseParticipant)[target=VulnerabilityCase]",
-      "phrase": "{actor} added {object} as a case participant"
+      "semanticType": "remove_participant_from_case",
+      "wire": "Remove(Actor)[origin=VulnerabilityCase]",
+      "phrase": "{actor} removed {object} from the case"
     },
     {
-      "semanticType": "remove_case_participant_from_case",
-      "wire": "Remove(CaseParticipant)[target=VulnerabilityCase]",
-      "phrase": "{actor} removed {object} from the case"
+      "semanticType": "reinstate_participant_in_case",
+      "wire": "Add(Actor)[target=VulnerabilityCase]",
+      "phrase": "{actor} reinstated {object} in the case"
+    },
+    {
+      "semanticType": "announce_admitted_act",
+      "wire": "Announce(Activity)[context=VulnerabilityCase]",
+      "phrase": "{actor} announced an act it admitted"
     },
     {
       "semanticType": "create_case_participant",

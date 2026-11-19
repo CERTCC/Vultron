@@ -372,15 +372,21 @@ def test_an_object_with_one_more_key_is_a_whole_object_not_a_reference() -> (
     [
         (
             "Remove",
-            "CaseParticipant",
-            {"target": CASE_ID},
-            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
+            "Organization",
+            {"origin": CASE_ID},
+            MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE,
         ),
         (
             "Add",
-            "CaseParticipant",
+            "Person",
             {"target": CASE_ID},
-            MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+            MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
+        ),
+        (
+            "Update",
+            "CaseParticipant",
+            {"context": CASE_ID},
+            MessageSemantics.UPDATE_CASE_PARTICIPANT,
         ),
         (
             "Announce",
@@ -402,8 +408,9 @@ def test_an_object_with_one_more_key_is_a_whole_object_not_a_reference() -> (
         ),
     ],
     ids=[
-        "Remove(CaseParticipant)",
-        "Add(CaseParticipant)",
+        "Remove(Organization)",
+        "Add(Person)",
+        "Update(CaseParticipant)",
         "Announce(EmbargoEvent)",
         "Add(Note)",
         "Offer(VulnerabilityReport)",

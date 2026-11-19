@@ -1,0 +1,49 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
+  ],
+  "type": "Announce",
+  "id": "urn:uuid:955298c8-efb1-50c5-9d8e-cca451554ce1",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Announce https://vultron.example/organizations/vendorco Remove https://vultron.example/organizations/coordinator from urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "inReplyTo": "urn:uuid:b4d38a29-fadf-45dd-a56c-704bce1c85ed",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
+  "to": [
+    "https://vultron.example/organizations/coordinator"
+  ],
+  "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+  "object": {
+    "type": "Remove",
+    "id": "urn:uuid:b4d38a29-fadf-45dd-a56c-704bce1c85ed",
+    "name": "https://vultron.example/organizations/vendorco Remove https://vultron.example/organizations/coordinator from urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
+    "summary": "Vendor is removing the coordinator from the case.",
+    "to": [
+      "https://vultron.example/case-actors/vendorco-case-actor"
+    ],
+    "actor": "https://vultron.example/organizations/vendorco",
+    "origin": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "object": {
+      "type": "Actor",
+      "id": "https://vultron.example/organizations/coordinator"
+    }
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z5MeciB7AVXGMjWwD2WbtVASH2MeFMDf1qfam4FUFKQvzZDHLhxr971CpU5LUiXWbNi1bukj8icXeG4xJoAyPqW8x"
+  }
+}

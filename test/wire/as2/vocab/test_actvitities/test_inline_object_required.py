@@ -59,10 +59,11 @@ from vultron.wire.as2.vocab.activities.case.rm import (
     _RmEngageCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
-    _AddParticipantToCaseActivity,
     _AddStatusToParticipantActivity,
+    _AnnounceAdmittedActActivity,
     _CreateParticipantActivity,
-    _RemoveParticipantFromCaseActivity,
+    _ReinstateParticipantActivity,
+    _RemoveParticipantActivity,
 )
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
@@ -143,6 +144,8 @@ _NOTE = make(as_Note, name="Test Note")
 # (ARCH-12-002); the core class is fail-fast (ARCH-10-001) and is now the only
 # class.
 _STATUS = make(as_CaseStatus, context=_CASE.id_)
+#: The case a participant move or an announcement names (ADR-0199).
+_MOVE_CASE = "https://example.org/cases/c1"
 _PARTICIPANT_STATUS = make(as_ParticipantStatus, context=_CASE.id_)
 #: A status Add's history and case (ADR-0204), so a refusal is about
 #: ``object_`` alone.
@@ -663,17 +666,32 @@ class TestNoneObjectRejected(unittest.TestCase):
             _AddStatusToParticipantActivity, **_PARTICIPANT_STATUS_ADD
         )
 
-    def test_add_participant_to_case_rejects_none(self):
-        self._assert_none_rejected(_AddParticipantToCaseActivity)
+    def test_reinstate_participant_rejects_none(self):
+        self._assert_none_rejected(
+            _ReinstateParticipantActivity, target=_MOVE_CASE
+        )
 
-    def test_add_participant_to_case_rejects_missing(self):
-        self._assert_missing_rejected(_AddParticipantToCaseActivity)
+    def test_reinstate_participant_rejects_missing(self):
+        self._assert_missing_rejected(
+            _ReinstateParticipantActivity, target=_MOVE_CASE
+        )
 
-    def test_remove_participant_from_case_rejects_none(self):
-        self._assert_none_rejected(_RemoveParticipantFromCaseActivity)
+    def test_remove_participant_rejects_none(self):
+        self._assert_none_rejected(
+            _RemoveParticipantActivity, origin=_MOVE_CASE
+        )
 
-    def test_remove_participant_from_case_rejects_missing(self):
-        self._assert_missing_rejected(_RemoveParticipantFromCaseActivity)
+    def test_remove_participant_rejects_missing(self):
+        self._assert_missing_rejected(
+            _RemoveParticipantActivity, origin=_MOVE_CASE
+        )
+
+    def test_announce_admitted_act_rejects_none(self):
+        self._assert_none_rejected(
+            _AnnounceAdmittedActActivity,
+            context=_MOVE_CASE,
+            in_reply_to="https://example.org/activities/act",
+        )
 
     # --- sync.py (2 classes) ---
 

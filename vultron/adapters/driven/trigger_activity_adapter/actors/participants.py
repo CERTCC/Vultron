@@ -24,6 +24,7 @@ from datetime import datetime
 from typing import cast
 
 from vultron.adapters.received_archive import (
+    read_held_as_received,
     read_received_as_received,
 )
 from vultron.core.models._helpers import _as_id
@@ -32,14 +33,16 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     accept_case_participant_offer_activity,
-    add_participant_to_case_activity,
     add_status_to_participant_activity,
+    announce_admitted_act_activity,
     offer_case_participant_activity,
     recommend_actor_activity,
+    reinstate_participant_activity,
     reject_actor_recommendation_activity,
     reject_case_participant_offer_activity,
-    remove_participant_from_case_activity,
+    remove_participant_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
@@ -52,8 +55,6 @@ from .._base import (
     _addressing,
     _already_sealed,
     _create_and_seal,
-    _delegation,
-    _to_wire,
 )
 from ._helpers import (
     _held_actor,
@@ -310,67 +311,77 @@ class _ParticipantsMixin:
             self._dl, activity, "emit_reject_actor_recommendation"
         )
 
-    def add_participant_to_case(
+    def remove_participant(
         self,
-        participant_id: str,
+        removed_id: str,
         case_id: str,
         actor: str,
-        to: list[str] | None = None,
-        attributed_to: str | None = None,
-        *,
-        at: datetime,
-        in_reply_to: str | None = None,
-    ) -> tuple[str, str]:
-        """Create and persist an ``Add(CaseParticipant)[target=VulnerabilityCase]``.
-
-        The participant goes inline as the store holds it, removal fact
-        cleared.  Returns ``(activity_id, activity_blob)`` (CM-31-011).
-        """
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
-        )
-        activity = add_participant_to_case_activity(
-            participant=participant,
-            target=case_id,
-            actor=actor,
-            to=to,
-            **_delegation(attributed_to, in_reply_to),
-            at=at,
-        )
-        return _create_and_seal(self._dl, activity, "add_participant_to_case")
-
-    def remove_participant_from_case(
-        self,
-        participant_id: str,
-        case_id: str,
-        actor: str,
-        attributed_to: str | None,
         to: list[str],
         *,
         at: datetime,
-        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Remove(CaseParticipant)[target=VulnerabilityCase]``.
+        """Create and persist the Case Owner's ``Remove(<Actor>, origin=<case>)``.
 
-        The ``Remove`` is the removal notice.
-
-        The participant goes inline as the store holds it, removal fact
-        included.  Returns ``(activity_id, activity_blob)`` (CM-31-006).
+        The removed actor goes as a typed reference (CM-31-004, ADR-0199).
+        Returns ``(activity_id, activity_blob)``.
         """
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
+        activity = remove_participant_activity(
+            removed_id, case_id, actor=actor, to=to, at=at
         )
-        activity = remove_participant_from_case_activity(
-            participant=participant,
-            target=case_id,
-            actor=actor,
-            to=to,
-            **_delegation(attributed_to, in_reply_to),
-            at=at,
+        return _create_and_seal(self._dl, activity, "remove_participant")
+
+    def reinstate_participant(
+        self,
+        reinstated_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str],
+        *,
+        at: datetime,
+    ) -> tuple[str, str]:
+        """Create and persist the Case Owner's ``Add(<Actor>, target=<case>)``.
+
+        The reinstated actor goes as a typed reference (CM-31-011,
+        ADR-0199).  Returns ``(activity_id, activity_blob)``.
+        """
+        activity = reinstate_participant_activity(
+            reinstated_id, case_id, actor=actor, to=to, at=at
         )
-        return _create_and_seal(
-            self._dl, activity, "remove_participant_from_case"
+        return _create_and_seal(self._dl, activity, "reinstate_participant")
+
+    def announce_admitted_act(
+        self,
+        admitted_act_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str],
+        id_: str,
+        *,
+        at: datetime,
+    ) -> tuple[str, str]:
+        """Create and persist the CASE_MANAGER's ``Announce(<the admitted act>)``.
+
+        The act is embedded as this actor holds it: one it received, parsed
+        from the body intake recorded, every field as sent; one it sent,
+        under its own id (DL-06-004, DL-06-006).  Nothing is rebuilt, so
+        every build under the same id embeds the same act (OX-06-002).
+
+        Raises:
+            VultronNotFoundError: This actor holds no activity
+                *admitted_act_id*.
+            VultronValidationError: What it holds under that id is not an
+                activity.
+        """
+        held = read_held_as_received(self._dl, admitted_act_id, "Activity")
+        if not isinstance(held, as_Activity):
+            raise VultronValidationError(
+                f"admitted act '{admitted_act_id}' is held as"
+                f" {type(held).__name__}, not as an activity"
+            )
+        activity = announce_admitted_act_activity(
+            held, case_id, **_addressing(actor, to, id_), at=at
         )
+        return _create_and_seal(self._dl, activity, "announce_admitted_act")
 
     def add_participant_status_to_participant(
         self,

@@ -1493,29 +1493,11 @@ groups:
 - id: VAM-06
   title: Case Participant Management Messages
   specs:
-  - id: VAM-06-003
-    priority: MUST
-    kind: protocol
-    statement: '`REMOVE_CASE_PARTICIPANT_FROM_CASE` MUST be represented as `Remove(CaseParticipant)[target=VulnerabilityCase]`'
-    rationale: >-
-      The message removes a participant from the case's `activeParticipants`, not from
-      `caseParticipants`: the record stays and the participant stops receiving case content
-      (CM-31-001, CM-31-004, ADR-0116).
-    verification: >-
-      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `RemoveCaseParticipantFromCasePattern` uses `TAtype.REMOVE`,
-      `AOtype.CASE_PARTICIPANT`, and `target_=VULNERABILITY_CASE`; integration tests in
-      `test/demo/test_manage_participants_demo.py` exercise this flow.
-      `test_wire_form_examples_map_to_their_semantics` in
-      `test/test_semantic_activity_patterns.py` confirms that the
-      `remove_participant_from_case` vocabulary example maps to
-      `REMOVE_CASE_PARTICIPANT_FROM_CASE`.
-    adr:
-    - ADR-0116
-    stories:
-    - story_2022_066
-    - story_2022_067
   - id: VAM-06-004
+    # The CASE_MANAGER's seating entry reuses this name once #6295 builds it;
+    # #6465 retired its earlier meaning, the Owner's reinstatement.
+    lint_suppress:
+    - phantom_symbol_ref
     priority: MUST
     kind: protocol
     statement: >-
@@ -1577,6 +1559,93 @@ groups:
       reason: >-
         an example; sending `Update(CaseParticipant)` is not sufficient for the role
         change
+  - id: VAM-06-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `REMOVE_PARTICIPANT_FROM_CASE` MUST be represented as
+      `Remove(<Actor>, origin=VulnerabilityCase)`: the Case Owner's own act, whose
+      `object` is the removed actor as a typed reference and whose `origin` is the
+      case.
+    rationale: >-
+      The Case Owner decides the removal, so the act is its own (ADR-0199). A
+      `Remove` names the collection it takes its object from in `origin` (VOC
+      Remove). The act names the actor, not the participant record: the case holds
+      one record per actor, so the actor identifies it (CM-19-003), and the record
+      stays on the roster (CM-31-015).
+    verification: >-
+      `test_wire_form_examples_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `remove_participant_from_case` example maps to `REMOVE_PARTICIPANT_FROM_CASE`,
+      and `test_remove_participant_is_a_remove_of_the_actor_from_the_case` in
+      `test/wire/as2/factories/test_case_participant_factories.py` confirms the
+      factory names the actor as a typed reference and the case in `origin`.
+    adr:
+    - ADR-0199
+    stories:
+    - story_2022_066
+    - story_2022_067
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-31-004
+  - id: VAM-06-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `REINSTATE_PARTICIPANT_IN_CASE` MUST be represented as
+      `Add(<Actor>, target=VulnerabilityCase)`: the Case Owner's own act, whose
+      `object` is the reinstated actor as a typed reference and whose `target` is
+      the case.
+    rationale: >-
+      The Case Owner decides the reinstatement, so the act is its own (ADR-0199). The
+      act names the actor, not the participant record, which a reinstatement reuses
+      (CM-31-034). It leaves `Add(CaseParticipant)` to the CASE_MANAGER's own
+      record-keeping (VAM-06-004).
+    verification: >-
+      `test_wire_form_examples_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `reinstate_participant_in_case` example maps to
+      `REINSTATE_PARTICIPANT_IN_CASE`, and
+      `test_reinstate_participant_is_an_add_of_the_actor_to_the_case` in
+      `test/wire/as2/factories/test_case_participant_factories.py` confirms the
+      factory names the actor as a typed reference and the case in `target`.
+    adr:
+    - ADR-0199
+    stories:
+    - story_2022_052
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-31-011
+  - id: VAM-06-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `ANNOUNCE_ADMITTED_ACT` MUST be represented as `Announce(<the admitted act>)`
+      with `context` the case: the CASE_MANAGER's own act, whose `object` is the act
+      it admitted, inline, and whose `inReplyTo` names that act.
+    rationale: >-
+      An actor the admitted act concerns that the ledger fan-out does not reach
+      learns of it from the CASE_MANAGER, whose `actor` the receiver's trust check
+      reads, while the act keeps its own author and id (ADR-0199). The act's commit
+      caused the `Announce`, so it names the act in `inReplyTo` (ADR-0204). It
+      informs and asks nothing.
+    verification: >-
+      `test_wire_form_examples_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `announce_participant_removal` and `announce_participant_reinstatement`
+      examples map to `ANNOUNCE_ADMITTED_ACT`, and
+      `test_announce_carries_the_act_and_names_it_in_reply_to` in
+      `test/wire/as2/factories/test_case_participant_factories.py` confirms the
+      factory carries the act and names it in `inReplyTo`.
+    adr:
+    - ADR-0199
+    - ADR-0204
+    stories:
+    - story_2022_066
+    - story_2022_067
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-31-006
 - id: VAM-07
   title: Note Management Messages
   specs:
@@ -1606,7 +1675,7 @@ groups:
       A removal takes the note out of the case named in `origin`: AS2 `Remove` names
       the collection the actor removes the object from in `origin` (VOC Remove), and
       `target` names where something goes. The `Note` object tells it apart from the
-      other `Remove` forms, such as the removal of a participant (VAM-06-003).
+      other `Remove` forms, such as the removal of a participant (VAM-06-006).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `RemoveNoteFromCasePattern`
       uses `TAtype.REMOVE`, `AOtype.NOTE`, and `origin_=VULNERABILITY_CASE`;
       `test_origin_constraint_refuses_a_case_only_in_target` in

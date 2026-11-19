@@ -25,6 +25,8 @@ from vultron.core.use_cases.triggers.case import (
     SvcDeferCaseUseCase,
     SvcEngageCaseUseCase,
     SvcLeaveCaseUseCase,
+    SvcReinstateParticipantUseCase,
+    SvcRemoveParticipantUseCase,
     SvcSetStubSummaryUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
@@ -34,6 +36,8 @@ from vultron.core.use_cases.triggers.requests import (
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
     LeaveCaseTriggerRequest,
+    ReinstateParticipantTriggerRequest,
+    RemoveParticipantTriggerRequest,
     SetStubSummaryTriggerRequest,
 )
 from vultron.trigger_registry._entry import (
@@ -77,6 +81,27 @@ ENTRIES: list[TriggerEntry] = [
         spec_ids=_COMMON
         + _ACTOR_SCOPED
         + ("TRIG-07-001", "TRIG-13-001", "TRIG-13-002", "TRIG-13-003"),
+    ),
+    # The Case Owner removes or reinstates an actor with its own act naming
+    # the actor, sent to the CASE_MANAGER only (CM-31-004, CM-31-011,
+    # ADR-0199).
+    TriggerEntry(
+        verb="remove-participant",
+        request_model=RemoveParticipantTriggerRequest,
+        use_case_class=SvcRemoveParticipantUseCase,
+        result_type=ActivityResult,
+        exposure=TriggerExposure.GENERAL_PURPOSE,
+        bt_backed=True,
+        spec_ids=_COMMON + _ACTOR_SCOPED + ("TRIG-07-001", "CM-31-004"),
+    ),
+    TriggerEntry(
+        verb="reinstate-participant",
+        request_model=ReinstateParticipantTriggerRequest,
+        use_case_class=SvcReinstateParticipantUseCase,
+        result_type=ActivityResult,
+        exposure=TriggerExposure.GENERAL_PURPOSE,
+        bt_backed=True,
+        spec_ids=_COMMON + _ACTOR_SCOPED + ("TRIG-07-001", "CM-31-011"),
     ),
     TriggerEntry(
         verb="add-object-to-case",

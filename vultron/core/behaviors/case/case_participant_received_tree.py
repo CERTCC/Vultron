@@ -13,37 +13,46 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tree factories for received Add/Remove CaseParticipant activities.
+
+"""Tree factories for the Case Owner's received removal and reinstatement acts.
 
 Each factory composes its leaf nodes through
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
 so intake records the received activity once its doors admit it
 (CLP-10-017) and a refused delivery still leaves a receipt stub (CLP-10-018).
 
-Both trees are Case Owner requests to the CASE_MANAGER (ADR-0116): ``Remove``
-takes a participant out of active participation (CM-31-004), and ``Add``
-reinstates a removed one (CM-31-011).  Each received activity is the move's
-one ledger entry (CM-31-005), and every write is gated on the CASE_MANAGER
-role, so a replica that receives either stores the activity and writes
-nothing (RSH-08-003); the replica takes the move from the ledger entry
-instead (CM-31-007).
+The Case Owner decides both moves and sends each as its own act, to the
+CASE_MANAGER only (ADR-0199): ``Remove(<Actor>, origin=<case>)`` takes a
+participant out of active participation (CM-31-004), and
+``Add(<Actor>, target=<case>)`` reinstates a removed one (CM-31-011).  The
+CASE_MANAGER refuses an act that breaks the rules with a refusal notice and
+commits nothing; otherwise it admits the Owner's act as the move's one ledger
+entry (CM-31-005, CM-31-044), changes the record, and announces the act to
+the actor it names.  It sends no ``Accept`` and makes no act of its own.  A
+replica takes the move from the ledger entry (CM-31-007, CM-31-045), never
+from the act or its ``Announce``, so the trees declare the manager path
+alone and any other receiver is refused at the path stage (HP-01-038).
+
+Both trees declare ``/participant_actor_id``, the actor the act names, as an
+input the runner seeds from the act (BT-25-006, BT-25-007).
 """
 
 import logging
 
 import py_trees
 
+from vultron.core.behaviors.act_inputs import declare_inputs
+from vultron.core.behaviors.act_keys import PARTICIPANT_ACTOR_ID
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
 )
 from vultron.core.behaviors.case.nodes.case_participant_received import (
-    EmitParticipantRemovalNoticeNode,
-    RemoveCaseParticipantFromCaseReceivedNode,
+    AnnounceParticipantMoveNode,
+    RecordParticipantRemovalNode,
     case_manager_admits_removal_guard,
 )
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
-    EmitParticipantReinstatementNoticeNode,
-    ReinstateCaseParticipantReceivedNode,
+    ClearParticipantRemovalNode,
     case_manager_admits_reinstatement_guard,
 )
 from vultron.core.behaviors.case.nodes.received_path import (
@@ -64,238 +73,174 @@ from vultron.core.behaviors.sync.nodes.embargo_backfill import (
 
 logger = logging.getLogger(__name__)
 
+#: The act each tree refuses when it names no case (CLP-10-018).
+REINSTATEMENT_ACT = "Add(<Actor>, target=VulnerabilityCase)"
+REMOVAL_ACT = "Remove(<Actor>, origin=VulnerabilityCase)"
 
-def _missing_ids(message: str) -> str:
-    """The refusal of a move naming no participant or no case (CLP-10-018)."""
-    return f"{message} is missing its participant id or case id"
+
+def missing_ids_reason(act: str) -> str:
+    """The refusal of a move naming no actor or no case (CLP-10-018)."""
+    return f"{act} is missing the actor it names or its case"
 
 
 def create_add_case_participant_received_tree(
-    participant_id: str | None,
     case_id: str | None,
     sender_id: str,
-    claimed_actor_id: str | None = None,
     activity_id: str | None = None,
     *,
     sender_rule: SenderRule,
-) -> py_trees.composites.Sequence:
-    """Create the BT for ``AddCaseParticipantToCaseReceivedUseCase``.
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for ``ReinstateParticipantInCaseReceivedUseCase``.
 
-    ``Add(CaseParticipant)`` is the Case Owner's request to reinstate a
-    removed participant (CM-31-011, ADR-0116), and mirrors the removal tree
+    ``Add(<Actor>, target=<case>)`` is the Case Owner's reinstatement of a
+    removed participant (CM-31-011, ADR-0199), and mirrors the removal tree
     stage for stage (the CLP-10-010 stages, ADR-0111)::
 
-        AddCaseParticipantReceivedBT (Sequence)
+        ReinstateParticipantReceivedBT (Sequence)
         ├── ActivityAddressedToReceiverNode                  # addressee door
         ├── ActivityNotSeenBeforeNode                        # seen-before door
-        ├── ReceivedPathNode                                 # manager or replica
-        ├── SenderRuleGuard (Sequence)                       # sender guard
+        ├── ReceivedPathNode                                 # manager only
+        ├── SenderRuleGuard (Sequence)                       # the Case Owner
         ├── IntakeReceivedActivityNode                       # intake
-        ├── ReinstatementAdmissibleIfCaseManager (Selector)  # guards (manager only)
-        │   ├── MoveNamesCaseParticipantNode
+        ├── ReinstatementAdmissible (Sequence)               # guards
+        │   ├── ActivityNotYetLedgeredNode                   # repeat: SKIPPED
+        │   ├── NamedParticipantIsNotProtectedNode
         │   ├── ParticipantHasJoinedNode
         │   └── ParticipantIsRemovedNode
         ├── GuardedCommitCaseLedgerEntryBT (Selector)        # commit
-        └── GuardedReinstateParticipantBT (Selector)         # effects (manager only)
-            ├── ReinstateCaseParticipantReceivedNode
+        └── GuardedReinstateParticipantBT (Selector)         # effects
+            ├── ClearParticipantRemovalNode
             ├── BackfillAdmittedParticipantsNode
-            ├── EmitParticipantReinstatementNoticeNode
+            ├── AnnounceParticipantMoveNode
             └── InviteReinstatedParticipantToEmbargoNode
 
-    The declared rule admits the Case Owner at the CASE_MANAGER and only the
-    CASE_MANAGER at any other replica (ADR-0115, PCR-03-001), which is how
-    the reinstated participant's own replica accepts the direct notice.  The
-    commit runs before the effect, so the entry's fan-out withholds it from
-    the participant, still removed, and records it in that participant's
-    paused stream.  Once the fact is cleared, the admission backfill sends
-    the participant every entry from the first one withheld after its
-    removal entry, the reinstatement entry included, in log order
+    The commit runs before the effects, so the entry's fan-out withholds it
+    from the participant, still removed, and records it in that
+    participant's paused stream.  Once the fact is cleared, the admission
+    backfill sends the participant every entry from the first one withheld
+    after its removal entry, the reinstatement entry included, in log order
     (CM-10-006); a participant that is not a signatory to the active
     embargo is not admitted yet, so it is sent that embargo's Invite instead
-    and its backfill waits for its consent (CM-31-040).  At a replica every
-    gated stage skips: intake is its only write (RSH-08-003).
+    and its backfill waits for its consent (CM-31-040).  The reinstated
+    actor is also sent the CASE_MANAGER's ``Announce`` of the Owner's act
+    (CM-31-044).
 
-    An ``Add`` naming no participant or no case is refused by the same
-    tree's guard instead (``ActivityIncompleteNode``), so either way the
-    delivery runs one tree and is archived (CLP-10-005, CLP-10-018).  An
-    ``Add`` for a case this store does not hold passes the sender guard as
-    the bootstrap window and skips every CASE_MANAGER-gated stage; the
-    handler reads that gate as ``REFUSED``, unknown case (HP-01-005).
+    A reinstatement naming no case is refused by the same tree's guard
+    instead (``ActivityIncompleteNode``), so either way the delivery runs
+    one tree and is archived (CLP-10-005, CLP-10-018).
 
     Args:
-        participant_id: URI of the ``CaseParticipant`` the ``Add`` names.
         case_id: URI of the case.
         sender_id: The activity's sender, who must be the Case Owner.
-        claimed_actor_id: The actor the inline participant is attributed to,
-            when it names one; it must match the stored record's actor
-            (CM-31-011), because a replica resolves the record by it.  The
-            notice and any embargo Invite go to the stored record's actor.
-        activity_id: The ``Add``'s id; the embargo Invite's id is derived
-            from it, so a redelivery rebuilds the same Invite (OX-06-002).
+        activity_id: The Owner's ``Add``'s id; the embargo Invite's id is
+            derived from it, so a redelivery rebuilds the same Invite
+            (OX-06-002).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
     Returns:
-        The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
+        The root node, ready for ``BTBridge.execute_with_setup()``.
     """
-    name = "AddCaseParticipantReceivedBT"
-    if participant_id is None or case_id is None:
+    name = "ReinstateParticipantReceivedBT"
+    if case_id is None:
         return create_incomplete_activity_received_tree(
-            name,
-            _missing_ids("Add(CaseParticipant)[target=VulnerabilityCase]"),
+            name, missing_ids_reason(REINSTATEMENT_ACT)
         )
     root = create_receive_activity_tree(
         name=name,
         case_id=case_id,
-        # The Case Owner asks the CASE_MANAGER, which adjudicates the move,
-        # and the CASE_MANAGER relays the notice to the participant's own
-        # replica, which archives it and takes the move from the ledger
-        # entry (CM-31-007, RSH-08-003, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The Case Owner sends the act to the CASE_MANAGER only; a replica
+        # takes the move from the ledger entry, so any other receiver is
+        # refused at the path stage (HP-01-038, RSH-08-003).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
-        # A replica acts on the CASE_MANAGER's word alone, so a case whose
-        # roster names no CASE_MANAGER leaves the sender no standing there:
-        # the sender guard refuses it rather than passing it through as the
-        # bootstrap window (CM-02-014, CM-24-008, PCR-03-001).
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id, case_manager_required=True
         ),
-        precondition_guards=[
-            case_manager_admits_reinstatement_guard(
-                participant_id=participant_id,
-                case_id=case_id,
-                claimed_actor_id=claimed_actor_id,
-            )
-        ],
+        precondition_guards=[case_manager_admits_reinstatement_guard(case_id)],
         manager_case_id=case_id,
         manager_gate_name="GuardedReinstateParticipantBT",
         manager_effects=[
-            ReinstateCaseParticipantReceivedNode(
-                participant_id=participant_id, case_id=case_id
-            ),
+            with_case_id(ClearParticipantRemovalNode(), case_id),
             with_case_id(BackfillAdmittedParticipantsNode(), case_id),
-            EmitParticipantReinstatementNoticeNode(
-                participant_id=participant_id,
-                case_id=case_id,
-                requesting_actor_id=sender_id,
-            ),
+            with_case_id(AnnounceParticipantMoveNode(), case_id),
             InviteReinstatedParticipantToEmbargoNode(
-                case_id=case_id,
-                participant_id=participant_id,
-                answers=activity_id,
+                case_id=case_id, answers=activity_id
             ),
         ],
     )
+    declare_inputs(root, seeded=[PARTICIPANT_ACTOR_ID])
     logger.debug(
-        "Created AddCaseParticipantReceivedBT for participant='%s' case='%s'",
-        participant_id,
-        case_id,
+        "Created ReinstateParticipantReceivedBT for case='%s'", case_id
     )
     return root
 
 
 def create_remove_case_participant_received_tree(
-    participant_id: str | None,
     case_id: str | None,
     sender_id: str,
-    removal_activity_id: str,
-    claimed_actor_id: str | None = None,
     *,
     sender_rule: SenderRule,
-) -> py_trees.composites.Sequence:
-    """Create the BT for ``RemoveCaseParticipantFromCaseReceivedUseCase``.
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for ``RemoveParticipantFromCaseReceivedUseCase``.
 
     Structure (the CLP-10-010 stages, ADR-0111)::
 
-        RemoveCaseParticipantReceivedBT (Sequence)
+        RemoveParticipantReceivedBT (Sequence)
         ├── ActivityAddressedToReceiverNode             # addressee door
         ├── ActivityNotSeenBeforeNode                   # seen-before door
-        ├── ReceivedPathNode                            # manager or replica
-        ├── SenderRuleGuard (Sequence)                  # sender guard
+        ├── ReceivedPathNode                            # manager only
+        ├── SenderRuleGuard (Sequence)                  # the Case Owner
         ├── IntakeReceivedActivityNode                  # intake
-        ├── RemovalAdmissibleIfCaseManager (Selector)   # guards (manager only)
-        │   ├── MoveNamesCaseParticipantNode
-        │   ├── RemovalTargetIsRemovableNode
+        ├── RemovalAdmissible (Sequence)                # guards
+        │   ├── NamedParticipantIsNotProtectedNode
         │   └── ParticipantNotYetRemovedNode            # idempotency
         ├── GuardedCommitCaseLedgerEntryBT (Selector)   # commit
-        └── GuardedRemoveParticipantBT (Selector)       # effects (manager only)
-            ├── RemoveCaseParticipantFromCaseReceivedNode
-            └── EmitParticipantRemovalNoticeNode
+        └── GuardedRemoveParticipantBT (Selector)       # effects
+            ├── RecordParticipantRemovalNode
+            └── AnnounceParticipantMoveNode
 
-    The declared rule admits the Case Owner at the CASE_MANAGER and only the
-    CASE_MANAGER at any other replica (ADR-0115, PCR-03-001), which is how
-    the removed participant's own replica accepts the direct notice.  The
-    commit runs before the effect, so the entry's fan-out selects its
+    The commit runs before the effects, so the entry's fan-out selects its
     recipients while the removed participant is still active (CM-31-027).
-    At a replica every gated stage skips: intake is its only write
-    (RSH-08-003).
+    The removed actor is also sent the CASE_MANAGER's ``Announce`` of the
+    Owner's act (ADR-0199).
 
-    A removal naming no participant or no case is refused by the same tree's
-    guard instead, as for the ``Add`` tree.
+    A removal naming no case is refused by the same tree's guard instead,
+    as for the reinstatement tree.
 
     Args:
-        participant_id: URI of the ``CaseParticipant`` the removal names.
         case_id: URI of the case.
         sender_id: The activity's sender, who must be the Case Owner.
-        removal_activity_id: The received ``Remove`` activity's id, recorded
-            as the removal fact (CM-31-001).
-        claimed_actor_id: The actor the inline participant is attributed to,
-            when it names one; it must match the stored record's actor
-            (CM-31-004), because a replica resolves the record by it.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
     Returns:
-        The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
+        The root node, ready for ``BTBridge.execute_with_setup()``.
     """
-    name = "RemoveCaseParticipantReceivedBT"
-    if participant_id is None or case_id is None:
+    name = "RemoveParticipantReceivedBT"
+    if case_id is None:
         return create_incomplete_activity_received_tree(
-            name,
-            _missing_ids("Remove(CaseParticipant)[target=VulnerabilityCase]"),
+            name, missing_ids_reason(REMOVAL_ACT)
         )
     root = create_receive_activity_tree(
         name=name,
         case_id=case_id,
-        # The Case Owner asks the CASE_MANAGER, which adjudicates the move,
-        # and the CASE_MANAGER relays the notice to the participant's own
-        # replica, which archives it and takes the move from the ledger
-        # entry (CM-31-007, RSH-08-003, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The Case Owner sends the act to the CASE_MANAGER only; a replica
+        # takes the move from the ledger entry, so any other receiver is
+        # refused at the path stage (HP-01-038, RSH-08-003).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
-        # A replica acts on the CASE_MANAGER's word alone, so a case whose
-        # roster names no CASE_MANAGER leaves the sender no standing there:
-        # the sender guard refuses it rather than passing it through as the
-        # bootstrap window (CM-02-014, CM-24-008, PCR-03-001).
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id, case_manager_required=True
         ),
-        precondition_guards=[
-            case_manager_admits_removal_guard(
-                participant_id=participant_id,
-                case_id=case_id,
-                claimed_actor_id=claimed_actor_id,
-            )
-        ],
+        precondition_guards=[case_manager_admits_removal_guard(case_id)],
         manager_case_id=case_id,
         manager_gate_name="GuardedRemoveParticipantBT",
         manager_effects=[
-            RemoveCaseParticipantFromCaseReceivedNode(
-                participant_id=participant_id,
-                case_id=case_id,
-                removal_activity_id=removal_activity_id,
-            ),
-            EmitParticipantRemovalNoticeNode(
-                participant_id=participant_id,
-                case_id=case_id,
-                requesting_actor_id=sender_id,
-            ),
+            with_case_id(RecordParticipantRemovalNode(), case_id),
+            with_case_id(AnnounceParticipantMoveNode(), case_id),
         ],
     )
-    logger.debug(
-        "Created RemoveCaseParticipantReceivedBT"
-        " for participant='%s' case='%s'",
-        participant_id,
-        case_id,
-    )
+    declare_inputs(root, seeded=[PARTICIPANT_ACTOR_ID])
+    logger.debug("Created RemoveParticipantReceivedBT for case='%s'", case_id)
     return root

@@ -174,6 +174,38 @@ class CaseTriggers(SessionBinding):
         """Judge the case valid: Accept the full-case Invite (RV, CM-11-011)."""
         return self._post("accept-full-case-invite", {"invite_id": invite_id})
 
+    def remove_participant(
+        self, *, participant_actor_id: str
+    ) -> WireTriggerResult:
+        """Remove an actor from the bound case, as Case Owner (remove-participant).
+
+        Sends ``Remove(<Actor>, origin=<case>)`` to the CASE_MANAGER
+        (CM-31-004, ADR-0199).
+        """
+        return self._post(
+            "remove-participant",
+            {
+                "case_id": self._require_case_id(),
+                "participant_actor_id": participant_actor_id,
+            },
+        )
+
+    def reinstate_participant(
+        self, *, participant_actor_id: str
+    ) -> WireTriggerResult:
+        """Reinstate a removed actor, as Case Owner (reinstate-participant).
+
+        Sends ``Add(<Actor>, target=<case>)`` to the CASE_MANAGER
+        (CM-31-011, ADR-0199).
+        """
+        return self._post(
+            "reinstate-participant",
+            {
+                "case_id": self._require_case_id(),
+                "participant_actor_id": participant_actor_id,
+            },
+        )
+
     def accept_actor_recommendation(
         self, *, cp_offer_id: str, case_actor_id: str
     ) -> WireTriggerResult:

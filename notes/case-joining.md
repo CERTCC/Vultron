@@ -200,15 +200,17 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 
 | Step | Message | Ledger | Effect |
 |---|---|---|---|
-| 1 | Case Owner sends `Remove(CaseParticipant)[target=VulnerabilityCase]` to the CASE_MANAGER | the received `Remove` is the one entry | removal fact set; participant leaves `activeParticipants` |
-| 2 | CASE_MANAGER sends the removed party a direct `Remove(CaseParticipant)` naming it | not ledgered | notice only |
+| 1 | Case Owner sends its own `Remove(<Actor>, origin=<case>)` to the CASE_MANAGER (`remove-participant` trigger) | the received `Remove` is the one entry | removal fact set; participant leaves `activeParticipants` |
+| 2 | CASE_MANAGER sends the removed actor `Announce(<the Owner's Remove>)` | not ledgered | notice only; the replica records it and writes nothing |
 | 3 | Removal entry fans out, the removed party included | — | each replica applies the fact by replay; it is the removed party's last entry |
 | 4 | Embargo terminated or shortened while it is removed | not sent to it | direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)`; its paused replica applies it |
-| 5 | Case Owner sends `Add(CaseParticipant)[target=VulnerabilityCase]` (today; #6465 makes it the Owner's own `Add(<Actor>, target=<case>)`, CM-31-011) | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
+| 5 | Case Owner sends its own `Add(<Actor>, target=<case>)` (`reinstate-participant` trigger, CM-31-011) | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006); `Announce(<the Owner's Add>)` to the actor |
 
-- **Only the Case Owner asks.** The CASE_MANAGER refuses anyone else, and a removal of
-  itself or the Case Owner; it never removes on its own. Self-removal is
-  `Leave(VulnerabilityCase)`.
+- **Only the Case Owner decides, and names the actor.** The act names the actor as a
+  typed reference, never its record (ADR-0199); the CASE_MANAGER finds the record
+  through `actor_participant_index` (CM-19-003). It refuses anyone else, and a move
+  naming itself or the Case Owner; it sends no `Accept`, makes no act of its own, and
+  never removes on its own. Self-removal is `Leave(VulnerabilityCase)`.
 - **Consent is untouched.** A removed or departed signatory stays bound and gets the
   direct embargo-ending notices (CM-31-009).
 - **Removal is not deletion and not a consent state.** Keep the record in
@@ -220,16 +222,16 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   reference, and persistence never stores it.
 - **Removal and reinstatement share one frame.** Both received trees
   (`create_remove_case_participant_received_tree`,
-  `create_add_case_participant_received_tree`) run the sender guard the factory
-  composes from the declared rule (Case Owner at the manager, CASE_MANAGER at a
-  replica, HP-01-008), their admission guard, the guarded
-  commit, then CASE_MANAGER-gated effects and notice, built on
-  `ParticipantMoveGuardNode` / `ParticipantMoveEffectNode` /
-  `EmitParticipantMoveNoticeNode`. A reinstatement guard failure is `REFUSED`,
-  except a repeat of an `Add` the ledger already records, which
-  `ActivityNotYetLedgeredNode` skips first (CLP-05-006). At a replica the
-  received tree writes nothing; the entry is replayed by the apply nodes, which
-  resolve the record through `actor_participant_index`.
+  `create_add_case_participant_received_tree`) declare the manager path alone, so
+  any other receiver refuses the act at the path stage (HP-01-038). They run the
+  sender guard (Case Owner only, HP-01-008), the admission guards, the guarded
+  commit, then the effects and the `Announce`, built on `ParticipantMoveGuardNode`
+  / `ParticipantMoveEffectNode` / `EmitAnnounceAdmittedActNode`. The named actor
+  is the `/participant_actor_id` key the runner seeds (BT-25-007). A guard failure
+  is `REFUSED` with a refusal notice, except a repeat of an `Add` the ledger
+  already records, which `ActivityNotYetLedgeredNode` skips first. The replica
+  records the `Announce` (`ANNOUNCE_ADMITTED_ACT`) and writes nothing; the entry is
+  replayed by the apply nodes, which resolve the record by the actor.
 - **A reinstatement request never seats a member** (CM-31-036). It is refused for
   a participant not removed or never joined. An acceptance of a stub Invite adds no
   record (CM-31-012): the record was added when the Invite went out (CM-11-023), and

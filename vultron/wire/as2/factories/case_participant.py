@@ -31,19 +31,24 @@ from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
 )
+from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.vocab.activities.case_participant import (
-    _AddParticipantToCaseActivity,
     _AddStatusToParticipantActivity,
+    _AnnounceAdmittedActActivity,
     _CreateParticipantActivity,
-    _RemoveParticipantFromCaseActivity,
+    _ReinstateParticipantActivity,
+    _RemoveParticipantActivity,
     _UpdateParticipantActivity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
+    as_Announce,
     as_Create,
     as_Remove,
     as_Update,
 )
+from vultron.wire.as2.vocab.base.objects.actors import actor_reference
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
     as_CaseParticipantRef,
@@ -166,71 +171,119 @@ def add_status_to_participant_activity(
     )
 
 
-def add_participant_to_case_activity(
-    participant: as_CaseParticipant,
-    target: as_VulnerabilityCaseRef | None = None,
+def reinstate_participant_activity(
+    reinstated: str,
+    target: as_VulnerabilityCaseRef,
     *,
     at: datetime,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(CaseParticipant)[target=VulnerabilityCase].
+    """Build the Case Owner's reinstatement, ``Add(<Actor>, target=<case>)``.
+
+    The Case Owner's own act, sent to the CASE_MANAGER only (CM-31-011,
+    ADR-0199).  The ``object`` is the reinstated actor as a typed reference
+    (``id`` + ``type``, AKM-05-017), not its ``CaseParticipant``.
 
     Args:
-        participant: The ``as_CaseParticipant`` to add to the case.
-        target: The ``VulnerabilityCase`` (or its URI) to which the
-            participant is being added.
+        reinstated: The URI of the actor being reinstated.
+        target: The ``VulnerabilityCase`` (or its URI) it is reinstated in.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+            (e.g. ``actor``, ``to``, ``id_``).
 
     Returns:
-        An ``as_Add`` whose ``object_`` is the participant.
+        An ``as_Add`` whose ``object_`` is the actor reference.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     return build_activity(
-        "add_participant_to_case_activity",
-        _AddParticipantToCaseActivity,
+        "reinstate_participant_activity",
+        _ReinstateParticipantActivity,
         at,
         lambda: {
-            "object_": participant,
+            "object_": actor_reference(reinstated),
             "target": case_target_ref(target),
             **with_case_context(kwargs, target),
         },
     )
 
 
-def remove_participant_from_case_activity(
-    participant: as_CaseParticipant,
-    target: as_VulnerabilityCaseRef | None = None,
+def remove_participant_activity(
+    removed: str,
+    origin: as_VulnerabilityCaseRef,
     *,
     at: datetime,
     **kwargs,
 ) -> as_Remove:
-    """Build a Remove(CaseParticipant)[target=VulnerabilityCase].
+    """Build the Case Owner's removal, ``Remove(<Actor>, origin=<case>)``.
 
-    This MUST only be performed by the case owner.
+    The Case Owner's own act, sent to the CASE_MANAGER only (CM-31-004,
+    ADR-0199).  A ``Remove`` names the collection it takes its object from
+    in ``origin`` (VOC Remove).  The ``object`` is the removed actor as a
+    typed reference (``id`` + ``type``, AKM-05-017), not its
+    ``CaseParticipant``.
 
     Args:
-        participant: The ``as_CaseParticipant`` to remove from the case.
-        target: The ``VulnerabilityCase`` (or its URI) from which the
-            participant is being removed.
+        removed: The URI of the actor being removed.
+        origin: The ``VulnerabilityCase`` (or its URI) it is removed from.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+            (e.g. ``actor``, ``to``, ``id_``).
 
     Returns:
-        An ``as_Remove`` whose ``object_`` is the participant.
+        An ``as_Remove`` whose ``object_`` is the actor reference.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     return build_activity(
-        "remove_participant_from_case_activity",
-        _RemoveParticipantFromCaseActivity,
+        "remove_participant_activity",
+        _RemoveParticipantActivity,
         at,
         lambda: {
-            "object_": participant,
-            "target": case_target_ref(target),
-            **with_case_context(kwargs, target),
+            "object_": actor_reference(removed),
+            "origin": case_target_ref(origin),
+            **with_case_context(kwargs, origin),
+        },
+    )
+
+
+def announce_admitted_act_activity(
+    admitted: as_Activity,
+    case: as_VulnerabilityCaseRef,
+    *,
+    at: datetime,
+    **kwargs,
+) -> as_Announce:
+    """Build the CASE_MANAGER's ``Announce(<the admitted act>)`` (ADR-0199).
+
+    Sent to an actor the act concerns that the entry's fan-out does not
+    reach.  The act travels inline: one this actor received is embedded as
+    it arrived, every field as sent (:func:`as_answered`, DL-06-004), so it
+    keeps its own author and id.  ``inReplyTo`` names the act, whose commit
+    caused the ``Announce`` (ADR-0204), and ``context`` is the case.  The
+    CASE_MANAGER is the ``actor``; pass it, the recipients and the derived
+    ``id_``.
+
+    Args:
+        admitted: The admitted act, as this actor holds it.
+        case: The ``VulnerabilityCase`` (or its URI) the act concerns.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``, ``id_``).
+
+    Returns:
+        An ``as_Announce`` whose ``object_`` is the admitted act.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    return build_activity(
+        "announce_admitted_act_activity",
+        _AnnounceAdmittedActActivity,
+        at,
+        lambda: {
+            "object_": as_answered(as_Activity, admitted),
+            "in_reply_to": getattr(admitted, "id_", None),
+            "context": case_target_ref(case),
+            **kwargs,
         },
     )

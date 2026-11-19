@@ -9859,7 +9859,7 @@ groups:
       `test/core/use_cases/received/test_case_participant.py` and
       `test_removal_fact_is_the_owners_activity_id` in
       `test/core/use_cases/received/test_participant_removal.py` apply a Case
-      Owner's `Remove(CaseParticipant)` at the CASE_MANAGER and assert the record
+      Owner's `Remove(<Actor>)` at the CASE_MANAGER and assert the record
       carries the removal fact.
     adr:
     - ADR-0116
@@ -9877,7 +9877,7 @@ groups:
     verification: >-
       `test_removal_keeps_the_record_on_the_roster` in
       `test/core/use_cases/received/test_participant_removal_planned.py` applies a
-      Case Owner's `Remove(CaseParticipant)` at the CASE_MANAGER and asserts the
+      Case Owner's `Remove(<Actor>)` at the CASE_MANAGER and asserts the
       participant is still in `case_participants` and `actor_participant_index`.
     relationships:
     - rel_type: extends
@@ -9998,7 +9998,7 @@ groups:
     rationale: >-
       `case_participants` stays the full roster that role resolution and `actor_participant_index`
       read (CM-19-001). Publishing the active set as its own collection makes
-      `Remove(CaseParticipant)` literally true: the participant leaves that collection.
+      the Case Owner's removal literally true: the participant leaves that collection.
     verification: >-
       `test_active_participants_lists_the_active_records_in_roster_order` in
       `test/core/models/test_case_active_participant.py` asserts
@@ -10076,11 +10076,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `Remove(CaseParticipant)[target=VulnerabilityCase]` is the Case Owner's request to
-      the CASE_MANAGER to remove a participant from active participation. The
-      CASE_MANAGER MUST refuse such a request in three cases. The sender does not hold
-      `CASE_OWNER`, the named participant holds `CASE_MANAGER` or `CASE_OWNER`, or the
-      request names no participant of the case.
+      `Remove(<Actor>, origin=VulnerabilityCase)` is the Case Owner's own act, sent to
+      the CASE_MANAGER only, removing the actor it names, as a typed reference, from
+      active participation. The CASE_MANAGER MUST refuse it in three cases. The sender
+      does not hold `CASE_OWNER`, the named actor holds `CASE_MANAGER` or `CASE_OWNER`,
+      or the act names no participant of the case.
     rationale: >-
       The Case Owner decides who takes part in the case; the CASE_MANAGER applies case
       changes and decides none (ADR-0108). The CASE_MANAGER role is never unfilled
@@ -10092,6 +10092,7 @@ groups:
       Owner is refused, and a removal from the Case Owner is applied.
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
   - id: CM-31-022
@@ -10103,11 +10104,11 @@ groups:
     rationale: >-
       A repeated removal changes nothing, so it is neither applied nor refused. A
       skipped result tells the Case Owner that the participant is already removed,
-      and the CASE_MANAGER commits no second entry and sends no second notice.
+      and the CASE_MANAGER commits no second entry and sends no second `Announce`.
     verification: >-
       `test_a_second_removal_is_skipped` in
       `test/core/use_cases/received/test_participant_removal_planned.py` and
-      `test_second_removal_commits_nothing_and_sends_no_second_notice` in
+      `test_second_removal_commits_nothing_and_sends_no_second_announce` in
       `test/core/use_cases/received/test_participant_removal.py` assert that a
       repeat removal is skipped.
     relationships:
@@ -10129,7 +10130,7 @@ groups:
       `test_only_the_owners_removal_records_a_removal_fact` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts
       that the only callers of `CaseParticipant.record_removal` apply the Case
-      Owner's received `Remove(CaseParticipant)` or its ledger entry.
+      Owner's received `Remove(<Actor>)` or its ledger entry.
     relationships:
     - rel_type: extends
       spec_id: CM-31-004
@@ -10142,8 +10143,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST record an accepted removal by committing the Case Owner's
-      received `Remove(CaseParticipant)` as its entry, on receipt (CLP-10-006).
+      The CASE_MANAGER MUST record an admitted removal by committing the Case Owner's
+      received `Remove(<Actor>)` as its entry, on receipt (CLP-10-006).
     rationale: >-
       The Remove states the change, so it is the change's entry (CLP-07-013), authored
       by the actor that made it. The ledger therefore shows the removal as the Case
@@ -10155,6 +10156,7 @@ groups:
       Case Owner's activity.
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10167,20 +10169,21 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `Remove(CaseParticipant)` MUST be a ledgered activity, with a canonical ledger
-      signature.
+      The Case Owner's `Remove(<Actor>)` MUST be a ledgered activity, with a canonical
+      ledger signature.
     rationale: >-
       Without the canonical signature a removal cannot be committed, so it never
       reaches a replica.
     verification: >-
       `test_removal_is_one_canonical_ledger_entry_by_the_owner` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts
-      that `("Remove", "CaseParticipant")` is a canonical signature.
+      that `("Remove", "Actor")` is a canonical signature.
     relationships:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10188,20 +10191,25 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST NOT commit a second entry of its own for a removal that
-      it records under CM-31-005.
+      The CASE_MANAGER MUST NOT commit a second entry of its own, send an `Accept`, or
+      make a `Remove` of its own for a removal that it records under CM-31-005.
     rationale: >-
-      The Case Owner's Remove is already the change's entry. A second entry would
-      record the same move twice and show it as the CASE_MANAGER's own act.
+      The Case Owner's Remove is already the change's entry, and the entry's fan-out
+      tells the Case Owner its act was admitted. A second entry or act would record
+      the same move twice and show it as the CASE_MANAGER's own act (ADR-0199).
     verification: >-
       `test_removal_is_one_canonical_ledger_entry_by_the_owner` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts
-      that an accepted removal grows the ledger by exactly one entry.
+      that an accepted removal grows the ledger by exactly one entry, and
+      `test_the_case_manager_sends_no_accept_and_makes_no_act_of_its_own` in
+      `test/core/use_cases/received/test_participant_removal.py` asserts that no
+      `Accept`, `Remove` or `Add` is sent.
     relationships:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10209,23 +10217,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      After a removal commits, the CASE_MANAGER MUST send the removed participant a
-      direct `Remove(CaseParticipant)` naming it. The notice's `actor` is the
-      CASE_MANAGER, its `attributedTo` the Case Owner and its `inReplyTo` the Case
-      Owner's request (CM-24).
+      After a removal commits, the CASE_MANAGER MUST send the removed actor its own
+      `Announce(<the Case Owner's Remove>)`, carrying the act inline and naming it in
+      `inReplyTo`, with an id derived from the act.
     rationale: >-
       Learning of removal only from silence is indistinguishable from a network fault, and the removed
       party needs to know it is still bound and how it will hear of the embargo's end.
+      The `Announce` informs and asks nothing; it is the CASE_MANAGER's act, so the
+      receiver's trust check reads the CASE_MANAGER (ADR-0199).
     verification: >-
-      `test_removed_participant_is_sent_a_direct_remove_naming_it` in
+      `test_removed_participant_is_announced_the_owners_remove` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts the
-      CASE_MANAGER's outbox holds a `Remove(CaseParticipant)` addressed to the
-      removed participant.
+      CASE_MANAGER's outbox holds an `Announce` of the Case Owner's `Remove`
+      addressed to the removed actor, and no `Remove` of its own.
     relationships:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10233,19 +10243,20 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST NOT ledger its CM-31-006 removal notice.
+      The CASE_MANAGER MUST NOT ledger its CM-31-006 `Announce`.
     rationale: >-
-      The notice is delivery, not a second record of the move. The Case Owner's
+      The `Announce` is delivery, not a second record of the move. The Case Owner's
       Remove is already the move's entry (CM-31-005).
     verification: >-
-      `test_notice_is_delegated_names_the_participant_and_is_not_ledgered` in
+      `test_the_removed_actor_is_announced_the_owners_act` in
       `test/core/use_cases/received/test_participant_removal.py` asserts that the
-      notice is not a ledger entry.
+      `Announce` is not a ledger entry.
     relationships:
     - rel_type: extends
       spec_id: CM-31-006
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10314,16 +10325,17 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A replica MUST NOT apply a removal from a directly received
-      `Remove(CaseParticipant)` (RSH-08-003).
+      A replica MUST NOT apply a removal from the CASE_MANAGER's `Announce` of it, or
+      from a directly received `Remove(<Actor>)` (RSH-08-003).
     rationale: >-
-      The direct notice tells the removed party what happened; it is not the change.
+      The `Announce` tells the removed party what happened; it is not the change.
       A replica that applied it would take case state from outside the ledger.
     verification: >-
-      `test_replica_stores_the_managers_notice_and_writes_nothing` in
-      `test/core/use_cases/received/test_participant_removal.py` asserts that a
-      replica stores the CASE_MANAGER's direct notice and writes no participant
-      state.
+      `test_replica_records_the_announce_and_writes_nothing` and
+      `test_replica_refuses_the_owners_removal_itself` in
+      `test/core/use_cases/received/test_participant_removal.py` assert that a
+      replica records the CASE_MANAGER's `Announce` and writes no participant
+      state, and refuses the Case Owner's act sent to it.
     relationships:
     - rel_type: extends
       spec_id: CM-31-007
@@ -10331,6 +10343,7 @@ groups:
       spec_id: RSH-08-003
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10572,9 +10585,10 @@ groups:
       CASE_MANAGER admits or refuses it (ADR-0199). The case holds one record per
       actor, so the actor names the record, and reinstatement reuses it (CM-31-034).
     verification: >-
-      A test under `test/core/use_cases/triggers/` asserts that the Case Owner's
-      reinstate trigger sends this `Add` to the CASE_MANAGER only, naming the actor
-      (#6465).
+      `test_the_owners_act_names_the_actor_and_goes_to_the_case_manager_only` in
+      `test/core/use_cases/triggers/case/test_participant_move.py` asserts that the
+      Case Owner's `reinstate-participant` trigger sends this `Add` to the
+      CASE_MANAGER only, naming the actor as a typed reference.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-31-004
@@ -10592,11 +10606,10 @@ groups:
     rationale: >-
       Reinstatement is the Case Owner's decision, as removal is (CM-31-004).
     verification: >-
-      A strict-xfail probe in
-      `test/architecture/test_participant_reinstatement_planned.py` holds the
-      place of a test, which #6465
-      adds, asserting that a non-owner's reinstatement is refused with a refusal
-      notice and no ledger entry.
+      `test_add_from_a_non_owner_is_refused` in
+      `test/core/use_cases/received/test_participant_reinstatement.py` asserts that
+      a non-owner's reinstatement is refused with no ledger entry and no
+      `Announce`.
     relationships:
     - rel_type: extends
       spec_id: CM-31-011
@@ -10620,11 +10633,11 @@ groups:
       (CM-10-006), and it applies the change from there (CM-31-045). A
       derived id makes a retry resend the same notice (SYNC-09-002).
     verification: >-
-      A strict-xfail probe in
-      `test/architecture/test_participant_reinstatement_planned.py` holds the
-      place of a test, which #6465
-      adds, asserting one ledger entry carrying the Case Owner's `Add(<Actor>)`, an
-      `Announce` of that `Add` to the reinstated actor, and no `Accept`.
+      `test_reinstatement_is_one_entry_and_an_announce_of_it` in
+      `test/core/use_cases/received/test_participant_reinstatement.py` asserts one
+      ledger entry carrying the Case Owner's `Add(<Actor>)`, an `Announce` of that
+      `Add` to the reinstated actor under the id derived from it, and no `Accept`
+      or CASE_MANAGER `Add`.
     relationships:
     - rel_type: extends
       spec_id: CM-31-011
@@ -10643,11 +10656,11 @@ groups:
       entry alone applies it once, in ledger order (RSH-08-003), as for a removal
       (CM-31-007).
     verification: >-
-      A strict-xfail probe in
-      `test/architecture/test_participant_reinstatement_planned.py` holds the
-      place of a test, which #6465
-      adds, asserting that a replica receiving the `Announce` and then the entry
-      applies the reinstatement once, from the entry.
+      `test_replica_records_the_announce_and_writes_nothing` in
+      `test/core/use_cases/received/test_participant_reinstatement.py` asserts
+      that the `Announce` leaves the replica's record removed, and
+      `test_reinstated_replica_applies_the_backfill_and_holds_a_full_chain`
+      asserts that the replica applies the reinstatement from the entry.
     relationships:
     - rel_type: extends
       spec_id: CM-31-044

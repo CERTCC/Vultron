@@ -62,6 +62,9 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.actor.case_participant_role import (
+    OfferCaseParticipantRoleReceivedUseCase,
+)
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
@@ -73,8 +76,8 @@ from vultron.core.use_cases.received.case.lifecycle import (
     AddReportToCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.case_participant import (
-    AddCaseParticipantToCaseReceivedUseCase,
-    RemoveCaseParticipantFromCaseReceivedUseCase,
+    ReinstateParticipantInCaseReceivedUseCase,
+    RemoveParticipantFromCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.embargo.announce import (
     AnnounceEmbargoEventToCaseReceivedUseCase,
@@ -273,19 +276,22 @@ CASES = [
         marks=("HP-01-008", "CM-30-001", "PCR-08-001"),
         label="remove-note-owner",
     ),
+    # The Case Owner sends its own act to the CASE_MANAGER alone; a
+    # replica takes the move from the ledger, so the rule states no
+    # participant side (HP-01-038, ADR-0199).
     *_cases(
-        AddCaseParticipantToCaseReceivedUseCase.sender_entitlement,
+        ReinstateParticipantInCaseReceivedUseCase.sender_entitlement,
         _plain,
         at_manager=(OWNER, VENDOR),
-        at_participant=(MANAGER, OWNER),
+        at_participant=None,
         marks=_PARTICIPANT_MOVE,
-        label="add-participant",
+        label="reinstate-participant",
     ),
     *_cases(
-        RemoveCaseParticipantFromCaseReceivedUseCase.sender_entitlement,
+        RemoveParticipantFromCaseReceivedUseCase.sender_entitlement,
         _plain,
         at_manager=(OWNER, VENDOR),
-        at_participant=(MANAGER, OWNER),
+        at_participant=None,
         marks=_PARTICIPANT_MOVE,
         label="remove-participant",
     ),
@@ -601,14 +607,9 @@ def test_embargo_rule_refuses_every_sender_where_the_case_names_no_manager(
 
 _BOOTSTRAP_RULES = [
     pytest.param(
-        AddCaseParticipantToCaseReceivedUseCase.sender_entitlement,
+        OfferCaseParticipantRoleReceivedUseCase.sender_entitlement,
         _plain,
-        id="add-participant",
-    ),
-    pytest.param(
-        RemoveCaseParticipantFromCaseReceivedUseCase.sender_entitlement,
-        _plain,
-        id="remove-participant",
+        id="offer-participant-role",
     ),
 ]
 

@@ -539,15 +539,36 @@ RemoveNoteFromCasePattern = ActivityPattern(
 # Case participant patterns
 # ---------------------------------------------------------------------------
 
-AddCaseParticipantToCasePattern = ActivityPattern(
+RemoveParticipantFromCasePattern = ActivityPattern(
+    description=(
+        "The Case Owner's removal of an actor from active participation: a "
+        "Remove whose object is the actor, as a typed reference, and whose "
+        "origin is the case it is removed from (CM-31-004, ADR-0199)."
+    ),
+    activity_=TAtype.REMOVE,
+    object_=AOtype.ACTOR,
+    origin_=VOtype.VULNERABILITY_CASE,
+)
+ReinstateParticipantInCasePattern = ActivityPattern(
+    description=(
+        "The Case Owner's reinstatement of a removed actor: an Add whose "
+        "object is the actor, as a typed reference, and whose target is the "
+        "case (CM-31-011, ADR-0199)."
+    ),
     activity_=TAtype.ADD,
-    object_=VOtype.CASE_PARTICIPANT,
+    object_=AOtype.ACTOR,
     target_=VOtype.VULNERABILITY_CASE,
 )
-RemoveCaseParticipantFromCasePattern = ActivityPattern(
-    activity_=TAtype.REMOVE,
-    object_=VOtype.CASE_PARTICIPANT,
-    target_=VOtype.VULNERABILITY_CASE,
+AnnounceAdmittedActPattern = InlineActivityObjectPattern(
+    description=(
+        "The CASE_MANAGER's Announce of an act it admitted: an Announce whose "
+        "object is the act, inline, and whose context is the case, sent to an "
+        "actor the act concerns that the entry's fan-out does not reach "
+        "(ADR-0199).  Any verb, so it is the most general Announce of an "
+        "activity."
+    ),
+    activity_=TAtype.ANNOUNCE,
+    context_=VOtype.VULNERABILITY_CASE,
 )
 CreateCaseParticipantPattern = ActivityPattern(
     description=(

@@ -574,103 +574,94 @@ class TestSuggestActorToCase:
         assert dl.read(activity_id) is not None
 
 
-class TestAddParticipantToCase:
-    def test_returns_id_and_blob(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
-
-        activity_id, blob = adapter.add_participant_to_case(
-            participant_id=participant.id_,
-            case_id=case.id_,
-            actor=_ACTOR,
-            at=authored_at(),
-        )
-
-        assert activity_id
-        body = json.loads(blob)
-        assert body["type"] == "Add"
-        assert body["object"]["type"] == "CaseParticipant"
-        # The factory, not the emitting node, completes ``context`` (#2654).
-        assert body["context"] == case.id_
-
-    def test_persists_add_activity(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
-
-        activity_id, _blob = adapter.add_participant_to_case(
-            participant_id=participant.id_,
-            case_id=case.id_,
-            actor=_ACTOR,
-            to=[_ACTOR],
-            at=authored_at(),
-        )
-
-        assert dl.read(activity_id) is not None
+#: The CASE_MANAGER the Owner's acts are sent to.
+_MANAGER_FOR_MOVES = "https://example.org/actors/case-manager"
 
 
-#: The Case Owner's request a delegated notice carries out (CM-24-020).
-_REQUEST = "https://example.org/activities/owner-remove"
+class TestOwnersParticipantMoves:
+    """The Case Owner's removal and reinstatement name the actor (ADR-0199)."""
 
-
-class TestRemoveParticipantFromCase:
-    """The CASE_MANAGER's removal notice (CM-31-006, CM-24)."""
-
-    def test_returns_a_delegated_remove_naming_the_participant(
-        self, adapter, dl
+    @pytest.mark.parametrize(
+        "method, verb, slot",
+        [
+            ("remove_participant", "Remove", "origin"),
+            ("reinstate_participant", "Add", "target"),
+        ],
+    )
+    def test_names_the_actor_as_a_typed_reference(
+        self, adapter, dl, method, verb, slot
     ):
         case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
+        kwarg = "removed_id" if verb == "Remove" else "reinstated_id"
 
-        activity_id, blob = adapter.remove_participant_from_case(
-            participant_id=participant.id_,
+        activity_id, blob = getattr(adapter, method)(
+            **{kwarg: _INVITEE},
             case_id=case.id_,
             actor=_ACTOR,
-            attributed_to=_INVITEE,
-            in_reply_to=_REQUEST,
-            to=[_INVITEE],
+            to=[_MANAGER_FOR_MOVES],
             at=authored_at(),
         )
 
         body = json.loads(blob)
         assert body["id"] == activity_id
-        assert body["type"] == "Remove"
+        assert body["type"] == verb
         assert body["actor"] == _ACTOR
-        assert body["attributedTo"] == _INVITEE
-        assert body["inReplyTo"] == _REQUEST
-        assert body["to"] == [_INVITEE]
-        assert body["object"]["id"] == participant.id_
-        assert body["target"] == case.id_
+        assert body["to"] == [_MANAGER_FOR_MOVES]
+        assert set(body["object"]) <= {"id", "type"}
+        assert body["object"]["id"] == _INVITEE
+        assert body[slot] == case.id_
         assert body["context"] == case.id_
+        assert "attributedTo" not in body
         assert dl.read(activity_id) is not None
 
-    @pytest.mark.spec("CM-24-021")
-    def test_the_managers_own_notice_carries_neither_field(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
 
-        _, blob = adapter.remove_participant_from_case(
-            participant_id=participant.id_,
+#: The admitted act an announcement carries (ADR-0199).
+_ADMITTED = "https://example.org/activities/owner-remove"
+
+
+class TestAnnounceAdmittedAct:
+    """The CASE_MANAGER's ``Announce(<the admitted act>)`` (ADR-0199)."""
+
+    def test_carries_the_act_and_names_it_in_reply_to(self, adapter, dl):
+        case = _make_case(dl)
+        _, removal = adapter.remove_participant(
+            removed_id=_INVITEE,
             case_id=case.id_,
             actor=_ACTOR,
-            attributed_to=None,
+            to=[_MANAGER_FOR_MOVES],
+            at=authored_at(),
+        )
+        removal_id = json.loads(removal)["id"]
+
+        activity_id, blob = adapter.announce_admitted_act(
+            admitted_act_id=removal_id,
+            case_id=case.id_,
+            actor=_ACTOR,
             to=[_INVITEE],
+            id_="urn:uuid:7d0e5a4b-1111-5000-8000-0000000000aa",
             at=authored_at(),
         )
 
         body = json.loads(blob)
-        assert "attributedTo" not in body
-        assert "inReplyTo" not in body
+        assert activity_id == "urn:uuid:7d0e5a4b-1111-5000-8000-0000000000aa"
+        assert body["type"] == "Announce"
+        assert body["actor"] == _ACTOR
+        assert body["object"]["id"] == removal_id
+        assert body["object"]["type"] == "Remove"
+        assert body["inReplyTo"] == removal_id
+        assert body["context"] == case.id_
+        assert body["to"] == [_INVITEE]
 
-    def test_unknown_participant_raises(self, adapter, dl):
+    def test_an_act_this_actor_does_not_hold_raises(self, adapter, dl):
         case = _make_case(dl)
 
         with pytest.raises(VultronNotFoundError):
-            adapter.remove_participant_from_case(
-                participant_id=f"{case.id_}/participants/missing",
+            adapter.announce_admitted_act(
+                admitted_act_id=_ADMITTED,
                 case_id=case.id_,
                 actor=_ACTOR,
-                attributed_to=_INVITEE,
                 to=[_INVITEE],
+                id_="urn:uuid:7d0e5a4b-1111-5000-8000-0000000000ab",
                 at=authored_at(),
             )
 

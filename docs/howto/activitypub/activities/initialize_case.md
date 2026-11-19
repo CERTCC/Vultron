@@ -72,7 +72,7 @@ flowchart LR
 3. Seat each participant you already know: ask the CASE_MANAGER to invite it, and name its roles.
    The participant joins when it accepts.
    See [How to Seat a Participant on an Existing Case](initialize_participant.md).
-   `Add(CaseParticipant)` does not seat a member: it reinstates one the Case Owner removed.
+   No `Add` seats a member: the Case Owner's `Add(<Actor>)` only reinstates a participant it removed.
 4. If the case needs opening context, post it as a note with one `Add(Note)` that targets the case and carries the note inline.
    Set the note's `context` to the case as well.
    See [How to Post a Status Update or a Case Note](status_updates.md).

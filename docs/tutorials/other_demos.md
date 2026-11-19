@@ -189,10 +189,10 @@ sequenceDiagram
         P-->>O: Accept Invite to Case<br/>Accept(Invite)
         Note over O: Accept ledgered<br/>participant seated
         P->>P: Add(ParticipantStatus)
-        Note over O: Remove(CaseParticipant), ledgered<br/>record kept, removal fact set
-        O->>P: Removal notice<br/>Remove(CaseParticipant)
-        Note over O: Add(CaseParticipant), ledgered<br/>removal fact cleared
-        O->>P: Missed ledger entries, then reinstatement notice<br/>Add(CaseParticipant)
+        Note over O: Owner's Remove(Actor), ledgered<br/>record kept, removal fact set
+        O->>P: Announce of the Owner's Remove
+        Note over O: Owner's Add(Actor), ledgered<br/>removal fact cleared
+        O->>P: Missed ledger entries, and Announce of the Owner's Add
     else Participant rejects
         P-->>O: Reject Invite to Case<br/>Reject(Invite)
         Note over O: Reject ledgered<br/>no participant seated
