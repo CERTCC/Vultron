@@ -49,7 +49,7 @@ router = APIRouter(prefix="/actors", tags=["Demo Triggers"])
 
 
 def _resolve_case_id(case_key: str, dl: DataLayer) -> str:
-    case_obj = find_case(dl, case_key)
+    case_obj = find_case(case_key, dl)
     if case_obj is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

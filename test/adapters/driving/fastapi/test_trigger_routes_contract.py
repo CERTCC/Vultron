@@ -51,12 +51,14 @@ reason.
 
 from __future__ import annotations
 
+import importlib
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from test.adapters.driving.fastapi.test_trigger_registry_routes import (
@@ -505,16 +507,38 @@ def test_two_run_route_flushes_nothing_when_its_second_run_raises(
 # ---------------------------------------------------------------------------
 
 
-def test_every_router_family_has_a_case_scoped_row() -> None:
-    """The case rows below reach every router that builds a case request."""
-    modules = {r.request_model.__module__ for r in _case_rows()}
-    assert {
-        "vultron.core.use_cases.triggers.requests.case",
-        "vultron.core.use_cases.triggers.requests.embargo",
-        "vultron.core.use_cases.triggers.requests.actor",
-    } <= modules
-    exposures = {r.exposure for r in _case_rows()}
-    assert len(exposures) > 1, exposures
+#: The trigger routers that build a case request (#6678 AC-1).  The report
+#: routers build none, so they are not listed.
+_CASE_ROUTERS = (
+    "trigger_case",
+    "trigger_embargo",
+    "trigger_actor.invitations",
+    "trigger_actor.ownership",
+    "trigger_actor.recommendations",
+    "demo_triggers.actions",
+)
+
+
+@pytest.mark.parametrize("module_name", _CASE_ROUTERS)
+def test_every_case_router_serves_a_case_scoped_row(
+    route_paths, module_name: str
+) -> None:
+    """The case rows below reach every router that builds a case request.
+
+    Each router module's own POST routes are matched against the case rows'
+    mounted paths, so a router whose case routes all left the registry, or
+    stopped building a ``CaseTriggerRequest``, fails here.
+    """
+    module = importlib.import_module(
+        f"vultron.adapters.driving.fastapi.routers.{module_name}"
+    )
+    own = {
+        route.path
+        for route in module.router.routes
+        if isinstance(route, APIRoute) and "POST" in (route.methods or ())
+    }
+    case_paths = [route_paths[(r.exposure, r.verb)] for r in _case_rows()]
+    assert any(path.endswith(tuple(own)) for path in case_paths), own
 
 
 @pytest.mark.spec("BT-25-007")

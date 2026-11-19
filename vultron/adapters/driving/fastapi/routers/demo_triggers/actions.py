@@ -147,7 +147,7 @@ def demo_notify_fix_ready(
     # before.  The ladder is read for the case's full id, so the case is
     # resolved here, before ``run_trigger`` would (ADR-0032).
     with domain_error_translation():
-        case_id = require_case_id(actor_dl, body.case_id, actor_id)
+        case_id = require_case_id(body.case_id, actor_dl, actor_id)
         steps = vf_steps_to(
             outbox_store(actor_dl),
             actor_id=actor_id,

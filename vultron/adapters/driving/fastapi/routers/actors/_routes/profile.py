@@ -96,7 +96,7 @@ def get_action_rules(
     try:
         canonical = actor_hosts.canonical_actor_uri(actor_id)
         actor_obj = dl.read(canonical) or dl.read(full_object_id(actor_id))
-        case_obj = find_case(dl, case_id)
+        case_obj = find_case(case_id, dl)
         if case_obj is None:
             raise VultronNotFoundError("VulnerabilityCase", case_id)  # noqa: TRY301  # ruff-baseline #3353
         canonical_actor_id = canonical

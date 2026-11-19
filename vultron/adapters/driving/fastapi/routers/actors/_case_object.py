@@ -113,5 +113,5 @@ def _case_id(dl: DataLayer, case_key: str) -> str:
     it not found.  An ambiguous surrogate key resolves to nothing
     (``find_case_by_short_id``), and so is not found either.
     """
-    case = find_case(dl, case_key)
+    case = find_case(case_key, dl)
     return case_key if case is None else case.id_

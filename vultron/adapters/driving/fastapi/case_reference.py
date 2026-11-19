@@ -37,7 +37,7 @@ from vultron.errors import VultronNotFoundError
 RequestT = TypeVar("RequestT", bound=TriggerRequest[Any])
 
 
-def find_case(dl: DataLayer, case_ref: str) -> VulnerabilityCase | None:
+def find_case(case_ref: str, dl: DataLayer) -> VulnerabilityCase | None:
     """The case *case_ref* names in *dl*, by full id or short id, or ``None``.
 
     The lookup is the triggers' own (``find_case``), so the edge and the
@@ -48,7 +48,7 @@ def find_case(dl: DataLayer, case_ref: str) -> VulnerabilityCase | None:
     return trigger_helpers.find_case(case_ref, cast(CasePersistence, dl))
 
 
-def require_case_id(dl: DataLayer, case_ref: str, actor_id: str) -> str:
+def require_case_id(case_ref: str, dl: DataLayer, actor_id: str) -> str:
     """The full id of the case *case_ref* names in *dl*.
 
     A miss is refused with the error the trigger use case raises for it: an
@@ -60,7 +60,7 @@ def require_case_id(dl: DataLayer, case_ref: str, actor_id: str) -> str:
             holds no case *case_ref* names.  Each names the reference as the
             client sent it.
     """
-    case = find_case(dl, case_ref)
+    case = find_case(case_ref, dl)
     if case is None:
         trigger_helpers.resolve_actor(actor_id, cast(CasePersistence, dl))
         raise VultronNotFoundError("VulnerabilityCase", case_ref)
@@ -79,7 +79,7 @@ def with_full_case_id(request: RequestT, dl: DataLayer) -> RequestT:
     """
     if not isinstance(request, CaseTriggerRequest):
         return request
-    case_id = require_case_id(dl, request.case_id, request.actor_id)
+    case_id = require_case_id(request.case_id, dl, request.actor_id)
     if case_id == request.case_id:
         return request
     return request.model_copy(update={"case_id": case_id})

@@ -58,24 +58,24 @@ def dl():
 
 
 def test_find_case_by_full_id(dl) -> None:
-    case = find_case(dl, _CASE)
+    case = find_case(_CASE, dl)
     assert case is not None and case.id_ == _CASE
 
 
 def test_find_case_by_short_id(dl) -> None:
-    case = find_case(dl, _SHORT)
+    case = find_case(_SHORT, dl)
     assert case is not None and case.id_ == _CASE
 
 
 def test_find_case_skips_a_non_case_object_of_that_id(dl) -> None:
     """An object that is not a case does not answer for the reference."""
     dl.create(make(as_Note, id_=_SHORT, content="not a case"))
-    case = find_case(dl, _SHORT)
+    case = find_case(_SHORT, dl)
     assert case is not None and case.id_ == _CASE
 
 
 def test_find_case_answers_nothing_for_an_unknown_reference(dl) -> None:
-    assert find_case(dl, "https://example.org/cases/unknown") is None
+    assert find_case("https://example.org/cases/unknown", dl) is None
 
 
 def test_find_case_answers_nothing_for_an_ambiguous_short_id(dl) -> None:
@@ -87,16 +87,16 @@ def test_find_case_answers_nothing_for_an_ambiguous_short_id(dl) -> None:
             attributed_to=_ACTOR,
         )
     )
-    assert find_case(dl, _SHORT) is None
+    assert find_case(_SHORT, dl) is None
 
 
 def test_require_case_id_answers_the_full_id(dl) -> None:
-    assert require_case_id(dl, _SHORT, _ACTOR) == _CASE
+    assert require_case_id(_SHORT, dl, _ACTOR) == _CASE
 
 
 def test_require_case_id_names_the_reference_as_sent(dl) -> None:
     with pytest.raises(VultronNotFoundError) as raised:
-        require_case_id(dl, "VU:99", _ACTOR)
+        require_case_id("VU:99", dl, _ACTOR)
     assert str(raised.value) == "VulnerabilityCase 'VU:99' not found."
 
 
@@ -104,13 +104,13 @@ def test_require_case_id_names_an_unknown_actor_first(dl) -> None:
     """The trigger resolves its actor before its case, so the edge does."""
     stranger = "https://example.org/actors/stranger"
     with pytest.raises(VultronNotFoundError) as raised:
-        require_case_id(dl, "VU:99", stranger)
+        require_case_id("VU:99", dl, stranger)
     assert str(raised.value) == f"Actor '{stranger}' not found."
 
 
 def test_require_case_id_does_not_check_the_actor_of_a_held_case(dl) -> None:
     """A held case is resolved whoever asks; the use case judges the actor."""
-    assert require_case_id(dl, _CASE, "https://example.org/actors/x") == _CASE
+    assert require_case_id(_CASE, dl, "https://example.org/actors/x") == _CASE
 
 
 def test_with_full_case_id_promotes_a_short_id(dl) -> None:
