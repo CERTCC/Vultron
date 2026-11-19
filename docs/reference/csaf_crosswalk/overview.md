@@ -108,22 +108,24 @@ Issue [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} p
 
 ### A case can produce a CSAF document
 
-A Vultron participant could produce a CSAF document from its copy of the case.
+A Vultron participant can produce a CSAF document from its copy of the case.
 This crosswalk calls such a document a **projection**.
+[ADR-0219](../../adr/0219-a-csaf-projection-is-a-case-preview-cut-by-its-call-sites-profile-then-rendered-to-csaf.md) (proposed) decides how a projection is made.
 A projection can occur at two times:
 
-| Time | Example | Use |
-|---|---|---|
-| At publication | A CSAF Security Advisory or a CSAF Vulnerability Exploitability eXchange (VEX) document | The public record of the vulnerability. The [publication pipeline](../../adr/0030-publish-leaf-draft-review-submit-pipeline.md) (ADR-0030) defines a draft, review, and submit pipeline for advisory artifacts, and a CSAF document can be one output of its draft step. |
-| During coordination | A CSAF Vulnerability Report for a party that does not use Vultron | A bridge to a vendor, a national Computer Security Incident Response Team (CSIRT), or a reporting authority outside the case. |
+| Time | Use |
+|---|---|
+| At publication | The public record of the vulnerability. The [publication pipeline](../../adr/0030-publish-leaf-draft-review-submit-pipeline.md) (ADR-0030) defines a draft, review, and submit pipeline for advisory artifacts, and a CSAF document can be one output of its draft step. |
+| During coordination | A bridge to a vendor, a national Computer Security Incident Response Team (CSIRT), or a reporting authority that does not use Vultron. |
 
-A projection during coordination copies embargoed information out of the protocol.
-For this reason, a projection SHOULD NOT include information that the recipient is not entitled to see.
+A projection takes case information out of the protocol.
+For this reason, a projection must not include information that the recipient is not entitled to see.
+The place that makes the projection selects a fixed profile, and the profile cuts the case into a preview before a CSAF renderer reads it.
 Each projection also states the ledger position that it shows, because the case continues to change after the projection.
 The `involvement` timeline of a projection is a filtered view of the case ledger.
 That agrees with the CSAF design, in which the issuing party selects the events that its audience needs.
-These rules are proposals for Vultron, not current requirements.
-Issue [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} tracks the work to produce projections.
+The case holds no product data, so each projection is a CSAF Base document (`csaf_base`), not a Security Advisory, a VEX document, or a Vulnerability Report.
+Issue [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} planned these rules.
 
 ---
 
@@ -135,9 +137,8 @@ This crosswalk takes the position that TLP becomes necessary only when informati
 Concern [#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"} tracks that position, and Idea [#2564](https://github.com/CERTCC/Vultron/issues/2564){:target="_blank"} asks whether Vultron messages could carry TLP fields.
 
 For this reason, a TLP label belongs to one projection.
-Its value depends on the content of the projection, on the recipient, and on the case state.
+ADR-0219 fixes the label by the profile of the projection: `TLP:CLEAR` for the public profile at publication, and `TLP:AMBER+STRICT` for the profile of a projection during coordination.
 Different recipients can receive different projections of the same case at the same time.
-For example, an observer can receive a projection marked `TLP:RED`, a coordinator one marked `TLP:AMBER`, and a vendor one marked `TLP:AMBER+STRICT`.
 
 | TLP label | Fit for a projection |
 |---|---|

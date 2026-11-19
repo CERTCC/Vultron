@@ -1291,7 +1291,7 @@ class TestDuplicateDetectionTreeStructure:
         """AC-6 arm: Sequence(PendingOfferCaseParticipantNode, EmitNoteDuplicateRecommendationToOwnerNode)."""
         ac6 = self._duplicate_selector().children[3]
         assert isinstance(ac6, py_trees.composites.Sequence)
-        child_types = [type(c) for c in ac6.children]
+        child_types = [type(unscoped(c)) for c in ac6.children]
         assert PendingOfferCaseParticipantNode in child_types
         assert EmitNoteDuplicateRecommendationToOwnerNode in child_types
 
@@ -1403,10 +1403,10 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
             offer_content=offer_content,
         )
-        # Resolved by ``update()`` before it composes the note.
+        # Set by ``initialise()`` and ``update()`` before ``_compose()`` runs.
+        node._case_id = _CASE_ID
         node._owner_id = self._OWNER_ID
         note = node._compose()
         assert note.in_reply_to == _REC_ID
@@ -1436,7 +1436,6 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
             offer_content="Some notes.",
         )
         assert node.offer_content == "Some notes."
@@ -1447,7 +1446,6 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
         )
         assert node.offer_content is None
 
@@ -1457,7 +1455,6 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
             offer_content="   ",
         )
         assert node.offer_content is None

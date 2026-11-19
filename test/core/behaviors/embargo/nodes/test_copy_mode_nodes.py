@@ -33,6 +33,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types
 from test.support.objects import make
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.decided_entries import EMBARGO_DECISION_KEY
 from vultron.core.behaviors.embargo.nodes import lifecycle, withdrawal
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
@@ -125,11 +126,13 @@ def test_a_commit_node_with_no_decision_raises(
     case_id = _seed(bt_scenario, "copy-no-decision", EM.PROPOSED)
 
     result = bt_scenario.run(
-        CommitEmbargoDecisionNode(
-            case_id=case_id,
-            semantic_type="accept_invite_to_embargo_on_case",
-            builder=lambda _to: ("urn:uuid:act", '{"id": "urn:uuid:act"}'),
-            decision_from={},
+        with_case_id(
+            CommitEmbargoDecisionNode(
+                semantic_type="accept_invite_to_embargo_on_case",
+                builder=lambda _to: ("urn:uuid:act", '{"id": "urn:uuid:act"}'),
+                decision_from={},
+            ),
+            case_id,
         )
     )
 

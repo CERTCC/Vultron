@@ -58,8 +58,10 @@ class RemoveNoteFromCaseReceivedEvent(LedgerPositionedEvent):
 
     @property
     def case_id(self) -> str | None:
-        return self.target_id
+        """The case the note is removed from: a ``Remove`` names it in
+        ``origin`` (VAM-07-003)."""
+        return self.origin_id
 
     @property
     def case(self) -> VulnerabilityCase | None:
-        return cast("VulnerabilityCase | None", self.target)
+        return cast("VulnerabilityCase | None", self.origin)

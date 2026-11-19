@@ -102,7 +102,6 @@ class CommitEmbargoDecisionNode(
 
     def __init__(
         self,
-        case_id: str,
         semantic_type: str,
         builder: EmbargoActivityBuilder,
         notify_participants: bool = False,
@@ -112,7 +111,6 @@ class CommitEmbargoDecisionNode(
         decision_from: dict[str, object] | None = None,
     ) -> None:
         super().__init__(
-            case_id=case_id,
             semantic_type=semantic_type,
             notify_participants=notify_participants,
             name=name,
@@ -137,7 +135,7 @@ class CommitEmbargoDecisionNode(
         if not isinstance(decision, EmbargoDecision):
             raise VultronBTInternalError(
                 f"{self.name}: no embargo decision to record for"
-                f" '{activity_id}' on case '{self._case_id}'; a deciding"
+                f" '{activity_id}' on case '{self._act_case_id()}'; a deciding"
                 " lifecycle node must run first"
             )
         commit_and_apply_decision(
@@ -163,7 +161,6 @@ class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
 
     def __init__(
         self,
-        case_id: str,
         semantic_type: str,
         builder: EmbargoActivityBuilder,
         embargo: EmbargoEvent,
@@ -171,7 +168,6 @@ class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
         name: str | None = None,
     ) -> None:
         super().__init__(
-            case_id=case_id,
             semantic_type=semantic_type,
             builder=builder,
             result_out=result_out,

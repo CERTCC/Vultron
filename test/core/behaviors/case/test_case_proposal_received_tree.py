@@ -56,6 +56,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_KEY,
+    SENDER_ID as SENDER_KEY,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     EmitCreateVulnerabilityCaseNode,
@@ -64,7 +69,6 @@ from vultron.core.behaviors.case.nodes import (
 from vultron.core.behaviors.case.nodes.proposal_announcement import (
     create_case_activity_id,
 )
-from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
@@ -1427,8 +1431,9 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
 
         result = scenario.run(
-            with_case_id(
-                SenderIsCaseOwnerNode(sender_actor_id=sender), case.id_
+            with_act_keys(
+                SenderIsCaseOwnerNode(),
+                {CASE_KEY: case.id_, SENDER_KEY: sender},
             )
         )
 

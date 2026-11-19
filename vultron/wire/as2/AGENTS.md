@@ -118,8 +118,9 @@ suspenders for edge cases the runtime guard might miss).
 ### A Committed Example Must Be Dispatchable
 
 `ActivityPattern` declares `activity_`, `strict`, `accepts_bare_object`,
-`object_form`, `to_`, `object_`, `target_` and `context_` — and **no `origin_`
-field**, so `origin` is never consulted for dispatch however well it reads (#3438).
+`object_form`, `to_`, `object_`, `target_`, `origin_` and `context_`. `origin_`
+matches as `target_` does — a bare URI satisfies it unless `strict` — so a `Remove`
+pattern that asks for its case in `origin_` refuses a case only in `target` (#6463).
 Set the discriminator fields the pattern actually requires. Bare ids:
 `notes/activitystreams-semantics.md` § "Bare References". A well-formed example is not
 necessarily a dispatchable one: an example that matches no pattern is silently dropped
