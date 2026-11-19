@@ -228,3 +228,18 @@ def _covers(pattern, key: _Key) -> bool:
         and (pattern.rm is None or key.rm in pattern.rm)
         and (pattern.em is None or key.em in pattern.em)
     )
+
+
+@pytest.mark.spec("SHD-05-005")
+def test_each_authored_move_is_a_move_move_advice_can_list():
+    from vultron.measure.action_rules import authored_rules
+
+    listed = {v.move.name for p in vendor_points() for v in p.verdicts}
+    for rule in authored_rules():
+        move = rule.move
+        if move is None:
+            continue
+        if machine_of(move) is Machine.PEC:
+            # Move advice has no PEC moves yet (#6677): named by its trigger.
+            continue
+        assert move in listed, rule

@@ -344,7 +344,10 @@ def test_an_em_move_rule_joins_the_participant_in_its_role(two_vendors):
     assert vendor.participant != OWNER
 
 
+@pytest.mark.spec("SHD-05-018")
 def test_every_position_of_one_vendor_compares_with_no_misplaced_rule():
+    """Each authored rule that names a move matches only positions where
+    move advice lists that move for the rule's roles."""
     comparisons = compare_points(vendor_points(), authored_rules())
     misplaced = [
         r

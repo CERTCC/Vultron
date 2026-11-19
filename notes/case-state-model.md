@@ -3,8 +3,9 @@ title: Case State Model Notes
 status: active
 kind: guidance
 description: >
-  Rules for working with the CVD case state: where the CS rules and the CVD
-  action rules live and the legacy reference model's status, which dimensions
+  Rules for working with the CVD case state: where the CS rules, the CVD
+  action rules and the authored action rules live and the legacy reference
+  model's status, which dimensions
   are per-participant versus per-case, role-gated VF/D writes, the two v→V
   drive paths, the d→D causal gate, append-only status history, the
   invite-path RM entry point, the same-write promotion out of an ephemeral
@@ -84,6 +85,12 @@ rules for changing the code that implements it.
   `case_states.patterns.potential_actions`, whose `action()` is its test
   oracle over the 32 valid states (`test_cs_actions.py`). `vultron/measure/`
   is held to the same no-legacy-import rule as `vultron/core/states/` (#6515).
+- **Authored action rules** over RM, CS, EM and PEC live in
+  `vultron/measure/action_rules/authored.py`; each records the `CS_ACTION_RULES`
+  pair it carries over. Correct a wrong source pair in `CS_ACTION_RULES` and its
+  oracle, never in the authored table, and narrow an authored rule rather than
+  widen it. Reason: the oracle checks the source pairs, so the table can only
+  stay true to it from inside them (ADR-0216 rule 4, SHD-05-006, SHD-05-023).
 
 Do not delete the legacy module (ADR-0060):
 `vultron/core/use_cases/query/action_rules.py` (the `actors_get_action_rules`
