@@ -60,6 +60,7 @@ tracks:
   - "#6487"   # idea: the decider sends the act; owner embargo decisions are Updates
   - "#6625"   # owner embargo activation and rejection are its own Updates
   - "#6626"   # idea: an Announce informs; the CASE_MANAGER makes the ask
+  - "#6697"   # the Case Owner's own direct Invite; CASE_MANAGER makes the stub
 description: >
   Decisions from a review of the wire protocol against the full ActivityStreams 2.0
   vocabulary: which AS2 verbs and properties say a CVD sentence more naturally than
@@ -482,7 +483,7 @@ question), and `notes/participant-embargo-consent.md`.
 
 ## An Announce Informs, and the CASE_MANAGER Makes the Ask
 
-Issues: #6626, #6466, #6464. Record: ADR-0199 revision 3.
+Issues: #6626, #6466, #6464, #6697. Record: ADR-0199 revision 3.
 
 **Decision.**
 
