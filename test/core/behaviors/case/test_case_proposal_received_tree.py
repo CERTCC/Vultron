@@ -115,8 +115,7 @@ def _vendor_profile(policy_duration: timedelta | None = None) -> CoreActor:
         id_=_VENDOR_URI,
         embargo_policy=make(
             EmbargoPolicy,
-            actor_id=_VENDOR_URI,
-            inbox=f"{_VENDOR_URI}/inbox",
+            attributed_to=_VENDOR_URI,
             preferred_duration=policy_duration,
         ),
     )
@@ -1707,8 +1706,7 @@ class TestADR0041EmbargoInit:
             id_=_VENDOR_URI,
             embargo_policy=make(
                 EmbargoPolicy,
-                actor_id=_VENDOR_URI,
-                inbox=f"{_VENDOR_URI}/inbox",
+                attributed_to=_VENDOR_URI,
                 preferred_duration=policy_duration,
             ),
         )
@@ -3881,8 +3879,7 @@ class TestEP04SenderProposalAtCaseCreation:
                 id_=_CASE_ACTOR_URI,
                 embargo_policy=make(
                     EmbargoPolicy,
-                    actor_id=_CASE_ACTOR_URI,
-                    inbox=f"{_CASE_ACTOR_URI}/inbox",
+                    attributed_to=_CASE_ACTOR_URI,
                     preferred_duration=timedelta(days=5),
                 ),
             )

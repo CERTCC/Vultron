@@ -203,16 +203,16 @@ class CoreActor(CoreObject):
         """Refuse a profile carrying another actor's policy (EP-01-001).
 
         The policy is a field of the profile, so the actor it applies to is
-        the profile's own.  A profile whose ``embargoPolicy.actorId`` names
+        the profile's own.  A profile whose ``embargoPolicy.attributedTo`` names
         someone else would hand that actor's terms to whoever reads this
         profile as its owner's actor default (CP-01-010).
         """
         policy = self.embargo_policy
-        if policy is not None and policy.actor_id != self.id_:
+        if policy is not None and policy.attributed_to != self.id_:
             raise ValueError(
-                f"embargoPolicy.actorId {policy.actor_id!r} differs from the"
-                f" profile id {self.id_!r}: an actor profile carries only its"
-                " own embargo policy (EP-01-001, CP-01-010)"
+                "embargoPolicy.attributedTo"
+                f" {policy.attributed_to!r} differs from the profile id {self.id_!r}: an"
+                " actor profile carries only its own embargo policy (EP-01-001, CP-01-010)"
             )
         return self
 

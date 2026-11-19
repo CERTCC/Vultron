@@ -226,8 +226,7 @@ def test_a_profile_carrying_an_untimed_whole_object_is_refused():
         "embargoPolicy": {
             "type": "EmbargoPolicy",
             "id": f"{AUTHOR}/embargo-policy",
-            "actorId": AUTHOR,
-            "inbox": f"{AUTHOR}/inbox",
+            "attributedTo": AUTHOR,
             "preferredDuration": "P90D",
         },
     }

@@ -96,16 +96,16 @@ class TestActorSubtypeExampleEndpoints:
             ("/examples/actors/group", "Group", "security-team"),
         ],
     )
-    def test_embargo_policy_actor_id_matches(
+    def test_embargo_policy_attributed_to_matches(
         self, client_examples, path, expected_type, slug
     ):
         data = client_examples.get(path).json()
         actor_id = data.get("id")
         policy = data.get("embargoPolicy", {})
         assert actor_id is not None
-        assert policy.get("actorId") == actor_id, (
-            f"embargoPolicy.actorId {policy.get('actorId')!r} "
+        assert policy.get("attributedTo") == actor_id, (
+            f"embargoPolicy.attributedTo {policy.get('attributedTo')!r} "
             f"should match actor id {actor_id!r}"
         )
-        assert policy.get("inbox") == f"{actor_id}/inbox"
+        assert "inbox" not in policy
         assert "preferredDuration" in policy

@@ -49,7 +49,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
 )
 from vultron.core.behaviors.bridge.act_instant import stamp_arrival
 from vultron.core.models._helpers import authored_times
-from vultron.core.models.actor import CoreActor, hosted_endpoints
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.embargo_policy import (
     EMBARGO_POLICY_PATH_SUFFIX,
@@ -82,10 +82,10 @@ def _duration(value: Any) -> timedelta | None:
 class EmbargoPolicyPublishRequest(BaseModel):
     """Body of ``PUT /actors/{actor_id}/embargo-policy``.
 
-    Carries the terms only (EP-01-002, EP-01-003).  ``actor_id`` and ``inbox``
-    are not accepted: the policy applies to the actor named in the path, and
-    both are derived from its own record so a body cannot publish terms in
-    another actor's name (EP-01-005).
+    Carries the terms only (EP-01-002, EP-01-003); ``content`` is the policy's
+    free text.  ``attributed_to`` is not accepted: the policy applies to the
+    actor named in the path, and is attributed from its own record so a body
+    cannot publish terms in another actor's name (EP-01-005, EP-02-011).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -93,7 +93,7 @@ class EmbargoPolicyPublishRequest(BaseModel):
     preferred_duration: timedelta
     minimum_duration: timedelta | None = None
     maximum_duration: timedelta | None = None
-    notes: NonEmptyString | None = None
+    content: NonEmptyString | None = None
 
     @field_validator(
         "preferred_duration",
@@ -124,10 +124,9 @@ def publish_embargo_policy(
 
     The policy is authored at *at*, the request's instant (ADR-0176).
 
-    ``actor_id`` and ``inbox`` come from the actor's record (EP-01-005).  The
-    actor is one this node hosts, so a record that states no ``inbox`` is
-    given the one this node routes for it (:func:`hosted_endpoints`), not a
-    guess.
+    ``attributed_to`` comes from the actor's record (EP-01-005, EP-02-011).
+    The policy carries no ``inbox``: a coordinator reads it from the profile
+    ``attributedTo`` names (EP-01-002, ADR-0194).
 
     The policy is written into the profile's ``embargo_policy`` field and the
     profile is saved to *dl*, the actor's own store (EP-01-004).  An actor has
@@ -150,12 +149,11 @@ def publish_embargo_policy(
     replaced = actor.embargo_policy is not None
     policy = EmbargoPolicy(
         id_=EmbargoPolicy.build_id(actor.id_),
-        actor_id=actor.id_,
-        inbox=actor.inbox or hosted_endpoints(actor.id_)["inbox"],
+        attributed_to=actor.id_,
         preferred_duration=terms.preferred_duration,
         minimum_duration=terms.minimum_duration,
         maximum_duration=terms.maximum_duration,
-        notes=terms.notes,
+        content=terms.content,
         **authored_times(at),
     )
     # Re-validated, not ``model_copy(update=...)``: the profile's own
@@ -252,8 +250,8 @@ def get_embargo_policy(
     summary="Publish Actor Embargo Policy",
     description=(
         "Publishes (creates or replaces) the embargo policy for a hosted "
-        "actor, in that actor's own store. The policy's actor id and inbox are "
-        "derived from the actor record. 201 on first publish, 200 on replace; "
+        "actor, in that actor's own store. The policy is attributed to "
+        "the actor named in the path. 201 on first publish, 200 on replace; "
         "404 for an actor this node does not host; 422 for a malformed or "
         "calendar-unit duration; 409 when the actor's profile kept changing "
         "under the request, in which case nothing was written."

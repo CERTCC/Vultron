@@ -112,8 +112,7 @@ def test_render_case_reference(adapter):
 def test_render_embargo_policy(adapter):
     obj = make(
         EmbargoPolicy,
-        actor_id="urn:uuid:actor",
-        inbox="https://example.org/inbox",
+        attributed_to="urn:uuid:actor",
         preferred_duration=timedelta(days=90),
     )
     result = adapter.render(obj)
