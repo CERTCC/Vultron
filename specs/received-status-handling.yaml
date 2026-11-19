@@ -496,7 +496,7 @@ groups:
     statement: >-
       `EmitCaseStatusUpdateNode` and `add_participant_status_tree` MUST NOT reach the
       canonical write indirectly. They never route through `add_case_status_tree`, and
-      never emit a self-addressed `Add(CaseStatus)[target=VulnerabilityCase]` to the
+      never emit a self-addressed `Add(CaseStatus, target=<case>/statuses)` to the
       CASE_MANAGER.
     rationale: >-
       A self-addressed message would make the announce trigger the ledger write instead
@@ -580,7 +580,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CASE_MANAGER receiving an `Add(ParticipantStatus)[target=CaseParticipant]` that
+      A CASE_MANAGER receiving an
+      `Add(ParticipantStatus, target=<participant>/statuses)` that
       carries a non-adjacent forward RM jump (a move forward on the RM progress
       scale to a state that is not adjacent to the recorded one) MUST accept the
       reported `rm` state.
@@ -606,7 +607,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CASE_MANAGER receiving an `Add(ParticipantStatus)[target=CaseParticipant]` that
+      A CASE_MANAGER receiving an
+      `Add(ParticipantStatus, target=<participant>/statuses)` that
       carries a backward RM regression (i.e. the reported `rm` state is earlier
       on the RM progress scale than the receiver's current value) MUST refuse
       the whole update (RSH-09-001, RSH-09-003).
@@ -776,7 +778,8 @@ groups:
       `Reject(Invite(whole VulnerabilityCase)[target=Actor])` (CM-11-011). They include
       the
       case activities `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not
-      only `Add(ParticipantStatus)[target=CaseParticipant]`. A declaration from a sender
+      only `Add(ParticipantStatus, target=<participant>/statuses)`. A declaration from a
+      sender
       whose closure the case's ledger records is not adjudicated. It is refused before
       the rule applies, with no note (CM-23-018). A `Reject(Offer(VulnerabilityReport))`
       for a report that belongs to the case is not adjudicated either. It is refused
@@ -1353,8 +1356,8 @@ groups:
 - id: RSH-09
   title: Whole Accept or Reject of a Received Status
   description: >
-    A received `Add(ParticipantStatus)[target=CaseParticipant]` or
-    `Add(CaseStatus)[target=VulnerabilityCase]` states a whole status, so the
+    A received `Add(ParticipantStatus, target=<participant>/statuses)` or
+    `Add(CaseStatus, target=<case>/statuses)` states a whole status, so the
     CASE_MANAGER accepts it
     as sent or refuses all of it. It never records a status the sender did
     not send. Derived from ADR-0107 and ISSUE-3741.
@@ -1363,7 +1366,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A CASE_MANAGER receiving an `Add(ParticipantStatus)[target=CaseParticipant]` MUST
+      A CASE_MANAGER receiving an
+      `Add(ParticipantStatus, target=<participant>/statuses)` MUST
       either accept the status whole, recording exactly the status it received, or
       refuse the whole update.
     rationale: >
@@ -1548,7 +1552,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant that receives `Add(CaseStatus)[target=VulnerabilityCase]` from the
+      A participant that receives `Add(CaseStatus, target=<case>/statuses)` from the
       case's CASE_MANAGER MUST accept it whole if two conditions hold, and refuse the
       whole update if either fails. Its EM state must be identical to the EM
       state the case derives from its embargo register. Its P/X/A state must be the
@@ -1675,7 +1679,8 @@ groups:
     kind: project
     statement: >
       When `CheckParticipantStatusAcceptableNode` refuses an
-      `Add(ParticipantStatus)[target=CaseParticipant]`, the received use case MUST
+      `Add(ParticipantStatus, target=<participant>/statuses)`, the received use case
+      MUST
       return `HandlerResult.refused`, which the inbox maps to a `rejected`
       `InboxOutcome` rather than `202 Accepted / processed`.
     rationale: >-

@@ -82,8 +82,8 @@ def add_case_status_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddCaseStatusToCase workflow.
 
-    Handles receipt of an ``Add(CaseStatus)[target=VulnerabilityCase]`` activity at
-    a participant replica, from the case's CASE_MANAGER (RSH-04-005).  After
+    Handles receipt of an ``Add(CaseStatus, target=<case>/statuses)`` activity
+    (ADR-0204) at a participant replica, from the case's CASE_MANAGER (RSH-04-005).  After
     the factory's intake and guards, five precondition guards run in a
     Sequence:
 
@@ -99,7 +99,8 @@ def add_case_status_tree(
        otherwise; also FAILURE when the case or the status cannot be resolved
        (CLP-10-009, RSH-09-005).
 
-    An ``Add(CaseStatus)`` missing its status id or case id gets the
+    An ``Add(CaseStatus)`` missing its status id or case id, or whose target
+    is not the status history of its ``context`` case (ADR-0204), gets the
     incomplete-activity tree instead: its guard refuses the activity after
     the doors admit it and intake records it (CLP-10-018).
 
@@ -122,6 +123,14 @@ def add_case_status_tree(
         return create_incomplete_activity_received_tree(
             "AddCaseStatusToCaseBT",
             "Add(CaseStatus) is missing its status id or case id",
+        )
+    if request.history_owner_id != case_id:
+        # The status joins the history of the case its context names, and
+        # no other (ADR-0204).
+        return create_incomplete_activity_received_tree(
+            "AddCaseStatusToCaseBT",
+            "Add(CaseStatus) target is not the status history of its"
+            f" context case '{case_id}' (ADR-0204)",
         )
     status_obj = request.status
     sender_actor_id = request.actor_id

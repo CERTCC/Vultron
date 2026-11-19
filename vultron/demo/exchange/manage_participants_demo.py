@@ -225,7 +225,7 @@ def demo_manage_participants_accept(
             add_status = add_status_to_participant_activity(
                 participant_status,
                 actor=coordinator.id_,
-                target=coordinator_participant.id_,
+                participant=coordinator_participant.id_,
                 to=[vendor.id_],
                 at=at,
             )

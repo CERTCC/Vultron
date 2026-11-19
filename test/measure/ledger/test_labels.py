@@ -134,6 +134,17 @@ def test_entry_references_name_a_participant_by_its_actor():
     assert entry_references({}) == EntryReferences()
 
 
+def test_entry_references_name_a_status_history_by_its_owner():
+    """A status Add's target is its participant's status history
+    (ADR-0204), so the destination reads as that participant."""
+    payload = {
+        "object": {"type": "ParticipantStatus"},
+        "target": "urn:uuid:p-1/statuses",
+    }
+    refs = entry_references(payload)
+    assert (refs.target_ref, refs.target_type) == ("urn:uuid:p-1", None)
+
+
 @pytest.mark.spec("CEH-01-007")
 @pytest.mark.spec("DRPT-03-002")
 def test_every_registered_phrase_renders_from_its_registry_entry():

@@ -1612,19 +1612,29 @@ groups:
   - id: VAM-08-002
     priority: MUST
     kind: protocol
-    statement: '`ADD_CASE_STATUS_TO_CASE` MUST be represented as `Add(CaseStatus)[target=VulnerabilityCase]`'
+    statement: >-
+      `ADD_CASE_STATUS_TO_CASE` MUST be represented as `Add(CaseStatus,
+      target=<case>/statuses)`, with `context` the case: the `target` is the case's
+      status history, an ordered collection whose newest item is the case's current
+      status (ADR-0204).
     rationale: >-
       A case status means nothing apart from its case, so it enters the case only by the
-      `Add` that attaches it (VAM-01-011, ADR-0137). The case in `target` names the case
-      that the status belongs to.
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `AddCaseStatusToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_STATUS`, and `target_=VULNERABILITY_CASE`;
-      integration tests in `test/demo/test_status_updates_demo.py` exercise this flow.
+      `Add` that attaches it (VAM-01-011, ADR-0137). AS2 `Add` names the collection the
+      object joins in `target`, so the `target` is the case's status history and the
+      case is in `context` (ADR-0204). A status is never updated; the newest one in the
+      history is the case's current status.
+    verification: >-
+      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
+      `AddCaseStatusToCasePattern` uses `TAtype.ADD`, `VOtype.CASE_STATUS`,
+      `target_=AOtype.ORDERED_COLLECTION` and `context_=VOtype.VULNERABILITY_CASE`.
+      `test/wire/as2/factories/test_case_factories.py::test_add_status_to_case_targets_its_status_history`
+      asserts the factory names `<case>/statuses` in `target` and the case in `context`.
       `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
       asserts that the `add_status_to_case` vocabulary example extracts as this
       semantic type.
     adr:
     - ADR-0137
+    - ADR-0204
     stories:
     - story_2022_062
     - story_2022_081
@@ -1632,16 +1642,28 @@ groups:
   - id: VAM-08-004
     priority: MUST
     kind: protocol
-    statement: '`ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` MUST be represented as `Add(ParticipantStatus)[target=CaseParticipant]`'
+    statement: >-
+      `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` MUST be represented as
+      `Add(ParticipantStatus, target=<participant>/statuses)`, with `context` the case:
+      the `target` is the participant's status history, an ordered collection whose
+      newest item is the participant's current status (ADR-0204).
     rationale: >-
-      A participant status belongs to one participant in one case, so its `target` is
-      that `CaseParticipant` and not the case. The `Add` is the only way the status
-      enters the case (VAM-01-011, ADR-0137).
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `AddParticipantStatusToParticipantPattern` uses `TAtype.ADD`, `AOtype.PARTICIPANT_STATUS`, and
-      `target_=CASE_PARTICIPANT`; integration tests in `test/demo/` exercise this flow.
+      A participant status belongs to one participant in one case, so it joins that
+      participant's status history and not the case's. The `Add` is the only way the
+      status enters the case (VAM-01-011, ADR-0137), and it names the history in
+      `target` and the case in `context` (ADR-0204). A status is never updated; the
+      newest one in the history is the participant's current status.
+    verification: >-
+      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
+      `AddParticipantStatusToParticipantPattern` uses `TAtype.ADD`,
+      `VOtype.PARTICIPANT_STATUS`, `target_=AOtype.ORDERED_COLLECTION` and
+      `context_=VOtype.VULNERABILITY_CASE`.
+      `test/wire/as2/factories/test_case_participant_factories.py::test_add_status_to_participant_targets_its_status_history`
+      asserts the factory names `<participant>/statuses` in `target` and the case in
+      `context`; integration tests in `test/demo/` exercise this flow.
     adr:
     - ADR-0137
+    - ADR-0204
     stories:
     - story_2022_062
     - story_2022_075

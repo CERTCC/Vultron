@@ -575,7 +575,8 @@ groups:
     verification_debt: '#2573'
     statement: >-
       CS state transitions (fix-ready, fix-deployed, published) MUST be driven through
-      participant status updates via Add(ParticipantStatus)[target=CaseParticipant]
+      participant status updates via Add(ParticipantStatus,
+      target=<participant>/statuses)
       sent to the Case
       Actor inbox, not through dedicated low-level state-machine endpoints.
       RM case closure is explicitly excluded from this requirement: RM.CLOSED MUST be

@@ -530,7 +530,7 @@ class LedgerNetwork:
         )
         return add_status_to_participant_activity(
             status,
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=participant.id_,
                 context=self.case_id,

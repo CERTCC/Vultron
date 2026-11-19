@@ -87,9 +87,9 @@ def _make_participant_status_snapshot(
         obj["dState"] = d_state
     return {
         "object": obj,
-        "target": {
-            "id": participant_id,
-        },
+        # The participant's status history (ADR-0204).
+        "target": f"{participant_id}/statuses",
+        "context": CASE_ID,
     }
 
 

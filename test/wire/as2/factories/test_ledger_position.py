@@ -91,7 +91,7 @@ def test_a_participant_status_names_its_case_on_the_status() -> None:
     participant_id = f"{_CASE}/participants/vendor"
     add = add_status_to_participant_activity(
         make(as_ParticipantStatus, id_=f"{participant_id}/s1", context=_CASE),
-        target=participant_id,
+        participant=participant_id,
         actor=_ACTOR,
         at=authored_at(),
     )

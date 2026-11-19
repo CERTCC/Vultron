@@ -238,8 +238,8 @@ A participant reports them as a claim in a `ParticipantStatus`, and the CASE_MAN
 {% include-markdown "../messages/_occasions/lookup-cs.md" %}
 
 !!! warning "Several case state occasions share one activity"
-    Every claim a participant makes, whichever fact it reports, is `Add(ParticipantStatus)[target=CaseParticipant]`.
-    Every fact the CASE_MANAGER records about the world is `Add(CaseStatus)[target=VulnerabilityCase]`.
+    Every claim a participant makes, whichever fact it reports, is `Add(ParticipantStatus, target=<participant>/statuses)`.
+    Every fact the CASE_MANAGER records about the world is `Add(CaseStatus, target=<case>/statuses)`.
     The fact travels in the status record's fields, as the "Distinguished by" column states, so an implementation that dispatches on the activity alone cannot tell Fix Readiness (`CF`) from Attacks Observed (`CA`).
 
     The two activities differ by the sender's authority, not by the fact.

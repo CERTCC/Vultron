@@ -212,7 +212,7 @@ def test_teardown_follows_the_canonical_write_with_no_second_gate(
     actor_id = "https://example.org/actors/vendor"
     activity = add_status_to_participant_activity(
         status=make(as_ParticipantStatus, context=case_id),
-        target=make(
+        participant=make(
             as_CaseParticipant,
             id_=f"{case_id}/participants/vendor",
             context=case_id,

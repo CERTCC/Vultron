@@ -200,7 +200,8 @@ class TriggerParticipantsPort(Protocol):
         *,
         at: datetime,
     ) -> str:
-        """Create and persist an ``Add(ParticipantStatus)[target=CaseParticipant]`` activity.
+        """Create and persist an ``Add(ParticipantStatus,
+        target=<participant>/statuses)`` activity.
 
         Returns the activity ID (callers only need the ID for outbox queueing).
         """

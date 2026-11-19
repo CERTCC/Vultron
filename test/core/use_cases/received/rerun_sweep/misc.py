@@ -93,7 +93,7 @@ def _rm_declaration(net: LedgerNetwork, member: str, rm: RM) -> Scenario:
         net,
         add_status_to_participant_activity(
             status,
-            target=participant,
+            participant=participant,
             actor=member,
             to=[MANAGER],
             at=authored_at(),
@@ -356,7 +356,7 @@ def add_case_status_to_case() -> Scenario:
     )
     activity = add_status_to_case_activity(
         status,
-        target=net.case_id,
+        case=net.case_id,
         actor=MANAGER,
         to=[BYSTANDER],
         at=authored_at(),

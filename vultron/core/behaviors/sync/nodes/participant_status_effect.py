@@ -56,6 +56,10 @@ from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.status_history import (
+    is_status_history_id,
+    status_history_owner,
+)
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -72,9 +76,10 @@ class ApplyParticipantStatusFromLedgerNode(
     ``Announce(CaseLedgerEntry)`` and the entry's ``semantic_type`` is
     ``add_participant_status_to_participant``, this node reconstructs the
     :class:`~vultron.core.models.participant_status.ParticipantStatus` from
-    the entry's ``payload_snapshot`` and appends it to the matching
-    :class:`~vultron.core.models.case_participant.CaseParticipant` in the
-    local DataLayer.
+    the entry's ``payload_snapshot`` and appends it to the
+    :class:`~vultron.core.models.case_participant.CaseParticipant` whose
+    status history the entry's ``target`` names (ADR-0204) in the local
+    DataLayer.
 
     The entry carries the status the CASE_MANAGER stored, in full, so this
     node copies it — id, times and every dimension as carried — and derives
@@ -123,12 +128,20 @@ class ApplyParticipantStatusFromLedgerNode(
         target_data = snapshot.get("target")
 
         status_id = _extract_id_from_field(status_data)
-        participant_id = _extract_id_from_field(target_data)
+        # The target is the participant's status history (ADR-0204), so the
+        # participant is its owner.
+        history_id = _extract_id_from_field(target_data)
+        participant_id = (
+            status_history_owner(history_id)
+            if is_status_history_id(history_id)
+            else None
+        )
 
         if not status_id or not participant_id:
             self.logger.debug(
-                "%s: payload_snapshot missing 'object' or 'target' id"
-                " — skipping status apply (non-fatal)",
+                "%s: payload_snapshot missing 'object' id or a participant"
+                " status history 'target' — skipping status apply"
+                " (non-fatal)",
                 self.name,
             )
             return Status.SUCCESS

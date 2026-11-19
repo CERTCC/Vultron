@@ -137,7 +137,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_case_activity(
             status,
-            target=case,
+            case=case,
             actor=_CASE_MANAGER_ID,
             to=[dl.actor_id],
             at=authored_at(),
@@ -206,7 +206,7 @@ class TestStatusUseCases:
         dl.create(status)
         activity = add_status_to_case_activity(
             status,
-            target=case,
+            case=case,
             actor=_CASE_MANAGER_ID,
             to=[dl.actor_id],
             at=authored_at(),
@@ -275,7 +275,7 @@ class TestStatusUseCases:
                 make_payload(
                     add_status_to_case_activity(
                         carried,
-                        target=case,
+                        case=case,
                         actor=_CASE_MANAGER_ID,
                         to=[dl.actor_id],
                         at=authored_at(),
@@ -333,7 +333,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_case_activity(
             bad_status,
-            target=case,
+            case=case,
             actor=_CASE_MANAGER_ID,
             to=[dl.actor_id],
             at=authored_at(),
@@ -401,7 +401,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_case_activity(
             bad_status,
-            target=case,
+            case=case,
             actor=sender_id,
             to=[receiver_id],
             at=authored_at(),
@@ -461,7 +461,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_case_activity(
             bad_status,
-            target=case,
+            case=case,
             actor=_CASE_MANAGER_ID,
             to=["https://test.example/api/v2/actors/test-actor"],
             at=authored_at(),
@@ -537,7 +537,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_participant_activity(
             dup_status,
-            target=participant,
+            participant=participant,
             actor=sender_id,
             to=[receiver_id],
             context=case,
@@ -619,7 +619,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_participant_activity(
             dup_status,
-            target=participant,
+            participant=participant,
             actor=sender_id,
             to=[receiver_id],
             context=case,
@@ -685,7 +685,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_case_activity(
             asserted_status,
-            target=case,
+            case=case,
             actor=_CASE_MANAGER_ID,
             to=["https://test.example/api/v2/actors/test-actor"],
             at=authored_at(),
@@ -751,7 +751,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor="https://example.org/users/vendor",
             context=case_ps2,
             at=authored_at(),
@@ -822,7 +822,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_participant_activity(
             make(as_ParticipantStatus, id_=status_id, context=status_ctx),
-            target=as_CaseParticipant.model_validate(
+            participant=as_CaseParticipant.model_validate(
                 with_times(
                     as_CaseParticipant,
                     target.model_dump(by_alias=True, mode="json"),
@@ -953,7 +953,7 @@ class TestStatusUseCases:
                             id_=f"{unheld.id_}/statuses/s1",
                             context=case.id_,
                         ),
-                        target=unheld,
+                        participant=unheld,
                         actor=sender,
                         to=[dl.actor_id],
                         context=case.id_,
@@ -1009,7 +1009,7 @@ class TestStatusUseCases:
         event = make_payload(
             add_status_to_participant_activity(
                 make(as_ParticipantStatus, id_=status_id, context=case.id_),
-                target=make(
+                participant=make(
                     as_CaseParticipant,
                     id_=participant.id_,
                     context=case.id_,
@@ -1084,7 +1084,7 @@ class TestStatusUseCases:
                     id_=f"{case.id_}/statuses/s1",
                     context=case.id_,
                 ),
-                target=make(
+                participant=make(
                     as_CaseParticipant,
                     id_=participant.id_,
                     context=case.id_,
@@ -1158,7 +1158,7 @@ class TestStatusUseCases:
                             id_=status_id,
                             context=case.id_,
                         ),
-                        target=as_CaseParticipant.model_validate(
+                        participant=as_CaseParticipant.model_validate(
                             with_times(
                                 as_CaseParticipant,
                                 target.model_dump(by_alias=True, mode="json"),
@@ -1236,7 +1236,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=vendor_id,
             to=[vendor_id],
             context=case,
@@ -1410,7 +1410,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[case_actor_id],
             context=case,
@@ -1465,7 +1465,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[case_actor_id],
             context=case,
@@ -1537,7 +1537,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             duplicate_closed_status,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[case_actor_id],
             context=case,
@@ -1604,7 +1604,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[case_actor_id],
             context=case,
@@ -1651,7 +1651,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[case_actor_id],
             context=case,
@@ -1713,7 +1713,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=case_actor_id,
             to=[non_case_actor_id],
             context=case,
@@ -1777,7 +1777,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=reporter_actor_id,
             to=[case_actor_id],
             context=case,
@@ -1867,7 +1867,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[_case_actor_id],
             context=case,
@@ -1989,7 +1989,7 @@ class TestParticipantStatusSubjectIsTheSender:
         target = cast(as_CaseParticipant, dl.read(target_id))
         activity = add_status_to_participant_activity(
             status,
-            target=as_CaseParticipant.model_validate(
+            participant=as_CaseParticipant.model_validate(
                 with_times(
                     as_CaseParticipant,
                     target.model_dump(by_alias=True, mode="json"),
