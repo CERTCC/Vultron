@@ -6,7 +6,7 @@ description: >
   Rules for changing embargo state: the embargo register from which EM is
   derived, changed one checked step at a time along an EM transition, by
   EmbargoLifecycle or, for an arm converted to the copy model, the one apply
-  function (ADR-0122, ADR-0124, ADR-0130); consent versus owner decision; STRICT
+  function (ADR-0212, ADR-0124, ADR-0212); consent versus owner decision; STRICT
   versus OBSERVED and the P/X/A guards; the invariant that a case never names
   an embargo its store cannot read (EMB-18-003); late Accepts, expiry, the
   overdue-invitation sweep and the owner-close settle step (EMB-17, CM-28-015,
@@ -78,14 +78,14 @@ An embargo operation touches two records:
    it (`case.em_state`). `active_embargo`, `active_embargo_id` and
    `proposed_embargo_ids` are views of its `ACTIVE` and `PROPOSED` entries.
 2. **The consent rows** (`CaseParticipant.embargo_consents`) — one per
-   participant per register entry (ADR-0122). "Signatory" and "lapsed" are read
+   participant per register entry (ADR-0212). "Signatory" and "lapsed" are read
    from the rows, never stored.
 
 A correct operation changes both consistently; EM and the views follow.
 
 ---
 
-## The Embargo Register and the Derived EM (ADR-0122)
+## The Embargo Register and the Derived EM (ADR-0212)
 
 Statuses and triggers are in `vultron/core/states/embargo_register.py`.
 
@@ -99,7 +99,7 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
 - **`derive_em()` reads EM from the statuses**, so rejecting one of two open
   proposals leaves EM `PROPOSED` (or `REVISE`), and a case that has had an
   embargo in force never returns to `NONE` or `PROPOSED`.
-- **The EM state machine still governs EM (ADR-0130).** Each step names an EM
+- **The EM state machine still governs EM (ADR-0212).** Each step names an EM
   trigger, and EM before and after MUST be one of that trigger's transitions
   (EMB-18-005). The table is `EM_TRANSITIONS` in `vultron/core/states/em.py`
   (`is_em_transition()`; `create_em_machine()` / `em_transition_rows()` for
@@ -113,12 +113,12 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   never the copy. `append_case_status(em=...)` is refused, and a received
   `Add(CaseStatus)` whose EM differs is refused whole (RSH-09-005,
   SDO-03-006).
-- **A termination records what and why (ADR-0122, EMB-13-004, EMB-13-010).** The what
+- **A termination records what and why (ADR-0212, EMB-13-004, EMB-13-010).** The what
   (`TerminationReason`: `END_TIME_REACHED` or `EARLY`) is the `Remove`'s
   `content`, parsed at the edge (`termination_reason_from_content()`); the why
   is a structured cause (`vultron/core/models/embargo_termination.py`), a
   union discriminated on `kind`: `THREAT_SIGNAL` (`P`/`X`/`A`), `FIX_READY`
-  (the quorum's vendors), `FIX_DEPLOYED` and `OTHER` (ADR-0122 rev 7). Both
+  (the quorum's vendors), `FIX_DEPLOYED` and `OTHER` (ADR-0212 rev 7). Both
   sit on the `TERMINATED`
   entry as one `EmbargoTermination`, required there and refused elsewhere. The
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
@@ -169,7 +169,7 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
 ## Consent and Decision Are Separate Operations
 
 An answer to an Invite and the owner's decision on a proposal are separate
-messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
+messages, so they are separate `EmbargoLifecycle` operations (ADR-0212):
 
 - `accept_embargo_invite` / `record_embargo_rejection` record a sender's own
   consent to `Accept`/`Reject(Invite(EmbargoEvent))` — the owner's included —
@@ -184,7 +184,7 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 - An owner whose row is `DECLINED` cannot activate: the CASE_MANAGER refuses
   it before the commit, and the notice tells the owner to accept the Invite
   first, so one activity never both decides the case and changes the owner's
-  answer (MSM-07-037, ADR-0180). From `UNINVITED`, `INVITED` or `TIMED_OUT`
+  answer (MSM-07-037, ADR-0212). From `UNINVITED`, `INVITED` or `TIMED_OUT`
   the activation agrees for the owner (MSM-07-028). The received
   owner-decision trees check P/X/A and the decline with a read-only guard
   ahead of the commit (`OwnerMayActivateEmbargoNode`), because a replica

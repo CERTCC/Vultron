@@ -269,6 +269,11 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`participant-embargo-consent.md`** · `guidance`
   Per-embargo consent rows: which writes move them and what is derived.
   **Load when**: writing any consent change, or reading signatory or lapsed state.
+- **`consent-in-participant-status.md`** · `plan`
+  ADR-0215's build: consent moves into each participant status, status claims
+  carry only changes, and replicas copy only the CASE_MANAGER's entries.
+  **Load when**: building #6615's implementation issues, or changing consent
+  or status-claim handling.
 
 ### Inbox, outbox, and delivery
 

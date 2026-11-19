@@ -97,14 +97,14 @@ Mixing these up produces wrong case state.
 | RM | Per participant | `ParticipantStatus.rm` |
 | VF (vendor path) | Per participant, VENDOR only | `ParticipantStatus.vf` |
 | D (deployer path) | Per participant, DEPLOYER only | `ParticipantStatus.d` |
-| EM | Per case | Derived from the embargo register (ADR-0122) |
+| EM | Per case | Derived from the embargo register (ADR-0212) |
 | PXA | Per case | `CaseStatus.pxa` |
 
 - An RM or VF/D transition updates the **sending actor's** `CaseParticipant`;
   a PXA transition updates the shared `CaseStatus`.
 - EM is never set on a status: it is derived from the case's embargo register
   and stamped onto `current_status`; `append_case_status(em=...)` is
-  refused (ADR-0122).
+  refused (ADR-0212).
 
 ### Role-gated VF and D writes
 

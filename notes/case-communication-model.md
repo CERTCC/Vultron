@@ -289,7 +289,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 |---|---|---|
 | proposal (`invite_to_embargo_on_case`, not a relay) | `EmbargoProposal` | stores B, copies the `PROPOSE` step (→ `PROPOSED`/`REVISE`), index recorded; the rows follow |
 | relayed Invite, re-invites included (same type, `actor` the CASE_MANAGER, `attributedTo` the proposer) | `EmbargoInviteRelay` | stores B, proposer's index; the invitee's `INVITED` row and RSVP deadline follow (CM-28-013) |
-| `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | stores B; copies the `AGREED` row the Accept states, the owner's included; no register change (ADR-0122) |
+| `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | stores B; copies the `AGREED` row the Accept states, the owner's included; no register change (ADR-0212) |
 | `reject_invite_to_embargo_on_case` from a participant | `EmbargoRejection` | stores B; copies the `DECLINED` row the Reject states; no register change |
 | `reject_invite_to_embargo_on_case` from the CASE_MANAGER | `EmbargoAbandonment` | copies the `CANCEL` step of the proposal it rejects (EMB-16-001, EMB-16-005, ADR-0152) |
 | `undo_invite_to_embargo_on_case` (the CASE_MANAGER's `Undo` of an Invite it sent) | `EmbargoInviteWithdrawal` | copies the `CANCEL` step of the proposal; in place after the abandonment's first entry (EMB-16-001, EMB-16-005) |

@@ -162,7 +162,7 @@ Related records: [ADR-0075](0075-split-vfd-state-machine.md) (the vendor-path an
 deployer-path split this layer must respect),
 [ADR-0060](0060-re-express-legacy-cs-invariants.md) (the legacy hypercube as
 reference oracle, not a protocol path),
-[ADR-0122](0122-per-embargo-participant-consent.md) and
+[ADR-0122](archived/0122-per-embargo-participant-consent.md) and
 [ADR-0124](0124-case-is-a-projection-of-its-ledger.md) (the ledger as the case's
 source of truth), and
 [ADR-0079](0079-case-ledger-causal-ordering.md) (log order is the causal order this

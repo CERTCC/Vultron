@@ -33,6 +33,7 @@ related_notes:
   - notes/domain-validation.md
   - notes/embargo-lifecycle.md
   - notes/ownership-transfer.md
+  - notes/consent-in-participant-status.md
   - notes/sync-ledger-replication.md
   - notes/case-ledger-parsing.md
   - notes/case-event-history.md

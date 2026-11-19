@@ -363,7 +363,7 @@ In the reading of this crosswalk, the two agree when the participant is the acto
 ## Embargo
 
 Vultron Embargo Management (EM) keeps each embargo in the case's [embargo register](../../topics/process_models/em/index.md#the-embargo-register), one entry for each version ([§7.1.1 The Embargo Register](../vultron-spec/tracking-models.md#711-the-embargo-register)).
-Each participant gives its own [embargo consent](../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) to each version ([ADR-0122](../../adr/0122-per-embargo-participant-consent.md)).
+Each participant gives its own [embargo consent](../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) to each version ([ADR-0212](../../adr/0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md)).
 The active embargo has one end time.
 CSAF records an embargo as an `embargo` action: "the actor and the receiving entities agree to not disclose the information before the intended disclosure date."
 The date is not on the action: "The agreed date is the `disclosure_date` of each vulnerability that `dl_vuln_ids` names."

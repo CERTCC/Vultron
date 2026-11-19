@@ -217,11 +217,17 @@ adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md
 adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md
 adr/0206-each-app-resolves-its-own-configuration.md
 adr/0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md
+adr/0208-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md
 adr/0208-core-owns-the-as2-base-vocabulary.md
+adr/0209-a-local-gate-runs-only-what-answers-before-the-required-ci-gate-and-the-base-is-merged-locally-only-on-conflict.md
 adr/0209-which-checks-run-locally-which-run-only-in-ci-and-when-to-merge-the-base-branch.md
+adr/0210-a-reported-p-x-or-a-value-is-adopted-through-one-gate-and-its-adoption-ends-the-embargo-in-the-same-act.md
 adr/0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md
 adr/0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md
+adr/0211-the-core-classes-are-the-one-object-model-and-as2-is-their-serialization.md
+adr/0212-each-embargo-carries-its-own-status-each-participant-holds-a-consent-row-per-embargo-and-em-is-computed-from-them.md
 adr/0214-how-a-received-message-is-checked-applied-and-kept.md
+adr/0215-a-replica-changes-state-only-from-the-case-managers-entries-and-consent-is-part-of-a-participants-status.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
@@ -234,7 +240,9 @@ adr/archived/0082-wire-core-boundary-pairing-registry.md
 adr/archived/0084-participant-assertion-authority.md
 adr/archived/0099-one-object-model-as2-is-a-serialization.md
 adr/archived/0111-intake-is-the-first-received-side-stage.md
+adr/archived/0122-per-embargo-participant-consent.md
 adr/archived/0126-ci-is-the-full-suite-authority-after-the-first-push.md
+adr/archived/0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md
 adr/archived/0135-compose-received-trees-never-chain-them.md
 adr/archived/0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
 adr/archived/0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
@@ -243,6 +251,9 @@ adr/archived/0154-a-received-message-is-one-staged-record-archived-only-when-app
 adr/archived/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md
 adr/archived/0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
 adr/archived/0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
+adr/archived/0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md
+adr/archived/0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md
+adr/archived/0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md
 adr/archived/README.md
 adr/index.md
 agents/domain.md

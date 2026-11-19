@@ -657,7 +657,7 @@ groups:
       register, so the derived EM state advances.
     adr:
     - ADR-0108
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_087
     - story_2022_023
@@ -1419,7 +1419,7 @@ groups:
       spec_id: CM-18-001
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_001
     - story_2022_023
@@ -1485,7 +1485,7 @@ groups:
     adr:
     - ADR-0114
     - ADR-0116
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2022_023
     - story_2022_025
@@ -4522,7 +4522,7 @@ groups:
     - ADR-0091
     - ADR-0093
     - ADR-0118
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2022_023
     - story_2026_001
@@ -4544,7 +4544,7 @@ groups:
     - rel_type: implements
       spec_id: CM-18-001
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2022_023
     - story_2026_001
@@ -4567,7 +4567,7 @@ groups:
     - rel_type: implements
       spec_id: CM-18-001
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2022_023
     - story_2026_001
@@ -4590,7 +4590,7 @@ groups:
     - rel_type: extends
       spec_id: CM-18-001
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2022_023
     - story_2026_001
@@ -4658,7 +4658,7 @@ groups:
     adr:
     - ADR-0093
     - ADR-0118
-    - ADR-0122
+    - ADR-0212
     - ADR-0065
     stories:
     - story_2022_027
@@ -4766,7 +4766,7 @@ groups:
     - ADR-0048
     - ADR-0093
     - ADR-0118
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_001
   - id: CM-18-004
@@ -4790,7 +4790,7 @@ groups:
     adr:
     - ADR-0093
     - ADR-0118
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_001
   - id: CM-18-005
@@ -4822,7 +4822,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0048
-    - ADR-0122
+    - ADR-0212
     - ADR-0124
   - id: CM-18-024
     priority: MUST
@@ -4842,7 +4842,7 @@ groups:
       spec_id: CM-18-005
     adr:
     - ADR-0048
-    - ADR-0122
+    - ADR-0212
   - id: CM-18-025
     priority: MUST
     kind: project
@@ -4890,7 +4890,7 @@ groups:
       spec_id: CM-18-005
     adr:
     - ADR-0048
-    - ADR-0122
+    - ADR-0212
   - id: CM-18-006
     priority: MUST
     kind: project
@@ -4909,7 +4909,7 @@ groups:
       CASE_MANAGER.
     adr:
     - ADR-0048
-    - ADR-0122
+    - ADR-0212
   - id: CM-18-007
     priority: MUST
     kind: project
@@ -4931,7 +4931,7 @@ groups:
       each initial participant record carries the correct rows.
     adr:
     - ADR-0048
-    - ADR-0122
+    - ADR-0212
   - id: CM-18-009
     priority: MUST
     kind: project
@@ -4994,7 +4994,7 @@ groups:
     - rel_type: refines
       spec_id: CM-18-001
     adr:
-    - ADR-0122
+    - ADR-0212
     see_also:
     - spec_id: EP-05-003
       reason: 'context for the reader'
@@ -9219,7 +9219,7 @@ groups:
     adr:
     - ADR-0118
     - ADR-0214
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_092
     - story_2022_027
@@ -11106,7 +11106,7 @@ groups:
       spec_id: CM-32-011
     adr:
     - ADR-0125
-    - ADR-0122
+    - ADR-0212
   - id: CM-32-026
     priority: MUST
     kind: protocol
@@ -11126,7 +11126,7 @@ groups:
       spec_id: CM-32-007
     adr:
     - ADR-0125
-    - ADR-0122
+    - ADR-0212
   - id: CM-32-027
     priority: MUST_NOT
     kind: protocol
@@ -11146,7 +11146,7 @@ groups:
       spec_id: CM-32-007
     adr:
     - ADR-0125
-    - ADR-0122
+    - ADR-0212
   - id: CM-32-028
     priority: MUST_NOT
     kind: protocol

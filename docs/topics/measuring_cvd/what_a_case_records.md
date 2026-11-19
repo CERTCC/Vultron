@@ -47,7 +47,7 @@ The table below shows which kind each part of the case state is.
 | State | Belongs to | Held by |
 |---|---|---|
 | Public awareness, public exploit, attacks observed (PXA) | The case | Every case, once (SDO-03-001) |
-| Embargo Management (EM) | The case | Every case, once, derived from its embargo register (ADR-0122) |
+| Embargo Management (EM) | The case | Every case, once, derived from its embargo register (ADR-0212) |
 | Report Management (RM) | Each participant | Every participant (SDO-03-002) |
 | Vendor fix path: vendor awareness and fix readiness (VF) | Each vendor | Every participant with the Vendor role (SDO-03-002) |
 | Fix deployment (D) | Each deployer | Every participant with the Deployer role (SDO-03-002) |

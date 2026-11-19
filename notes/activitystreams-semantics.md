@@ -86,10 +86,10 @@ The changes these rules imply for today's code are tracked in
 - **A notice of a change announces the act that made it**: `Announce(<the act>)`,
   not `Announce(<the changed object>)`. The notice then carries who acted, why, and
   the act's id, so a receiver that also replays the ledger entry sees an id it has
-  applied and changes nothing (ADR-0203).
+  applied and changes nothing (ADR-0212).
 - **An object stores the facts about itself.** When a message must say an object
   changed, the changed field lives on that object, not on a side record the message
-  cannot name (ADR-0202).
+  cannot name (ADR-0212).
 - **`result` names what an act caused, set by the actor that caused it** (Primer:
   "changes of state or indirect outcomes"). It is not the created object, which is a
   `Create`'s `object`.
