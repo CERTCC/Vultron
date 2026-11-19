@@ -521,9 +521,14 @@ AddNoteToCaseActivityPattern = ActivityPattern(
     target_=VOtype.VULNERABILITY_CASE,
 )
 RemoveNoteFromCasePattern = ActivityPattern(
+    description=(
+        "Remove a note from a vulnerability case. A Remove names the "
+        "collection it takes its object from in origin, so the case is the "
+        "activity's origin, not its target."
+    ),
     activity_=TAtype.REMOVE,
     object_=AOtype.NOTE,
-    target_=VOtype.VULNERABILITY_CASE,
+    origin_=VOtype.VULNERABILITY_CASE,
 )
 
 # ---------------------------------------------------------------------------

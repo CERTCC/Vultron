@@ -164,6 +164,7 @@ def format_pattern(pattern: ActivityPattern) -> str:
         Offer(VulnerabilityReport)
         Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
         Add(CaseStatus)[target=VulnerabilityCase]
+        Remove(Note)[origin=VulnerabilityCase]
         Invite(VulnerabilityCase preview)[target=Actor]
         Invite(whole VulnerabilityCase)[target=Actor]
     """
@@ -177,16 +178,15 @@ def format_pattern(pattern: ActivityPattern) -> str:
             )
 
     qualifiers: list[str] = []
-    if pattern.target_ is not None:
-        if isinstance(pattern.target_, ActivityPattern):
-            qualifiers.append(f"target={format_pattern(pattern.target_)}")
-        else:
-            qualifiers.append(f"target={emitted_type(pattern.target_)}")
-    if pattern.context_ is not None:
-        if isinstance(pattern.context_, ActivityPattern):
-            qualifiers.append(f"context={format_pattern(pattern.context_)}")
-        else:
-            qualifiers.append(f"context={emitted_type(pattern.context_)}")
+    for label, value in (
+        ("target", pattern.target_),
+        ("origin", pattern.origin_),
+        ("context", pattern.context_),
+    ):
+        if isinstance(value, ActivityPattern):
+            qualifiers.append(f"{label}={format_pattern(value)}")
+        elif value is not None:
+            qualifiers.append(f"{label}={emitted_type(value)}")
 
     qualifier_str = "[" + ", ".join(qualifiers) + "]" if qualifiers else ""
     return f"{pattern.activity_}" + "".join(parts) + qualifier_str

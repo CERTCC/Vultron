@@ -699,7 +699,7 @@ class TestNoteUseCases:
                 as_Remove,
                 actor=sender,
                 object_=note,
-                target=case.id_,
+                origin=case.id_,
                 to=[dl.actor_id],
             ),
             at=dl,

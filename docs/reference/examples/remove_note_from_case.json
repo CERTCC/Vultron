@@ -6,11 +6,11 @@
   ],
   "type": "Remove",
   "id": "urn:uuid:bea43757-e41d-4bf2-8761-dc2446ecb6bb",
-  "name": "https://vultron.example/users/finndervul Remove Note to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "name": "https://vultron.example/users/finndervul Remove Note from urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/users/finndervul",
-  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "origin": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
     "type": "Note",
     "id": "https://vultron.example/notes/1",
@@ -31,6 +31,6 @@
     "verificationMethod": "https://vultron.example/users/finndervul#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z3xnVHBNQuUZrpFeao3L4pTko2KuYsErDWAfugozoRpJKBGMqYi3RhVUqqx2EkxxSeaHtrv6vXrGDgeqqWenbdiot"
+    "proofValue": "z3zTBBHAVPd3BeRty92aXiazGhpBJbJxJBh9u1gxJET7ZfQxxzM6zt62ypDiA3jPh2M4omrTjwhSLZ7iEe8TNxQiU"
   }
 }

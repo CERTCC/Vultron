@@ -184,8 +184,10 @@ class TestOfferCaseParticipant(unittest.TestCase):
     def test_target_is_case(self):
         self.assertEqual(self.activity.target, self.case.id_)
 
-    def test_origin_is_set(self):
-        self.assertIsNotNone(self.activity.origin)
+    def test_in_reply_to_names_the_recommendation_not_origin(self):
+        # CM-16-004: the forward answers the recommender's Offer(Actor).
+        self.assertIsNotNone(self.activity.in_reply_to)
+        self.assertIsNone(self.activity.origin)
 
 
 class TestAcceptCaseParticipantOffer(unittest.TestCase):

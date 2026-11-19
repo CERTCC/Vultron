@@ -1074,7 +1074,7 @@ def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
         to=[OWNER],
         roles=[CVDRole.VENDOR],
         id_="https://example.org/activities/offer-participant-vendor",
-        origin=recommendation_id,
+        in_reply_to=recommendation_id,
         at=authored_at(),
     )
     assert isinstance(offer.object_, as_CaseParticipant)

@@ -117,12 +117,18 @@ class ActivityPattern(BaseModel):
     Unset, it admits every form but a previewed reference, which only a
     pattern that asks for one matches: a preview is not the object.
 
-    ``strict`` governs ``target_`` alone: when True, a bare string in
-    ``target`` does NOT match a scalar ``target_`` constraint.  Set it on a
-    pattern whose ``target_`` is the sole field that tells it apart from a
-    competing pattern (SE-08-004).  Otherwise ``target_``, like
-    ``context_`` and ``to_``, accepts a bare URI: a case there travels as
-    its URI or a stub by rule (SE-01-007).
+    ``origin_`` matches the activity's ``origin``: where the object comes
+    from or leaves, as ``target_`` matches where it goes (a ``Remove`` names
+    the collection it takes the object from in ``origin``).  The two are
+    matched alike.
+
+    ``strict`` governs ``target_`` and ``origin_`` alone: when True, a bare
+    string in ``target`` or ``origin`` does NOT match a scalar constraint on
+    that field.  Set it on a pattern whose ``target_`` or ``origin_`` is the
+    sole field that tells it apart from a competing pattern (SE-08-004).
+    Otherwise ``target_`` and ``origin_``, like ``context_`` and ``to_``,
+    accept a bare URI: a case there travels as its URI or a stub by rule
+    (SE-01-007).
     """
 
     description: str | None = None
@@ -134,15 +140,16 @@ class ActivityPattern(BaseModel):
     to_: AOtype | VOtype | ActivityPattern | None = None
     object_: AOtype | VOtype | ActivityPattern | None = None
     target_: AOtype | VOtype | ActivityPattern | None = None
+    origin_: AOtype | VOtype | ActivityPattern | None = None
     context_: AOtype | VOtype | ActivityPattern | None = None
 
     @model_validator(mode="after")
     def _strict_needs_target(self) -> ActivityPattern:
-        """Refuse ``strict`` on a pattern with no ``target_`` to govern."""
-        if self.strict and self.target_ is None:
+        """Refuse ``strict`` on a pattern with no ``target_`` or ``origin_``."""
+        if self.strict and self.target_ is None and self.origin_ is None:
             raise ValueError(
-                "strict governs target_ alone (SE-08-004); a pattern with no"
-                " target_ has nothing for it to tighten"
+                "strict governs target_ and origin_ alone (SE-08-004); a"
+                " pattern with neither has nothing for it to tighten"
             )
         return self
 
@@ -192,9 +199,10 @@ class ActivityPattern(BaseModel):
         )
 
     def _match_qualifiers(self, activity: as_Activity) -> bool:
-        """Match ``target_``, ``context_`` and ``to_`` against *activity*."""
+        """Match ``target_``, ``origin_``, ``context_`` and ``to_``."""
         field_pairs = (
             (self.target_, getattr(activity, "target", None), self.strict),
+            (self.origin_, getattr(activity, "origin", None), self.strict),
             (self.context_, getattr(activity, "context", None), False),
             (self.to_, getattr(activity, "to", None), False),
         )
@@ -217,7 +225,7 @@ class InlineActivityObjectPattern(ActivityPattern):
     whose ``object_`` is an inline activity of *any* verb.  ``object_`` is
     fixed to ``Activity`` so the pattern renders as ``Verb(Activity)``.  A
     bare URI or a non-activity object does not match.  ``target_``,
-    ``context_`` and ``to_`` match as on the base class.
+    ``origin_``, ``context_`` and ``to_`` match as on the base class.
 
     It is the most general pattern for its verb, so its registry entry comes
     after every pattern that nests a specific activity (SE-03-002).
@@ -286,11 +294,11 @@ def _match_activity_field(
             activity_field
         )
     # Scalar type patterns (VOtype / AOtype).
-    # Strict (object_, and target_ on a strict pattern): a bare string means
+    # Strict (object_, and target_/origin_ on a strict pattern): a bare string means
     # the reference was not rehydrated, so its type cannot be confirmed and
     # the pattern must NOT match; find_matching_semantics() returns
     # UNKNOWN_UNRESOLVABLE_OBJECT for an unmatched bare object_.
-    # Permissive (context_, to_, a lenient target_): string URIs are
+    # Permissive (context_, to_, a lenient target_/origin_): string URIs are
     # intentional (e.g. a case context URI) and match the pattern.
     if activity_field is None:
         return False
