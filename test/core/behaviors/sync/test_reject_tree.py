@@ -932,41 +932,6 @@ def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
 
 
 @pytest.mark.spec("SYNC-15-024")
-def test_genesis_reject_naming_no_entry_is_not_declined(
-    datalayer, case_manager_case, monkeypatch
-):
-    """The Reject that names no entry (SYNC-16-027) has no index to compare,
-    so it is answered under the cooldown alone."""
-    entries = _five_entry_ledger(datalayer)
-    bridge, sync_port, trigger_activity = _replay_bridge(datalayer)
-
-    _set_clock(monkeypatch, 0)
-    _receive_reject(bridge, sync_port, entries[0], tail_hash="")
-
-    _set_clock(monkeypatch, 30)
-    event = _make_event(entries[2], tail_hash="").model_copy(
-        update={"object_": None, "target": datalayer.read(CASE_ID)}
-    )
-    assert event.rejected_entry is None
-    py_trees.blackboard.Blackboard.storage.clear()
-    result = run_tree(
-        bridge,
-        tree=create_reject_log_entry_tree(
-            CASE_ID,
-            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
-        ),
-        actor_id=OWNER_ACTOR_ID,
-        activity=event,
-        sync_port=sync_port,
-        at=helpers_clock.now_utc(),
-    )
-
-    assert result.status == Status.SUCCESS
-    assert sync_port.send_add_log_entry.call_count == 10
-    assert trigger_activity.announce_vulnerability_case.call_count == 2
-
-
-@pytest.mark.spec("SYNC-15-024")
 def test_genesis_reject_after_a_replay_from_another_position_is_not_declined(
     datalayer, case_manager_case, monkeypatch
 ):

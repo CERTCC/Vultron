@@ -64,7 +64,7 @@ _FACTORY = "vultron/core/behaviors/case/receive_stages/decisions.py"
 # permanent: SYNC-18-007 (each entry is a recorded exemption decision)
 LEDGER_POSITION_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
-        # A Read(CaseLedgerEntry) is a position statement; its own tree
+        # A Read(<case>/ledger) is a position statement; its own tree
         # answers it, and a split one with nothing sent (SYNC-17-005).
         (
             "STATED_POSITION_ANSWERED_BY_TREE",

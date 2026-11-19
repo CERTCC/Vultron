@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The CASE_MANAGER resends each Invite a participant owes an answer to (SYNC-20).
 
-When a participant states its ledger position, in ``Read(CaseLedgerEntry)``
+When a participant states its ledger position, in ``Read(<case>/ledger)``
 or as an activity's ``ledgerPosition``, the CASE_MANAGER resends each Invite
 it still owes an answer to, as first sent (ADR-0163).  These tests run the
 CASE_MANAGER's store alone: the joiner is admitted through the real accept

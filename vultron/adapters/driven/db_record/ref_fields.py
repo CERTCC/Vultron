@@ -137,10 +137,15 @@ def object_ref_fields(cls: type[BaseModel]) -> frozenset[str]:
 # A case's preview, the stub (ADR-0205), needs no entry: it travels only
 # inside the typed reference that carries it, which dehydration keeps whole
 # (``is_previewed_reference``).
+#
+# An ``OrderedCollection`` in an object slot is a named collection with
+# identity only, such as the case's ledger a position statement reads
+# (``Read(<case>/ledger)``, ADR-0204): it has no record of its own, so a
+# collapse to its id could never be read back.
 _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
     {e.value for e in as_TransitiveActivityType}
     | {e.value for e in as_IntransitiveActivityType}
-    | {"CaseLedgerEntry"}
+    | {"CaseLedgerEntry", "OrderedCollection"}
 )
 
 

@@ -44,7 +44,10 @@ from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -1022,7 +1025,7 @@ class TestFirstSeedStatesLedgerPosition:
         read = reads[0]
         assert read.actor == _RECEIVER_ID
         assert read.to == [_CASE_ACTOR_ID]
-        assert read.object_ == f"{_CASE_ID}/log/{_COPY_POSITION.log_index}"
+        assert read.object_.id_ == f"{_CASE_ID}/ledger"
         assert read.context == _CASE_ID
         assert read.ledger_position == _COPY_POSITION
 
@@ -1040,9 +1043,16 @@ class TestFirstSeedStatesLedgerPosition:
         assert result.disposition is HandlerDisposition.APPLIED
         stored = dl.read(_CASE_ID)
         assert stored is not None and stored.ledger_position == ahead
-        # The replacement asks for what it lacks (SYNC-16-007), and states
-        # no position: only the first seed's statement is queued.
-        assert _queued_reads(dl) == seeded_reads
+        # The replacement asks for what it lacks (SYNC-16-007): its chain
+        # stores no entry, so it states the empty chain's position, naming
+        # the copy's Announce, beside the first seed's statement
+        # (SYNC-16-027).
+        reads = _queued_reads(dl)
+        assert reads[: len(seeded_reads)] == seeded_reads
+        (backfill,) = reads[len(seeded_reads) :]
+        assert backfill.ledger_position is not None
+        assert backfill.ledger_position.log_index == EMPTY_LEDGER_LOG_INDEX
+        assert backfill.in_reply_to is not None
 
     @pytest.mark.spec("SYNC-17-008")
     def test_a_redelivered_announce_queues_no_second_read(
@@ -1054,11 +1064,18 @@ class TestFirstSeedStatesLedgerPosition:
 
         self._seed(dl, make_payload, case)
 
-        assert len(_queued_reads(dl)) == 1
+        # The redelivery replaces the case and asks for what the empty chain
+        # lacks, in reply to the Announce (SYNC-16-027); the seed's own
+        # statement, which answers nothing, is made once.
+        statements = [r for r in _queued_reads(dl) if r.in_reply_to is None]
+        assert len(statements) == 1
 
     @pytest.mark.spec("SYNC-17-001")
-    def test_a_copy_at_the_empty_ledger_states_nothing(self, dl, make_payload):
-        """The empty ledger's position names no entry to state."""
+    @pytest.mark.spec("SYNC-16-027")
+    def test_a_copy_at_the_empty_ledger_states_minus_one(
+        self, dl, make_payload
+    ):
+        """The empty ledger's position is stated as index -1 (ADR-0204)."""
         _anchor_expected_authority(dl)
         empty = make(
             as_VulnerabilityCase,
@@ -1070,7 +1087,8 @@ class TestFirstSeedStatesLedgerPosition:
         result = self._seed(dl, make_payload, _joined_case(empty))
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert _queued_reads(dl) == []
+        (read,) = _queued_reads(dl)
+        assert read.ledger_position == empty
 
     @pytest.mark.spec("SYNC-17-008")
     def test_a_copy_whose_roster_omits_the_receiver_states_nothing(

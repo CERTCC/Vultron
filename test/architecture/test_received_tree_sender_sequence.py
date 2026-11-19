@@ -105,7 +105,7 @@ _FACTORY = "vultron/core/behaviors/case/receive_stages/decisions.py"
 # permanent: SYNC-21-001 (each entry is a recorded exemption decision)
 SENDER_SEQUENCE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
-        # A Read(CaseLedgerEntry) is a request about the ledger, not a case
+        # A Read(<case>/ledger) is a request about the ledger, not a case
         # event, so its sender numbers it not (SYNC-21-001, CLP-02-013).
         (
             "LEDGER_REQUEST_TAKES_NO_NUMBER",

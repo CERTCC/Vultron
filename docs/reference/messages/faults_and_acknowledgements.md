@@ -162,12 +162,12 @@ Implementations MAY rely solely on `Add` deliveries for liveness inference
 without emitting a dedicated periodic heartbeat ([MSM-05-006](../vultron-spec/requirements/messages.md#msm-05-006)).
 
 A participant can still state how far it has got.
-`Read(CaseLedgerEntry)` names the last entry it applied, and the CASE_MANAGER replays any entries after it ([SYNC-17-004](../vultron-spec/requirements/ledger-replication.md#sync-17-004)).
+`Read(<case>/ledger)` states the last entry it applied, or index -1 when it holds none, and the CASE_MANAGER replays any entries after it ([SYNC-17-004](../vultron-spec/requirements/ledger-replication.md#sync-17-004)).
 It is a statement of position, not an acknowledgment of a received entry: a participant sends it on its own policy, such as after a restart, so a lost last entry before a quiet period is recovered without waiting for a new one.
 
 #### NAK path bounding
 
-The replay triggered by `Reject(CaseLedgerEntry)` or `Read(CaseLedgerEntry)` is rate-limited per peer to prevent amplification; see [SYNC-15-003](../vultron-spec/requirements/ledger-replication.md#sync-15-003).
+The replay triggered by `Reject(CaseLedgerEntry)` or `Read(<case>/ledger)` is rate-limited per peer to prevent amplification; see [SYNC-15-003](../vultron-spec/requirements/ledger-replication.md#sync-15-003).
 The outbox delivery budget ([ADR-0066](../../adr/0066-outbox-terminal-state.md)) provides a finite total-attempt bound independent of the replay rate limit.
 
 ---
@@ -183,4 +183,4 @@ The outbox delivery budget ([ADR-0066](../../adr/0066-outbox-terminal-state.md))
   how-to guide for `RK`.
 - [Ledger Replication](ledger_replication.md) — the wire format for
   `Add(CaseLedgerEntry)`, `Reject(CaseLedgerEntry)` and
-  `Read(CaseLedgerEntry)`.
+  `Read(<case>/ledger)`.

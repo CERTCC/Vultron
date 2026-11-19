@@ -15,7 +15,7 @@
 Each test has a participant or the CASE_MANAGER send an ``Add(Note)``,
 built by the sender's own trigger adapter as its outbox would send it.  The
 position travels as the activity's ``ledgerPosition``; the CASE_MANAGER
-records a lag, answers it as it answers a ``Read(CaseLedgerEntry)``, never
+records a lag, answers it as it answers a ``Read(<case>/ledger)``, never
 refuses on it, and repairs a position its ledger does not hold.  Each check
 that something is *not* sent or recorded shares a test with one that it is,
 so neither can hold for the wrong reason.

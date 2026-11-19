@@ -322,18 +322,14 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "rm_close_report_activity": _answers("offer"),
     # The entry it refuses is one the CASE_MANAGER holds.
     "reject_log_entry_activity": _held("entry"),
-    # Names, by reference, the entry it states it applied last: one the
-    # CASE_MANAGER holds (SYNC-17-001).
+    # Reads the case's ledger, an identity only, at the position of the
+    # entry it states it applied last: one the CASE_MANAGER holds
+    # (SYNC-17-001, ADR-0204).
     "read_ledger_at_entry_activity": _held("entry"),
-    # Names, by reference, the entry at the position it states, one the
-    # CASE_MANAGER holds; it takes only the case id and the position.
+    # Reads the case's ledger, an identity only, at a position; it takes
+    # only the case id and the position (SYNC-17-001, ADR-0204).
     "read_ledger_position_activity": NoIntroduction(
-        "names, by its ledger coordinates, an entry the receiver holds"
-    ),
-    # Names no entry at all, only the case the CASE_MANAGER holds, as the
-    # target of a request for a replay from genesis (SYNC-16-027).
-    "genesis_replay_reject_activity": NoIntroduction(
-        "names no object, only the case the receiver holds as its target"
+        "reads the case's ledger, an identity the receiver holds the case of"
     ),
     "refusal_notice_activity": _answers("refused"),
     "update_case_activity": _held("case"),

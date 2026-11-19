@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Participant position statements: a participant's ``Read(CaseLedgerEntry)``.
+"""Participant position statements: a participant's ``Read(<case>/ledger)``.
 
 The CASE_MANAGER answers an active participant's stated ledger position the
 way it answers a ``Reject``: it records the position and replays the entries
@@ -210,10 +210,9 @@ def test_a_read_of_another_cases_ledger_is_refused() -> None:
         read_ledger_position_activity(
             CASE_ID,
             LedgerPosition(log_index=0, entry_hash="ab" * 32),
-            object_=as_OrderedCollection(
+            object_=make(
+                as_OrderedCollection,
                 id_="https://example.org/cases/other/ledger",
-                published=None,
-                updated=None,
             ),
             actor=SIGNATORY_ID,
             at=authored_at(),
@@ -240,9 +239,7 @@ def test_read_without_a_ledger_position_is_not_a_position_statement() -> None:
     activity = make(
         as_Read,
         actor=SIGNATORY_ID,
-        object_=as_OrderedCollection(
-            id_=case_ledger_id(CASE_ID), published=None, updated=None
-        ),
+        object_=make(as_OrderedCollection, id_=case_ledger_id(CASE_ID)),
         context=CASE_ID,
     )
 
@@ -714,10 +711,9 @@ def test_a_read_of_another_ledger_is_refused_at_the_edge() -> None:
     activity = make(
         as_Read,
         actor=SIGNATORY_ID,
-        object_=as_OrderedCollection(
+        object_=make(
+            as_OrderedCollection,
             id_="https://example.org/cases/other/ledger",
-            published=None,
-            updated=None,
         ),
         context=CASE_ID,
         ledger_position=LedgerPosition(log_index=0, entry_hash="ab" * 32),
@@ -739,9 +735,7 @@ def test_a_read_event_without_a_parsed_position_is_refused_at_the_edge() -> (
     activity = make(
         as_Read,
         actor=SIGNATORY_ID,
-        object_=as_OrderedCollection(
-            id_=case_ledger_id(CASE_ID), published=None, updated=None
-        ),
+        object_=make(as_OrderedCollection, id_=case_ledger_id(CASE_ID)),
         context=CASE_ID,
     )
 

@@ -256,7 +256,7 @@ def test_all_sync_factories_importable_from_package():
 
 
 # ---------------------------------------------------------------------------
-# Read(CaseLedgerEntry) by position (SYNC-17-001, SYNC-17-008)
+# Read(<case>/ledger) by position (SYNC-17-001, SYNC-17-008, ADR-0204)
 # ---------------------------------------------------------------------------
 
 _CASE_URI = "https://example.org/cases/case-001"
@@ -264,27 +264,32 @@ _POSITION = LedgerPosition(log_index=4, entry_hash="ab" * 32)
 
 
 @pytest.mark.spec("SYNC-17-001", "SYNC-17-008")
-def test_read_ledger_position_names_the_entry_at_the_position():
-    """The Read names the entry by its ledger coordinates and states them."""
+def test_read_ledger_position_reads_the_cases_ledger():
+    """The Read's object is the case's ledger; it states the position."""
     read = read_ledger_position_activity(
         _CASE_URI, _POSITION, actor=_ACTOR_URI, at=authored_at()
     )
 
     assert isinstance(read, as_Read)
-    assert read.object_ == f"{_CASE_URI}/log/4"
+    assert read.object_.id_ == f"{_CASE_URI}/ledger"
+    assert read.object_.type_ == "OrderedCollection"
     assert read.context == _CASE_URI
     assert read.ledger_position == _POSITION
 
 
 @pytest.mark.spec("SYNC-17-001")
-def test_read_ledger_position_refuses_the_empty_ledger():
-    """The empty ledger's position names no entry, so there is no Read."""
+@pytest.mark.spec("SYNC-16-027")
+def test_read_ledger_position_states_the_empty_ledger():
+    """The empty ledger's position is a statement too: it asks for every
+    entry (ADR-0204)."""
     empty = LedgerPosition(log_index=-1, entry_hash="cd" * 32)
 
-    with pytest.raises(VultronActivityConstructionError, match="no entry"):
-        read_ledger_position_activity(
-            _CASE_URI, empty, actor=_ACTOR_URI, at=authored_at()
-        )
+    read = read_ledger_position_activity(
+        _CASE_URI, empty, actor=_ACTOR_URI, at=authored_at()
+    )
+
+    assert read.object_.id_ == f"{_CASE_URI}/ledger"
+    assert read.ledger_position == empty
 
 
 @pytest.mark.spec("SYNC-17-001")
@@ -314,7 +319,8 @@ def test_read_ledger_entry_is_the_read_of_its_position():
         at=authored_at(),
     )
 
-    assert by_entry.object_ == sample_log_entry.id_ == by_position.object_
+    assert by_entry.object_.id_ == f"{_CASE_URI}/ledger"
+    assert by_entry.object_.id_ == by_position.object_.id_
     assert by_entry.ledger_position == by_position.ledger_position
 
 

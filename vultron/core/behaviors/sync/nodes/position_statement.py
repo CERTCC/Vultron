@@ -16,10 +16,11 @@
 
 A participant states how far it has applied a case's ledger by sending the
 case's CASE_MANAGER ``Read(<case>/ledger)`` stating its tail, or index -1
-when it holds no entry (SYNC-17-001, ADR-0204).  The CASE_MANAGER first checks that the stated position is a
-position in its own ledger (:class:`CheckStatedPositionInLedgerNode`,
-SYNC-17-005); the record and the replay that answer it are the replication
-nodes a ``Reject(CaseLedgerEntry)`` already runs (SYNC-17-003, SYNC-17-004).
+when it holds no entry (SYNC-17-001, ADR-0204).  The CASE_MANAGER first
+checks that the stated position is a position in its own ledger
+(:class:`CheckStatedPositionInLedgerNode`, SYNC-17-005); the record and the
+replay that answer it are the replication nodes a
+``Reject(CaseLedgerEntry)`` already runs (SYNC-17-003, SYNC-17-004).
 
 :class:`StateLedgerPositionsNode` is the sending side: it queues one
 ``Read(<case>/ledger)`` for each case the executing actor holds a replica

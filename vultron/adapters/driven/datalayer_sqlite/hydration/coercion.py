@@ -212,9 +212,9 @@ def _collapse_by_reference_fields(
     :func:`rehydrate_fields` expands a reference by the *stored* class's
     declared type, and the pattern match needs that expansion to confirm the
     referent's type.  The semantic class may still declare the field a plain
-    URI — ``_ReadLedgerActivity.object_`` (SYNC-17-001),
-    ``_RmInviteToFullCaseActivity.target`` (AKM-02-003) — so the expanded
-    object goes back to its id before validation (#5513).
+    URI — ``_AddStatusToCaseActivity.target``, the case's status history
+    (ADR-0204) — so the expanded object goes back to its id before
+    validation (#5513).
 
     A field *model_cls* declares as one model class is walked into with that
     class, so an embedded activity is collapsed too: the full-case Invite
