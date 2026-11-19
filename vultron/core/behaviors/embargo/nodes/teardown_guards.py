@@ -26,6 +26,12 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
 from vultron.core.behaviors.act_keys import (
     CASE_ID,
     EMBARGO,
@@ -76,7 +82,7 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID),
     }
 
     def __init__(self, name: str | None = None) -> None:
@@ -84,11 +90,11 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path}
+        return act_key_remappings(CASE_ID)
 
     def initialise(self) -> None:
         super().initialise()
-        self.case_id: str = self.get_input(CASE_ID.name)
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -138,12 +144,7 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
-        TERMINATED_AT.name: PortInformation(
-            data_type=datetime, required=False
-        ),
-        EMBARGO_ID.name: PortInformation(data_type=str, required=False),
-        EMBARGO.name: PortInformation(data_type=EmbargoEvent, required=False),
+        **act_key_ports(CASE_ID, TERMINATED_AT, EMBARGO_ID, EMBARGO),
     }
 
     def __init__(
@@ -156,23 +157,14 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            key.name: key.path
-            for key in (CASE_ID, TERMINATED_AT, EMBARGO_ID, EMBARGO)
-        }
+        return act_key_remappings(CASE_ID, TERMINATED_AT, EMBARGO_ID, EMBARGO)
 
     def initialise(self) -> None:
         super().initialise()
-        self.case_id: str = self.get_input(CASE_ID.name)
-        self._terminated_at = cast(
-            datetime | None, self._try_get_input(TERMINATED_AT.name)
-        )
-        self._embargo_id = cast(
-            str | None, self._try_get_input(EMBARGO_ID.name)
-        )
-        self._embargo = cast(
-            EmbargoEvent | None, self._try_get_input(EMBARGO.name)
-        )
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self._terminated_at = optional_act_value(self, TERMINATED_AT, datetime)
+        self._embargo_id = optional_act_value(self, EMBARGO_ID, str)
+        self._embargo = optional_act_value(self, EMBARGO, EmbargoEvent)
 
     def _violations(self, case: VulnerabilityCase) -> list[str]:
         dl = cast(CasePersistence, self.datalayer)

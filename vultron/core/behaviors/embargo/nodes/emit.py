@@ -17,6 +17,11 @@
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
 from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.case_id_scope import require_case_source
 from vultron.core.behaviors.emit_capable import EmitCapable
@@ -159,7 +164,7 @@ class _SendEmbargoActivityForCaseKey(_SendEmbargoActivityBase):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_SendEmbargoActivityBase.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID),
     }
 
     def __init__(self, name: str | None = None) -> None:
@@ -167,8 +172,8 @@ class _SendEmbargoActivityForCaseKey(_SendEmbargoActivityBase):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path}
+        return act_key_remappings(CASE_ID)
 
     def initialise(self) -> None:
         super().initialise()
-        self._case_id = self.get_input(CASE_ID.name)
+        self._case_id = act_value(self, CASE_ID, str)

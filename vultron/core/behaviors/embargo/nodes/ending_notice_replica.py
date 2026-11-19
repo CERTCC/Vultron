@@ -35,6 +35,12 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
 from vultron.core.behaviors.act_keys import CASE_ID, EMBARGO, EMBARGO_ID
 from vultron.core.behaviors.embargo.nodes.ending_notice import (
     embargo_ending_notice,
@@ -150,7 +156,7 @@ class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID),
     }
 
     def __init__(self, name: str | None = None) -> None:
@@ -158,11 +164,11 @@ class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path}
+        return act_key_remappings(CASE_ID)
 
     def initialise(self) -> None:
         super().initialise()
-        self.case_id: str = self.get_input(CASE_ID.name)
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -207,9 +213,7 @@ class _ObservedRevisionActivationNode(
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
-        EMBARGO_ID.name: PortInformation(data_type=str, required=True),
-        EMBARGO.name: PortInformation(data_type=EmbargoEvent, required=False),
+        **act_key_ports(CASE_ID, EMBARGO_ID, EMBARGO),
     }
 
     def __init__(self, name: str | None = None) -> None:
@@ -218,19 +222,13 @@ class _ObservedRevisionActivationNode(
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            CASE_ID.name: CASE_ID.path,
-            EMBARGO_ID.name: EMBARGO_ID.path,
-            EMBARGO.name: EMBARGO.path,
-        }
+        return act_key_remappings(CASE_ID, EMBARGO_ID, EMBARGO)
 
     def initialise(self) -> None:
         super().initialise()
-        self.case_id: str = self.get_input(CASE_ID.name)
-        self.embargo_id: str = self.get_input(EMBARGO_ID.name)
-        self._embargo = cast(
-            EmbargoEvent | None, self._try_get_input(EMBARGO.name)
-        )
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self.embargo_id: str = act_value(self, EMBARGO_ID, str)
+        self._embargo = optional_act_value(self, EMBARGO, EmbargoEvent)
 
     def _hold_announced_embargo(
         self, datalayer: CasePersistence, case: VulnerabilityCase

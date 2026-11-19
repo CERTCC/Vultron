@@ -42,6 +42,11 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
 from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
@@ -114,7 +119,7 @@ class CommitAndApplyEmbargoTerminationNode(
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_CommitCaseManagerActivityBase.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID),
     }
 
     def __init__(
@@ -138,11 +143,10 @@ class CommitAndApplyEmbargoTerminationNode(
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path}
+        return act_key_remappings(CASE_ID)
 
-    def initialise(self) -> None:
-        super().initialise()
-        self._case_id = self.get_input(CASE_ID.name)
+    def _act_case_id(self) -> str:
+        return act_value(self, CASE_ID, str)
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         if self._builder is not None:
@@ -152,7 +156,7 @@ class CommitAndApplyEmbargoTerminationNode(
         recorded = cast(EmbargoTermination, self._step.termination)
         return self.trigger_activity_factory.terminate_embargo(
             embargo_id=self._step.embargo_id,
-            case_id=self._case_id,
+            case_id=self._act_case_id(),
             actor=cast(str, self.actor_id),
             reason=recorded.reason,
             cause=recorded.cause,
@@ -178,7 +182,7 @@ class CommitAndApplyEmbargoTerminationNode(
         """
         if super().update() != Status.SUCCESS:
             raise BtNodePreconditionError(
-                f"{self.name}: the Remove of case '{self._case_id}' did not"
+                f"{self.name}: the Remove of case '{self._act_case_id()}' did not"
                 f" commit: {self.feedback_message}"
             )
 
@@ -190,12 +194,13 @@ class CommitAndApplyEmbargoTerminationNode(
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         dl = cast(CasePersistence, self.datalayer)
+        case_id = self._act_case_id()
         try:
-            em_before = read_case_em_state(dl, self._case_id, self._result_out)
+            em_before = read_case_em_state(dl, case_id, self._result_out)
         except BtNodePreconditionError as exc:
             self.feedback_message = str(exc)
             return Status.FAILURE
-        case, failure = self._require_case(self._case_id)
+        case, failure = self._require_case(case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
@@ -214,7 +219,7 @@ class CommitAndApplyEmbargoTerminationNode(
         try:
             # The trial, run here as well so the Remove's audience is the
             # case the step leaves (``_audience_case``).
-            before = read_embargo_case_file(dl, self._case_id)
+            before = read_embargo_case_file(dl, case_id)
             self._ended = trial_apply(before, [step])[-1].case
         except VultronEntryRefusedError as exc:
             return self._refuse(exc)
@@ -225,7 +230,7 @@ class CommitAndApplyEmbargoTerminationNode(
             # (BT-14-001), and nothing has been written by then.
             applied = commit_and_apply_embargo_entries(
                 dl,
-                self._case_id,
+                case_id,
                 [PlannedEmbargoEntry(change=step, commit=self._commit_remove)],
             )
         except VultronEntryRefusedError as exc:
@@ -241,14 +246,14 @@ class CommitAndApplyEmbargoTerminationNode(
         )
         self.feedback_message = (
             f"CASE_MANAGER terminated embargo '{step.embargo_id}' on"
-            f" case '{self._case_id}' after committing its Remove"
+            f" case '{case_id}' after committing its Remove"
             f" (EM {em_before} → {em_after})"
         )
         self.logger.debug("%s: %s", self.name, self.feedback_message)
         log_em_transition(
             self.logger,
             cast(str, self.actor_id),
-            self._case_id,
+            case_id,
             em_before,
             em_after,
         )

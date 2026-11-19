@@ -74,8 +74,8 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     docstring).
 
     *case_id* is the case the act is about, or ``None`` for a subclass that
-    reads it from its ``/case_id`` port and sets ``_case_id`` when it ticks
-    (BTND-01-008); #6572 moves every subclass to the key and removes the
+    declares a ``/case_id`` port and overrides :meth:`_act_case_id` to read
+    it (BTND-01-008); #6572 moves every subclass to the key and removes the
     parameter.
     """
 

@@ -25,6 +25,11 @@ of the ask clears it (SYNC-11-003).  BTND-07-005.
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
 from vultron.core.behaviors.act_keys import (
     CASE_ID,
     CASE_MANAGER_ID,
@@ -77,8 +82,7 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
-        EMBARGO_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID, EMBARGO_ID),
     }
 
     def __init__(self, name: str | None = None) -> None:
@@ -86,12 +90,12 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path, EMBARGO_ID.name: EMBARGO_ID.path}
+        return act_key_remappings(CASE_ID, EMBARGO_ID)
 
     def initialise(self) -> None:
         super().initialise()
-        self._case_id: str = self.get_input(CASE_ID.name)
-        self.embargo_id: str = self.get_input(EMBARGO_ID.name)
+        self._case_id: str = act_value(self, CASE_ID, str)
+        self.embargo_id: str = act_value(self, EMBARGO_ID, str)
 
     def update(self) -> Status:
         if not self.actor_id:
@@ -160,22 +164,20 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_SendEmbargoActivityForCaseKey.INPUT_PORTS,
-        EMBARGO_ID.name: PortInformation(data_type=str, required=True),
-        CASE_MANAGER_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(EMBARGO_ID, CASE_MANAGER_ID),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             **super()._domain_port_remappings(),
-            EMBARGO_ID.name: EMBARGO_ID.path,
-            CASE_MANAGER_ID.name: CASE_MANAGER_ID.path,
+            **act_key_remappings(EMBARGO_ID, CASE_MANAGER_ID),
         }
 
     def initialise(self) -> None:
         super().initialise()
-        self.embargo_id: str = self.get_input(EMBARGO_ID.name)
-        self.case_manager_id: str = self.get_input(CASE_MANAGER_ID.name)
+        self.embargo_id: str = act_value(self, EMBARGO_ID, str)
+        self.case_manager_id: str = act_value(self, CASE_MANAGER_ID, str)
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (

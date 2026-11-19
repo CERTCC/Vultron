@@ -17,6 +17,11 @@
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
 from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
@@ -63,8 +68,7 @@ class TerminationCauseIsAdmissibleNode(DataLayerConditionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
-        SENDER_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID, SENDER_ID),
     }
 
     def __init__(
@@ -77,12 +81,12 @@ class TerminationCauseIsAdmissibleNode(DataLayerConditionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path, SENDER_ID.name: SENDER_ID.path}
+        return act_key_remappings(CASE_ID, SENDER_ID)
 
     def initialise(self) -> None:
         super().initialise()
-        self.case_id: str = self.get_input(CASE_ID.name)
-        self._sender_actor_id: str = self.get_input(SENDER_ID.name)
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self._sender_actor_id: str = act_value(self, SENDER_ID, str)
 
     def update(self) -> Status:
         cause = self._termination.cause

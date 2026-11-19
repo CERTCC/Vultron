@@ -69,9 +69,9 @@ class CommitDemoLogEntryNode(_CommitCaseManagerActivityBase):
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(
-            # Unused: the case is read from ``/case_id`` through
+            # The case is read from ``/case_id`` through
             # :meth:`_act_case_id`; #6572 drops the base's parameter.
-            case_id="",
+            case_id=None,
             semantic_type=DEMO_LOG_ENTRY_SEMANTIC_TYPE,
             notify_participants=False,
             name=name,

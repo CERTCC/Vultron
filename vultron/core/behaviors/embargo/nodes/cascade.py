@@ -17,6 +17,11 @@
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
 from vultron.core.behaviors.act_keys import EMBARGO
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -34,7 +39,7 @@ class PersistEmbargoEventNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        EMBARGO.name: PortInformation(data_type=EmbargoEvent, required=True),
+        **act_key_ports(EMBARGO),
     }
 
     def __init__(self, name: str | None = None) -> None:
@@ -42,11 +47,11 @@ class PersistEmbargoEventNode(DataLayerActionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {EMBARGO.name: EMBARGO.path}
+        return act_key_remappings(EMBARGO)
 
     def initialise(self) -> None:
         super().initialise()
-        self._embargo: EmbargoEvent = self.get_input(EMBARGO.name)
+        self._embargo: EmbargoEvent = act_value(self, EMBARGO, EmbargoEvent)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

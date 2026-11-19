@@ -30,6 +30,11 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
 from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -135,7 +140,7 @@ class ChooseTerminationCauseNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID),
     }
 
     def __init__(
@@ -156,11 +161,11 @@ class ChooseTerminationCauseNode(DataLayerActionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path}
+        return act_key_remappings(CASE_ID)
 
     def initialise(self) -> None:
         super().initialise()
-        self._case_id: str = self.get_input(CASE_ID.name)
+        self._case_id: str = act_value(self, CASE_ID, str)
 
     def _fix_ready_cause(self) -> FixReadyCause | Status:
         """The case's fix-ready vendors as a cause, or the FAILURE to return."""

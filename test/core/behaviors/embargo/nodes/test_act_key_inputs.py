@@ -17,22 +17,30 @@
 act keys (BTND-01-008, #6505).
 
 Each node takes only configuration in its constructor.  A node ticked with no
-seed for a key it requires is a composition fault: the read raises, naming
-the key, rather than the node deciding anything without it.
+seed for a key it requires is a composition fault: the shared read
+(:func:`~vultron.core.behaviors.act_key_ports.act_value`) raises a wiring
+error naming the key, rather than the node deciding anything without it.
 """
 
 from collections.abc import Callable, Iterator
-from datetime import datetime
-from typing import cast
 
 import py_trees
 import pytest
-from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.embargo.nodes.conftest import setup_blackboard
 from test.support.act_runner import in_act
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.act_keys import ACT_KEYS, ActKey, vocabulary_key
+from vultron.core.behaviors.act_keys import (
+    ACT_KEYS,
+    CASE_ID,
+    CASE_MANAGER_ID,
+    CAUSE_ID,
+    EMBARGO,
+    EMBARGO_ID,
+    INVITEE_ID,
+    SENDER_ID,
+    ActKey,
+)
 from vultron.core.behaviors.case.nodes.leave.settle import (
     ExpirePendingInvitesOnCloseNode,
 )
@@ -87,7 +95,6 @@ from vultron.core.behaviors.embargo.nodes.termination_cause_guard import (
 from vultron.core.behaviors.embargo.nodes.termination_commit import (
     CommitAndApplyEmbargoTerminationNode,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationCauseKind,
@@ -95,61 +102,78 @@ from vultron.core.models.embargo_termination import (
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 
-#: Each moved node, built from configuration alone.
-_BUILDERS: list[Callable[[], py_trees.behaviour.Behaviour]] = [
-    lambda: EmbargoAlreadyEndedNode(result_out={}),
-    EmbargoEndTimePassedNode,
-    PersistEmbargoEventNode,
-    lambda: ChooseTerminationCauseNode(
-        kind=TerminationCauseKind.OTHER, chosen=ChosenTermination()
+_Build = Callable[[], py_trees.behaviour.Behaviour]
+
+#: Each moved node, built from configuration alone, and the act keys it
+#: cannot run without.  Its optional keys (``/terminated_at``, ``/embargo``,
+#: and ``/embargo_id`` on the timely guard) are not listed.
+_NODES: list[tuple[_Build, tuple[ActKey, ...]]] = [
+    (lambda: EmbargoAlreadyEndedNode(result_out={}), (CASE_ID,)),
+    (EmbargoEndTimePassedNode, (CASE_ID,)),
+    (PersistEmbargoEventNode, (EMBARGO,)),
+    (
+        lambda: ChooseTerminationCauseNode(
+            kind=TerminationCauseKind.OTHER, chosen=ChosenTermination()
+        ),
+        (CASE_ID,),
     ),
-    CaptureActiveEmbargoNode,
-    lambda: SendEmbargoEndingNoticesNode(capture=CaptureActiveEmbargoNode()),
-    AwaitsEmbargoEndingNoticeNode,
-    ApplyAnnouncedEmbargoRevisionNode,
-    AdoptRemovedEmbargoRevisionNode,
-    lambda: EvaluateInviteExpiryNode(result_out={}),
-    CommitAndApplyInviteExpiryNode,
-    ExpireOverdueInvitesNode,
-    ExpirePendingInvitesOnCloseNode,
-    lambda: ClearActiveEmbargoNode(termination=EmbargoTermination.early()),
-    HasEmbargoActiveNode,
-    SendAnnounceEmbargoEventNode,
-    lambda: TerminationIsTimelyNode(termination=EmbargoTermination.early()),
-    lambda: SendTerminateEmbargoActivityNode(reason=TerminationReason.EARLY),
-    TeardownAskPendingNode,
-    lambda: TerminationCauseIsAdmissibleNode(
-        termination=EmbargoTermination.early()
+    (CaptureActiveEmbargoNode, (CASE_ID,)),
+    (
+        lambda: SendEmbargoEndingNoticesNode(
+            capture=CaptureActiveEmbargoNode()
+        ),
+        (CASE_ID,),
     ),
-    lambda: CommitAndApplyEmbargoTerminationNode(
-        result_out={}, termination=EmbargoTermination.early()
+    (AwaitsEmbargoEndingNoticeNode, (CASE_ID,)),
+    (ApplyAnnouncedEmbargoRevisionNode, (CASE_ID, EMBARGO_ID)),
+    (AdoptRemovedEmbargoRevisionNode, (CASE_ID, EMBARGO_ID)),
+    (
+        lambda: EvaluateInviteExpiryNode(result_out={}),
+        (CASE_ID, INVITEE_ID, EMBARGO_ID),
+    ),
+    (
+        CommitAndApplyInviteExpiryNode,
+        (CASE_ID, INVITEE_ID, EMBARGO_ID, CAUSE_ID),
+    ),
+    (ExpireOverdueInvitesNode, (CASE_ID,)),
+    (ExpirePendingInvitesOnCloseNode, (CASE_ID,)),
+    (
+        lambda: ClearActiveEmbargoNode(termination=EmbargoTermination.early()),
+        (CASE_ID, EMBARGO_ID),
+    ),
+    (HasEmbargoActiveNode, (CASE_ID,)),
+    (SendAnnounceEmbargoEventNode, (CASE_ID, EMBARGO_ID)),
+    (
+        lambda: TerminationIsTimelyNode(
+            termination=EmbargoTermination.early()
+        ),
+        (CASE_ID,),
+    ),
+    (
+        lambda: SendTerminateEmbargoActivityNode(
+            reason=TerminationReason.EARLY
+        ),
+        (CASE_ID, EMBARGO_ID, CASE_MANAGER_ID),
+    ),
+    (TeardownAskPendingNode, (CASE_ID, EMBARGO_ID)),
+    (
+        lambda: TerminationCauseIsAdmissibleNode(
+            termination=EmbargoTermination.early()
+        ),
+        (CASE_ID, SENDER_ID),
+    ),
+    (
+        lambda: CommitAndApplyEmbargoTerminationNode(
+            result_out={}, termination=EmbargoTermination.early()
+        ),
+        (CASE_ID,),
     ),
 ]
 
-
-#: A stand-in value for a seeded key, by the port's declared type; the read
-#: under test raises before any node logic sees it.
-_STAND_INS: dict[type, object] = {
-    str: "urn:uuid:stand-in",
-    datetime: now_utc(),
-}
-
-
-def _required_act_keys(node: py_trees.behaviour.Behaviour) -> list[ActKey]:
-    """The act keys *node* declares as required input ports, in port order."""
-    remaps = type(node)._domain_port_remappings()  # type: ignore[attr-defined]
-    keys: list[ActKey] = []
-    for port, info in type(node).INPUT_PORTS.items():  # type: ignore[attr-defined]
-        key = vocabulary_key(remaps.get(port, ""))
-        if info.required and isinstance(key, ActKey):
-            keys.append(key)
-    return keys
-
-
 #: Every (node, required act key) pair: each key is left unseeded once, with
 #: every other required key seeded.
-_CASES: list[tuple[Callable[[], py_trees.behaviour.Behaviour], ActKey]] = [
-    (build, key) for build in _BUILDERS for key in _required_act_keys(build())
+_CASES: list[tuple[_Build, ActKey, tuple[ActKey, ...]]] = [
+    (build, key, keys) for build, keys in _NODES for key in keys
 ]
 
 
@@ -166,25 +190,27 @@ def act_key_storage() -> Iterator[None]:
     storage.update(saved)
 
 
-def test_every_moved_node_declares_a_required_act_key() -> None:
-    assert all(_required_act_keys(build()) for build in _BUILDERS)
+def test_every_listed_key_is_a_port_of_its_node() -> None:
+    for build, keys in _NODES:
+        remaps = type(build())._domain_port_remappings()  # type: ignore[attr-defined]
+        assert {k.path for k in keys} <= set(remaps.values()), build
 
 
 @pytest.mark.spec("BTND-01-008")
 @pytest.mark.usefixtures("act_key_storage")
 @pytest.mark.parametrize(
-    ("build", "key"),
+    ("build", "key", "keys"),
     _CASES,
-    ids=[f"{type(b()).__name__}-{k.name}" for b, k in _CASES],
+    ids=[f"{type(b()).__name__}-{k.name}" for b, k, _ in _CASES],
 )
 def test_a_node_ticked_without_its_key_seeded_raises_naming_the_key(
-    build: Callable[[], py_trees.behaviour.Behaviour], key: ActKey
+    build: _Build, key: ActKey, keys: tuple[ActKey, ...]
 ) -> None:
     node = build()
     storage = py_trees.blackboard.Blackboard.storage
-    for other in _required_act_keys(node):
+    for other in keys:
         if other is not key:
-            storage[other.path] = _STAND_INS[cast(type, other.value_type)]
+            storage[other.path] = "urn:uuid:stand-in"
     storage.pop(key.path, None)
     setup_blackboard(
         SqliteDataLayer(
@@ -195,7 +221,7 @@ def test_a_node_ticked_without_its_key_seeded_raises_naming_the_key(
     tree = py_trees.trees.BehaviourTree(root=node)
     tree.setup()
 
-    with in_act(), pytest.raises(NoDataAvailable, match=key.path):
+    with in_act(), pytest.raises(VultronWiringError, match=key.path):
         tree.tick()
 
 

@@ -20,6 +20,12 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
 from vultron.core.behaviors.act_keys import (
     CASE_ID,
     EMBARGO_ID,
@@ -102,11 +108,7 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
-        EMBARGO_ID.name: PortInformation(data_type=str, required=True),
-        TERMINATED_AT.name: PortInformation(
-            data_type=datetime, required=False
-        ),
+        **act_key_ports(CASE_ID, EMBARGO_ID, TERMINATED_AT),
     }
 
     def __init__(
@@ -123,17 +125,13 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            key.name: key.path for key in (CASE_ID, EMBARGO_ID, TERMINATED_AT)
-        }
+        return act_key_remappings(CASE_ID, EMBARGO_ID, TERMINATED_AT)
 
     def initialise(self) -> None:
         super().initialise()
-        self.case_id: str = self.get_input(CASE_ID.name)
-        self._embargo_id: str = self.get_input(EMBARGO_ID.name)
-        self._terminated_at = cast(
-            datetime | None, self._try_get_input(TERMINATED_AT.name)
-        )
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self._embargo_id: str = act_value(self, EMBARGO_ID, str)
+        self._terminated_at = optional_act_value(self, TERMINATED_AT, datetime)
 
     def _refuse(self, exc: VultronError) -> Status:
         self.refused = True
@@ -312,7 +310,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityForCaseKey):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_SendEmbargoActivityForCaseKey.INPUT_PORTS,
-        EMBARGO_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(EMBARGO_ID),
     }
 
     def __init__(self, name: str | None = None) -> None:
@@ -323,12 +321,12 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityForCaseKey):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             **super()._domain_port_remappings(),
-            EMBARGO_ID.name: EMBARGO_ID.path,
+            **act_key_remappings(EMBARGO_ID),
         }
 
     def initialise(self) -> None:
         super().initialise()
-        self._embargo_id: str = self.get_input(EMBARGO_ID.name)
+        self._embargo_id: str = act_value(self, EMBARGO_ID, str)
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (

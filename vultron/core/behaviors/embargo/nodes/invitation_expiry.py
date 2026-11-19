@@ -39,6 +39,11 @@ from typing import Any, ClassVar, cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
 from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.expiry_tree import (
@@ -135,7 +140,7 @@ class ExpireInvitationsNode(DataLayerActionWithPorts, StateWriteCapable, ABC):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID),
     }
 
     def __init__(self, name: str | None = None) -> None:
@@ -143,11 +148,11 @@ class ExpireInvitationsNode(DataLayerActionWithPorts, StateWriteCapable, ABC):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path}
+        return act_key_remappings(CASE_ID)
 
     def initialise(self) -> None:
         super().initialise()
-        self._case_id: str = self.get_input(CASE_ID.name)
+        self._case_id: str = act_value(self, CASE_ID, str)
 
     @abstractmethod
     def _invitations(

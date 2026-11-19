@@ -56,6 +56,11 @@ import py_trees
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
 from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
@@ -167,7 +172,7 @@ class CaptureActiveEmbargoNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID),
     }
 
     def __init__(self, name: str | None = None) -> None:
@@ -181,11 +186,11 @@ class CaptureActiveEmbargoNode(DataLayerActionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path}
+        return act_key_remappings(CASE_ID)
 
     def initialise(self) -> None:
         super().initialise()
-        self.case_id: str = self.get_input(CASE_ID.name)
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -229,7 +234,7 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_EmitSingleActivityBase.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
+        **act_key_ports(CASE_ID),
     }
 
     def __init__(
@@ -244,11 +249,11 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path}
+        return act_key_remappings(CASE_ID)
 
     def initialise(self) -> None:
         super().initialise()
-        self.case_id: str = self.get_input(CASE_ID.name)
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def _send(
         self,
