@@ -268,7 +268,7 @@
     },
     {
       "semanticType": "read_case_ledger",
-      "wire": "Read(CaseLedgerEntry)",
+      "wire": "Read(OrderedCollection)[context=VulnerabilityCase]",
       "phrase": "{actor} stated its ledger position"
     },
     {

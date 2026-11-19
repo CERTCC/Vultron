@@ -149,7 +149,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when=(
                     "a Participant checks that its ledger is current, such as"
-                    " after a restart, or holds no entry of a case it holds"
+                    " after a restart, or holds a case but none of its entries"
                 ),
                 anchor="read-case-ledger",
                 addressee=AddresseeSide.CASE_MANAGER,

@@ -1,14 +1,14 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-!!! info "Read case ledger entry"
+!!! info "Read case ledger"
 
-    States the last ledger entry the sender has applied. The CASE_MANAGER resends every Invite the sender has not answered and, for an active participant, records the position as the sender's acknowledged position and replays every entry after it.
+    States the sender's position in the case's ledger: its last entry, or index -1 when it holds none. The CASE_MANAGER resends every Invite the sender has not answered and, for an active participant, records the position as the sender's acknowledged position and replays every entry after it, the whole ledger for index -1.
 
-    - **When…** a Participant checks that its ledger is current, such as after a restart
-    - **Send:** `Read(CaseLedgerEntry)`
+    - **When…** a Participant checks that its ledger is current, such as after a restart, or holds a case but none of its entries
+    - **Send:** `Read(OrderedCollection)[context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** a participant
-    - **Reference:** [Read case ledger entry](../../ledger_replication.md#read-case-ledger)
+    - **Reference:** [Read case ledger](../../ledger_replication.md#read-case-ledger)
 
     ??? example "Example activity"
 
