@@ -12286,21 +12286,23 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An admitted update of a vulnerability item MUST replace the fields the update
-      supplies and leave every other field of the item unchanged.
+      An admitted update of a vulnerability item MUST change only the fields it
+      supplies, replacing a single-valued field and merging a list (CM-34-011).
     rationale: >-
-      This is the partial-update meaning ActivityStreams gives `Update`. Two admitted
-      updates to different fields of one item then both survive, and a full revision is
-      an update that supplies every field (ADR-0187). A list such as `ids` is one field,
-      replaced whole, so an update that adds a CVE ID supplies the item's other
-      identifiers too.
+      This is the partial-update meaning ActivityStreams gives `Update`, so two admitted
+      updates to different fields of one item both survive. A list is merged, not
+      replaced, because a sender that holds a partial or stale view of the item would
+      otherwise erase entries it cannot see (ADR-0187).
     verification: >-
-      A test marked `CM-34-007` admits an update that supplies only `ids`, the item's
-      identifiers plus a new entry with `system_name` `CVE`, to an item that has a
-      `title`, and asserts the item keeps its `title` and its `ids` are the supplied
-      list.
+      A test marked `CM-34-007` admits an update that supplies only `ids`, holding one
+      new entry with `system_name` `CVE`, to an item that has a `title` and another
+      identifier, and asserts the item keeps its `title` and its other identifier and
+      gains the `CVE` entry.
     adr:
     - ADR-0187
+    relationships:
+    - rel_type: refines
+      spec_id: CM-34-011
     stories:
     - story_2022_030
   - id: CM-34-008
@@ -12347,6 +12349,27 @@ groups:
     verification: >-
       A test marked `CM-34-010` configures automatic admission and asserts a delivered
       offer is admitted with no further input.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-34-011
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An admitted update of a case-file object MUST NOT remove a list entry. Each
+      supplied entry the list lacks is appended after the entries it holds.
+    rationale: >-
+      Participants send updates from views that may be partial, such as a case preview
+      (ADR-0217), or stale, and two may update one object at once. Replacing a list
+      would then drop entries silently; a merge keeps every admitted entry whatever
+      order the updates arrive in. Taking an entry out needs an explicit act that names
+      it, which no message defines yet (ADR-0187).
+    verification: >-
+      A test marked `CM-34-011` admits two updates of one item that each add a
+      different identifier, in both orders, and asserts the item ends with its original
+      identifiers in their order followed by both new ones, none repeated; and admits
+      an update whose `notes` omit a held note and asserts the note is kept.
     adr:
     - ADR-0187
     stories:

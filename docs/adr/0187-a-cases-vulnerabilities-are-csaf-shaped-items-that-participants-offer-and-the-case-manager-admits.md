@@ -4,7 +4,7 @@ date: 2026-11-10
 created: 2026-11-10
 updated: 2026-11-19
 revision: 3
-status_override: "Revision 2 (2026-11-11) was approved by Allen D. Householder in the #5132 planning session, before this record first merged: offers carry the act (#6251) and the reference-as-Link question moved to #6249. Two clarifications within that scope were approved by Allen D. Householder on 2026-11-11: a reference stays an Object whose url holds a Link (#6249), and an admitted change is recorded as the resulting object, not as the offered act. Revision 3 (2026-11-19) applies Allen D. Householder's direction from the #6641 planning, recorded in #6693: a CVE ID is an ids entry, not a field of its own."
+status_override: "Revision 2 (2026-11-11) was approved by Allen D. Householder in the #5132 planning session, before this record first merged: offers carry the act (#6251) and the reference-as-Link question moved to #6249. Two clarifications within that scope were approved by Allen D. Householder on 2026-11-11: a reference stays an Object whose url holds a Link (#6249), and an admitted change is recorded as the resulting object, not as the offered act. Revision 3 (2026-11-19) applies Allen D. Householder's direction from the #6641 planning, recorded in #6693: a CVE ID is an ids entry, not a field of its own; and Allen D. Householder's direction on PR #6718 (2026-11-19): an update merges a list rather than replacing it."
 lint_suppress: [phantom_symbol_ref, phantom_path_ref]
 deciders: Allen D. Householder
 consulted: Claude Opus 5.5
@@ -70,9 +70,11 @@ The decision has five parts.
    The CASE_MANAGER records the offer, then admits it, applying and recording the change, or declines it, and answers the sender either way.
    A deployment may admit offers automatically.
    The CASE_MANAGER itself fills items and references when it creates a case from a report.
-5. **An update changes only the fields it carries.**
-   An offered update replaces the fields it supplies and leaves the rest as they were, the partial-update meaning ActivityStreams gives `Update`.
-   A full revision is an update that supplies every field.
+5. **An update changes only the fields it carries, and never shrinks a list.**
+   An offered update replaces each single-valued field it supplies and leaves the rest as they were, the partial-update meaning ActivityStreams gives `Update`.
+   A list it supplies, such as `ids`, `notes` or `references`, is merged: each supplied entry the list lacks is appended, and no held entry is removed.
+   A sender's view may be partial, such as a case preview, or stale, and two senders may update one item at once, so replacing a list would drop entries silently.
+   Taking an entry out of a list needs an explicit act that names it.
 
 Removing an item or a reference, relationships between items beyond "same vulnerability", and content documents carried by an item are not decided here.
 A reference keeps its current shape here; it stays an object of its own, and its URL will become a link with a relation type (#6249).
@@ -84,7 +86,8 @@ A reference keeps its current shape here; it stays an object of its own, and its
 - Good, because a reader finds every identifier of a vulnerability in one list, whatever system issued it.
 - Good, because the CVE schema rule and the opaque-identifier rule no longer conflict.
 - Good, because two admitted updates to different fields of one item both survive.
-- Bad, because a list field is replaced whole, so adding one identifier, a CVE ID included, means sending the full revised list, and two concurrent identifier updates do not both survive.
+- Good, because a list update only adds, so adding a CVE ID sends that one entry, and two concurrent identifier updates both survive in either order.
+- Bad, because an update cannot remove a list entry; that needs an act this record does not define.
 - Bad, because the rename touches the glossary, the requirements and the CSAF crosswalk.
 - Neutral, because every admitted change is a ledger entry like any other case-file change, so replicas learn of items the way they learn of reports.
 
