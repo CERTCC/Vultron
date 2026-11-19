@@ -104,7 +104,6 @@
   "notes": [],
   "embargoRegister": [],
   "pendingEmbargoProposalIndex": {},
-  "caseActivity": [],
   "genesisHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d",
   "ledgerPosition": {
     "logIndex": -1,

@@ -34,7 +34,6 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make, with_times
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.ports.datalayer import DataLayer
@@ -95,17 +94,42 @@ class FakeDataLayer:
         return cast(DataLayer, self)
 
 
-class LooselyTypedStoredCase(as_Object):
-    """A stored case whose `case_activity` is still a list of bare IDs.
+class _ActivityLogProbe(as_Object):
+    """A probe whose ``case_activity`` slot holds activities, never URIs.
 
-    Stands in for what a store hands back before rehydration: the activity log
-    is a list of URIs, which is how the core model records it
-    (``VulnerabilityCase.case_activity: list[str]``).  Deliberately declares no
-    ``type_`` of its own, so it is not auto-registered in ``VOCABULARY``
-    (VM-01-001) and cannot leak into the registry-completeness tests.
+    ``list[as_Activity]`` admits a model but no ``str``, so materialisation
+    must resolve a bare ID found there or refuse it (VM-06-007).  No production
+    class declares such a slot over activities any more, so the probe keeps the
+    rule pinned.  Deliberately declares no ``type_`` of its own, so it is not
+    auto-registered in ``VOCABULARY`` (VM-01-001) and cannot leak into the
+    registry-completeness tests.
+    """
+
+    case_activity: list[as_Activity] = []
+
+
+class _ActivityIdLogProbe(as_Object):
+    """A probe whose ``case_activity`` slot holds plain URI strings.
+
+    A ``list[str]`` slot admits a URI, so materialisation leaves it alone.
+    Declares no ``type_``, for the same reason as :class:`_ActivityLogProbe`.
     """
 
     case_activity: list[str] = []
+
+
+class LooselyTypedStoredParticipant(as_Object):
+    """A stored participant whose status list is still a list of bare IDs.
+
+    Stands in for what a store hands back before rehydration.  It carries the
+    ``CaseParticipant`` type name, so ``rehydrate`` casts it to
+    ``as_CaseParticipant``, whose ``participant_statuses`` slot admits no URI.
+    Declares no ``type_`` field of its own, so it is not auto-registered in
+    ``VOCABULARY`` (VM-01-001).
+    """
+
+    case_roles: list[str] = []
+    participant_statuses: list[str] = []
 
 
 @pytest.fixture
@@ -134,14 +158,25 @@ def dl(recorded_activity: as_Activity) -> FakeDataLayer:
 def test_bare_id_in_list_object_slot_is_resolved(
     dl: FakeDataLayer, recorded_activity: as_Activity
 ) -> None:
-    """After ARCH-25-003 (ADR-0099), VulnerabilityCase.case_activity is list[str].
-
-    Activity IDs are string references — no resolution needed.  The data is
-    returned unchanged and no dl.read() is fired.
-    """
+    """A bare ID in a ``list[as_Activity]`` slot is replaced by the object."""
     data = {"id": CASE_ID, "case_activity": [recorded_activity.id_]}
-    out = materialise_object_slots(as_VulnerabilityCase, data, dl.as_port())
-    assert out["case_activity"] == [recorded_activity.id_]
+    out = materialise_object_slots(_ActivityLogProbe, data, dl.as_port())
+    assert out["case_activity"] == [recorded_activity]
+    assert dl.reads == [recorded_activity.id_]
+
+
+def test_unresolvable_id_in_uri_list_slot_is_kept_as_string(
+    dl: FakeDataLayer,
+) -> None:
+    """A ``list[str]`` slot admits a URI, so its IDs are kept and not read.
+
+    The ID is not in the store, and it stays the IRI it was: no placeholder
+    object is built for it (ARCH-25-031), and a URI slot has nothing to refuse.
+    """
+    data = {"id": CASE_ID, "case_activity": [MISSING_ID]}
+    out = materialise_object_slots(_ActivityIdLogProbe, data, dl.as_port())
+    assert out is data
+    assert out["case_activity"] == [MISSING_ID]
     assert dl.reads == []
 
 
@@ -152,7 +187,6 @@ def test_materialise_builds_a_valid_object_from_bare_ids(
 
     Uses as_CaseParticipant.participant_statuses (still typed as
     list[as_ParticipantStatus]) as the canonical object-only list slot,
-    since VulnerabilityCase.case_activity is now list[str] (ADR-0099 #3487).
     """
     status = make(
         as_ParticipantStatus,
@@ -200,51 +234,51 @@ def test_bare_id_in_scalar_object_slot_is_resolved() -> None:
     assert out["case_status"] is status
 
 
-def test_rehydrate_materialises_object_slots(
-    dl: FakeDataLayer, recorded_activity: as_Activity
-) -> None:
-    """End-to-end through the named owner, not just the helper.
-
-    After ADR-0099, case_activity holds string IDs — rehydration casts the
-    stored object to VulnerabilityCase and preserves activity IDs as strings.
-    """
-    stored = make(
-        LooselyTypedStoredCase,
-        attributed_to=CASE_OWNER_ID,
-        id_=CASE_ID,
-        type_="VulnerabilityCase",
-        case_activity=[recorded_activity.id_],
+def _stored_participant(status_id: str) -> LooselyTypedStoredParticipant:
+    return make(
+        LooselyTypedStoredParticipant,
+        id_="https://example.org/participants/p-30",
+        type_="CaseParticipant",
+        attributed_to=OTHER_PARTICIPANT,
+        context=CASE_ID,
+        case_roles=[CVDRole.REPORTER.value],
+        participant_statuses=[status_id],
     )
-    dl.add(stored)
+
+
+def _stored_status() -> as_ParticipantStatus:
+    return make(
+        as_ParticipantStatus,
+        id_="https://example.org/pstatus/ps-30",
+        attributed_to=OTHER_PARTICIPANT,
+        context=CASE_ID,
+    )
+
+
+def test_rehydrate_materialises_object_slots() -> None:
+    """End-to-end through the named owner, not just the helper."""
+    status = _stored_status()
+    stored = _stored_participant(status.id_)
+    dl = FakeDataLayer({status.id_: status, stored.id_: stored})
 
     result = rehydrate(stored, dl=dl.as_port())
 
-    assert isinstance(result, as_VulnerabilityCase)
-    assert result.case_activity == [recorded_activity.id_]
+    assert isinstance(result, as_CaseParticipant)
+    assert [s.id_ for s in result.participant_statuses] == [status.id_]
+    assert isinstance(result.participant_statuses[0], as_ParticipantStatus)
 
 
-def test_rehydrate_materialises_from_a_bare_case_id(
-    dl: FakeDataLayer, recorded_activity: as_Activity
-) -> None:
-    """`rehydrate(id)` resolves the case from the store.
+def test_rehydrate_materialises_from_a_bare_id() -> None:
+    """`rehydrate(id)` reads the object from the store, then materialises it."""
+    status = _stored_status()
+    stored = _stored_participant(status.id_)
+    dl = FakeDataLayer({status.id_: status, stored.id_: stored})
 
-    After ADR-0099, case_activity holds string IDs — the activity is NOT
-    resolved into an object; its string reference is preserved.
-    """
-    dl.add(
-        make(
-            LooselyTypedStoredCase,
-            attributed_to=CASE_OWNER_ID,
-            id_=CASE_ID,
-            type_="VulnerabilityCase",
-            case_activity=[recorded_activity.id_],
-        )
-    )
+    result = rehydrate(stored.id_, dl=dl.as_port())
 
-    result = rehydrate(CASE_ID, dl=dl.as_port())
-
-    assert isinstance(result, as_VulnerabilityCase)
-    assert result.case_activity == [recorded_activity.id_]
+    assert isinstance(result, as_CaseParticipant)
+    assert isinstance(result.participant_statuses[0], as_ParticipantStatus)
+    assert result.participant_statuses[0].id_ == status.id_
 
 
 # ---------------------------------------------------------------------------
@@ -255,18 +289,17 @@ def test_rehydrate_materialises_from_a_bare_case_id(
 def test_materialised_activity_carries_its_own_actor(
     dl: FakeDataLayer, recorded_activity: as_Activity
 ) -> None:
-    """Regression guard: activities are NOT synthesized with a fabricated actor.
+    """Regression guard: a materialised activity is the stored one.
 
-    Before ARCH-25-003 (ADR-0099), ``as_VulnerabilityCase.from_core`` built a stub
-    ``as_Activity(id_=activity_id, actor=case_owner_or_id)``, misattributing
-    activities not performed by the case owner.  After ADR-0099, case_activity
-    is ``list[str]`` — activities stay as URI references, never resolved or
-    fabricated.  This guard pins the correct "no fabrication" behaviour.
+    Before ARCH-25-003 (ADR-0099), ``as_VulnerabilityCase.from_core`` built a
+    stub ``as_Activity(id_=activity_id, actor=case_owner_or_id)`` and so
+    misattributed every activity the case owner did not perform.  The
+    materialised activity must carry the actor it was recorded with.
     """
-    case = materialise(
-        as_VulnerabilityCase,
+    probe = materialise(
+        _ActivityLogProbe,
         with_times(
-            as_VulnerabilityCase,
+            _ActivityLogProbe,
             {
                 "id": CASE_ID,
                 "attributedTo": CASE_OWNER,
@@ -275,13 +308,13 @@ def test_materialised_activity_carries_its_own_actor(
         ),
         dl.as_port(),
     )
-    activity_ref = case.case_activity[0]
-    assert isinstance(activity_ref, str), "activity must stay as a string URI"
-    assert activity_ref == recorded_activity.id_
-    assert activity_ref != CASE_OWNER, (
+    activity = probe.case_activity[0]
+    assert activity.id_ == recorded_activity.id_
+    assert activity.actor == OTHER_PARTICIPANT
+    assert activity.actor != CASE_OWNER, (
         "synthesized the case owner as the actor"
     )
-    assert activity_ref != CASE_ID, "synthesized the case's own URI"
+    assert activity.actor != CASE_ID, "synthesized the case's own URI"
 
 
 # ---------------------------------------------------------------------------
@@ -293,8 +326,7 @@ def test_unresolvable_reference_in_object_slot_is_refused() -> None:
     """An unresolvable bare ID in an object-only list slot is refused.
 
     Uses as_CaseParticipant.participant_statuses (list[as_ParticipantStatus])
-    since VulnerabilityCase.case_activity is now list[str] (ADR-0099 #3487)
-    and string slots defer rather than refuse.
+    because a string slot defers rather than refuses.
     """
     with pytest.raises(ValueError) as excinfo:
         materialise_object_slots(
@@ -313,8 +345,7 @@ def test_unresolvable_reference_in_object_slot_is_refused() -> None:
 def test_refusal_does_not_leave_a_bare_string_behind() -> None:
     """Neither a stub nor a string: the object is not built at all.
 
-    Uses as_CaseParticipant.participant_statuses (list[as_ParticipantStatus])
-    since VulnerabilityCase.case_activity is now list[str] (ADR-0099 #3487).
+    Uses as_CaseParticipant.participant_statuses (list[as_ParticipantStatus]).
     """
     with pytest.raises(ValueError):
         materialise(
@@ -340,27 +371,6 @@ def test_unresolvable_scalar_reference_is_refused() -> None:
             },
             FakeDataLayer().as_port(),
         )
-
-
-def test_unresolvable_activity_id_is_kept_as_string(
-    dl: FakeDataLayer,
-) -> None:
-    """After ADR-0099, case_activity is list[str] — unresolvable IDs are kept.
-
-    VulnerabilityCase.case_activity stores activity URIs as strings; there is
-    no object-only slot to refuse, so an unresolvable URI is simply preserved.
-    """
-    stored = make(
-        LooselyTypedStoredCase,
-        attributed_to=CASE_OWNER_ID,
-        id_=CASE_ID,
-        type_="VulnerabilityCase",
-        case_activity=[MISSING_ID],
-    )
-    dl.add(stored)
-    result = rehydrate(stored, dl=dl.as_port())
-    assert isinstance(result, as_VulnerabilityCase)
-    assert result.case_activity == [MISSING_ID]
 
 
 # ---------------------------------------------------------------------------
@@ -427,16 +437,14 @@ def test_already_materialised_data_is_returned_unchanged(
         "id": CASE_ID,
         "case_activity": [recorded_activity],
     }
-    out = materialise_object_slots(as_VulnerabilityCase, data, dl.as_port())
+    out = materialise_object_slots(_ActivityLogProbe, data, dl.as_port())
     assert out is data
     assert dl.reads == []
 
 
 def test_absent_and_empty_slots_are_left_alone(dl: FakeDataLayer) -> None:
     for data in ({"id": CASE_ID}, {"id": CASE_ID, "case_activity": []}):
-        out = materialise_object_slots(
-            as_VulnerabilityCase, data, dl.as_port()
-        )
+        out = materialise_object_slots(_ActivityLogProbe, data, dl.as_port())
         assert out is data
     assert dl.reads == []
 
@@ -559,7 +567,6 @@ def test_slot_supplied_under_its_as2_alias_is_materialised(
     """Callers hand over either spelling, so both must be looked for.
 
     Uses as_CaseParticipant.participant_statuses (participantStatuses alias)
-    since VulnerabilityCase.case_activity is now list[str] (ADR-0099 #3487).
     Keying only on the Python field name made ``{"participantStatuses": [...]}``
     a silent no-op: the slot was skipped, no ``dl.read()`` fired, and
     ``model_validate`` then failed on a bare string in a

@@ -3060,7 +3060,7 @@ groups:
       gives every slot the same resolution rule.
     verification: >-
       `test_rehydrate_materialises_object_slots` and
-      `test_rehydrate_materialises_from_a_bare_case_id` in
+      `test_rehydrate_materialises_from_a_bare_id` in
       `test/wire/as2/test_rehydration_materialisation.py` assert `rehydrate()` resolves
       references through the `DataLayer` it is given, and
       `test/architecture/test_core_no_to_core_duck_typing.py` asserts core keeps no
@@ -3105,10 +3105,11 @@ groups:
       A placeholder or a synthesized actor states facts that no actor asserted, and
       activity can then be attributed to the wrong actor.
     verification: >-
-      `test_unresolvable_activity_id_is_kept_as_string` in
-      `test/wire/as2/test_rehydration_materialisation.py` asserts a `case_activity`
-      reference stays an IRI rather than an activity fabricated and attributed to the
-      Case Owner.
+      `test_unresolvable_id_in_uri_list_slot_is_kept_as_string` in
+      `test/wire/as2/test_rehydration_materialisation.py` asserts an unresolvable
+      reference stays an IRI, and `test_materialised_activity_carries_its_own_actor`
+      asserts a resolved activity keeps its stored actor rather than one attributed to
+      the Case Owner.
     relationships:
     - rel_type: extends
       spec_id: ARCH-25-029

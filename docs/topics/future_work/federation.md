@@ -104,7 +104,6 @@ classDiagram
     class Case {
         +attributedTo
         +caseParticipants
-        +caseActivity
     }
     Actor "1" --> "*" Participant : attributedTo
     Case "1" --> "*" Participant : caseParticipants

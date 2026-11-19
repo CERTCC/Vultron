@@ -126,7 +126,7 @@ codebase's choice and is always a ✓ in its row.
 | any other AS2 property the case holds | ✓ | ✓ | ✓ | ✓ | redact | |
 | `embargoRegister` | – | ✓ (must hold the in-force embargo, whole or by id, and no open proposal) | ✓ / – in force | ✓ / – in force | substitute: the in-force entry only, whole (CM-17-011) | consent to the in-force terms (CM-17-002); open proposals reach the invitee after joining (CM-17-014) |
 | `pendingEmbargoProposalIndex` | – | – | – | ✓ | omit | relayed after joining (CM-17-014) |
-| `genesisHash`, `ledgerPosition`, `actorParticipantIndex`, `caseActivity`, `stubSummary` | – | – | – | ✓ | omit | case bookkeeping, meaningless outside the case |
+| `genesisHash`, `ledgerPosition`, `actorParticipantIndex`, `stubSummary` | – | – | – | ✓ | omit | case bookkeeping, meaningless outside the case |
 
 The preview keeps its own minted `id` and its `type` `CasePreview`; the case
 reference carrying it names the case (ADR-0205). The embargo in force travels
