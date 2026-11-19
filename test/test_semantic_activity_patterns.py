@@ -972,6 +972,14 @@ def test_strict_governs_target_and_origin_alone():
 
     assert lenient.match(_offer_of_bare_case(target=bare_target))
     assert not strict.match(_offer_of_bare_case(target=bare_target))
+    lenient_origin = _offer_case_pattern(
+        origin_=AOtype.ACTOR, accepts_bare_object=True
+    )
+    strict_origin = _offer_case_pattern(
+        origin_=AOtype.ACTOR, accepts_bare_object=True, strict=True
+    )
+    assert lenient_origin.match(_offer_of_bare_case(origin=bare_target))
+    assert not strict_origin.match(_offer_of_bare_case(origin=bare_target))
     # A strict pattern's object_ is no stricter than a lenient one's.
     assert strict.matches_object("https://example.org/cases/unresolved")
     assert not _offer_case_pattern().matches_object(

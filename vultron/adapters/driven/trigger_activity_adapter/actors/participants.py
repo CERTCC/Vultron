@@ -190,8 +190,9 @@ class _ParticipantsMixin:
         addressed to the Case Owner.
         ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
         ``in_reply_to`` names the original Offer, the suggestion this forward
-        answers, for causal traceability (CM-16-004).  ``content`` carries the recommender's reason text so the
-        Case Owner can decide on the suggestion with its evidence (CM-16-020).
+        answers, for causal traceability (CM-16-004).  ``content`` carries the
+        recommender's reason text so the Case Owner can decide on the
+        suggestion with its evidence (CM-16-020).
         An Offer already built under *id_* is returned as sealed, without
         storing a second inline participant.
         """
