@@ -30,12 +30,14 @@ from typing import Any, assert_type, cast
 import pytest
 from fastapi import BackgroundTasks, HTTPException
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_runner import (
     emitting_outbox,
     run_trigger,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     ActivityResult,
     StatusResult,
@@ -109,7 +111,12 @@ class _RaisingDispatcher:
 
 @pytest.fixture
 def dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
+    """The requester's store, holding the case :func:`_request` names."""
+    store = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
+    store.create(
+        make(VulnerabilityCase, id_=_CASE, name="Case", attributed_to=_ACTOR)
+    )
+    return store
 
 
 @pytest.mark.spec("TRIG-07-001")
@@ -131,6 +138,27 @@ def test_flush_is_queued_only_after_trigger_returns(
     assert task.func is outbox_handler
     assert task.args == (_ACTOR, dl)
     assert result.status_id == "urn:uuid:s"
+
+
+def test_an_unknown_case_is_refused_before_dispatch(
+    dl: SqliteDataLayer,
+) -> None:
+    """The edge refuses a case the store does not hold, as the core would:
+    a translated 404, no dispatch and no flush (ADR-0032)."""
+    tasks = BackgroundTasks()
+    dispatcher = _RecordingDispatcher(tasks)
+    request = _request().model_copy(
+        update={"case_id": "https://example.org/cases/unknown"}
+    )
+
+    with pytest.raises(HTTPException) as raised:
+        run_trigger(
+            request, dispatcher=dispatcher, dl=dl, background_tasks=tasks
+        )
+
+    assert raised.value.status_code == 404
+    assert dispatcher.queued_when_called is None, "the dispatcher ran"
+    assert tasks.tasks == []
 
 
 @pytest.mark.spec("UCORG-05-006")
