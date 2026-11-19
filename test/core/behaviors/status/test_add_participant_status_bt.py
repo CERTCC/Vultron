@@ -1893,6 +1893,33 @@ class TestEmitRMGapNoteNode:
         assert result.internal_error is True
         assert "vanished after its" in result.feedback_message
 
+    @pytest.mark.spec("BTND-01-008")
+    def test_an_unseeded_note_reads_a_case_an_earlier_node_published(
+        self, populated_dl
+    ):
+        """A tree that names no case leaves ``/case_id`` unseeded, so the
+        note reads the case an earlier node of the run published."""
+        bridge = self._bridge_with_factory(populated_dl)
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+        tree = py_trees.composites.Sequence(
+            name="PublishThenNote",
+            memory=False,
+            children=[
+                py_trees.behaviours.SetBlackboardVariable(
+                    name="PublishCase",
+                    variable_name="/case_id",
+                    variable_value=CASE_ID,
+                    overwrite=True,
+                ),
+                EmitRMGapNoteNode(sender_actor_id=ACTOR_ID),
+            ],
+        )
+
+        result = run_tree(bridge, tree=tree, actor_id=CASE_MANAGER_ID)
+
+        assert result.status == Status.SUCCESS
+        assert_case_manager_note_recorded(populated_dl, CASE_ID)
+
     def test_no_case_id_is_noop_success(self, populated_dl):
         """case_id=None → SUCCESS with no outbox entry (no case context)."""
         bridge = self._bridge_with_factory(populated_dl)

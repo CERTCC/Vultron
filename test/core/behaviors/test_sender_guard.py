@@ -2077,3 +2077,22 @@ def test_a_case_owner_read_outside_the_sender_guard_states_no_refusal() -> (
         " the sender door, which words its non-match as a refusal; read the"
         f" role with ActorHoldsRoleInCaseNode instead: {sorted(doors)}"
     )
+
+
+@pytest.mark.spec("BTND-01-008", "BT-25-011")
+@pytest.mark.parametrize("kind", [Kind.CASE_MANAGER, Kind.INVITEE])
+def test_a_context_naming_no_case_seeds_no_case(kind: Kind) -> None:
+    """A build-time ``case_id=None`` leaves ``/case_id`` unseeded, never
+    seeded empty: the node reads what an earlier node published, else its
+    documented fallback (the ledger entry's case, no closure check)."""
+    guard = staged_sender_guard(
+        SenderRule.on_every_path(kind),
+        SenderCheckContext(
+            sender_id=VENDOR,
+            invite_id="https://example.org/activities/invite",
+        ),
+        frozenset(ReceivedPath),
+    )
+    assert isinstance(guard, ActKeyScope)
+    assert CASE_KEY not in guard.seeds
+    assert guard.seeds[SENDER_KEY] == VENDOR
