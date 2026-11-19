@@ -176,7 +176,7 @@ class RelayEmbargoInviteToEachNode(
     For each recipient the collect node named: build the Invite through the
     trigger-activity factory as the executing CASE_MANAGER with the proposer
     in ``attributedTo`` and the request it answers in ``inReplyTo``
-    (CM-24-001, CM-24-002, CM-24-012) and the manager's RSVP
+    (CM-24-001, CM-24-002, CM-24-020) and the manager's RSVP
     deadline as its ``endTime`` (CM-28-012, from ``actor_config``'s windows),
     queue it, commit the sealed blob as the canonical entry (VM-08-003) once
     it is queued (ADR-0119), then commit PEC ``INVITE`` on the invitee's row
@@ -263,6 +263,16 @@ class RelayEmbargoInviteToEachNode(
         self._recipients = cast(list[str], self.get_input(_RECIPIENTS_KEY))
         self._proposer_id = read_embargo_proposer(self)
 
+    def _carried_out_request(self) -> str | None:
+        """The proposer's request this relay carries out (CM-24-020).
+
+        On the received path that is the proposer's Invite, which the relay
+        also *answers*.  A subclass whose *answers* is another activity — a
+        join, an ``Accept``, a reinstatement — names the proposal it read
+        from the ledger instead.
+        """
+        return self._answers
+
     def _activity_id_for(self, recipient_id: str) -> str | None:
         """The id the Invite to *recipient_id* takes; ``None`` mints a fresh one.
 
@@ -330,13 +340,11 @@ class RelayEmbargoInviteToEachNode(
                 f" '{self._embargo_id}' on case '{self._case_id}': {exc}"
             ) from exc
         proposer_id = self._attributed_to()
-        # The relay carries out the request it answers: the proposer's Invite
-        # on the received path (CM-24-012).
         authorship = (
             delegated_authorship(
                 doing_actor_id=self.actor_id,
                 requesting_actor_id=proposer_id,
-                request_id=self._answers,
+                request_id=self._carried_out_request(),
             )
             if proposer_id
             else None

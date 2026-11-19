@@ -382,7 +382,7 @@ def _delegation(
     attributed_to: str | None, in_reply_to: str | None = None
 ) -> dict[str, str]:
     """``attributed_to`` and ``in_reply_to`` as factory keywords, each only
-    when given (CM-24-002, CM-24-012).
+    when given (CM-24-002, CM-24-020).
 
     Absent, the factory keeps its default of no attribution, so an activity
     the CASE_MANAGER decides on its own names nobody else.

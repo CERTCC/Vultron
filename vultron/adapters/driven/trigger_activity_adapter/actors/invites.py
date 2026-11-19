@@ -45,6 +45,7 @@ from .._base import (
     _addressing,
     _case_for_wire,
     _create_and_seal,
+    _delegation,
     _seal,
     _stamped,
 )
@@ -95,12 +96,9 @@ class _InvitesMixin:
                 ADR-0205).
         """
         extra = _addressing(actor, to, id_)
-        if attributed_to is not None:
-            extra["attributed_to"] = attributed_to
+        extra.update(_delegation(attributed_to, in_reply_to))
         if rsvp_deadline is not None:
             extra["end_time"] = rsvp_deadline
-        if in_reply_to is not None:
-            extra["in_reply_to"] = in_reply_to
 
         # Read case and embargo from DataLayer; factory handles projection.
         resolved = case if case is not None else self._dl.read(case_id)

@@ -263,13 +263,6 @@ Issue: #6245.
 - `Add(VulnerabilityReport)` and `CaseProposal` drop the Vultron `offerId` for
   `inReplyTo` (the report Offer); `offerActorId` is read from that Offer or the
   report's `attributedTo`.
-- A delegated emit (CM-24) sets `attributedTo` = the asker and `inReplyTo` = the
-  request it received, both exactly when the asker is a different actor from the
-  `actor` (ADR-0199). Every delegated emit has a received request to name: a
-  distinct asker reaches the CASE_MANAGER only by message, wherever the two run
-  (ADR-0109; the ownership-transfer trigger already sends its proposal). The
-  CASE_MANAGER is not modelled as anyone's `instrument`: it has its own authority and
-  must be the `actor` receivers authenticate (CM-24-001).
 - `Remove(CaseParticipant)` is replaced by the Case Owner's `Remove(<Actor>,
   origin=<case>)` (§ "The Owner Sends Its Removal or Reinstatement"), and
   `Remove(EmbargoEvent)` by an `Update` (§ "Embargo End Is an Update With a
@@ -284,9 +277,7 @@ which this object is considered a response".
 **Today.** `Remove(EmbargoEvent)` alone uses `origin`
 (`vultron/wire/as2/factories/embargo/lifecycle.py`); `Offer(CaseParticipant)` sets
 `origin` in `vultron/core/behaviors/case/nodes/suggest_actor/emit.py`; `offerId` /
-`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`. The
-delegated-emit bullet is built (#6464): the helper returns `attributedTo` and
-`inReplyTo` together, and an architecture test holds every emit to it.
+`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`.
 
 **Term-check owner.** #6419 owns `offerId`/`offerActorId` in the #6253 term-check
 ratchet, so the entry keeps an open owner. Planning this section adopts #6419

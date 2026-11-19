@@ -90,7 +90,7 @@ class _EmbargoMixin:
         CASE_MANAGER's own ledgered proposal (EP-09-010, ADR-0205).
 
         ``attributed_to`` names the proposer of a relayed proposal (CM-24-002)
-        and ``in_reply_to`` the request the relay carries out (CM-24-012);
+        and ``in_reply_to`` the request the relay carries out (CM-24-020);
         each is forwarded only when given so a participant's own proposal keeps
         the factory's default of no attribution.  ``activity_id`` likewise:
         given, it is the Invite's id (EP-04-011); absent, the factory mints one.
@@ -99,18 +99,17 @@ class _EmbargoMixin:
         from *at*, the Invite's ``published`` (EP-07-002, EP-07-006).
         """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
-        optional: dict[str, Any] = {
-            key: value
+        optional: dict[str, Any] = _delegation(attributed_to, in_reply_to)
+        optional.update(
+            (key, value)
             for key, value in (
-                ("attributed_to", attributed_to),
-                ("in_reply_to", in_reply_to),
                 ("id_", activity_id),
                 ("rsvp_deadline", rsvp_deadline),
                 ("min_rsvp_window", min_rsvp_window),
                 ("invitee", invitee),
             )
             if value is not None
-        }
+        )
         activity = em_propose_embargo_activity(
             embargo=embargo,
             context=case_id,

@@ -155,7 +155,7 @@ An invitation to join the case is the main example ([PCR-08-007](../../reference
 The Case Owner asks, and the CASE_MANAGER sends.
 
 A message sent this way names the CASE_MANAGER as its `actor` and the participant who asked as its `attributedTo` ([CM-24-001](../../reference/vultron-spec/requirements/case-management.md#cm-24-001), [CM-24-002](../../reference/vultron-spec/requirements/case-management.md#cm-24-002)).
-Its `inReplyTo` names the request the CASE_MANAGER received ([CM-24-012](../../reference/vultron-spec/requirements/case-management.md#cm-24-012)).
+Its `inReplyTo` names the request the CASE_MANAGER received ([CM-24-020](../../reference/vultron-spec/requirements/case-management.md#cm-24-020)).
 A receiver then knows who sent the message, who wanted it sent, and which request it carries out.
 A CASE_MANAGER that sends a message for itself sets neither field.
 

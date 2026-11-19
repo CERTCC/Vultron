@@ -18,9 +18,9 @@
 An activity the CASE_MANAGER emits on another actor's behalf carries the
 CASE_MANAGER as ``actor`` (CM-24-001), the actor that asked for it as
 ``attributed_to`` (CM-24-002) and the request it carries out as
-``in_reply_to`` (CM-24-012, ADR-0199).  Every path that does this — a trigger
-use case or a received-side tree — gets all three from
-:func:`delegated_authorship` (CM-24-005).  The module sits under
+``in_reply_to`` (CM-24-020, ADR-0199).  Every path that does this — a
+trigger use case or a received-side tree — gets all three from
+:func:`delegated_authorship` (CM-24-005, CM-24-012).  The module sits under
 ``behaviors/`` so BT nodes and use cases may both import it (CM-24-013,
 BTND-04-003).
 
@@ -30,10 +30,10 @@ holder the use case resolved); the *requesting* actor is the trigger's
 requester or the sender of the activity the received tree acts on, and the
 *request* is that received activity.  An actor that asks for its own act
 does it directly: neither ``attributed_to`` nor ``in_reply_to`` is set
-(ADR-0199).  A distinct asker reaches the CASE_MANAGER only by a message
+(CM-24-021).  A distinct asker reaches the CASE_MANAGER only by a message
 (ADR-0109), so a delegated act always has a request to name, and a caller
-that names none is a programming error, refused here.  There is nothing to
-look up and no fallback arm (CM-24-008).
+that names none is a programming error, refused here (CM-24-022).  There is
+nothing to look up and no fallback arm (CM-24-008).
 """
 
 from typing import NamedTuple
@@ -72,8 +72,10 @@ def delegated_authorship(
         VultronValidationError: If either identity is empty.
         VultronWiringError: If the asker differs from the doer and
             *request_id* is empty or ``None``: the caller was composed
-            without the request it carries out, a fault ``BTBridge`` reports
-            as internal, never as a refusal of the sender (ADR-0095).
+            without the request it carries out.  ``BTBridge`` reports one
+            that escapes a node as internal (ADR-0095); an emit node built
+            on ``_EmitSingleActivityBase`` catches it and fails with the
+            reason, sending nothing.
     """
     for label, value in (
         ("doing_actor_id", doing_actor_id),
@@ -91,7 +93,7 @@ def delegated_authorship(
         raise VultronWiringError(
             f"'{doing_actor_id}' acts for '{requesting_actor_id}' but names no"
             " request it carries out: a delegated act answers the request it"
-            " received (CM-24-012, ADR-0199)"
+            " received (CM-24-022, ADR-0199)"
         )
     return DelegatedAuthorship(
         actor=doing_actor_id,

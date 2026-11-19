@@ -70,7 +70,7 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
     authorship helper: the CASE_MANAGER forwards, on the Case Owner's behalf
     (CM-24-005).  The forward is addressed to the target only and carries
     ``in_reply_to`` set to the recorded Offer's id (the entry's
-    ``log_object_id``): the request the forward carries out (CM-24-012), and
+    ``log_object_id``): the request the forward carries out (CM-24-020), and
     the id an answer naming the forward resolves to the Offer it stands for
     by (CM-33-017).  It is set even when the Case Owner holds the
     CASE_MANAGER role, which the helper credits to no one, because the

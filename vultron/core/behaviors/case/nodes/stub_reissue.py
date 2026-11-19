@@ -184,7 +184,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
             roles=list(stale.roles) or None,
             # The replacement is made for whoever asked for the Invite it
             # replaces, and names that Invite (CM-11-044), which named the
-            # request (CM-24-012).
+            # request (CM-24-020).
             authorship=(
                 delegated_authorship(
                     doing_actor_id=self.actor_id,

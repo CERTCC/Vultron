@@ -77,7 +77,7 @@ flowchart TB
 ## Admit an actor
 
 1. Trigger the invitation.
-   The CASE_MANAGER sends `Invite(VulnerabilityCase preview)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-019, PCR-08-008).
+   The CASE_MANAGER sends `Invite(VulnerabilityCase preview)` with itself as the ActivityStreams `actor`, your Case Owner identity in `attributedTo` and your request in `inReplyTo` (PCR-08-007, PCR-08-019, PCR-08-008).
 2. Wait for the invitee's reply, addressed to the CASE_MANAGER.
 3. If the reply is `Accept(Invite(VulnerabilityCase preview))`, the CASE_MANAGER makes the actor an active participant — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
    The CASE_MANAGER ledgers the record's creation when it sends the Invite.
@@ -161,7 +161,7 @@ The CASE_MANAGER refuses a removal of the CASE_MANAGER or of the Case Owner, and
 A second removal of the same participant changes nothing.
 
 The CASE_MANAGER records your `Remove` as one ledger entry and sends that entry to every active participant, the removed one included.
-It then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `attributedTo` set to you.
+It then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `attributedTo` set to you and `inReplyTo` set to your `Remove`.
 The removed participant receives no later ledger entries, and no Invite of any kind.
 
 The CASE_MANAGER also refuses a recommendation that names the removed participant, and your acceptance of an earlier one.
@@ -192,7 +192,7 @@ The CASE_MANAGER refuses an `Add` from anyone other than the Case Owner, and an 
 
 The CASE_MANAGER records your `Add` as one ledger entry.
 When the participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order.
-Then it sends a direct `Add(CaseParticipant)` that names the participant, with `attributedTo` set to you.
+Then it sends a direct `Add(CaseParticipant)` that names the participant, with `attributedTo` set to you and `inReplyTo` set to your `Add`.
 A participant that has not accepted the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and its catch-up waits until it accepts.
 
 ---

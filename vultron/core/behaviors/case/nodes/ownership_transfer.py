@@ -147,7 +147,7 @@ class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
     and the deadline as ``end_time`` (CM-21-041) — with ``actor`` itself,
     ``attributedTo`` the owner and ``inReplyTo`` the proposal, from the
     shared delegated-authorship helper (CM-24-001, CM-24-002, CM-24-005,
-    CM-24-012).  Nothing else of the inner Offer is
+    CM-24-020).  Nothing else of the inner Offer is
     copied: its id is
     :func:`~vultron.core.participants.ownership_offer.ownership_offer_id`,
     derived from the proposal, so a redelivery rebuilds the same Offer and

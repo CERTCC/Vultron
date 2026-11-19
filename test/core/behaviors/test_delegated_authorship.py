@@ -53,7 +53,7 @@ def test_empty_identity_is_refused_not_defaulted(
         )
 
 
-@pytest.mark.spec("CM-24-012")
+@pytest.mark.spec("CM-24-021")
 @pytest.mark.parametrize("requesting", [MANAGER, MANAGER + "/"])
 def test_an_asker_that_is_the_doer_gets_neither_field(requesting: str) -> None:
     """The asker's own act credits no one and answers nothing (ADR-0199).
@@ -69,7 +69,7 @@ def test_an_asker_that_is_the_doer_gets_neither_field(requesting: str) -> None:
     )
 
 
-@pytest.mark.spec("CM-24-012")
+@pytest.mark.spec("CM-24-022")
 @pytest.mark.parametrize("request_id", [None, ""])
 def test_a_distinct_asker_with_no_request_is_refused(
     request_id: str | None,

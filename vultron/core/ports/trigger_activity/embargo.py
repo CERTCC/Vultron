@@ -58,7 +58,7 @@ class TriggerEmbargoPort(Protocol):
         proposal on a participant's behalf (CM-24-002, EP-09-002): ``actor`` is
         then the CASE_MANAGER and ``attributed_to`` the participant whose terms
         these are, and ``in_reply_to`` the request the relay carries out
-        (CM-24-012): the two are given together, from the shared
+        (CM-24-020): the two are given together, from the shared
         delegated-authorship helper.
         ``activity_id`` is the Invite's id when the caller recorded it before
         the emission — the creation-time revision is indexed under its
@@ -231,7 +231,7 @@ class TriggerEmbargoPort(Protocol):
 
         *attributed_to*, when given, names the actor whose request the
         CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
-        of a shorter revision, and *in_reply_to* that request (CM-24-012).
+        of a shorter revision, and *in_reply_to* that request (CM-24-020).
 
         Returns ``(activity_id, activity_dict)``.
         """
@@ -260,7 +260,7 @@ class TriggerEmbargoPort(Protocol):
         *attributed_to*, when given, names the actor whose request the
         CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
         to a bound signatory the ledger no longer reaches, and *in_reply_to*
-        that request (CM-24-012).
+        that request (CM-24-020).
         Returns ``(activity_id, activity_dict)``.
         """
         ...

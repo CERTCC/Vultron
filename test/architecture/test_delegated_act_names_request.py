@@ -12,9 +12,9 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Architecture test: no outbound activity credits another actor without naming the request.
+"""Architecture test: no delegated outbound activity omits the request it answers.
 
-ADR-0199 and CM-24-012: when the CASE_MANAGER carries out an act another
+ADR-0199 and CM-24-020: when the CASE_MANAGER carries out an act another
 actor asked for, the activity names the asker in ``attributedTo`` and the
 request it received in ``inReplyTo``, both exactly when the asker is not the
 ``actor``.  An ``attributedTo`` naming another actor with no ``inReplyTo`` is
@@ -132,26 +132,32 @@ def _enclosing_functions(
                 yield fn, call
 
 
-def _violations(
+def _crediting_calls(
     path: Path, tree: ast.AST, methods: frozenset[str]
-) -> list[str]:
+) -> Iterator[tuple[str, ast.Call]]:
+    """``(<path>::<function>, call)`` for each port call crediting another."""
     rel = (
         path.relative_to(_corpus.REPO_ROOT).as_posix()
         if path.is_absolute()
         else str(path)
     )
-    found: list[str] = []
     for fn, call in _enclosing_functions(tree):
         if not (
             isinstance(call.func, ast.Attribute) and call.func.attr in methods
         ):
             continue
-        if not any(_credits_another(kw) for kw in call.keywords):
-            continue
-        if _names_request(call):
-            continue
-        found.append(f"{rel}::{fn.name}")
-    return found
+        if any(_credits_another(kw) for kw in call.keywords):
+            yield f"{rel}::{fn.name}", call
+
+
+def _violations(
+    path: Path, tree: ast.AST, methods: frozenset[str]
+) -> list[str]:
+    return [
+        site
+        for site, call in _crediting_calls(path, tree, methods)
+        if not _names_request(call)
+    ]
 
 
 def _sites_with_attribution() -> Iterator[tuple[Path, ast.AST]]:
@@ -162,7 +168,7 @@ def _sites_with_attribution() -> Iterator[tuple[Path, ast.AST]]:
 
 
 @pytest.mark.spec("CM-24-002")
-@pytest.mark.spec("CM-24-012")
+@pytest.mark.spec("CM-24-020")
 @pytest.mark.spec("ARCH-18-001")
 def test_every_delegated_emit_names_the_request_it_carries_out() -> None:
     methods = _port_methods_taking_attribution()
@@ -173,7 +179,7 @@ def test_every_delegated_emit_names_the_request_it_carries_out() -> None:
     }
     assert found == set(_EXEMPT), (
         "an outbound activity credits another actor in attributed_to but"
-        " names no request in in_reply_to (CM-24-012, ADR-0199), or an"
+        " names no request in in_reply_to (CM-24-020, ADR-0199), or an"
         " exemption no longer matches a site (ARCH-18-006):\n"
         f"  not exempted: {sorted(found - set(_EXEMPT))}\n"
         f"  stale exemption: {sorted(set(_EXEMPT) - found)}"
@@ -189,6 +195,28 @@ def test_the_port_methods_read_include_every_delegated_emit() -> None:
         "offer_case_participant_role",
         "propose_embargo",
     } <= methods
+
+
+def test_the_scan_finds_the_known_delegated_emits() -> None:
+    """Positive control: the scan reaches the emits it exists to police.
+
+    With no exemption, an empty scan would pass; this pins that the role
+    offer forward, the relay, the transfer Offer and the stub Invite are each
+    read as crediting another actor.
+    """
+    methods = _port_methods_taking_attribution()
+    seen = {
+        call.func.attr
+        for path, tree in _sites_with_attribution()
+        for _, call in _crediting_calls(path, tree, methods)
+        if isinstance(call.func, ast.Attribute)
+    }
+    assert {
+        "invite_actor_to_case",
+        "offer_case_ownership_transfer",
+        "offer_case_participant_role",
+        "propose_embargo",
+    } <= seen, seen
 
 
 _METHODS = frozenset({"propose_embargo"})
@@ -234,7 +262,7 @@ def _ref_ids(value: object) -> list[str]:
 
 
 @pytest.mark.spec("CM-24-002")
-@pytest.mark.spec("CM-24-012")
+@pytest.mark.spec("CM-24-020")
 def test_no_example_activity_credits_another_actor_without_a_request() -> None:
     offenders = []
     for name, activity in sorted(activity_examples().items()):
@@ -246,5 +274,5 @@ def test_no_example_activity_credits_another_actor_without_a_request() -> None:
             offenders.append(name)
     assert not offenders, (
         "example activities credit another actor in attributedTo with no"
-        f" inReplyTo (CM-24-012): {offenders}"
+        f" inReplyTo (CM-24-020): {offenders}"
     )

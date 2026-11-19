@@ -863,7 +863,7 @@ class TestOwnerDirectInviteAtCaseManager:
 
     @pytest.mark.spec("CM-17-018")
     @pytest.mark.spec("CM-17-007")
-    @pytest.mark.spec("CM-24-012")
+    @pytest.mark.spec("CM-24-020")
     def test_case_manager_emits_the_invite_itself(
         self, make_payload, seed_case_manager
     ):

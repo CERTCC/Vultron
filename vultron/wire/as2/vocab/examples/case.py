@@ -211,7 +211,7 @@ def offer_case_ownership_transfer() -> as_Offer:
 
     ``actor`` is the Case Manager, ``attributedTo`` the Case Owner whose
     proposal it carries out and ``inReplyTo`` that proposal (CM-24-001,
-    CM-24-002, CM-24-012).
+    CM-24-002, CM-24-020).
     """
     _vendor = vendor()
     _case = case()

@@ -641,7 +641,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
     @pytest.mark.spec("CM-16-006")
     @pytest.mark.spec("CM-24-002")
-    @pytest.mark.spec("CM-24-012")
+    @pytest.mark.spec("CM-24-020")
     def test_the_invite_credits_the_owner_and_answers_its_accept(self):
         """The Owner's Accept is its decision to invite (ADR-0199).
 

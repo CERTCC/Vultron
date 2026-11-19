@@ -68,7 +68,8 @@ class TriggerOwnershipPort(Protocol):
 
         The one Offer of a transfer, which the CASE_MANAGER makes from the
         owner's proposal (ADR-0148, CM-21-028), with *attributed_to* the
-        owner and *in_reply_to* the proposal (CM-24-012).  *end_time*, when given, is the Offer's activity-level
+        owner and *in_reply_to* the proposal (CM-24-020).  *end_time*, when
+        given, is the Offer's activity-level
         ``end_time``: the deadline to answer it (CM-21-016).  *id_*, when
         given, is the Offer's id, which the CASE_MANAGER derives from the
         proposal (OX-06-002); an id the store already holds hands back the

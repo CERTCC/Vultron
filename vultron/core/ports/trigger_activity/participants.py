@@ -164,7 +164,7 @@ class TriggerParticipantsPort(Protocol):
         The CASE_MANAGER's direct notice to a reinstated participant
         (CM-31-011): ``actor`` is the CASE_MANAGER, ``attributed_to`` the
         Case Owner who asked for the reinstatement (CM-24-001, CM-24-002)
-        and ``in_reply_to`` the Owner's request (CM-24-012); neither is set
+        and ``in_reply_to`` the Owner's request (CM-24-020); neither is set
         when the Owner is the CASE_MANAGER.
         The notice is delivery, not a record, so the caller does not ledger
         it.
@@ -189,7 +189,7 @@ class TriggerParticipantsPort(Protocol):
         The CASE_MANAGER's direct notice to a removed participant (CM-31-006):
         ``actor`` is the CASE_MANAGER, ``attributed_to`` the Case Owner who
         asked for the removal (CM-24-001, CM-24-002) and ``in_reply_to`` the
-        Owner's request (CM-24-012); neither is set when the Owner is the
+        Owner's request (CM-24-020); neither is set when the Owner is the
         CASE_MANAGER.  The notice is delivery,
         not a record, so the caller does not ledger it.
 

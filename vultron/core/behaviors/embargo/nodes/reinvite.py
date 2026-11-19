@@ -32,7 +32,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
 )
-from vultron.core.behaviors.embargo.proposer import embargo_proposer_id
+from vultron.core.behaviors.embargo.proposer import embargo_proposal
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -104,6 +104,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
             answers=answers,
         )
         self._invitee_id = invitee_id
+        self._proposal_request: str | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -164,16 +165,20 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         self._recipients = [self._invitee_id]
         # Whose terms these are (CM-24-002): the CASE_MANAGER's own when it
         # made the embargo without a proposal (ADR-0152).
-        self._proposer_id = (
-            embargo_proposer_id(
-                recorded_entries_for_case(
-                    case_id=self._case_id, dl=self.datalayer
-                ),
-                self._embargo_id,
-            )
-            or self.actor_id
+        proposal = embargo_proposal(
+            recorded_entries_for_case(
+                case_id=self._case_id, dl=self.datalayer
+            ),
+            self._embargo_id,
         )
+        self._proposer_id = proposal.proposer_id if proposal else self.actor_id
+        # The Invite carries out the proposal, not the act it answers
+        # (CM-24-020).
+        self._proposal_request = proposal.request_id if proposal else None
         return super().update()
+
+    def _carried_out_request(self) -> str | None:
+        return self._proposal_request
 
 
 class ReinviteRefusedAccepterNode(ReinviteStaleAccepterNode):

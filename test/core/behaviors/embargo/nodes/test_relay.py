@@ -79,7 +79,7 @@ OTHER_A = "https://example.org/actors/relay-a"
 OTHER_B = "https://example.org/actors/relay-b"
 ACTIVE_ID = f"{CASE_ID}/embargo_events/active"
 OTHER_PROPOSAL_ID = f"{CASE_ID}/embargo_events/other-proposal"
-#: The proposer's Invite the relay carries out (CM-24-012).
+#: The proposer's Invite the relay carries out (CM-24-020).
 PROPOSAL_INVITE_ID = "https://example.org/activities/relay-proposal"
 
 
@@ -576,7 +576,7 @@ class TestRelayEmbargoInviteToEachNode:
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
     @pytest.mark.spec("CM-24-005")
-    @pytest.mark.spec("CM-24-012")
+    @pytest.mark.spec("CM-24-020")
     def test_one_invite_per_recipient_as_the_manager_attributed_to_the_proposer(
         self, bt_scenario: BTTestScenario
     ) -> None:
@@ -593,7 +593,7 @@ class TestRelayEmbargoInviteToEachNode:
         )
         assert {a.actor for a in invites} == {MANAGER}
         assert {a.attributed_to for a in invites} == {PROPOSER}
-        # Each names the proposer's Invite it carries out (CM-24-012).
+        # Each names the proposer's Invite it carries out (CM-24-020).
         assert {a.in_reply_to for a in invites} == {PROPOSAL_INVITE_ID}
 
     @pytest.mark.executes_as(MANAGER)

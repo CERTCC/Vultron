@@ -74,7 +74,7 @@ sequenceDiagram
 2. The CASE_MANAGER commits and sends `Invite(VulnerabilityCase preview)[target=Actor]` to the actor's inbox.
    The `Invite` names the invited actor in its `target`.
    Its `object` is a reference to the case that carries the case stub as its `preview`, not the case itself (CM-11-013, CM-17-001).
-   The CASE_MANAGER is the ActivityStreams `actor`, and your identity is in `attributedTo` (PCR-08-007, PCR-08-019, PCR-08-008).
+   The CASE_MANAGER is the ActivityStreams `actor`, your identity is in `attributedTo`, and your request is in `inReplyTo` (PCR-08-007, PCR-08-019, PCR-08-008).
    The trigger's `202` response means only that your `Offer` was queued.
    Watch for the `Invite` on the CASE_MANAGER's ledger, not in the response.
 
@@ -90,7 +90,7 @@ sequenceDiagram
 
     If the Case Owner is in the `actor` field, a conformant peer does not recognize the invitation.
     The peer expects case-management handshakes to come from the CASE_MANAGER.
-    Record who asked for the invitation in `attributedTo` instead.
+    Record who asked for the invitation in `attributedTo`, and the request in `inReplyTo`, instead.
 
 ---
 

@@ -1246,7 +1246,7 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/embargo/proposal_index.py::record_embargo_proposal_index::case_id": 6588,
         "vultron/core/behaviors/embargo/proposal_index.py::record_embargo_proposal_index::embargo_id": 6588,
         "vultron/core/behaviors/embargo/proposal_index.py::record_embargo_proposal_index::proposal_id": 6588,
-        "vultron/core/behaviors/embargo/proposer.py::embargo_proposer_id::embargo_id": 6588,
+        "vultron/core/behaviors/embargo/proposer.py::embargo_proposal::embargo_id": 6588,
         "vultron/core/behaviors/embargo/refusal_tree.py::_answer::case_id": 6588,
         "vultron/core/behaviors/embargo/refusal_tree.py::_answer::invite_id": 6588,
         "vultron/core/behaviors/embargo/refusal_tree.py::_pxa_condition::case_id": 6588,

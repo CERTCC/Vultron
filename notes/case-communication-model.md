@@ -325,13 +325,17 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 ## Delegated-Message Pattern
 
 An activity a participant initiates but the protocol requires from the CASE_MANAGER is
-sent with `actor` = the CASE_MANAGER and `attributed_to` = the requester (CM-24-001,
-CM-24-002), queued in the CASE_MANAGER's outbox (CM-24-004).
+sent with `actor` = the CASE_MANAGER, `attributed_to` = the requester and `in_reply_to`
+= the request it received (CM-24-001, CM-24-002, CM-24-020), queued in the
+CASE_MANAGER's outbox (CM-24-004). A requester that is the CASE_MANAGER gets neither
+field (CM-24-021).
 
 - **Every delegated emit calls `delegated_authorship()`**
   (`vultron/core/behaviors/delegated_authorship.py`, CM-24-005); no callsite assigns
-  `actor`/`attributed_to` itself. The caller names both identities; the helper looks
-  nothing up. `test/architecture/test_delegated_attribution_uses_helper.py` enforces it.
+  `actor`/`attributed_to`/`in_reply_to` itself. The caller names both identities and
+  the request; the helper looks nothing up and raises on a distinct asker with no
+  request (CM-24-022). `test/architecture/test_delegated_attribution_uses_helper.py`
+  and `test_delegated_act_names_request.py` enforce it.
 - A trigger resolves the CASE_MANAGER with `resolve_case_manager_id()` and fails when
   there is none (CM-02-014); a received-side node passes `self.actor_id`, which the role
   gate makes the CASE_MANAGER.

@@ -106,7 +106,7 @@ def _owner_removes_vendor(case: _RemovalCase) -> Any:
 @pytest.mark.spec("CM-31-026")
 @pytest.mark.spec("CM-24-001")
 @pytest.mark.spec("CM-24-002")
-@pytest.mark.spec("CM-24-012")
+@pytest.mark.spec("CM-24-020")
 def test_notice_is_delegated_names_the_participant_and_is_not_ledgered(
     removal: _RemovalCase,
 ) -> None:
@@ -115,7 +115,7 @@ def test_notice_is_delegated_names_the_participant_and_is_not_ledgered(
     (notice,) = removal.activities_to("Remove", VENDOR)
     assert _as_id(notice.actor) == MANAGER
     assert notice.attributed_to == OWNER
-    # It names the owner's Remove it carries out (CM-24-012).
+    # It names the owner's Remove it carries out (CM-24-020).
     assert _as_id(notice.in_reply_to) == _REMOVE_ACTIVITY_ID
     assert [_as_id(t) for t in notice.to] == [VENDOR]
     assert _as_id(notice.object_) == _participant_id(VENDOR)

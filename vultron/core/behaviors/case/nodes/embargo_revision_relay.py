@@ -84,6 +84,12 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     proposal.  A redelivered proposal whose case was already created skips
     the initialization, publishes no candidate, and relays nothing.
 
+    **The Invite names the case proposal in ``inReplyTo``** (CM-24-020):
+    both parties' terms reached the CASE_MANAGER in it — the owner's actor
+    default and the reporter's proposed embargo it carries (EP-04-003,
+    CP-01-010) — so it is the request the relay carries out whichever party
+    lost.
+
     **The Invite's id is derived** from the proposal that created the case
     (*answers*), the case, the revision and the invitee, never minted
     (ID-04-004, OX-06-002), so the same act relays under one id however often

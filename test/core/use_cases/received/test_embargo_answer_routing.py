@@ -48,7 +48,7 @@ from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.reinvite import (
     ReinviteRefusedAccepterNode,
 )
-from vultron.core.behaviors.embargo.proposer import embargo_proposer_id
+from vultron.core.behaviors.embargo.proposer import embargo_proposal
 from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -567,9 +567,10 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     and the accepter is asked about the Active Embargo instead, a replica
     learning that from the ledger (EMB-17-003).  The re-invite is a relay
     (ADR-0152): the manager commits the fresh Invite as
-    ``invite_to_embargo_on_case``, ``attributedTo`` the embargo's
-    proposer, which for this case's creation-time embargo is the manager
-    itself.  The replica, replaying it through the relay slot, moves the
+    ``invite_to_embargo_on_case``, attributed to the embargo's proposer,
+    which for this case's creation-time embargo is the manager itself, so it
+    carries no ``attributedTo`` (CM-24-021).  The replica, replaying it
+    through the relay slot, moves the
     invitee's row for the embargo in force to ``INVITED`` with the Invite's
     new deadline and leaves EM alone (CM-28-013, EP-09-007).
     """
@@ -632,8 +633,12 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     entries = sorted(
         _entries(net, MANAGER, _INVITE), key=lambda e: e.log_index
     )
-    assert embargo_proposer_id(entries, active_before) in (None, MANAGER)
-    assert snapshot["attributedTo"] == MANAGER
+    proposal = embargo_proposal(entries, active_before)
+    assert proposal is None or proposal.proposer_id == MANAGER
+    # The manager's own terms credit no one and answer no request
+    # (CM-24-021).
+    assert "attributedTo" not in snapshot
+    assert "inReplyTo" not in snapshot
     assert snapshot["to"] == [BYSTANDER]
     # The entry is the body the outbox delivers, with the deadline as endTime.
     assert invite_rsvp_deadline(snapshot) == manager_deadline

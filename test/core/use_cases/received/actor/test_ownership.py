@@ -279,7 +279,7 @@ class TestOwnershipTransferUseCases:
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
     @pytest.mark.spec("CM-21-028")
-    @pytest.mark.spec("CM-24-012")
+    @pytest.mark.spec("CM-24-020")
     def test_proposal_makes_one_offer_minted_by_the_case_manager(
         self, make_payload
     ):
@@ -1467,7 +1467,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
     def test_accept_of_the_case_managers_offer_is_applied(self, make_payload):
         """The transferee answers the one Offer of the transfer, which the
         CASE_MANAGER made under its own id (ADR-0148).  The Offer names the
-        proposal it carries out (CM-24-012), but the answer names the Offer
+        proposal it carries out (CM-24-020), but the answer names the Offer
         itself, so there is no link to resolve."""
         case_id = "https://example.org/cases/case_ot_made_accept"
         dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)

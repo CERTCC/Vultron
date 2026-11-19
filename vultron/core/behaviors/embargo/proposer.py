@@ -22,6 +22,8 @@ of the embargo, to a joiner (EP-09-011) or to a late accepter (EMB-17-003),
 names the same proposer in ``attributedTo``.
 """
 
+from typing import NamedTuple
+
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics
@@ -31,16 +33,29 @@ from vultron.core.predicates.addressing import snapshot_actor_id
 _INVITE_SEMANTIC_TYPE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
 
 
-def embargo_proposer_id(
-    entries: list[CaseLedgerEntry], embargo_id: str
-) -> str | None:
-    """The proposer of *embargo_id*, from the first Invite entry carrying it.
+class EmbargoProposal(NamedTuple):
+    """Who proposed an embargo, and the request that proposed it.
 
-    *entries* is the case's ledger, oldest first.  ``attributedTo`` when the
-    entry names one, else ``actor``, both in the case's canonical spelling
-    (OID-01-006).  ``None`` when no committed Invite carries the embargo: the
-    CASE_MANAGER made it without a proposal, as it makes the protocol
-    default at case creation (EP-04-002).
+    *request_id* is the proposer's own Invite when the entry is it; for an
+    Invite the CASE_MANAGER relayed, it is the request that relay named in
+    ``inReplyTo`` (CM-24-020).  A relay of the embargo names it in
+    ``inReplyTo`` (CM-24-020).
+    """
+
+    proposer_id: str
+    request_id: str | None
+
+
+def embargo_proposal(
+    entries: list[CaseLedgerEntry], embargo_id: str
+) -> EmbargoProposal | None:
+    """The proposer of *embargo_id* and its request, from the first Invite entry.
+
+    *entries* is the case's ledger, oldest first.  The proposer is
+    ``attributedTo`` when the entry names one, else ``actor``, both in the
+    case's canonical spelling (OID-01-006).  ``None`` when no committed
+    Invite carries the embargo: the CASE_MANAGER made it without a proposal,
+    as it makes the protocol default at case creation (EP-04-002).
     """
     for entry in entries:
         if entry.semantic_type != _INVITE_SEMANTIC_TYPE:
@@ -48,10 +63,17 @@ def embargo_proposer_id(
         snapshot = entry.payload_snapshot
         if _extract_id_from_field(snapshot.get("object")) != embargo_id:
             continue
-        return snapshot_actor_id(
-            snapshot.get(wire_key("attributed_to"))
-        ) or snapshot_actor_id(snapshot.get("actor"))
+        attributed = snapshot_actor_id(snapshot.get(wire_key("attributed_to")))
+        proposer = attributed or snapshot_actor_id(snapshot.get("actor"))
+        if not proposer:
+            return None
+        request_id = (
+            _extract_id_from_field(snapshot.get(wire_key("in_reply_to")))
+            if attributed
+            else entry.log_object_id
+        )
+        return EmbargoProposal(proposer, request_id or None)
     return None
 
 
-__all__ = ["embargo_proposer_id"]
+__all__ = ["EmbargoProposal", "embargo_proposal"]

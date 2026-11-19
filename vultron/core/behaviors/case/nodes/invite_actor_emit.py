@@ -18,7 +18,7 @@
 Split out of ``actor.py`` (BTND-07-004).  Every stub Invite it emits carries a
 reply deadline (CM-11-014).  An Invite the CASE_MANAGER makes for another
 actor names that actor in ``attributedTo`` and the request it carries out in
-``inReplyTo`` (CM-24-002, CM-24-012); a replacement names the Invite it
+``inReplyTo`` (CM-24-002, CM-24-020); a replacement names the Invite it
 supersedes there instead (CM-11-044), which itself named the request.
 """
 
@@ -81,7 +81,7 @@ def build_stub_invite(
     ADR-0119).  *at* is the sending act's instant (ADR-0176): the Invite's
     ``published``, which its deadline is measured from.
     *authorship*, from :func:`delegated_authorship`, names who asked for the
-    Invite and the request it carries out (CM-24-005, CM-24-012); ``None`` is
+    Invite and the request it carries out (CM-24-005, CM-24-020); ``None`` is
     the CASE_MANAGER's own invitation.  *in_reply_to*, when given, is the
     stub Invite this one replaces (CM-11-044), named in place of the request.
     *activity_id*, when given, is the Invite's id; absent, the factory mints
@@ -110,7 +110,7 @@ def build_stub_invite(
     )
     # ``None`` is the manager's own invitation; otherwise the participant who
     # asked for it is the attributed author (PCR-08-007, CM-24-005), and a
-    # first Invite names the request it carries out (CM-24-012).
+    # first Invite names the request it carries out (CM-24-020).
     named_request = authorship.in_reply_to if authorship else None
     activity_id, activity_blob = factory.invite_actor_to_case(
         invitee_id=invitee_id,
@@ -165,7 +165,7 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
     (:meth:`_requester`) and the request it carries out
     (:meth:`_carried_out_request`) give its ``attributedTo`` and
     ``inReplyTo`` through the delegated-authorship helper (CM-24-005,
-    CM-24-012).
+    CM-24-020).
     """
 
     def __init__(
@@ -203,7 +203,7 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
         return self.attributed_to
 
     def _carried_out_request(self) -> str | None:
-        """The received request the Invite carries out (CM-24-012)."""
+        """The received request the Invite carries out (CM-24-020)."""
         return self._answered_request()
 
     def _authorship(self) -> DelegatedAuthorship | None:
