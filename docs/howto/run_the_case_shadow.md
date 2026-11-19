@@ -92,6 +92,7 @@ If the tool refuses a value, the menu shows why, and the tool sends no request.
 Type the case's id on that node in the **Case** box.
 The tool then follows the case live: the page shows the case's new standing each time the node adds an entry to the case's ledger.
 The case narrative gains a line for that entry and keeps every line before it.
+When you have picked an earlier point of the case, as Step 4 describes, a new entry adds its line and the scoreboard stays at the point you picked.
 The tool sends the node only `GET` requests of the case's demo ledger event-stream endpoint.
 When the connection drops, the tool connects again and asks only for the entries after the last one it received.
 A node that is not in prototype run mode does not serve that endpoint, so the tool shows an error that names the node and the case.
@@ -109,12 +110,17 @@ It still has no volume, and it still publishes its port on the loopback interfac
 
 ## Step 4: Read the scoreboard
 
-The page shows the case as it stands at its last ledger entry.
+The page shows the case as it stands at its last ledger entry, unless you pick an earlier point, as the end of this step describes.
 
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
-- **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳).
+  Below it, each of the two states is marked on a small map of its state machine, so you can see where the case could go next.
+- **Participants** lists each participant with its roles and its report state.
+  For a Vendor, it also shows the [Vendor Fix Path](../reference/glossary.md#cs-model-details) (vendor aware, fix ready, fix deployed) and a count of the desiderata met (✅), broken (❌), and still open (⏳).
   The count also shows the desiderata it cannot know (❔) when the source cannot observe an event, and those it cannot score (▫️) when the Vendor's case stands in no state of the chance model.
   For a Vendor with desiderata it cannot score, **Not scored because** names the rule of the chance model that the Vendor's case breaks.
+  Below the table, one tab for each participant marks its report state and its vendor fix path on the maps of their state machines.
+  Hover over a state or an arrow on a map to read it in words.
+  When the source cannot observe an event, such as a fix being ready, the page reads it as unknown (❔) and marks every state the case could be in with a dashed border.
 - **Desiderata** lists in words each desideratum that move advice weighs, with one column for each Vendor.
   These are the twelve original desiderata, the report-handling desiderata, and the embargo desiderata of [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md).
   Each group of equivalent desiderata shows once, under its first: Embargo Start before Public Awareness also stands for Embargo Start before Exploit Public and before Attacks Observed.
@@ -127,11 +133,14 @@ The page shows the case as it stands at its last ledger entry.
   A **Harm-free** move raises at least one Vendor above the chance value and lowers none.
   A **Trade-off** move raises one Vendor at another's cost.
   An **Unhelpful** move raises no Vendor; its band is closed until you open it.
-- In the harm-free and trade-off bands, each move's row is shaded by its layer, with layer 1 the darkest.
-  Layer 1 holds the moves that no other open move beats, and each move in a lighter layer is beaten by a move in a darker one.
+- In the harm-free and trade-off bands, each move's row is shaded by its layer.
+  Above its rows, each band shows a color legend labeled from better (layer 1) to dominated (deeper layers).
+  The legend has one numbered cell per layer, in the shade that layer's rows take.
+  The two bands use different color maps, so compare a row only with its own band's legend.
+  Layer 1 holds the moves that no other open move beats, and each move in a deeper layer is beaten by a move in layer 1.
   A ⭐ marks a top move: a harm-free or trade-off move in layer 1.
   A 👉 marks a coordinator's move that none of the coordinator's other moves beats.
-  Choose the darkest move in the highest band that has one.
+  Prefer the harm-free band; inside a band, moves at the 'better' end are dominated by no other move.
 - **Harms by vendor** lists each Vendor that a move leaves below the chance value, in its end or its embargo desiderata, with how far below.
   A harm-free move can still harm a Vendor's embargo desiderata when its end desiderata decide its band.
   A negative value means worse than the chance value, not a broken desideratum.
@@ -150,6 +159,15 @@ The tool reads each line from the ledger; nobody writes it by hand.
 - **State changes** lists each state the entry moved: a participant's report state (RM) and its fix path and deployment (VFD), and the case's embargo state (EM) and public state (PXA).
   A `?` in a VFD or PXA state is an event the source never records, which the page reads as unknown.
 - **Notes**, when shown, says what the tool could not read in an entry.
+
+To see whether a better move was open earlier, pick a narrative line in **Show the case as it stood just after**, above the scoreboard.
+The scoreboard then shows the case as it stood just after that entry: its states and their maps, its participants and their tabs, its desiderata, and its move bands with their color legends, worked out from the entries up to that line only.
+A note above the scoreboard names the entry, and the case narrative still lists every entry.
+A point before a missing entry has a standing, even when the whole ledger shows the missing entry instead.
+Pick **Now** to see where the case stands at its last entry again.
+The tool keeps one pick at a time.
+Another case shows where it stands now, and coming back to the first case shows its pick again.
+Picking a point in another case, or choosing another source, drops the pick.
 
 ---
 

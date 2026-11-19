@@ -24,6 +24,13 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from vultron.config.app import get_config
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, OBJECT_ID
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -78,14 +85,20 @@ def _to_persistable_entry(
 
 
 class ReconstructChainTailNode(DataLayerActionWithPorts):
-    def __init__(
-        self, case_id: str | None = None, name: str | None = None
-    ) -> None:
+    """Publish the local chain tail of the case, for the entry built next.
+
+    The case is ``/case_id`` when the run holds one (the commit tree seeds
+    it), else the case of the ``CaseLedgerEntry`` the received ``/activity``
+    carries.
+    """
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+        self._case_id: str | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
         "activity": PortInformation(data_type=object, required=False),
     }
 
@@ -97,6 +110,7 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
+            **act_key_remappings(CASE_ID),
             "activity": "/activity",
             "tail_hash": "/tail_hash",
             "tail_index": "/tail_index",
@@ -104,6 +118,7 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
 
     def initialise(self) -> None:
         super().initialise()
+        self._case_id = optional_act_value(self, CASE_ID, str)
         if self._case_id is None:
             try:
                 self.activity = self.get_input("activity")
@@ -194,7 +209,7 @@ class UpdateReplicationStateNode(CaseNamedReplayNode):
     The position is the activity's ``last_accepted_hash``: the one a
     ``Reject(CaseLedgerEntry)`` reports (SYNC-04-001), a
     ``Read(CaseLedgerEntry)`` states (SYNC-17-003), or any case activity
-    stamps (SYNC-18-007).  The case is *case_id* when the tree names it,
+    stamps (SYNC-18-007).  The case is ``/case_id`` when the tree seeds it,
     else the activity's ``replay_case_id``.  The ``published`` time the
     sender claims for the statement is kept beside it, the earliest claim
     for a restated position, so a fault the sender sent before reaching the
@@ -207,7 +222,7 @@ class UpdateReplicationStateNode(CaseNamedReplayNode):
     }
 
     @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
+    def _replay_port_remappings(cls) -> dict[str, str]:
         return {"activity": "/activity"}
 
     def initialise(self) -> None:
@@ -251,10 +266,13 @@ class UpdateReplicationStateNode(CaseNamedReplayNode):
 
 
 class CreateLogEntryNode(DataLayerActionWithPorts):
+    """Build the next ledger entry of ``/case_id`` recording ``/object_id``.
+
+    Both are read from their keys (BTND-01-008); the commit tree seeds them.
+    """
+
     def __init__(
         self,
-        case_id: str,
-        object_id: str,
         semantic_type: str,
         *,
         payload_snapshot: dict[str, Any] | None = None,
@@ -262,14 +280,13 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.object_id = object_id
         self.semantic_type = semantic_type
         self.payload_snapshot = dict(payload_snapshot or {})
         self.term = term
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, OBJECT_ID),
         "tail_hash": PortInformation(data_type=object, required=True),
         "tail_index": PortInformation(data_type=object, required=True),
     }
@@ -284,6 +301,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
+            **act_key_remappings(CASE_ID, OBJECT_ID),
             "tail_hash": "/tail_hash",
             "tail_index": "/tail_index",
             "log_entry": "/log_entry",
@@ -299,6 +317,8 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
+        self.case_id = act_value(self, CASE_ID, str)
+        self.object_id = act_value(self, OBJECT_ID, str)
 
         # One scan of this case's entries, shared by the
         # claimed-timestamp guard's predecessor lookup and the idempotency

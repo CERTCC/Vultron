@@ -96,6 +96,14 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         """Return ``(activity_id, sealed_blob)`` for an activity sent *to*."""
         raise NotImplementedError
 
+    def _act_case_id(self) -> str:
+        """The case the act is about: the constructor's, by default.
+
+        A subclass that reads its case from ``/case_id`` (BTND-01-008)
+        overrides this; #6572 moves the base there and drops the parameter.
+        """
+        return self._case_id
+
     def _audience_case(self, case: VulnerabilityCase) -> VulnerabilityCase:
         """The case whose recipients the activity is addressed to.
 
@@ -119,15 +127,16 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
 
     def _update_in_act(self) -> Status:
         """Build, queue and record the act; run inside :meth:`_one_act`."""
+        case_id = self._act_case_id()
         if self.trigger_activity_factory is None:
             # A composition fault, not a refusal: a FAILURE here can be read
             # by an enclosing Selector as a guard that did not pass (the
             # owner-close arm, CM-23-002), so it raises (ARCH-15-001).
             raise VultronWiringError(
                 f"{self.name}: {TRIGGER_FACTORY_UNAVAILABLE} to build the"
-                f" '{self._semantic_type}' activity of case '{self._case_id}'"
+                f" '{self._semantic_type}' activity of case '{case_id}'"
             )
-        case, failure = self._require_case(self._case_id)
+        case, failure = self._require_case(case_id)
         if failure is not None:
             # Regime 1 (ADR-0087).  A FAILURE, unlike the missing factory
             # above: every arm that composes this node has already read the
@@ -160,7 +169,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
             commit_emitted_activity(
                 datalayer=dl,
                 actor_id=actor_id,
-                case_id=self._case_id,
+                case_id=case_id,
                 activity_id=self._ledger_object_id(activity_id),
                 activity_blob=blob,
                 semantic_type=self._semantic_type,
@@ -172,7 +181,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         self.feedback_message = (
             f"CASE_MANAGER committed '{self._semantic_type}' entry for"
             f" {activity_id!r} on case"
-            f" '{self._case_id}' ({len(to)} participant(s) addressed)"
+            f" '{case_id}' ({len(to)} participant(s) addressed)"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS

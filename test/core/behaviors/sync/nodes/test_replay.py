@@ -20,6 +20,8 @@ from test.support.act_runner import run_tree
 from test.support.objects import authored_at, make, with_times
 from test.support.received import extract_stamped, peer_position
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.sync.nodes import (
     CollectAndSortCaseLedgerEntriesNode,
     CollectLogEntryRecipientsNode,
@@ -31,6 +33,7 @@ from vultron.core.behaviors.sync.nodes import (
     SendLogEntryToEachNode,
     SendMissingEntriesNode,
 )
+from vultron.core.behaviors.sync.nodes.replay_case import CaseNamedReplayNode
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     read_replication_state,
 )
@@ -402,7 +405,7 @@ def test_fanout_log_entry_node_announces_only_an_entry_newly_recorded():
 
     Otherwise it collects the recipients, then sends to each.
     """
-    tree = FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry")
+    tree = FanOutLogEntryNode(name="FanOutLogEntry")
     assert isinstance(tree, py_trees.composites.Selector)
     skip, announce = tree.children
     assert isinstance(skip, LogEntryCommittedBeforeNode)
@@ -472,7 +475,10 @@ def test_fanout_log_entry_node_sends_to_active_participants(bridge, datalayer):
 
     result = run_tree(
         bridge,
-        tree=FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry"),
+        tree=with_act_keys(
+            FanOutLogEntryNode(name="FanOutLogEntry"),
+            {act_keys.CASE_ID: CASE_ID},
+        ),
         actor_id=OWNER_ACTOR_ID,
         log_entry=entry,
         sync_port=sync_port,
@@ -500,7 +506,10 @@ def test_fanout_log_entry_node_without_sync_port_is_a_wiring_fault(
 
     result = run_tree(
         bridge,
-        tree=FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry"),
+        tree=with_act_keys(
+            FanOutLogEntryNode(name="FanOutLogEntry"),
+            {act_keys.CASE_ID: CASE_ID},
+        ),
         actor_id=OWNER_ACTOR_ID,
         log_entry=_make_entry(0),
     )
@@ -653,3 +662,31 @@ def test_a_position_that_names_no_entry_replays_from_the_start(
     assert (
         py_trees.blackboard.Blackboard.storage.get("/replay_from_index") == -1
     )
+
+
+@pytest.mark.spec("BTND-01-008")
+def test_a_case_named_replay_subclass_gets_the_case_port_and_binding() -> None:
+    """The base adds the ``/case_id`` port, so no subclass can leave it out."""
+
+    class _Replay(CaseNamedReplayNode, register=False):
+        @classmethod
+        def _replay_port_remappings(cls) -> dict[str, str]:
+            return {"activity": "/activity"}
+
+    assert "named_case_id" in _Replay.INPUT_PORTS
+    assert _Replay._domain_port_remappings() == {
+        "named_case_id": act_keys.CASE_ID.path,
+        "activity": "/activity",
+    }
+
+
+@pytest.mark.spec("BTND-01-008")
+def test_a_case_named_replay_subclass_may_not_replace_the_case_binding() -> (
+    None
+):
+    with pytest.raises(TypeError, match="_replay_port_remappings"):
+
+        class _Replay(CaseNamedReplayNode, register=False):
+            @classmethod
+            def _domain_port_remappings(cls) -> dict[str, str]:
+                return {"activity": "/activity"}

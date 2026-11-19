@@ -40,6 +40,12 @@ import py_trees
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -101,15 +107,16 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
     ``close_case`` entry and its closure steps, and nothing after them.  The
     joined participants that are not active (not signatories to the active
     embargo, or removed, CM-31-001) go to ``fanout_withheld``, so the send
-    node can pause their streams (CM-10-005).
+    node can pause their streams (CM-10-005).  The case is read from
+    ``/case_id`` (BTND-01-008).
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
         "log_entry": PortInformation(data_type=CaseLedgerEntry, required=True),
     }
 
@@ -117,7 +124,7 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return dict(_COLLECTOR_REMAPPINGS)
+        return {**_COLLECTOR_REMAPPINGS, **act_key_remappings(CASE_ID)}
 
     def initialise(self) -> None:
         super().initialise()
@@ -136,7 +143,7 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
         # returned SUCCESS — silently dropping replication of a committed entry
         # even though the commit tree treats non-SUCCESS as a real failure
         # (ADR-0073, BT-05-006).
-        case_obj, failure = self._require_case(self.case_id)
+        case_obj, failure = self._require_case(act_value(self, CASE_ID, str))
         if failure is not None:
             return failure
 
@@ -393,9 +400,11 @@ class FanOutLogEntryNode(py_trees.composites.Selector):
     derived announcement id is not used instead, because a receiver that
     refused an announcement (a gap, an unseeded case) must accept the same
     entry when it is replayed to it later (SYNC-03-001, SYNC-15-001).
+
+    The recipients are collected for ``/case_id``, which the caller seeds.
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(
             name=name or self.__class__.__name__,
             memory=False,
@@ -406,7 +415,6 @@ class FanOutLogEntryNode(py_trees.composites.Selector):
                     memory=False,
                     children=[
                         CollectLogEntryRecipientsNode(
-                            case_id=case_id,
                             name="CollectLogEntryRecipients",
                         ),
                         SendLogEntryToEachNode(name="SendLogEntryToEach"),

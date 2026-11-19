@@ -12,11 +12,14 @@ Spec: SHD-01-002, SHD-01-004, SHD-03-002.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
+from itertools import pairwise
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from test.measure.history.builders import two_vendors_ledger
 from test.support.ledger_stream import recording_rows
 from vultron.config import clear_config_cache, config_override
 from vultron.config.shadow import ShadowConfig
@@ -27,27 +30,36 @@ from vultron.measure.advice import (
     HARM_NOTE,
     HELP_TEXT,
     Band,
+    case_advice,
 )
 from vultron.measure.baselines import scope_desiderata
+from vultron.measure.standing import case_standing
+from vultron.shadow.analysis import analyse, point_analysis
+from vultron.shadow.dashboard import minimap, view
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
+    END_UNCONFIRMED_NOTE,
     HEARTBEAT_KEY,
     LAST_READING_KEY,
     LIVE_NOTE,
     NARRATIVE_NOTE,
     NO_ENTRY_NOTE,
     NOT_LIVE_NOTE,
+    POINT_KEY,
     TITLE,
 )
 from vultron.shadow.dashboard.view import (
     BAND_EMPTY,
     DESIDERATA_NOTE,
     EM_BADGES,
+    LATEST_POINT,
     LEADING_MARK,
+    LEGEND_BETTER,
+    LEGEND_DOMINATED,
     RM_BADGES,
     TOP_MARK,
 )
-from vultron.shadow.readers import CaseSource
+from vultron.shadow.readers import CaseSource, VultronCaseReader
 
 #: Seconds one script run may take; the first run imports the measures.
 _TIMEOUT = 60
@@ -117,7 +129,8 @@ render(Empty())
 
 #: A page following a case through the live reader over a scripted stream.
 #: ``__ANSWERS__`` is replaced by one tuple of scripted answers per follow,
-#: the last one repeated; ``rows`` are the rv recording's first rows.  The
+#: the last one repeated; ``rows`` are the rv recording's first rows, of its
+#: ``every_row``.  The
 #: follow is watched: after the page takes each item, the size of the
 #: reading it kept is recorded in ``seen``.
 _FOLLOW_PAGE = """
@@ -131,7 +144,8 @@ from test.support.ledger_stream import (
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.shadow.dashboard.page import LAST_READING_KEY, render
 
-rows = recording_rows(RECORDINGS_DIR / "rv" / "case-actor.jsonl")[:3]
+every_row = recording_rows(RECORDINGS_DIR / "rv" / "case-actor.jsonl")
+rows = every_row[:3]
 bad = sse_event({"type": "CaseLedgerEntry"}, 1)
 
 
@@ -185,7 +199,7 @@ _COLUMNS = {
         "Roles",
         "Joined",
         "Report",
-        "Case state",
+        "Fix path",
         "Desiderata",
         "Not scored because",
         "Actor",
@@ -320,6 +334,132 @@ def test_a_case_with_no_scored_vendor_names_no_left_out_desideratum(
     assert DESIDERATA_NOTE not in captions
 
 
+def test_each_state_is_shown_on_its_machines_map(recordings_app):
+    """#6674 AC-1: the case's EM and public state, then each participant's
+    RM and fix path in its own tab, each on its map with its state marked."""
+    case = "rcvv-embargo/case-actor.jsonl"
+    at = recordings_app.run()
+    at.selectbox[0].select(case).run()
+    assert not at.exception
+    analysis = analyse(
+        VultronCaseReader(root=RECORDINGS_DIR).read_case(
+            str(RECORDINGS_DIR / case)
+        )
+    )
+    standing = analysis.standing
+    assert standing is not None and standing.case is not None
+    participants = minimap.participant_minimaps(
+        standing.participants, analysis.actor_names
+    )
+    expected = list(minimap.case_minimaps(standing.case))
+    for p in participants:
+        expected.extend(m for m in (p.rm, p.vfd) if m is not None)
+    charts = at.get("graphviz_chart")
+    assert [c.proto.spec for c in charts] == [m.dot for m in expected]
+    assert [t.label for t in at.tabs] == [p.tab for p in participants]
+    captions = _texts(at.caption)
+    assert all(m.caption in captions for m in expected)
+    assert any(p.vfd is None for p in participants)
+    assert minimap.NO_FIX_PATH in captions
+
+
+_NO_PARTICIPANTS_PAGE = """
+from vultron.shadow.dashboard.page import _show_participant_minimaps
+
+_show_participant_minimaps([], {})
+"""
+
+
+#: One participant whose name, from the case's source, is Markdown.
+_MARKDOWN_NAME_PAGE = """
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.measure.sequences import (
+    UnprojectableParticipant,
+    UnprojectableReason,
+)
+from vultron.measure.standing import CaseStanding, ParticipantStanding
+from vultron.shadow.dashboard.page import _show_participant_minimaps
+
+VENDOR = "https://vendor.example/actors/vendor"
+_show_participant_minimaps(
+    [
+        ParticipantStanding(
+            participant=VENDOR,
+            rm=RM.RECEIVED,
+            case=CaseStanding(em=EM.NONE, pxa=CS_pxa.pxa),
+            unscored=UnprojectableParticipant(
+                participant=VENDOR,
+                reason=UnprojectableReason.NO_CASE_STATE_EVENTS,
+                detail="it has no event of its own",
+            ),
+        )
+    ],
+    {VENDOR: "![x](https://host.example/p.png)"},
+)
+"""
+
+
+def test_a_participants_tab_shows_its_name_as_literal_text():
+    """A name from the case's source reaches its tab escaped, so the page
+    never renders it as Markdown (an image would fetch an outside URL)."""
+    at = AppTest.from_string(
+        _MARKDOWN_NAME_PAGE, default_timeout=_TIMEOUT
+    ).run()
+    assert not at.exception
+    assert [t.label for t in at.tabs] == [
+        minimap.markdown_literal("![x](https://host.example/p.png)")
+    ]
+
+
+def test_a_standing_with_no_participant_draws_no_participant_tabs():
+    at = AppTest.from_string(
+        _NO_PARTICIPANTS_PAGE, default_timeout=_TIMEOUT
+    ).run()
+    assert not at.exception
+    assert not at.tabs
+    assert not at.get("graphviz_chart")
+
+
+#: The fake case, read from a source that cannot observe attacks or a
+#: fix being ready.
+_UNSEEN_PAGE = """
+from test.support.case_reader import FAKE_CASE, FakeCaseReader, fake_case_records
+from vultron.core.models.case_reading import UnobservableFact
+from vultron.core.states.cs_invariants import CSEvent
+from vultron.shadow.dashboard.page import render
+
+
+class Unseen(FakeCaseReader):
+    unobservable = (
+        UnobservableFact(
+            fact="Attacks (A), fix ready (F)",
+            why="No field records them.",
+            events=frozenset({CSEvent.A, CSEvent.F}),
+        ),
+    )
+
+
+render(Unseen({FAKE_CASE: fake_case_records()}))
+"""
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_event_reads_as_unknown_on_the_page():
+    """The top row's badge and the public-state map both read an event the
+    source cannot observe as unknown."""
+    at = AppTest.from_string(_UNSEEN_PAGE, default_timeout=_TIMEOUT).run()
+    at.text_input[0].input("urn:uuid:case-1").run()
+    assert not at.exception
+    assert _texts(at.metric)[3] == "❔ Attacks Observed unknown"
+    pxa = at.get("graphviz_chart")[1]
+    assert "dashed" in pxa.proto.spec
+    assert any(
+        c.endswith("❔ Attacks Observed unknown") for c in _texts(at.caption)
+    )
+
+
 def test_a_recorded_case_shows_its_narrative_one_line_per_entry(
     recordings_app,
 ):
@@ -340,6 +480,187 @@ def test_a_recorded_case_shows_its_narrative_one_line_per_entry(
     assert "EM: " in changes and "VFD: " in changes and "PXA: " in changes
 
 
+#: The tables a scoreboard draws, which follow the picked point.
+_SCOREBOARD = ("Participants", "Harm-free", "Trade-off", "Moves with no band")
+
+
+def _scoreboard(at: AppTest) -> dict[str, object]:
+    """What the page's scoreboard shows: its metrics, its captions, its
+    state maps and participant tabs, its Markdown (map titles, band titles
+    and legend strips) and each of its tables, ``None`` for one it draws
+    empty."""
+    shown: dict[str, object] = {
+        "metrics": _texts(at.metric),
+        # A past point does not hedge on the case's end, as a cut file must.
+        "captions": [
+            c for c in _texts(at.caption) if c != END_UNCONFIRMED_NOTE
+        ],
+        "maps": [chart.proto.spec for chart in at.get("graphviz_chart")],
+        "tabs": [tab.label for tab in at.tabs],
+        "markdown": _texts(at.markdown),
+    }
+    for frame in at.dataframe:
+        columns = frame.value.columns.tolist()
+        heading = next(
+            (h for h, c in _COLUMNS.items() if c == columns), columns[0]
+        )
+        if heading in _SCOREBOARD or heading == "Desideratum":
+            shown[heading] = frame.value.to_dict("list")
+    return shown
+
+
+def _point_picker(at: AppTest):
+    (picker,) = [box for box in at.selectbox if box.label.startswith("Show")]
+    return picker
+
+
+def _cut_page(tmp_path, recording, count: int) -> AppTest:
+    """The page over a copy of *recording* cut after *count* entries."""
+    rows = recording.read_text().splitlines()[:count]
+    (tmp_path / "cut.jsonl").write_text("\n".join(rows) + "\n")
+    with config_override(VULTRON_SHADOW__LEDGER_DIR=str(tmp_path)):
+        at = AppTest.from_file(str(APP_PATH), default_timeout=_TIMEOUT).run()
+        at.selectbox[0].select("cut.jsonl").run()
+    assert not at.exception
+    return at
+
+
+_RCVV = RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
+
+
+@pytest.mark.parametrize("log_index", [3, 30])
+def test_picking_a_narrative_line_shows_the_case_just_after_it(
+    recordings_app, tmp_path, log_index
+):
+    """#6671 AC-1: the states, desiderata and move bands at line N are the
+    ones a reading of entries up to N alone shows; the narrative stays
+    whole."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    now = _scoreboard(at)
+    picker = _point_picker(at)
+    assert picker.value == LATEST_POINT
+    picker.select(log_index).run()
+    assert not at.exception
+    assert _point_picker(at).value == log_index
+    assert at.session_state[POINT_KEY] == (
+        "rcvv-embargo/case-actor.jsonl",
+        log_index,
+    )
+    assert any(f"just after entry #{log_index}" in i for i in _texts(at.info))
+    at_point = _scoreboard(at)
+    assert at_point != now
+    assert at_point == _scoreboard(_cut_page(tmp_path, _RCVV, log_index + 1))
+    entries = recording_rows(_RCVV)
+    assert len(_table(at, "Case narrative")) == len(entries)
+
+
+def _legend_cells(at: AppTest) -> dict[str, list[str]]:
+    """Each shaded band's legend cells, by the band's title."""
+    markdowns = _texts(at.markdown)
+    return {
+        title.strip("*"): _BACKGROUND.findall(legend)
+        for title, legend in pairwise(markdowns)
+        if LEGEND_BETTER in legend
+    }
+
+
+def test_the_state_maps_and_band_legends_follow_the_picked_point(
+    recordings_app,
+):
+    """#6674: the EM and public-state maps, each participant's RM and fix
+    path maps, and #6673's band legends are drawn from the picked point's
+    standing, not from where the case stands now.
+
+    At entry #57 of this recording the harm-free band has two layers and
+    the trade-off band has moves, where at its end the harm-free band has
+    one layer and the trade-off band none.
+    """
+    log_index = 57
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    now = _scoreboard(at)
+    _point_picker(at).select(log_index).run()
+    assert not at.exception
+    analysis = point_analysis(
+        analyse(VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RCVV))),
+        log_index,
+    )
+    standing = analysis.standing
+    assert standing is not None and standing.case is not None
+    participants = minimap.participant_minimaps(
+        standing.participants, analysis.actor_names
+    )
+    expected = list(minimap.case_minimaps(standing.case))
+    for p in participants:
+        expected.extend(m for m in (p.rm, p.vfd) if m is not None)
+    at_point = _scoreboard(at)
+    assert at_point["maps"] == [m.dot for m in expected]
+    assert at_point["maps"] != now["maps"]
+    assert at_point["tabs"] == [p.tab for p in participants]
+    legends = {
+        band.title: [s.background for s in band.legend]
+        for band in view.band_views(
+            case_advice(standing), analysis.actor_names
+        )
+        if band.rows and band.shaded
+    }
+    assert set(legends) == {"Harm-free", "Trade-off"}
+    assert _legend_cells(at) == legends
+    _point_picker(at).select(LATEST_POINT).run()
+    assert _legend_cells(at) != legends
+
+
+def test_picking_now_shows_where_the_case_stands_again(recordings_app):
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    now = _scoreboard(at)
+    _point_picker(at).select(3).run()
+    assert _scoreboard(at) != now
+    _point_picker(at).select(LATEST_POINT).run()
+    assert not at.exception
+    assert POINT_KEY not in at.session_state
+    assert _scoreboard(at) == now
+    assert not any("just after entry" in i for i in _texts(at.info))
+
+
+def test_a_past_point_does_not_hedge_that_the_case_may_have_moved_on():
+    """The fake case's end is unproven: its last entry hedges, and an
+    earlier point, after which the case is known to move on, does not."""
+    at = AppTest.from_string(_FAKE_PAGE, default_timeout=_TIMEOUT).run()
+    at.text_input[0].input("urn:uuid:case-1").run()
+    assert END_UNCONFIRMED_NOTE in _texts(at.caption)
+    picker = _point_picker(at)
+    first, *_, last = picker.options[1:]
+    picker.select(last).run()
+    assert not at.exception
+    assert END_UNCONFIRMED_NOTE in _texts(at.caption)
+    _point_picker(at).select(first).run()
+    assert not at.exception
+    assert END_UNCONFIRMED_NOTE not in _texts(at.caption)
+
+
+@pytest.mark.parametrize(
+    "kept",
+    [("rv/case-actor.jsonl", 3), ("rcvv-embargo/case-actor.jsonl", 9999)],
+    ids=["another case", "an entry the reading does not reach"],
+)
+def test_a_pick_this_reading_cannot_show_leaves_the_case_as_it_stands(
+    recordings_app, kept
+):
+    """A pick of another case, or of an entry the reading does not hold
+    yet, shows the case now; a pick of this case is kept for later."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    now = _scoreboard(at)
+    at.session_state[POINT_KEY] = kept
+    at.run()
+    assert not at.exception
+    assert _point_picker(at).value == LATEST_POINT
+    assert _scoreboard(at) == now
+    assert at.session_state[POINT_KEY] == kept
+
+
 @pytest.fixture(scope="module")
 def advice_app() -> AppTest:
     """The advice section for a case with a move in every band."""
@@ -354,7 +675,12 @@ def test_the_bands_are_shown_in_order_with_the_unhelpful_one_collapsed(
     """AC-1: harm-free, trade-off, then the unhelpful band as a closed
     group the analyst can open."""
     at = advice_app
-    assert _texts(at.markdown)[:2] == ["**Harm-free**", "**Trade-off**"]
+    # Band titles appear in markdown, with legends between them
+    markdowns = _texts(at.markdown)
+    band_titles = [
+        m for m in markdowns if m.startswith("**") and m.endswith("**")
+    ]
+    assert band_titles[:2] == ["**Harm-free**", "**Trade-off**"]
     (unhelpful,) = at.expander
     assert unhelpful.label.startswith("Unhelpful (")
     assert unhelpful.proto.expanded is False
@@ -392,6 +718,38 @@ def test_the_page_shows_the_marks_help_text_and_harm_note(advice_app):
     assert DOMINATED_BY_HARM_FREE in trade_off["Dominated by"].tolist()
 
 
+_BACKGROUND = re.compile(r"background-color: (#[0-9a-f]{6})")
+
+
+@pytest.mark.spec("SHD-03-003", "SHD-03-004")
+def test_each_shaded_band_shows_a_legend_in_its_rows_shades(advice_app):
+    """#6673 AC-1, AC-2: one legend under each shaded band's title, labelled
+    at both ends, its cells the band's own layer shades and holding each
+    row's shade; the help text is shown and no caption says "darkest"."""
+    at = advice_app
+    captions = _texts(at.caption)
+    assert HELP_TEXT in captions
+    assert not any("darkest" in c.lower() for c in captions)
+    markdowns = _texts(at.markdown)
+    legends = [m for m in markdowns if LEGEND_BETTER in m]
+    assert len(legends) == 2
+    expected = {
+        b.title: b
+        for b in view.band_views(
+            case_advice(case_standing(two_vendors_ledger().case_ledger())), {}
+        )
+    }
+    for heading in ("Harm-free", "Trade-off"):
+        legend = markdowns[markdowns.index(f"**{heading}**") + 1]
+        assert LEGEND_BETTER in legend and LEGEND_DOMINATED in legend
+        assert legend.index(LEGEND_BETTER) < legend.index(LEGEND_DOMINATED)
+        cells = _BACKGROUND.findall(legend)
+        assert cells == [s.background for s in expected[heading].legend]
+        styles = _frame(at, heading).proto.arrow_data.styler.styles
+        row_backgrounds = set(_BACKGROUND.findall(styles))
+        assert row_backgrounds and row_backgrounds <= set(cells)
+
+
 def test_the_moves_with_no_band_are_listed_with_why(advice_app):
     """AC-6: each unbanded move, with its reason."""
     unbanded = _table(advice_app, "Moves with no band")
@@ -424,7 +782,7 @@ def test_the_untranslated_facts_are_shown_beside_the_analysis():
         "Fix deployed (D)"
     ]
     # Nothing proves the fake case's last entry is its last.
-    assert any("may have moved on since" in c for c in _texts(at.caption))
+    assert END_UNCONFIRMED_NOTE in _texts(at.caption)
 
 
 def test_a_blank_case_is_no_case():
@@ -547,6 +905,52 @@ def test_a_followed_case_adds_a_narrative_line_per_entry_and_keeps_the_rest():
     assert first["#"].tolist() == [0]
     assert three["#"].tolist() == [0, 1, 2]
     assert three.iloc[:1].equals(first)
+
+
+def test_a_new_entry_does_not_move_the_picked_point():
+    """#6671 AC-3: picked at #0 while following, the scoreboard stays at #0
+    as the rerun's follow replays the case and new entries arrive.
+
+    The rv recording's standing first changes at its 11th and 13th entries,
+    so the case as it stands now differs from the case at #0.
+    """
+    at = _follow_page(
+        "(sse_rows(every_row[:11]) + CLOSE,),"
+        " (sse_rows(every_row[:13]) + CLOSE,)"
+    )
+    now = _scoreboard(at)
+    _point_picker(at).select(0).run()
+    assert not at.exception
+    assert at.session_state["follows"] == 2
+    # The kept reading, its replay, then the two new entries.
+    assert at.session_state["seen"][-3:] == [11, 12, 13]
+    assert _point_picker(at).value == 0
+    assert _table(at, "Case narrative")["#"].tolist() == list(range(13))
+    assert any("just after entry #0" in i for i in _texts(at.info))
+    one_entry = _scoreboard(_follow_page("(sse_rows(rows[:1]) + CLOSE,)"))
+    assert one_entry != now
+    assert _scoreboard(at) == one_entry
+
+
+def test_a_pick_at_the_latest_entry_stops_hedging_once_entries_follow():
+    """Picked at a followed case's last entry, the scoreboard hedges that
+    the case may have moved on; once later entries arrive the pick is a
+    past point, after which the case is known to move on, and the hedge
+    goes."""
+    at = _follow_page(
+        "(sse_rows(every_row[:11]) + CLOSE,),"
+        " (sse_rows(every_row[:13]) + CLOSE,)"
+    )
+    assert END_UNCONFIRMED_NOTE in _texts(at.caption)
+    # The first follow's last entry: the 11th, at log index 10.
+    last = 10
+    assert _point_picker(at).options[-1].startswith(f"#{last} ")
+    _point_picker(at).select(last).run()
+    assert not at.exception
+    assert at.session_state["follows"] == 2
+    assert _point_picker(at).value == last
+    assert _table(at, "Case narrative")["#"].tolist() == list(range(13))
+    assert END_UNCONFIRMED_NOTE not in _texts(at.caption)
 
 
 @pytest.mark.spec("SHD-04-005")

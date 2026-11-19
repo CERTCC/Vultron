@@ -21,7 +21,11 @@ from vultron.config.app import AppConfig
 from vultron.config.shadow import ShadowConfig
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.shadow.dashboard.app import APP_PATH, NO_SOURCE_NOTE
-from vultron.shadow.dashboard.page import CASE_KEY, LAST_READING_KEY
+from vultron.shadow.dashboard.page import (
+    CASE_KEY,
+    LAST_READING_KEY,
+    POINT_KEY,
+)
 from vultron.shadow.dashboard.source_menu import (
     NODE_ACTOR_KEY,
     NODE_URL_KEY,
@@ -132,13 +136,16 @@ def test_choosing_a_node_reads_through_the_live_reader(app, monkeypatch):
 
 
 def test_switching_sources_drops_the_case_and_its_kept_reading(app):
-    """AC-2: a case read from one source is never shown under another."""
+    """AC-2: a case read from one source is never shown under another, nor
+    at a point picked in it (#6671)."""
     at = app.run()
     at.selectbox[0].select("rv/case-actor.jsonl").run()
     assert "Participants" in _texts(at.subheader)
     at.session_state[LAST_READING_KEY] = ("rv/case-actor.jsonl", None)
+    at.session_state[POINT_KEY] = ("rv/case-actor.jsonl", 2)
     _choose(at, CaseSource.NODE)
     assert LAST_READING_KEY not in at.session_state
+    assert POINT_KEY not in at.session_state
     assert "Participants" not in _texts(at.subheader)
     _choose(at, CaseSource.RECORDINGS)
     assert at.selectbox[0].value is None

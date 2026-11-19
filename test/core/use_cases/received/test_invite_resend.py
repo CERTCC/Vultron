@@ -53,6 +53,8 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.config import get_config
 from vultron.config.ledger import LedgerConfig
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.full_case_invite import (
     FULL_CASE_INVITE_SEMANTIC_TYPE,
@@ -867,8 +869,9 @@ def test_an_owed_invite_with_no_sync_port_is_a_wiring_error(make_payload):
 
     result = run_tree(
         BTBridge(datalayer=dl),
-        tree=invite_resend.ResendOwedInvitesNode(
-            case_id=case_id, sender_id=JOINER
+        tree=with_act_keys(
+            invite_resend.ResendOwedInvitesNode(),
+            {act_keys.CASE_ID: case_id, act_keys.SENDER_ID: JOINER},
         ),
         actor_id=MANAGER,
         activity=read,

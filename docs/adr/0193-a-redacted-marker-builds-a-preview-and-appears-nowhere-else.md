@@ -2,8 +2,12 @@
 status: accepted-provisional
 date: 2026-11-12
 created: 2026-11-12
-updated: 2026-11-12
-revision: 1
+updated: 2026-11-19
+revision: 2
+status_override: >-
+  Edited in place at the maintainer's direction (#6641 planning, 2026-11-19):
+  any preview field may carry the marker, and a held value not shown is
+  redacted unless its existence is itself sensitive (ADR-0217).
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
@@ -44,9 +48,10 @@ The case is the first object with a preview; a report, a reserved vul record or 
 
 Chosen option: "A marker allowed only in the fields of a preview, as one way to build the preview", because it lets an invitee learn that a withheld value exists while a full object, and so every stored case, keeps strict types and never holds a marker.
 
-A sender builds a preview from the full object and makes one of three choices for each field: show the value, redact it, or leave it out.
-Leaving a field out says nothing, and is the default.
-Redacting a field says that it has a value, so a sender redacts only where the recipient needs that fact.
+A sender builds a preview from the full object and makes one choice for each field: show the value, redact it, or leave it out (ADR-0217 adds substituting a value).
+A preview is a loose form of its object, so any of its fields may carry the marker.
+A held value the sender does not show is redacted, so the recipient can tell a withheld value from a missing one.
+Redacting a field says that it has a value, so where that existence is itself the sensitive fact, the sender leaves the field out instead.
 A receiver refuses a marker anywhere other than a preview's field.
 
 Anonymity is a different concept and is not built on this marker.
@@ -58,9 +63,9 @@ Because the case and its ledger are shared, the alias is what the case holds, an
 
 - Good, because a recipient can tell "this case has no score yet" from "this case has a score you cannot see yet".
 - Good, because full objects keep their field types, so no handler or stored record has to cope with a marker in place of a value.
-- Good, because the default of leaving a field out discloses nothing a sender did not choose to disclose.
+- Good, because a sender can still leave out a field whose mere existence it does not choose to disclose.
 - Bad, because a field of a full object cannot be withheld while the rest of the object is sent; that need, where it exists, is met by an alias or by keeping the value outside the case.
-- Bad, because every preview type must declare which of its fields may carry the marker.
+- Bad, because a redaction discloses that a value exists, so a sender has to judge, field by field, whether that existence is itself sensitive.
 
 ## Validation
 
@@ -81,6 +86,7 @@ A receiver test confirms that a marker in a preview's field parses as the marker
 - Good, because a preview is already a limited view that is never the object, so a marker never becomes part of a real object.
 - Good, because the recipient can be told that a withheld value exists.
 - Neutral, because it needs a preview to exist; the case stub is the only one today.
+- Neutral, because each preview type needs a loose form of its object, whose fields are optional and may carry the marker.
 
 ### No marker: a preview leaves every withheld field out
 
@@ -95,7 +101,7 @@ A receiver test confirms that a marker in a preview's field parses as the marker
 
 ## More Information
 
-Planned in #4568; the case preview is #6244, wider previews are #6257, and pseudonymous reporting is #2562.
+Planned in #4568, with the preview's fields decided in #6641 (ADR-0217); the case preview is #6244, wider previews are #6257, and pseudonymous reporting is #2562.
 The marker is declared as a Vultron extension term under the rule #5743 writes.
 
 Generated spec requirements: `message-validation.yaml` MV-12-001 through MV-12-005.

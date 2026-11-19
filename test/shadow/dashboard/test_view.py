@@ -30,7 +30,7 @@ from vultron.core.models.case_reading import (
     UntranslatedFact,
     UntranslatedReason as Reason,
 )
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
@@ -86,6 +86,7 @@ from vultron.measure.standing import (
 )
 from vultron.shadow.analysis import analyse
 from vultron.shadow.dashboard import view
+from vultron.shadow.dashboard.case_state import VFD_BADGES
 from vultron.shadow.readers import VultronCaseReader
 
 VENDOR = "https://vendor.example/actors/vendor"
@@ -104,6 +105,24 @@ def test_every_state_and_status_has_a_badge():
     assert set(view.DESIDERATUM_BADGES) == set(DesideratumStatus)
     assert set(view.EVENT_LABELS) == set(CSEvent)
     assert set(view.DESIDERATUM_EVENT_LABELS) == set(EventKind)
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_public_event_reads_as_unknown_never_as_false():
+    assert view.public_badges(CS_pxa.pxa, {CSEvent.A}) == (
+        "🤫 Not public",
+        "🛡️ No public exploit",
+        "❔ Attacks Observed unknown",
+    )
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_public_event_the_reading_says_happened_stays_happened():
+    assert view.public_badges(CS_pxa.PXa, {CSEvent.P}) == (
+        "📢 Public aware",
+        "💥 Exploit public",
+        "🛡️ No attacks observed",
+    )
 
 
 def test_the_public_state_reads_as_three_badges():
@@ -146,7 +165,7 @@ def test_a_report_handling_desideratum_reads_in_its_own_events():
     assert view.desideratum_code(accepted) == "Ac ≺ P"
 
 
-def test_participant_rows_show_report_state_case_state_and_tally():
+def test_participant_rows_show_report_state_fix_path_and_tally():
     analysis = _analysis()
     assert analysis.standing is not None
     rows = view.participant_rows(
@@ -154,11 +173,11 @@ def test_participant_rows_show_report_state_case_state_and_tally():
     )
     vendor = next(r for r in rows if r["Participant"] == "Vendor")
     assert vendor["Report"] == view.RM_BADGES[RM.CLOSED]
-    assert vendor["Case state"] == "VFdPxa"
+    assert vendor["Fix path"] == VFD_BADGES[(CS_vf.VF, CS_d.d)]
     assert str(vendor["Desiderata"]).startswith("✅ ")
     assert vendor["Not scored because"] == ""
     manager = next(r for r in rows if "CASE_MANAGER" in str(r["Roles"]))
-    assert manager["Case state"] == "—"
+    assert manager["Fix path"] == "—"
     assert manager["Not scored because"]
 
 
@@ -290,6 +309,8 @@ def test_an_unknown_desideratum_shows_its_own_badge_and_count():
         if r["Participant"] == "Vendor"
     )
     assert "❔ 3" in str(vendor["Desiderata"])
+    # The fix path reads D, which the source cannot see, as unknown.
+    assert vendor["Fix path"] == "❔ Fix ready or fix deployed"
 
 
 def test_a_tally_with_no_unknown_desideratum_shows_no_unknown_count():
@@ -502,6 +523,79 @@ def test_a_shade_reads_as_a_cells_css():
     assert view.Shade(background="#440154", text="#ffffff").css == (
         "background-color: #440154; color: #ffffff"
     )
+
+
+@pytest.mark.parametrize("deepest", [1, 2, 4])
+def test_a_legend_is_each_layers_shade_from_better_to_dominated(deepest):
+    """#6673 AC-1: one cell per layer, each the shade that layer's rows
+    take, layer 1 at the dark end."""
+    for colour_map in ColourMap:
+        legend = view.band_legend_shades(colour_map, deepest)
+        assert legend == tuple(
+            view.shade(colour_map, layer, deepest)
+            for layer in range(1, deepest + 1)
+        )
+        assert legend[0].background == view.COLOUR_STOPS[colour_map][0]
+        if deepest > 1:
+            assert legend[-1].background == view.COLOUR_STOPS[colour_map][-1]
+
+
+def test_a_legend_needs_a_layer():
+    with pytest.raises(ValueError):
+        view.band_legend_shades(ColourMap.VIRIDIS, 0)
+
+
+@pytest.mark.spec("SHD-03-003")
+def test_a_bands_legend_holds_each_layers_shade_in_its_own_map(advice):
+    """#6673 AC-1: each shaded band's legend is drawn from its own map, and
+    every row's shade is its layer's cell on that legend."""
+    deepest = max(m.layer or 1 for m in advice.moves)
+    views = _views(advice)
+    for band in advice.bands[:2]:
+        assert band.colour_map is not None
+        band_view = views[band.band]
+        assert band_view.legend == view.band_legend_shades(
+            band.colour_map, deepest
+        )
+        for move, row_shade in zip(band.moves, band_view.shades, strict=True):
+            assert row_shade == band_view.legend[(move.layer or 0) - 1]
+    assert views[Band.HARM_FREE].legend != views[Band.TRADE_OFF].legend
+    assert views[Band.UNHELPFUL].legend == ()
+
+
+def test_a_shaded_band_has_a_legend_holding_its_rows_shades():
+    """A shaded band's legend is not optional, and a row shade that is not
+    on it is refused; the unhelpful band has none."""
+    dark, light = view.band_legend_shades(ColourMap.VIRIDIS, 2)
+    row: view.Row = {"Layer": 1}
+    with pytest.raises(ValueError, match="a shaded band has a legend"):
+        view.BandView(
+            band=Band.HARM_FREE,
+            title="Harm-free",
+            collapsed=False,
+            rows=(row,),
+            shades=(dark,),
+            empty="none",
+        )
+    with pytest.raises(ValueError, match="not on the legend"):
+        view.BandView(
+            band=Band.HARM_FREE,
+            title="Harm-free",
+            collapsed=False,
+            rows=(row,),
+            shades=(view.shade(ColourMap.CIVIDIS, 1, 2),),
+            legend=(dark, light),
+            empty="none",
+        )
+    with pytest.raises(ValueError, match="the unhelpful band has no legend"):
+        view.BandView(
+            band=Band.UNHELPFUL,
+            title="Unhelpful",
+            collapsed=True,
+            rows=(),
+            legend=(dark,),
+            empty="none",
+        )
 
 
 _SHADE = view.Shade(background="#440154", text="#ffffff")
@@ -838,3 +932,36 @@ def test_an_actor_with_no_name_reads_by_its_uri_or_as_unnamed():
     assert view.actor_label(
         "urn:uuid:1e7a421f-b727-4c1d-9a3e-0f6b2c9d8e71", {}
     ) == (UNNAMED_ACTOR)
+
+
+# -- the point picker (#6671) ----------------------------------------------
+
+
+_POINTS = (
+    _line(log_index=0, phrase="Case Actor created the case"),
+    _line(log_index=1, phrase="Vendor accepted the embargo"),
+    _line(log_index=3, phrase="Vendor closed the report"),
+)
+
+
+def test_the_points_are_now_then_each_line_in_ledger_order():
+    assert view.point_options(_POINTS) == [view.LATEST_POINT, 0, 1, 3]
+    assert view.point_options(()) == [view.LATEST_POINT]
+
+
+def test_a_point_reads_as_its_line_and_now_reads_as_now():
+    """A line reads by its activity, which names its actor (DRPT-03-009)."""
+    assert view.point_label(1, _POINTS) == "#1 · Vendor accepted the embargo"
+    assert view.point_label(view.LATEST_POINT, _POINTS) == (
+        view.LATEST_POINT_LABEL
+    )
+    with pytest.raises(ValueError, match="no line at 2"):
+        view.point_label(2, _POINTS)
+
+
+def test_the_point_note_names_the_entry_and_how_many_entries_it_reads():
+    """Entry #3 follows a hole, so it is the third entry of three."""
+    note = view.point_note(1, _POINTS)
+    assert "just after entry #1" in note
+    assert "first 2 of 3 entries only" in note
+    assert "first 3 of 3 entries only" in view.point_note(3, _POINTS)

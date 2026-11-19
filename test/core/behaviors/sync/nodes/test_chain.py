@@ -20,6 +20,8 @@ from test.support.act_runner import run_tree
 from test.support.objects import authored_at, make, with_times
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.nodes import (
     CreateLogEntryNode,
@@ -77,12 +79,18 @@ def _canonical_case_announce_snapshot() -> dict[str, object]:
 def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
     result = run_tree(
         bridge,
-        tree=CreateLogEntryNode(
-            case_id=CASE_ID,
-            object_id="https://example.org/activities/act-1",
-            semantic_type="note_added",
-            payload_snapshot=_canonical_note_snapshot(PARTICIPANT_ACTOR_ID),
-            name="CreateLogEntry",
+        tree=with_act_keys(
+            CreateLogEntryNode(
+                semantic_type="note_added",
+                payload_snapshot=_canonical_note_snapshot(
+                    PARTICIPANT_ACTOR_ID
+                ),
+                name="CreateLogEntry",
+            ),
+            {
+                act_keys.CASE_ID: CASE_ID,
+                act_keys.OBJECT_ID: "https://example.org/activities/act-1",
+            },
         ),
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,
@@ -101,11 +109,7 @@ def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
 @pytest.mark.spec("CLP-07-011")
 def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
     """Omitting payload_snapshot gives an empty dict on the node instance."""
-    node = CreateLogEntryNode(
-        case_id=CASE_ID,
-        object_id="https://example.org/activities/act-2",
-        semantic_type="note_added",
-    )
+    node = CreateLogEntryNode(semantic_type="note_added")
     assert node.payload_snapshot == {}
     assert node.payload_snapshot is not None
 
@@ -177,12 +181,16 @@ def test_create_log_entry_node_rejects_non_canonical_snapshots(
 ):
     result = run_tree(
         bridge,
-        tree=CreateLogEntryNode(
-            case_id=CASE_ID,
-            object_id="https://example.org/activities/act-invalid",
-            semantic_type="note_added",
-            payload_snapshot=snapshot,
-            name="CreateLogEntry",
+        tree=with_act_keys(
+            CreateLogEntryNode(
+                semantic_type="note_added",
+                payload_snapshot=snapshot,
+                name="CreateLogEntry",
+            ),
+            {
+                act_keys.CASE_ID: CASE_ID,
+                act_keys.OBJECT_ID: "https://example.org/activities/act-invalid",
+            },
         ),
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,
@@ -197,12 +205,13 @@ def test_create_log_entry_node_rejects_non_canonical_snapshots(
 def test_create_log_entry_node_allows_case_authored_announce(bridge):
     result = run_tree(
         bridge,
-        tree=CreateLogEntryNode(
-            case_id=CASE_ID,
-            object_id=CASE_ID,
-            semantic_type="case_announced",
-            payload_snapshot=_canonical_case_announce_snapshot(),
-            name="CreateLogEntry",
+        tree=with_act_keys(
+            CreateLogEntryNode(
+                semantic_type="case_announced",
+                payload_snapshot=_canonical_case_announce_snapshot(),
+                name="CreateLogEntry",
+            ),
+            {act_keys.CASE_ID: CASE_ID, act_keys.OBJECT_ID: CASE_ID},
         ),
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,
@@ -235,8 +244,9 @@ class TestReconstructChainTailPreGenesisLogging:
         with caplog.at_level(logging.DEBUG, logger=node_logger):
             result = run_tree(
                 bridge,
-                tree=ReconstructChainTailNode(
-                    case_id=CASE_ID, name="ReconstructChainTail"
+                tree=with_act_keys(
+                    ReconstructChainTailNode(name="ReconstructChainTail"),
+                    {act_keys.CASE_ID: CASE_ID},
                 ),
                 actor_id=OWNER_ACTOR_ID,
             )
@@ -257,8 +267,9 @@ class TestReconstructChainTailPreGenesisLogging:
     def test_pre_genesis_writes_replay_sentinel(self, bridge):
         result = run_tree(
             bridge,
-            tree=ReconstructChainTailNode(
-                case_id=CASE_ID, name="ReconstructChainTail"
+            tree=with_act_keys(
+                ReconstructChainTailNode(name="ReconstructChainTail"),
+                {act_keys.CASE_ID: CASE_ID},
             ),
             actor_id=OWNER_ACTOR_ID,
         )
@@ -576,12 +587,18 @@ def test_create_log_entry_node_entry_carries_hashed_received_at(bridge):
 
     result = run_tree(
         bridge,
-        tree=CreateLogEntryNode(
-            case_id=CASE_ID,
-            object_id="https://example.org/activities/act-1",
-            semantic_type="note_added",
-            payload_snapshot=_canonical_note_snapshot(PARTICIPANT_ACTOR_ID),
-            name="CreateLogEntry",
+        tree=with_act_keys(
+            CreateLogEntryNode(
+                semantic_type="note_added",
+                payload_snapshot=_canonical_note_snapshot(
+                    PARTICIPANT_ACTOR_ID
+                ),
+                name="CreateLogEntry",
+            ),
+            {
+                act_keys.CASE_ID: CASE_ID,
+                act_keys.OBJECT_ID: "https://example.org/activities/act-1",
+            },
         ),
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,
@@ -620,12 +637,16 @@ def test_create_log_entry_node_stamps_the_envelope_and_keeps_the_claimed_time(
 
     result = run_tree(
         bridge,
-        tree=CreateLogEntryNode(
-            case_id=CASE_ID,
-            object_id="https://example.org/activities/act-claimed",
-            semantic_type="note_added",
-            payload_snapshot=snapshot,
-            name="CreateLogEntry",
+        tree=with_act_keys(
+            CreateLogEntryNode(
+                semantic_type="note_added",
+                payload_snapshot=snapshot,
+                name="CreateLogEntry",
+            ),
+            {
+                act_keys.CASE_ID: CASE_ID,
+                act_keys.OBJECT_ID: "https://example.org/activities/act-claimed",
+            },
         ),
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,

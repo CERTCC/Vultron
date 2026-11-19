@@ -148,7 +148,8 @@ def test_commit_tree_fans_out_only_after_it_persists():
     # A Sequence runs a child only after the one before it succeeds; the
     # mint is one transaction (#5047).
     assert type(mint) is ActTransaction
-    kinds = [type(child) for child in mint.children]
+    # A seeded node sits one level below its seeding scope.
+    kinds = [type(unscoped(child)) for child in mint.children]
     assert kinds.index(PersistLogEntryNode) < kinds.index(FanOutLogEntryNode)
     assert kinds[-1] is FanOutLogEntryNode
 

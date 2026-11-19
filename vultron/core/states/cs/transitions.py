@@ -112,6 +112,24 @@ _pxa_transitions = [
 ]
 
 
+def vf_transition_rows() -> tuple[VfTransition, ...]:
+    """The VF transition table as typed rows, in table order (for tools that
+    draw or export the machine)."""
+    return tuple(VfTransition.model_validate(t) for t in _vf_transitions)
+
+
+def d_transition_rows() -> tuple[DTransition, ...]:
+    """The D transition table as typed rows, in table order (for tools that
+    draw or export the machine)."""
+    return tuple(DTransition.model_validate(t) for t in _d_transitions)
+
+
+def pxa_transition_rows() -> tuple[PxaTransition, ...]:
+    """The PXA transition table as typed rows, in table order (for tools
+    that draw or export the machine)."""
+    return tuple(PxaTransition.model_validate(t) for t in _pxa_transitions)
+
+
 def is_valid_vf_transition(source: CS_vf, dest: CS_vf) -> bool:
     """Return True if (source → dest) is a valid VF state transition."""
     return any(

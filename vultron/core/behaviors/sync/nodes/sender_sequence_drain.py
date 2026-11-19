@@ -23,7 +23,14 @@ inherits no hold and no held activity is lost.
 from typing import cast
 
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.sender_sequence_order import (
@@ -43,20 +50,30 @@ class DrainSequenceHoldsNode(DataLayerActionWithPorts):
     replays follow this delivery through the inbox, before any later
     delivery, so the outgoing CASE_MANAGER keeps nothing held and sends no
     notice for any of them.  Its writes are the CASE_MANAGER's own
-    bookkeeping (SYNC-21-020), never case state.
+    bookkeeping (SYNC-21-020), never case state.  The case is read from
+    ``/case_id`` (BTND-01-008).
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID)
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
         self.ended = 0
         """How many holds the last run ended."""
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
+        case_id = act_value(self, CASE_ID, str)
         self.ended = end_case_sender_sequence_holds(
-            cast(CasePersistence, self.datalayer), self.case_id
+            cast(CasePersistence, self.datalayer), case_id
         )
         if self.ended:
             self.logger.info(
@@ -64,6 +81,6 @@ class DrainSequenceHoldsNode(DataLayerActionWithPorts):
                 " the CASE_MANAGER role passes (SYNC-21-025)",
                 self.name,
                 self.ended,
-                self.case_id,
+                case_id,
             )
         return Status.SUCCESS

@@ -52,6 +52,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes.reinvite import (
     InviteReinstatedParticipantToEmbargoNode,
 )
@@ -172,7 +173,7 @@ def create_add_case_participant_received_tree(
             ReinstateCaseParticipantReceivedNode(
                 participant_id=participant_id, case_id=case_id
             ),
-            BackfillAdmittedParticipantsNode(case_id=case_id),
+            with_case_id(BackfillAdmittedParticipantsNode(), case_id),
             EmitParticipantReinstatementNoticeNode(
                 participant_id=participant_id,
                 case_id=case_id,

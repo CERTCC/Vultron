@@ -30,7 +30,20 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import (
+    ANNOUNCE_ID,
+    REFUSED_ENTRY,
+    SENDER_ID,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.case_ledger import ledger_entry_hash_intact
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
@@ -84,8 +97,9 @@ _VERDICT: dict[OwnCopyCheck, str] = {
 class ReportHashMismatchNode(DataLayerActionWithPorts):
     """Log a replica's hash-mismatch fault at ERROR, with a self-check.
 
-    *refused_entry* is the entry the fault's ``inReplyTo`` ``Announce``
-    (*announce_id*) carried; *peer_id* is the replica that refused it.  The
+    *refused_entry* (``/refused_entry``) is the entry the fault's
+    ``inReplyTo`` ``Announce`` (``/announce_id``) carried; the peer
+    (``/sender_id``, the fault's sender) is the replica that refused it.  The
     node re-checks this store's own copy of that entry
     (:func:`check_own_copy`) and logs one ERROR record naming the case, the
     ``Announce``, the entry, the sender and the result, kept in
@@ -100,18 +114,17 @@ class ReportHashMismatchNode(DataLayerActionWithPorts):
     Spec: SYNC-03-008, SYNC-03-010.
     """
 
-    def __init__(
-        self,
-        refused_entry: CaseLedgerEntry,
-        *,
-        peer_id: str,
-        announce_id: str,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(REFUSED_ENTRY, SENDER_ID, ANNOUNCE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(REFUSED_ENTRY, SENDER_ID, ANNOUNCE_ID)
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.refused_entry = refused_entry
-        self.peer_id = peer_id
-        self.announce_id = announce_id
         self.own_copy: OwnCopyCheck | None = None
         """The result of the last run's self-check; ``None`` before one."""
 
@@ -119,7 +132,9 @@ class ReportHashMismatchNode(DataLayerActionWithPorts):
         self.own_copy = None
         if (f := self._require_datalayer()) is not None:
             return f
-        entry = self.refused_entry
+        entry = act_value(self, REFUSED_ENTRY, CaseLedgerEntry)
+        peer_id = act_value(self, SENDER_ID, str)
+        announce_id = act_value(self, ANNOUNCE_ID, str)
         self.own_copy = check_own_copy(
             cast(CasePersistence, self.datalayer), entry.id_
         )
@@ -129,11 +144,11 @@ class ReportHashMismatchNode(DataLayerActionWithPorts):
             " reproduce its hash (SYNC-03-007). Self-check: %s; %s. Nothing"
             " is replayed or re-seeded for it (SYNC-03-008, SYNC-03-010)",
             self.name,
-            self.peer_id,
+            peer_id,
             entry.id_,
             entry.log_index,
             entry.case_id,
-            self.announce_id,
+            announce_id,
             self.own_copy.value,
             _VERDICT[self.own_copy],
         )

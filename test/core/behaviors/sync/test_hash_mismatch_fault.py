@@ -474,11 +474,7 @@ def test_a_hash_mismatch_fault_naming_no_announce_is_refused(caplog) -> None:
 @pytest.mark.spec("SYNC-03-010")
 def test_the_report_node_fails_without_a_datalayer() -> None:
     """With no store to read, the node fails and records no self-check."""
-    node = ReportHashMismatchNode(
-        _ledger_entry("0" * 64),
-        peer_id=_PARTICIPANT_ID,
-        announce_id="urn:x:announce",
-    )
+    node = ReportHashMismatchNode()
 
     assert node.update() is Status.FAILURE
     assert node.own_copy is None

@@ -25,6 +25,8 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.sync.nodes import SendRejectLogEntryNode
 from vultron.core.behaviors.sync.nodes.ledger_position import (
     PeerActiveParticipantNode,
@@ -40,10 +42,12 @@ def test_an_undecided_standing_asked_for_active_is_a_refusal(
     bt_scenario: BTTestScenario,
 ) -> None:
     """A case this store does not hold leaves the standing undecided."""
-    node = PeerActiveParticipantNode(
-        case_id=CASE_ID, sender_id=_SENDER, active=True
+    node = PeerActiveParticipantNode(active=True)
+    bt_scenario.run(
+        with_act_keys(
+            node, {act_keys.CASE_ID: CASE_ID, act_keys.SENDER_ID: _SENDER}
+        )
     )
-    bt_scenario.run(node)
     assert node.status == Status.FAILURE
     assert node.declared_refusal is not None
     assert node.declared_refusal.startswith(node.feedback_message)
@@ -56,10 +60,12 @@ def test_the_branch_asked_for_not_active_declares_no_refusal(
     bt_scenario: BTTestScenario,
 ) -> None:
     """``active=False`` only picks a branch of the position answer."""
-    node = PeerActiveParticipantNode(
-        case_id=CASE_ID, sender_id=_SENDER, active=False
+    node = PeerActiveParticipantNode(active=False)
+    bt_scenario.run(
+        with_act_keys(
+            node, {act_keys.CASE_ID: CASE_ID, act_keys.SENDER_ID: _SENDER}
+        )
     )
-    bt_scenario.run(node)
     assert node.status == Status.FAILURE
     assert node.declared_refusal is None
 
