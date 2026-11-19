@@ -264,8 +264,9 @@ def vulnerability_item_from_claims(
 
     Its ``ids``, ``title`` and ``notes`` are copied as claimed, its ``cve``
     becoming the first ``ids`` entry, with system ``CVE`` (CM-05-018,
-    :func:`ids_from_csaf`), and no identifier is interpreted (CM-05-008); each of its references becomes
-    a case reference held inline on the item.  The item and its references
+    :func:`ids_from_csaf`), and no identifier is interpreted (CM-05-008);
+    each of its references becomes a case reference held inline on the
+    item.  The item and its references
     are stamped *published*, the instant of the act that creates them
     (ADR-0176).
 

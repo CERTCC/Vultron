@@ -1061,8 +1061,9 @@ groups:
       vulnerabilities in and out field by field. Pairing each identifier with
       its tracking system names its namespace without parsing its value (CM-05-008,
       ADR-0187). A reader finds all of a vul's identifiers in one list; CSAF's own
-      `cve` field maps to and from the `CVE` entry (CSAF-03-008). The `title` travels as AS2 `name`, which means the same, because a
-      Vultron term never duplicates an AS2 term (VM-10-009, ADR-0194).
+      `cve` field maps to and from the `CVE` entry (CSAF-03-008). The `title` travels
+      as AS2 `name`, which means the same, because a Vultron term never duplicates an
+      AS2 term (VM-10-009, ADR-0194).
     verification: >-
       A test marked `CM-05-018` builds a vulnerability item from each field, asserts it
       refuses a `cve` key, and asserts a CSAF 2.1 vulnerability entry's `cve`, `ids`,
