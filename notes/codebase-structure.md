@@ -247,13 +247,16 @@ calls `dispose_actor_engines()`; in in-memory mode that also destroys the databa
 
 ---
 
-## Cross-Actor TestClient Router: Keep Blocking `post()` off the Portal Loop
+## Cross-Actor TestClient Router: Each Blocking Hop Gets Its Own Thread
 
-In the multi-actor demo harness (`test/demo/conftest.py`), the router's `emit()` runs
-on the sending app's `TestClient` portal loop, while `TestClient.post()` blocks and
-drives the target through its own portal. Calling it inline blocks the sender and can
-deadlock the two portals, so the harness runs the post through
-`anyio.to_thread.run_sync`. It posts the sealed body as-is (`content=`, not `json=`),
+In the multi-actor demo harness (`vultron/demo/in_process.py`), every blocking
+`TestClient` hop (the router's `POST`, the fetcher's `GET`) runs off the portal loop
+through `_call_off_loop`, on a thread of its own (a one-token limiter), never one from
+the loop's shared AnyIO pool. Off the loop, because co-hosted actors share one
+`TestClient` and a hop made on its loop waits on itself. Its own thread, because a
+`TestClient` call returns only after the target's background tasks, which deliver
+onward, so a chain holds one thread per hop and can run a shared pool dry (#6190).
+The router posts the sealed body as-is (`content=`, not `json=`),
 never re-serializing what the ledger recorded (VM-08-003).
 
 ---
