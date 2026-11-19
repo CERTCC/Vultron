@@ -31,6 +31,7 @@ failures starting at "Offer(CaseParticipant) for V2 arrived in C1's DataLayer"
 and ending with a 422 from ``accept-actor-recommendation``.
 """
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -156,7 +157,7 @@ def _offer_node() -> EmitOfferCaseParticipantToOwnerNode:
     )
 
 
-def _note_node() -> EmitNoteDuplicateRecommendationToOwnerNode:
+def _note_node() -> py_trees.behaviour.Behaviour:
     return with_case_id(
         EmitNoteDuplicateRecommendationToOwnerNode(
             recommendation_id=RECOMMENDATION_ID,

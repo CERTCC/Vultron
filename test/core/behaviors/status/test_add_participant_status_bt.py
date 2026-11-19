@@ -1873,6 +1873,7 @@ class TestEmitRMGapNoteNode:
         )
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
         gap_note = unscoped(node)
+        assert isinstance(gap_note, EmitRMGapNoteNode)
         real_require_case = gap_note._require_case
         calls: list[str] = []
 

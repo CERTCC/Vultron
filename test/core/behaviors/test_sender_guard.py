@@ -571,9 +571,11 @@ def test_named_actor_picks_the_check_for_the_record_holding_its_request(
         ),
         NO_CASE_PATHS if case_id is None else IN_CASE_PATHS,
     )
-    assert type(unscoped(guard)) is check
-    assert isinstance(unscoped(guard), SenderIsRequestAddresseeNode)
-    assert unscoped(guard).guards_kind is Kind.NAMED_ACTOR
+    assert guard is not None
+    node = unscoped(guard)
+    assert type(node) is check
+    assert isinstance(node, SenderIsRequestAddresseeNode)
+    assert node.guards_kind is Kind.NAMED_ACTOR
 
 
 def test_named_actor_without_its_request_record_is_a_wiring_error() -> None:
@@ -794,8 +796,10 @@ def test_author_kind_admits_only_the_objects_author(
             authored_object=AuthoredNote(note_id=NOTE_ID),
         ),
     )
-    assert isinstance(unscoped(guard), SenderIsNoteAuthorNode)
-    assert unscoped(guard).guards_kind is Kind.AUTHOR
+    assert guard is not None
+    check = unscoped(guard)
+    assert isinstance(check, SenderIsNoteAuthorNode)
+    assert check.guards_kind is Kind.AUTHOR
     result = _store_with_note(VENDOR).run(
         guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=sender)
     )
@@ -843,8 +847,10 @@ def _proposal_author_guard(sender: str) -> py_trees.behaviour.Behaviour:
         ),
         NO_CASE_PATHS,
     )
-    assert isinstance(unscoped(guard), SenderIsProposalAuthorNode)
-    assert unscoped(guard).guards_kind is Kind.AUTHOR
+    assert guard is not None
+    check = unscoped(guard)
+    assert isinstance(check, SenderIsProposalAuthorNode)
+    assert check.guards_kind is Kind.AUTHOR
     return guard
 
 
