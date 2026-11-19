@@ -445,9 +445,11 @@ def add_participant_status_tree(
                     # The CSB-18 note is the CASE_MANAGER's own act, committed and
                     # replicated (#4829); it reads the post-teardown EM, so a
                     # teardown that failed is reported (CSB-18-002..004).
-                    PxaEmInvariantDiagnosticNode(
-                        case_id=tree_case_id,
-                        name="PxaEmInvariantDiagnostic",
+                    with_case_id(
+                        PxaEmInvariantDiagnosticNode(
+                            name="PxaEmInvariantDiagnostic",
+                        ),
+                        tree_case_id,
                     ),
                     rm_gap_note(actor_id, tree_case_id),
                 ],

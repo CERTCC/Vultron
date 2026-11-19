@@ -141,8 +141,8 @@ as the case's own field, `embargoRegister`, reduced to its in-force entry, as
 `active_embargo` is not a field, so the preview does not carry it. Today a
 register entry wraps the embargo and its status; ADR-0202 makes it the embargo
 itself, and the reduction is the same either way. With no embargo in force our
-reduction is empty, so the field is omitted. The CVE ID becomes an ordinary
-`ids` entry (`systemName: "CVE"`) once the item's `cve` field goes (#6693).
+reduction is empty, so the field is omitted. The CVE ID is an ordinary `ids`
+entry (`systemName: "CVE"`), so the cut to `ids` keeps it (CM-05-018).
 Our cut, with an embargo in force:
 
 ```json

@@ -30,7 +30,11 @@ from typing import Any
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
+from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.services.idempotent_store import idempotent_store
 
@@ -42,7 +46,19 @@ class StoreReceivedObjectNode(DataLayerActionWithPorts):
     already-held object is a benign no-op, not a failure.  ``FAILURE`` only
     when the DataLayer is unavailable (ARCH-15-001).  An unexpected storage
     error propagates to the bridge, which classifies it as an internal error.
+
+    The id of the activity that carried the object, which a missing object's
+    warning names, is the received event's on ``/activity`` (BT-05-003).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
 
     def __init__(
         self,
@@ -50,7 +66,6 @@ class StoreReceivedObjectNode(DataLayerActionWithPorts):
         id_key: str | None,
         obj: Any,
         label: str,
-        activity_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -58,19 +73,19 @@ class StoreReceivedObjectNode(DataLayerActionWithPorts):
         self.id_key = id_key
         self.obj = obj
         self.label = label
-        self.activity_id = activity_id
         self.outcome: HandlerResult | None = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
+        event = self._try_get_input("activity")
         self.outcome = idempotent_store(
             self.datalayer,
             self.type_key,
             self.id_key,
             self.obj,
             self.label,
-            self.activity_id,
+            event.activity_id if isinstance(event, VultronEvent) else None,
         )
         return Status.SUCCESS

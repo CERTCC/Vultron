@@ -38,6 +38,7 @@ from test.adapters.connectors.vince._support import (
     INACTIVE,
     UNKNOWN,
     actors_by_name,
+    cve_of,
     projected,
     reads,
     records,
@@ -207,7 +208,7 @@ def test_a_malformed_cve_is_untranslated_and_the_vul_kept():
         Reason.UNKNOWN_VALUE,
     ) in _facts(reading)
     assert [
-        item.get("cve") for item in records(reading, "VulnerabilityItem")
+        cve_of(item) for item in records(reading, "VulnerabilityItem")
     ] == [
         None,
         None,

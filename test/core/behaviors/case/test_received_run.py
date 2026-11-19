@@ -33,6 +33,7 @@ from test.support.received import (
 )
 from test.support.sender_guard import guard_tree, staged_sender_guard
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.act_key_scope import unscoped
 from vultron.core.behaviors.bridge import BTExecutionResult
 from vultron.core.behaviors.case.nodes.incomplete_activity import (
     ActivityIncompleteNode,
@@ -747,12 +748,15 @@ def _closed_door_tree(
         ),
     )
     if sender_closed is not None:
-        (door,) = (
+        (scope,) = (
             n
             for n in tree.children
-            if isinstance(n, SenderClosureNotRecordedNode)
+            if isinstance(unscoped(n), SenderClosureNotRecordedNode)
         )
+        door = unscoped(scope)
+        assert isinstance(door, SenderClosureNotRecordedNode)
         tree.status = Status.FAILURE
+        scope.status = Status.FAILURE
         door.status = Status.FAILURE
         door.sender_closed = sender_closed
         door.feedback_message = _CLOSURE

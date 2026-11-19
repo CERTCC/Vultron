@@ -227,7 +227,7 @@ class TestEmitCloseCaseNodePorts:
 
 class TestEmitRMGapNoteNodePorts:
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=CASE_ID)
+        node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("datalayer")
@@ -236,7 +236,7 @@ class TestEmitRMGapNoteNodePorts:
         self, bt_scenario: BTTestScenario
     ) -> None:
         result = bt_scenario.run(
-            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=None),
+            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID),
             actor_id=ACTOR_ID,
         )
         bt_scenario.assert_success(result)

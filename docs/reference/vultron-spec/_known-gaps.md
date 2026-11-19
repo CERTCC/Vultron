@@ -272,6 +272,7 @@ print(requirement_callout(
     "CM-34-007",
     "CM-34-008",
     "CM-34-010",
+    "CM-34-011",
 ))
 ```
 
@@ -281,15 +282,6 @@ print(requirement_callout(
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "CM-05-010",
-))
-```
-
-### Tracked by [#6410](https://github.com/CERTCC/Vultron/issues/6410)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "EP-01-002",
 ))
 ```
 
@@ -347,16 +339,6 @@ print(requirement_callout(
     "CM-11-024",
     "CM-11-025",
     "VAM-06-004",
-))
-```
-
-### Tracked by [#6410](https://github.com/CERTCC/Vultron/issues/6410)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "EP-01-003",
-    "EP-01-005",
 ))
 ```
 

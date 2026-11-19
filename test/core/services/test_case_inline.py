@@ -18,7 +18,10 @@ import pytest
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_reference import CaseReference
-from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItem,
+    VulnerabilityItemId,
+)
 from vultron.core.services.case_inline import inline_owned
 from vultron.errors import VultronValidationError
 
@@ -34,7 +37,9 @@ def dl() -> SqliteDataLayer:
 
 @pytest.mark.spec("AKM-02-004")
 def test_a_stored_id_is_carried_as_its_object(dl: SqliteDataLayer) -> None:
-    item = make(VulnerabilityItem, cve="CVE-2026-0001")
+    item = make(
+        VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2026-0001")]
+    )
     dl.create(item)
 
     assert inline_owned(dl, _CASE_ID, [item.id_], VulnerabilityItem) == [item]
@@ -49,7 +54,9 @@ def test_an_inline_object_is_kept_as_it_is(dl: SqliteDataLayer) -> None:
 
 @pytest.mark.spec("AKM-02-004")
 def test_an_id_naming_another_type_is_refused(dl: SqliteDataLayer) -> None:
-    item = make(VulnerabilityItem, cve="CVE-2026-0001")
+    item = make(
+        VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2026-0001")]
+    )
     dl.create(item)
 
     with pytest.raises(VultronValidationError, match="CaseReference"):

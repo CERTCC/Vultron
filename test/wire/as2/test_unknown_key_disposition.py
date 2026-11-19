@@ -468,6 +468,27 @@ def test_a_former_field_name_is_set_aside_and_reported(
     _assert_set_aside_and_reported(body, key, "object", caplog)
 
 
+@pytest.mark.spec("MV-11-003", "CM-05-018")
+def test_a_vulnerability_items_cve_key_is_set_aside_and_reported(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An item's CVE ID is an ``ids`` entry, so ``cve`` is an unknown key.
+
+    Kept out of :data:`FORMER_NAME_POSITIONS`: core still spells ``cve`` as
+    the CSAF document's field, which the retired-key guard would flag.
+    """
+    body = _with_inline_object(
+        {
+            "type": "VulnerabilityItem",
+            "id": "https://example.org/items/1",
+            "published": PUBLISHED,
+            "updated": PUBLISHED,
+            "cve": "CVE-2026-0001",
+        }
+    )
+    _assert_set_aside_and_reported(body, "cve", "object", caplog)
+
+
 def test_the_parse_edge_keeps_no_retired_name_list() -> None:
     """The table #5573 removed is gone from ``unknown_keys`` (ADR-0175).
 

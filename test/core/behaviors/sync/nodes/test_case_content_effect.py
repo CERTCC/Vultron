@@ -51,7 +51,7 @@ _STAMP = {"published": ACT_AT.isoformat(), "updated": ACT_AT.isoformat()}
 _ITEM = {
     "type": "VulnerabilityItem",
     "id": ITEM_ID,
-    "cve": "CVE-2026-0001",
+    "ids": [{"systemName": "CVE", "text": "CVE-2026-0001"}],
     **_STAMP,
 }
 _REFERENCE = {
@@ -181,7 +181,7 @@ def test_an_entry_naming_its_record_by_id_only_fails(
 
 @pytest.mark.spec("SYNC-12-004")
 def test_an_invalid_record_fails(datalayer, bridge, replica):
-    bad = {**_ITEM, "cve": "not a CVE ID"}
+    bad = {**_ITEM, "ids": [{"systemName": "CVE", "text": "not a CVE ID"}]}
 
     result = _run(
         bridge,
