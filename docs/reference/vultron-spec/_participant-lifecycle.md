@@ -90,7 +90,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 ```
 
 The stub does not name the case's coordinator or Case Owner.
-The `Invite` that carries the stub already identifies who is asking: its `actor` is the CASE_MANAGER, and its `attributedTo` can name the Case Owner.
+The `Invite` that carries the stub already identifies who is asking: its `actor` is the CASE_MANAGER, and its `attributedTo` can name the Case Owner, with `inReplyTo` naming the Case Owner's request.
 Full content follows only after the invitee accepts.
 
 Two paths bring an actor into a case, and they differ in who initiates.
@@ -208,7 +208,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 An accepted removal is one ledger entry: the Case Owner's received `Remove(CaseParticipant)`, committed by the CASE_MANAGER as received.
 The CASE_MANAGER commits no second entry of its own for the same removal.
 After the commit, the CASE_MANAGER sends the removed participant a direct `Remove(CaseParticipant)` that names it.
-The notice has `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
+The notice has `actor` set to the CASE_MANAGER, `attributedTo` set to the Case Owner and `inReplyTo` set to the Case Owner's `Remove`.
 This notice is delivery, not a record, and is not ledgered.
 
 ```python exec="true" idprefix=""

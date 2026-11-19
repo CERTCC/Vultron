@@ -270,7 +270,7 @@ No case exists yet, so both messages go directly between the two actors.
 #### Proposing and accepting an embargo
 
 A Vendor proposes embargo terms for a case with no active embargo, Embargo Proposal (`EP`).
-The CASE_MANAGER asks each other participant about the proposal, naming the proposer in `attributedTo` and the deadline for an answer in `endTime`.
+The CASE_MANAGER asks each other participant about the proposal, naming the proposer in `attributedTo`, the proposal in `inReplyTo` and the deadline for an answer in `endTime`.
 A Coordinator agrees by accepting the `Invite` it received.
 That answer is the Coordinator's own consent, so it carries no shorthand: Embargo Proposal Acceptance (`EA`) is the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`.
 
@@ -318,6 +318,7 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
       "id": "https://vultron.example/cases/1/embargo_proposals/1/invites/coordinator",
       "actor": "https://vultron.example/case-actors/vendorco-case-actor",
       "attributedTo": "https://vultron.example/organizations/vendorco",
+      "inReplyTo": "https://vultron.example/cases/1/embargo_proposals/1",
       "to": ["https://vultron.example/organizations/coordinator"],
       "context": "https://vultron.example/cases/1",
       "published": "2026-06-01T19:12:00.000000+00:00",
@@ -351,6 +352,7 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
         "id": "https://vultron.example/cases/1/embargo_proposals/1/invites/coordinator",
         "actor": "https://vultron.example/case-actors/vendorco-case-actor",
         "attributedTo": "https://vultron.example/organizations/vendorco",
+        "inReplyTo": "https://vultron.example/cases/1/embargo_proposals/1",
         "to": ["https://vultron.example/organizations/coordinator"],
         "context": "https://vultron.example/cases/1",
         "published": "2026-06-01T19:12:00.000000+00:00",

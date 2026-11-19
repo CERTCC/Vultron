@@ -387,7 +387,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | AR — Agentic Readiness | [AR-10-001](../specs/project.md#ar-10-001), [AR-10-003](../specs/project.md#ar-10-003) |
-| CM — Case Management | [CM-24-002](../vultron-spec/requirements/case-management.md#cm-24-002) |
+| CM — Case Management | [CM-24-002](../vultron-spec/requirements/case-management.md#cm-24-002), [CM-24-020](../vultron-spec/requirements/case-management.md#cm-24-020), [CM-24-021](../vultron-spec/requirements/case-management.md#cm-24-021) |
 | EP — Embargo Policy | [EP-01-005](../vultron-spec/requirements/state-behavior.md#ep-01-005) |
 | MV — Message Validation | [MV-05-001](../vultron-spec/requirements/foundation.md#mv-05-001) |
 | OID — Object ID | [OID-01-001](../vultron-spec/requirements/foundation.md#oid-01-001), [OID-01-005](../specs/project.md#oid-01-005), [OID-01-010](../vultron-spec/requirements/messages.md#oid-01-010), [OID-01-013](../vultron-spec/requirements/messages.md#oid-01-013), [OID-01-014](../vultron-spec/requirements/messages.md#oid-01-014) |
@@ -990,7 +990,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 |---|---|
 | CBT — Case Bootstrap Trust | [CBT-01-005](../vultron-spec/requirements/ledger-replication.md#cbt-01-005), [CBT-01-011](../vultron-spec/requirements/ledger-replication.md#cbt-01-011), [CBT-01-017](../vultron-spec/requirements/ledger-replication.md#cbt-01-017), [CBT-05-002](../specs/project.md#cbt-05-002) |
 | CLP — Case Ledger Processing | [CLP-03-002](../vultron-spec/requirements/ledger-replication.md#clp-03-002), [CLP-04-003](../vultron-spec/requirements/ledger-replication.md#clp-04-003), [CLP-07-003](../vultron-spec/requirements/ledger-replication.md#clp-07-003), [CLP-07-017](../vultron-spec/requirements/ledger-replication.md#clp-07-017), [CLP-08-001](../vultron-spec/requirements/ledger-replication.md#clp-08-001), [CLP-08-002](../vultron-spec/requirements/ledger-replication.md#clp-08-002) |
-| CM — Case Management | [CM-06-002](../vultron-spec/requirements/case-management.md#cm-06-002), [CM-06-004](../vultron-spec/requirements/case-management.md#cm-06-004), [CM-24-001](../vultron-spec/requirements/case-management.md#cm-24-001), [CM-24-002](../vultron-spec/requirements/case-management.md#cm-24-002) |
+| CM — Case Management | [CM-06-002](../vultron-spec/requirements/case-management.md#cm-06-002), [CM-06-004](../vultron-spec/requirements/case-management.md#cm-06-004), [CM-24-001](../vultron-spec/requirements/case-management.md#cm-24-001), [CM-24-002](../vultron-spec/requirements/case-management.md#cm-24-002), [CM-24-020](../vultron-spec/requirements/case-management.md#cm-24-020), [CM-24-021](../vultron-spec/requirements/case-management.md#cm-24-021) |
 | CS — Code Style Specifications | [CS-13-007](../vultron-spec/requirements/messages.md#cs-13-007) |
 | ENC — Encryption | [ENC-01-001](../vultron-spec/requirements/transport-security.md#enc-01-001), [ENC-01-002](../vultron-spec/requirements/transport-security.md#enc-01-002) |
 | IE — Inbox Endpoint | [IE-04-001](../vultron-spec/requirements/transport-security.md#ie-04-001), [IE-04-002](../specs/project.md#ie-04-002) |

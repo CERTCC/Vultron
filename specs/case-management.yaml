@@ -5526,8 +5526,9 @@ groups:
     statement: >-
       On admitting a proposal, the CASE_MANAGER MUST make the single ownership-transfer
       `Offer(VulnerabilityCase)` itself, under an id it derives from the proposal,
-      addressed to the transferee. The Offer's `actor` is the CASE_MANAGER and its
-      `attributed_to` the owner (CM-24-001, CM-24-002).
+      addressed to the transferee. The Offer's `actor` is the CASE_MANAGER, its
+      `attributed_to` the owner and its `in_reply_to` the proposal (CM-24-001,
+      CM-24-002, CM-24-020).
     rationale: >-
       Making the Offer itself rather than forwarding the owner's gives a transfer one
       Offer, under an id no other party chose, told apart from the proposal by its shape
@@ -5535,7 +5536,7 @@ groups:
     verification: >-
       A test marked `CM-21-028` delivers the owner's proposal and asserts one
       `Offer(VulnerabilityCase)` is queued to the transferee with the derived id,
-      `actor` the CASE_MANAGER and `attributedTo` the owner.
+      `actor` the CASE_MANAGER, `attributedTo` the owner and `inReplyTo` the proposal.
     relationships:
     - rel_type: extends
       spec_id: CM-21-005
@@ -5543,6 +5544,8 @@ groups:
       spec_id: CM-24-001
     - rel_type: refines
       spec_id: CM-24-002
+    - rel_type: refines
+      spec_id: CM-24-020
     adr:
     - ADR-0148
     stories:
@@ -8028,9 +8031,10 @@ groups:
 - id: CM-24
   title: CASE_MANAGER-Delegated Activity Authorship Contract
   description: >-
-    Requirements for how trigger use cases assign `actor` and `attributed_to`
-    when the CASE_MANAGER emits an Activity on behalf of a requesting participant
-    (delegated message).  The reference implementation is `delegated_authorship()`
+    Requirements for how trigger use cases and received trees assign `actor`,
+    `attributed_to` and `in_reply_to` when the CASE_MANAGER emits an Activity on
+    behalf of a requesting participant (delegated message).  The reference
+    implementation is `delegated_authorship()`
     (`vultron/core/behaviors/delegated_authorship.py`).
     Codified from CONCERN-2170.
   specs:
@@ -8058,18 +8062,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a delegated Activity is emitted by the CASE_MANAGER, the
-      `attributed_to` field MUST be set to the requesting participant's actor
-      ID so that receivers can recover the originating identity.
+      When the CASE_MANAGER emits a delegated Activity for a requesting
+      participant other than the Activity's `actor`, the `attributed_to` field
+      MUST be set to that participant's actor ID so that receivers can recover
+      the originating identity.
     rationale: >-
-      `attributed_to` is the AS2-standard field for recording who delegated an
-      action.  Without it, the intent of the message cannot be attributed to the
-      correct participant, and audit trails are incomplete.
-    verification: Integration tests in `test/demo/` confirm that a delegated Activity carries
-      the requesting participant's actor ID in the `attributed_to` field.
+      AS2 defines `attributedTo` only as the entities an object is attributed
+      to, and it says nothing of delegation. Vultron uses it to name the actor
+      that asked for the act, so a receiver can recover the originating
+      identity, and the audit trail credits the right participant. An act the
+      `actor` asked for itself has no one else to credit (ADR-0199).
+    verification: >-
+      `test_attributed_to_is_the_requesting_actor` in
+      `test/core/behaviors/test_delegated_authorship.py` asserts the helper sets
+      `attributed_to` to the asker.
     relationships:
     - rel_type: extends
       spec_id: CM-24-001
+    adr:
+    - ADR-0199
     stories:
     - story_2022_089
     - story_2022_034
@@ -8167,42 +8178,61 @@ groups:
     kind: project
     statement: >-
       Every path that emits an Activity on another participant's behalf MUST obtain the
-      Activity's `actor` and `attributed_to` from one shared helper. Such a path is a
+      Activity's `actor`, `attributed_to` and `in_reply_to` from one shared helper,
+      except where another rule fixes `in_reply_to` itself (CM-11-044, CM-33-017).
+      Such a path is a
       trigger use case, or a received-side tree performing the CM-24-010 delegated emit.
     rationale: >-
-      If each call site builds the `actor`/`attributed_to` pair again, the pair can
-      become different at different sites. A wrong pair attributes the act to the wrong
-      actor, or makes the act fail authentication (CM-24-001, CM-24-002). The
-      received-side relay is also a delegated emit (CM-24-010).
+      If each call site builds the `actor`, `attributed_to` and `in_reply_to` values
+      again, they can become different at different sites. A wrong value attributes
+      the act to the wrong actor, names the wrong request, or makes the act fail
+      authentication (CM-24-001, CM-24-002, CM-24-020). The received-side relay is
+      also a delegated emit (CM-24-010).
     verification: >-
       `test/architecture/test_delegated_attribution_uses_helper.py` confirms
       that every trigger use case and every received-side tree emitting a
-      delegated Activity takes `actor` and `attributed_to` from the one shared
+      delegated Activity takes `attributed_to` from the one shared
       helper (`delegated_authorship()` in
       `vultron/core/behaviors/delegated_authorship.py`).
+      `test/architecture/test_delegated_act_names_request.py` confirms that every
+      such emit carries an `in_reply_to`; it checks that the value is present, not
+      where it comes from, and the per-emit tests marked `CM-24-020` check the value.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-24-010
+    see_also:
+    - spec_id: CM-11-044
+      reason: 'a replacement stub Invite names the Invite it supersedes, not the request'
+    - spec_id: CM-33-017
+      reason: 'the role-offer forward names the recorded Offer even when self-asked'
   - id: CM-24-012
     priority: MUST
     kind: project
     statement: >-
       The shared delegated-authorship helper (CM-24-005) MUST set `actor` to the actor
-      doing what was asked, and `attributed_to` to the actor that asked. The doer is the
-      CASE_MANAGER executing the gated tree. The asker is the trigger's requesting
-      actor,
-      or the sender of the activity the received tree acts on.
+      doing what was asked, `attributed_to` to the actor that asked, and `in_reply_to`
+      to the request the doer received. The doer is the CASE_MANAGER executing the
+      gated tree. The asker is the trigger's requesting actor, or the sender of the
+      activity the received tree acts on, and the request is that activity.
     rationale: >-
-      Neither value needs a calculation, because the emit point knows the doer and the
-      requester. The CASE_MANAGER is the `actor` that receivers authenticate
-      (CM-24-001), and `attributed_to` recovers who asked (CM-24-002).
+      None of the values needs a calculation, because the emit point knows the doer,
+      the requester and the request. The CASE_MANAGER is the `actor` that receivers
+      authenticate (CM-24-001), `attributed_to` recovers who asked (CM-24-002), and
+      `in_reply_to` names what the act answers (VOC `inReplyTo`). A distinct asker
+      reaches the CASE_MANAGER only by message (ADR-0109), so a delegated act with no
+      request to name is a programming error (ADR-0199).
     verification: >-
       `test_actor_is_the_doing_actor` and `test_attributed_to_is_the_requesting_actor`
-      in `test/core/behaviors/test_delegated_authorship.py` assert the helper's two
-      values.
+      in `test/core/behaviors/test_delegated_authorship.py` assert the helper's three
+      values, `test_an_asker_that_is_the_doer_gets_neither_field` asserts it sets
+      neither delegation field for a self-asked act, and
+      `test_a_distinct_asker_with_no_request_is_refused` asserts it raises for a
+      distinct asker that names no request.
     relationships:
     - rel_type: extends
       spec_id: CM-24-005
+    adr:
+    - ADR-0199
   - id: CM-24-013
     priority: MUST
     kind: project
@@ -8406,6 +8436,84 @@ groups:
     see_also:
     - spec_id: CM-24-007
       reason: 'context for the reader'
+  - id: CM-24-020
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER emits a delegated Activity other than a replacement stub
+      Invite, the `in_reply_to` field MUST be set to the id of the request the
+      CASE_MANAGER received from the requesting participant. A replacement stub
+      Invite names the Invite it supersedes instead (CM-11-044).
+    rationale: >-
+      VOC `inReplyTo` names what an object answers. A receiver reads both who asked
+      (`attributedTo`, CM-24-002) and which request the act carries out. A distinct
+      asker reaches the CASE_MANAGER only by message (ADR-0109), so every delegated
+      act has a request to name (ADR-0199). Stub Invites to one invitee form a thread:
+      the first names the request, and each replacement names the Invite before it,
+      so the request stays reachable along the thread and the CASE_MANAGER finds the
+      one live stub by it (CM-11-015). The maintainer chose this in the #6464 build.
+    verification: >-
+      `test/architecture/test_delegated_act_names_request.py` asserts no emit site and
+      no example activity credits another actor without an `inReplyTo`, and the
+      per-emit tests marked `CM-24-020` assert the request each one names.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-24-002
+    adr:
+    - ADR-0199
+    stories:
+    - story_2022_089
+    - story_2022_034
+    see_also:
+    - spec_id: CM-11-044
+      reason: 'the replacement stub Invite this rule leaves to it'
+  - id: CM-24-021
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An Activity whose requesting actor is its `actor` MUST NOT carry the
+      delegation's `attributed_to` or `in_reply_to` (CM-24-002, CM-24-020).
+    rationale: >-
+      An actor that asks for its own act does it directly, and there is no one
+      else to credit and no received request to name (ADR-0199). An Owner that
+      also holds the CASE_MANAGER role sends its ask straight to the answering
+      actor.
+    verification: >-
+      `test_an_asker_that_is_the_doer_gets_neither_field` in
+      `test/core/behaviors/test_delegated_authorship.py` asserts the helper returns
+      neither field for an asker that is the doer.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-002
+    adr:
+    - ADR-0199
+    stories:
+    - story_2022_089
+    - story_2022_034
+    see_also:
+    - spec_id: CM-24-020
+      reason: 'the in_reply_to the self-asked act omits'
+  - id: CM-24-022
+    priority: MUST
+    kind: project
+    statement: >-
+      The shared delegated-authorship helper (CM-24-005) MUST raise when the asker
+      differs from the doer and the caller names no request.
+    rationale: >-
+      A delegated act with no request to name is a programming error, so the
+      helper fails it as a wiring fault before any activity is built (CM-24-020,
+      ADR-0109).
+    verification: >-
+      `test_a_distinct_asker_with_no_request_is_refused` in
+      `test/core/behaviors/test_delegated_authorship.py` asserts the raise.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-24-012
+    adr:
+    - ADR-0199
+    see_also:
+    - spec_id: CM-24-005
+      reason: 'names the shared helper the rule applies to'
 
 - id: CM-25
   title: Observer Participant Semantics
@@ -10103,7 +10211,8 @@ groups:
     statement: >-
       After a removal commits, the CASE_MANAGER MUST send the removed participant a
       direct `Remove(CaseParticipant)` naming it. The notice's `actor` is the
-      CASE_MANAGER and its `attributedTo` the Case Owner (CM-24).
+      CASE_MANAGER, its `attributedTo` the Case Owner and its `inReplyTo` the Case
+      Owner's request (CM-24).
     rationale: >-
       Learning of removal only from silence is indistinguishable from a network fault, and the removed
       party needs to know it is still bound and how it will hear of the embargo's end.

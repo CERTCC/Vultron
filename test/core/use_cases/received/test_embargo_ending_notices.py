@@ -245,6 +245,8 @@ class _Manager:
         assert removal.disposition is HandlerDisposition.APPLIED
 
     def route(self, activity: Any) -> HandlerResult:
+        # The request a delegated notice names in inReplyTo (CM-24-020).
+        self.last_routed_id = activity.id_
         return route_received(
             self.dl,
             activity,
@@ -313,6 +315,7 @@ def _unreached_signatories() -> set[str]:
 @pytest.mark.spec("CM-31-009")
 @pytest.mark.spec("CM-24-001")
 @pytest.mark.spec("CM-24-002")
+@pytest.mark.spec("CM-24-020")
 @pytest.mark.spec("VP-13-019")
 def test_owner_termination_sends_et_to_each_unreached_signatory() -> None:
     """Removed and departed signatories each get one ET, crediting the owner."""
@@ -329,6 +332,8 @@ def test_owner_termination_sends_et_to_each_unreached_signatory() -> None:
         # One recipient per notice: no notice names another participant.
         assert [_as_id(t) for t in notice.to] == [recipient]
         assert _as_id(notice.attributed_to) == OWNER
+        # It names the owner's Remove it carries out (CM-24-020).
+        assert _as_id(notice.in_reply_to) == manager.last_routed_id
         # Delivery, not a record: the notice is never ledgered.
         assert notice.id_ not in manager.ledger_object_ids()
         assert notice.id_ in manager.dl.outbox_list()
@@ -453,6 +458,8 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
         assert len(notices[recipient]) == 1
         notice = notices[recipient][0]
         assert _as_id(notice.attributed_to) == OWNER
+        # It names the owner's Reject it carries out (CM-24-020).
+        assert _as_id(notice.in_reply_to) == manager.last_routed_id
         assert notice.id_ not in manager.ledger_object_ids()
     for recipient in (DECLINER, INVITEE, ACTIVE):
         assert not notices.get(recipient)
@@ -528,6 +535,8 @@ def test_case_manager_termination_sends_et_without_attribution(
         notice = removes[recipient][0]
         assert [_as_id(t) for t in notice.to] == [recipient]
         assert getattr(notice, "attributed_to", None) is None
+        # The CASE_MANAGER's own act answers no request (CM-24-020).
+        assert getattr(notice, "in_reply_to", None) is None
         assert notice.id_ not in manager.ledger_object_ids()
     for recipient in (OWNER, ACTIVE, DECLINER):
         assert {a.id_ for a in removes[recipient]} == committed
@@ -643,6 +652,7 @@ _ACTIVATIONS = [
 
 @pytest.mark.spec("CM-31-030")
 @pytest.mark.spec("EP-05-001")
+@pytest.mark.spec("CM-24-020")
 @pytest.mark.parametrize("activate", _ACTIVATIONS)
 def test_shorter_revision_is_announced_to_each_unreached_signatory(
     activate: Callable[[_Manager, Any], None],
@@ -662,6 +672,7 @@ def test_shorter_revision_is_announced_to_each_unreached_signatory(
         assert len(sent) == 1
         assert [_as_id(t) for t in sent[0].to] == [recipient]
         assert _as_id(sent[0].attributed_to) == OWNER
+        assert _as_id(sent[0].in_reply_to) == manager.last_routed_id
         assert sent[0].id_ not in manager.ledger_object_ids()
 
 

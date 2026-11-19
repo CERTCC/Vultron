@@ -1147,6 +1147,10 @@ class TestEmitInviteActorToCaseNodeReadSuggestedRoles:
         )
 
 
+#: The owner's Offer(Actor) an Invite under test carries out.
+_OWNER_OFFER_ID = "https://example.org/activities/owner-offer-actor"
+
+
 class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
     """AC-3 (#3821): the emitting tree's commit is the Invite's only commit.
 
@@ -1202,6 +1206,8 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
             case_id=AC3_CASE_ID,
             attributed_to=NEW_OWNER_ID,
             roles=["vendor"],
+            # The Offer(Actor) the Invite carries out (CM-24-012).
+            answers=_OWNER_OFFER_ID,
         )
         result = run_tree(
             BTBridge(
@@ -1222,6 +1228,7 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
         assert getattr(invite, "cc", None) in (None, [])
         assert getattr(invite, "actor", None) == ACTOR_ID
         assert getattr(invite, "attributed_to", None) == NEW_OWNER_ID
+        assert getattr(invite, "in_reply_to", None) == _OWNER_OFFER_ID
 
         entries = _invite_entries()
         assert [e.payload_snapshot.get("id") for e in entries] == [invite_id]

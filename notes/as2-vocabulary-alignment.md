@@ -262,13 +262,6 @@ Issue: #6245.
 - `Add(VulnerabilityReport)` and `CaseProposal` drop the Vultron `offerId` for
   `inReplyTo` (the report Offer); `offerActorId` is read from that Offer or the
   report's `attributedTo`.
-- A delegated emit (CM-24) sets `attributedTo` = the asker and `inReplyTo` = the
-  request it received, both exactly when the asker is a different actor from the
-  `actor` (ADR-0199). Every delegated emit has a received request to name: a
-  distinct asker reaches the CASE_MANAGER only by message, wherever the two run
-  (ADR-0109; the ownership-transfer trigger already sends its proposal). The
-  CASE_MANAGER is not modelled as anyone's `instrument`: it has its own authority and
-  must be the `actor` receivers authenticate (CM-24-001).
 - `Remove(CaseParticipant)` is replaced by the Case Owner's `Remove(<Actor>,
   origin=<case>)` (§ "The Owner Sends Its Removal or Reinstatement"), and
   `Remove(EmbargoEvent)` by an `Update` (§ "Embargo End Is an Update With a
@@ -283,9 +276,7 @@ which this object is considered a response".
 **Today.** `Remove(Note)` and `Remove(EmbargoEvent)` name the case in `origin`,
 and `ActivityPattern.origin_` matches it as `target_` matches `target` (#6463);
 `Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`; `offerId` /
-`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`. CM-24-002's
-rationale calls `attributedTo` "the AS2-standard field for recording who delegated
-an action"; AS2 says only "entities to which this object is attributed".
+`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`.
 
 **Term-check owner.** #6419 owns `offerId`/`offerActorId` in the #6253 term-check
 ratchet, so the entry keeps an open owner. Planning this section adopts #6419

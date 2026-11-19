@@ -863,19 +863,23 @@ class TestOwnerDirectInviteAtCaseManager:
 
     @pytest.mark.spec("CM-17-018")
     @pytest.mark.spec("CM-17-007")
+    @pytest.mark.spec("CM-24-020")
     def test_case_manager_emits_the_invite_itself(
         self, make_payload, seed_case_manager
     ):
         dl = self._setup_dl(seed_case_manager)
 
         # CM-11-050: roles must be explicit; no default to VENDOR.
-        result = self._deliver(dl, make_payload, roles=["vendor"])
+        event = self._event(dl, make_payload, roles=["vendor"])
+        result = self._deliver(dl, make_payload, event=event)
 
         assert result.disposition is HandlerDisposition.APPLIED
         invite = self._sealed_invite(dl)
         assert invite["type"] == "Invite"
         assert invite["actor"] == TEST_ACTOR_ID
         assert invite.get("attributedTo") == self._OWNER_ID
+        # The Invite names the Owner's Offer(Actor) it carries out (ADR-0199).
+        assert invite.get("inReplyTo") == event.activity_id
         assert invite.get("to") == [self._INVITEE_ID]
         assert "cc" not in invite
         assert invite.get("roles") == ["vendor"]

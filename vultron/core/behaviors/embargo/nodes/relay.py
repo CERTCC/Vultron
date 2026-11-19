@@ -18,7 +18,8 @@
 The CASE_MANAGER receives every embargo proposal (PCR-08-001), moves the
 canonical case through ``EmbargoLifecycle`` and commits it, then relays one
 ``Invite(EmbargoEvent)`` per participant except the proposer, as the AS2
-``actor`` with the proposer in ``attributedTo`` (EP-09-002, CM-24), committing
+``actor`` with the proposer in ``attributedTo`` and the proposal in
+``inReplyTo`` (EP-09-002, CM-24), committing
 each emission in this tree once it is queued (ADR-0109, ADR-0119).  After
 each commit the invitee's PEC ``INVITE`` on its row for the embargo, where
 CM-18-003 allows it (EP-09-004), is committed as the CASE_MANAGER's own
@@ -49,7 +50,7 @@ proposer.
 import json
 from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 import py_trees
 from py_trees.common import Status
@@ -174,7 +175,8 @@ class RelayEmbargoInviteToEachNode(
 
     For each recipient the collect node named: build the Invite through the
     trigger-activity factory as the executing CASE_MANAGER with the proposer
-    in ``attributedTo`` (CM-24-001, CM-24-002) and the manager's RSVP
+    in ``attributedTo`` and the request it answers in ``inReplyTo``
+    (CM-24-001, CM-24-002, CM-24-020) and the manager's RSVP
     deadline as its ``endTime`` (CM-28-012, from ``actor_config``'s windows),
     queue it, commit the sealed blob as the canonical entry (VM-08-003) once
     it is queued (ADR-0119), then commit PEC ``INVITE`` on the invitee's row
@@ -223,8 +225,13 @@ class RelayEmbargoInviteToEachNode(
         self._proposer_id = ""
         self._actor_config = actor_config
         self._answers = answers
+        self._proposal_request: str | None = None
         self._sync_port: SyncActivityPort | None = None
         self._recipients: list[str] = []
+
+    # Set by a subclass whose *answers* is not the proposal it carries out
+    # (CM-24-020): see :meth:`_carried_out_request`.
+    _NAMES_PROPOSAL: ClassVar[bool] = False
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -260,6 +267,19 @@ class RelayEmbargoInviteToEachNode(
         """
         self._recipients = cast(list[str], self.get_input(_RECIPIENTS_KEY))
         self._proposer_id = read_embargo_proposer(self)
+
+    def _carried_out_request(self) -> str | None:
+        """The proposer's request this relay carries out (CM-24-020).
+
+        On the received path that is the proposer's Invite, which the relay
+        also *answers*.  A subclass whose *answers* is another activity — a
+        join, an ``Accept``, a reinstatement — sets ``_NAMES_PROPOSAL`` and
+        stores the proposal it read from the ledger in ``_proposal_request``,
+        which this names instead.
+        """
+        if self._NAMES_PROPOSAL:
+            return self._proposal_request
+        return self._answers
 
     def _activity_id_for(self, recipient_id: str) -> str | None:
         """The id the Invite to *recipient_id* takes; ``None`` mints a fresh one.
@@ -327,20 +347,20 @@ class RelayEmbargoInviteToEachNode(
                 f"{self.name}: cannot stamp the RSVP deadline of embargo"
                 f" '{self._embargo_id}' on case '{self._case_id}': {exc}"
             ) from exc
-        proposer_id = self._attributed_to()
-        authorship = (
-            delegated_authorship(
-                doing_actor_id=self.actor_id, requesting_actor_id=proposer_id
-            )
-            if proposer_id
-            else None
+        # The manager's own ask (no proposer) is self-asked: the helper
+        # sets neither delegation field (CM-24-021).
+        authorship = delegated_authorship(
+            doing_actor_id=self.actor_id,
+            requesting_actor_id=self._attributed_to() or self.actor_id,
+            request_id=self._carried_out_request(),
         )
         activity_id, blob = self.trigger_activity_factory.propose_embargo(
             embargo_id=self._embargo_id,
             case_id=self._case_id,
-            actor=authorship.actor if authorship else self.actor_id,
+            actor=authorship.actor,
             to=[recipient_id],
-            attributed_to=authorship.attributed_to if authorship else None,
+            attributed_to=authorship.attributed_to,
+            in_reply_to=authorship.in_reply_to,
             activity_id=self._activity_id_for(recipient_id),
             rsvp_deadline=stamp.rsvp_deadline,
             min_rsvp_window=stamp.min_rsvp_window,

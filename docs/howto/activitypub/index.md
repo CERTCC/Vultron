@@ -80,7 +80,7 @@ Read it field by field.
 | Field | What it carries | Where the guides rely on it |
 |---|---|---|
 | `type` | The AS2 verb | Every guide names its activities by verb and object |
-| `actor` | The actor performing the activity | Case-management handshakes are sent by the CASE_MANAGER, with the requesting participant in `attributedTo` |
+| `actor` | The actor performing the activity | Case-management handshakes are sent by the CASE_MANAGER, with the requesting participant in `attributedTo` and the request in `inReplyTo` |
 | `object` | The thing acted on: a Vultron object, or an earlier activity being answered | `Accept`, `Reject`, `TentativeReject`, and `Read` carry the activity they answer, not the object inside it |
 | `target` | Where the object goes | `Add` names the case here, as does `Remove(CaseParticipant)`; `Offer(CaseParticipantRole)` names the actor being offered the role |
 | `origin` | Where the object comes from | `Remove(Note)` and `Remove(EmbargoEvent)`, which terminates an embargo, name the case here rather than in `target` |

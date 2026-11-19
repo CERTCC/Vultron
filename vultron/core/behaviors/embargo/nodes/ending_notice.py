@@ -69,6 +69,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
+from vultron.core.behaviors.received_request import ReceivedRequestInputMixin
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.participants.recipients import (
     embargo_ending_notice_recipients,
@@ -207,7 +208,9 @@ class CaptureActiveEmbargoNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
+class SendEmbargoEndingNoticesNode(
+    ReceivedRequestInputMixin, _EmitSingleActivityBase
+):
     """Tell each bound signatory the ledger no longer reaches (CM-31-009).
 
     Runs after the EM write, as the CASE_MANAGER.  Compares the active
@@ -218,7 +221,8 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
     ``Remove(EmbargoEvent)`` for a termination, ``Announce(EmbargoEvent)``
     for a shorter revision.  ``actor`` is the CASE_MANAGER; when the change
     was requested by another actor (the Case Owner), that actor is
-    ``attributedTo`` (CM-24-001, CM-24-002).
+    ``attributedTo`` and its request, the received activity on the
+    blackboard, is ``inReplyTo`` (CM-24-001, CM-24-002, CM-24-020).
 
     The notice is not committed to the ledger.  It carries the embargo and,
     for a termination, the what and the why the register records
@@ -249,7 +253,10 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return act_key_remappings(CASE_ID)
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(CASE_ID),
+        }
 
     def initialise(self) -> None:
         super().initialise()
@@ -263,13 +270,13 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
     ) -> str:
         assert self.trigger_activity_factory is not None
         actor = cast(str, self.actor_id)
-        requested = self._requested_by
-        authorship = (
-            delegated_authorship(
-                doing_actor_id=actor, requesting_actor_id=requested
-            )
-            if requested is not None and requested != actor
-            else None
+        # The received request the change carries out, when another actor
+        # asked for it (CM-24-020); a change no one asked for is self-asked,
+        # so the helper sets neither field (CM-24-021).
+        authorship = delegated_authorship(
+            doing_actor_id=actor,
+            requesting_actor_id=self._requested_by or actor,
+            request_id=self._received_request_id(),
         )
         factory = self.trigger_activity_factory
         if notice.kind is not EmbargoEndingKind.TERMINATED:
@@ -278,7 +285,8 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
                 case_id=self.case_id,
                 actor=actor,
                 to=[recipient],
-                attributed_to=authorship.attributed_to if authorship else None,
+                attributed_to=authorship.attributed_to,
+                in_reply_to=authorship.in_reply_to,
                 at=self._require_act_instant(),
             )
         elif termination is None:
@@ -295,7 +303,8 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
                 reason=termination.reason,
                 cause=termination.cause,
                 to=[recipient],
-                attributed_to=authorship.attributed_to if authorship else None,
+                attributed_to=authorship.attributed_to,
+                in_reply_to=authorship.in_reply_to,
                 at=self._require_act_instant(),
             )
         self._emit_through_seam(activity_id, blob)
