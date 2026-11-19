@@ -18,7 +18,7 @@ Each step names one EM trigger, and the EM derived before and after it must
 be one of that trigger's moves (ADR-0122, ADR-0130).
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from types import MappingProxyType
 
 from vultron.core.models.embargo_register.entry import (
@@ -51,21 +51,25 @@ _EM_TRIGGER_OF: Mapping[RegisterTrigger, EM_Trigger] = MappingProxyType(
 )
 
 
-def _em_triggers_of(changes: Sequence[RegisterChange]) -> set[EM_Trigger]:
-    """The EM triggers *changes* belong to; one for a well-formed step."""
-    triggers = {change.trigger for change in changes}
-    unmapped = triggers - set(_EM_TRIGGER_OF) - {_T.CANCEL}
+def em_triggers_of(triggers: Iterable[RegisterTrigger]) -> set[EM_Trigger]:
+    """The EM triggers a register step made of *triggers* belongs to; one
+    for a well-formed step (ADR-0130).
+
+    Raises:
+        VultronInvalidStateTransitionError: a register trigger has no EM
+            trigger mapped for it.
+    """
+    held = set(triggers)
+    unmapped = held - set(_EM_TRIGGER_OF) - {_T.CANCEL}
     if unmapped:
         raise VultronInvalidStateTransitionError(
             "Embargo register: no EM trigger is mapped for"
             f" {sorted(t.name for t in unmapped)} (ADR-0130)."
         )
-    em_triggers = {_EM_TRIGGER_OF[t] for t in triggers if t != _T.CANCEL}
-    if _T.CANCEL in triggers:
+    em_triggers = {_EM_TRIGGER_OF[t] for t in held if t != _T.CANCEL}
+    if _T.CANCEL in held:
         em_triggers.add(
-            EM_Trigger.TERMINATE
-            if _T.TERMINATE in triggers
-            else EM_Trigger.REJECT
+            EM_Trigger.TERMINATE if _T.TERMINATE in held else EM_Trigger.REJECT
         )
     return em_triggers
 
@@ -85,7 +89,7 @@ def register_step_em_trigger(
             mixes register triggers of more than one EM trigger, or carries
             a register trigger no EM trigger is mapped for.
     """
-    em_triggers = _em_triggers_of(changes)
+    em_triggers = em_triggers_of(change.trigger for change in changes)
     if len(em_triggers) != 1:
         raise VultronInvalidStateTransitionError(
             "Embargo register: a step must name exactly one EM trigger, but"

@@ -38,20 +38,22 @@ case public is graded as the advice's public-awareness move.  A later
 publication changes no state and grades nothing.
 
 An entry is one step, so it gets one mark.  When it changes several machines,
-the first change in this order decides: the public state, a fix path, the
+the first machine in this order decides: the public state, a fix path, the
 embargo, report management.  A case-state event drives the others, as a
-publication ends an embargo, never the reverse.  A change no single move
-makes, such as report management passing two states in one entry, grades
-nothing.
+publication ends an embargo, never the reverse.  Only a move of that machine
+is the step: a change no single move makes, such as report management
+passing two states in one entry, grades nothing, and is never passed over
+for a later machine's change.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from vultron.core.models.embargo_register import em_triggers_of
 from vultron.core.states.cs import AttackObservation, ExploitPublication
 from vultron.core.states.cs_invariants import (
     CS_EVENT_TO_PXA_TRIGGER,
@@ -59,7 +61,11 @@ from vultron.core.states.cs_invariants import (
     cs_dimensions,
 )
 from vultron.core.states.em import EM, EM_Trigger
-from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    RegisterTrigger,
+    register_trigger_between,
+)
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.advice.bands import BAND_ORDER, Band
 from vultron.measure.advice.case import (
@@ -127,8 +133,14 @@ NO_ADVISED_MOVE = (
 )
 """Why an entry whose change no single advised move makes grades nothing."""
 
-UNOBSERVED_CHANCE = "No participant chooses this event."
+UNLISTED_CHANCE = "No participant chooses this event."
 """Why an X or A change the advice lists no move for grades nothing."""
+
+REGISTER_PROBLEM = (
+    "The embargo register this entry leaves gives no EM state, so no EM move"
+    " makes its change."
+)
+"""Why an entry that breaks the embargo register grades nothing."""
 
 
 def no_band(reason: str) -> str:
@@ -182,8 +194,11 @@ class NarrativeMark(BaseModel):
             and self.layer > self.deepest_layer
         ):
             problems.append("the layer is deeper than its advice's deepest")
-        if shaded and self.band is Band.UNHELPFUL:
-            problems.append("the unhelpful band is not shaded")
+        if shaded and self.band not in (Band.HARM_FREE, Band.TRADE_OFF):
+            problems.append(
+                "a best, good or sub-optimal mark is in the harm-free or"
+                " trade-off band"
+            )
         if self.mark not in GRADED and self.note is None:
             problems.append("a line that is not graded says why")
         if problems:
@@ -211,31 +226,25 @@ def register_trigger(
     before: Mapping[str, EmbargoRegisterStatus],
     after: Mapping[str, EmbargoRegisterStatus],
 ) -> EM_Trigger | None:
-    """The EM trigger of the register step from *before* to *after*.
+    """The EM trigger of the register step from *before* to *after*, read
+    through the register's own mapping (:func:`em_triggers_of`, ADR-0130).
 
-    An embargo that ends is ``terminate``, whatever proposals it cancels
-    with it; one that goes into force is ``accept``, whatever it supersedes;
-    a proposal rejected or cancelled is ``reject``; a new proposal is
-    ``propose``.  ``None`` when the register did not change.
+    ``None`` when the register did not change, or when its change is no one
+    EM trigger's step.
     """
-    steps = {
-        (before.get(embargo), status)
-        for embargo, status in after.items()
-        if before.get(embargo) != status
-    }
-    statuses = EmbargoRegisterStatus
-    if (statuses.ACTIVE, statuses.TERMINATED) in steps:
-        return EM_Trigger.TERMINATE
-    if (statuses.PROPOSED, statuses.ACTIVE) in steps:
-        return EM_Trigger.ACCEPT
-    if steps & {
-        (statuses.PROPOSED, statuses.REJECTED),
-        (statuses.PROPOSED, statuses.CANCELLED),
-    }:
-        return EM_Trigger.REJECT
-    if (None, statuses.PROPOSED) in steps:
-        return EM_Trigger.PROPOSE
-    return None
+    triggers: list[RegisterTrigger] = []
+    for embargo, status in after.items():
+        was = before.get(embargo)
+        if was is status:
+            continue
+        trigger = register_trigger_between(was, status)
+        if trigger is None:
+            return None
+        triggers.append(trigger)
+    if not triggers:
+        return None
+    em_triggers = em_triggers_of(triggers)
+    return em_triggers.pop() if len(em_triggers) == 1 else None
 
 
 def _pxa_made(move: CSMove, before: ReachedState, after: ReachedState) -> bool:
@@ -286,14 +295,47 @@ def owns_state(move: AllowedMove) -> bool:
     )
 
 
-def _machine(move: AllowedMove) -> int:
-    """The order in which a change decides an entry's mark: the public
-    state, a fix path, the embargo, report management."""
+class _Machine(IntEnum):
+    """The machines whose change decides an entry's mark, in the order they
+    decide it."""
+
+    PUBLIC = 0
+    FIX_PATH = 1
+    EMBARGO = 2
+    REPORT = 3
+
+
+def _machine(move: AllowedMove) -> _Machine:
+    """The machine *move* changes."""
     if isinstance(move, CSMove):
-        return 0 if move.event in PUBLIC_EVENTS else 1
+        return (
+            _Machine.PUBLIC
+            if move.event in PUBLIC_EVENTS
+            else _Machine.FIX_PATH
+        )
     if isinstance(move, EMMove):
-        return 2
-    return 3
+        return _Machine.EMBARGO
+    return _Machine.REPORT
+
+
+def _first_changed(
+    before: ReachedState, after: ReachedState
+) -> _Machine | None:
+    """The first machine, in deciding order, whose state the entry from
+    *before* to *after* changed; ``None`` when it changed none the move
+    advice weighs."""
+    pairs = [
+        (_owner(before, now.participant), now) for now in after.participants
+    ]
+    if before.pxa is not after.pxa:
+        return _Machine.PUBLIC
+    if any((was.vf, was.d) != (now.vf, now.d) for was, now in pairs):
+        return _Machine.FIX_PATH
+    if before.embargo_register != after.embargo_register:
+        return _Machine.EMBARGO
+    if any(was.rm is not now.rm for was, now in pairs):
+        return _Machine.REPORT
+    return None
 
 
 def _made(
@@ -301,7 +343,7 @@ def _made(
 ) -> bool:
     """Whether the entry from *before* to *after* made *move*."""
     if isinstance(move, CSMove):
-        if _machine(move) == 0:
+        if _machine(move) is _Machine.PUBLIC:
             return _pxa_made(move, before, after)
         return _fix_path_made(move, before, after)
     if isinstance(move, EMMove):
@@ -322,23 +364,30 @@ def taken_move(
 ) -> _Candidate | None:
     """The move of *advice* that the entry from *before* to *after* made.
 
-    The first change in machine order decides (:func:`_machine`).  Among
-    the moves that make it, an open move comes before one with no band,
-    then the acting *actor*'s own: a public-state or embargo change is the
-    same joint step whichever participant's move it is, so its band is the
-    same, but a participant that moves no vendor's state has no band for it.
+    The first machine the entry changed, in deciding order, decides
+    (:func:`_first_changed`): only a move of that machine is the step, so a
+    change no listed move makes is never passed over for a later machine's.
+    Among the moves that make it, an open move comes before one with no
+    band, then the acting *actor*'s own: a public-state or embargo change is
+    the same joint step whichever participant's move it is, so its band is
+    the same, but a participant that moves no vendor's state has no band
+    for it.
 
     Returns:
-        The move, or ``None`` when no move of *advice* makes a change the
-        entry made.
+        The move, or ``None`` when no move of *advice* makes the change the
+        entry made in that machine.
     """
-    made = [m for m in _candidates(advice) if _made(m.move, before, after)]
+    machine = _first_changed(before, after)
+    made = [
+        m
+        for m in _candidates(advice)
+        if _machine(m.move) is machine and _made(m.move, before, after)
+    ]
     if not made:
         return None
     return min(
         made,
         key=lambda m: (
-            _machine(m.move),
             isinstance(m, UnbandedMove),
             m.move.participant != actor,
         ),
@@ -355,19 +404,6 @@ def _chance(before: ReachedState, after: ReachedState) -> bool:
     ) or (
         was.attack_observation is AttackObservation.NO_ATTACKS_OBSERVED
         and now.attack_observation is AttackObservation.ATTACKS_OBSERVED
-    )
-
-
-def _changed(before: ReachedState, after: ReachedState) -> bool:
-    """Whether the entry changed a state the move advice weighs."""
-    if before.pxa is not after.pxa:
-        return True
-    if before.embargo_register != after.embargo_register:
-        return True
-    return any(
-        (now.rm, now.vf, now.d) != (was.rm, was.vf, was.d)
-        for now in after.participants
-        for was in (_owner(before, now.participant),)
     )
 
 
@@ -444,20 +480,23 @@ def hindsight_mark(
     def not_graded(mark: HindsightMark, note: str) -> NarrativeMark:
         return NarrativeMark(log_index=log_index, mark=mark, note=note)
 
-    if not _changed(before, after):
+    machine = _first_changed(before, after)
+    if machine is None:
         return not_graded(HindsightMark.NOT_A_MOVE, NO_STATE_CHANGE)
     advice = advice_before()
     if advice is None:
         return not_graded(HindsightMark.NOT_A_MOVE, NO_ADVICE)
     if advice.gap is not None:
         return not_graded(HindsightMark.NOT_A_MOVE, ADVICE_GAP)
+    if machine is _Machine.EMBARGO and _em(after) is None:
+        return not_graded(HindsightMark.NOT_A_MOVE, REGISTER_PROBLEM)
     taken = taken_move(advice, before, after, actor)
-    if _chance(before, after) and (taken is None or _machine(taken.move) != 0):
-        return not_graded(HindsightMark.CHANCE, UNOBSERVED_CHANCE)
     if isinstance(taken, AdvisedMove):
         return _graded(log_index, taken, advice)
     if isinstance(taken, UnbandedMove):
         return _unbanded(log_index, taken)
+    if machine is _Machine.PUBLIC and _chance(before, after):
+        return not_graded(HindsightMark.CHANCE, UNLISTED_CHANCE)
     return not_graded(HindsightMark.NOT_A_MOVE, NO_ADVISED_MOVE)
 
 
@@ -470,7 +509,8 @@ __all__ = [
     "NO_STATE_CHANGE",
     "PUBLIC_EVENTS",
     "SHADED",
-    "UNOBSERVED_CHANCE",
+    "REGISTER_PROBLEM",
+    "UNLISTED_CHANCE",
     "HindsightMark",
     "NarrativeMark",
     "hindsight_mark",

@@ -36,7 +36,7 @@ from vultron.measure.advice import (
 )
 from vultron.measure.standing import case_standing
 from vultron.shadow.analysis import analyse, point_analysis
-from vultron.shadow.dashboard import minimap, view
+from vultron.shadow.dashboard import marks as marks_view, minimap, view
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
     END_UNCONFIRMED_NOTE,
@@ -479,11 +479,13 @@ def test_each_narrative_line_carries_its_hindsight_mark_in_its_shade(
     assert not at.exception
     assert HINDSIGHT_NOTE in _texts(at.caption)
     narrative = _table(at, "Case narrative")
-    marks = narrative[view.HINDSIGHT_COLUMN].tolist()
-    labels = {f"{icon} {mark}" for mark, icon in view.HINDSIGHT_ICONS.items()}
+    marks = narrative[marks_view.HINDSIGHT_COLUMN].tolist()
+    labels = {
+        f"{icon} {mark}" for mark, icon in marks_view.HINDSIGHT_ICONS.items()
+    }
     assert set(marks) <= labels
     assert "⭐ best" in marks and "💬 not a move" in marks
-    notes = narrative[view.HINDSIGHT_NOTE_COLUMN].tolist()
+    notes = narrative[marks_view.HINDSIGHT_NOTE_COLUMN].tolist()
     assert all(
         note for mark, note in zip(marks, notes, strict=True) if "💬" in mark
     )

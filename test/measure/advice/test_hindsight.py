@@ -54,7 +54,8 @@ from vultron.measure.advice.hindsight import (
     NO_ADVICE,
     NO_ADVISED_MOVE,
     NO_STATE_CHANGE,
-    UNOBSERVED_CHANCE,
+    REGISTER_PROBLEM,
+    UNLISTED_CHANCE,
     no_band,
     owns_state,
     register_trigger,
@@ -287,7 +288,7 @@ def test_an_exploit_made_public_is_chance():
 def test_attacks_the_advice_lists_no_move_for_are_still_chance():
     mark = _mark(_state(pxa=CS_pxa.pxA), _advice(_TOP_HARM_FREE))
     assert mark.mark is HindsightMark.CHANCE
-    assert mark.note == UNOBSERVED_CHANCE
+    assert mark.note == UNLISTED_CHANCE
 
 
 def test_making_the_vul_public_is_graded_as_the_move_it_is():
@@ -345,18 +346,57 @@ def test_a_move_with_no_band_is_not_a_move_and_says_why():
     assert (mark.move, mark.note) == (_ACCEPT, no_band(reason))
 
 
+_TERMINATE = EMMove(
+    participant=_OWNER,
+    trigger=EM_Trigger.TERMINATE,
+    source=EM.ACTIVE,
+    destination=EM.EXITED,
+)
+
+
 def test_an_entry_that_changes_several_machines_is_graded_by_its_first():
     """A publication that also ends the embargo is graded as the
     publication: a case-state event drives the embargo, not the reverse."""
-    publish = _advised(_PUBLISH, [(1, 0), (1, 0)], layer=1, top=True)
-    start = _advised(_START, [(0, 0), (0, -1)], layer=None)
+    publish = _advised(_PUBLISH, [(1, 0), (0, 0)], layer=2)
+    terminate = _advised(_TERMINATE, [(2, 0), (1, 0)], layer=1, top=True)
+    before = _state(register={_EMBARGO: EmbargoRegisterStatus.ACTIVE})
     after = _state(
         pxa=CS_pxa.Pxa,
-        register={_EMBARGO: EmbargoRegisterStatus.ACTIVE},
+        register={_EMBARGO: EmbargoRegisterStatus.TERMINATED},
     )
-    mark = _mark(after, _advice(publish, start))
+    mark = _mark(after, _advice(publish, terminate), before=before)
     assert mark.move == _PUBLISH
-    assert mark.mark is HindsightMark.BEST
+    assert mark.mark is HindsightMark.GOOD
+
+
+def test_a_first_change_no_move_makes_is_never_passed_over():
+    """The case made public with no publication move listed, beside a
+    report-management move that is listed: the public state decides, so
+    the line is not graded as the later machine's move."""
+    accept = _advised(_ACCEPT, [(1, 0), (1, 0)], layer=1, top=True)
+    after = _state(rm=RM.ACCEPTED, pxa=CS_pxa.Pxa)
+    mark = _mark(after, _advice(accept))
+    assert (mark.mark, mark.note) == (
+        HindsightMark.NOT_A_MOVE,
+        NO_ADVISED_MOVE,
+    )
+    assert mark.move is None
+
+
+def test_an_entry_that_breaks_the_embargo_register_says_so():
+    """Two embargoes in force give no EM state, so no EM move is the step."""
+    after = _state(
+        register={
+            _EMBARGO: EmbargoRegisterStatus.ACTIVE,
+            _EMBARGO_2: EmbargoRegisterStatus.ACTIVE,
+        }
+    )
+    before = _state(register={_EMBARGO: EmbargoRegisterStatus.ACTIVE})
+    mark = _mark(after, _advice(_TOP_HARM_FREE), before=before)
+    assert (mark.mark, mark.note) == (
+        HindsightMark.NOT_A_MOVE,
+        REGISTER_PROBLEM,
+    )
 
 
 def test_an_embargo_change_is_graded_as_the_move_its_register_step_names():
@@ -418,6 +458,25 @@ def test_only_rm_and_fix_path_moves_move_the_participant_they_name():
             "layer": 3,
             "deepest_layer": 2,
         },
+        {
+            "mark": HindsightMark.GOOD,
+            "move": _ACCEPT,
+            "band": Band.HARM_FREE,
+            "layer": 1,
+        },
+        {
+            "mark": HindsightMark.BEST,
+            "move": _ACCEPT,
+            "band": Band.UNHELPFUL,
+            "layer": 1,
+            "deepest_layer": 1,
+        },
+        {
+            "mark": HindsightMark.BEST,
+            "move": _ACCEPT,
+            "layer": 1,
+            "deepest_layer": 1,
+        },
     ],
     ids=[
         "a best mark with no move",
@@ -425,6 +484,9 @@ def test_only_rm_and_fix_path_moves_move_the_participant_they_name():
         "a chance mark that does not say why",
         "a neutral mark with a layer",
         "a layer deeper than its advice's deepest",
+        "a layer without its advice's deepest layer",
+        "a best mark in the unhelpful band",
+        "a best mark with no band",
     ],
 )
 def test_a_mark_that_does_not_fit_its_kind_is_refused(fields):

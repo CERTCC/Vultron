@@ -80,7 +80,7 @@ from vultron.shadow.analysis import (
     narrative_marks,
     point_analysis,
 )
-from vultron.shadow.dashboard import minimap, view
+from vultron.shadow.dashboard import marks as marks_view, minimap, view
 from vultron.shadow.log_content import CaseLog, case_log_context
 from vultron.shadow.readers.following import CaseFollower
 
@@ -138,6 +138,9 @@ HINDSIGHT_NOTE = (
     " is graded. A best, good or sub-optimal mark takes its layer's shade on"
     " its band's legend."
 )
+
+#: How many ledger prefixes' move advice the page keeps across draws.
+_ADVICE_CACHE_ENTRIES = 1024
 
 #: What the page says while it grades the narrative's steps.
 GRADING_NOTE = "Grading each step against the move advice open before it…"
@@ -287,14 +290,26 @@ def _show_legend(band: view.BandView) -> None:
     )
 
 
-def _shaded_table(band: view.BandView) -> None:
-    """*band*'s moves, each row filled with its shade."""
-    styles = [s.css for s in band.shades]
-    # Each column takes the rows' styles in row order.
-    styler = pd.DataFrame(list(band.rows)).style.apply(
-        lambda _column: styles, axis=0
+def _styled_table(
+    rows: Sequence[view.Row],
+    shades: Sequence[view.Shade | None],
+    column: str | None = None,
+) -> None:
+    """*rows*, each filled with its shade, in row order: every cell of a
+    row, or only its *column* cell; a row whose shade is ``None`` is not
+    filled."""
+    styles = ["" if s is None else s.css for s in shades]
+    blank = [""] * len(styles)
+    styler = pd.DataFrame(list(rows)).style.apply(
+        lambda cells: styles if column in (None, cells.name) else blank,
+        axis=0,
     )
     st.dataframe(styler, hide_index=True, width="stretch")
+
+
+def _shaded_table(band: view.BandView) -> None:
+    """*band*'s moves, each row filled with its shade."""
+    _styled_table(band.rows, band.shades)
 
 
 def _show_band(band: view.BandView) -> None:
@@ -332,9 +347,12 @@ def _show_advice(advice: CaseAdvice, names: Mapping[str, str]) -> None:
 
 # A case's first entries are the same in every longer reading of it, so a
 # rerun, a followed case's next reading and another session's reading of the
-# same case work out only the prefixes not seen yet.  The bound keeps
-# a long follow from holding the advice of every prefix it graded.
-@st.cache_data(max_entries=512, show_spinner=False)
+# same case work out only the prefixes not seen yet.  The bound keeps a long
+# follow from holding the advice of every prefix it graded.  Each draw asks
+# for the prefixes in ledger order, so a case with more entries that change
+# a state than the bound evicts each prefix before its next draw asks again
+# and works every one out anew: about 0.2 s of CPU each.
+@st.cache_data(max_entries=_ADVICE_CACHE_ENTRIES, show_spinner=False)
 def _advice_of(
     entries: tuple[CaseLedgerEntry, ...], unobservable: frozenset[CSEvent]
 ) -> CaseAdvice | None:
@@ -352,25 +370,16 @@ def _show_narrative(analysis: CaseAnalysis) -> None:
     st.caption(HINDSIGHT_NOTE)
     with st.spinner(GRADING_NOTE):
         marks = narrative_marks(analysis.reading, _advice_of)
-    rows = view.narrative_rows(
+    rows = marks_view.marked_narrative_rows(
         analysis.narrative,
         analysis.actor_names,
-        analysis.reading.unobservable_events,
         marks,
+        analysis.reading.unobservable_events,
     )
-    styles = [
-        "" if shade is None else shade.css for shade in view.mark_shades(marks)
-    ]
     # Only the mark's cell takes its band's shade.
-    styler = pd.DataFrame(rows).style.apply(
-        lambda column: (
-            styles
-            if column.name == view.HINDSIGHT_COLUMN
-            else [""] * len(styles)
-        ),
-        axis=0,
+    _styled_table(
+        rows, marks_view.mark_shades(marks), marks_view.HINDSIGHT_COLUMN
     )
-    st.dataframe(styler, hide_index=True, width="stretch")
 
 
 def _show_reader_report(reading: CaseReading) -> None:

@@ -30,9 +30,7 @@ one score, and nothing here reorders a move (SHD-03-002).
 The case narrative reads one row per ledger entry
 (:func:`narrative_rows`), each with its state changes in words, and a
 case-state flag the source cannot observe shown as unknown (CRD-02-005).
-Each row carries its hindsight mark, an icon whose shape reads without
-colour; a best, good or sub-optimal mark also takes the shade its layer has
-on its band's legend in the advice it was graded by (:func:`mark_shades`).
+:mod:`~vultron.shadow.dashboard.marks` adds each row's hindsight mark.
 """
 
 from __future__ import annotations
@@ -54,7 +52,6 @@ from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.measure.advice import (
-    BAND_COLOUR_MAPS,
     AdvisedMove,
     Band,
     BandAdvice,
@@ -62,11 +59,6 @@ from vultron.measure.advice import (
     ColourMap,
 )
 from vultron.measure.advice.case import AllowedMove
-from vultron.measure.advice.hindsight import (
-    HindsightMark,
-    NarrativeMark,
-    owns_state,
-)
 from vultron.measure.history import (
     NarrativeLine,
     PxaName,
@@ -277,14 +269,15 @@ def desiderata_rows(
     return rows
 
 
-def _move_label(move: AllowedMove) -> tuple[str, str]:
+def move_label(move: AllowedMove) -> tuple[str, str]:
+    """*move*'s machine and its trigger in words: ``("RM", "Accept")``."""
     machine, _, trigger = move.name.partition(".")
     return machine.upper(), trigger.replace("_", " ").capitalize()
 
 
 def _move_cells(move: AllowedMove, names: Mapping[str, str]) -> Row:
     """Who makes *move*, in which machine, and from which state to which."""
-    machine, label = _move_label(move)
+    machine, label = move_label(move)
     return {
         "Who": actor_label(move.participant, names),
         "Machine": machine,
@@ -651,112 +644,24 @@ def change_text(
     return f"{who}{change.machine}: {before} → {after}"
 
 
-#: Each hindsight mark's icon.  No two share a shape, so a mark reads
-#: without its shade.
-HINDSIGHT_ICONS: Mapping[HindsightMark, str] = {
-    HindsightMark.BEST: "⭐",
-    HindsightMark.GOOD: "👍",
-    HindsightMark.SUB_OPTIMAL: "⚠️",
-    HindsightMark.NEUTRAL: "➖",
-    HindsightMark.BAD: "👎",
-    HindsightMark.CHANCE: "🎲",
-    HindsightMark.NOT_A_MOVE: "💬",
-}
-
-#: The narrative column holding each line's hindsight mark.
-HINDSIGHT_COLUMN = "Hindsight"
-
-#: The narrative column saying which move a mark graded, and what it adds.
-HINDSIGHT_NOTE_COLUMN = "Hindsight note"
-
-
-def mark_label(mark: NarrativeMark) -> str:
-    """*mark*'s icon and name: ``⭐ best``."""
-    return f"{HINDSIGHT_ICONS[mark.mark]} {mark.mark}"
-
-
-def mark_note(mark: NarrativeMark, names: Mapping[str, str]) -> str:
-    """The move *mark* graded, by machine and move, with the participant
-    whose state it moves, then what the mark adds, such as that a harm-free
-    move did as well.
-
-    A public-state or embargo move names no participant: it moves the
-    case's state, the same step whoever made it.
-    """
-    parts: list[str] = []
-    if mark.move is not None:
-        machine, label = _move_label(mark.move)
-        moved = f"{machine} {label}"
-        if owns_state(mark.move):
-            moved += f" ({actor_label(mark.move.participant, names)})"
-        parts.append(moved)
-    if mark.note is not None:
-        parts.append(mark.note)
-    return ": ".join(parts)
-
-
-def mark_shades(marks: Sequence[NarrativeMark]) -> tuple[Shade | None, ...]:
-    """Each mark's shade, in mark order: for a best, good or sub-optimal
-    mark, the shade its layer has on its band's legend in the advice it was
-    graded by (:func:`band_legend_shades`); ``None`` for every other mark,
-    which no band shades."""
-    shades: list[Shade | None] = []
-    for mark in marks:
-        if (
-            mark.band is None
-            or mark.layer is None
-            or mark.deepest_layer is None
-        ):
-            shades.append(None)
-            continue
-        legend = band_legend_shades(
-            BAND_COLOUR_MAPS[mark.band], mark.deepest_layer
-        )
-        shades.append(legend[mark.layer - 1])
-    return tuple(shades)
-
-
-def _marks_by_line(
-    lines: Sequence[NarrativeLine], marks: Sequence[NarrativeMark]
-) -> list[NarrativeMark | None]:
-    """*marks* in line order, or ``None`` for each line when there are none.
-
-    Raises:
-        ValueError: *marks* are not one per line, in the lines' order.
-    """
-    if not marks:
-        return [None] * len(lines)
-    if [m.log_index for m in marks] != [line.log_index for line in lines]:
-        raise ValueError("the marks are not one per narrative line, in order")
-    return list(marks)
-
-
 def narrative_rows(
     lines: Sequence[NarrativeLine],
     names: Mapping[str, str],
     unobservable: frozenset[CSEvent] = frozenset(),
-    marks: Sequence[NarrativeMark] = (),
 ) -> list[Row]:
     """One row per line of the case narrative, in log-index order.
 
     The time is the one the entry's activity claims; the commit stamp shows
     only where it differs, each in its own column, so neither stands in for
     the other (CEH-03-008).  The ``#`` column is the entry's log index.
-    Given *marks*, one per line, each row carries its hindsight mark beside
-    the log index, and a note naming the move it graded and what it adds.
     A line that could not read its entry in full says why, in a notes column
     the table has only when some line needs it.
-
-    Raises:
-        ValueError: *marks* are given but are not one per line, in order.
     """
     noted = any(line.notes for line in lines)
     rows: list[Row] = []
-    for line, mark in zip(lines, _marks_by_line(lines, marks), strict=True):
-        row: Row = {"#": line.log_index}
-        if mark is not None:
-            row[HINDSIGHT_COLUMN] = mark_label(mark)
-        row |= {
+    for line in lines:
+        row: Row = {
+            "#": line.log_index,
             "Time": format_timestamp(line.claimed_at)
             if line.claimed_at is not None
             else MISSING_SLOT,
@@ -771,8 +676,6 @@ def narrative_rows(
                 for change in line.changes
             ),
         }
-        if mark is not None:
-            row[HINDSIGHT_NOTE_COLUMN] = mark_note(mark, names)
         if noted:
             row["Notes"] = "; ".join(line.notes)
         rows.append(row)
@@ -890,6 +793,7 @@ __all__ = [
     "band_views",
     "change_text",
     "cs_spelling",
+    "move_label",
     "narrative_rows",
     "point_label",
     "point_note",

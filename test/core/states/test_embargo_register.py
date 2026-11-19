@@ -12,6 +12,7 @@ from vultron.core.states.embargo_register import (
     derive_em,
     register_invariant_violations,
     register_status_after,
+    register_trigger_between,
     register_trigger_is_legal,
 )
 from vultron.errors import VultronInvalidStateTransitionError
@@ -50,6 +51,23 @@ def test_every_other_transition_is_refused(
     assert not register_trigger_is_legal(source, trigger)
     with pytest.raises(VultronInvalidStateTransitionError):
         register_status_after(source, trigger)
+
+
+@pytest.mark.parametrize(
+    ("source", "status"),
+    list(itertools.product([None, *S], S)),
+)
+def test_each_step_of_an_entry_is_one_triggers(
+    source: S | None, status: S
+) -> None:
+    """The trigger between two statuses is the one the table moves the
+    entry by, and none moves it between statuses the table does not join."""
+    expected = [
+        t for (s, t), d in LEGAL.items() if s is source and d is status
+    ]
+    assert register_trigger_between(source, status) is (
+        expected[0] if expected else None
+    )
 
 
 @pytest.mark.parametrize("status", sorted(FINAL_REGISTER_STATUSES))
