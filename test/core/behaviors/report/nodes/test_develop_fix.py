@@ -19,6 +19,8 @@ import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.objects import make
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
     _CheckParticipantRMStateBase,
@@ -164,7 +166,7 @@ def test_check_rm_state_accepted_succeeds_when_accepted(
     """CheckRMStateAccepted returns SUCCESS when actor RM is ACCEPTED."""
     case, _ = case_with_accepted_participant
     result = bt_scenario.run(
-        CheckRMStateAccepted(case_id=case.id_, actor_id=actor.id_),
+        with_act_keys(CheckRMStateAccepted(), {CASE_KEY: case.id_}),
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)
@@ -178,7 +180,7 @@ def test_check_rm_state_accepted_fails_when_deferred(
     """CheckRMStateAccepted returns FAILURE when actor RM is DEFERRED."""
     case, _ = case_with_deferred_participant
     result = bt_scenario.run(
-        CheckRMStateAccepted(case_id=case.id_, actor_id=actor.id_),
+        with_act_keys(CheckRMStateAccepted(), {CASE_KEY: case.id_}),
         actor_id=actor.id_,
     )
     bt_scenario.assert_failure(result)
@@ -192,7 +194,7 @@ def test_rm_in_state_deferred_succeeds_when_deferred(
     """RMinStateDeferred returns SUCCESS when actor RM is DEFERRED."""
     case, _ = case_with_deferred_participant
     result = bt_scenario.run(
-        RMinStateDeferred(case_id=case.id_, actor_id=actor.id_),
+        with_act_keys(RMinStateDeferred(), {CASE_KEY: case.id_}),
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)
@@ -206,7 +208,7 @@ def test_rm_in_state_deferred_fails_when_accepted(
     """RMinStateDeferred returns FAILURE when actor RM is ACCEPTED."""
     case, _ = case_with_accepted_participant
     result = bt_scenario.run(
-        RMinStateDeferred(case_id=case.id_, actor_id=actor.id_),
+        with_act_keys(RMinStateDeferred(), {CASE_KEY: case.id_}),
         actor_id=actor.id_,
     )
     bt_scenario.assert_failure(result)
@@ -218,9 +220,9 @@ def test_check_rm_state_accepted_fails_without_case(
 ) -> None:
     """CheckRMStateAccepted returns FAILURE when case is not found."""
     result = bt_scenario.run(
-        CheckRMStateAccepted(
-            case_id="https://example.org/cases/missing",
-            actor_id=actor.id_,
+        with_act_keys(
+            CheckRMStateAccepted(),
+            {CASE_KEY: "https://example.org/cases/missing"},
         ),
         actor_id=actor.id_,
     )
@@ -242,7 +244,7 @@ def test_check_rm_state_accepted_fails_without_participant(
     )
     bt_scenario.seed(case)
     result = bt_scenario.run(
-        CheckRMStateAccepted(case_id=case.id_, actor_id=actor.id_),
+        with_act_keys(CheckRMStateAccepted(), {CASE_KEY: case.id_}),
         actor_id=actor.id_,
     )
     bt_scenario.assert_failure(result)

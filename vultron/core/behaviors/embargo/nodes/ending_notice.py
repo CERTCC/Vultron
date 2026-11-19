@@ -365,7 +365,7 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
 
 
 def embargo_ending_notice_nodes(
-    case_id: str, requested_by: str | None = None
+    case_id: str | None, requested_by: str | None = None
 ) -> tuple[py_trees.behaviour.Behaviour, py_trees.behaviour.Behaviour]:
     """Return the linked capture and notice nodes for one EM write.
 

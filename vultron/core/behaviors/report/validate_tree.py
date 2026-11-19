@@ -90,10 +90,15 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import REPORT_ID
 from vultron.core.behaviors.call_out.bundles.validation import (
     VALIDATION_DETERMINISTIC,
 )
-from vultron.core.behaviors.case.nodes.case_lookup import RequireCaseForReport
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    CaseFoundForReport,
+    RequireCaseForReport,
+)
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -123,6 +128,7 @@ def create_validate_report_subtree(
     rm_rule: RMRule = RMRule.TRANSITION,
     written_ids: list[str] | None = None,
     record_participant: bool = True,
+    case_published: bool = False,
 ) -> py_trees.behaviour.Behaviour:
     """Build the canonical validate-report subtree.
 
@@ -160,6 +166,11 @@ def create_validate_report_subtree(
         record_participant: ``False`` checks the move and writes nothing,
             leaving the link and the sender's participant to the
             CASE_MANAGER.  The trigger side passes it (RSH-08-006, CM-23-016).
+        case_published: ``True`` when the enclosing tree's lookup already
+            published the report's case on ``/case_id`` (the received side,
+            BT-25-009): the subtree then only checks that it did, so the
+            lookup stays the key's one source (BT-25-011).  ``False`` looks
+            the case up here (the trigger side).
 
     Returns:
         Root node of the validation subtree (a Selector).
@@ -206,7 +217,12 @@ def create_validate_report_subtree(
             ),
             bundle.credibility_factory("EvaluateReportCredibility"),
             bundle.validity_factory("EvaluateReportValidity"),
-            RequireCaseForReport(report_id=report_id),
+            with_act_keys(
+                CaseFoundForReport(name="RequireCaseForReport")
+                if case_published
+                else RequireCaseForReport(),
+                {REPORT_ID: report_id},
+            ),
             EnsureEmbargoExists(report_id=report_id),
             validation_actions,
         ],

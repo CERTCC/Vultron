@@ -186,7 +186,7 @@ def create_terminate_active_embargo_tree(
         name="TerminateActiveEmbargoBT",
         memory=False,
         children=[
-            HasActiveEmbargoNode(case_id=case_id, result_out=result_out),
+            with_case_id(HasActiveEmbargoNode(result_out=result_out), case_id),
             reason_selector,
             authorize_selector,
             actuator_call(

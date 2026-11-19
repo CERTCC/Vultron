@@ -54,6 +54,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import (
     CASE_ID as CASE_KEY,
+    OBJECT_ID as OBJECT_KEY,
     SENDER_ID as SENDER_KEY,
 )
 from vultron.core.behaviors.bridge import BTBridge
@@ -1791,7 +1792,7 @@ class TestEmitRMGapNoteNode:
         """BB_RM_ANOMALY=None → SUCCESS with no outbox entry (happy path)."""
         bridge = self._bridge_with_factory(populated_dl)
         node = with_case_id(
-            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
+            with_act_keys(EmitRMGapNoteNode(), {SENDER_KEY: ACTOR_ID}), CASE_ID
         )
         result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
@@ -1805,7 +1806,7 @@ class TestEmitRMGapNoteNode:
         """BB_RM_ANOMALY=gap → SUCCESS + one committed inline Add(Note)."""
         bridge = self._bridge_with_factory(populated_dl)
         node = with_case_id(
-            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
+            with_act_keys(EmitRMGapNoteNode(), {SENDER_KEY: ACTOR_ID}), CASE_ID
         )
         # Pre-populate anomaly flag as if CheckParticipantStatusAcceptableNode ran
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
@@ -1823,7 +1824,7 @@ class TestEmitRMGapNoteNode:
         """BB_RM_ANOMALY=regression → SUCCESS + one committed inline Add(Note)."""
         bridge = self._bridge_with_factory(populated_dl)
         node = with_case_id(
-            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
+            with_act_keys(EmitRMGapNoteNode(), {SENDER_KEY: ACTOR_ID}), CASE_ID
         )
         self._set_anomaly("regression", RM.ACCEPTED, RM.RECEIVED)
 
@@ -1847,7 +1848,7 @@ class TestEmitRMGapNoteNode:
         refused = fail_commits(monkeypatch, commit_tree)
         bridge = self._bridge_with_factory(populated_dl)
         node = with_case_id(
-            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
+            with_act_keys(EmitRMGapNoteNode(), {SENDER_KEY: ACTOR_ID}), CASE_ID
         )
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
 
@@ -1869,7 +1870,7 @@ class TestEmitRMGapNoteNode:
         """
         bridge = self._bridge_with_factory(populated_dl)
         node = with_case_id(
-            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
+            with_act_keys(EmitRMGapNoteNode(), {SENDER_KEY: ACTOR_ID}), CASE_ID
         )
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
         gap_note = unscoped(node)
@@ -1911,7 +1912,7 @@ class TestEmitRMGapNoteNode:
                     variable_value=CASE_ID,
                     overwrite=True,
                 ),
-                EmitRMGapNoteNode(sender_actor_id=ACTOR_ID),
+                with_act_keys(EmitRMGapNoteNode(), {SENDER_KEY: ACTOR_ID}),
             ],
         )
 
@@ -1923,7 +1924,7 @@ class TestEmitRMGapNoteNode:
     def test_no_case_id_is_noop_success(self, populated_dl):
         """case_id=None → SUCCESS with no outbox entry (no case context)."""
         bridge = self._bridge_with_factory(populated_dl)
-        node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID)
+        node = with_act_keys(EmitRMGapNoteNode(), {SENDER_KEY: ACTOR_ID})
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
 
         result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
@@ -1934,7 +1935,7 @@ class TestEmitRMGapNoteNode:
     def test_no_factory_is_success_noop(self, populated_bridge):
         """No TriggerActivityPort → SUCCESS (degrades gracefully — SHOULD not MUST)."""
         node = with_case_id(
-            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
+            with_act_keys(EmitRMGapNoteNode(), {SENDER_KEY: ACTOR_ID}), CASE_ID
         )
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
         # populated_bridge has no trigger_activity_factory
@@ -2401,8 +2402,9 @@ class TestAdoptedPxaReachesTheCaseStatus:
             EmitCaseStatusUpdateNode,
         )
 
-        node = EmitCaseStatusUpdateNode(
-            case_id=CASE_ID, reported_status_id=reported_status_id
+        node = with_act_keys(
+            EmitCaseStatusUpdateNode(adopts_reported_status=True),
+            {CASE_KEY: CASE_ID, OBJECT_KEY: reported_status_id},
         )
         return run_tree(
             _cm_bridge(dl), tree=node, actor_id=CASE_MANAGER_ID

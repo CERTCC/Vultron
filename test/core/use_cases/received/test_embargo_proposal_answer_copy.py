@@ -41,6 +41,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_participant import CaseParticipant
@@ -859,7 +861,9 @@ def test_an_accept_whose_re_issued_row_did_not_commit_is_not_kept():
                     sync_port=_Sync(dl),
                     wire_render_port=As2WireRenderAdapter(),
                 ),
-                tree=ReissueStubInvitesNode(case_id=net.case_id),
+                tree=with_act_keys(
+                    ReissueStubInvitesNode(), {CASE_KEY: net.case_id}
+                ),
                 actor_id=MANAGER,
             ),
         )

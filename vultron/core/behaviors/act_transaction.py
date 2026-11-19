@@ -219,8 +219,14 @@ def received_act_stage(
     act: list[py_trees.behaviour.Behaviour],
     case_id: str | None,
     exemption: OneActExemption | None,
+    *,
+    commits: bool | None = None,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The guarded commit and the effects after it, as one act by default.
+
+    *commits* says whether the tree commits to a case; it defaults to
+    whether *case_id* names one, and a tree whose lookup publishes its case
+    passes ``True`` (BT-25-009).
 
     A tree that commits to *case_id* runs its commit and every effect after
     it in one ``ActTransaction`` named ``{name}Act``: the act's own entry and
@@ -233,6 +239,8 @@ def received_act_stage(
             ``ONE_ACT_EXEMPTIONS``, or it exempts a tree that commits to no
             case and so has no act to run outside of.
     """
+    if commits is None:
+        commits = case_id is not None
     if exemption is not None:
         where = f"create_receive_activity_tree({name})"
         require_registered(
@@ -243,13 +251,13 @@ def received_act_stage(
             registry_name="ONE_ACT_EXEMPTIONS",
             spec_id="CLP-07-024",
         )
-        if case_id is None:
+        if not commits:
             raise VultronWiringError(
                 f"{where}: one-act exemption {exemption.name!r} exempts a"
                 " tree that commits to no case; drop it (CLP-07-024)"
             )
         return act
-    if case_id is None:
+    if not commits:
         return act
     return [ActTransaction(name=f"{name}Act", children=act)]
 

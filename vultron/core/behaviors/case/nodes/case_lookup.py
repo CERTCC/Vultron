@@ -24,6 +24,12 @@ consume, so a tree resolves the case once and every later node reads
 than in each consumer's module so the producer/consumer contract for
 ``/case_id`` has exactly one definition.
 
+:class:`FindCaseForReport` is the lookup a received report tree runs ahead
+of its path stage (BT-25-009): it publishes the report's case and never
+refuses, and :class:`CaseFoundForReport` refuses the miss where the tree
+places it (BT-25-010).  Every report node reads ``/report_id``
+(BTND-01-008).
+
 :class:`CaseResolving` marks a node a received tree may run ahead of its
 sender guard to resolve the case the guard reads (``case_resolution``).
 """
@@ -33,7 +39,17 @@ from typing import Any
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, REPORT_ID
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
+from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.models.case import VulnerabilityCase
 
 
@@ -78,24 +94,34 @@ class RequireCaseForReport(CaseResolving, DataLayerActionWithPorts):
     without the case refuses before the commit stage (CLP-10-009).
     """
 
-    def __init__(self, report_id: str | None, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         """Initialize RequireCaseForReport.
 
+        The report is read from ``/report_id`` when the node ticks
+        (BTND-01-008); no report there yields ``FAILURE``, since there is
+        nothing to resolve.
+
         Args:
-            report_id: URI of the ``VulnerabilityReport`` whose case is needed.
-                ``None`` yields ``FAILURE`` — there is nothing to resolve.
             name: Optional custom node name (defaults to the class name).
         """
         super().__init__(name=name or self.__class__.__name__)
-        self._report_id = report_id
+        self._report_id: str | None = None
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(REPORT_ID),
+    }
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "case_id": PortInformation(data_type=str, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
+        return {"case_id": "/case_id", **act_key_remappings(REPORT_ID)}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._report_id = optional_act_value(self, REPORT_ID, str)
 
     def _find_case(self, report_id: str) -> VulnerabilityCase | None:
         """The lookup subclasses narrow; the rest of ``update`` is shared."""
@@ -135,6 +161,100 @@ class RequireCaseForReport(CaseResolving, DataLayerActionWithPorts):
             self._report_id,
         )
         return Status.SUCCESS
+
+
+class FindCaseForReport(RequireCaseForReport):
+    """The lookup a received report tree runs first: publish the report's case.
+
+    A received report verdict (``Accept``, ``TentativeReject`` or ``Reject``
+    of ``Offer(VulnerabilityReport)``) names its report, never its case, and
+    only this store knows which case holds the report.  So the case is a
+    per-act value a lookup node finds (BT-25-009), and this is that node: it
+    runs ahead of the path stage, which reads the receiver's role in the case
+    it published (ADR-0153), and every later node of the tree reads the same
+    ``/case_id`` (BT-25-011).
+
+    It never refuses.  A report this store holds no case for publishes
+    nothing and succeeds, so the path stage puts the receiver on the no-case
+    path and the tree's declaration decides the delivery there, exactly as
+    when the case was read before the tree ran (HP-01-039, HP-01-041).  The
+    miss is refused by :class:`CaseFoundForReport`, which a tree places where
+    its unknown-case refusal belongs (BT-25-010, #2255).
+    """
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        case = self._find_case(self._report_id) if self._report_id else None
+        if case is None:
+            # A miss is an answer, not a refusal: the declaration decides it.
+            self.logger.debug(
+                "%s: no case in this store for report '%s'; the tree's"
+                " declaration decides the delivery",
+                self.name,
+                self._report_id,
+            )
+            return Status.SUCCESS
+        self._set_output("case_id", case.id_)
+        self.logger.debug(
+            "%s: found case '%s' for report '%s'",
+            self.name,
+            case.id_,
+            self._report_id,
+        )
+        return Status.SUCCESS
+
+
+class CaseFoundForReport(
+    DeclaredRefusalMixin, CaseResolving, DataLayerConditionWithPorts
+):
+    """Refuse a report whose case :class:`FindCaseForReport` did not find.
+
+    The miss half of the report lookup (BT-25-010): it reads ``/case_id``
+    and ``/report_id`` and fails, with the reason the lookup gives, when no
+    case was published for the report.  It reads no store and publishes
+    nothing, so the lookup stays the one source of ``/case_id`` (BT-25-011).
+    It declares the refusal, naming the report and citing BT-25-010
+    (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`).  It may
+    run before the sender guard (``case_resolution``) or among the
+    precondition guards, wherever the tree refuses an activity about a case
+    this store does not hold (#2255).
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, REPORT_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, REPORT_ID)
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id: str | None = None
+        self._report_id: str | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id = optional_act_value(self, CASE_ID, str)
+        self._report_id = optional_act_value(self, REPORT_ID, str)
+
+    def update(self) -> Status:
+        if self._case_id:
+            return Status.SUCCESS
+        if not self._report_id:
+            self.feedback_message = "no report_id — no case to resolve"
+        else:
+            self.feedback_message = (
+                f"no VulnerabilityCase for report '{self._report_id}' in"
+                " this actor's store"
+            )
+        # INFO, not WARNING: the replica may not have arrived yet, a
+        # legitimate transient state on the receiving side.
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return self._refuse(f"{self.feedback_message} (BT-25-010)")
 
 
 class CaseIdInputPortMixin:

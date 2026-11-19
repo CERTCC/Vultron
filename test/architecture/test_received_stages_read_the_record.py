@@ -90,26 +90,9 @@ PATH_ANSWER_READS: frozenset[_Finding] = frozenset(
 #: The handling-node reads of a door-written key that predate this check,
 #: each owned by the open issue that removes it.  Shrink-only: the test
 #: fails on a new finding and on a listed one that is gone, so delete an
-#: entry when its finding goes.
-# owner: #6476
-KNOWN_DOOR_KEY_READS: frozenset[tuple[tuple[str, str], _Finding]] = frozenset(
-    {
-        # The Invalidate tree's RM write reads the /case_id its
-        # RequireCaseForReport door published; #6476 moves the lookup into
-        # the tree.
-        (
-            (
-                "vultron/core/behaviors/report/received_report_trees/verdicts.py",
-                "create_invalidate_report_received_tree",
-            ),
-            (
-                "CreateParticipantStatusNode",
-                "/case_id",
-                "RequireCaseForReport",
-            ),
-        ),
-    }
-)
+#: entry when its finding goes.  Empty since the report trees moved their
+#: case lookup into the tree, ahead of the doors (#6476).
+KNOWN_DOOR_KEY_READS: frozenset[tuple[tuple[str, str], _Finding]] = frozenset()
 
 
 def _nodes_in(value: object, depth: int = 0) -> Iterator[object]:

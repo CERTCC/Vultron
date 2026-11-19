@@ -86,6 +86,8 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, OBJECT_ID
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
@@ -416,13 +418,15 @@ def add_participant_status_tree(
                     # The canonical CaseStatus adds every P, X or A latch the sender
                     # reported in its embedded case status, clearing none
                     # (RSH-01-003, #4956).
-                    EmitCaseStatusUpdateNode(
-                        case_id=tree_case_id,
-                        name="EmitCaseStatusUpdate",
-                        # The case adopts the report's P/X/A here, read at tick after
-                        # the append, so a status received by reference is adopted
-                        # too (RSH-01-003).
-                        reported_status_id=status_id or None,
+                    with_act_keys(
+                        EmitCaseStatusUpdateNode(
+                            name="EmitCaseStatusUpdate",
+                            # The case adopts the report's P/X/A here, read at
+                            # tick after the append, so a status received by
+                            # reference is adopted too (RSH-01-003).
+                            adopts_reported_status=True,
+                        ),
+                        {CASE_ID: tree_case_id, OBJECT_ID: status_id},
                     ),
                     # The adoption authorizes the teardown the adopted P, X or A
                     # calls for, so it runs here with no second gate (ADR-0166).

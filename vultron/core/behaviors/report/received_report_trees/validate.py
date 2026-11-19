@@ -23,6 +23,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import REPORT_ID, SENDER_ID
+from vultron.core.behaviors.case.nodes.case_lookup import FindCaseForReport
 from vultron.core.behaviors.case.nodes.participant.status_entries import (
     CommitParticipantStatusEntriesNode,
 )
@@ -52,7 +55,6 @@ def create_validate_report_received_tree(
     report_id: str,
     offer_id: str,
     sender_actor_id: str,
-    case_id: str | None = None,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
@@ -61,19 +63,23 @@ def create_validate_report_received_tree(
     Composes the validate-report workflow for a received
     ``Accept(Offer(VulnerabilityReport))`` activity: the sender declares that
     *its* RM state is ``VALID``.  All nodes that need the sender's identity
-    receive ``sender_actor_id`` as an explicit constructor arg so the tree can
-    run under ``actor_id=receiving_actor_id`` while the RM write is about the
+    read it from ``sender_actor_id`` or ``/sender_id``, so the tree can run
+    under ``actor_id=receiving_actor_id`` while the RM write is about the
     *sender* (RSH-08-001, BT-17-006).
+
+    The tree finds its case itself: :class:`FindCaseForReport` runs ahead
+    of the path stage and publishes the report's case on ``/case_id``, the
+    one source of that key in the tree (BT-25-009, BT-25-011), so the use
+    case reads no store (ADR-0195).  A receiver that holds no case for the
+    report is on the no-case path, which this tree does not declare, so the
+    path stage refuses the activity (HP-01-039).
 
     The sender must be a participant of the case (HP-01-006), and the
     declaration is adjudicated under the received-side RM acceptance rule
     before the commit (RSH-06-006, CLP-10-006): a backward move is refused, a
     non-adjacent forward one is recorded and flagged for the RSH-06-004 note.
-
-    When ``case_id`` is provided, a guarded-commit subtree is inserted before
-    the validation effects so receipt is recorded before any RM state
-    transitions run (CLP-10-006).  With ``None`` the sender guard has no case
-    to check the sender against, so the tree refuses the activity.
+    A guarded-commit subtree runs before the validation effects so receipt
+    is recorded before any RM state transitions run (CLP-10-006).
 
     The validation subtree itself is built by
     :func:`~vultron.core.behaviors.report.validate_tree.create_validate_report_subtree`
@@ -86,8 +92,10 @@ def create_validate_report_received_tree(
     Structure::
 
         ValidateReportReceivedBT (Sequence)
-        ├── Intake
+        ├── FindCaseForReport                       # publishes /case_id
+        ├── [path stage, doors]                     # CASE_MANAGER path only
         ├── SenderIsParticipantNode                 # HP-01-006
+        ├── Intake
         ├── AdjudicateRMDeclarationNode(VALID)      # RSH-06-006
         ├── GuardedCommitCaseLedgerEntryBT          # CLP-10-006
         ├── ValidateReportBT (Selector)
@@ -96,7 +104,7 @@ def create_validate_report_received_tree(
         │       ├── CheckRMStateReceivedOrInvalid(sender_actor_id)
         │       ├── EvaluateReportCredibility
         │       ├── EvaluateReportValidity
-        │       ├── RequireCaseForReport                # publishes /case_id
+        │       ├── RequireCaseForReport                # the lookup found it
         │       ├── EnsureEmbargoExists                 # DUR-07-004
         │       └── ValidationActions (Sequence)
         │           └── TransitionRMtoValid(sender_actor_id)
@@ -118,9 +126,6 @@ def create_validate_report_received_tree(
         offer_id: ID of the Offer activity that carried the report.
         sender_actor_id: Actor ID of the message sender (the validating actor).
             Used by validation nodes instead of the blackboard ``actor_id``.
-        case_id: ID of the VulnerabilityCase linked to this report, which
-            the sender guard, the RM adjudication and the guarded commit
-            read; ``None`` when this store holds no case for the report.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
@@ -135,32 +140,29 @@ def create_validate_report_received_tree(
         emit=False,
         rm_rule=RMRule.DECLARATION,
         written_ids=written,
+        case_published=True,
     )
 
     # RSH-08-003: the sender's RM → VALID is canonical participant state only
     # the CASE_MANAGER writes; ``validate_report`` is committed, then the
     # status it wrote follows as its own entry, which a replica copies from
-    # the ledger fan-out, not from the direct Accept (#3814, CLP-07-013).  With no case
-    # (``case_id`` None) the sender guard refuses the activity before any
-    # effect, so there is nothing to gate.
-    manager_effects = (
-        [
-            validation,
-            # The status the validation wrote, as its own entry (CLP-07-013).
+    # the ledger fan-out, not from the direct Accept (#3814, CLP-07-013).
+    # Every node below reads the case the lookup published.
+    manager_effects = [
+        validation,
+        # The status the validation wrote, as its own entry (CLP-07-013).
+        with_act_keys(
             CommitParticipantStatusEntriesNode(
-                subject_actor_id=sender_actor_id,
-                case_id=case_id,
-                status_ids=written,
-                name="RecordRMValidStatus",
+                status_ids=written, name="RecordRMValidStatus"
             ),
-            rm_gap_note(sender_actor_id, case_id),
-        ]
-        if case_id is not None
-        else None
-    )
+            {SENDER_ID: sender_actor_id},
+        ),
+        rm_gap_note(sender_actor_id, None),
+    ]
     root = create_receive_activity_tree(
         name="ValidateReportReceivedBT",
-        case_id=case_id,
+        case_id=None,
+        case_lookup=with_act_keys(FindCaseForReport(), {REPORT_ID: report_id}),
         # The participant declares RM.VALID to the CASE_MANAGER alone, which
         # adjudicates and commits it (PCR-08-001, RSH-06-006); a participant
         # replica takes the sender's RM state from the ledger entry that
@@ -168,25 +170,18 @@ def create_validate_report_received_tree(
         # so the path stage refuses a copy there (HP-01-005, HP-01-038).
         paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
-        sender_context=SenderCheckContext(
-            sender_id=sender_actor_id, case_id=case_id
-        ),
+        sender_context=SenderCheckContext(sender_id=sender_actor_id),
         precondition_guards=[
-            rm_declaration_guard(sender_actor_id, RM.VALID, case_id),
+            rm_declaration_guard(sender_actor_id, RM.VALID, None),
         ],
         manager_effects=manager_effects,
-        manager_case_id=case_id if manager_effects else None,
-        manager_gate_name=(
-            "ValidateReportEffectsIfCaseManager" if manager_effects else None
-        ),
-        refusal_effects=[rm_gap_note(sender_actor_id, case_id)],
+        manager_gate_name="ValidateReportEffectsIfCaseManager",
+        refusal_effects=[rm_gap_note(sender_actor_id, None)],
     )
     logger.debug(
-        "Created ValidateReportReceivedBT for report=%s offer=%s sender=%s"
-        " case=%s",
+        "Created ValidateReportReceivedBT for report=%s offer=%s sender=%s",
         report_id,
         offer_id,
         sender_actor_id,
-        case_id,
     )
     return root

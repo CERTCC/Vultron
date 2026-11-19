@@ -26,6 +26,8 @@ from collections.abc import Collection
 
 import py_trees
 
+from vultron.core.behaviors.act_inputs import published_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.case.nodes.addressee import (
     ADDRESSEE_EXEMPTIONS,
     ActivityAddressedToReceiverNode,
@@ -48,7 +50,7 @@ from vultron.core.behaviors.case.nodes.seen_before import (
     ActivityNotSeenBeforeNode,
 )
 from vultron.core.behaviors.case.receive_stages.guards import refusal_stage
-from vultron.core.behaviors.case_id_scope import with_case_id
+from vultron.core.behaviors.case_id_scope import unscoped, with_case_id
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.sender_entitlement import SenderRule
@@ -312,6 +314,70 @@ def received_path_stage(
             " HP-01-041)"
         )
     return ReceivedPathNode(declared=declared, label=name, held_case=held_case)
+
+
+def case_lookup_stage(
+    name: str,
+    lookup: py_trees.behaviour.Behaviour | None,
+    *,
+    case_named: bool,
+    sender_context: SenderContext | None,
+    held_case: CaseNamedByReference | None,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The lookup that publishes the tree's case, ahead of the path stage.
+
+    A tree whose case only the store holds (a report verdict names its
+    report, never its case) finds it with one lookup node at the front of
+    the tree, which publishes ``/case_id`` (BT-25-009).  The path stage, the
+    sender guard and every later node read that key, so the lookup is its
+    one source in the tree (BT-25-011), and the tree's shape is the same
+    whichever case the act is about (BTND-01-009).  The lookup never
+    refuses: a miss publishes nothing, the path stage reads the no-case path,
+    and the tree's declaration decides the delivery there (HP-01-039).  It
+    is no door, because it decides nothing; it only reads the store, which
+    every stage may (ADR-0154).
+
+    Raises:
+        VultronWiringError: The tree also names a case at build time
+            (*case_named*: its commit case, its CASE_MANAGER gate's case or
+            its sender context's), so ``/case_id`` would have two sources
+            (BT-25-011); its sender context reads the case from a ledger
+            activity instead; it names a ``held_case``, whose refusal needs
+            the case at build time (AKM-03-006); or the lookup is not a
+            read-only ``CaseResolving`` node that publishes ``/case_id``.
+    """
+    if lookup is None:
+        return []
+    where = f"create_receive_activity_tree({name})"
+    if case_named:
+        raise VultronWiringError(
+            f"{where}: case_lookup publishes the tree's case, so the tree"
+            " names none at build time (BT-25-011)"
+        )
+    if isinstance(sender_context, LedgerActivityContext):
+        raise VultronWiringError(
+            f"{where}: a ledger activity's guard reads its case from the"
+            " entry, not from case_lookup (HP-01-024)"
+        )
+    if held_case is not None:
+        raise VultronWiringError(
+            f"{where}: held_case refuses on the case named at build time,"
+            " so it cannot take case_lookup (AKM-03-006)"
+        )
+    # The lookup may sit in the scope that seeds its own input (the report
+    # id); the check is about the node.
+    node = unscoped(lookup)
+    if (
+        not isinstance(node, CaseResolving)
+        or isinstance(node, (StateWriteCapable, EmitCapable))
+        or CASE_ID not in published_act_keys(node)
+    ):
+        raise VultronWiringError(
+            f"{where}: case_lookup must be a read-only CaseResolving node"
+            f" that publishes {CASE_ID.path}; got {type(node).__name__}"
+            " (BT-25-009)"
+        )
+    return [lookup]
 
 
 def closed_sender_stage(

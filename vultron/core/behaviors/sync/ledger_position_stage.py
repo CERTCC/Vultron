@@ -91,7 +91,7 @@ def _is(*expect: PositionStanding) -> LedgerPositionIsNode:
 
 
 def create_ledger_position_stage(
-    case_id: str,
+    case_id: str | None,
     sender_id: str,
 ) -> CaseManagerGate:
     """The CASE_MANAGER's answer to *sender_id*'s stamped position in *case_id*.

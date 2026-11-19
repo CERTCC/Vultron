@@ -32,7 +32,8 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BlackboardKeyProbe, BTTestScenario
 from test.support.act_clock import ACT_AT
 from test.support.objects import make
-from vultron.core.behaviors.act_key_scope import ActKeyScope
+from vultron.core.behaviors.act_key_scope import ActKeyScope, with_act_keys
+from vultron.core.behaviors.act_keys import REPORT_ID as REPORT_KEY
 from vultron.core.behaviors.bridge.act_instant import act_instant_in_tree_run
 from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
@@ -554,7 +555,9 @@ def test_a_run_time_resolved_case_may_declare_the_no_case_path_alone() -> None:
         paths={ReceivedPath.NO_CASE},
         sender_rule=_RULE,
         sender_context=SenderCheckContext(sender_id=OWNER_ID, case_id=None),
-        case_resolution=[RequireCaseForReport(report_id=REPORT_ID)],
+        case_resolution=[
+            with_act_keys(RequireCaseForReport(), {REPORT_KEY: REPORT_ID})
+        ],
     )
     (stage,) = [n for n in tree.iterate() if isinstance(n, ReceivedPathNode)]
     assert stage.declared == frozenset({ReceivedPath.NO_CASE})
@@ -582,7 +585,9 @@ def test_a_no_case_declaration_on_a_run_time_case_must_admit_no_sender() -> (
             sender_context=SenderCheckContext(
                 sender_id=OWNER_ID, case_id=None
             ),
-            case_resolution=[RequireCaseForReport(report_id=REPORT_ID)],
+            case_resolution=[
+                with_act_keys(RequireCaseForReport(), {REPORT_KEY: REPORT_ID})
+            ],
         )
 
 
@@ -609,7 +614,9 @@ def test_declaring_paths_on_a_run_time_resolved_case_is_a_wiring_error() -> (
             sender_context=SenderCheckContext(
                 sender_id=OWNER_ID, case_id=None
             ),
-            case_resolution=[RequireCaseForReport(report_id=REPORT_ID)],
+            case_resolution=[
+                with_act_keys(RequireCaseForReport(), {REPORT_KEY: REPORT_ID})
+            ],
         )
 
 

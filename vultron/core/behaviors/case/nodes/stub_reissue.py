@@ -30,6 +30,12 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.case.nodes.invite_actor_emit import (
     build_stub_invite,
     commit_stub_invite,
@@ -43,6 +49,10 @@ from vultron.core.behaviors.embargo.decided_entries import (
     decide_commit_and_apply,
 )
 from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.activity_ids import derived_activity_id
@@ -87,18 +97,31 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
     replacement, queued Invite or row change, so nothing is left for a later
     run.
 
-    Succeeds with nothing emitted when no stub is stale.
+    Succeeds with nothing emitted when no stub is stale.  The case is read
+    from ``/case_id`` (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID)
 
     def __init__(
         self,
-        case_id: str,
         actor_config: ActorConfig | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name)
-        self.case_id = case_id
+        self.case_id = ""
         self._actor_config = actor_config
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
