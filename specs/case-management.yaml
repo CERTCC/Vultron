@@ -12297,7 +12297,7 @@ groups:
       an update that supplies every field (ADR-0187).
     verification: >-
       A test marked `CM-34-007` admits an update that supplies only `cve` to an item that
-      has a `title` and asserts the item keeps its `title` and gains the `cve`.
+      has a `name` and asserts the item keeps its `name` and gains the `cve`.
     adr:
     - ADR-0187
     stories:

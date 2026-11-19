@@ -626,10 +626,9 @@ acceptance criteria track them.
 | `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
-Every other field is a Vultron term, and the item's `title` is now its AS2 `name`
-(#6413). `state`, `status` and `kind` are each used once on the wire, and
-`caseStatus` is one meaning in two shapes (an object or a link), so none of them is
-a clash. `caseActivity` is dead, but it is marked a Vultron term,
+Every other field is a Vultron term. `state`, `status` and `kind` are each used once
+on the wire, and `caseStatus` is one meaning in two shapes (an object or a link), so
+none of them is a clash. `caseActivity` is dead, but it is marked a Vultron term,
 so no rule refuses it, and #6415 deletes it without a ratchet entry.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
