@@ -221,7 +221,8 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
     actor that is not the Case Owner, one with no
     roles (CM-11-019, CM-11-050), and one whose invitee is the Owner, the
     CASE_MANAGER, or a participant that was removed (CM-31-013), has joined
-    or is at ``RM.CLOSED`` (CM-11-043, ADR-0085).  The CASE_MANAGER refuses the same Invite for
+    or is at ``RM.CLOSED`` (CM-11-043, ADR-0085).  The CASE_MANAGER refuses
+    the same Invite for
     the same reasons, for an Invite that arrives from elsewhere.
     """
 

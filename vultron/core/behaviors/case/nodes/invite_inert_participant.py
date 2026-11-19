@@ -159,7 +159,8 @@ class _SeatInertInviteeBase(DataLayerActionWithPorts, StateWriteCapable):
 
         A record at ``RM.CLOSED`` is terminal, joined or not, and refused
         (FAILURE, CM-11-015, ADR-0085), as the CASE_MANAGER's admission
-        guards refuse it (``not_invitable_refusal``).  Any other record is kept: a joined one is never
+        guards refuse it (``not_invitable_refusal``).  Any other record is
+        kept: a joined one is never
         re-seated, and a re-invite keeps the same inert record (CM-11-015).
         Both are left unchanged.
         """
