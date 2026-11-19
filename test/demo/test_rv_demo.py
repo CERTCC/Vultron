@@ -1444,9 +1444,9 @@ def _create_case_from_offer(
 
     This docstring used to blame "nested ASGI delivery is blocked at depth > 0
     to prevent deadlocks".  That is not so: nothing implements such a guard,
-    and ``InProcessRouter`` dispatches each POST via
-    ``anyio.to_thread.run_sync`` precisely so nested sends cannot deadlock —
-    multi-hop deliveries are observably completing with 202s.  What actually
+    and ``InProcessRouter`` posts each delivery off the loop on a thread of its
+    own so nested sends do not deadlock (#6190) — multi-hop deliveries are
+    observably completing with 202s.  What actually
     stops the round-trip is ordinary bugs in what the sender queues, so do not
     treat the incompleteness here as a fixed property of the harness.
 
@@ -2335,12 +2335,9 @@ class TestVerifyCaseActive:
 
 
 # The full rv workflow runs every fragment through report submission, case
-# activation, embargo, fix development and case closure — including several
-# polling waits on asynchronous background-task replication.  It takes ~50 s
-# locally, so a 30 s bound expired mid-run and presented as a hang rather than
-# a failure.  180 s leaves headroom for slower CI runners without masking a
-# genuine deadlock.
-@pytest.mark.timeout(180)
+# activation, embargo, fix development and case closure.  It takes about 9 s
+# idle, well inside the integration tier (TB-14-001), so it carries no timeout
+# of its own (TB-14-011, #6190).
 class TestRunRvDemo:
     """The complete rv workflow through ``run_rv_demo``."""
 

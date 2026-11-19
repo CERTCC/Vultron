@@ -271,7 +271,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
             recommended_id=self.recommended_id,
             case_id=self.case_id,
             actor=self.actor_id,
-            origin=self.recommendation_id,
+            in_reply_to=self.recommendation_id,
             to=[owner_id],
             roles=roles,
             content=self.offer_content,

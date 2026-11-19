@@ -170,8 +170,8 @@ how-to tree.
   directory and copy files across — that workaround existed because the
   generator used to randomize ids and timestamps, and it no longer does.
 - **An example must be dispatchable.** Set every discriminator field its
-  `ActivityPattern` requires (`object_`, `target_`, `context_`); there is no
-  `origin_` field, so `origin` never affects dispatch.
+  `ActivityPattern` requires (`object_`, `target_`, `origin_`, `context_`):
+  a case in `target` does not satisfy an `origin_` constraint.
   `test/architecture/test_vocab_examples_dispatchable.py` requires each example
   to match exactly one pattern and asserts its collected count (DF-09-009).
 - **Do not narrow the collector.** It takes every function with zero *required*

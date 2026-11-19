@@ -281,9 +281,9 @@ Ex 28 uses origin, Ex 27 and ActivityPub use target (issues #534, #664 open; the
 editor's interim advice is to read origin first). VOC `inReplyTo`: "entities for
 which this object is considered a response".
 
-**Today.** `Remove(EmbargoEvent)` alone uses `origin`
-(`vultron/wire/as2/factories/embargo/lifecycle.py`); `Offer(CaseParticipant)` sets
-`origin` in `vultron/core/behaviors/case/nodes/suggest_actor/emit.py`; `offerId` /
+**Today.** `Remove(Note)` and `Remove(EmbargoEvent)` name the case in `origin`,
+and `ActivityPattern.origin_` matches it as `target_` matches `target` (#6463);
+`Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`; `offerId` /
 `offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`. CM-24-002's
 rationale calls `attributedTo` "the AS2-standard field for recording who delegated
 an action"; AS2 says only "entities to which this object is attributed".
@@ -293,11 +293,9 @@ ratchet, so the entry keeps an open owner. Planning this section adopts #6419
 for that field rather than filing a second Task.
 
 **Touches.** CM-16-004, CP-01-007, CM-24-002, CM-24-012, the delegated-authorship
-helper `vultron/core/behaviors/delegated_authorship.py`. Moving `Remove(Note)` to
-`origin`, and the Owner's `Remove(<Actor>, origin=<case>)` (§ "The Owner Sends
-Its Removal or Reinstatement"), need an `origin_` field on `ActivityPattern`,
-so the rule "no `origin_` field" in `vultron/wire/as2/AGENTS.md` and the root
-`AGENTS.md` pattern-matching row change with it; `notes/case-joining.md` shows
+helper `vultron/core/behaviors/delegated_authorship.py`. The Owner's
+`Remove(<Actor>, origin=<case>)` (§ "The Owner Sends Its Removal or
+Reinstatement") matches on `origin_`; `notes/case-joining.md` shows
 today's `Remove(CaseParticipant)[target=…]`.
 
 ---

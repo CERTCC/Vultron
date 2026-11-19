@@ -86,7 +86,7 @@ class TriggerParticipantsPort(Protocol):
         recommended_id: str,
         case_id: str,
         actor: str,
-        origin: str | None = None,
+        in_reply_to: str | None = None,
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list[Any] | None = None,
@@ -99,10 +99,11 @@ class TriggerParticipantsPort(Protocol):
         Transforms the original ``Offer(Actor)[target=VulnerabilityCase]`` into an
         ``Offer(CaseParticipant)[target=VulnerabilityCase]`` naming the actor and
         its roles, addressed to the Case Owner.  ``roles`` defaults to
-        ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).  ``origin`` carries the
-        original recommender Offer ID so the Case Owner can trace the causal
-        chain (CM-16-004).  ``content`` carries the recommender's reason text
-        from its ``Offer(Actor)`` so the Case Owner can decide on the
+        ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).  ``in_reply_to`` names
+        the original recommender's Offer, the suggestion this forward answers,
+        so the Case Owner can trace the causal chain (CM-16-004).
+        ``content`` carries the recommender's reason text from its
+        ``Offer(Actor)`` so the Case Owner can decide on the
         suggestion with its evidence (CM-16-020).
         Returns ``(activity_id, activity_dict)``.
         """

@@ -77,13 +77,16 @@ def object_states_its_own_position(activity: as_Activity) -> bool:
 def _named_cases(activity: as_Activity) -> list[object]:
     """The slots of *activity* that may name its case, most direct first.
 
-    Its ``context``, ``target`` and ``object``, and the ``context`` of its
-    object (an ``Add(ParticipantStatus)`` names the case only on the status).
+    Its ``context``, ``target``, ``origin`` and ``object``, and the
+    ``context`` of its object (an ``Add(ParticipantStatus)`` names the case
+    only on the status; a ``Remove`` names the case it takes from in
+    ``origin``).
     """
     obj = getattr(activity, "object_", None)
     return [
         activity.context,
         activity.target,
+        activity.origin,
         obj,
         getattr(obj, "context", None),
     ]

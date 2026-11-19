@@ -148,6 +148,11 @@ def _queued_recipients(dl: SqliteDataLayer, type_: str) -> list[str]:
     return recipients
 
 
+def _ref_id(value: object) -> object:
+    """The id of *value*, inline or a bare id."""
+    return getattr(value, "id_", value)
+
+
 def _offer_node() -> EmitOfferCaseParticipantToOwnerNode:
     return EmitOfferCaseParticipantToOwnerNode(
         recommendation_id=RECOMMENDATION_ID,
@@ -193,6 +198,31 @@ class TestOfferCaseParticipantAddressesTheCaseOwner:
             "the CaseActor must not DM itself — the Case Owner would never"
             " receive the membership decision it is required to make"
         )
+
+    @pytest.mark.spec("CM-16-004")
+    def test_offer_names_the_recommendation_in_in_reply_to_not_origin(
+        self, case_actor_dl
+    ):
+        """The forward answers the recommender's ``Offer(Actor)``, so it names
+        that Offer in ``inReplyTo`` and sets no ``origin``: ``origin`` says
+        where something comes from, not what a message answers."""
+        _seed_case_actor_store(case_actor_dl)
+
+        assert _run(case_actor_dl, _offer_node()) == Status.SUCCESS
+
+        offers = [
+            activity
+            for activity_id in case_actor_dl.outbox_list()
+            if getattr(
+                activity := case_actor_dl.read(activity_id), "type_", None
+            )
+            == "Offer"
+        ]
+        assert len(offers) == 1
+        assert _ref_id(getattr(offers[0], "in_reply_to", None)) == (
+            RECOMMENDATION_ID
+        )
+        assert getattr(offers[0], "origin", None) is None
 
     @pytest.mark.spec("CM-16-004")
     def test_falls_back_to_attributed_to_when_no_owner_participant(

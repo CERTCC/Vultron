@@ -38,6 +38,8 @@ _BASE_FIELDS = {
     "to_",
     "object_",
     "target_",
+    # Where the object comes from, never who sent it (VAM-07-003).
+    "origin_",
     "context_",
 }
 
