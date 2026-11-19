@@ -86,7 +86,7 @@ The decision has six parts:
 5. **Strict sender, lenient receiver.** A sender should not attach a document that fails the CSAF 2.1 schema.
    A receiver never refuses a report because of its CSAF attachment, and it reads what it can.
 6. **The report receiver states the case inputs.**
-   The report receiver turns the document into the case inputs of its case proposal, and the case owner may change them before it sends the proposal.
+   The report receiver turns the document into the case inputs of its case proposal, and the case owner may change every input except the CSAF disclosure date before it sends the proposal.
    When a proposal states case inputs, the CASE_MANAGER builds the case from them and reads no CSAF document.
    When a proposal states none, the CASE_MANAGER may fill the inputs from the document on the Offer that the proposal carries.
    The proposer passes the CSAF disclosure date along as the document states it.

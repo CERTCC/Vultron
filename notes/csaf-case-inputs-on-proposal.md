@@ -98,6 +98,11 @@ In `specs/case-proposal.yaml`, group CP-01 (#6722, #6723):
   category `csaf_vulnerability_report`, and the CASE_MANAGER MUST apply
   CP-01-025 to a proposal that carries none.
 
+Issue #6723 also rewrites the CSAF-02-001 note in
+`specs/csaf-report-content.yaml`. It says the proposer's own record keeps every
+value display only, which stops being true once the proposer converts the
+document.
+
 In `specs/embargo-policy.yaml`, group EP-04 (#6725):
 
 - EP-04-033, MUST NOT, `protocol`: The CASE_MANAGER MUST NOT activate a sender's

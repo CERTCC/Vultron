@@ -215,6 +215,7 @@ groups:
     adr:
     - ADR-0096
     - ADR-0107
+    - ADR-0184
   - id: CP-01-009
     priority: MAY
     kind: protocol
