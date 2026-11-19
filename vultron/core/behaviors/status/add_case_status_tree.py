@@ -124,7 +124,7 @@ def add_case_status_tree(
             "AddCaseStatusToCaseBT",
             "Add(CaseStatus) is missing its status id or case id",
         )
-    if request.history_owner_id != case_id:
+    if not request.extends_its_case_history:
         # The status joins the history of the case its context names, and
         # no other (ADR-0204).
         return create_incomplete_activity_received_tree(

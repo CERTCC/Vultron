@@ -54,7 +54,8 @@ def case_status(pxa: CS_pxa = CS_pxa.pxa, number: int = 1) -> as_CaseStatus:
     """
     status = as_CaseStatus(
         id_=f"https://vultron.example/cases/1/status/{number}",
-        context="https://vultron.example/cases/1",
+        # The example case, which its status Add names in context (ADR-0204).
+        context=case().id_,
         em=EmDimension(state=EM.EMBARGO_MANAGEMENT_NONE),
         pxa=PxaDimension(state=pxa),
         published=EXAMPLE_TIMESTAMP + timedelta(minutes=number - 1),

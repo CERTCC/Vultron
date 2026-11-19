@@ -23,7 +23,11 @@ import pytest
 from test.support.objects import make
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.semantic_registry import extract_event, find_matching_semantics
+from vultron.semantic_registry import (
+    extract_event,
+    find_matching_semantics,
+    semantics_to_activity_class,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.examples._base import case
 from vultron.wire.as2.vocab.examples.status import (
@@ -99,6 +103,11 @@ def test_a_participant_status_to_a_record_reads_no_participant():
 _HISTORY = f"{_PARTICIPANT}/statuses"
 
 
+def _activity_class(semantics: MessageSemantics) -> type:
+    """The wire class the registry names for *semantics*."""
+    return semantics_to_activity_class()[semantics]
+
+
 @pytest.mark.parametrize(
     "target,context,reason",
     [
@@ -114,8 +123,8 @@ _HISTORY = f"{_PARTICIPANT}/statuses"
 def test_a_participant_status_add_refuses_a_bad_shape(target, context, reason):
     from pydantic import ValidationError
 
-    from vultron.wire.as2.vocab.activities.case_participant import (
-        _AddStatusToParticipantActivity,
+    _AddStatusToParticipantActivity = _activity_class(
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
     )
 
     with pytest.raises(ValidationError, match=reason):
@@ -131,8 +140,8 @@ def test_a_participant_status_add_refuses_a_bad_shape(target, context, reason):
 def test_a_case_status_add_refuses_another_cases_history():
     from pydantic import ValidationError
 
-    from vultron.wire.as2.vocab.activities.case.content import (
-        _AddStatusToCaseActivity,
+    _AddStatusToCaseActivity = _activity_class(
+        MessageSemantics.ADD_CASE_STATUS_TO_CASE
     )
 
     with pytest.raises(ValidationError, match="extends its case's history"):

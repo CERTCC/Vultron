@@ -15,10 +15,10 @@
 
 """Whole accept or reject of a received ParticipantStatus (RSH-09, ADR-0107).
 
-An inbound ``Add(ParticipantStatus, target=<participant>/statuses)`` states
-the sender's whole status.  The CASE_MANAGER records it exactly as received, or refuses all of it
-and tells the sender every reason; it never records a status nobody sent.  This
-replaced the per-dimension partial accept of RSH-05 (#3741).
+An inbound ``Add(ParticipantStatus, target=<participant>/statuses)`` states the
+sender's whole status. The CASE_MANAGER records it exactly as received, or
+refuses all of it and tells the sender every reason; it never records a status
+nobody sent. This replaced the per-dimension partial accept of RSH-05 (#3741).
 
 Per specs/received-status-handling.yaml RSH-09.
 """

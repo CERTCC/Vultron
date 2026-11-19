@@ -506,6 +506,15 @@ def test_a_case_status_names_the_owner_of_its_history():
         context=_case,
     )
     assert event.history_owner_id == event.case_id == _case.id_
+    assert event.extends_its_case_history
+    other = _mk(
+        AddCaseStatusToCaseReceivedEvent,
+        MessageSemantics.ADD_CASE_STATUS_TO_CASE,
+        object_=_case_status,
+        target=make(CoreObject, id_="https://example.org/cases/x/statuses"),
+        context=_case,
+    )
+    assert not other.extends_its_case_history
 
 
 @pytest.mark.parametrize(

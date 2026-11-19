@@ -50,6 +50,13 @@ class AddCaseStatusToCaseReceivedEvent(LedgerPositionedEvent):
         """
         return status_history_owner_or_none(self.target_id)
 
+    @property
+    def extends_its_case_history(self) -> bool:
+        """Whether ``target`` is the status history of the ``context`` case."""
+        return (
+            self.case_id is not None and self.history_owner_id == self.case_id
+        )
+
 
 class AddParticipantStatusToParticipantReceivedEvent(LedgerPositionedEvent):
     """Actor added a ParticipantStatus to a participant's status history."""
