@@ -4726,7 +4726,8 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST reject at message validation an inbound activity carrying a
-      `CaseStatus` with no `published`, wherever the status sits in it.
+      `CaseStatus` with no `published`, wherever the status sits in it outside a
+      preview (MV-12-006).
     rationale: >-
       Every status carries its author's time (SM-05-003), and its `published`
       follows its place in the case history (CM-29-005). A receiver that filled in
@@ -4744,6 +4745,8 @@ groups:
       `test_post_untimed_case_status_to_actor_inbox_returns_422` in
       `test/adapters/driving/fastapi/routers/test_actors.py` asserts the inbox
       answers 422.
+      `test/wire/as2/test_parser_case_stub.py::test_an_untyped_stub_status_is_read_as_a_status_keeping_its_em_state`
+      asserts the preview exception.
     adr:
     - ADR-0103
     relationships:
@@ -4776,11 +4779,11 @@ groups:
       JSON and are not validated into objects (CLP-07-011), so this rule does not
       reach them. A case preview carries exactly the keys CM-17-010 names, none of them
       `published`; an object it carries is read as its sender shows it, with or without
-      a `published` (MV-12-006). An `EmbargoConsent` row carries no time because a replica copies it
-      without reading a clock (CM-23-044). The vocabulary does not model a collection
-      page (`CollectionPage`, `OrderedCollectionPage`), since Vultron sends no paged
-      collection, so a page received with content is read as a plain object and
-      refused without `published`.
+      a `published` (MV-12-006). An `EmbargoConsent` row carries no time because a
+      replica copies it without reading a clock (CM-23-044). The vocabulary does not
+      model a collection page (`CollectionPage`, `OrderedCollectionPage`), since
+      Vultron sends no paged collection, so a page received with content is read as
+      a plain object and refused without `published`.
     verification: >-
       `test_a_whole_object_without_published_is_refused` and
       `test_a_nested_whole_object_without_published_is_refused` in
@@ -4807,6 +4810,8 @@ groups:
       `test_a_fetched_whole_object_without_published_is_refused` in
       `test/adapters/driven/test_http_object_fetch.py` asserts the same at the fetch
       edge.
+      `test/wire/as2/test_typed_references.py::test_an_embargo_in_a_case_preview_without_published_is_read_as_shown`
+      asserts the preview exception (MV-12-006).
     relationships:
     - rel_type: extends
       spec_id: CLP-15-007

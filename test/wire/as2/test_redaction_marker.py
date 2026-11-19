@@ -139,15 +139,6 @@ def test_a_marker_in_a_full_case_field_is_refused(field: str) -> None:
 
 
 @pytest.mark.spec("MV-12-002")
-def test_a_marker_in_a_case_stub_identifying_field_is_refused() -> None:
-    """A preview field its type does not open to the marker refuses one."""
-    with pytest.raises(VultronParseValidationError) as exc_info:
-        parse_activity(_stub_invite(id=MARKER))
-
-    assert _error_locations(exc_info.value) == {"id"}
-
-
-@pytest.mark.spec("MV-12-002")
 @pytest.mark.parametrize("form", list(MARKER_FORMS))
 @pytest.mark.parametrize("slot", ACTIVITY_SLOTS)
 def test_a_marker_in_an_activity_slot_is_refused(slot: str, form: str) -> None:
@@ -301,12 +292,48 @@ CUT_DOWN_OBJECTS: dict[str, dict[str, Any]] = {
     "status cut to its EM state": {
         "caseStatuses": [{"type": "CaseStatus", "emState": "ACTIVE"}]
     },
+    "case reference shown whole": {
+        "caseReferences": [
+            {
+                "type": "CaseReference",
+                "id": "https://example.org/references/1",
+                "url": {
+                    "type": "Link",
+                    "href": "https://example.org/advisory",
+                },
+            }
+        ]
+    },
+    "participant named by id and type": {
+        "caseParticipants": [
+            {
+                "type": "CaseParticipant",
+                "id": "https://example.org/participants/1",
+            }
+        ]
+    },
+    "case cut to its name in inReplyTo": {
+        "inReplyTo": {"type": "VulnerabilityCase", "name": "an earlier case"}
+    },
+    "vul item without an id in attachment": {
+        "attachment": [
+            {
+                "type": "VulnerabilityItem",
+                "ids": [{"systemName": "CVE", "text": "CVE-2026-1234"}],
+            }
+        ]
+    },
+    "AS2 note with a marker in tag": {
+        "tag": [{"type": "Note", "content": {"type": "Redacted"}}]
+    },
 }
 
 
+@pytest.mark.spec("MV-12-006")
 @pytest.mark.spec("MV-12-001")
 @pytest.mark.spec("OID-01-013")
 @pytest.mark.spec("CLP-15-011")
+@pytest.mark.spec("MV-04-003")
 @pytest.mark.parametrize("shown", list(CUT_DOWN_OBJECTS))
 def test_a_preview_shows_a_nested_object_cut_down_as_sent(shown: str) -> None:
     """What a preview shows is read as sent: a nested object without its
@@ -447,3 +474,91 @@ def test_the_walk_admits_a_preview_whole_and_refuses_a_marker_beside_it() -> (
     assert list(
         _misplaced(holder, "", _is_redaction_marker, _admits_redaction_marker)
     ) == ["note"]
+
+
+#: A key a dict in a preview's field carries that its loose form lacks, and
+#: where the set-aside report names it.
+TYPELESS_EXTRAS: dict[str, tuple[dict[str, Any], str, str]] = {
+    "register entry with a summary": (
+        {
+            "embargoRegister": [
+                {
+                    "summary": "an extra key",
+                    "status": "ACTIVE",
+                    "embargo": {"type": "EmbargoEvent", "id": "urn:uuid:e1"},
+                }
+            ]
+        },
+        "summary",
+        "object.preview.embargoRegister[0]",
+    ),
+    "identifier with a type": (
+        {
+            "vulnerabilityItems": [
+                {
+                    "type": "VulnerabilityItem",
+                    "ids": [
+                        {
+                            "type": "NoSuchType",
+                            "systemName": "CVE",
+                            "text": "CVE-2026-1234",
+                        }
+                    ],
+                }
+            ]
+        },
+        "type",
+        "object.preview.vulnerabilityItems[0].ids[0]",
+    ),
+}
+
+
+@pytest.mark.spec("MV-11-003")
+@pytest.mark.spec("MV-12-006")
+@pytest.mark.parametrize("case", list(TYPELESS_EXTRAS))
+def test_an_unknown_key_in_a_preview_dict_without_a_type_is_set_aside(
+    case: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The partition and the parser read a dict with no known ``type`` in a
+    preview field with the same loose form, so a key it lacks is set aside
+    and reported, not refused."""
+    fields, key, where = TYPELESS_EXTRAS[case]
+
+    with caplog.at_level(logging.INFO, logger="vultron.wire.as2.unknown_keys"):
+        parse_activity(_stub_invite(**fields))
+
+    assert any(
+        repr(key) in record.getMessage() and repr(where) in record.getMessage()
+        for record in caplog.records
+    )
+
+
+@pytest.mark.spec("MV-10-002")
+def test_a_case_preview_inside_a_preview_is_refused() -> None:
+    """A preview's one place is the case reference an Invite names, so a
+    preview nested inside it is misplaced, naming its path."""
+    nested = {
+        "type": "CasePreview",
+        "id": "urn:uuid:another-preview",
+        "summary": "another case",
+    }
+
+    with pytest.raises(
+        VultronParseValidationError, match="CasePreview"
+    ) as exc:
+        parse_activity(_stub_invite(tag=[nested]))
+
+    assert "object.preview.tag[0]" in str(exc.value)
+
+
+@pytest.mark.spec("MV-12-006")
+def test_a_typeless_status_is_written_back_with_its_type() -> None:
+    """A dict a field reads as its loose form takes that form's ``type``, so
+    the preview dumps it with one: the content survives, and the type is the
+    one the field already implied."""
+    status = {"emState": "ACTIVE"}
+
+    preview = _preview_of(parse_activity(_stub_invite(caseStatus=status)))
+
+    dumped = preview.model_dump(by_alias=True, exclude_none=True, mode="json")
+    assert dumped["caseStatus"] == {"type": "CaseStatus", "emState": "ACTIVE"}

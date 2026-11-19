@@ -267,6 +267,9 @@ groups:
       in a core class's slot, and assert that each parse is refused. They also parse
       a received `Link` and `Mention` with no id and assert that each is kept with
       its `href`.
+      `test/core/models/test_preview_object.py::test_a_loose_form_is_received_without_an_id_or_a_published`
+      and `test/wire/as2/test_redaction_marker.py::test_a_preview_shows_a_nested_object_cut_down_as_sent`
+      assert the preview exception (MV-12-006).
     relationships:
     - rel_type: refines
       spec_id: OID-01-001

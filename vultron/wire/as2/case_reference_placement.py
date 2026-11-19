@@ -78,13 +78,33 @@ def _is_case_preview(value: object) -> bool:
     return isinstance(value, as_CasePreview)
 
 
+#: The object an admitted child holds whose own fields are still walked, or
+#: ``None`` to walk nothing below it.
+_Inside = Callable[[object], BaseModel | None]
+
+
+def _nothing_inside(_child: object) -> BaseModel | None:
+    return None
+
+
 def _misplaced(
-    value: object, path: str, is_form: _FormPredicate, admits: _SlotPredicate
+    value: object,
+    path: str,
+    is_form: _FormPredicate,
+    admits: _SlotPredicate,
+    inside: _Inside = _nothing_inside,
 ) -> Iterator[str]:
-    """The paths below *path* that hold the form in a slot *admits* refuses."""
+    """The paths below *path* that hold the form in a slot *admits* refuses.
+
+    An admitted child is not refused, and the walk does not enter it, except
+    for the fields of the object *inside* names in it: an admitted case
+    reference's preview may not hold another preview.
+    """
     if isinstance(value, list):
         for index, item in enumerate(value):
-            yield from _misplaced(item, f"{path}[{index}]", is_form, admits)
+            yield from _misplaced(
+                item, f"{path}[{index}]", is_form, admits, inside
+            )
         return
     if is_form(value):
         yield path
@@ -95,12 +115,37 @@ def _misplaced(
         return
     for field_name, info in type(value).model_fields.items():
         child = getattr(value, field_name, None)
-        if admits(value, field_name, child):
-            continue
         # The key the sender wrote, so the refusal names the slot it used.
         key = info.serialization_alias or field_name.rstrip("_")
         child_path = f"{path}.{key}" if path else key
-        yield from _misplaced(child, child_path, is_form, admits)
+        if not admits(value, field_name, child):
+            yield from _misplaced(child, child_path, is_form, admits, inside)
+            continue
+        held = inside(child)
+        if held is not None:
+            yield from _fields_misplaced(
+                held, f"{child_path}.preview", is_form, admits, inside
+            )
+
+
+def _fields_misplaced(
+    value: BaseModel,
+    path: str,
+    is_form: _FormPredicate,
+    admits: _SlotPredicate,
+    inside: _Inside,
+) -> Iterator[str]:
+    """The paths in *value*'s fields, not *value* itself, that hold the form
+    in a slot *admits* refuses."""
+    for field_name, info in type(value).model_fields.items():
+        key = info.serialization_alias or field_name.rstrip("_")
+        yield from _misplaced(
+            getattr(value, field_name, None),
+            f"{path}.{key}",
+            is_form,
+            admits,
+            inside,
+        )
 
 
 def _names_case_by_reference(
@@ -175,14 +220,22 @@ def _misplaced_case_reference(activity: as_Activity) -> str | None:
     )
 
 
+def _preview_of(reference: object) -> BaseModel | None:
+    """The case preview an admitted case reference carries."""
+    preview = getattr(reference, "preview", None)
+    return preview if isinstance(preview, BaseModel) else None
+
+
 def _misplaced_case_preview(activity: as_Activity) -> str | None:
-    """The fault of a case preview outside a stub Invite's object (MV-10-002)."""
+    """The fault of a case preview outside a stub Invite's object, a preview
+    inside a preview included (MV-10-002)."""
     misplaced = list(
         _misplaced(
             activity,
             "",
             _is_case_preview,
             _admits_case_preview,
+            _preview_of,
         )
     )
     if not misplaced:

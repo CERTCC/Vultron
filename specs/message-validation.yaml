@@ -262,6 +262,8 @@ groups:
       Unit tests in `test/wire/as2/test_parser.py` confirm that an
       `Accept(Invite(...))` whose inner object carries an unparseable timestamp is
       rejected rather than parsed as an `as_Link`.
+      `test/wire/as2/test_redaction_marker.py::test_a_preview_shows_a_nested_object_cut_down_as_sent`
+      asserts the preview exception.
     adr:
     - ADR-0090
   - id: MV-04-004
@@ -300,12 +302,9 @@ groups:
       such an object is refused instead.
     verification: >-
       Tests marked `MV-04-005` in `test/wire/as2/vocab/base/test_links.py` and
-      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` confirm that a Link or Mention with no `href` is refused, that an untyped
-      `attributedTo` that fails its object class is refused, and that a Link with an
-      `href` still parses. An untyped stub `caseStatus` is read in its field's loose
-      form and keeps its EM state
-      (`test/wire/as2/test_parser_case_stub.py::test_an_untyped_stub_status_is_read_as_a_status_keeping_its_em_state`,
-      MV-12-006).
+      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` confirm that a Link or
+      Mention with no `href` is refused, that an untyped `attributedTo` that fails its
+      object class is refused, and that a Link with an `href` still parses.
     relationships:
     - rel_type: extends
       spec_id: MV-04-003
@@ -518,7 +517,8 @@ groups:
       This rule covers an object type other than a case, when the sender does not inline
       the full object. The sender MUST reference the object by URI, by an
       ActivityStreams `Link` or by a typed reference (MV-10-011), not by a partial
-      inline object.
+      inline object. An object inside a preview is exempt: the preview shows as much
+      of it as the sender chooses (MV-12-006).
     rationale: >-
       Only a case has a stub form (MV-10-008). A partial inline object of another type
       claims to be the object while it lacks fields, so the receiver cannot tell what
@@ -551,7 +551,9 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST read an inline object with exactly an `id`, a `type` and an
-      optional `preview` as a typed reference of that type. It
+      optional `preview` as a typed reference of that type, unless the object sits
+      inside a preview in a field that declares a loose form, which reads it as that
+      form (MV-12-006). It
       routes the activity by the reference's `type`. It never reads the reference as
       the object: a handler uses the object the receiver holds, or fetches it
       (AKM-05-007), unless the reference carries a preview, which the receiver reads
@@ -1248,6 +1250,12 @@ groups:
       spec_id: CLP-15-011
     - rel_type: supersedes
       spec_id: MV-04-003
+    - rel_type: supersedes
+      spec_id: CLP-15-010
+    - rel_type: supersedes
+      spec_id: MV-10-011
+    - rel_type: supersedes
+      spec_id: MV-10-009
     adr:
     - ADR-0217
     stories:

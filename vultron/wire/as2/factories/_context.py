@@ -27,9 +27,10 @@ case but not the context gets the case URI filled in, while an explicit
 
 from typing import Any, TypeVar
 
+from vultron.core.models.preview_object import PreviewObject
+
 # Defined beside the parse-edge check that reads it too (HP-08-015), which
 # the parser imports and so cannot import this package.
-from vultron.core.models.preview_object import PreviewObject
 from vultron.wire.as2.context_agreement import case_uri_of
 
 _Target = TypeVar("_Target")

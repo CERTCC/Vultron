@@ -34,6 +34,7 @@ from vultron.core.models.case_preview import (
     preview_em_state,
     preview_embargo_id,
 )
+from vultron.core.models.case_reference import CaseReference, CaseReferenceLink
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -184,6 +185,7 @@ def test_a_scalar_dimension_is_shown_whole_or_withheld() -> None:
     )
 
 
+@pytest.mark.spec("MV-12-006")
 @pytest.mark.spec("OID-01-013")
 @pytest.mark.spec("CLP-15-011")
 def test_a_loose_form_is_received_without_an_id_or_a_published() -> None:
@@ -342,9 +344,8 @@ def test_a_loose_form_keeps_a_fixed_tuple_and_an_any_field_as_declared() -> (
         "b",
         2,
     )
-    assert form.model_validate({"anything": Redacted()}).anything == (
-        Redacted()
-    )
+    shown: Any = form.model_validate({"anything": Redacted()})
+    assert shown.anything == Redacted()
 
 
 @pytest.mark.spec("MV-10-001")
@@ -367,3 +368,32 @@ def test_a_loose_form_sends_no_field_its_full_class_keeps_local() -> None:
     shown = form.model_validate({"force_rm_state": True})
 
     assert "forceRmState" not in shown.model_dump(by_alias=True)
+
+
+def test_a_loose_form_loosens_a_field_its_class_narrows() -> None:
+    """``CaseReference.url`` holds a Link, not the base's string, so its
+    loose form holds a loose Link and a whole reference survives it."""
+    reference = make(
+        CaseReference, url=CaseReferenceLink(href="https://example.org/x")
+    )
+
+    shown = to_loose(reference)
+
+    assert shown.model_dump(by_alias=True, exclude_none=True, mode="json")[
+        "url"
+    ] == {"type": "Link", "href": "https://example.org/x", "rel": []}
+
+
+def test_to_loose_refuses_a_field_its_class_lacks() -> None:
+    with pytest.raises(ValueError, match="no field"):
+        to_loose(_status(), ("context", "emStatus"))
+
+
+def test_a_class_whose_fields_name_it_again_has_a_loose_form() -> None:
+    """``as_Object.tag`` holds ``as_Object``s: the form is held whole where
+    it would name itself, so the derivation ends."""
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note: Any = loose_form(as_Note).model_validate({"content": Redacted()})
+
+    assert note.content == Redacted()

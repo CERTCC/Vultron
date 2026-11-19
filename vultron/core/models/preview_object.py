@@ -40,7 +40,6 @@ shares_full_form_type`).
 import types
 from collections.abc import Collection, Sequence
 from datetime import datetime, timedelta
-from functools import cache
 from typing import (
     Annotated,
     Any,
@@ -92,7 +91,51 @@ def _timestamp_or(
     return handler(value)
 
 
-class PreviewObject(CoreObject):
+class _LooseForm(ValidatedAssignmentMixin, BaseModel):
+    """What every preview form shares: the full class it shows, and its
+    timestamps read and written as the full class's are.
+
+    The validator and serializer are named as ``CoreObject``'s, so they
+    replace them.  They cover every field, not only the four AS2 times, so a
+    ``datetime`` field a derived form takes from its full class
+    (``rsvp_deadline``) is in the fixed form (CS-13-007), and a marker in
+    any of them is kept as a marker.
+
+    Class attributes:
+        full_form: The full class a derived loose form reads; ``None`` on a
+            preview type with a wire ``type`` of its own, such as the case
+            preview.
+    """
+
+    full_form: ClassVar[type[BaseModel] | None] = None
+
+    def __init_subclass__(
+        cls, *, full_form: type[BaseModel] | None = None, **kwargs: Any
+    ) -> None:
+        # Set before the base hooks run, which read it to skip registering a
+        # loose form under its full class's type.
+        if full_form is not None:
+            cls.full_form = full_form
+        super().__init_subclass__(**kwargs)
+
+    @field_validator("*")
+    @classmethod
+    def _normalise_datetime_to_utc(cls, value: Any) -> Any:
+        """Read a naive timestamp as UTC, and any other value as itself."""
+        return _utc_unless_marked(value)
+
+    @field_serializer("*", mode="wrap", when_used="json")
+    def _serialize_datetime(
+        self, value: Any, handler: SerializerFunctionWrapHandler
+    ) -> Any:
+        """Write a timestamp in the fixed wire form, any other value as its
+        field would be written."""
+        return _timestamp_or(value, handler)
+
+
+# The mixin's wrap serializer replaces CoreObject's plain one by name, on
+# purpose, so mypy's signature check of the two bases does not apply.
+class PreviewObject(_LooseForm, CoreObject):  # type: ignore[misc]
     """An object as a preview shows it: every field optional and redactable.
 
     The base of the hand-written case preview and of every loose form
@@ -103,17 +146,11 @@ class PreviewObject(CoreObject):
 
     A loose form shows what its sender chose, so it is received without an
     ``id`` or a ``published`` of its own when the sender showed none
-    (OID-01-013, CLP-15-011).  A collection field defaults to absent, not
-    empty: in a preview, a field the sender left out says nothing about the
-    object's value, which an empty default would claim.
-
-    Class attributes:
-        full_form: The full class a derived loose form reads; ``None`` on a
-            preview type with a wire ``type`` of its own, such as the case
-            preview.
+    (OID-01-013, CLP-15-011), and every field it declares defaults to absent:
+    a field the sender left out says nothing about the object's value.  The
+    language maps keep the base's empty default, which no dump writes.
     """
 
-    full_form: ClassVar[type[BaseModel] | None] = None
     _received_without_published: ClassVar[bool] = True
     _received_without_id: ClassVar[bool] = True
 
@@ -139,69 +176,20 @@ class PreviewObject(CoreObject):
     name_map: Redactable[LanguageMap] = language_map_field()  # type: ignore[assignment]
     summary_map: Redactable[LanguageMap] = language_map_field()  # type: ignore[assignment]
 
-    def __init_subclass__(
-        cls, *, full_form: type[BaseModel] | None = None, **kwargs: Any
-    ) -> None:
-        # Set before the base hooks run, which read it to skip registering a
-        # loose form under its full class's type.
-        if full_form is not None:
-            cls.full_form = full_form
-        super().__init_subclass__(**kwargs)
 
-    # Named as the base's validator and serializer, so these replace them.
-    # They cover every field, not only the base's four times, so a datetime
-    # field a derived form takes from its full class (``rsvp_deadline``) is
-    # read and written as the full class's is (CS-13-007), and a marker in
-    # any of them is kept as a marker.
-    @field_validator("*")
-    @classmethod
-    def _normalise_datetime_to_utc(cls, value: Any) -> Any:  # type: ignore[override]
-        """Read a naive timestamp as UTC, and any other value as itself."""
-        return _utc_unless_marked(value)
-
-    @field_serializer("*", mode="wrap", when_used="json")
-    def _serialize_datetime(  # type: ignore[override]
-        self, value: Any, handler: SerializerFunctionWrapHandler
-    ) -> Any:
-        """Write a timestamp in the fixed wire form, any other value as its
-        field would be written."""
-        return _timestamp_or(value, handler)
-
-
-class PreviewValue(ValidatedAssignmentMixin, BaseModel):
+class PreviewValue(_LooseForm):
     """A value object as a preview shows it, such as an embargo register
-    entry or a vul item's identifier.
+    entry or a vul item's identifier, or an AS2 object the wire vocabulary
+    models.
 
-    The base of every loose form :func:`loose_form` derives from a plain
-    model, one that is not a ``CoreObject``.  Each derived field keeps its
-    full class's aliases.
+    The base of every loose form :func:`loose_form` derives from a model that
+    is not a ``CoreObject``.  Each derived field keeps its full class's
+    aliases.
     """
 
     model_config = ConfigDict(
         alias_generator=to_camel, populate_by_name=True, extra="forbid"
     )
-
-    full_form: ClassVar[type[BaseModel] | None] = None
-
-    def __init_subclass__(
-        cls, *, full_form: type[BaseModel] | None = None, **kwargs: Any
-    ) -> None:
-        if full_form is not None:
-            cls.full_form = full_form
-        super().__init_subclass__(**kwargs)
-
-    @field_validator("*")
-    @classmethod
-    def _normalise_datetime_to_utc(cls, value: Any) -> Any:
-        """Read a naive timestamp as UTC, and any other value as itself."""
-        return _utc_unless_marked(value)
-
-    @field_serializer("*", mode="wrap", when_used="json")
-    def _serialize_datetime(
-        self, value: Any, handler: SerializerFunctionWrapHandler
-    ) -> Any:
-        """Write a timestamp in the fixed wire form (CS-13-007)."""
-        return _timestamp_or(value, handler)
 
 
 #: Classes a preview holds as they are: the marker, the bare ``CoreObject``
@@ -209,19 +197,17 @@ class PreviewValue(ValidatedAssignmentMixin, BaseModel):
 _KEPT = (Redacted, PreviewObject, PreviewValue)
 
 
-#: The serializer every ``CoreObject`` writes its AS2 form with.
-_AS2_OBJECT_SERIALIZER = "_serialize_with_jsonld_context"
-
-
 def _has_own_wire_shape(cls: type[BaseModel]) -> bool:
     """Whether *cls* writes itself as something other than its fields.
 
-    A scalar dimension is written as its bare state (``"emState":
-    "ACTIVE"``), so it has no fields on the wire to cut: a preview shows it
-    whole or withholds it, as it does a string.
+    A model serializer in ``plain`` mode replaces the field dump: a scalar
+    dimension is written as its bare state (``"emState": "ACTIVE"``), so it
+    has no fields on the wire to cut, and a preview shows it whole or
+    withholds it, as it does a string.  A ``wrap`` serializer, such as the
+    one every AS2 object adds its ``@context`` with, still writes the fields.
     """
-    serializers = set(cls.__pydantic_decorators__.model_serializers)
-    return bool(serializers - {_AS2_OBJECT_SERIALIZER})
+    serializers = cls.__pydantic_decorators__.model_serializers.values()
+    return any(serializer.info.mode == "plain" for serializer in serializers)
 
 
 def _is_loosenable(ann: object) -> bool:
@@ -248,8 +234,15 @@ def _loose_inner(ann: Any) -> Any:
         # (``NonEmptyString``) or an already-built object
         # (``UnmodelledObject``): read as declared.
         return ann
+    if ann is str:
+        # A full class that checks its string by a validator a loose form
+        # does not carry still has a value, if shown, that is not blank
+        # (CS-08-001).
+        return NonEmptyString
     if _is_loosenable(ann):
-        return loose_form(ann)
+        # A class met again while its own form is being derived is held whole
+        # at that depth: the form cannot name itself before it exists.
+        return ann if ann in _DERIVING else loose_form(ann)
     if origin is Union or isinstance(ann, types.UnionType):
         members = [_loose_inner(arg) for arg in get_args(ann)]
         return Union[tuple(members)]  # noqa: UP007 - built from a tuple
@@ -303,6 +296,33 @@ def _aliased(info: FieldInfo, *, default: object) -> Any:
     )
 
 
+def _declares_its_own(
+    cls: type[BaseModel], name: str, base: type[BaseModel]
+) -> bool:
+    """Whether *cls*'s field *name* is its own declaration, not the base's.
+
+    A field the loose base declares keeps the base's loose declaration, unless
+    *cls* narrows it (``CaseReference.url`` holds a Link, not a string), when
+    the narrowed declaration is the one loosened.  ``type_`` is always the
+    class's own.
+    """
+    if name == "type_" or name not in base.model_fields:
+        return True
+    inherited = CoreObject.model_fields.get(name)
+    return (
+        inherited is None
+        or cls.model_fields[name].annotation != inherited.annotation
+    )
+
+
+#: Each class's loose form, once derived.
+_FORMS: dict[type[BaseModel], type[PreviewObject | PreviewValue]] = {}
+
+#: The classes whose loose forms are being derived, for a class whose fields
+#: name it again (``as_Object.tag`` holds ``as_Object``s).
+_DERIVING: set[type[BaseModel]] = set()
+
+
 @overload
 def loose_form(cls: type[CoreObject]) -> type[PreviewObject]: ...  # type: ignore[overload-overlap]
 
@@ -311,7 +331,6 @@ def loose_form(cls: type[CoreObject]) -> type[PreviewObject]: ...  # type: ignor
 def loose_form(cls: type[BaseModel]) -> type[PreviewValue]: ...
 
 
-@cache
 def loose_form(
     cls: type[BaseModel],
 ) -> type[PreviewObject | PreviewValue]:
@@ -330,13 +349,24 @@ def loose_form(
     """
     if not _is_loosenable(cls):
         raise TypeError(f"{cls!r} has no loose form (ADR-0217)")
+    if cls not in _FORMS:
+        _DERIVING.add(cls)
+        try:
+            _FORMS[cls] = _derive(cls)
+        finally:
+            _DERIVING.discard(cls)
+    return _FORMS[cls]
+
+
+def _derive(cls: type[BaseModel]) -> type[PreviewObject | PreviewValue]:
+    """Build the loose form :func:`loose_form` returns for *cls*."""
     base: type[PreviewObject | PreviewValue] = (
         PreviewObject if issubclass(cls, CoreObject) else PreviewValue
     )
     fields = {
         name: _loose_field(name, info)
         for name, info in cls.model_fields.items()
-        if name not in base.model_fields or name == "type_"
+        if _declares_its_own(cls, name, base)
     }
     return create_model(  # type: ignore[call-overload,no-any-return]
         f"{cls.__name__}Preview",
@@ -375,8 +405,16 @@ def to_loose(
 
     Raises:
         TypeError: When *obj*'s class has no loose form.
+        ValueError: When *fields* names a field *obj*'s class does not
+            declare, which would otherwise be shown as nothing.
     """
     form = loose_form(type(obj))
+    unknown = set(fields or ()) - set(type(obj).model_fields)
+    if unknown:
+        raise ValueError(
+            f"{type(obj).__name__} has no field {sorted(unknown)} to show"
+            " (ADR-0217)"
+        )
     data = obj.model_dump(
         include=set(fields) if fields is not None else None,
         exclude_computed_fields=True,

@@ -260,6 +260,11 @@ after the received evidence is sealed and before anything validates:
   that names no fields (#3894).
 - **The case stub** is chosen by its `type`, `CasePreview` (CM-11-038),
   never by key-set guessing.
+- **Inside a preview, the loose form decides** (MV-12-006, ADR-0217): a nested
+  object's keys are partitioned against, and the object validated by, the loose
+  form its field declares, or the loose form of its `type`'s class. Both walks
+  ask `inline_class` in `vultron/wire/as2/inline_class.py`, so they cannot pick
+  different classes.
 - **One refusal names every near miss** at every depth, with dotted paths
   (EH-07-001).
 - **A body nested past the recursion limit** is refused as a schema fault

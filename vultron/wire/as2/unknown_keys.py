@@ -41,50 +41,34 @@ Vultron supports one protocol version, so no list of retired names is kept
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-import types
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from functools import cache
-from types import MappingProxyType
-from typing import (
-    Any,
-    Literal,
-    TypeAliasType,
-    Union,
-    get_args,
-    get_origin,
-)
+from typing import Any
 
-from pydantic import AliasChoices, AliasPath, BaseModel
+from pydantic import BaseModel
 
-from vultron.core.models._helpers import strip_annotated
 from vultron.core.models.actor import CoreActor
-from vultron.wire.as2.errors import (
-    VultronParseUnknownTypeError,
-    VultronParseValidationError,
-)
-from vultron.wire.as2.typed_reference import (
-    as_TypedReference,
-    reads_as_typed_reference,
-    refuse_undefined_preview,
+from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.inline_class import (
+    CONTEXT_KEY,
+    _candidates_for,
+    _class_spellings,
+    _declared_for_type,
+    _merged_spellings,
+    declared_slot_class,
+    inline_class,
+    normalise,
+    reads_inside_preview,
+    resolve_inline_class,
+    slot_classes,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.registry import (
-    AmbiguousWireTypeError,
-    resolve_wire_type,
-    resolved_wire_type_name,
-)
 
 logger = logging.getLogger(__name__)
 
 #: How a report names the root of an activity body.
 ENVELOPE = "the envelope"
 
-#: The JSON-LD context key every object may carry (MV-11-001).  It is the only
-#: JSON-LD keyword that is a declared spelling: ``@id`` and ``@type`` are near
-#: misses of ``id`` and ``type`` by design, because AS2 compacts them away (AS2
-#: Core section 2.1), so they MUST NOT be declared or exempted (MV-11-007).
-CONTEXT_KEY = "@context"
 
 # Field names whose values are opaque data blobs (declared ``dict[str, Any]``),
 # NOT AS2 object references.  These must not be recursively coerced into typed
@@ -116,16 +100,6 @@ class SetAsideKey:
         return location_of(self.path, self.root)
 
 
-@dataclass(frozen=True)
-class _Spellings:
-    """The declared spellings of one or more classes, indexed two ways."""
-
-    #: Every declared spelling, mapped to the fields' annotations it can fill.
-    annotations: Mapping[str, tuple[object, ...]]
-    #: Normalised spelling → the declared spelling a refusal names.
-    by_normalised: Mapping[str, str]
-
-
 @dataclass
 class _Walk:
     """Accumulates the outcome of one partition walk."""
@@ -138,185 +112,6 @@ class _Walk:
     def set_aside_key(self, path: str, key: str) -> None:
         """Record *key* at *path* as set aside."""
         self.set_aside.append(SetAsideKey(path=path, key=key, root=self.root))
-
-
-def normalise(key: str) -> str:
-    """Lowercase *key* and remove every non-alphanumeric character (MV-11-002)."""
-    return "".join(ch for ch in key.lower() if ch.isalnum())
-
-
-def _alias_keys(alias: object) -> list[str]:
-    """Return the top-level keys a validation alias reads."""
-    if isinstance(alias, str):
-        return [alias]
-    if isinstance(alias, AliasPath):
-        first = alias.path[0] if alias.path else None
-        return [first] if isinstance(first, str) else []
-    if isinstance(alias, AliasChoices):
-        return [key for choice in alias.choices for key in _alias_keys(choice)]
-    return []
-
-
-@cache
-def _class_spellings(cls: type[BaseModel]) -> _Spellings:
-    """Enumerate every key *cls* accepts on input (MV-11-001).
-
-    A declared spelling is a field name (both roots validate by name, CS-14-001
-    and CS-14-002), the alias the class generates or declares for it, any
-    explicit validation alias, a computed field's spellings (its value is
-    checked against the derived one rather than refused, ARCH-23-005), and
-    ``@context``.  A refusal names the alias ahead of the field name, because
-    the alias is the AS2 spelling a sender reads.
-    """
-    by_name = bool(
-        cls.model_config.get("validate_by_name")
-        or cls.model_config.get("populate_by_name")
-    )
-    annotations: dict[str, tuple[object, ...]] = {CONTEXT_KEY: ()}
-    preferred: list[str] = []
-    fallback: list[str] = []
-    for name, info in cls.model_fields.items():
-        aliases = _alias_keys(info.validation_alias) + _alias_keys(info.alias)
-        spellings = aliases + ([name] if by_name or not aliases else [])
-        for spelling in spellings:
-            annotations[spelling] = (info.annotation,)
-        preferred.extend(aliases)
-        fallback.append(name)
-    generator = cls.model_config.get("alias_generator")
-    for name, computed in cls.model_computed_fields.items():
-        alias = getattr(computed, "alias", None)
-        spellings = [name]
-        if isinstance(alias, str):
-            spellings.insert(0, alias)
-        elif callable(generator):
-            spellings.insert(0, generator(name))
-        for spelling in spellings:
-            annotations.setdefault(spelling, ())
-        preferred.append(spellings[0])
-    by_normalised: dict[str, str] = {}
-    for spelling in [*preferred, *fallback, CONTEXT_KEY]:
-        by_normalised.setdefault(normalise(spelling), spelling)
-    return _Spellings(
-        annotations=MappingProxyType(annotations),
-        by_normalised=MappingProxyType(by_normalised),
-    )
-
-
-def _merged_spellings(classes: tuple[type[BaseModel], ...]) -> _Spellings:
-    """Merge the spellings of several candidate classes (an untyped dict)."""
-    if len(classes) == 1:
-        return _class_spellings(classes[0])
-    annotations: dict[str, tuple[object, ...]] = {}
-    by_normalised: dict[str, str] = {}
-    for cls in classes:
-        spellings = _class_spellings(cls)
-        for key, found in spellings.annotations.items():
-            annotations[key] = annotations.get(key, ()) + found
-        for norm, spelling in spellings.by_normalised.items():
-            by_normalised.setdefault(norm, spelling)
-    return _Spellings(annotations=annotations, by_normalised=by_normalised)
-
-
-def _model_candidates(
-    annotation: object,
-) -> tuple[type[BaseModel], ...] | None:
-    """Return the model classes a field annotation validates a dict into.
-
-    Looks through ``Annotated``, unions, ``Optional`` and sequence containers.
-    Returns ``None`` when the annotation also admits a plain dict or ``Any``:
-    then no class decides what a key means, so the dict is carried unexamined.
-    """
-    found: list[type[BaseModel]] = []
-
-    def visit(ann: object) -> bool:
-        ann = strip_annotated(ann)
-        if isinstance(ann, TypeAliasType):
-            return visit(ann.__value__)
-        alias = get_origin(ann)
-        if isinstance(alias, TypeAliasType):
-            # A generic alias applied, such as ``Redactable[CaseStatus]``: its
-            # value names the alias's own classes, its arguments the rest.
-            return visit(alias.__value__) and all(
-                visit(arg) for arg in get_args(ann)
-            )
-        if ann is Any:
-            return False
-        if isinstance(ann, type) and issubclass(ann, BaseModel):
-            found.append(ann)
-            return True
-        origin = get_origin(ann)
-        if origin is Union or isinstance(ann, types.UnionType):
-            return all(visit(arg) for arg in get_args(ann))
-        if origin in (dict, Mapping) or ann is dict:
-            return False
-        if origin in (list, set, frozenset, tuple, Sequence):
-            return all(visit(arg) for arg in get_args(ann) if arg is not ...)
-        return True
-
-    if not visit(annotation):
-        return None
-    return tuple(dict.fromkeys(found))
-
-
-def _candidates_for(
-    annotations: tuple[object, ...],
-) -> tuple[type[BaseModel], ...]:
-    """Union the model candidates of every annotation a key can fill."""
-    found: list[type[BaseModel]] = []
-    for annotation in annotations:
-        candidates = _model_candidates(annotation)
-        if candidates is None:
-            return ()
-        found.extend(candidates)
-    return tuple(dict.fromkeys(found))
-
-
-def resolve_inline_class(
-    value: dict[str, Any], path: str = ""
-) -> type[BaseModel] | None:
-    """Return the most specific *wire* class for an inline dict's ``type``.
-
-    Returns ``None`` when the dict's ``type`` names no known type, which
-    leaves the dict for its parent field to validate (MV-04-004).  The lookup
-    is the shared resolver's wire-only default (VM-06-008, ISSUE-3217), so a
-    ``type`` list resolves to its most specific known class (ADR-0196).
-    Shared by this partition, which calls it on the raw dict, and the
-    parser's expansion, which calls it on the partitioned one; both calls
-    answer the same class.
-
-    A list that names two unrelated known types names no class to leave the
-    dict to either, so it refuses the activity as an unknown type at any
-    depth, as it does at the top (ADR-0196).  *path* locates it.
-
-    The ``type`` decides the class, the case's preview included: it names
-    itself ``CasePreview`` (MV-10-012).  The one exception is a
-    dict that carries only its ``id`` and ``type``: that is a typed
-    reference, read as an :class:`as_TypedReference` (MV-10-011, ADR-0198),
-    unless its class has a reference form of its own
-    (:func:`~vultron.wire.as2.typed_reference.reads_as_typed_reference`).
-    A ``VulnerabilityCase`` of that shape is the case reference a
-    participant's act on a case names it by (AKM-03-004, ADR-0165), and a
-    dict with any other key is a case.  The partition, on the raw dict,
-    therefore decides a foreign key against the class's fields and sets it
-    aside; the expansion, on the partitioned dict, then sees the reference
-    that remains.  A key the class declares keeps the dict a whole object in
-    both calls.
-    A typed reference carrying a ``preview`` its type does not define is
-    refused here, at its position (MV-10-012).
-    """
-    refuse_undefined_preview(value, path)
-    try:
-        cls = resolve_wire_type(value.get("type"))
-    except AmbiguousWireTypeError as exc:
-        where = f" at {path!r}" if path else ""
-        raise VultronParseUnknownTypeError(
-            f"Unrecognized inline object type{where}: {exc.args[0]}."
-        ) from exc
-    except KeyError:
-        return None
-    if reads_as_typed_reference(value, cls):
-        return as_TypedReference
-    return cls
 
 
 def location_of(path: str, root: str = ENVELOPE) -> str:
@@ -333,84 +128,28 @@ def _partition_value(
     candidates: tuple[type[BaseModel], ...],
     path: str,
     walk: _Walk,
+    in_preview: bool = False,
 ) -> object:
     if isinstance(value, list):
         return [
-            _partition_value(item, candidates, f"{path}[{index}]", walk)
+            _partition_value(
+                item, candidates, f"{path}[{index}]", walk, in_preview
+            )
             for index, item in enumerate(value)
         ]
     if not isinstance(value, dict):
         return value
-    resolved = resolve_inline_class(value, path)
-    declared = _declared_for_type(value, candidates, resolved)
-    fallback = (resolved,) if resolved is not None else candidates
-    classes = declared or fallback
-    return _partition_object(value, classes, path, walk)
-
-
-def slot_classes(
-    cls: type[BaseModel], key: str
-) -> tuple[type[BaseModel], ...]:
-    """The model classes *cls*'s field spelled *key* validates a dict into.
-
-    Empty when *cls* declares no such spelling, or the field also admits a
-    plain dict or ``Any``, so no class decides the dict's keys.
-    """
-    annotations = _class_spellings(cls).annotations.get(key)
-    return _candidates_for(annotations) if annotations else ()
-
-
-def declared_slot_class(
-    value: dict[str, Any],
-    candidates: tuple[type[BaseModel], ...],
-    resolved: type[BaseModel] | None,
-) -> type[BaseModel] | None:
-    """The class a slot declares for *value*'s ``type`` in place of
-    *resolved*, the wire class its ``type`` names, or ``None`` to keep that.
-
-    The partition and the parser's expansion read a slot-declared class the
-    same way (:func:`_declared_for_type`), so one class decides a nested
-    object's keys and validates it.
-    """
-    declared = _declared_for_type(value, candidates, resolved)
-    return declared[0] if len(declared) == 1 else None
-
-
-def _type_literal_values(cls: type[BaseModel]) -> tuple[object, ...]:
-    """The values a class's ``type_`` ``Literal`` admits, or ``()``."""
-    field = cls.model_fields.get("type_")
-    if field is None:
-        return ()
-    annotation = strip_annotated(field.annotation)
-    if get_origin(annotation) is not Literal:
-        return ()
-    return get_args(annotation)
-
-
-def _declared_for_type(
-    value: dict[str, Any],
-    candidates: tuple[type[BaseModel], ...],
-    resolved: type[BaseModel] | None,
-) -> tuple[type[BaseModel], ...]:
-    """The slot's declared classes that name *value*'s ``type``, when the wire
-    class its ``type`` resolves to is another class.
-
-    A slot may declare its own model for a shared AS2 type: a case
-    reference's ``url`` is a ``CaseReferenceLink``, while ``type: Link``
-    resolves to the wire ``as_Link``.  The class that validates the slot then
-    decides its keys, so a Link property the reference does not hold is set
-    aside and reported here, not read by a class that never keeps it.  A
-    resolved subclass of a declared class keeps its own, wider, fields.
-    """
-    obj_type = resolved_wire_type_name(value.get("type"))
-    if resolved is None or obj_type is None:
-        return ()
-    matches = tuple(
-        cls for cls in candidates if obj_type in _type_literal_values(cls)
-    )
-    if any(issubclass(resolved, cls) for cls in matches):
-        return ()
-    return matches
+    if in_preview:
+        # The class the parser reads it with (``inline_class``), so one class
+        # decides its keys and validates it (ADR-0217).
+        shown = inline_class(value, path, candidates, in_preview=True)
+        classes = (shown,) if shown is not None else candidates
+    else:
+        resolved = resolve_inline_class(value, path)
+        declared = _declared_for_type(value, candidates, resolved)
+        fallback = (resolved,) if resolved is not None else candidates
+        classes = declared or fallback
+    return _partition_object(value, classes, path, walk, in_preview)
 
 
 def _partition_object(
@@ -418,7 +157,9 @@ def _partition_object(
     classes: tuple[type[BaseModel], ...],
     path: str,
     walk: _Walk,
+    in_preview: bool = False,
 ) -> dict[str, Any]:
+    inner = reads_inside_preview(classes, in_preview)
     if not classes:
         # No class decides this dict's keys (a ``dict[str, Any]`` slot, or an
         # unresolved type in an untyped slot), so nothing validates them away
@@ -427,7 +168,7 @@ def _partition_object(
             key: (
                 item
                 if key in _UNEXAMINED_KEYS
-                else _partition_value(item, (), _join(path, key), walk)
+                else _partition_value(item, (), _join(path, key), walk, inner)
             )
             for key, item in value.items()
         }
@@ -450,6 +191,7 @@ def _partition_object(
                     _candidates_for(spellings.annotations[key]),
                     _join(path, key),
                     walk,
+                    inner,
                 )
             )
         elif (
@@ -540,3 +282,22 @@ def report_set_aside(
             entry.location,
             named,
         )
+
+
+#: Names other modules import from here, kept after their move to
+#: ``inline_class.py``.
+__all__ = [
+    "CONTEXT_KEY",
+    "ENVELOPE",
+    "OPAQUE_PAYLOAD_KEYS",
+    "SetAsideKey",
+    "_class_spellings",
+    "declared_slot_class",
+    "inline_class",
+    "location_of",
+    "normalise",
+    "partition_unknown_keys",
+    "report_set_aside",
+    "resolve_inline_class",
+    "slot_classes",
+]
