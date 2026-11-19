@@ -529,7 +529,7 @@ def test_remove_note_snapshot_is_a_canonical_signature():
             "type": "Note",
             "id": "https://example.org/notes/note-prov",
         },
-        "target": CASE_ID,
+        "origin": CASE_ID,
         "context": CASE_ID,
     }
     _validate_canonical_entry(

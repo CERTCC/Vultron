@@ -20,7 +20,10 @@ from vultron.wire.as2.extractor import (
     ProposeCaseOwnershipTransferActivityPattern,
     UndoCaseOwnershipTransferActivityPattern,
 )
-from vultron.wire.as2.extractor._instances import RefusalNoticePattern
+from vultron.wire.as2.extractor._instances import (
+    RefusalNoticePattern,
+    RemoveNoteFromCasePattern,
+)
 from vultron.wire.as2.extractor._pattern import (
     InlineActivityObjectPattern,
     LedgerPositionReadPattern,
@@ -1060,6 +1063,7 @@ def test_origin_constraint_matches_a_case_in_origin():
 
 @pytest.mark.spec("SE-01-001")
 @pytest.mark.spec("SE-01-007")
+@pytest.mark.spec("VAM-07-003")
 def test_origin_constraint_refuses_a_case_only_in_target():
     """A pattern that requires ``origin_`` does not read the case from
     ``target``: an activity whose case is only there does not match."""
@@ -1068,6 +1072,9 @@ def test_origin_constraint_refuses_a_case_only_in_target():
 
     assert not pattern.match(_remove_note(target=case))
     assert not pattern.match(_remove_note(target=case.id_))
+    # The registered Remove(Note) pattern asks for its case in origin.
+    assert RemoveNoteFromCasePattern.match(_remove_note(origin=case.id_))
+    assert not RemoveNoteFromCasePattern.match(_remove_note(target=case.id_))
 
 
 @pytest.mark.spec("SE-01-001")
