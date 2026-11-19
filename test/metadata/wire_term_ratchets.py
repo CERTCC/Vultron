@@ -57,11 +57,6 @@ KNOWN_ITEM_NAME_CLASH_TERM_VIOLATIONS = frozenset(
     }
 )
 
-# owner: #6418
-KNOWN_ACTOR_KEY_TERM_VIOLATIONS = frozenset(
-    {"CoreActor.assertionMethod: VM-10-007"}
-)
-
 # owner: #6419
 KNOWN_OFFER_REFERENCE_TERM_VIOLATIONS = frozenset(
     {
