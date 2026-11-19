@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""The action-rule model and the authored table (ADR-0216 rule 1 to rule 4)."""
+"""The action-rule model and the authored table (ADR-0216, SHD-05-001 to SHD-05-006)."""
 
 from typing import Any
 
@@ -196,20 +196,21 @@ def test_a_proposal_part_matches_once_for_each_matching_proposal():
 
 @pytest.mark.spec("SHD-05-004")
 @pytest.mark.parametrize(
-    ("fields", "dropped"),
+    ("fields", "dropped", "message"),
     [
-        ({}, "roles"),
-        ({"roles": frozenset()}, None),
-        ({}, "action"),
+        ({}, "roles", r"roles\n  Field required"),
+        ({"roles": frozenset()}, None, "at least one role"),
+        ({}, "action", r"action\n  Field required"),
         (
             {"action": (Actions.MONITOR_FOR_ATTACKS, Actions.CLOSE_CASE)},
             None,
+            "action",
         ),
-        ({"desiderata": ()}, None),
-        ({}, "desiderata"),
-        ({"desiderata": ("V_i≺F_j",)}, None),
-        ({"desiderata": ("E≺X",)}, None),
-        ({"desiderata": ("D≺P", "D≺P")}, None),
+        ({"desiderata": ()}, None, "at least 1 item"),
+        ({}, "desiderata", r"desiderata\n  Field required"),
+        ({"desiderata": ("V_i≺F_j",)}, None, "not in the move-advice"),
+        ({"desiderata": ("E≺X",)}, None, "not in the move-advice"),
+        ({"desiderata": ("D≺P", "D≺P")}, None, "more than once"),
     ],
     ids=[
         "no-role",
@@ -224,7 +225,7 @@ def test_a_proposal_part_matches_once_for_each_matching_proposal():
     ],
 )
 def test_a_rule_without_roles_one_action_and_listed_desiderata_is_refused(
-    fields, dropped
+    fields, dropped, message
 ):
     base: dict[str, Any] = {
         "pattern": RulePattern(),
@@ -236,7 +237,7 @@ def test_a_rule_without_roles_one_action_and_listed_desiderata_is_refused(
     base.update(fields)
     if dropped is not None:
         del base[dropped]
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match=message):
         AuthoredRule(**base)
 
 
@@ -283,6 +284,7 @@ def test_each_mapped_name_is_a_move_and_the_publications_map_to_p():
         Actions.PUBLISH_DETECTION_FOR_EXPLOITS,
         Actions.PUBLISH_DETECTION_FOR_ATTACKS,
         Actions.PUBLICIZE_PUBLISHED_EXPLOITS,
+        Actions.PUBLICIZE_MITIGATION,
     ]
     for action in publications:
         assert ACTION_MOVES[action] == "cs.public_becomes_aware"

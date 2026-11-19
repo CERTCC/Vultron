@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The authored action rules: the claim (ADR-0216 rule 4).
+"""The authored action rules: the claim (ADR-0216, SHD-05-006).
 
 Each pattern and action of ``CS_ACTION_RULES`` carries over as one or more
 authored rules, in that table's order, each recording its source pair
@@ -29,7 +29,7 @@ rule by rule, on #6676:
   state where an ephemeral state forces another event (``pX``) is split so
   it matches only positions where its move exists.
 * Closing the case is ``rm.close`` for a participant whose RM state is not
-  Closed (D5).
+  Closed, matched only where ``rm.close`` exists (``RM_CLOSABLE``) (D5).
 
 "Non-vendor" is :data:`NON_VENDOR`.  The table is built on first use
 (:func:`authored_rules`): checking a desideratum against the move-advice list
@@ -41,11 +41,11 @@ from __future__ import annotations
 from functools import cache
 
 from vultron.core.scoring.potential_actions import Actions
-from vultron.core.states.em import EM
+from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, RM_CLOSABLE
 from vultron.enums.roles import CVDRole
 from vultron.measure.action_rules.model import (
     ANY_ROLE,
@@ -75,10 +75,10 @@ _OWNER: frozenset[CVDRole] = frozenset({CVDRole.CASE_OWNER})
 _VENDOR: frozenset[CVDRole] = frozenset({CVDRole.VENDOR})
 _DEPLOYER: frozenset[CVDRole] = frozenset({CVDRole.DEPLOYER})
 
-_IN_FORCE = frozenset({EM.ACTIVE, EM.REVISE})
+_IN_FORCE = frozenset(EM_EMBARGO_ACTIVE)
 _NO_ACTIVE_EMBARGO = frozenset({EM.NONE, EM.EXITED})
 _FIX_GATE = frozenset({RM.ACCEPTED, RM.DEFERRED})
-_NOT_CLOSED = frozenset({RM.RECEIVED, RM.INVALID, RM.ACCEPTED, RM.DEFERRED})
+_CLOSABLE = frozenset(RM_CLOSABLE)
 _INVITED = frozenset({EmbargoConsentState.INVITED})
 
 _PUBLISH = "cs.public_becomes_aware"
@@ -233,7 +233,7 @@ def _close(source: str, note: str | None) -> AuthoredRule:
         source,
         Actions.CLOSE_CASE,
         action="rm.close",
-        rm=_NOT_CLOSED,
+        rm=_CLOSABLE,
         desiderata=("X≺A",),
         note=note,
     )

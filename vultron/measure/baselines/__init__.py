@@ -58,6 +58,7 @@ from vultron.measure.baselines.desiderata import (
     ModelName,
     baseline,
     case_state_query,
+    desideratum_by_notation,
     implications,
     ordered_cs_events,
 )
@@ -136,6 +137,7 @@ __all__ = [
     "case_state_query",
     "completion_probabilities",
     "desiderata_values",
+    "desideratum_by_notation",
     "expected_change",
     "expected_outcome",
     "expected_outcomes",

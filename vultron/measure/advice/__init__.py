@@ -49,7 +49,6 @@ from vultron.measure.advice.case import (
     VendorHarm,
     VendorShift,
     case_advice,
-    desideratum_by_notation,
     unbanded_reason,
 )
 from vultron.measure.advice.shifts import (
@@ -91,7 +90,6 @@ __all__ = [
     "advise",
     "band",
     "case_advice",
-    "desideratum_by_notation",
     "chance_values",
     "deciding_parts",
     "dominates",

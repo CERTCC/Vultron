@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The comparison of authored rules with move advice, position by position
-(ADR-0216 rule 6).
+(ADR-0216, SHD-05-010).
 
 For one vendor's position, each authored rule that matches it, and each
 verdict at it, :func:`compare_point` gives one result:
@@ -26,7 +26,7 @@ verdict at it, :func:`compare_point` gives one result:
   rule names.
 
 An unhelpful move that no rule names gives no result.  A rule that is
-undecided at the position (ADR-0216 rule 2) gives no result either; the
+undecided at the position (ADR-0216, SHD-05-003) gives no result either; the
 comparison lists it as undecided.  The comparison resolves nothing and
 changes neither table (SHD-05-013).
 
@@ -50,6 +50,7 @@ from vultron.core.states.rm import RM_Trigger
 from vultron.enums.roles import CVDRole
 from vultron.measure.action_rules.model import (
     ACTION_MOVES,
+    ANY_ROLE,
     CS_MOVE_EVENTS,
     SCORED_MACHINES,
     AuthoredRule,
@@ -233,7 +234,7 @@ def _joins(rule: AuthoredRule, verdict: MoveVerdict, move: str) -> bool:
         return False
     if machine_of(move) is not Machine.EM:
         return True
-    return rule.roles == "any" or bool(verdict.roles & rule.roles)
+    return rule.roles == ANY_ROLE or bool(verdict.roles & rule.roles)
 
 
 def _rule_result(

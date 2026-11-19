@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The generated action rules: move advice stated as rules (ADR-0216 rule 5).
+"""The generated action rules: move advice stated as rules (ADR-0216, SHD-05-007).
 
 For each move and each band, :func:`generated_rules` groups the valid
 positions of one vendor where move advice gives the move that band
@@ -39,7 +39,7 @@ from typing import Literal, NamedTuple
 from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.states.cs import CS
-from vultron.core.states.cs_invariants import CS_EVENTS, cs_happened_events
+from vultron.core.states.cs_actions import CSPattern
 from vultron.core.states.em import EM, EM_TRIGGER_ROLES, EM_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -81,7 +81,9 @@ def move_role(move: str) -> CVDRole | Literal["any"]:
     return CVDRole.VENDOR
 
 
-class _Key(NamedTuple):
+class PositionKey(NamedTuple):
+    """One vendor's RM, CS and EM states: a position with no PEC part."""
+
     rm: RM
     cs: CS
     em: EM
@@ -95,15 +97,11 @@ class _Cube(NamedTuple):
     letters: tuple[str, ...]
     em: frozenset[EM]
 
-    def covers(self, key: _Key) -> bool:
-        happened = cs_happened_events(key.cs)
+    def covers(self, key: PositionKey) -> bool:
         return (
             key.rm in self.rm
             and key.em in self.em
-            and all(
-                letter == "." or (letter.isupper() == (event in happened))
-                for event, letter in zip(CS_EVENTS, self.letters, strict=True)
-            )
+            and CSPattern("".join(self.letters)).matches(key.cs)
         )
 
     def pattern(self) -> RulePattern:
@@ -114,11 +112,11 @@ class _Cube(NamedTuple):
         )
 
 
-def _seed(key: _Key) -> _Cube:
+def _seed(key: PositionKey) -> _Cube:
     return _Cube(frozenset({key.rm}), tuple(key.cs.name), frozenset({key.em}))
 
 
-def _widen(cube: _Cube, others: Sequence[_Key]) -> _Cube:
+def _widen(cube: _Cube, others: Sequence[PositionKey]) -> _Cube:
     """*cube* widened part by part while it covers none of *others*."""
 
     def clear(candidate: _Cube) -> bool:
@@ -141,7 +139,7 @@ def _widen(cube: _Cube, others: Sequence[_Key]) -> _Cube:
     return cube
 
 
-def _trim(cube: _Cube, targets: Sequence[_Key]) -> _Cube:
+def _trim(cube: _Cube, targets: Sequence[PositionKey]) -> _Cube:
     """*cube* with each RM and EM set that is not every state cut to the
     states of the positions it covers, so it names no state only a
     combination no walk reaches would use."""
@@ -160,10 +158,20 @@ def _trim(cube: _Cube, targets: Sequence[_Key]) -> _Cube:
 
 
 def group_positions(
-    targets: Sequence[_Key], others: Sequence[_Key]
+    targets: Sequence[PositionKey], others: Sequence[PositionKey]
 ) -> tuple[RulePattern, ...]:
     """Patterns whose union holds every one of *targets* and none of
-    *others*, greedily, in *targets*' order."""
+    *others*, greedily, in *targets*' order.
+
+    Raises:
+        ValueError: A position is both a target and one of *others*.
+    """
+    shared = set(targets) & set(others)
+    if shared:
+        raise ValueError(
+            f"{len(shared)} positions are both targets and others; no"
+            " pattern can hold one and not the other"
+        )
     cubes: list[_Cube] = []
     uncovered = list(targets)
     while uncovered:
@@ -178,16 +186,16 @@ def group_positions(
     return tuple(c.pattern() for c in kept)
 
 
-def _key(point: VendorPoint) -> _Key:
+def _key(point: VendorPoint) -> PositionKey:
     p = point.position
-    return _Key(p.rm, p.cs, p.em)
+    return PositionKey(p.rm, p.cs, p.em)
 
 
 def _bands(
     points: Iterable[VendorPoint],
-) -> dict[tuple[str, Band], list[_Key]]:
+) -> dict[tuple[str, Band], list[PositionKey]]:
     """The positions where each move gets each band, in walk order."""
-    found: dict[tuple[str, Band], list[_Key]] = {}
+    found: dict[tuple[str, Band], list[PositionKey]] = {}
     for point in points:
         key = _key(point)
         for verdict in point.verdicts:

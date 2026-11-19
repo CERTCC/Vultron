@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""The comparison of authored rules with move advice (ADR-0216 rule 6)."""
+"""The comparison of authored rules with move advice (ADR-0216, SHD-05-010)."""
 
 import copy
 from typing import Any
@@ -48,7 +48,7 @@ from vultron.measure.action_rules import (
     generated_rules,
     vendor_points,
 )
-from vultron.measure.advice import Band
+from vultron.measure.advice import Band, Part
 from vultron.measure.standing import case_standing
 
 _K = ResultKind
@@ -341,7 +341,7 @@ def test_an_em_move_rule_joins_the_participant_in_its_role(two_vendors):
     (first, _) = compare_points(two_vendors, [owner_rule, vendor_rule])
     owner, vendor = (_only(first, owner_rule), _only(first, vendor_rule))
     assert owner.participant == OWNER
-    assert vendor.participant != OWNER
+    assert vendor.participant in (VENDOR_1, VENDOR_2)
 
 
 @pytest.mark.spec("SHD-05-018")
@@ -360,6 +360,59 @@ def test_every_position_of_one_vendor_compares_with_no_misplaced_rule():
     assert kinds == set(ResultKind) - {_K.MISPLACED_RULE}
 
 
-def test_a_result_whose_fields_do_not_fit_its_kind_is_refused():
-    with pytest.raises(ValueError, match="only an unclaimed move has no rule"):
-        RuleResult(kind=_K.UNSCORED_RULE, vendor="v", reason="r")
+_BANDED = {
+    "band": Band.HARM_FREE,
+    "deciding_part": Part.END,
+    "deciding_size": 1,
+    "move": "cs.fix_is_deployed",
+}
+
+
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        (
+            {"kind": _K.UNSCORED_RULE, "reason": "r"},
+            "only an unclaimed move has no rule",
+        ),
+        ({"kind": _K.AGREEMENT, "with_rule": True}, "carry a band"),
+        (
+            {
+                "kind": _K.AGREEMENT,
+                "with_rule": True,
+                "band": Band.HARM_FREE,
+            },
+            "names its move and its part",
+        ),
+        (
+            {
+                "kind": _K.UNCLAIMED_MOVE,
+                **_BANDED,
+                "changes": [{"desideratum": "D≺P", "change": 1}],
+            },
+            "only a banded rule result carries its changes",
+        ),
+        (
+            {"kind": _K.UNCLAIMED_MOVE, **_BANDED, "blind_spot": 6492},
+            "only a rule disagreement carries a blind spot",
+        ),
+        (
+            {"kind": _K.MISPLACED_RULE, "with_rule": True},
+            "a misplaced or unscored rule says why",
+        ),
+    ],
+    ids=[
+        "rule-less",
+        "agreement-without-band",
+        "band-without-part",
+        "unclaimed-with-changes",
+        "unclaimed-with-blind-spot",
+        "misplaced-without-reason",
+    ],
+)
+def test_a_result_whose_fields_do_not_fit_its_kind_is_refused(fields, message):
+    fields = dict(fields)
+    if fields.pop("with_rule", False):
+        fields["rule"] = _no_state()
+    with pytest.raises(ValueError, match=message):
+        RuleResult.model_validate({"vendor": "v", **fields})

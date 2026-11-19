@@ -175,7 +175,7 @@ ACTION_MOVES: Mapping[Actions, str] = MappingProxyType(
 """The move each member of ``Actions`` that changes state is (SHD-05-019).
 
 A publication is any publication; only the first causes P, so where P has
-happened a publication is an action that changes no state (ADR-0216 rule 3,
+happened a publication is an action that changes no state (ADR-0216,
 SHD-05-024).  The same holds for an action that causes V, F, D or X.
 ``INITIATE_EMBARGO_TERMINATION`` is in :data:`NO_STATE_ACTIONS`: the case
 owner's own termination is a rule that names ``em.terminate``, and anyone
@@ -208,7 +208,7 @@ NO_STATE_ACTIONS: frozenset[Actions] = frozenset(
 
 Two members are in neither this set nor :data:`ACTION_MOVES`:
 ``NEGOTIATE_OR_ESTABLISH_DISCLOSURE_EMBARGO``, which the authored rules split
-into the EM and PEC moves it is (ADR-0216 rule 4), and ``INITIATE_VEP_USGOV``,
+into the EM and PEC moves it is (ADR-0216, SHD-05-006), and ``INITIATE_VEP_USGOV``,
 which is not a move of the protocol and does not carry over."""
 
 
@@ -238,7 +238,7 @@ def move_advice_desiderata() -> Mapping[str, Desideratum]:
 
 
 class MatchStatus(StrEnum):
-    """Whether a rule's pattern matches a position (ADR-0216 rule 2)."""
+    """Whether a rule's pattern matches a position (ADR-0216, SHD-05-003)."""
 
     MATCHED = "matched"
     UNMATCHED = "unmatched"
@@ -460,7 +460,7 @@ def _pec_sources(trigger: str) -> frozenset[EmbargoConsentState]:
 
 class AuthoredRule(BaseModel):
     """One authored action rule: the claim that its action serves the
-    desiderata it names (ADR-0216 rule 3, rule 4).
+    desiderata it names (ADR-0216, SHD-05-004).
 
     Fields:
         pattern: The positions it matches.

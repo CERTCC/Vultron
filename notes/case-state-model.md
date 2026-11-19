@@ -5,11 +5,10 @@ kind: guidance
 description: >
   Rules for working with the CVD case state: where the CS rules, the CVD
   action rules and the authored action rules live and the legacy reference
-  model's status, which dimensions
-  are per-participant versus per-case, role-gated VF/D writes, the two v→V
-  drive paths, the d→D causal gate, append-only status history, the
-  invite-path RM entry point, the same-write promotion out of an ephemeral
-  state, and why the compound CS enum stays.
+  model's status, which dimensions are per-participant versus per-case,
+  role-gated VF/D writes, the two v→V drive paths, the d→D causal gate,
+  append-only status history, the invite-path RM entry point, the same-write
+  promotion out of an ephemeral state, and why the compound CS enum stays.
 related_specs:
   - specs/architecture.yaml (ARCH-12-002)
   - specs/case-management.yaml
@@ -90,7 +89,7 @@ rules for changing the code that implements it.
   pair it carries over. Correct a wrong source pair in `CS_ACTION_RULES` and its
   oracle, never in the authored table, and narrow an authored rule rather than
   widen it. Reason: the oracle checks the source pairs, so the table can only
-  stay true to it from inside them (ADR-0216 rule 4, SHD-05-006, SHD-05-023).
+  stay true to it from inside them (ADR-0216, SHD-05-006, SHD-05-023).
 
 Do not delete the legacy module (ADR-0060):
 `vultron/core/use_cases/query/action_rules.py` (the `actors_get_action_rules`

@@ -35,7 +35,6 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from fractions import Fraction
-from functools import cache
 
 from pydantic import BaseModel, ConfigDict, computed_field, model_validator
 
@@ -57,11 +56,9 @@ from vultron.measure.advice.shifts import (
     scope_shift,
 )
 from vultron.measure.baselines import (
-    EXTENDED,
-    ORIGINAL,
-    Desideratum,
     EventKind,
     VendorDesideratum,
+    desideratum_by_notation,
 )
 from vultron.measure.standing import (
     CSMove,
@@ -381,28 +378,6 @@ class CaseAdvice(BaseModel):
     def moves(self) -> tuple[AdvisedMove, ...]:
         """Every open move, band by band."""
         return tuple(m for b in self.bands for m in b.moves)
-
-
-@cache
-def _desiderata_by_notation() -> dict[str, Desideratum]:
-    found: dict[str, Desideratum] = {}
-    for desideratum in (*ORIGINAL, *EXTENDED):
-        if desideratum.notation in found:
-            raise ValueError(f"two desiderata print as {desideratum.notation}")
-        found[desideratum.notation] = desideratum
-    return found
-
-
-def desideratum_by_notation(notation: str) -> Desideratum:
-    """The desideratum the Measuring CVD pages print as *notation*.
-
-    Raises:
-        ValueError: No desideratum prints as *notation*.
-    """
-    try:
-        return _desiderata_by_notation()[notation]
-    except KeyError:
-        raise ValueError(f"no desideratum prints as {notation}") from None
 
 
 def _shift(scored: ScoredMove, numbers: Mapping[str, int]) -> ScopeShift:

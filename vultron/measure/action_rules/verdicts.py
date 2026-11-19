@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Move advice for one vendor: each allowed move's band in that vendor's scope
-alone (ADR-0216 rule 5).
+alone (ADR-0216, SHD-05-007).
 
 A move's **band for one vendor** is ADR-0200's band over that vendor's parts
 only: harm-free when its deciding part (its end part, or its embargo part
@@ -23,13 +23,17 @@ Two readings give each vendor's moves:
 
 * :func:`case_points` reads a live case's
   :class:`~vultron.measure.standing.StandingRecord`, so each vendor's band
-  comes from the case's own outcome shifts (ADR-0216 rule 7).
+  comes from the case's own outcome shifts (ADR-0216, SHD-05-011).
 * :func:`vendor_points` walks the one-vendor joint model and gives every
   valid position of one vendor, each with the moves the state machines allow
-  there, scored as move advice scores them (ADR-0216 rule 5, rule 8).  A
+  there, scored as move advice scores them (ADR-0216, SHD-05-007).  A
   position's value depends on the walk that reached it as well as on the
   position (``WalkPrefix``), so each position is read at the first walk that
-  reaches it, breadth first: its shortest history.
+  reaches it, breadth first: its shortest history.  At some positions a
+  longer walk gives a move another band (``em.accept`` and ``em.reject`` at
+  EM PROPOSED or REVISE, ``rm.accept`` at RM DEFERRED); which walk a
+  position's verdict reads is an open decision on #6676.  A live case reads
+  its own history, so :func:`case_points` has no such choice.
 """
 
 from __future__ import annotations
@@ -41,9 +45,10 @@ from functools import cache
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from vultron.core.states.cs import CS_d, CS_vf
+from vultron.core.states.cs import CS, CS_d, CS_vf
 from vultron.core.states.cs_invariants import CSEvent, cs_from_dimensions
-from vultron.core.states.rm import RM_Trigger
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM, RM_Trigger
 from vultron.enums.roles import CVDRole
 from vultron.measure.action_rules.model import (
     Position,
@@ -51,16 +56,13 @@ from vultron.measure.action_rules.model import (
     move_advice_desiderata,
 )
 from vultron.measure.advice.bands import Band, Part, band, deciding_parts
-from vultron.measure.advice.case import (
-    AllowedMove,
-    desideratum_by_notation,
-    unbanded_reason,
-)
+from vultron.measure.advice.case import AllowedMove, unbanded_reason
 from vultron.measure.advice.shifts import scope_shift
 from vultron.measure.baselines import (
     ONE_VENDOR_MODEL,
     VendorDesideratum,
     WalkPrefix,
+    desideratum_by_notation,
 )
 from vultron.measure.standing import (
     ScoredMove,
@@ -224,7 +226,7 @@ def case_points(record: StandingRecord) -> tuple[VendorPoint, ...]:
     so its ``cs.vendor_becomes_aware`` takes the verdict of its
     ``rm.receive`` (:func:`_unnotified_awareness`).  The record holds no
     consent state, so a rule with a PEC part is undecided at every point
-    (ADR-0216 rule 2).  Empty for a record with a gap.
+    (ADR-0216, SHD-05-003).  Empty for a record with a gap.
     """
     if record.case is None:
         return ()
@@ -268,12 +270,12 @@ def _unnotified_awareness(
 
 
 @cache
-def _shortest_prefixes() -> Mapping[tuple[object, ...], CasePrefix]:
+def _shortest_prefixes() -> Mapping[tuple[RM, CS, EM], CasePrefix]:
     """The first walk of the one-vendor model to reach each position,
     breadth first, keyed by the vendor's RM, CS and EM state."""
     start: CasePrefix = WalkPrefix(ONE_VENDOR_MODEL.initial)
     seen = {start.state}
-    found: dict[tuple[object, ...], CasePrefix] = {}
+    found: dict[tuple[RM, CS, EM], CasePrefix] = {}
     queue = deque([start])
     while queue:
         prefix = queue.popleft()
@@ -309,11 +311,11 @@ def _point(prefix: CasePrefix) -> VendorPoint:
 @cache
 def vendor_points() -> tuple[VendorPoint, ...]:
     """Every valid position of one vendor, and the verdict on each move it
-    allows (ADR-0216 rule 5).
+    allows (ADR-0216, SHD-05-007).
 
     The vendor holds every role, so every EM move is listed for it.  A
-    position holds no consent state: the chance model has none (ADR-0216
-    rule 8).  In the order a breadth-first walk first reaches each.
+    position holds no consent state: the chance model has none (ADR-0216,
+    SHD-06-007).  In the order a breadth-first walk first reaches each.
     """
     return tuple(_point(p) for p in _shortest_prefixes().values())
 

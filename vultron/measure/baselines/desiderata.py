@@ -482,6 +482,29 @@ def implications() -> tuple[Implication, ...]:
     return tuple(found)
 
 
+@cache
+def _desiderata_by_notation() -> dict[str, Desideratum]:
+    found: dict[str, Desideratum] = {}
+    for desideratum in (*ORIGINAL, *EXTENDED):
+        if desideratum.notation in found:
+            raise ValueError(f"two desiderata print as {desideratum.notation}")
+        found[desideratum.notation] = desideratum
+    return found
+
+
+def desideratum_by_notation(notation: str) -> Desideratum:
+    """The desideratum of :data:`ORIGINAL` or :data:`EXTENDED` the Measuring
+    CVD pages print as *notation*.
+
+    Raises:
+        ValueError: No desideratum prints as *notation*.
+    """
+    try:
+        return _desiderata_by_notation()[notation]
+    except KeyError:
+        raise ValueError(f"no desideratum prints as {notation}") from None
+
+
 def count_once(desiderata: Iterable[Desideratum]) -> tuple[Desideratum, ...]:
     """*desiderata* less each one equivalent to one listed before it.
 

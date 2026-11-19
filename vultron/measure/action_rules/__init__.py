@@ -43,6 +43,7 @@ from vultron.measure.action_rules.compare import (
 )
 from vultron.measure.action_rules.generated import (
     GeneratedRule,
+    PositionKey,
     generated_rules,
     group_positions,
     move_role,
@@ -99,6 +100,7 @@ __all__ = [
     "PatternMatch",
     "PointComparison",
     "Position",
+    "PositionKey",
     "ProposalConsent",
     "ResultKind",
     "RuleResult",

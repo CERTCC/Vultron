@@ -12,8 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""Move advice for one vendor, and the generated rules over it (ADR-0216
-rule 5)."""
+"""Move advice for one vendor, and the generated rules over it (ADR-0216,
+SHD-05-007)."""
 
 from fractions import Fraction
 
@@ -37,6 +37,8 @@ from vultron.measure.action_rules import (
     VENDOR,
     Machine,
     MatchStatus,
+    MoveVerdict,
+    PositionKey,
     VendorScore,
     case_points,
     generated_rules,
@@ -45,9 +47,8 @@ from vultron.measure.action_rules import (
     point_prefix,
     vendor_points,
 )
-from vultron.measure.action_rules.generated import _Key
 from vultron.measure.advice import Band, Part, advise, move_shifts, open_moves
-from vultron.measure.standing import case_standing
+from vultron.measure.standing import StandingGap, StandingRecord, case_standing
 from vultron.measure.standing.joint import joint_step
 
 
@@ -117,8 +118,29 @@ def test_a_live_vendor_not_yet_notified_stands_at_vfd_beside_the_case():
     assert point.position.cs is CS.vfdpxa
     assert point.position.rm is RM.START
     assert point.position.consent is None
-    names = {v.move.name for v in point.verdicts}
-    assert "cs.vendor_becomes_aware" in names
+    (aware,) = [
+        v for v in point.verdicts if v.move.name == "cs.vendor_becomes_aware"
+    ]
+    (receipt,) = [v for v in point.verdicts if v.move.name == "rm.receive"]
+    assert aware.score is not None
+    assert aware.score == receipt.score
+    assert aware.move.participant == VENDOR_1
+
+
+def test_a_record_with_a_gap_has_no_points():
+    record = StandingRecord(
+        case_id="c",
+        end_confirmed=False,
+        gap=StandingGap(missing_log_indices=[1]),
+    )
+    assert case_points(record) == ()
+
+
+def test_a_verdict_holds_a_band_or_why_not():
+    (point, *_) = vendor_points()
+    verdict = point.verdicts[0]
+    with pytest.raises(ValidationError, match="a band or the reason"):
+        MoveVerdict(move=verdict.move, roles=verdict.roles)
 
 
 # --- SHD-05-015 to SHD-05-017: the generated rules ---
@@ -198,12 +220,12 @@ def test_generated_rules_are_the_same_on_every_build():
 
 def test_grouping_covers_the_targets_and_none_of_the_others():
     targets = [
-        _Key(RM.ACCEPTED, CS.VFdpxa, EM.ACTIVE),
-        _Key(RM.ACCEPTED, CS.VFdPxa, EM.NONE),
+        PositionKey(RM.ACCEPTED, CS.VFdpxa, EM.ACTIVE),
+        PositionKey(RM.ACCEPTED, CS.VFdPxa, EM.NONE),
     ]
     others = [
-        _Key(RM.ACCEPTED, CS.Vfdpxa, EM.ACTIVE),
-        _Key(RM.DEFERRED, CS.VFdpxa, EM.ACTIVE),
+        PositionKey(RM.ACCEPTED, CS.Vfdpxa, EM.ACTIVE),
+        PositionKey(RM.DEFERRED, CS.VFdpxa, EM.ACTIVE),
     ]
     patterns = group_positions(targets, others)
     assert patterns
@@ -214,15 +236,21 @@ def test_grouping_covers_the_targets_and_none_of_the_others():
 
 
 def test_a_part_that_does_not_reach_every_state_names_only_covered_ones():
-    targets = [_Key(RM.ACCEPTED, CS.VFdpxa, EM.ACTIVE)]
-    others = [_Key(RM.DEFERRED, CS.VFdpxa, EM.ACTIVE)]
+    targets = [PositionKey(RM.ACCEPTED, CS.VFdpxa, EM.ACTIVE)]
+    others = [PositionKey(RM.DEFERRED, CS.VFdpxa, EM.ACTIVE)]
     (pattern,) = group_positions(targets, others)
     assert pattern.rm == {RM.ACCEPTED}
     assert pattern.em is None
     assert pattern.cs == "......"
 
 
-def _covers(pattern, key: _Key) -> bool:
+def test_a_position_both_target_and_other_is_refused():
+    key = PositionKey(RM.ACCEPTED, CS.VFdpxa, EM.ACTIVE)
+    with pytest.raises(ValueError, match="both targets and others"):
+        group_positions([key], [key])
+
+
+def _covers(pattern, key: PositionKey) -> bool:
     return (
         pattern.matches_cs(key.cs)
         and (pattern.rm is None or key.rm in pattern.rm)

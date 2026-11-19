@@ -541,7 +541,7 @@ def test_a_case_manager_is_a_coordinator_and_its_moves_pool_with_the_owners():
 
 
 def test_two_desiderata_that_print_alike_are_refused(monkeypatch):
-    from vultron.measure.advice import case as module
+    from vultron.measure.baselines import desiderata as module
 
     module._desiderata_by_notation.cache_clear()
     monkeypatch.setattr(module, "EXTENDED", (module.ORIGINAL[0],))

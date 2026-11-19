@@ -35,6 +35,7 @@ Spec: CSB-17-001.  Decision: ADR-0060.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 
 from vultron.core.scoring.potential_actions import Actions
 from vultron.core.states.cs import CS
@@ -112,26 +113,30 @@ class CSActionRule:
     actions: tuple[Actions, ...]
 
     def __post_init__(self) -> None:
-        CSPattern(self.pattern)
+        _ = self._cs_pattern  # building the pattern checks it
         if not self.actions:
             raise ValueError(
                 f"the action rule {self.pattern!r} names no action"
             )
 
+    @cached_property
+    def _cs_pattern(self) -> CSPattern:
+        return CSPattern(self.pattern)
+
     @property
     def occurred(self) -> frozenset[CSEvent]:
         """The events a matching state has had."""
-        return CSPattern(self.pattern).occurred
+        return self._cs_pattern.occurred
 
     @property
     def pending(self) -> frozenset[CSEvent]:
         """The events a matching state has not yet had."""
-        return CSPattern(self.pattern).pending
+        return self._cs_pattern.pending
 
     def matches(self, state: CS) -> bool:
         """Whether *state* matches the rule's pattern
         (:meth:`CSPattern.matches`)."""
-        return CSPattern(self.pattern).matches(state)
+        return self._cs_pattern.matches(state)
 
 
 def _rule(pattern: str, *actions: Actions) -> CSActionRule:
