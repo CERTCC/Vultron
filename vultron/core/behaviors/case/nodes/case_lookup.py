@@ -15,10 +15,12 @@
 
 """Case resolution for a report: one producer, one consumer mixin.
 
-Separate from ``conditions.py`` because :class:`RequireCaseForReport` is an
-action, not a condition — it writes an output port that downstream nodes
-consume, so a tree resolves the case once and every later node reads
-``/case_id`` (ARCH-15-004).
+Separate from ``conditions.py`` because :class:`RequireCaseForReport` and
+:class:`FindCaseForReport` are actions, not conditions — they write an output
+port that downstream nodes consume, so a tree resolves the case once and every
+later node reads ``/case_id`` (ARCH-15-004).  A trigger tree uses
+:class:`RequireCaseForReport`, which fails on a miss; a received report tree
+uses :class:`FindCaseForReport`.
 
 :class:`CaseIdInputPortMixin` is the matching read side, and lives here rather
 than in each consumer's module so the producer/consumer contract for
@@ -51,6 +53,20 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.models.case import VulnerabilityCase
+
+#: The name a report's miss guard takes, the step it replaced, so a tree
+#: dump and a refusal read as they did when the case was resolved there.
+CASE_FOUND_NODE_NAME = "RequireCaseForReport"
+
+#: Why a report with no report id has no case to resolve.
+NO_REPORT_ID = "no report_id — no case to resolve"
+
+
+def no_case_for_report(report_id: str) -> str:
+    """Why *report_id* has no case: this store holds none for it (#2255)."""
+    return (
+        f"no VulnerabilityCase for report '{report_id}' in this actor's store"
+    )
 
 
 class CaseResolving:
@@ -129,10 +145,7 @@ class RequireCaseForReport(CaseResolving, DataLayerActionWithPorts):
         return self.datalayer.find_case_by_report_id(report_id)
 
     def _absence_message(self, report_id: str) -> str:
-        return (
-            f"no VulnerabilityCase for report '{report_id}' in this"
-            " actor's store"
-        )
+        return no_case_for_report(report_id)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -140,7 +153,7 @@ class RequireCaseForReport(CaseResolving, DataLayerActionWithPorts):
         assert self.datalayer is not None
 
         if not self._report_id:
-            self.feedback_message = "no report_id — no case to resolve"
+            self.feedback_message = NO_REPORT_ID
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
@@ -231,8 +244,8 @@ class CaseFoundForReport(
     def _domain_port_remappings(cls) -> dict[str, str]:
         return act_key_remappings(CASE_ID, REPORT_ID)
 
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+    def __init__(self, name: str = CASE_FOUND_NODE_NAME) -> None:
+        super().__init__(name=name)
         self._case_id: str | None = None
         self._report_id: str | None = None
 
@@ -244,13 +257,11 @@ class CaseFoundForReport(
     def update(self) -> Status:
         if self._case_id:
             return Status.SUCCESS
-        if not self._report_id:
-            self.feedback_message = "no report_id — no case to resolve"
-        else:
-            self.feedback_message = (
-                f"no VulnerabilityCase for report '{self._report_id}' in"
-                " this actor's store"
-            )
+        self.feedback_message = (
+            no_case_for_report(self._report_id)
+            if self._report_id
+            else NO_REPORT_ID
+        )
         # INFO, not WARNING: the replica may not have arrived yet, a
         # legitimate transient state on the receiving side.
         self.logger.info("%s: %s", self.name, self.feedback_message)
@@ -258,7 +269,10 @@ class CaseFoundForReport(
 
 
 class CaseIdInputPortMixin:
-    """Read the ``/case_id`` blackboard key published by ``RequireCaseForReport``.
+    """Read the ``/case_id`` blackboard key a report lookup published.
+
+    The publisher is ``RequireCaseForReport`` in a trigger tree and
+    ``FindCaseForReport`` in a received report tree.
 
     The port is declared optional so a tree may omit the publisher, but a node
     that mixes this in and needs the case MUST treat absence as ``FAILURE``

@@ -67,11 +67,6 @@ class _ReportVerdictStages(NamedTuple):
     refusal: list[py_trees.behaviour.Behaviour]
 
 
-#: The refusal step keeps the name of the step it replaced, so a tree dump
-#: and a refusal read as they did when the case was resolved there (#2255).
-_CASE_FOUND_NAME = "RequireCaseForReport"
-
-
 def _report_verdict_stages(
     request: InvalidateReportReceivedEvent,
     declared_rm: RM,
@@ -112,7 +107,7 @@ def _report_verdict_stages(
         ),
         case_resolution=[
             with_act_keys(
-                CaseFoundForReport(name=_CASE_FOUND_NAME),
+                CaseFoundForReport(),
                 {REPORT_ID: request.report_id},
             )
         ],
@@ -149,7 +144,8 @@ def create_close_report_received_tree(
        outside-case side: the sender is an addressee of the Offer it closes.
        A door refusal leaves only a receipt stub (CLP-10-018).
     3. Intake records the admitted ``Reject`` as received (CLP-10-017).
-    4. ``RequireCaseForReport`` then refuses a report this store holds no
+    4. The miss guard (``CaseFoundForReport``, named
+       ``RequireCaseForReport``) then refuses a report this store holds no
        case for, as an activity about an unknown case (#2255,
        BT-25-010).
 
@@ -176,7 +172,7 @@ def create_close_report_received_tree(
         paths={ReceivedPath.NO_CASE},
         precondition_guards=[
             with_act_keys(
-                CaseFoundForReport(name=_CASE_FOUND_NAME),
+                CaseFoundForReport(),
                 {REPORT_ID: request.report_id},
             )
         ],
@@ -214,7 +210,8 @@ def create_invalidate_report_received_tree(
        declares the CASE_MANAGER path and the no-case path, so a replica is
        refused there (HP-01-005, HP-01-038), and a receiver with no case for
        the report passes on to step 3.
-    3. ``RequireCaseForReport`` refuses a report this store holds no case
+    3. The miss guard (``CaseFoundForReport``, named
+       ``RequireCaseForReport``) refuses a report this store holds no case
        for, as an activity about an unknown case (#2255, BT-25-010).
     4. The sender must be a participant of that case (HP-01-006).
     5. Once those doors admit it, intake records the ``TentativeReject`` as

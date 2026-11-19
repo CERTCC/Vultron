@@ -218,7 +218,7 @@ def create_validate_report_subtree(
             bundle.credibility_factory("EvaluateReportCredibility"),
             bundle.validity_factory("EvaluateReportValidity"),
             with_act_keys(
-                CaseFoundForReport(name="RequireCaseForReport")
+                CaseFoundForReport()
                 if case_published
                 else RequireCaseForReport(),
                 {REPORT_ID: report_id},

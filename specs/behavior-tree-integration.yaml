@@ -3517,14 +3517,22 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      In a received tree, a lookup node (BT-25-009) that finds no value MUST declare
-      a refusal whose reason names the missing object and the requirement it cites.
+      In a received tree, a lookup (BT-25-009) that finds no value MUST end in a
+      declared refusal whose reason names the missing object and the requirement it
+      cites. The lookup node declares it, or, in a tree whose path stage reads the
+      value the lookup publishes, the lookup publishes nothing and the tree's guard
+      for the miss declares it.
     rationale: >-
       The runner reads a refusal only from a node's declaration (ADR-0195). A lookup
-      that fails without one would be read as an unexplained failure.
+      that fails without one would be read as an unexplained failure. A lookup the
+      path stage depends on runs ahead of it, so a refusal there would replace the
+      path stage's and the sender guard's reasons; the guard placed after them keeps
+      both.
     verification: >-
       Lookup-node tests run each received lookup against a store without the object
-      and assert a `REFUSED` verdict whose reason names it.
+      and assert a `REFUSED` verdict whose reason names it:
+      `test/core/behaviors/report/test_report_case_lookup.py::test_the_miss_is_refused_naming_the_report`
+      and `::test_a_report_with_no_case_is_refused_with_todays_reason`.
     relationships:
     - rel_type: refines
       spec_id: BT-25-009

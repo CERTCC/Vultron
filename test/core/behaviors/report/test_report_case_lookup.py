@@ -46,14 +46,26 @@ from vultron.core.behaviors.act_keys import (
     CASE_ID as CASE_KEY,
     REPORT_ID as REPORT_KEY,
 )
+from vultron.core.behaviors.act_transaction import (
+    ActTransaction,
+    received_act_stage,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.case_lookup import (
     CaseFoundForReport,
     FindCaseForReport,
 )
+from vultron.core.behaviors.case.nodes.diversion_stage import (
+    Diversion,
+    DiversionStage,
+)
+from vultron.core.behaviors.case.nodes.held_case import CaseNamedByReference
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
     ReceivedPathNode,
+)
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    EmitRefusalNoticeNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -63,11 +75,15 @@ from vultron.core.behaviors.report.received_report_trees import (
     create_invalidate_report_received_tree,
     create_validate_report_received_tree,
 )
-from vultron.core.behaviors.sender_check_context import SenderCheckContext
+from vultron.core.behaviors.sender_check_context import (
+    LedgerActivityContext,
+    SenderCheckContext,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
@@ -357,3 +373,88 @@ def test_a_close_with_no_case_is_refused_by_a_guard() -> None:
     )
     result = run_in_act(CloseReportReceivedUseCase(dl, event))
     assert result.disposition is HandlerDisposition.REFUSED
+
+
+# --- The factory's wiring refusals and run-time-case stages ------------------
+
+
+class _WritingLookup(FindCaseForReport, StateWriteCapable):
+    """A lookup that would write state, which a lookup may not."""
+
+
+@pytest.mark.spec("BT-25-009", "HP-01-024", "AKM-03-006")
+@pytest.mark.parametrize(
+    ("label", "arguments", "match"),
+    [
+        (
+            "ledger-activity",
+            {"sender_context": LedgerActivityContext()},
+            "HP-01-024",
+        ),
+        (
+            "held-case",
+            {
+                "sender_context": SenderCheckContext(sender_id=ACTOR_ID),
+                "held_case": CaseNamedByReference.JOIN,
+            },
+            "AKM-03-006",
+        ),
+        (
+            "writing-lookup",
+            {
+                "sender_context": SenderCheckContext(sender_id=ACTOR_ID),
+                "lookup": _WritingLookup(),
+            },
+            "BT-25-009",
+        ),
+    ],
+)
+def test_the_factory_refuses_a_lookup_it_cannot_place(
+    label: str, arguments: dict[str, Any], match: str
+) -> None:
+    lookup = arguments.pop("lookup", FindCaseForReport())
+    with pytest.raises(VultronWiringError, match=match):
+        create_receive_activity_tree(
+            name=f"Refused{label}BT",
+            case_id=None,
+            precondition_guards=[],
+            paths={ReceivedPath.CASE_MANAGER},
+            sender_rule=_rule(),
+            case_lookup=lookup,
+            **arguments,
+        )
+
+
+@pytest.mark.spec("BT-25-009", "CLP-10-026")
+def test_a_manager_only_diversion_takes_the_lookups_case() -> None:
+    """A diversion that may commit needs its tree's case; the lookup's case
+    is one, so the tree builds where a tree with no case is refused."""
+    diversion = Diversion(
+        name="Answered",
+        condition=py_trees.behaviours.Failure(name="NeverDiverts"),
+        effects=(py_trees.behaviours.Success(name="Answer"),),
+    )
+    tree = create_receive_activity_tree(
+        name="DivertedLookupBT",
+        case_id=None,
+        precondition_guards=[diversion],
+        paths={ReceivedPath.CASE_MANAGER},
+        sender_rule=_rule(),
+        sender_context=SenderCheckContext(sender_id=ACTOR_ID),
+        case_lookup=FindCaseForReport(),
+    )
+    assert any(isinstance(n, DiversionStage) for n in tree.iterate())
+
+
+@pytest.mark.spec("CLP-07-015", "CLP-02-005", "BT-25-009")
+def test_a_lookup_tree_commits_as_one_act_and_owes_the_refusal_notice() -> (
+    None
+):
+    """With the case found at run time the tree still commits in one act
+    and answers a guard's refusal with the notice."""
+    tree = _TREES["invalidate"]()
+    assert any(isinstance(n, ActTransaction) for n in tree.children)
+    assert any(isinstance(n, EmitRefusalNoticeNode) for n in tree.iterate())
+    act = received_act_stage("T", [], None, None, commits=True)
+    assert [type(n) for n in act] == [ActTransaction]
+    assert received_act_stage("T", [], None, None) == []

@@ -104,7 +104,7 @@ def create_validate_report_received_tree(
         │       ├── CheckRMStateReceivedOrInvalid(sender_actor_id)
         │       ├── EvaluateReportCredibility
         │       ├── EvaluateReportValidity
-        │       ├── RequireCaseForReport                # the lookup found it
+        │       ├── RequireCaseForReport                # CaseFoundForReport
         │       ├── EnsureEmbargoExists                 # DUR-07-004
         │       └── ValidationActions (Sequence)
         │           └── TransitionRMtoValid(sender_actor_id)
