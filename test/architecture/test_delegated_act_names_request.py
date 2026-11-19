@@ -32,7 +32,7 @@ or neither, and raises on a distinct asker with no request), tested in
 ``test/core/behaviors/test_delegated_authorship.py``; this test checks that no
 call site drops the second.
 
-This is the one ``inReplyTo`` architecture test (#6464 AC-3); #6484 extends
+This is the one ``inReplyTo`` architecture test (#6464 AC-3); #6726 extends
 it to every act a ledger commit causes.  It lists no exemption: every
 delegated emit on ``main`` has a received request to name.  A new exemption
 names the issue that removes it, as a ``path::function`` key in
