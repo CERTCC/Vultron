@@ -40,8 +40,11 @@ names the issue that removes it, as a ``path::function`` key in
 so an entry whose site no longer offends fails too (ARCH-18-001,
 ARCH-18-006).
 
-Known gap: a positional ``attributed_to`` or ``in_reply_to`` is not read;
-every port method takes them by keyword in core.
+Known gaps: a positional ``attributed_to`` or ``in_reply_to`` is not read;
+every port method takes them by keyword in core.  The check reads that an
+``in_reply_to`` expression is present, not its value: a conditional that can
+yield ``None`` or a wrong variable passes here.  The per-emit tests marked
+``CM-24-020`` assert the request each emit names.
 
 The same rule is checked on the wire, over every example activity an
 implementer copies (``_vocab_example_corpus``): one whose ``attributedTo``

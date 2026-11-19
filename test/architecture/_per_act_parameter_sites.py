@@ -675,7 +675,9 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/delegated_authorship.py::delegated_authorship::doing_actor_id": 6582,
         "vultron/core/behaviors/delegated_authorship.py::delegated_authorship::requesting_actor_id": 6582,
         # #6464 AC-1: the helper takes the request it carries out, beside the
-        #   two identities it already took; #6582 decides all three together
+        #   two identities it already took; #6582 decides all three together.
+        #   A deliberate exception to "never add": a pure value helper has no
+        #   key to read, and AC-1 requires the parameter
         "vultron/core/behaviors/delegated_authorship.py::delegated_authorship::request_id": 6582,
         "vultron/core/behaviors/exemption_registry.py::require_registered::spec_id": 6582,
         "vultron/core/behaviors/log_entry.py::require_log_entry::activity": 6582,

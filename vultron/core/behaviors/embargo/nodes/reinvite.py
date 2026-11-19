@@ -66,7 +66,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     commit once queued (ADR-0119), apply PEC ``INVITE`` and record the
     deadline (CM-18-003, CM-28-013) — with ``attributedTo`` naming the
     embargo's proposer, read from the case's ledger
-    (:func:`~vultron.core.behaviors.embargo.proposer.embargo_proposer_id`),
+    (:func:`~vultron.core.behaviors.embargo.proposer.embargo_proposal`),
     or the CASE_MANAGER itself when it made the embargo without a proposal,
     as it makes the protocol default.  It is committed as
     ``invite_to_embargo_on_case``, and a replica applies it through the relay
@@ -84,6 +84,8 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     (CM-10-009): a removed or RM ``CLOSED`` invitee is sent nothing, and the
     node succeeds without an Invite (CM-31-013, ADR-0116).
     """
+
+    _NAMES_PROPOSAL = True
 
     def __init__(
         self,
@@ -104,7 +106,6 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
             answers=answers,
         )
         self._invitee_id = invitee_id
-        self._proposal_request: str | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -176,9 +177,6 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         # (CM-24-020).
         self._proposal_request = proposal.request_id if proposal else None
         return super().update()
-
-    def _carried_out_request(self) -> str | None:
-        return self._proposal_request
 
 
 class ReinviteRefusedAccepterNode(ReinviteStaleAccepterNode):

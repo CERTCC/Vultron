@@ -67,6 +67,8 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
     the joiner's Accept, so it raises (Regime 1, ADR-0087).
     """
 
+    _NAMES_PROPOSAL = True
+
     def __init__(
         self,
         case_id: str,
@@ -82,7 +84,6 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
             answers=answers,
         )
         self._invitee_id = invitee_id
-        self._proposal_request: str | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -179,9 +180,6 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
                 " proposer is unknown"
             )
         return proposal.proposer_id, proposal.request_id
-
-    def _carried_out_request(self) -> str | None:
-        return self._proposal_request
 
 
 __all__ = ["RelayOpenProposalsToJoinerNode"]

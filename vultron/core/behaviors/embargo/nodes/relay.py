@@ -50,7 +50,7 @@ proposer.
 import json
 from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 import py_trees
 from py_trees.common import Status
@@ -225,8 +225,13 @@ class RelayEmbargoInviteToEachNode(
         self._proposer_id = ""
         self._actor_config = actor_config
         self._answers = answers
+        self._proposal_request: str | None = None
         self._sync_port: SyncActivityPort | None = None
         self._recipients: list[str] = []
+
+    # Set by a subclass whose *answers* is not the proposal it carries out
+    # (CM-24-020): see :meth:`_carried_out_request`.
+    _NAMES_PROPOSAL: ClassVar[bool] = False
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -268,9 +273,12 @@ class RelayEmbargoInviteToEachNode(
 
         On the received path that is the proposer's Invite, which the relay
         also *answers*.  A subclass whose *answers* is another activity — a
-        join, an ``Accept``, a reinstatement — names the proposal it read
-        from the ledger instead.
+        join, an ``Accept``, a reinstatement — sets ``_NAMES_PROPOSAL`` and
+        stores the proposal it read from the ledger in ``_proposal_request``,
+        which this names instead.
         """
+        if self._NAMES_PROPOSAL:
+            return self._proposal_request
         return self._answers
 
     def _activity_id_for(self, recipient_id: str) -> str | None:
@@ -339,23 +347,20 @@ class RelayEmbargoInviteToEachNode(
                 f"{self.name}: cannot stamp the RSVP deadline of embargo"
                 f" '{self._embargo_id}' on case '{self._case_id}': {exc}"
             ) from exc
-        proposer_id = self._attributed_to()
-        authorship = (
-            delegated_authorship(
-                doing_actor_id=self.actor_id,
-                requesting_actor_id=proposer_id,
-                request_id=self._carried_out_request(),
-            )
-            if proposer_id
-            else None
+        # The manager's own ask (no proposer) is self-asked: the helper
+        # sets neither delegation field (CM-24-021).
+        authorship = delegated_authorship(
+            doing_actor_id=self.actor_id,
+            requesting_actor_id=self._attributed_to() or self.actor_id,
+            request_id=self._carried_out_request(),
         )
         activity_id, blob = self.trigger_activity_factory.propose_embargo(
             embargo_id=self._embargo_id,
             case_id=self._case_id,
-            actor=authorship.actor if authorship else self.actor_id,
+            actor=authorship.actor,
             to=[recipient_id],
-            attributed_to=authorship.attributed_to if authorship else None,
-            in_reply_to=authorship.in_reply_to if authorship else None,
+            attributed_to=authorship.attributed_to,
+            in_reply_to=authorship.in_reply_to,
             activity_id=self._activity_id_for(recipient_id),
             rsvp_deadline=stamp.rsvp_deadline,
             min_rsvp_window=stamp.min_rsvp_window,

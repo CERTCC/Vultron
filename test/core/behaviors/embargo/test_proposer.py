@@ -11,7 +11,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``embargo_proposal``: who proposed an embargo, and its request, from the ledger (CM-24)."""
+"""``embargo_proposal``: who proposed an embargo, and its request (CM-24).
+
+Both are read from the case ledger.
+"""
 
 from typing import Any
 

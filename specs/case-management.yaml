@@ -8170,23 +8170,33 @@ groups:
     kind: project
     statement: >-
       Every path that emits an Activity on another participant's behalf MUST obtain the
-      Activity's `actor`, `attributed_to` and `in_reply_to` from one shared helper.
+      Activity's `actor`, `attributed_to` and `in_reply_to` from one shared helper,
+      except where another rule fixes `in_reply_to` itself (CM-11-044, CM-33-017).
       Such a path is a
       trigger use case, or a received-side tree performing the CM-24-010 delegated emit.
     rationale: >-
-      If each call site builds the `actor`/`attributed_to` pair again, the pair can
-      become different at different sites. A wrong pair attributes the act to the wrong
-      actor, or makes the act fail authentication (CM-24-001, CM-24-002). The
-      received-side relay is also a delegated emit (CM-24-010).
+      If each call site builds the `actor`, `attributed_to` and `in_reply_to` values
+      again, they can become different at different sites. A wrong value attributes
+      the act to the wrong actor, names the wrong request, or makes the act fail
+      authentication (CM-24-001, CM-24-002, CM-24-020). The received-side relay is
+      also a delegated emit (CM-24-010).
     verification: >-
       `test/architecture/test_delegated_attribution_uses_helper.py` confirms
       that every trigger use case and every received-side tree emitting a
-      delegated Activity takes `actor` and `attributed_to` from the one shared
+      delegated Activity takes `attributed_to` from the one shared
       helper (`delegated_authorship()` in
       `vultron/core/behaviors/delegated_authorship.py`).
+      `test/architecture/test_delegated_act_names_request.py` confirms that every
+      such emit carries an `in_reply_to`; it checks that the value is present, not
+      where it comes from, and the per-emit tests marked `CM-24-020` check the value.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-24-010
+    see_also:
+    - spec_id: CM-11-044
+      reason: 'a replacement stub Invite names the Invite it supersedes, not the request'
+    - spec_id: CM-33-017
+      reason: 'the role-offer forward names the recorded Offer even when self-asked'
   - id: CM-24-012
     priority: MUST
     kind: project
@@ -8206,7 +8216,10 @@ groups:
     verification: >-
       `test_actor_is_the_doing_actor` and `test_attributed_to_is_the_requesting_actor`
       in `test/core/behaviors/test_delegated_authorship.py` assert the helper's three
-      values.
+      values, `test_an_asker_that_is_the_doer_gets_neither_field` asserts it sets
+      neither delegation field for a self-asked act, and
+      `test_a_distinct_asker_with_no_request_is_refused` asserts it raises for a
+      distinct asker that names no request.
     relationships:
     - rel_type: extends
       spec_id: CM-24-005

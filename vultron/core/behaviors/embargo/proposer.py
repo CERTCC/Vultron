@@ -38,7 +38,6 @@ class EmbargoProposal(NamedTuple):
 
     *request_id* is the proposer's own Invite when the entry is it; for an
     Invite the CASE_MANAGER relayed, it is the request that relay named in
-    ``inReplyTo`` (CM-24-020).  A relay of the embargo names it in
     ``inReplyTo`` (CM-24-020).
     """
 

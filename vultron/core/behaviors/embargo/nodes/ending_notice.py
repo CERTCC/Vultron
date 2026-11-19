@@ -270,17 +270,13 @@ class SendEmbargoEndingNoticesNode(
     ) -> str:
         assert self.trigger_activity_factory is not None
         actor = cast(str, self.actor_id)
-        requested = self._requested_by
         # The received request the change carries out, when another actor
-        # asked for it (CM-24-020).
-        authorship = (
-            delegated_authorship(
-                doing_actor_id=actor,
-                requesting_actor_id=requested,
-                request_id=self._received_request_id(),
-            )
-            if requested is not None
-            else None
+        # asked for it (CM-24-020); a change no one asked for is self-asked,
+        # so the helper sets neither field (CM-24-021).
+        authorship = delegated_authorship(
+            doing_actor_id=actor,
+            requesting_actor_id=self._requested_by or actor,
+            request_id=self._received_request_id(),
         )
         factory = self.trigger_activity_factory
         if notice.kind is not EmbargoEndingKind.TERMINATED:
@@ -289,8 +285,8 @@ class SendEmbargoEndingNoticesNode(
                 case_id=self.case_id,
                 actor=actor,
                 to=[recipient],
-                attributed_to=authorship.attributed_to if authorship else None,
-                in_reply_to=authorship.in_reply_to if authorship else None,
+                attributed_to=authorship.attributed_to,
+                in_reply_to=authorship.in_reply_to,
                 at=self._require_act_instant(),
             )
         elif termination is None:
@@ -307,8 +303,8 @@ class SendEmbargoEndingNoticesNode(
                 reason=termination.reason,
                 cause=termination.cause,
                 to=[recipient],
-                attributed_to=authorship.attributed_to if authorship else None,
-                in_reply_to=authorship.in_reply_to if authorship else None,
+                attributed_to=authorship.attributed_to,
+                in_reply_to=authorship.in_reply_to,
                 at=self._require_act_instant(),
             )
         self._emit_through_seam(activity_id, blob)
