@@ -56,6 +56,11 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   Carrying, checking and reading a CSAF 2.1 attachment on a report (ADR-0184).
   **Load when**: building the CSAF reader, its models, the claims record or the
   draft-watch job.
+- **`csaf-projection.md`** · `plan`
+  Producing a CSAF 2.1 document from a case replica: a call site's profile cuts
+  the case and its ledger into a preview, and a renderer translates it (ADR-0219).
+  **Load when**: building the CSAF projection profiles, the renderer, the
+  publication draft-step backend or the operator CSAF endpoint.
 - **`cvd-recipe-injects.md`** · `plan`
   CERT Guide to CVD recipes classified as demo injects, by implementability tier.
   **Load when**: designing a failure-path demo or checking whether a recipe is tracked.
