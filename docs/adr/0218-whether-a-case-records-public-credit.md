@@ -15,7 +15,8 @@ stakeholder_type: [project-contributor]
 ## Context and Problem Statement
 
 A CSAF document can name the people and organizations that receive public credit, in `document.acknowledgments` and `vulnerabilities[].acknowledgments`.
-In the CSAF Vulnerability Report profile, an empty acknowledgments list has a meaning of its own: the discoverer does not want public credit.
+In the CSAF Vulnerability Report profile, a document with no acknowledgments has a meaning of its own: the discoverer does not want public credit.
+A CSAF acknowledgments list cannot be empty, so the only way to give no credit is to leave the list out.
 Vultron has no counterpart to either list.
 
 The CSAF 2.1 crosswalk marked this gap as undecided (#5135).
@@ -36,8 +37,8 @@ The Finder role is retired, and the report content or a case note names the find
   Every participant could put any string in it, and the case would carry it to every projection.
 - Vultron does not write advisories.
   An advisory is made at the advisory Composer call-out point, by whatever plug-in fills it.
-- In the CSAF Vulnerability Report profile, an empty acknowledgments list makes a statement.
-  A projection cannot leave the list empty without saying that someone refused credit.
+- In the CSAF Vulnerability Report profile, a document with no acknowledgments makes a statement.
+  A projection cannot leave acknowledgments out without saying that someone refused credit.
 
 ## Considered Options
 
@@ -66,7 +67,7 @@ Those are text, and the protocol gives them no credit meaning.
 
 A CSAF projection takes its acknowledgments from its caller: a human, or the plug-in at a Composer call-out point.
 It does not derive them from case data.
-A projection of the Vulnerability Report profile leaves the list empty only when its caller says no one is to be credited, because an empty list there means the discoverer does not want credit.
+A projection of the Vulnerability Report profile leaves acknowledgments out only when its caller says no one is to be credited, because a document with no acknowledgments there means the discoverer does not want credit.
 
 When a Composer plug-in writes a document that credits someone, Vultron handles that credit as part of the document.
 It does not read the credit back into the case.
@@ -77,7 +78,7 @@ That default is an implementation choice, not a protocol requirement.
 ## Validation
 
 There is no code to check until the CSAF projection exists.
-When it is planned (#5134), its requirements carry the rule of "What a projection does with acknowledgments", and its tests check that a projection with no credit input does not emit an empty acknowledgments list in the Vulnerability Report profile.
+When it is planned (#5134), its requirements carry the rule of "What a projection does with acknowledgments", and its tests check that a projection with no credit input does not emit a Vulnerability Report profile document with no acknowledgments.
 
 ## Pros and Cons of the Options
 
