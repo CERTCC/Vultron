@@ -130,7 +130,7 @@ def _unresolvable_object_references(
     When the ``object`` is an inline activity, the bare id ends its
     ``object`` chain, at whatever depth: the event's
     ``unresolved_object_id`` (VAM-01-009).
-    A replication ``Announce`` of a ledger entry is never fetched: it carries
+    A replication ``Add`` of a ledger entry is never fetched: it carries
     its entry inline (SYNC-02-005), and replay needs no fetch (AKM-05-007).
     """
     object_id = event.unresolved_object_id

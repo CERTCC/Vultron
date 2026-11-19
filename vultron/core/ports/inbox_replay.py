@@ -15,7 +15,7 @@
 
 """Driven port that replays a held received activity through the inbox.
 
-A held ``Announce(CaseLedgerEntry)`` that a commit or a case seed makes
+A held ``Add(CaseLedgerEntry)`` that a commit or a case seed makes
 appliable is a delivery of its own (SYNC-14-009, ADR-0135): core does not run
 its tree inside the delivery that made it appliable.  It asks this port to
 replay the ``Announce`` it holds, the one that was received, through the

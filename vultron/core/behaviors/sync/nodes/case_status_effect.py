@@ -101,7 +101,7 @@ def warn_if_out_of_order(
 class IsAddCaseStatusEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is an ``add_case_status_to_case`` event.
 
-    Used in the ``CaseStatus`` slot of ``AnnounceLogEntryReceivedBT``.
+    Used in the ``CaseStatus`` slot of ``AddLogEntryReceivedBT``.
 
     Per RSH-08-004, BTND-08-001, SYNC-12-001.
     """

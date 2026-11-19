@@ -90,8 +90,8 @@ is a property of the queue's pop order, not a delivery guarantee.**
   before re-raising (a cancellation as itself, so `OutboxMonitor.stop()` still stops).
   `_deliver_row` never raises on its own. A hard process crash mid-batch loses the
   batch's undelivered rows; say so rather than claiming otherwise.
-- **Replay dedup (SYNC-15-012).** `SyncActivityAdapter.send_announce_log_entry` returns
-  `False` and queues nothing when an `Announce` of that entry to that peer is already
+- **Replay dedup (SYNC-15-012).** `SyncActivityAdapter.send_add_log_entry` returns
+  `False` and queues nothing when an `Add` of that entry to that peer is already
   pending; `SendMissingEntriesNode` counts only `True` as sent (SYNC-15-011). The read
   is the adapter's, not the node's (DL-06-001).
 - **Skip, do not wait, when the slot is held.** Under `TestClient` a recipient's

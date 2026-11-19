@@ -179,7 +179,7 @@ from vultron.wire.as2.vocab.examples.status import (
 )
 from vultron.wire.as2.vocab.examples.sync import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.sync import (
-    announce_case_ledger_entry,
+    add_case_ledger_entry,
     read_case_ledger_entry,
     reject_case_ledger_entry,
 )
@@ -289,7 +289,7 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     (accept_case_proposal, None),
     (reject_case_proposal, None),
     # ledger replication (SYNC substrate, ADR-0077)
-    (announce_case_ledger_entry, None),
+    (add_case_ledger_entry, None),
     (reject_case_ledger_entry, None),
     (read_case_ledger_entry, None),
     # one example per occasion (MSM-08-003, ADR-0128): each collapsed
@@ -323,7 +323,7 @@ INLINE_OBJECTS: tuple[tuple[Callable[[], BaseModel], str, str], ...] = (
     (add_vendor_participant_to_case, "object_", "vendor_participant.json"),
     (add_finder_participant_to_case, "object_", "finder_participant.json"),
     (offer_case_participant_role, "object_", "case_participant_role.json"),
-    (announce_case_ledger_entry, "object_", "case_ledger_entry.json"),
+    (add_case_ledger_entry, "object_", "case_ledger_entry.json"),
     (create_case_proposal, "object_", "case_proposal.json"),
 )
 

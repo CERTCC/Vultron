@@ -28,7 +28,7 @@ Case           EM ACTIVE → EXITED; PXA pxa → Pxa
       Accept(Offer(VulnerabilityReport)) · RM: RECEIVED → VALID
       → Reporter, Case Manager
 04  Coordinator    Case Manager updated Coordinator's participant status
-      Add(ParticipantStatus)[target=CaseParticipant] · RM: VALID → ACCEPTED (accept)
+      Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase] · RM: VALID → ACCEPTED (accept)
       → Reporter, Case Manager
 05  Coordinator    Coordinator suggested Coordinator 2 for the case
       Offer(Actor)[target=VulnerabilityCase]
@@ -40,7 +40,7 @@ Case           EM ACTIVE → EXITED; PXA pxa → Pxa
       Accept(Invite(VulnerabilityCase preview)[target=Actor]) · RM → RECEIVED
       → Reporter, Coordinator, Case Manager
 08  Coordinator 2  Case Manager updated Coordinator 2's participant status
-      Add(ParticipantStatus)[target=CaseParticipant] · RM: RECEIVED → VALID (validate)
+      Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase] · RM: RECEIVED → VALID (validate)
       → Reporter, Coordinator, Case Manager
 09  Coordinator 2  Coordinator 2 suggested Vendor for the case
       Offer(Actor)[target=VulnerabilityCase]
@@ -52,13 +52,13 @@ Case           EM ACTIVE → EXITED; PXA pxa → Pxa
       Accept(Invite(VulnerabilityCase preview)[target=Actor]) · RM → RECEIVED · VFD → vfd
       → Reporter, Coordinator, Coordinator 2, Case Manager
 12  Vendor         Case Manager updated Vendor's participant status
-      Add(ParticipantStatus)[target=CaseParticipant] · VFD: vfd → Vfd (vendor_becomes_aware)
+      Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase] · VFD: vfd → Vfd (vendor_becomes_aware)
       → Reporter, Coordinator, Coordinator 2, Case Manager
 13  Vendor         Case Manager updated Vendor's participant status
-      Add(ParticipantStatus)[target=CaseParticipant] · RM: RECEIVED → VALID (validate)
+      Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase] · RM: RECEIVED → VALID (validate)
       → Reporter, Coordinator, Coordinator 2, Case Manager
 14  Vendor         Case Manager updated Vendor's participant status
-      Add(ParticipantStatus)[target=CaseParticipant] · RM: VALID → ACCEPTED (accept)
+      Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase] · RM: VALID → ACCEPTED (accept)
       → Reporter, Coordinator, Coordinator 2, Case Manager
 15  Reporter       Reporter added a note to the case
       Add(Note)[target=VulnerabilityCase] · Note: "Question from Reporter" · Is there a workaround available while the patch is being developed?
@@ -73,10 +73,10 @@ Case           EM ACTIVE → EXITED; PXA pxa → Pxa
       Add(Note)[target=VulnerabilityCase] · Note: "Vendor Status Update" · Vendor can confirm the issue affects our component. We will align our fix timeline with…
       → Reporter, Coordinator, Coordinator 2, Case Manager
 19  Vendor         Vendor updated Vendor's participant status
-      Add(ParticipantStatus)[target=CaseParticipant] · VFD: Vfd → VFd (fix_is_ready)
+      Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase] · VFD: Vfd → VFd (fix_is_ready)
       → Reporter, Coordinator, Coordinator 2, Case Manager
 20  Coordinator    Coordinator updated Coordinator's participant status
-      Add(ParticipantStatus)[target=CaseParticipant] · PXA: pxa → Pxa (public_becomes_aware)
+      Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase] · PXA: pxa → Pxa (public_becomes_aware)
       → Reporter, Vendor, Coordinator 2, Case Manager
 21  Case Manager   Case Manager removed an embargo from the case
       Remove(EmbargoEvent) · EM: ACTIVE → EXITED (terminate)

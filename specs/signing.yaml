@@ -250,7 +250,7 @@ groups:
       The proofs travel with the received evidence, so intake writes them in the same
       save as the body and no crash between two writes can leave an archived record
       without them; a hold and a replay carry them from the record they rebuild from.
-      For an `Announce(CaseLedgerEntry)` the record names both the CASE_MANAGER's proof
+      For an `Add(CaseLedgerEntry)` the record names both the CASE_MANAGER's proof
       and the snapshot author's (SIG-04-002). A refusal leaves a receipt stub that keeps
       none (SIG-03-005).
     verification: >-
@@ -314,7 +314,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A replica MUST refuse the whole `Announce(CaseLedgerEntry)` when a `proof` it
+      A replica MUST refuse the whole `Add(CaseLedgerEntry)` when a `proof` it
       needs is missing or fails to verify. These are the CASE_MANAGER's `proof` on the
       `Announce` and, when the `payloadSnapshot`'s `actor` is not the CASE_MANAGER, the
       author's `proof` on the snapshot.

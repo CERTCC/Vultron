@@ -573,7 +573,7 @@ class TestOtherEmbargoActivity:
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
         announced: dict[str, set[str]] = {}
-        for c in sync.send_announce_log_entry.call_args_list:
+        for c in sync.send_add_log_entry.call_args_list:
             announced.setdefault(
                 str(c.kwargs["entry"].semantic_type), set()
             ).update(c.kwargs["to"])

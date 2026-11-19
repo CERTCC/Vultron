@@ -140,7 +140,7 @@ from the taxonomy (BT-18-013).
 | | Participant Sentinel | Operator-side Sentinel |
 |---|---|---|
 | Case identity | an Actor on the roster, typically `CVDRole.OBSERVER` | none — not a participant |
-| Sees case state by | `Announce(CaseLedgerEntry)` replication | whatever its host actor already knows |
+| Sees case state by | `Add(CaseLedgerEntry)` replication | whatever its host actor already knows |
 | Acts by | emitting protocol messages (`Note`, `Add(ParticipantStatus)`) | calling its host actor's trigger endpoints |
 | Visible to other participants | yes | no — messages appear to come from the host actor |
 | Admission | Invite / Accept | deployment credentials |

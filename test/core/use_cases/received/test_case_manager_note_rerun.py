@@ -145,7 +145,7 @@ def _regression_event(net: LedgerNetwork) -> Any:
         net,
         add_status_to_participant_activity(
             status,
-            target=participant,
+            participant=participant,
             actor=BYSTANDER,
             to=[MANAGER],
             at=authored_at(),

@@ -427,7 +427,7 @@ FORMER_NAME_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
     (
         "CaseLedgerEntry.eventType",
         _envelope(
-            type="Announce",
+            type="Add",
             object=_inline_ledger_entry(eventType="create_case"),
         ),
         "eventType",
@@ -464,6 +464,27 @@ def test_a_former_field_name_is_set_aside_and_reported(
     at INFO, and the activity proceeds on its declared fields (MV-11-003).
     """
     _assert_set_aside_and_reported(body, key, "object", caplog)
+
+
+@pytest.mark.spec("MV-11-003", "CM-05-018")
+def test_a_vulnerability_items_cve_key_is_set_aside_and_reported(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An item's CVE ID is an ``ids`` entry, so ``cve`` is an unknown key.
+
+    Kept out of :data:`FORMER_NAME_POSITIONS`: core still spells ``cve`` as
+    the CSAF document's field, which the retired-key guard would flag.
+    """
+    body = _with_inline_object(
+        {
+            "type": "VulnerabilityItem",
+            "id": "https://example.org/items/1",
+            "published": PUBLISHED,
+            "updated": PUBLISHED,
+            "cve": "CVE-2026-0001",
+        }
+    )
+    _assert_set_aside_and_reported(body, "cve", "object", caplog)
 
 
 def test_the_parse_edge_keeps_no_retired_name_list() -> None:
@@ -750,7 +771,7 @@ def test_opaque_payload_snapshot_is_carried_unexamined() -> None:
     """A ``payloadSnapshot`` is data, not an AS2 object: nothing is set aside."""
     from vultron.wire.as2.unknown_keys import partition_unknown_keys
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Announce,
+        as_Add,
     )
 
     snapshot = {
@@ -760,10 +781,10 @@ def test_opaque_payload_snapshot_is_carried_unexamined() -> None:
         FOREIGN_KEY: 1,
     }
     body = _envelope(
-        type="Announce",
+        type="Add",
         object={"type": "CaseLedgerEntry", "payloadSnapshot": snapshot},
     )
-    kept, set_aside = partition_unknown_keys(body, as_Announce)
+    kept, set_aside = partition_unknown_keys(body, as_Add)
     assert kept["object"]["payloadSnapshot"] == snapshot
     assert set_aside == []
 

@@ -132,7 +132,7 @@ Status: **direct** mapping — see [MSM-01-008](../vultron-spec/requirements/mes
 `EK`, `CK`, and `GK` have no per-message wire equivalents. Ledger-replicated
 state is acknowledged **cumulatively and implicitly** via hash-chain continuity:
 
-- A participant receiving `Announce(CaseLedgerEntry)` whose `prev_log_hash`
+- A participant receiving `Add(CaseLedgerEntry)` whose `prev_log_hash`
   matches its local ledger tail says **nothing** — the match *is* the
   acknowledgment.
 - On a mismatch the participant emits `Reject(CaseLedgerEntry)` stating its
@@ -145,12 +145,20 @@ hash proves receipt of the *entire* log prefix, not only one message.
 
 Status: **evolved** — see [MSM-05-002](../vultron-spec/requirements/messages.md#msm-05-002).
 
+#### A committed act is acknowledged by its commit
+
+The acknowledgment above runs from a replica to the CASE_MANAGER.
+The sender of an act learns the other way that its act committed: from the `Add(CaseLedgerEntry)` that commits it, which names the act in `inReplyTo` ([MSM-05-009](../vultron-spec/requirements/messages.md#msm-05-009), [ADR-0204](../../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md)).
+The sender is an active participant, so it receives that `Add` like every other participant, and no separate acknowledgment message is sent.
+A refused act gets the [refusal notice](#refusal-notice) instead.
+The `Add` lists nothing in `result`: an act that a commit causes names its cause in its own `inReplyTo`.
+
 #### Liveness
 
-Between `Announce(CaseLedgerEntry)` deliveries, silence and unreachability are
+Between `Add(CaseLedgerEntry)` deliveries, silence and unreachability are
 observationally indistinguishable. A participant that has received all entries
 and a participant that is unreachable look identical until a new entry arrives.
-Implementations MAY rely solely on `Announce` deliveries for liveness inference
+Implementations MAY rely solely on `Add` deliveries for liveness inference
 without emitting a dedicated periodic heartbeat ([MSM-05-006](../vultron-spec/requirements/messages.md#msm-05-006)).
 
 A participant can still state how far it has got.
@@ -174,5 +182,5 @@ The outbox delivery budget ([ADR-0066](../../adr/0066-outbox-terminal-state.md))
 - [How to Acknowledge a Report](../../howto/activitypub/activities/acknowledge.md) —
   how-to guide for `RK`.
 - [Ledger Replication](ledger_replication.md) — the wire format for
-  `Announce(CaseLedgerEntry)`, `Reject(CaseLedgerEntry)` and
+  `Add(CaseLedgerEntry)`, `Reject(CaseLedgerEntry)` and
   `Read(CaseLedgerEntry)`.

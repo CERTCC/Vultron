@@ -193,12 +193,12 @@ def test_no_later_entry_reaches_the_removed_participant(
 ) -> None:
     """After its removal entry, fan-out skips the removed participant."""
     removal.remove(VENDOR)
-    to_vendor = len(removal.activities_to("Announce", VENDOR))
+    to_vendor = len(removal.ledger_adds_to(VENDOR))
 
     removal.remove(OTHER)
 
-    assert len(removal.activities_to("Announce", VENDOR)) == to_vendor
-    assert removal.activities_to("Announce", OTHER)
+    assert len(removal.ledger_adds_to(VENDOR)) == to_vendor
+    assert removal.ledger_adds_to(OTHER)
 
 
 @pytest.mark.spec("CM-31-028")
@@ -210,7 +210,7 @@ def test_replay_does_not_answer_the_removed_participant(
     removal.remove(VENDOR)
     removal.remove(OTHER)
     first, _second = removal.ledger()
-    to_vendor = len(removal.activities_to("Announce", VENDOR))
+    to_vendor = len(removal.ledger_adds_to(VENDOR))
 
     result = removal.route(
         reject_log_entry_activity(
@@ -224,7 +224,7 @@ def test_replay_does_not_answer_the_removed_participant(
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert len(removal.activities_to("Announce", VENDOR)) == to_vendor
+    assert len(removal.ledger_adds_to(VENDOR)) == to_vendor
 
 
 @pytest.mark.spec("CM-31-004")
@@ -486,7 +486,7 @@ def test_replica_applies_the_removal_from_its_ledger_entry(
     fact the CASE_MANAGER recorded; its consent rows stay (CM-31-008).
     """
     removal.route(_owner_removes_vendor(removal))
-    (announce,) = removal.activities_to("Announce", replica_actor)
+    (announce,) = removal.ledger_adds_to(replica_actor)
     replica = SqliteDataLayer("sqlite:///:memory:", actor_id=replica_actor)
     _seed(replica)
     # The genesis hash is derived from the case's ``published``; a replica

@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 class ApplyNoteFromLedgerNode(_LedgerEffectNode):
     """Apply a note-attachment ledger entry to the local case replica.
 
-    When a non-CaseActor participant receives ``Announce(CaseLedgerEntry)``
+    When a non-CaseActor participant receives ``Add(CaseLedgerEntry)``
     and the entry's ``semantic_type`` is ``add_note_to_case``, this node
     extracts the note ID from ``payload_snapshot["object"]`` and appends it
     to the local case replica's ``notes`` list (idempotent).
@@ -65,7 +65,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
 
     Lenient on missing data: if the case replica is absent, the note ID is
     not present in the snapshot, or the snapshot is malformed, the node
-    returns SUCCESS to avoid blocking the ``Announce`` processing flow.  A note
+    returns SUCCESS to avoid blocking the ``Add`` processing flow.  A note
     that cannot be reconstructed is logged and the reference still recorded —
     knowing *that* a note was attached is better than dropping the event.
     """

@@ -2,10 +2,10 @@
 
 !!! info "Vendor Awareness (CV)"
 
-    Announces that the report has reached the Vendor whose participant record is the target.
+    Announces that the report has reached the Vendor whose status history is the target.
 
     - **When…** a Vendor becomes aware of the vulnerability
-    - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+    - **Send:** `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the CASE_MANAGER or the Case Owner or the participant status's author (usually: vendor)
     - **Distinguished by:** `vfState` = `Vf`

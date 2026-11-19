@@ -835,7 +835,7 @@ class TestOwnerDirectInviteAtCaseManager:
         """Sealed outbox bodies, minus the ledger fan-out.
 
         The CASE_MANAGER announces each entry it commits to every active
-        participant (SYNC-02-003); those Announce(CaseLedgerEntry) items are
+        participant (SYNC-02-003); those Add(CaseLedgerEntry) items are
         replication, not the protocol message these tests inspect.
         """
         import json
@@ -848,7 +848,7 @@ class TestOwnerDirectInviteAtCaseManager:
             assert sealed is not None
             body: dict = json.loads(sealed.body)
             obj = body.get("object")
-            if body.get("type") == "Announce" and (
+            if body.get("type") == "Add" and (
                 isinstance(obj, dict) and obj.get("type") == "CaseLedgerEntry"
             ):
                 continue

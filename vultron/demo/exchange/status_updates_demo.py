@@ -229,7 +229,7 @@ def demo_status_workflow(
         add_pstatus_activity = add_status_to_participant_activity(
             participant_status,
             actor=vendor.id_,
-            target=vendor_participant.id_,
+            participant=vendor_participant.id_,
             at=at,
         )
         post_to_inbox_and_wait(client, vendor.id_, add_pstatus_activity)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Integration tests for AnnounceLogEntryReceivedBT."""
+"""Integration tests for AddLogEntryReceivedBT."""
 
 import json
 from datetime import UTC, datetime, timedelta
@@ -38,10 +38,10 @@ from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
     ReceivedPathNode,
 )
-from vultron.core.behaviors.sync.announce_tree import (
+from vultron.core.behaviors.sync.add_log_entry_tree import (
     AT_CASE_MANAGER,
     OFF_CASE_MANAGER,
-    create_announce_log_entry_tree,
+    create_add_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes import (
     genesis_reject as _genesis_reject,
@@ -66,7 +66,7 @@ from vultron.core.models.embargo_consent_semantic_types import (
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.participant_semantic_types import (
     CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
@@ -94,12 +94,12 @@ from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.demo.determinism import SteppingClock
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    announce_log_entry_activity,
+    add_log_entry_activity,
     announce_vulnerability_case_activity,
     create_participant_activity,
 )
@@ -164,7 +164,10 @@ def _make_entry(
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
             semantic_type="test_event",
-            payload_snapshot={"log_index": log_index},
+            payload_snapshot={
+                "id": f"https://example.org/activities/log-{log_index}",
+                "log_index": log_index,
+            },
             prev_log_hash=prev_hash,
             received_at=ACT_AT,
         )
@@ -175,8 +178,8 @@ def _make_event(
     entry: CaseLedgerEntry,
     actor_id: str,
     to: list[str] | None = None,
-) -> AnnounceLogEntryReceivedEvent:
-    """Build the received Announce, addressed to the replica that receives it.
+) -> AddLogEntryReceivedEvent:
+    """Build the received Add, addressed to the replica that receives it.
 
     The fan-out names each participant in ``to`` (SYNC-09-002); the tree's
     addressee door refuses a copy that names nobody it executes as (HP-01-005).
@@ -185,15 +188,15 @@ def _make_event(
     wire_entry = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
-    activity = announce_log_entry_activity(
+    activity = add_log_entry_activity(
         entry=wire_entry, actor=actor_id, to=recipients, at=authored_at()
     )
-    event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
+    event = cast(AddLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
     event.activity = make(
         VultronActivity,
         id_=event.activity_id,
-        type_="Announce",
+        type_="Add",
         actor=actor_id,
         to=recipients,
         object_=entry,
@@ -201,11 +204,11 @@ def _make_event(
     return event
 
 
-def test_create_announce_log_entry_tree_is_doors_intake_then_path_branches():
-    tree = create_announce_log_entry_tree(
-        sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+def test_create_add_log_entry_tree_is_doors_intake_then_path_branches():
+    tree = create_add_log_entry_tree(
+        sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
     )
-    assert tree.name == "AnnounceLogEntryReceivedBT"
+    assert tree.name == "AddLogEntryReceivedBT"
     # The doors in ADR-0154's order: the addressee door (HP-01-005), the
     # seen-before door, the path door stage that asks the one role question
     # (HP-01-035, ADR-0153), the post-close guard (CM-23-013), the sender
@@ -253,8 +256,8 @@ def test_announce_archives_the_received_activity(
 
     result = run_tree(
         bridge,
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -309,8 +312,8 @@ def test_case_manager_role_takes_authority_arm_without_service_object(
 
     result = run_tree(
         owner_bridge,
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
@@ -332,8 +335,8 @@ def test_participant_persists_valid_entry(
 
     result = run_tree(
         bridge,
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -360,8 +363,8 @@ def test_case_actor_round_trip_logs_delivery_without_repersisting(
     # matching every other tree in this file.
     result = run_tree(
         bridge,
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -381,7 +384,7 @@ def _seed_case_manager(datalayer, case_obj) -> None:
     Authority is the role (ADR-0088), resolved by resolve_case_manager_id, not a
     Service object — so VerifySenderIsCaseActorNode resolves the CaseActor from
     the participant's ``attributed_to`` (``CASE_ACTOR_ACTOR_ID``), the id the
-    legitimate announces are sent from.
+    legitimate Adds are sent from.
     """
     manager = make(
         CaseParticipant,
@@ -414,8 +417,8 @@ def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_obj):
 
     result = run_tree(
         bridge,
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -435,8 +438,8 @@ def test_case_actor_legit_sender_accepted(bridge, datalayer, case_obj):
 
     result = run_tree(
         bridge,
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -461,8 +464,8 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
 
     result = run_tree(
         bridge,
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -479,7 +482,11 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
 
 def _tampered(entry: CaseLedgerEntry) -> CaseLedgerEntry:
     """Return *entry* with content its ``entry_hash`` was not computed over."""
-    return entry.model_copy(update={"payload_snapshot": {"tampered": True}})
+    return entry.model_copy(
+        update={
+            "payload_snapshot": {**entry.payload_snapshot, "tampered": True}
+        }
+    )
 
 
 @pytest.mark.spec("SYNC-03-012")
@@ -501,8 +508,8 @@ def test_replica_refuses_entry_whose_hash_does_not_match_content(
     with caplog.at_level("ERROR"):
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -529,8 +536,8 @@ def test_replica_does_not_buffer_forward_gap_entry_with_bad_hash(
 
     result = run_tree(
         bridge,
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -555,6 +562,7 @@ def _make_remove_embargo_entry(
             object_id=f"https://example.org/activities/log-{log_index}",
             semantic_type="remove_embargo_event_from_case",
             payload_snapshot={
+                "id": f"https://example.org/activities/log-{log_index}",
                 "log_index": log_index,
                 "object": {"id": ACTIVE_EMBARGO_ID, "type": "EmbargoEvent"},
                 "content": "EARLY",
@@ -579,7 +587,7 @@ def _make_case_with_em_active(
     return case
 
 
-class TestAnnounceLogEntryAppliesEmbargoTeardown:
+class TestAddLogEntryAppliesEmbargoTeardown:
     """Participant receiving remove_embargo log entry must reach EM.EXITED."""
 
     @pytest.mark.spec("SYNC-12-001")
@@ -594,8 +602,8 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -628,8 +636,8 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         )  # pre-store to trigger CheckLogEntryAlreadyStored
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree = create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         )
         apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardownFromLedger")
         assert apply_node is not None
@@ -673,8 +681,8 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -785,7 +793,7 @@ def _seed_invited_participant(
     return participant.id_
 
 
-class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
+class TestAddLogEntryAppliesEmbargoInviteRelay:
     """Replicas learn the RSVP deadline and an expiry from the ledger, never
     by computing either themselves (CM-28-013, CM-28-014; ADR-0113)."""
 
@@ -817,8 +825,8 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         for entry in (invite, row_entry):
             result = run_tree(
                 bridge,
-                tree=create_announce_log_entry_tree(
-                    sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+                tree=create_add_log_entry_tree(
+                    sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
                 ),
                 actor_id=PARTICIPANT_ACTOR_ID,
                 activity=_make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID),
@@ -850,8 +858,8 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         def _announce(announced: CaseLedgerEntry) -> None:
             result = run_tree(
                 bridge,
-                tree=create_announce_log_entry_tree(
-                    sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+                tree=create_add_log_entry_tree(
+                    sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
                 ),
                 actor_id=PARTICIPANT_ACTOR_ID,
                 activity=_make_event(announced, actor_id=case_actor.id_),
@@ -890,7 +898,10 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
                     log_index=0,
                     object_id=json.loads(blob)["id"],
                     semantic_type=UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
-                    payload_snapshot=json.loads(blob),
+                    payload_snapshot={
+                        "id": json.loads(blob)["id"],
+                        **json.loads(blob),
+                    },
                     prev_log_hash=case_obj.genesis_hash,
                     received_at=ACT_AT,
                 )
@@ -909,14 +920,17 @@ def _make_add_note_entry(
             log_index=log_index,
             object_id=f"https://example.org/activities/add-note-{log_index}",
             semantic_type="add_note_to_case",
-            payload_snapshot={"object": NOTE_ID},
+            payload_snapshot={
+                "id": f"https://example.org/activities/add-note-{log_index}",
+                "object": NOTE_ID,
+            },
             prev_log_hash=prev_hash,
             received_at=ACT_AT,
         )
     )
 
 
-class TestAnnounceLogEntryAppliesNoteAttachment:
+class TestAddLogEntryAppliesNoteAttachment:
     """Participant receiving add_note_to_case ledger entry attaches note."""
 
     @pytest.mark.spec("SYNC-12-001")
@@ -927,15 +941,15 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         """BT attaches note ID to case replica when entry is add_note_to_case.
 
         A non-CaseActor participant must learn about note additions exclusively
-        via Announce(CaseLedgerEntry) fan-out (SYNC-02-001, SYNC-02-003, ADR-0022).
+        via Add(CaseLedgerEntry) fan-out (SYNC-02-001, SYNC-02-003, ADR-0022).
         """
         entry = _make_add_note_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -962,8 +976,8 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -986,8 +1000,8 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1000,7 +1014,7 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         assert updated.notes == []
 
 
-class TestAnnounceLogEntryAppliesNoteRemoval:
+class TestAddLogEntryAppliesNoteRemoval:
     """A replica receiving remove_note_from_case detaches the note (RSH-08-004)."""
 
     @pytest.mark.spec("SYNC-12-001")
@@ -1016,7 +1030,10 @@ class TestAnnounceLogEntryAppliesNoteRemoval:
                 log_index=0,
                 object_id="https://example.org/activities/remove-note-0",
                 semantic_type="remove_note_from_case",
-                payload_snapshot={"object": NOTE_ID},
+                payload_snapshot={
+                    "id": "https://example.org/activities/remove-note-0",
+                    "object": NOTE_ID,
+                },
                 prev_log_hash=case_obj.genesis_hash,
                 received_at=ACT_AT,
             )
@@ -1025,8 +1042,8 @@ class TestAnnounceLogEntryAppliesNoteRemoval:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1039,7 +1056,7 @@ class TestAnnounceLogEntryAppliesNoteRemoval:
         assert NOTE_ID not in updated.notes
 
 
-class TestAnnounceLogEntryAppliesReportAddition:
+class TestAddLogEntryAppliesReportAddition:
     """A replica receiving add_report_to_case lists the report (RSH-08-004)."""
 
     @pytest.mark.spec("SYNC-12-001")
@@ -1055,7 +1072,10 @@ class TestAnnounceLogEntryAppliesReportAddition:
                 log_index=0,
                 object_id="https://example.org/activities/add-report-0",
                 semantic_type="add_report_to_case",
-                payload_snapshot={"object": report_id},
+                payload_snapshot={
+                    "id": "https://example.org/activities/add-report-0",
+                    "object": report_id,
+                },
                 prev_log_hash=case_obj.genesis_hash,
                 received_at=ACT_AT,
             )
@@ -1064,8 +1084,8 @@ class TestAnnounceLogEntryAppliesReportAddition:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1093,6 +1113,7 @@ def _make_participant_status_entry(
             object_id=f"https://example.org/activities/status-{log_index}",
             semantic_type="add_participant_status_to_participant",
             payload_snapshot={
+                "id": f"https://example.org/activities/status-{log_index}",
                 "object": {
                     "id": PARTICIPANT_STATUS_ID,
                     "type": "ParticipantStatus",
@@ -1100,7 +1121,9 @@ def _make_participant_status_entry(
                     "name": "test_status",
                     "context": CASE_ID,
                 },
-                "target": PARTICIPANT_ID,
+                # The participant's status history (ADR-0204).
+                "target": f"{PARTICIPANT_ID}/statuses",
+                "context": CASE_ID,
             },
             prev_log_hash=prev_hash,
             received_at=ACT_AT,
@@ -1108,7 +1131,7 @@ def _make_participant_status_entry(
     )
 
 
-class TestAnnounceLogEntryAppliesParticipantStatus:
+class TestAddLogEntryAppliesParticipantStatus:
     """Participant receiving add_participant_status_to_participant ledger entry updates participant."""
 
     @pytest.mark.spec("SYNC-12-001")
@@ -1132,8 +1155,8 @@ class TestAnnounceLogEntryAppliesParticipantStatus:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1159,8 +1182,8 @@ class TestAnnounceLogEntryAppliesParticipantStatus:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1239,7 +1262,7 @@ def _create_entry(
             log_index=log_index,
             object_id=record.id_,
             semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
-            payload_snapshot=snapshot,
+            payload_snapshot={"id": record.id_, **snapshot},
             prev_log_hash=prev_hash,
             received_at=ACT_AT,
         )
@@ -1285,7 +1308,7 @@ def _reply_entry(
             log_index=log_index,
             object_id=f"urn:uuid:reply-{log_index}",
             semantic_type=semantic_type,
-            payload_snapshot=snapshot,
+            payload_snapshot={"id": f"urn:uuid:reply-{log_index}", **snapshot},
             prev_log_hash=prev_hash,
             received_at=ACT_AT,
         )
@@ -1304,7 +1327,7 @@ def _reject_entry(log_index: int, prev_hash: str) -> CaseLedgerEntry:
     )
 
 
-class TestAnnounceLogEntryAppliesStubPath:
+class TestAddLogEntryAppliesStubPath:
     """A replica applies the stub path's entries: the CASE_MANAGER's creation
     entry stores the record, and the invitee's own Accept and Reject messages
     are the entries for their effects (ADR-0114)."""
@@ -1312,8 +1335,8 @@ class TestAnnounceLogEntryAppliesStubPath:
     def _announce(self, bridge, case_actor, entry):
         return run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=_make_event(entry, actor_id=case_actor.id_),
@@ -1612,8 +1635,8 @@ class TestEffectsFailureBlocksPersist:
         entry = _make_remove_embargo_entry(0, case.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree = create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         )
         apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardownFromLedger")
         assert apply_node is not None
@@ -1639,8 +1662,8 @@ class TestEffectsFailureBlocksPersist:
         entry = _make_participant_status_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree = create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         )
         apply_node = _find_node_by_name(
             tree, "ApplyParticipantStatusFromLedger"
@@ -1668,8 +1691,8 @@ class TestEffectsFailureBlocksPersist:
         entry = _make_add_note_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree = create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         )
         apply_node = _find_node_by_name(tree, "ApplyNoteFromLedger")
         assert apply_node is not None
@@ -1695,8 +1718,8 @@ class TestEffectsFailureBlocksPersist:
         entry = _accept_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree = create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         )
         apply_node = _find_node_by_name(tree, "ApplyInviteAcceptFromLedger")
         assert apply_node is not None
@@ -1732,7 +1755,10 @@ def _make_close_case_entry(
             log_index=log_index,
             object_id=f"https://example.org/activities/leave-{log_index}",
             semantic_type="close_case",
-            payload_snapshot={"actor": DEPARTING_ACTOR_ID},
+            payload_snapshot={
+                "id": f"https://example.org/activities/leave-{log_index}",
+                "actor": DEPARTING_ACTOR_ID,
+            },
             prev_log_hash=prev_hash,
             received_at=ACT_AT,
         )
@@ -1756,7 +1782,7 @@ def _make_case_with_departing_participant(
     return case
 
 
-class TestAnnounceLogEntryCloseCaseChangesNoRmState:
+class TestAddLogEntryCloseCaseChangesNoRmState:
     """A close_case entry is stored; the leaver's RM moves arrive as status entries."""
 
     @pytest.mark.spec("CM-23-016")
@@ -1778,8 +1804,8 @@ class TestAnnounceLogEntryCloseCaseChangesNoRmState:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1861,6 +1887,7 @@ def _make_ownership_transfer_entry(
             object_id=f"https://example.org/activities/ownership-{log_index}",
             semantic_type=UPDATE_CASE_OWNER_SEMANTIC_TYPE,
             payload_snapshot={
+                "id": f"https://example.org/activities/ownership-{log_index}",
                 "type": "Update",
                 "published": "2026-01-01T00:00:00+00:00",
                 "actor": OWNER_ACTOR_ID,
@@ -1872,7 +1899,7 @@ def _make_ownership_transfer_entry(
     )
 
 
-class TestAnnounceLogEntryAppliesOwnershipTransfer:
+class TestAddLogEntryAppliesOwnershipTransfer:
     """A participant copies the new owner from the ``update_case_owner`` entry."""
 
     @pytest.mark.spec("SYNC-12-001")
@@ -1888,8 +1915,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1914,8 +1941,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1941,8 +1968,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1965,8 +1992,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1989,8 +2016,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -2007,8 +2034,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
 def _run_announce(bridge, case_actor, entry: CaseLedgerEntry):
     return run_tree(
         bridge,
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(entry, actor_id=case_actor.id_),
@@ -2016,7 +2043,7 @@ def _run_announce(bridge, case_actor, entry: CaseLedgerEntry):
     )
 
 
-class TestAnnounceLogEntryAppliesParticipantUpdate:
+class TestAddLogEntryAppliesParticipantUpdate:
     """A participant stores the record an ``update_case_participant`` carries.
 
     The CASE_MANAGER commits one per participant record an ownership transfer
@@ -2046,6 +2073,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
                 object_id="https://example.org/activities/participant-update",
                 semantic_type=UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
                 payload_snapshot={
+                    "id": "https://example.org/activities/participant-update",
                     "type": "Update",
                     "published": "2026-01-01T00:00:00+00:00",
                     "actor": OWNER_ACTOR_ID,
@@ -2129,6 +2157,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
                 object_id="https://example.org/activities/accept",
                 semantic_type="accept_case_ownership_transfer",
                 payload_snapshot={
+                    "id": "https://example.org/activities/accept",
                     "type": "Accept",
                     "published": "2026-01-01T00:00:00+00:00",
                     "actor": NEW_OWNER_ID,
@@ -2146,7 +2175,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
         assert updated.attributed_to == OWNER_ACTOR_ID
 
 
-class TestAnnounceLogEntryOfOwnershipTransferReject:
+class TestAddLogEntryOfOwnershipTransferReject:
     """A replica applies no state change from a declined transfer (CM-21-033).
 
     ``reject_case_ownership_transfer`` is declared ``NO_REPLICA_EFFECT``
@@ -2185,6 +2214,7 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
                 object_id="https://example.org/activities/reject-ownership",
                 semantic_type="reject_case_ownership_transfer",
                 payload_snapshot={
+                    "id": "https://example.org/activities/reject-ownership",
                     "type": "Reject",
                     "published": "2026-01-01T00:00:00+00:00",
                     "actor": NEW_OWNER_ID,
@@ -2197,8 +2227,8 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
 
         result = run_tree(
             bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -2244,6 +2274,7 @@ def _make_participant_status_entry_with_states(
             object_id=f"https://example.org/activities/status-{log_index}",
             semantic_type="add_participant_status_to_participant",
             payload_snapshot={
+                "id": f"https://example.org/activities/status-{log_index}",
                 "object": {
                     "id": status_id,
                     "type": "ParticipantStatus",
@@ -2252,7 +2283,9 @@ def _make_participant_status_entry_with_states(
                     "vfState": vf_state,
                     "context": CASE_ID,
                 },
-                "target": {"id": participant_id},
+                # The participant's status history (ADR-0204).
+                "target": f"{participant_id}/statuses",
+                "context": CASE_ID,
             },
             prev_log_hash=prev_hash,
             received_at=ACT_AT,
@@ -2265,7 +2298,7 @@ class TestAnnounceTreeEmitImpossibleStateFault:
 
     Covers RSH-09-006 (impossible composite state) and ARCH-15-001
     (malformed local participant record) end-to-end through
-    ``create_announce_log_entry_tree()``.
+    ``create_add_log_entry_tree()``.
     """
 
     @pytest.mark.spec("RSH-09-006")
@@ -2325,8 +2358,8 @@ class TestAnnounceTreeEmitImpossibleStateFault:
 
         result = run_tree(
             trigger_bridge,
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -2385,7 +2418,7 @@ class TestAnnounceTreeEmitImpossibleStateFault:
         )
 
         run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 datalayer,
                 event,
                 sync_port=MagicMock(spec=SyncActivityPort),
@@ -2426,14 +2459,14 @@ def _deliver_early_entry(
 
     A fresh bridge on the same store stands in for a restart: whatever the
     limit remembers must be in the store (SYNC-15-021).  Returns the id of
-    the delivered ``Announce``.
+    the delivered ``Add``.
     """
     py_trees.blackboard.Blackboard.storage.clear()
     event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
     run_tree(
         BTBridge(datalayer=datalayer),
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -2487,7 +2520,7 @@ def test_early_entries_within_the_interval_send_one_genesis_reject(
 def test_a_genesis_reject_names_the_announce_that_prompted_it(
     datalayer, monkeypatch
 ):
-    """The genesis Reject answers the early entry's ``Announce``."""
+    """The genesis Reject answers the early entry's ``Add``."""
     (entry,) = _early_entries(1)
     _set_clock(monkeypatch, _GENESIS_WAIT_START)
     announce_id = _deliver_early_entry(datalayer, entry)
@@ -2589,7 +2622,7 @@ def test_an_unheld_early_entry_inside_the_interval_names_the_withheld_reject(
 
     py_trees.blackboard.Blackboard.storage.clear()
     result = run_in_act(
-        AnnounceLedgerEntryReceivedUseCase(
+        AddLedgerEntryReceivedUseCase(
             datalayer,
             _make_event(second, actor_id=CASE_ACTOR_ACTOR_ID),
             sync_port=SyncActivityAdapter(datalayer),
@@ -2621,7 +2654,7 @@ def test_an_unheld_early_entry_names_the_genesis_reject_it_sent(
 
     py_trees.blackboard.Blackboard.storage.clear()
     result = run_in_act(
-        AnnounceLedgerEntryReceivedUseCase(
+        AddLedgerEntryReceivedUseCase(
             datalayer,
             _make_event(first, actor_id=CASE_ACTOR_ACTOR_ID),
             sync_port=SyncActivityAdapter(datalayer),

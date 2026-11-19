@@ -63,8 +63,8 @@ from vultron.core.behaviors.embargo.nodes.ending_notice import (
     embargo_ending_notice,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
@@ -81,7 +81,7 @@ from vultron.core.models.embargo_termination import (
     ThreatSignal,
     ThreatSignalTermination,
 )
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     RmDimension,
@@ -107,7 +107,7 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
@@ -117,9 +117,9 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
+    add_log_entry_activity,
     add_participant_to_case_activity,
     announce_embargo_activity,
-    announce_log_entry_activity,
     em_propose_embargo_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
@@ -1291,7 +1291,7 @@ def _entry_event(
     log_index: int,
     prev_log_hash: str,
     to: str,
-) -> tuple[AnnounceLogEntryReceivedEvent, CaseLedgerEntry]:
+) -> tuple[AddLogEntryReceivedEvent, CaseLedgerEntry]:
     """The CASE_MANAGER's announcement to *to* of the entry for *activity*.
 
     The fan-out names its recipient in ``to`` (SYNC-09-002), so the replica's
@@ -1316,14 +1316,14 @@ def _entry_event(
     wire_entry = as_CaseLedgerEntry.model_validate(
         with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
     )
-    announce = announce_log_entry_activity(
+    announce = add_log_entry_activity(
         entry=wire_entry, actor=MANAGER, to=[to], at=authored_at()
     )
-    event = cast(AnnounceLogEntryReceivedEvent, received_event(announce))
+    event = cast(AddLogEntryReceivedEvent, received_event(announce))
     event.activity = make(
         VultronActivity,
         id_=event.activity_id,
-        type_="Announce",
+        type_="Add",
         actor=MANAGER,
         to=[to],
         object_=entry,
@@ -1331,11 +1331,11 @@ def _entry_event(
     return event, entry
 
 
-def _replay(replica: _Replica, event: AnnounceLogEntryReceivedEvent) -> None:
+def _replay(replica: _Replica, event: AddLogEntryReceivedEvent) -> None:
     result = run_tree(
         BTBridge(datalayer=replica.dl),
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=replica.actor_id,
         activity=event,

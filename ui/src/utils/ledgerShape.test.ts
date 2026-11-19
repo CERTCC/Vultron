@@ -237,15 +237,15 @@ describe('ledgerLineProblems', () => {
   })
 
   it('finds a status at any depth of the payload, such as a participant list', () => {
-    const target = {
+    const record = {
       type: 'CaseParticipant',
       published: '2026-01-01T00:00:00.000000+00:00',
       participantStatuses: [participantStatus(), { ...participantStatus(), rmState: 'DONE' }],
     }
     const line = entry()
-    line.payloadSnapshot = { type: 'Add', object: participantStatus(), target }
+    line.payloadSnapshot = { type: 'Create', object: record }
     expect(ledgerLineProblems(line)).toEqual([
-      'payloadSnapshot.target.participantStatuses[1].rmState: "DONE" is not a RmState ' +
+      'payloadSnapshot.object.participantStatuses[1].rmState: "DONE" is not a RmState ' +
         '(START, RECEIVED, INVALID, VALID, DEFERRED, ACCEPTED, CLOSED)',
     ])
   })

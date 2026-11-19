@@ -356,8 +356,9 @@ class DeferCheckNode(_InboxNodeWithPorts):
     """Step 4: defer activity when its case context is not yet known.
 
     If a case context ID is present, the activity is not exempt from
-    deferral (a case bootstrap, or the stub Invite that precedes its case;
-    see :func:`~vultron.core.models.events.case_context.is_deferral_exempt`),
+    deferral (a case bootstrap, the stub Invite that precedes its case, or
+    a ledger ``Add`` the replica holds itself; see
+    :func:`~vultron.core.models.events.case_context.is_deferral_exempt`),
     and the case is not yet locally available, the activity is either
     queued for later replay (``deferred`` outcome) or dropped when the
     queue has expired (``rejected`` outcome).
@@ -400,7 +401,9 @@ class DeferCheckNode(_InboxNodeWithPorts):
         # activity is exempt, or when no queue port is available.  Deferring
         # a bootstrap would deadlock: nothing else can make its case known
         # locally.  The stub Invite precedes its case by design: the invitee
-        # gets the case only after answering it (MV-10-005, PCR-06-005).
+        # gets the case only after answering it (MV-10-005, PCR-06-005).  A
+        # ledger Add that precedes its case is held by its own tree, keyed by
+        # its prev_log_hash, and replayed by the seed (SYNC-15-004).
         if context_id is None or is_deferral_exempt(event) or queue is None:
             return Status.SUCCESS
 

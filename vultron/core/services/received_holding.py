@@ -28,7 +28,7 @@ Holding, and leaving it
 
 Every wait holds a ``HELD`` record (ADR-0154): a delivery deferred before the
 doors, and one the handling tree held after intake recorded it (a buffered
-``Announce(CaseLedgerEntry)`` waiting for its gap, SYNC-14-001).  Neither has
+``Add(CaseLedgerEntry)`` waiting for its gap, SYNC-14-001).  Neither has
 been archived, so releasing it for its replay deletes it and hands its body
 to the replay, which routes it as a delivery of its own: its doors find no
 record, and its intake records it again (IO-03-009).  Discarding a wait that

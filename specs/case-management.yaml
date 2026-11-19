@@ -331,7 +331,7 @@ groups:
       object exists. Until that object exists, such a check makes the CASE_MANAGER treat
       its own ledger entry as the entry of a participant.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py::test_case_manager_role_takes_authority_arm_without_service_object`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::test_case_manager_role_takes_authority_arm_without_service_object`
       confirms the actor enacting `CVDRole.CASE_MANAGER` takes the authority arm on its own ledger
       entry even before any `Service` object carries `context`. Address-resolution window:
       `test/core/behaviors/sync/nodes/test_replay.py::TestFindCaseActorNode::test_resolves_without_any_service_object_carrying_context`.
@@ -1052,19 +1052,22 @@ groups:
     kind: protocol
     statement: >-
       A vulnerability item MUST carry the identity fields of a CSAF 2.1 vulnerability
-      entry: an optional `cve`, a list of `ids` that each pair a `system_name` with a
-      `text`, an optional `name` that holds the entry's `title`, a list of `notes`, and
-      a list of `references`.
+      entry: a list of `ids` that each pair a `system_name` with a `text`, an optional
+      `name` that holds the entry's `title`, a list of `notes`, and a list of
+      `references`. A CVE ID is an `ids` entry whose `system_name` is `CVE`; the item
+      has no `cve` field of its own.
     rationale: >-
       Shaped like a CSAF vulnerability entry, the item maps a CSAF report's
       vulnerabilities in and out field by field. Pairing each identifier with
       its tracking system names its namespace without parsing its value (CM-05-008,
-      ADR-0187). The `title` travels as AS2 `name`, which means the same, because a
-      Vultron term never duplicates an AS2 term (VM-10-009, ADR-0194).
+      ADR-0187). A reader finds all of a vul's identifiers in one list; CSAF's own
+      `cve` field maps to and from the `CVE` entry (CSAF-03-008). The `title` travels
+      as AS2 `name`, which means the same, because a Vultron term never duplicates an
+      AS2 term (VM-10-009, ADR-0194).
     verification: >-
-      A test marked `CM-05-018` builds a vulnerability item from each field and asserts
-      a CSAF 2.1 vulnerability entry's `cve`, `ids`, `title` (as the item's `name`),
-      `notes` and `references` round-trip through it.
+      A test marked `CM-05-018` builds a vulnerability item from each field, asserts it
+      refuses a `cve` key, and asserts a CSAF 2.1 vulnerability entry's `cve`, `ids`,
+      `title` (as the item's `name`), `notes` and `references` round-trip through it.
       `test/wire/as2/vocab/test_vulnerability_item.py::test_a_csaf_entrys_title_is_the_items_name`
       requires the item to declare no `title` and to hold it as `name`; it is a strict
       `xfail` until #6413 moves the title.
@@ -1077,14 +1080,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `cve` of a vulnerability item MUST match the CVE ID format that CSAF 2.1 gives
-      its `cve` field.
+      The `text` of a vulnerability item's `ids` entry whose `system_name` is `CVE` MUST
+      match the CVE ID format that CSAF 2.1 gives its `cve` field.
     rationale: >-
-      The `cve` field is CVE-typed on purpose, so its format is known, and a value that
-      passes it also passes CSAF. Identifiers in `ids` stay opaque (CM-05-008, ADR-0187).
+      The CSAF translation maps the `CVE` entry to CSAF's CVE-typed `cve` field, so a
+      value that passes this check also passes CSAF. This is the one exception to
+      CM-05-008: the identifier of every other system stays opaque (ADR-0187).
     verification: >-
       A test marked `CM-05-019` builds a vulnerability item with a well-formed and with a
-      malformed `cve` and asserts the second is refused.
+      malformed `CVE` entry and asserts the second is refused, and that a malformed text
+      under any other system is kept.
     adr:
     - ADR-0187
     stories:
@@ -1138,7 +1143,7 @@ groups:
     rationale: >-
       Every change the CASE_MANAGER makes to the case file is its own ledger entry
       (CLP-07-013), so the ledger fan-out is the notice: each change reaches the
-      active participants as `Announce(CaseLedgerEntry)`. The CASE_MANAGER also
+      active participants as `Add(CaseLedgerEntry)`. The CASE_MANAGER also
       announces the updated case as `Announce(VulnerabilityCase)` after admitting
       an engagement that moved the sender's recorded RM state. An engagement that
       restates a move already recorded changes no case state, so it announces
@@ -1148,7 +1153,7 @@ groups:
       handles, so it is reported "no use case found" (SE-05-002, ADR-0140).
     verification: >-
       Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
-      canonical case state it fans out `Announce(CaseLedgerEntry)` to every active
+      canonical case state it fans out `Add(CaseLedgerEntry)` to every active
       participant and to no inert participant.
     relationships:
     - rel_type: implements
@@ -1493,7 +1498,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      This rule covers each `Announce(CaseLedgerEntry)` the CASE_MANAGER sends, as
+      This rule covers each `Add(CaseLedgerEntry)` the CASE_MANAGER sends, as
       fan-out of a new entry or as a replay answering a `Reject(CaseLedgerEntry)`
       (SYNC-03-002). While an embargo is active, the CASE_MANAGER MUST NOT send one to a
       participant that has not accepted that embargo (the CM-10-004 content gate).
@@ -1560,10 +1565,11 @@ groups:
     adr:
     - ADR-0116
     verification: >-
-      A received-side test confirms that when a participant accepts the active embargo, the
-      CASE_MANAGER's outbox holds an `Announce(CaseLedgerEntry)` addressed to it for each entry committed
-      while it was outside the gate, in log order and ahead of any later entry, and that none of those
-      entries is re-sent to a participant that already had it.
+      A received-side test confirms that when a participant accepts the active embargo,
+      the CASE_MANAGER's outbox holds an `Add(CaseLedgerEntry)` addressed to it for each
+      entry committed while it was outside the gate, in log order and ahead of any later
+      entry, and that none of those entries is re-sent to a participant that already had
+      it.
     relationships:
     - rel_type: extends
       spec_id: CM-10-005
@@ -1868,7 +1874,7 @@ groups:
       an id or a time, and the copies of the case would then disagree.
     verification: >-
       `test_create_entry_stores_the_record_exactly_as_carried` in
-      `test/core/behaviors/sync/test_announce_tree.py` finds the stored record equal
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` finds the stored record equal
       to the one the entry carries;
       `test_replicas_hold_the_managers_whole_record_after_invite_and_accept` in
       `test/core/use_cases/received/test_stub_invite_replay.py` finds each
@@ -1924,7 +1930,7 @@ groups:
       CASE_MANAGER holds (ADR-0114, ADR-0124).
     verification: >-
       `test_the_reject_entry_declines_the_embargo_in_force` in
-      `test/core/behaviors/sync/test_announce_tree.py` applies the Reject entry on a
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` applies the Reject entry on a
       replica; `test_replicas_hold_the_managers_whole_record_after_a_reject` in
       `test/core/use_cases/received/test_stub_invite_replay.py` finds each
       replica's record equal to the CASE_MANAGER's after a reject.
@@ -2923,7 +2929,7 @@ groups:
       participant record, the ledger and the outbox unchanged. In
       `test/core/use_cases/received/test_embargo_answer_idempotency.py`,
       `test_a_repeat_answer_under_a_new_id_changes_nothing` confirms the same for a repeat
-      under a new activity id (no entry, no Announce, no state change), and
+      under a new activity id (no entry, no Add, no state change), and
       `test_another_participants_answer_is_still_its_own_consent` confirms that a different
       participant's answer is still recorded as its own consent.
     stories:
@@ -3020,7 +3026,7 @@ groups:
       participant (the Case Owner). The Create(VulnerabilityCase) notification in
       CM-14-011 is flushed before the reporter is added in CM-14-012 so each recipient
       of that `Create` holds the case object before any subsequent
-      Announce(CaseLedgerEntry) fan-out that references it.
+      Add(CaseLedgerEntry) fan-out that references it.
     verification: Integration tests in `test/demo/` confirm that the case initialization
       sequence completes exactly 6 ordered steps (CM-14-008 through CM-14-013) and that no step
       is skipped or reordered.
@@ -3079,8 +3085,10 @@ groups:
       The `Create(VulnerabilityCase)` notification MUST be queued and the outbox
       flushed before the reporter is added as a `CaseParticipant` in step 5 of
       CM-14-001
-    rationale: The reporter's system must receive and store the case object before any Announce(CaseLedgerEntry) fan-out that
-      lists them as a participant. Reversing this order causes "case not found" errors on the reporter side when the log entry
+    rationale: >-
+      The reporter's system must receive and store the case object before any
+      Add(CaseLedgerEntry) fan-out that lists them as a participant. Reversing this
+      order causes "case not found" errors on the reporter side when the log entry
       arrives referencing a case the reporter has not yet seen.
     verification: Integration tests in `test/demo/` confirm that the
       `Create(VulnerabilityCase)` outbox flush occurs before the reporter
@@ -3226,7 +3234,7 @@ groups:
       CBT-01-010).
     rationale: >-
       Each recipient must hold the case object before any
-      `Announce(CaseLedgerEntry)` fan-out that references it. The reporter trusts
+      `Add(CaseLedgerEntry)` fan-out that references it. The reporter trusts
       only the actor it sent its report to, so the case reaches it from that actor:
       directly when that actor is the CASE_MANAGER, and through the report
       receiver's introduction when it is not (ADR-0132).
@@ -3279,11 +3287,11 @@ groups:
     kind: protocol
     statement: >-
       Step 6 of the case initialization sequence MUST commit a case ledger entry,
-      triggering `Announce(CaseLedgerEntry)` fan-out to all participants.
+      triggering `Add(CaseLedgerEntry)` fan-out to all participants.
     rationale: The ledger entry commits the completed initialization as a single
       protocol-significant event and notifies all participants atomically.
     verification: Integration tests in `test/demo/` confirm that step 6 commits a case ledger
-      entry that triggers `Announce(CaseLedgerEntry)` fan-out to all participants.
+      entry that triggers `Add(CaseLedgerEntry)` fan-out to all participants.
     relationships:
     - rel_type: part_of
       spec_id: CM-14-001
@@ -3767,7 +3775,7 @@ groups:
       including the Case Owner's identity, the second recommender's identity and any
       `content` from the Offer. The note is the CASE_MANAGER's own `add_note_to_case`
       entry, attached to the case, and reaches the Case Owner's inbox as that entry's
-      `Announce(CaseLedgerEntry)` (SYNC-02-001, SYNC-02-003); a direct `Add(Note)` to
+      `Add(CaseLedgerEntry)` (SYNC-02-001, SYNC-02-003); a direct `Add(Note)` to
       the Case Owner is refused there (HP-01-005).
     rationale: >-
       A note about reinforcing suggestions gives the Case Owner more context for the
@@ -4271,7 +4279,7 @@ groups:
       entry in chain order.
     verification: >-
       `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_accept_invite_seeds_the_case_before_any_ledger_entry_reaches_the_invitee`
-      asserts `Announce(VulnerabilityCase)` precedes every `Announce(CaseLedgerEntry)`
+      asserts `Announce(VulnerabilityCase)` precedes every `Add(CaseLedgerEntry)`
       addressed to the invitee, and `test_accept_invite_backfills_canonical_ledger_from_genesis`
       asserts the invitee receives entries 0, 1, 2, 3 in order;
       `test/core/behaviors/case/test_accept_invite_tree.py::test_case_announce_and_backfill_precede_the_first_committing_effect`
@@ -5622,7 +5630,7 @@ groups:
     kind: protocol
     statement: >-
       After it commits the entry for a completed ownership transfer (CM-21-007), the
-      CASE_MANAGER MUST broadcast `Announce(CaseLedgerEntry)` to all case participants.
+      CASE_MANAGER MUST broadcast `Add(CaseLedgerEntry)` to all case participants.
     rationale: >-
       The `CaseLedgerEntry` broadcast is the only way that participants outside the
       transfer learn that the Case Owner changed. Examples are a Finder or a second
@@ -5795,7 +5803,7 @@ groups:
     kind: protocol
     statement: >-
       After it commits the entry for an admitted ownership-transfer Reject (CM-21-012),
-      the CASE_MANAGER MUST broadcast `Announce(CaseLedgerEntry)` to all case
+      the CASE_MANAGER MUST broadcast `Add(CaseLedgerEntry)` to all case
       participants.
     rationale: >-
       The broadcast is how every replica learns the Offer is closed, as it learns of a
@@ -5825,8 +5833,8 @@ groups:
       who owns the case.
     verification: >-
       `test_reject_entry_is_persisted_and_ownership_unchanged` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that a replica stores the
-      Reject entry and leaves ownership unchanged.
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that a replica
+      stores the Reject entry and leaves ownership unchanged.
     relationships:
     - rel_type: extends
       spec_id: CM-21-012
@@ -6009,7 +6017,7 @@ groups:
     kind: protocol
     statement: >-
       After it commits a withdrawal entry (CM-21-015), the CASE_MANAGER MUST broadcast
-      `Announce(CaseLedgerEntry)` to all case participants.
+      `Add(CaseLedgerEntry)` to all case participants.
     rationale: >-
       The broadcast is how the transferee and every replica learn that the Offer can no
       longer be accepted.
@@ -6527,7 +6535,7 @@ groups:
       participant to RM.CLOSED only by applying the ledger's status entries, in ledger
       order.
     rationale: >-
-      The status entries reach the replica in the Announce(CaseLedgerEntry) fan-out. A
+      The status entries reach the replica in the Add(CaseLedgerEntry) fan-out. A
       replica that works out a closure path from its own stored state can write an RM
       step the ledger never recorded, so it diverges from the CASE_MANAGER (ADR-0114,
       ADR-0124).
@@ -6568,7 +6576,7 @@ groups:
     verification: >-
       `test_close_case_entry_alone_changes_no_rm_state` in
       `test/core/use_cases/received/test_close_case_role_semantics.py` and in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that applying the
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that applying the
       close_case entry alone changes no participant's RM state.
     relationships:
     - rel_type: extends
@@ -6833,7 +6841,7 @@ groups:
       `test/core/participants/test_recipients.py` assert a participant whose
       closure the ledger records is left out of every case-content send except the
       entries recording its own closure.  Integration tests in `test/demo/` confirm
-      that `Announce(CaseLedgerEntry)` fan-out skips a participant once a ledger
+      that `Add(CaseLedgerEntry)` fan-out skips a participant once a ledger
       entry has recorded its `rmState=CLOSED`, that the leaving participant's
       replica does not receive the CASE_MANAGER's own
       later closure entries, and that the CASE_MANAGER's store holds every
@@ -9180,7 +9188,7 @@ groups:
       on whether the invitation is open (ADR-0113).
     verification: >-
       `test_replica_records_invitee_deadline_from_relayed_invite_entry` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that a replica
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that a replica
       records the invitee's deadline when the entry is replayed.
     relationships:
     - rel_type: depends_on
@@ -9243,7 +9251,7 @@ groups:
       `TIMED_OUT` row into a replica and asserts the participant reads `TIMED_OUT`
       only once that entry is copied:
       `test/core/use_cases/received/test_embargo_invite_lapse.py::TestExpiryIsTheManagersAlone::test_non_manager_commits_no_expiry_entry`,
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::TestAddLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
       and `test/core/use_cases/received/test_embargo_activation_copy.py::TestInviteTimeOut`.
     relationships:
     - rel_type: extends
@@ -9285,13 +9293,13 @@ groups:
     statement: >-
       In this codebase a replica MUST apply the invite-expiry
       `Update(EmbargoConsent)` entry (CM-28-014) through the consent slot of
-      `create_announce_log_entry_tree` (RSH-08-004).
+      `create_add_log_entry_tree` (RSH-08-004).
     rationale: >-
       How this codebase copies the CASE_MANAGER's expiry entry onto replicas. One
       slot applies every consent entry, so a replica reads `TIMED_OUT` only from the
       entry and never computes an expiry itself.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::TestAddLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
       confirms a replica reads `TIMED_OUT` only once that entry is copied.
     relationships:
     - rel_type: implements
@@ -10253,7 +10261,7 @@ groups:
     verification: >-
       `test_removal_entry_fans_out_to_the_removed_participant` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts an
-      `Announce(CaseLedgerEntry)` of the removal is addressed to the removed
+      `Add(CaseLedgerEntry)` of the removal is addressed to the removed
       participant.
     relationships:
     - rel_type: extends
@@ -10784,7 +10792,7 @@ groups:
       participant record, status ids and timestamps included, between the
       CASE_MANAGER and each replica after the Accept, and
       `test_the_accept_entry_signs_consent_and_marks_joined` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts the replica writes.
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts the replica writes.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-31-012
@@ -10806,7 +10814,7 @@ groups:
       replica would fall behind the CASE_MANAGER.
     verification: >-
       `test_a_stale_accept_replayed_over_a_seed_that_is_ahead_changes_nothing` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that a stale Accept
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that a stale Accept
       replayed over a seed that is ahead changes nothing.
     relationships:
     - rel_type: uses_definition
@@ -10828,7 +10836,7 @@ groups:
       never seated.
     verification: >-
       `test_a_reply_entry_with_no_record_fails_and_stores_nothing` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that the apply fails
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that the apply fails
       and stores nothing.
     relationships:
     - rel_type: extends
@@ -12239,7 +12247,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER commits an answer to a role Offer under CM-33-006, it MUST
-      broadcast `Announce(CaseLedgerEntry)` to the case's participants.
+      broadcast `Add(CaseLedgerEntry)` to the case's participants.
     rationale: >-
       Replicas learn of a granted role only when they replay the announced entry
       (CM-02-016, RSH-08-004). Thus if the answer is not announced, the roles in every
@@ -12313,7 +12321,8 @@ groups:
       CASE_MANAGER an `Offer` whose `object` is an `Update` of that item.
     rationale: >-
       A CVE ID is usually assigned after the item exists, so the case learns of it as a
-      change to that item, not as a second item for the same vulnerability (ADR-0187).
+      change to that item, a new `ids` entry whose `system_name` is `CVE`, not as a
+      second item for the same vulnerability (ADR-0187).
     verification: >-
       A test marked `CM-34-002` runs the propose-change trigger and asserts one queued
       `Offer(Update(VulnerabilityItem))` addressed to the CASE_MANAGER.
@@ -12397,17 +12406,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An admitted update of a vulnerability item MUST replace the fields the update
-      supplies and leave every other field of the item unchanged.
+      An admitted update of a vulnerability item MUST change only the fields it
+      supplies, replacing a single-valued field and merging a list (CM-34-011).
     rationale: >-
-      This is the partial-update meaning ActivityStreams gives `Update`. Two admitted
-      updates to different fields of one item then both survive, and a full revision is
-      an update that supplies every field (ADR-0187).
+      This is the partial-update meaning ActivityStreams gives `Update`, so two admitted
+      updates to different fields of one item both survive. A list is merged, not
+      replaced, because a sender that holds a partial or stale view of the item would
+      otherwise erase entries it cannot see (ADR-0187).
     verification: >-
-      A test marked `CM-34-007` admits an update that supplies only `cve` to an item that
-      has a `title` and asserts the item keeps its `title` and gains the `cve`.
+      A test marked `CM-34-007` admits an update that supplies a new `title` and an
+      `ids` list holding one new entry with `system_name` `CVE`, to an item that has a
+      `title`, a note and another identifier, and asserts the item's `title` is the
+      supplied one, its note is kept, and its `ids` hold the other identifier and the
+      `CVE` entry.
     adr:
     - ADR-0187
+    relationships:
+    - rel_type: refines
+      spec_id: CM-34-011
     stories:
     - story_2022_030
   - id: CM-34-008
@@ -12456,5 +12472,30 @@ groups:
       offer is admitted with no further input.
     adr:
     - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-34-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      On admitting an offered update of a case-file object, the CASE_MANAGER MUST keep
+      held list entries and append each supplied entry a list lacks.
+    rationale: >-
+      A sender's view may be partial, such as a case preview (ADR-0217), or stale, and
+      two updates may cross, so replacing a list would drop entries silently. An entry
+      equal to a held one, or a reference with a held one's id, is not added again.
+      Taking an entry out needs an act that names it, as removing a note from a case
+      does; none exists yet for an item's lists (ADR-0187). A replica copies the result
+      the ledger carries, so this binds only the admission.
+    verification: >-
+      A test marked `CM-34-011` admits two updates of one item that each add a
+      different identifier, in both orders, and asserts the item ends with its original
+      identifiers in their order followed by both new ones; admits an update whose
+      `ids` hold one held identifier and one new one, and asserts the held one appears
+      once; and admits an update whose `notes` hold only a new note, and asserts the
+      item keeps its held note and gains the new one.
+    adr:
+    - ADR-0187
+    - ADR-0217
     stories:
     - story_2022_030

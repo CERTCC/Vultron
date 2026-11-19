@@ -111,12 +111,12 @@ def wait_for_replica_ledger_coverage(
     the next replica instead of propagating (DEMOCI-01-014).
 
     Timeouts (EDF-06-008): the chain being bounded is the authority's outbox →
-    ``Announce(CaseLedgerEntry)`` ``BackgroundTasks`` delivery → replica inbox,
+    ``Add(CaseLedgerEntry)`` ``BackgroundTasks`` delivery → replica inbox,
     one hop per entry, all containers on one Compose network. An early
     participant has been receiving entries as they were committed and gets
     ``LEDGER_COVERAGE_TIMEOUT`` (15 s fired under CI load, #1911, #2337). A
     late joiner catches up from genesis through the CM-17-004 backfill — one
-    ``Announce`` per prior entry — and gets ``LATE_JOINER_COVERAGE_TIMEOUT``.
+    ``Add`` per prior entry — and gets ``LATE_JOINER_COVERAGE_TIMEOUT``.
     Neither is below any budget a scenario carried before the loop was shared;
     a scenario that needs a different budget passes another named constant,
     never a literal.  Each budget is how long a replica may go without

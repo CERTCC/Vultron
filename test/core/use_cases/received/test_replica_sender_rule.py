@@ -133,7 +133,7 @@ def _deliver_participant_status(
     dl.create(status)
     activity = add_status_to_participant_activity(
         status,
-        target=vendor,
+        participant=vendor,
         actor=sender_id,
         context=make(
             as_VulnerabilityCase,

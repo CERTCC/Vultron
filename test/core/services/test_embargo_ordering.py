@@ -144,8 +144,7 @@ def test_earliest_expiring_embargo_id_refuses_a_record_that_is_not_an_embargo(
 ) -> None:
     policy = make(
         EmbargoPolicy,
-        actor_id=_ACTOR,
-        inbox=f"{_ACTOR}/inbox",
+        attributed_to=_ACTOR,
         preferred_duration=timedelta(days=30),
     )
     dl.create(policy)

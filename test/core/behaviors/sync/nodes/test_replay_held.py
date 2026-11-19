@@ -15,7 +15,7 @@
 
 """Direct tests for ``ReplayHeldSuccessorNode`` (SYNC-14-009).
 
-The use-case tests reach the node through the announce trees; these pin the
+The use-case tests reach the node through the add-log-entry trees; these pin the
 branches those trees never reach: a held ``Announce`` for a case with no
 genesis anchor, a successor with no replay port, a port that refuses the
 replay, and a release that fails after the replay was queued.
@@ -66,7 +66,7 @@ def _run(bridge, replay):
 
 @pytest.mark.spec("SYNC-14-009")
 def test_no_genesis_anchor_replays_nothing(bridge, datalayer, replay):
-    """With the case not stored, no held Announce can extend the chain."""
+    """With the case not stored, no held Add can extend the chain."""
     hold_received(datalayer, _make_event(_make_entry(0), CASE_MANAGER_ID))
 
     result = _run(bridge, replay)
@@ -88,7 +88,7 @@ def test_nothing_held_replays_nothing(bridge, case_obj, replay):
 def test_no_successor_of_the_tail_replays_nothing(
     bridge, datalayer, case_obj, replay
 ):
-    """A held Announce that does not extend the tail stays held."""
+    """A held Add that does not extend the tail stays held."""
     hold_received(
         datalayer, _make_event(_make_entry(3, "ab" * 32), CASE_MANAGER_ID)
     )
@@ -129,7 +129,7 @@ def test_successor_with_no_replay_port_is_a_wiring_error(
 def test_successor_is_replayed_then_released(
     bridge, datalayer, case_obj, replay
 ):
-    """The node replays the held Announce by its own id, then drops the
+    """The node replays the held Add by its own id, then drops the
     index row."""
     event = _make_event(
         _make_entry(0, prev_hash=case_obj.genesis_hash), CASE_MANAGER_ID

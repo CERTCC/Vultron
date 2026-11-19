@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -13,20 +11,3 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Behavior tree factory for inbound Announce(CaseLedgerEntry) handling.
-
-Split by concern (CS-18-005): ``factory`` composes the tree and
-``effect_slots`` builds the replica's per-entry effect slots.
-"""
-
-from vultron.core.behaviors.sync.announce_tree.factory import (
-    AT_CASE_MANAGER,
-    OFF_CASE_MANAGER,
-    create_announce_log_entry_tree,
-)
-
-__all__ = [
-    "AT_CASE_MANAGER",
-    "OFF_CASE_MANAGER",
-    "create_announce_log_entry_tree",
-]

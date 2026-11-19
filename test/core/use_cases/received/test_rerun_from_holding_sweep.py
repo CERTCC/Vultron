@@ -66,7 +66,7 @@ from vultron.core.services.received_holding import (
 from vultron.semantic_registry import use_case_map
 from vultron.wire.as2.parser import parse_activity
 
-from ._ledger_network import BYSTANDER, MANAGER, LedgerNetwork
+from ._ledger_network import BROADCAST, BYSTANDER, MANAGER, LedgerNetwork
 from .rerun_sweep import (
     APPLIED,
     APPLY_UNREACHABLE,
@@ -306,7 +306,7 @@ def test_a_semantic_declared_treeless_runs_no_tree(
 
 
 def _queued_announcements(dl: Any, before: Any, *, to: str) -> list[str]:
-    """``Announce(CaseLedgerEntry)`` ids queued for *to* since *before*."""
+    """``Add(CaseLedgerEntry)`` ids queued for *to* since *before*."""
     queued = {activity_id for activity_id, _ in before.outbox}
     found = []
     for activity_id in dl.outbox_list():
@@ -314,7 +314,7 @@ def _queued_announcements(dl: Any, before: Any, *, to: str) -> list[str]:
         entry = body.get("object") or {}
         if (
             activity_id not in queued
-            and body.get("type") == "Announce"
+            and body.get("type") == "Add"
             and isinstance(entry, dict)
             and entry.get("type") == "CaseLedgerEntry"
             and to in (body.get("to") or [])
@@ -345,7 +345,7 @@ def test_a_replay_after_a_held_rerun_answers_a_lagging_position_once() -> None:
     net.receive(MANAGER, _note_body(net, "first"))
     net.replay_ledger(BYSTANDER)
     net.receive(MANAGER, _note_body(net, "second"))
-    net.lose(MANAGER, to=BYSTANDER, type_="Announce")
+    net.lose(MANAGER, to=BYSTANDER, type_=BROADCAST)
     body = net.delivered_body(
         _note_body(net, "lagging", actor=BYSTANDER), receiver=MANAGER
     )
@@ -362,7 +362,7 @@ def test_a_replay_after_a_held_rerun_answers_a_lagging_position_once() -> None:
     # The lag answer replayed the second entry; the note's own entry is the
     # third.
     assert [_entry_index(manager_dl, a) for a in answered] == [1, 2]
-    net.lose(MANAGER, to=BYSTANDER, type_="Announce")
+    net.lose(MANAGER, to=BYSTANDER, type_=BROADCAST)
     delivered = effects(manager_dl)
 
     rerun = run_use_case(manager_dl, event)

@@ -112,7 +112,7 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 (SYNC-02-003).  When provided it is placed on the py_trees
                 blackboard under the key ``sync_port`` so that
                 ``CommitCaseLedgerEntryNode`` can fan out
-                ``Announce(CaseLedgerEntry)`` activities to participants.
+                ``Add(CaseLedgerEntry)`` activities to participants.
                 Without this, ledger entries committed inside BTs are
                 persisted locally but not replicated.
             wire_render_port: Optional port for rendering core domain objects

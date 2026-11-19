@@ -93,7 +93,7 @@ groups:
       The outbox handler MUST finish the delivery attempt of an earlier-queued activity
       to a recipient before it attempts a later-queued activity to that recipient.
     rationale: >-
-      A ledger fan-out is one Announce(CaseLedgerEntry) row per participant, and a replica
+      A ledger fan-out is one Add(CaseLedgerEntry) row per participant, and a replica
       that receives entry N+1 before entry N buffers a forward gap and sends a
       Reject(CaseLedgerEntry) (SYNC-14-002), which the CASE_MANAGER answers with a
       full-suffix replay into the same outbox. Per-recipient order at delivery is the

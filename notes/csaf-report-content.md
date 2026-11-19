@@ -15,6 +15,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
 related_notes:
+  - notes/csaf-case-inputs-on-proposal.md
   - notes/bt-pitfalls.md
   - notes/wire-core-boundary.md
   - notes/ci-workflow-authoring.md

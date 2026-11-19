@@ -163,7 +163,7 @@ def format_pattern(pattern: ActivityPattern) -> str:
 
         Offer(VulnerabilityReport)
         Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
-        Add(CaseStatus)[target=VulnerabilityCase]
+        Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]
         Remove(Note)[origin=VulnerabilityCase]
         Invite(VulnerabilityCase preview)[target=Actor]
         Invite(whole VulnerabilityCase)[target=Actor]

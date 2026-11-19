@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Ownership-transfer side-effect node for Announce(CaseLedgerEntry) processing.
+"""Ownership-transfer side-effect node for Add(CaseLedgerEntry) processing.
 
 Provides :class:`ApplyOwnershipTransferFromLedgerNode`, which copies the new
 Case Owner onto the local ``VulnerabilityCase.attributed_to`` when a

@@ -369,7 +369,7 @@ def test_a_resend_is_stamped_with_the_acts_instant(
 
 
 def _early_entry_event() -> Any:
-    """An early entry's Announce, built outside any seeded run: building it
+    """An early entry's Add, built outside any seeded run: building it
     stamps its own times."""
     return _make_event(_make_entry(1), actor_id=OWNER_ACTOR_ID)
 

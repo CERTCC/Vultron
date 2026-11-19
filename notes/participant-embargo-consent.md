@@ -302,7 +302,7 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   for one row.
 - **The replica side** subclasses `ApplyEmbargoChangeFromLedgerNode`
   (`sync/nodes/embargo_copy_effect.py`) and names its entry's change in
-  `_change()`; a refused entry's received Announce is held (SYNC-14-001) and the
+  `_change()`; a refused entry's received Add is held (SYNC-14-001) and the
   announce is reported deferred, never patched over. An entry whose result the replica
   already holds (saved, but not yet stored, before a stop) is an idempotent
   no-op (`change_is_in_place()`); the CASE_MANAGER's trial still refuses an
@@ -444,7 +444,7 @@ clock decisions, the sweep included.
 ### The ledger fan-out is the owner's notification (MSM-07-026)
 
 The owner learns of a `DECLINED` or `TIMED_OUT` answer from the entry itself. An
-active owner gets the `Announce(CaseLedgerEntry)`, because `ledger_entry_recipients`
+active owner gets the `Add(CaseLedgerEntry)`, because `ledger_entry_recipients`
 includes every active participant; an owner holding CASE_MANAGER is excluded from
 its own fan-out but already holds the entry. Do not add a separate notification
 activity: it would duplicate the entry, and for a `Reject` it would be the

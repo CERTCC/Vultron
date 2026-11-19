@@ -104,7 +104,7 @@ def _seed_case(
 
 
 def _offers(bt_scenario: BTTestScenario) -> list[str]:
-    """The Offers in the outbox, beside the ledger Announces."""
+    """The Offers in the outbox, beside the ledger Adds."""
     return [
         item
         for item in bt_scenario.dl.outbox_list()

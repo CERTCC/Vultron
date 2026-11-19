@@ -45,7 +45,7 @@ groups:
     statement: >-
       The LedgerFanout phase MUST replicate the case ledger one way, from the actor
       holding the CASE_MANAGER role to each active participant (CM-10-004), through
-      `Announce(CaseLedgerEntry)` messages.
+      `Add(CaseLedgerEntry)` messages.
     rationale: >-
       Participants need their own copy of the case ledger to know the case state.
       One-way replication from the CASE_MANAGER keeps one source of truth, so replicas
@@ -235,16 +235,23 @@ groups:
   - id: SYNC-02-001
     priority: MUST
     kind: protocol
-    statement: Log replication between the CASE_MANAGER and Participant Actors MUST use ActivityStreams `Announce` activities
-      as the transport envelope for canonical recorded log content
+    statement: >-
+      Log replication between the CASE_MANAGER and Participant Actors MUST use
+      ActivityStreams `Add` activities, each adding one committed `CaseLedgerEntry` to
+      the case's ledger, as the transport envelope for canonical recorded log content.
     rationale: >-
       Vultron actors talk through ActivityStreams messages, so ledger replication uses
-      the same inbox, outbox and parsing path as other case messages. `Announce` tells
-      the recipient about an object that already exists, which is what passing on a
-      committed entry does.
+      the same inbox, outbox and parsing path as other case messages. `Add` says the
+      actor added the object to the target collection, which is what committing an
+      entry to the ledger does; `Add` only calls attention to an object
+      (ADR-0204).
     verification: >-
-      Integration tests in `test/demo/` confirm that log replication messages are
-      wrapped in ActivityStreams Announce activities delivered to Participant Actors.
+      `test/core/behaviors/sync/test_commit_tree.py` confirms a commit queues the
+      entry's fan-out, and
+      `test/wire/as2/factories/test_sync_factories.py::test_add_log_entry_names_the_ledger_the_case_and_the_act`
+      confirms the fan-out is an `Add` of the entry to the case's ledger.
+    adr:
+    - ADR-0204
     stories:
     - story_2026_075
     - story_2026_057
@@ -260,7 +267,7 @@ groups:
       belong to one peer, so the CASE_MANAGER can track each peer's replication state
       (SYNC-04-001).
     verification: >-
-      Integration tests in `test/demo/` confirm that each Announce(CaseLedgerEntry)
+      Integration tests in `test/demo/` confirm that each Add(CaseLedgerEntry)
       identifies the sender, recipient, entry hash, and predecessor hash.
     stories:
     - story_2026_045
@@ -295,7 +302,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `object` of each `Announce(CaseLedgerEntry)` activity MUST be the `CaseLedgerEntry`
+      The `object` of each `Add(CaseLedgerEntry)` activity MUST be the `CaseLedgerEntry`
       itself, carried inline or by reference, with every field the recipient needs to
       validate the hash chain (including the entry hash and its predecessor's hash).
     rationale: >-
@@ -304,7 +311,7 @@ groups:
       The inline form and the by-reference form give the recipient the same entry, so
       the protocol allows either.
     verification: >-
-      Integration tests in `test/demo/` confirm that Announce(CaseLedgerEntry) carries
+      Integration tests in `test/demo/` confirm that Add(CaseLedgerEntry) carries
       the CaseLedgerEntry with entry_hash and prev_log_hash.
     stories:
     - story_2026_045
@@ -313,22 +320,127 @@ groups:
     kind: project
     statement: >-
       This codebase MUST embed the full inline `CaseLedgerEntry` in the `object` of each
-      `Announce(CaseLedgerEntry)`, never a URI-only reference.
+      `Add(CaseLedgerEntry)`, never a URI-only reference.
     rationale: >-
       An inline entry lets the recipient check the hash chain without a request back to
       the sender. This codebase never fetches a ledger entry that a message names by
       reference, so without the inline entry a recipient in this codebase could not
-      apply the Announce at all. An entry fetched by reference passes the same checks,
+      apply the Add at all. An entry fetched by reference passes the same checks,
       so another implementation may send a reference (SYNC-02-004).
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py::test_handle_outbox_item_preserves_inline_case_ledger_entry_fields`
-      confirms the delivered Announce(CaseLedgerEntry) carries the full inline entry,
+      confirms the delivered Add(CaseLedgerEntry) carries the full inline entry,
       with entry_hash and prev_log_hash, rather than a URI-only reference;
-      `test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase::test_inline_case_ledger_entry_round_trip`
+      `test/core/use_cases/received/test_sync.py::TestAddLedgerEntryReceivedUseCase::test_inline_case_ledger_entry_round_trip`
       confirms parsing keeps the inline entry's fields.
     relationships:
     - rel_type: refines
       spec_id: SYNC-02-004
+  - id: SYNC-02-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Each `Add(CaseLedgerEntry)` MUST name the case's ledger, `<case>/ledger`, as its
+      `target` and the entry's case as its `context`.
+    rationale: >-
+      The ledger is an `OrderedCollection` whose items are the case's entries in
+      `logIndex` order, so a replica reads the case and the collection from the
+      message rather than from inside the entry. The ledger's id is an identity only:
+      no route serves it (IE-02-003), and fetching it is separate work.
+    verification: >-
+      `test/wire/as2/factories/test_sync_factories.py::test_add_log_entry_names_the_ledger_the_case_and_the_act`
+      confirms the factory names the ledger and the case, and
+      `test/adapters/driving/fastapi/routers/test_case_ledger_has_no_route.py`
+      confirms no route serves the ledger's id.
+    adr:
+    - ADR-0204
+    stories:
+    - story_2026_045
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-02-001
+  - id: SYNC-02-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse an `Add(CaseLedgerEntry)` whose `target` or `context`
+      names another ledger or case than the entry's own.
+    rationale: >-
+      An `Add` that names another case's ledger contradicts the entry it carries, so it
+      is refused at the parse edge rather than applied to either case.
+    verification: >-
+      `test/core/use_cases/received/test_sync.py::TestAddLedgerEntryShapeAtTheEdge`
+      confirms an `Add` naming another ledger or case, or none, is refused at
+      extraction.
+    adr:
+    - ADR-0204
+    stories:
+    - story_2026_045
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-02-006
+  - id: SYNC-02-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Each `Add(CaseLedgerEntry)` MUST name the act its entry commits in `inReplyTo`.
+    rationale: >-
+      The `Add` is the positive acknowledgement of the act it commits (MSM-05-009): the
+      act's sender learns that its act committed from the message that commits it, with
+      no separate acknowledgement.
+    verification: >-
+      `test/wire/as2/factories/test_sync_factories.py::test_add_log_entry_names_the_ledger_the_case_and_the_act`
+      confirms `inReplyTo` names the committed act, and
+      `test/architecture/test_response_in_reply_to.py` confirms the activity class
+      refuses an `Add` with no `inReplyTo`.
+    adr:
+    - ADR-0204
+    stories:
+    - story_2026_045
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-02-001
+  - id: SYNC-02-009
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An `Add(CaseLedgerEntry)` MUST NOT carry a `result`.
+    rationale: >-
+      Listing in `result` what the act caused would need the ids of follow-on acts
+      before they exist, or an `Add` that waits for them. An act a commit causes names
+      its cause in its own `inReplyTo` instead, so causation is read from effect to
+      cause.
+    verification: >-
+      `test/architecture/test_ledger_add_carries_no_result.py` confirms the activity
+      class refuses a `result`, that only its factory builds it, and that no call of
+      the factory names one.
+    adr:
+    - ADR-0204
+    stories:
+    - story_2026_045
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-02-007
+  - id: SYNC-02-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse an `Add(CaseLedgerEntry)` whose `inReplyTo` names
+      another act than the one its entry commits.
+    rationale: >-
+      An `Add` that names another act acknowledges an act the entry does not commit,
+      so it is refused at the parse edge rather than read as either act's
+      acknowledgement.
+    verification: >-
+      `test/core/use_cases/received/test_sync.py::TestAddLedgerEntryShapeAtTheEdge`
+      confirms an `Add` naming another act, or none, is refused at extraction.
+    adr:
+    - ADR-0204
+    stories:
+    - story_2026_045
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-02-007
 - id: SYNC-03
   title: Conflict Handling
   specs:
@@ -465,7 +577,7 @@ groups:
     verification: >-
       `test_replica_refuses_entry_whose_hash_does_not_match_content` and
       `test_replica_does_not_buffer_forward_gap_entry_with_bad_hash` in
-      `test/core/behaviors/sync/test_announce_tree.py` assert a tampered entry is
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` assert a tampered entry is
       neither stored nor buffered, and `test_entry_stating_no_hash_is_not_intact` in
       `test/core/models/test_case_ledger.py` asserts an entry stating no hash fails the
       check.
@@ -480,7 +592,7 @@ groups:
     statement: >-
       A participant that refuses a `CaseLedgerEntry` under SYNC-03-012 MUST send
       `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` to
-      the case's CASE_MANAGER, naming the refused `Announce(CaseLedgerEntry)` by
+      the case's CASE_MANAGER, naming the refused `Add(CaseLedgerEntry)` by
       reference.
     rationale: >-
       The entry was received but could not be processed, which ASK-07-001 and MSM-05-001
@@ -505,7 +617,7 @@ groups:
     kind: protocol
     statement: >-
       A participant MUST derive the id of the SYNC-03-007 fault from the refused
-      `Announce(CaseLedgerEntry)` and the failure class.
+      `Add(CaseLedgerEntry)` and the failure class.
     rationale: >-
       The CASE_MANAGER's replay delivers the same refused entry again. A derived id
       makes each repeat name the same fault, so the outbox and the CASE_MANAGER see one
@@ -513,7 +625,7 @@ groups:
     verification: >-
       `test_a_redelivered_tampered_entry_builds_no_second_fault` in
       `test/core/behaviors/sync/test_hash_mismatch_fault.py` delivers the same refused
-      `Announce` twice and asserts one fault is built.
+      `Add` twice and asserts one fault is built.
     relationships:
     - rel_type: extends
       spec_id: SYNC-03-007
@@ -573,7 +685,7 @@ groups:
       The fault's purpose is to make the problem visible where the ledger is kept.
     verification: >-
       `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_is_logged_at_error`
-      asserts one ERROR record naming the case, the `Announce`, the entry and the sender
+      asserts one ERROR record naming the case, the `Add`, the entry and the sender
       for a fault from an active participant of a seeded case.
     relationships:
     - rel_type: uses_definition
@@ -622,7 +734,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Before the CASE_MANAGER sends a `CaseLedgerEntry` in `Announce(CaseLedgerEntry)`,
+      Before the CASE_MANAGER sends a `CaseLedgerEntry` in `Add(CaseLedgerEntry)`,
       it MUST recompute the entry's hash from its content, as SYNC-03-006 does. This
       holds for fan-out, replay and backfill alike.
     rationale: >-
@@ -638,8 +750,8 @@ groups:
       entry through each send path and asserts that the sending node returns `FAILURE`,
       except the fan-out's held-back catch-up of a paused peer, which skips that peer
       and returns `SUCCESS` (BT-14-003), and
-      `test/architecture/test_send_announce_log_entry_has_one_caller.py` asserts no
-      other code in `vultron/core/` calls `send_announce_log_entry`.
+      `test/architecture/test_send_add_log_entry_has_one_caller.py` asserts no
+      other code in `vultron/core/` calls `send_add_log_entry`.
     stories:
     - story_2026_074
   - id: SYNC-03-017
@@ -895,7 +1007,7 @@ groups:
     statement: >-
       An implementation SHOULD NOT conflate the CASE_MANAGER cluster of SYNC-06-004 with
       participant replication (LedgerFanout). In LedgerFanout the CASE_MANAGER pushes
-      committed entries to participants in `Announce(CaseLedgerEntry)`. The two tiers
+      committed entries to participants in `Add(CaseLedgerEntry)`. The two tiers
       operate independently.
     rationale: >-
       Participant replication and a highly available CASE_MANAGER solve different
@@ -955,7 +1067,7 @@ groups:
     statement: >-
       A node MUST commit the `CaseLedgerEntry` that records a Vultron message it sends
       only after it writes the message to its own outbox, never before. The one message
-      sent after its commit is `Announce(CaseLedgerEntry)`: it delivers a committed
+      sent after its commit is `Add(CaseLedgerEntry)`: it delivers a committed
       entry, and is not an act the ledger records.
     rationale: >-
       A ledger entry records a complete act, and a send is complete when the message is
@@ -1025,15 +1137,17 @@ groups:
   - id: SYNC-07-002
     priority: MUST
     kind: project
-    statement: 'Integration tests MUST cover the full single-peer replication cycle: leader appends an entry, sends an `Announce`
-      activity, and the receiver validates the predecessor hash and appends the entry'
+    statement: >-
+      Integration tests MUST cover the full single-peer replication cycle: leader
+      appends an entry, sends an `Add` activity, and the receiver validates the
+      predecessor hash and appends the entry
     rationale: >-
       Each step can pass its own unit test while the steps fail together, for example
       when the sender and the receiver disagree on the wire form. Only a test of the
       full cycle shows that an entry gets from the leader into a replica.
     verification: >-
       Integration tests in `test/demo/` confirm the full single-peer replication
-      cycle: leader appends an entry, sends an Announce, and the receiver
+      cycle: leader appends an entry, sends an Add, and the receiver
       validates the predecessor hash and appends the entry.
   - id: SYNC-07-003
     priority: MUST
@@ -1194,7 +1308,7 @@ groups:
       never arrive (SYNC-14-002).
     verification: >-
       `test_hash_mismatch_sends_reject_and_does_not_store` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that an entry that does
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that an entry that does
       not extend the chain is not stored and that the receiver sends a
       `Reject(CaseLedgerEntry)`.
     relationships:
@@ -1307,7 +1421,7 @@ groups:
     statement: >-
       A participant actor SHOULD maintain an actor-local, in-memory pending-assertion store
       that records outbound assertion activities (e.g., Add(Note)) emitted toward the
-      CASE_MANAGER but not yet confirmed by a canonical Announce(CaseLedgerEntry) round-trip;
+      CASE_MANAGER but not yet confirmed by a canonical Add(CaseLedgerEntry) round-trip;
       the suppression window is configurable and zero disables suppression
     rationale: >-
       An assertion takes time to come back as a committed entry, and meanwhile the
@@ -1333,7 +1447,7 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      When a participant receives a matching Announce(CaseLedgerEntry) whose log_object_id
+      When a participant receives a matching Add(CaseLedgerEntry) whose log_object_id
       equals a pending assertion's object_id, the participant's pending-assertion store
       SHOULD clear the matching entry so that future re-emits of the same triple are no
       longer suppressed
@@ -1432,7 +1546,7 @@ groups:
       An entry stored after a failed effect would keep that effect from ever running.
     verification: >-
       `TestEffectsFailureBlocksPersist` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that a failed embargo,
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that a failed embargo,
       participant-status, note or invite-accept effect keeps the entry from being
       persisted.
     relationships:
@@ -1470,7 +1584,7 @@ groups:
       entry were applied once, before the entry was stored (SYNC-12-001). Applying them
       again would repeat state changes such as a status update or an embargo teardown.
     verification: >-
-      Integration tests in `test/demo/` confirm that a duplicate Announce(CaseLedgerEntry)
+      Integration tests in `test/demo/` confirm that a duplicate Add(CaseLedgerEntry)
       for an already-stored entry triggers neither effect application nor a second persist.
     stories:
     - story_2026_014
@@ -1547,12 +1661,12 @@ groups:
     kind: protocol
     statement: >-
       Participants MUST obtain replica `CaseLedgerEntry` records solely from received
-      `Announce(CaseLedgerEntry)` activities.
+      `Add(CaseLedgerEntry)` activities.
     rationale: Channelling all replica writes through the receive behavior tree ensures that effects are applied in
       the correct order and that the already-stored gate (SYNC-12-003) is the sole idempotency mechanism.
     verification: >-
       Integration tests in `test/demo/` confirm that participant replicas only acquire
-      CaseLedgerEntry records through the Announce(CaseLedgerEntry) receive behavior tree.
+      CaseLedgerEntry records through the Add(CaseLedgerEntry) receive behavior tree.
     stories:
     - story_2026_057
   - id: SYNC-13-003
@@ -1560,12 +1674,12 @@ groups:
     kind: project
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_ledger_entry_routing.py::test_ingress_routes_ledger_entry_without_prestoring_entry`
-      confirms routing resolves an inbound `Announce(CaseLedgerEntry)` without
+      confirms routing resolves an inbound `Add(CaseLedgerEntry)` without
       pre-storing it.
     statement: >-
       Message ingress MUST NOT use the canonical ledger/DataLayer store as a scratch or
       lookup cache for routing, semantic classification, or rehydration of an inbound
-      Announce(CaseLedgerEntry).
+      Add(CaseLedgerEntry).
     rationale: >-
       If ingress stores an inbound entry to classify or rehydrate it, the entry is in
       the DataLayer before its effects run. The already-stored check (SYNC-12-003) then
@@ -1582,7 +1696,7 @@ groups:
       ledger write that SYNC-13-003 forbids.
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_ledger_entry_routing.py::test_ingress_routes_ledger_entry_without_prestoring_entry`
-      confirms routing resolves an inbound `Announce(CaseLedgerEntry)` from the
+      confirms routing resolves an inbound `Add(CaseLedgerEntry)` from the
       in-memory entry.
     relationships:
     - rel_type: implements
@@ -1591,14 +1705,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST treat an inbound Announce(CaseLedgerEntry) as the announcement of
+      A receiver MUST treat an inbound Add(CaseLedgerEntry) as the announcement of
       a ledger entry on first delivery, without needing any stored record of the entry.
     rationale: >-
       On first delivery the receiver has no stored record of the entry, so routing
       cannot depend on one.
     verification: >-
       Integration tests in `test/demo/` confirm that an inbound
-      Announce(CaseLedgerEntry) is routed to ANNOUNCE_CASE_LEDGER_ENTRY on first
+      Add(CaseLedgerEntry) is routed to ADD_CASE_LEDGER_ENTRY_TO_LEDGER on first
       delivery, without a DataLayer lookup.
     stories:
     - story_2026_014
@@ -1626,9 +1740,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase MUST resolve an inbound Announce(CaseLedgerEntry) to the log-entry
-      semantic (ANNOUNCE_CASE_LEDGER_ENTRY) on first delivery using the typed inline object
-      obtained during parsing, without a DataLayer round-trip.
+      This codebase MUST resolve an inbound Add(CaseLedgerEntry) to the log-entry
+      semantic (ADD_CASE_LEDGER_ENTRY_TO_LEDGER) on first delivery using the typed
+      inline object obtained during parsing, without a DataLayer round-trip.
     rationale: >-
       This codebase never fetches a ledger entry that a message names by reference, so
       the inline object is the only input the classifier has. Classification from it
@@ -1636,24 +1750,25 @@ groups:
       that needed a stored entry would fail on the first delivery of each entry, which
       the receiver has not stored yet.
     verification: >-
-      `test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase::test_semantic_type_is_correct` confirms an inbound
-      Announce(CaseLedgerEntry) carrying the typed inline entry is classified as
-      ANNOUNCE_CASE_LEDGER_ENTRY from the parsed activity alone, with nothing stored.
+      `test/core/use_cases/received/test_sync.py::TestAddLedgerEntryReceivedUseCase::test_semantic_type_is_correct`
+      confirms an inbound Add(CaseLedgerEntry) carrying the typed inline entry is
+      classified as ADD_CASE_LEDGER_ENTRY_TO_LEDGER from the parsed activity alone, with
+      nothing stored.
     relationships:
     - rel_type: implements
       spec_id: SYNC-13-004
 - id: SYNC-14
   title: Out-of-Order Entry Buffering and Drain
   description: >-
-    Announce(CaseLedgerEntry) is delivered over a transport with no ordering guarantee, and
+    Add(CaseLedgerEntry) is delivered over a transport with no ordering guarantee, and
     Vultron may not be the only implementation on the wire, so a replica can receive an entry
     before its hash-chain predecessor. Dropping such an entry and relying on a reject/replay
     round-trip does not converge under adversarial reordering, because replay re-announces
     entries individually over the same unordered transport (they can reorder and be dropped
     again). These requirements make replica convergence independent of delivery order by
-    holding the received Announce of a forward-gap entry in a non-ledger holding area and
+    holding the received Add of a forward-gap entry in a non-ledger holding area and
     replaying it, in hash-chain order, once the entry that closes the gap is committed.
-    What is held and replayed is the Announce that was received, never one the replica
+    What is held and replayed is the Add that was received, never one the replica
     builds. Rationale: ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md),
     ADR-0214.
   specs:
@@ -1661,9 +1776,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A forward gap is a valid Announce(CaseLedgerEntry) whose prev_log_hash does not
+      A forward gap is a valid Add(CaseLedgerEntry) whose prev_log_hash does not
       match the participant's chain tail and whose log_index is greater than
-      tail_index + 1. A participant MUST keep the Announce that carried a forward-gap
+      tail_index + 1. A participant MUST keep the Add that carried a forward-gap
       entry, as the body that arrived (VM-08-002), in a holding area until its
       predecessor arrives.
     rationale: >-
@@ -1677,7 +1792,7 @@ groups:
     - ADR-0214
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that a forward-gap
-      Announce(CaseLedgerEntry) is held as the body intake archived, with no ledger
+      Add(CaseLedgerEntry) is held as the body intake archived, with no ledger
       entry stored; integration tests in `test/demo/` confirm a forward-gap entry is
       retained rather than permanently discarded.
     stories:
@@ -1690,15 +1805,15 @@ groups:
     kind: protocol
     statement: >-
       A participant MUST NOT hold a forward-gap entry apart from the
-      Announce(CaseLedgerEntry) that carried it.
+      Add(CaseLedgerEntry) that carried it.
     rationale: >-
-      The replica holds the Announce and not the entry alone, so the drain applies what
+      The replica holds the Add and not the entry alone, so the drain applies what
       the replica received. An entry held alone can only reach the inbox again inside
-      an Announce that the replica makes up, which names a sender that never sent it.
+      an Add that the replica makes up, which names a sender that never sent it.
     verification: >-
       `test_forward_gap_holds_the_received_announce` in
       `test/core/use_cases/received/test_sync.py` asserts that a forward-gap entry is
-      held as the Announce body intake archived, with no ledger entry stored.
+      held as the Add body intake archived, with no ledger entry stored.
     relationships:
     - rel_type: extends
       spec_id: SYNC-14-001
@@ -1711,7 +1826,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant that holds a forward-gap entry's Announce MUST still send
+      A participant that holds a forward-gap entry's Add MUST still send
       `Reject(CaseLedgerEntry)` carrying its last accepted hash (SYNC-08-007). The
       Reject makes the CASE_MANAGER replay entries that were lost, never delivered,
       rather than merely reordered.
@@ -1736,9 +1851,9 @@ groups:
     kind: protocol
     statement: >-
       After a participant commits a CaseLedgerEntry, it MUST drain the holding area. For
-      each newly committed tail, it finds the held Announce, if any, whose entry's
+      each newly committed tail, it finds the held Add, if any, whose entry's
       prev_log_hash equals the tail's entry_hash. It applies that entry, and repeats
-      until no held Announce extends the current tail.
+      until no held Add extends the current tail.
     rationale: >-
       A held entry can apply only after its predecessor. Each commit can make one held
       entry appliable, and that entry can make the next one appliable. If the drain
@@ -1780,7 +1895,7 @@ groups:
     statement: The drain path MUST NOT re-apply effects for an entry already present in the local ledger (SYNC-12-003).
     rationale: Re-applying effects for a previously committed entry would cause duplicate state transitions and violate
       the idempotency guarantee established by SYNC-12-003.
-      A replayed Announce reaches the same already-stored check as any delivery
+      A replayed Add reaches the same already-stored check as any delivery
       (SYNC-14-008), so an entry committed between its hold and its replay is
       skipped, not applied again.
     stories:
@@ -1793,7 +1908,7 @@ groups:
     kind: protocol
     statement: >-
       Applying a drained entry MUST follow the same apply-then-persist rules as in-order
-      delivery, starting from the held Announce as in-order delivery starts from the
+      delivery, starting from the held Add as in-order delivery starts from the
       received one.
     rationale: >-
       A separate drain path can drift away from the in-order path. A drained entry
@@ -1810,10 +1925,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When a held Announce(CaseLedgerEntry) becomes appliable (SYNC-14-003,
+      When a held Add(CaseLedgerEntry) becomes appliable (SYNC-14-003,
       SYNC-15-005), the drain MUST replay it as a delivery of its own. The replay runs
       through the inbox's sole entry point (IO-02-003), under the receiving actor, never
-      inside the delivery that made it appliable. The replayed Announce's own tree
+      inside the delivery that made it appliable. The replayed Add's own tree
       replays the next one, so the cascade needs no loop in the use case.
     rationale: >-
       One delivery runs one tree (CLP-10-005), so a drain that ran its successor inline
@@ -1823,10 +1938,10 @@ groups:
       (SYNC-14-008, ADR-0214).
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that committing an
-      entry whose successor's Announce is held replays that Announce and runs no
+      entry whose successor's Add is held replays that Add and runs no
       second tree in the same `execute()`;
       `test/core/use_cases/received/actor/test_announce.py` asserts the same
-      for an Announce held before the case was seeded; and
+      for an Add held before the case was seeded; and
       `test/adapters/driving/fastapi/test_ledger_replay_pipeline.py` asserts an
       out-of-order pair and a pre-genesis pair converge through the replay.
     relationships:
@@ -1844,15 +1959,15 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The drain MUST replay the Announce(CaseLedgerEntry) that was received, parsed
+      The drain MUST replay the Add(CaseLedgerEntry) that was received, parsed
       again from the body held for it (VM-08-008). The replay then carries the first
       delivery's received evidence.
     rationale: >-
       Intake archives what it receives as received evidence. A replay parsed from that
-      body is the Announce that arrived, with its own id and sender.
+      body is the Add that arrived, with its own id and sender.
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that the replay carries the
-      held Announce's own id, its own sender and its received body, and
+      held Add's own id, its own sender and its received body, and
       `test/adapters/driving/fastapi/test_ledger_replay_pipeline.py` asserts an intake
       archive that holds each delivered body once, as it arrived.
     relationships:
@@ -1866,15 +1981,15 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A participant MUST NOT replay an Announce(CaseLedgerEntry) it built itself, or one
+      A participant MUST NOT replay an Add(CaseLedgerEntry) it built itself, or one
       it attributes to a sender that did not send it.
     rationale: >-
-      A receiver that did not receive an Announce cannot make one up. A made-up
-      Announce would name a sender that never sent it, and its received evidence would
+      A receiver that did not receive an Add cannot make one up. A made-up
+      Add would name a sender that never sent it, and its received evidence would
       be false.
     verification: >-
       `test/adapters/driving/fastapi/test_ledger_replay_pipeline.py` asserts that the
-      replayed pairs leave no record of an Announce nobody sent.
+      replayed pairs leave no record of an Add nobody sent.
     relationships:
     - rel_type: extends
       spec_id: SYNC-14-009
@@ -1884,7 +1999,7 @@ groups:
     priority: MUST_NOT
     kind: project
     verification: >-
-      Inspection confirms the out-of-order holding area holds received Announces apart
+      Inspection confirms the out-of-order holding area holds received Adds apart
       from the ledger.
     statement: >-
       The out-of-order holding area MUST NOT be the canonical ledger.
@@ -1898,14 +2013,14 @@ groups:
     priority: MAY
     kind: project
     statement: >-
-      The holding area MAY keep a held Announce in the receiver's DataLayer, but only as
+      The holding area MAY keep a held Add in the receiver's DataLayer, but only as
       records of its own kind, never as a CaseLedgerEntry.
     rationale: >-
-      A held Announce has to survive a restart, so the DataLayer is a fit place for it.
+      A held Add has to survive a restart, so the DataLayer is a fit place for it.
       A record of its own kind keeps it apart from the ledger entries that SYNC-13-001
       reads.
     verification: >-
-      Inspection confirms the holding area stores held Announces as records of their
+      Inspection confirms the holding area stores held Adds as records of their
       own kind, apart from the ledger.
     relationships:
     - rel_type: extends
@@ -1924,7 +2039,7 @@ groups:
       check would skip its effects when it drains.
     verification: >-
       Inspection confirms a held entry is persisted as a `CaseLedgerEntry` only when its
-      replayed Announce is applied, and `test_forward_gap_holds_the_received_announce`
+      replayed Add is applied, and `test_forward_gap_holds_the_received_announce`
       in `test/core/use_cases/received/test_sync.py` asserts no ledger entry is stored
       for a held entry.
     relationships:
@@ -1954,7 +2069,7 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      When the holding area is full, it SHOULD drop the Announce whose entry is farthest
+      When the holding area is full, it SHOULD drop the Add whose entry is farthest
       ahead of the current gap (highest log_index). When a held one is farthest ahead,
       it evicts that one, body and all, and logs a warning. When the new entry is itself
       the farthest ahead, it declines to hold the new one.
@@ -1964,7 +2079,7 @@ groups:
       replay, and the replay sends the entry again.
     verification: >-
       `test/core/use_cases/received/test_sync.py` (`TestHeldAnnounceBound`)
-      asserts that a full holding area drops the farthest-ahead Announce with
+      asserts that a full holding area drops the farthest-ahead Add with
       its body and a warning, and declines one farther still.
     relationships:
     - rel_type: extends
@@ -1992,7 +2107,7 @@ groups:
 - id: SYNC-15
   title: Genesis-Unavailable Buffer-and-Reject
   description: >-
-    A participant replica receives Announce(CaseLedgerEntry) activities from the CASE_MANAGER
+    A participant replica receives Add(CaseLedgerEntry) activities from the CASE_MANAGER
     over an unordered transport.  If the CASE_MANAGER delivers a ledger entry before the
     Create/Announce(VulnerabilityCase) activity has been processed by the participant (a
     delivery race under HTTP BackgroundTasks), the replica cannot reconstruct the per-case
@@ -2017,7 +2132,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant that receives an Announce(CaseLedgerEntry) before it holds the
+      A participant that receives an Add(CaseLedgerEntry) before it holds the
       VulnerabilityCase cannot reconstruct the per-case genesis hash (CLP-08-002). Such
       a participant MUST tell the CASE_MANAGER by sending it a Reject(CaseLedgerEntry)
       with last_accepted_hash="". The CASE_MANAGER then replays all entries from the
@@ -2034,7 +2149,7 @@ groups:
       Integration tests in `test/demo/` confirm that receiving a ledger entry before the
       VulnerabilityCase is present triggers a Reject(CaseLedgerEntry) with
       last_accepted_hash="" to the CASE_MANAGER;
-      `test/core/behaviors/sync/test_announce_tree.py`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py`
       (`test_early_entries_within_the_interval_send_one_genesis_reject` and
       `test_early_entry_after_the_interval_sends_a_new_genesis_reject`) confirm the
       withheld Reject and the request after the interval.
@@ -2183,9 +2298,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule covers a participant that receives a valid Announce(CaseLedgerEntry)
+      This rule covers a participant that receives a valid Add(CaseLedgerEntry)
       before it holds the VulnerabilityCase, so it cannot reconstruct the per-case
-      genesis hash (CLP-08-002). Such a participant MUST keep the Announce, as received,
+      genesis hash (CLP-08-002). Such a participant MUST keep the Add, as received,
       in the forward-gap holding area (SYNC-14-001), keyed by the entry's prev_log_hash,
       until the case seed arrives. Unlike a forward gap, this hold needs no tail_index
       comparison, because no chain tail exists before genesis. Every entry for the
@@ -2225,10 +2340,10 @@ groups:
       After a participant seeds the VulnerabilityCase, through Create or
       Announce(VulnerabilityCase), it MUST drain the holding area for that case. Seeding
       anchors the deterministic per-case genesis hash (CLP-08). The participant finds
-      the held Announce, if any, whose entry's prev_log_hash equals that genesis hash,
+      the held Add, if any, whose entry's prev_log_hash equals that genesis hash,
       and replays it (SYNC-14-009). The replay applies the entry and then persists it,
       as in-order delivery does (SYNC-14-004). The drain cascades in hash-chain order
-      (SYNC-14-003) until no held Announce extends the current tail.
+      (SYNC-14-003) until no held Add extends the current tail.
     rationale: >-
       A participant can compute the genesis hash from the case object alone: it comes
       from the case id, the creation time and the Case Owner's actor id (CLP-08-002).
@@ -2259,13 +2374,13 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      The CASE_MANAGER MUST NOT enqueue a replay `Announce(CaseLedgerEntry)` for an
-      (entry, peer) pair while an earlier `Announce` of that same entry to that same peer
+      The CASE_MANAGER MUST NOT enqueue a replay `Add(CaseLedgerEntry)` for an
+      (entry, peer) pair while an earlier `Add` of that same entry to that same peer
       is still pending in its outbox.
     rationale: >-
       A `Reject` that arrives after the peer's gap has drained still reports an
       advanced position, so SYNC-15-010 replays. The replayed entries are often still
-      in the outbox from the last replay. Queuing them again puts duplicate Announces
+      in the outbox from the last replay. Queuing them again puts duplicate Adds
       in front of the next entry's fan-out to every other peer. This rule stops only a
       second copy of the same row, and the replay itself still occurs (ADR-0112).
     relationships:
@@ -2275,7 +2390,7 @@ groups:
     - ADR-0112
     verification: >-
       `test/adapters/driven/test_sync_adapter_pending_dedup.py` confirms the sync adapter
-      queues an (entry, peer) Announce once while it is pending and again once it has been
+      queues an (entry, peer) Add once while it is pending and again once it has been
       popped; `test/core/behaviors/sync/nodes/test_replay.py` confirms a replay through the
       adapter adds only the entries not already pending and records no position when it
       adds none.
@@ -2386,7 +2501,7 @@ groups:
       replay, and the duplicates delayed unrelated messages by about 20 seconds
       (#5552).
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py`
       (`test_early_entries_within_the_interval_send_one_genesis_reject`) confirms
       that three early entries for one missing case, delivered inside the interval,
       are all held and draw one genesis Reject;
@@ -2412,7 +2527,7 @@ groups:
       Reject carries that Reject's id, and the CASE_MANAGER drops a known id as a
       duplicate (ID-02-001), so a request after the interval must be its own activity.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py`
       (`test_early_entry_after_the_interval_sends_a_new_genesis_reject`) confirms
       that an entry redelivered after the interval draws a second genesis Reject
       whose id differs from the first.
@@ -2438,7 +2553,7 @@ groups:
       `test/core/behaviors/sync/test_reject_tree.py`
       (`test_genesis_reject_after_the_ceiling_replays_again`) confirms the
       CASE_MANAGER replays again after the ceiling;
-      `test/core/behaviors/sync/test_announce_tree.py`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py`
       (`test_early_entry_after_the_interval_sends_a_new_genesis_reject`) confirms
       the participant asks again after its interval.
     relationships:
@@ -2482,7 +2597,7 @@ groups:
       number for "how long a stuck replica may wait", and a shared constant keeps the
       two from drifting apart.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py`
       (`test_early_entries_within_the_interval_send_one_genesis_reject` and
       `test_early_entry_after_the_interval_sends_a_new_genesis_reject`) confirm that
       a participant withholds a genesis Reject just under the ceiling and sends one
@@ -2503,9 +2618,9 @@ groups:
     rationale: >-
       The participant decides SYNC-15-016 when an early entry arrives, so it needs the
       time of its last request then; no existing record carries it, since a held
-      Announce has no timestamp. Keeping it in the store survives a restart.
+      Add has no timestamp. Keeping it in the store survives a restart.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py`
       (`test_early_entries_within_the_interval_send_one_genesis_reject`) confirms
       that the limit holds across fresh trees on one store.
     relationships:
@@ -2548,7 +2663,7 @@ groups:
       case inherit an old time, so the participant could withhold that wait's first
       request.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py`
       (`test_seeding_the_case_clears_the_genesis_reject_record`) confirms that a new
       wait after the seed asks at once;
       `test/core/behaviors/case/test_create_case_received_tree.py`
@@ -2635,7 +2750,7 @@ groups:
       participant's case file is not already past the entry. Such a participant MUST
       send `Create(ProcessingFault)` with failure class
       `LedgerEntryRefused/CaseDiverged` to the case's CASE_MANAGER, naming the refused
-      `Announce(CaseLedgerEntry)` by reference.
+      `Add(CaseLedgerEntry)` by reference.
     rationale: >-
       The entry was received but could not be processed, which MSM-05-001 assigns to a
       processing fault. Without it the CASE_MANAGER sees only gap Rejects, and its
@@ -2962,7 +3077,7 @@ groups:
     statement: >-
       This rule covers a participant that receives `Announce(VulnerabilityCase)` from
       the case's CASE_MANAGER for a case it already holds, a repeat of an earlier
-      Announce included. Such a participant MUST compare the copy's ledger position
+      Add included. Such a participant MUST compare the copy's ledger position
       (SYNC-16-005) with its own. Its own position is the later of its chain's tail and
       its case's stored position.
     rationale: >-
@@ -2980,7 +3095,7 @@ groups:
       conflicting and current copy, and a copy behind or conflicting with the
       last replacing copy;
       `test/core/use_cases/received/actor/test_announce.py` covers a repeat of the
-      same Announce.
+      same Add.
     stories:
     - story_2026_050
   - id: SYNC-16-020
@@ -3298,7 +3413,7 @@ groups:
   title: Participant Position Statements
   description: >-
     A participant's replica can fall behind with nothing to show it: when the last
-    `Announce(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives
+    `Add(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives
     with a gap, so no `Reject(CaseLedgerEntry)` is sent and the reject-and-replay loop
     never starts. The CASE_MANAGER cannot see the lag either, because nothing tells it
     how far a participant has got. The participant therefore states its position, when
@@ -3375,7 +3490,7 @@ groups:
       `test_unconsented_participant_with_lagging_position_is_refused` and
       `test_closed_participant_with_lagging_position_is_refused` in
       `test/core/behaviors/sync/test_position_statements.py` assert no replication
-      state for the sender and no `Announce(CaseLedgerEntry)` queued to it.
+      state for the sender and no `Add(CaseLedgerEntry)` queued to it.
     stories:
     - story_2026_054
   - id: SYNC-17-003
@@ -3409,7 +3524,7 @@ groups:
     statement: >-
       When the stated position the CASE_MANAGER acts on (SYNC-17-002) is behind its
       tail, it MUST send the sender each later canonical entry, in log order. It sends
-      them as `Announce(CaseLedgerEntry)`, under the replay rate bound (SYNC-15-003,
+      them as `Add(CaseLedgerEntry)`, under the replay rate bound (SYNC-15-003,
       SYNC-15-013) and outbox de-duplication (SYNC-15-012) of a `Reject`-triggered
       replay.
     rationale: >-
@@ -3430,7 +3545,7 @@ groups:
     adr:
     - ADR-0155
     verification: >-
-      Tests marked `SYNC-17-004` drop the last `Announce(CaseLedgerEntry)` to a
+      Tests marked `SYNC-17-004` drop the last `Add(CaseLedgerEntry)` to a
       participant, send no further entry and no `Reject`, and assert that the
       participant's `Read(CaseLedgerEntry)` brings its tail to the CASE_MANAGER's. They
       also assert that a second lagging position inside the replay cooldown queues no
@@ -3608,7 +3723,7 @@ groups:
       A sender MUST NOT put a `ledgerPosition` on three kinds of activity. They are one
       sent before it holds the case's ledger, one whose object already states a ledger
       position, and a `Create(ProcessingFault)`. The objects that state their own
-      position are in `Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`,
+      position are in `Add(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`,
       `Create(VulnerabilityCase)` and `Update(VulnerabilityCase)`.
     rationale: >-
       A stub-Invite reply or a report `Offer` comes from an actor with no ledger to
@@ -4047,7 +4162,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A message the CASE_MANAGER sends outside `Announce(CaseLedgerEntry)` MUST NOT
+      A message the CASE_MANAGER sends outside `Add(CaseLedgerEntry)` MUST NOT
       leave a replica in a final state that its related ledger entries do not determine.
     rationale: >-
       A direct message that wrote state the ledger later cannot correct would let two
@@ -4071,7 +4186,7 @@ groups:
       Per-recipient delivery order MUST NOT be a protocol guarantee.
     rationale: >-
       Another implementation may share the wire with no ordered outbox, and even an
-      ordered outbox loses that order when an `Announce` is lost and replayed later, so
+      ordered outbox loses that order when an `Add` is lost and replayed later, so
       a rule that holds only under ordered delivery fails in exactly the cases recovery
       exists for.
     adr:
@@ -4126,7 +4241,7 @@ groups:
     statement: >-
       A sender MUST NOT rely on its own ordered delivery for a receiver's correctness.
     rationale: >-
-      Even an ordered outbox loses its order when an `Announce` is lost and replayed
+      Even an ordered outbox loses its order when an `Add` is lost and replayed
       later, so a sender whose messages are correct only in its own order fails during
       recovery.
     relationships:
@@ -4268,7 +4383,7 @@ groups:
       An Invite still waiting in the outbox has not been lost, so a second copy would
       only queue behind it. Not counting the skip keeps a later, real resend from
       waiting out a cooldown no delivery started. This is the replay's rule for a pending
-      `Announce` (SYNC-15-012).
+      `Add` (SYNC-15-012).
     relationships:
     - rel_type: refines
       spec_id: OX-06-002

@@ -37,6 +37,7 @@ from vultron.core.models.case_reference import (
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.status_history import status_history_id
 
 #: The link relation of the case's reference to its VINCE page
 #: (VINCE-CA-02, CRD-03-002).
@@ -337,7 +338,8 @@ def note(t: CaseTranslation) -> None:
             ),
             source_record=source,
             label="published:case-status",
-            target=t.case_id,
+            # The case's status history (ADR-0204).
+            target=status_history_id(t.case_id),
         )
     )
 

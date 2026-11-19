@@ -37,7 +37,10 @@ def _make_note_entry(note_id: str = NOTE_ID):
             log_index=0,
             object_id="https://example.org/activities/add-note",
             semantic_type="add_note_to_case",
-            payload_snapshot={"object": {"id": note_id}},
+            payload_snapshot={
+                "id": "https://example.org/activities/add-note",
+                "object": {"id": note_id},
+            },
             prev_log_hash="0" * 64,
             received_at=ACT_AT,
         )
@@ -130,7 +133,10 @@ def _make_remove_note_entry(note_id: str = NOTE_ID):
             log_index=0,
             object_id="https://example.org/activities/remove-note",
             semantic_type="remove_note_from_case",
-            payload_snapshot={"object": {"id": note_id}},
+            payload_snapshot={
+                "id": "https://example.org/activities/remove-note",
+                "object": {"id": note_id},
+            },
             prev_log_hash="0" * 64,
             received_at=ACT_AT,
         )
@@ -205,13 +211,14 @@ def test_apply_note_stores_a_note_the_seeded_case_already_names(
             object_id="https://example.org/activities/add-note",
             semantic_type="add_note_to_case",
             payload_snapshot={
+                "id": "https://example.org/activities/add-note",
                 "object": {
                     "id": NOTE_ID,
                     "type": "Note",
                     "published": "2026-01-01T00:00:00+00:00",
                     "content": "seeded note",
                     "context": CASE_ID,
-                }
+                },
             },
             prev_log_hash="0" * 64,
             received_at=ACT_AT,

@@ -96,7 +96,7 @@ def _announced(dl: SqliteDataLayer) -> dict[str, set[str]]:
         sealed = read_sealed_body(dl, item)
         assert sealed is not None
         body: dict[str, Any] = json.loads(sealed.body)
-        if body.get("type") != "Announce":
+        if body.get("type") != "Add":
             continue
         entry = body.get("object")
         if not isinstance(entry, dict) or entry.get("type") != (

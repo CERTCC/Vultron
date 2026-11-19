@@ -20,7 +20,10 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
 
 ## How replication works
 
-1. The CASE_MANAGER commits a new log entry and sends it to each participant as `Announce(CaseLedgerEntry)`.
+1. The CASE_MANAGER commits a new log entry and sends it to each participant as `Add(CaseLedgerEntry)`.
+   The `Add` adds the entry to the case's ledger, `<case>/ledger`, which is its `target`; its `context` is the case ([ADR-0204](../../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md), SYNC-02-006).
+   The ledger is an ordered collection whose items are the case's entries in `logIndex` order, and its id is an identity only: no route serves it.
+   The `Add` names the act the entry commits in `inReplyTo`, so it is also that act's positive acknowledgment to its sender, and it carries no `result` (SYNC-02-007, SYNC-02-009, MSM-05-009).
 2. A participant first recomputes the entry's hash from its content.
    An entry that does not reproduce its `entry_hash` is refused and logged, with no `Reject` (SYNC-03-012, CLP-04-008).
    The participant sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead (SYNC-03-007).
@@ -29,7 +32,7 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
    An unbroken hash chain is the implied positive acknowledgment (MSM-05-002).
 4. A participant whose hashes do not match sends `Reject(CaseLedgerEntry)` whose `ledgerPosition` is its ledger tail, the last entry it accepted.
    From that position, the CASE_MANAGER can replay the gap (SYNC-03-001, SYNC-03-002).
-   Its `inReplyTo` names the `Announce(CaseLedgerEntry)` that carried the entry (RF-08-004).
+   Its `inReplyTo` names the `Add(CaseLedgerEntry)` that carried the entry (RF-08-004).
 5. A participant that wants to check its ledger is current states its position: `Read(CaseLedgerEntry)` naming the last entry it applied.
    The CASE_MANAGER records that position and replays every entry after it (SYNC-17-001, SYNC-17-004).
 
@@ -38,7 +41,7 @@ The sender puts its ledger tail in the activity's `ledgerPosition`, the same pro
 The position is the tail when the sender built the message, and a resend keeps it (SYNC-18-002, SYNC-18-009).
 A receiver refuses a case message that carries no position or one that does not parse (SYNC-18-015).
 The position is part of the received body, so the ledger entry for the message records it (SYNC-18-006).
-`Announce(CaseLedgerEntry)` and `Announce(VulnerabilityCase)` carry none, because the entry and the case state their own positions.
+`Add(CaseLedgerEntry)` and `Announce(VulnerabilityCase)` carry none, because the entry and the case state their own positions.
 `Create(ProcessingFault)` carries none either: any receiver sends one, about an activity it could not process.
 
 A participant also numbers each case message it sends the CASE_MANAGER that carries a `ledgerPosition`, in the activity's `senderSequence` (SYNC-21-001, [ADR-0178](../../adr/0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)).
@@ -94,7 +97,7 @@ A record the CASE_MANAGER creates is its own `Create(CaseParticipant)` entry.
 A replica copies each of these, ids and times included (CLP-07-013, CM-23-016).
 
 The replica does not patch over an embargo or consent entry whose starting state does not match the replica's case.
-It holds the `Announce` that carried that entry as a `HeldLedgerAnnounce`.
+It holds the `Add` that carried that entry as a `HeldLedgerAnnounce`.
 When that entry extends the replica's chain and the case is not already past it, the replica's case has diverged.
 The replica then sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/CaseDiverged` (SYNC-16-001).
 From an active participant, the CASE_MANAGER answers that fault with `Announce(VulnerabilityCase)` of its current case, which names its ledger position, so the replica can replace its case and store the held entry (SYNC-16-003).
@@ -107,18 +110,18 @@ Neither fault is committed to a case ledger, by the replica or by the CASE_MANAG
 
 ---
 
-{% include-markdown "./_occasions/sections/announce-case-ledger-entry.md" %}
+{% include-markdown "./_occasions/sections/add-case-ledger-entry.md" %}
 
 - **Triggering transition:** triggered internally after any event is recorded to the log — not a protocol shorthand.
 - **Spec:** SYNC-09-002.
-- **Pattern:** `AnnounceLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.
-- **Factory:** `announce_log_entry_activity` in `vultron/wire/as2/factories/sync.py`.
-- **Example artifact:** [announce_case_ledger_entry.json](../examples/announce_case_ledger_entry.json).
+- **Pattern:** `AddLogEntryToLedgerPattern` in `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `add_log_entry_activity` in `vultron/wire/as2/factories/sync.py`.
+- **Example artifact:** [add_case_ledger_entry.json](../examples/add_case_ledger_entry.json).
 
 Each entry carries a content hash and the hash of its predecessor, forming a chain.
 A participant checks the chain when an entry arrives.
-It holds the `Announce` of any entry that arrives before its predecessor as a `HeldLedgerAnnounce`.
-It replays that `Announce` when the predecessor arrives (ADR-0037, SYNC-14-009).
+It holds the `Add` of any entry that arrives before its predecessor as a `HeldLedgerAnnounce`.
+It replays that `Add` when the predecessor arrives (ADR-0037, SYNC-14-009).
 
 ---
 
@@ -162,7 +165,7 @@ The check runs before any write, so a stranger cannot obtain case content by sen
 
 `Read(CaseLedgerEntry)` is the participant's position statement.
 `Read` states a fact and asks for nothing, so it claims no refusal, where a `Reject` would.
-It covers the case the `Reject` loop cannot: when the last `Announce(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives with a gap, and no `Reject` is ever sent ([ADR-0155](../../adr/0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md)).
+It covers the case the `Reject` loop cannot: when the last `Add(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives with a gap, and no `Reject` is ever sent ([ADR-0155](../../adr/0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md)).
 A participant whose case is still at the empty ledger's position has applied no entry, so it has none to name and sends no `Read`.
 
 A participant also states its position once `Announce(VulnerabilityCase)` seeds its replica of a case (SYNC-17-008).
@@ -173,7 +176,7 @@ If that send fails after the seed, the reference participant's next restart stat
 
 The CASE_MANAGER's answer is the one it gives a `Reject`.
 It records the named entry's hash as the sender's acknowledged position (SYNC-17-003).
-When that position is behind its ledger tail, it sends the sender every entry after it, in log order, as `Announce(CaseLedgerEntry)`, under the same replay rate bound and outbox de-duplication as a `Reject`-triggered replay (SYNC-17-004).
+When that position is behind its ledger tail, it sends the sender every entry after it, in log order, as `Add(CaseLedgerEntry)`, under the same replay rate bound and outbox de-duplication as a `Reject`-triggered replay (SYNC-17-004).
 At the tail it sends nothing.
 
 It answers only an active participant (SYNC-17-002, CM-10-004).
@@ -217,11 +220,11 @@ A resend commits no ledger entry, because the Invite's emission was ledgered whe
 
 A participant whose replica starts for the first time receives `Announce(VulnerabilityCase)`, not a ledger entry.
 This happens after it accepts an `Invite`, or after a `Create(CaseProposal)` is accepted.
-The participant holds any `Announce(CaseLedgerEntry)` that arrives before the seed as a `HeldLedgerAnnounce`, keyed by `prev_log_hash`.
-It replays that `Announce` when it can compute the genesis hash from the seeded case (ADR-0059).
+The participant holds any `Add(CaseLedgerEntry)` that arrives before the seed as a `HeldLedgerAnnounce`, keyed by `prev_log_hash`.
+It replays that `Add` when it can compute the genesis hash from the seeded case (ADR-0059).
 While it waits, it sends the CASE_MANAGER one `Reject(CaseLedgerEntry)` with an empty `last_accepted_hash` per case, not one per held entry, and another, under a new id, only for an entry that arrives once 600 seconds have passed (SYNC-15-016, SYNC-15-017).
 It records the time of the last one as a `GenesisRejectRecord` and deletes that record when it seeds the case (SYNC-15-021, SYNC-15-023).
-A report submitter's replica is seeded by the report receiver's `Create(VulnerabilityCase)` instead (CBT-01-001), and that seed replays the held `Announce` the same way (SYNC-15-005).
+A report submitter's replica is seeded by the report receiver's `Create(VulnerabilityCase)` instead (CBT-01-001), and that seed replays the held `Add` the same way (SYNC-15-005).
 The report receiver's own seed, the CASE_MANAGER's `Create(VulnerabilityCase)`, replays held entries the same way too.
 The receiver and the CASE_MANAGER are separate senders, so the CASE_MANAGER's entries often arrive before that `Create`.
 After an `Announce(VulnerabilityCase)` seed, the participant states its position in the seeded case with `Read(CaseLedgerEntry)` ([Read case ledger entry](#read-case-ledger-entry), SYNC-17-008).

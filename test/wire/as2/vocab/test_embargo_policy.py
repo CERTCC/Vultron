@@ -32,7 +32,6 @@ from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models.enums import VultronObjectType as VO_type
 
 ACTOR_ID = "https://example.org/actors/vendor"
-INBOX = "https://example.org/actors/vendor/inbox"
 
 # Canonical ISO 8601 durations used across tests
 _P90D = timedelta(days=90)
@@ -47,29 +46,26 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
     def setUp(self):
         self.policy = make(
             ep_module.as_EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration="P90D",
             minimum_duration="P45D",
             maximum_duration="P180D",
-            notes="Prefer 90 days; shorter for critical.",
+            content="Prefer 90 days; shorter for critical.",
         )
 
     def test_creation_with_all_fields(self):
         p = self.policy
-        self.assertEqual(ACTOR_ID, p.actor_id)
-        self.assertEqual(INBOX, p.inbox)
+        self.assertEqual(ACTOR_ID, p.attributed_to)
         self.assertEqual(_P90D, p.preferred_duration)
         self.assertEqual(_P45D, p.minimum_duration)
         self.assertEqual(_P180D, p.maximum_duration)
-        self.assertEqual("Prefer 90 days; shorter for critical.", p.notes)
+        self.assertEqual("Prefer 90 days; shorter for critical.", p.content)
         self.assertEqual(VO_type.EMBARGO_POLICY, p.type_)
 
     def test_creation_accepts_timedelta_directly(self):
         p = make(
             ep_module.as_EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P60D,
         )
         self.assertEqual(_P60D, p.preferred_duration)
@@ -77,34 +73,21 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
     def test_creation_with_required_fields_only(self):
         p = make(
             ep_module.as_EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration="P60D",
         )
         self.assertEqual(_P60D, p.preferred_duration)
         self.assertIsNone(p.minimum_duration)
         self.assertIsNone(p.maximum_duration)
-        self.assertIsNone(p.notes)
+        self.assertIsNone(p.content)
 
-    def test_actor_id_required(self):
+    def test_attributed_to_required(self):
         with pytest.raises(ValidationError):
-            make(
-                ep_module.as_EmbargoPolicy,
-                inbox=INBOX,
-                preferred_duration="P90D",
-            )
-
-    def test_inbox_required(self):
-        with pytest.raises(ValidationError):
-            make(
-                ep_module.as_EmbargoPolicy,
-                actor_id=ACTOR_ID,
-                preferred_duration="P90D",
-            )
+            make(ep_module.as_EmbargoPolicy, preferred_duration="P90D")
 
     def test_preferred_duration_required(self):
         with pytest.raises(ValidationError):
-            make(ep_module.as_EmbargoPolicy, actor_id=ACTOR_ID, inbox=INBOX)
+            make(ep_module.as_EmbargoPolicy, attributed_to=ACTOR_ID)
 
     def test_as_type_is_embargo_policy(self):
         self.assertEqual(VO_type.EMBARGO_POLICY, self.policy.type_)
@@ -120,12 +103,11 @@ class TestEmbargoPolicyValidation(unittest.TestCase):
     def _make(
         self,
         *,
-        actor_id: str = ACTOR_ID,
-        inbox: str = INBOX,
+        attributed_to: str = ACTOR_ID,
         preferred_duration: str | timedelta = "P90D",
         minimum_duration: str | timedelta | None = None,
         maximum_duration: str | timedelta | None = None,
-        notes: str | None = None,
+        content: str | None = None,
     ) -> ep_module.as_EmbargoPolicy:
         # cast(Any, ...) allows passing str inputs that Pydantic's field_validator
         # converts to timedelta at runtime (mypy sees the declared timedelta type).
@@ -133,34 +115,29 @@ class TestEmbargoPolicyValidation(unittest.TestCase):
             ep_module.as_EmbargoPolicy,
             make(
                 ep_module.as_EmbargoPolicy,
-                actor_id=actor_id,
-                inbox=inbox,
+                attributed_to=attributed_to,
                 preferred_duration=preferred_duration,
                 minimum_duration=minimum_duration,
                 maximum_duration=maximum_duration,
-                notes=notes,
+                content=content,
             ),
         )
 
-    def test_actor_id_empty_string_rejected(self):
+    def test_attributed_to_empty_string_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
-            self._make(actor_id="")
+            self._make(attributed_to="")
         assert "must be a non-empty string" in str(exc_info.value)
 
-    def test_actor_id_whitespace_only_rejected(self):
+    def test_attributed_to_whitespace_only_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
-            self._make(actor_id="   ")
+            self._make(attributed_to="   ")
         assert "must be a non-empty string" in str(exc_info.value)
 
-    def test_inbox_empty_string_rejected(self):
+    @pytest.mark.spec("EP-01-005")
+    def test_attributed_to_not_a_uri_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
-            self._make(inbox="")
-        assert "must be a non-empty string" in str(exc_info.value)
-
-    def test_inbox_whitespace_only_rejected(self):
-        with pytest.raises(ValidationError) as exc_info:
-            self._make(inbox="   ")
-        assert "must be a non-empty string" in str(exc_info.value)
+            self._make(attributed_to="vendor")
+        assert "must be a URI" in str(exc_info.value)
 
     def test_malformed_duration_rejected(self):
         """DUR-04-002: Malformed ISO 8601 duration strings must be rejected."""
@@ -213,18 +190,18 @@ class TestEmbargoPolicyValidation(unittest.TestCase):
         with pytest.raises(ValidationError):
             self._make(maximum_duration="not-valid")
 
-    def test_notes_none_accepted(self):
-        p = self._make(notes=None)
-        self.assertIsNone(p.notes)
+    def test_content_none_accepted(self):
+        p = self._make(content=None)
+        self.assertIsNone(p.content)
 
-    def test_notes_empty_string_rejected(self):
+    def test_content_empty_string_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
-            self._make(notes="")
+            self._make(content="")
         assert "must be a non-empty string" in str(exc_info.value)
 
-    def test_notes_whitespace_only_rejected(self):
+    def test_content_whitespace_only_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
-            self._make(notes="   ")
+            self._make(content="   ")
         assert "must be a non-empty string" in str(exc_info.value)
 
 
@@ -234,12 +211,11 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
     def setUp(self):
         self.policy = make(
             ep_module.as_EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration="P90D",
             minimum_duration="P45D",
             maximum_duration="P180D",
-            notes="Prefer 90 days.",
+            content="Prefer 90 days.",
         )
 
     def test_internal_representation_is_timedelta(self):
@@ -273,17 +249,15 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
     def test_round_trip_via_object_to_record(self):
         record = object_to_record(self.policy)
         data = record.data_
-        self.assertIn("actor_id", data)
-        self.assertEqual(ACTOR_ID, data["actor_id"])
-        self.assertIn("inbox", data)
-        self.assertEqual(INBOX, data["inbox"])
+        self.assertEqual(ACTOR_ID, data["attributed_to"])
+        self.assertNotIn("inbox", data)
         self.assertIn("preferred_duration", data)
         self.assertEqual("P90D", data["preferred_duration"])
         self.assertIn("minimum_duration", data)
         self.assertEqual("P45D", data["minimum_duration"])
         self.assertIn("maximum_duration", data)
         self.assertEqual("P180D", data["maximum_duration"])
-        self.assertIn("notes", data)
+        self.assertEqual("Prefer 90 days.", data["content"])
 
     def test_datalayer_round_trip(self):
         """DUR-05-001, DUR-05-002: Round-trip through DataLayer preserves durations."""
@@ -296,8 +270,8 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
         self.assertIsNotNone(stored)
         stored = cast(ep_module.as_EmbargoPolicy, stored)
         self.assertEqual(self.policy.id_, stored.id_)
-        self.assertEqual(ACTOR_ID, stored.actor_id)
-        self.assertEqual(INBOX, stored.inbox)
+        self.assertEqual(ACTOR_ID, stored.attributed_to)
+        self.assertEqual("Prefer 90 days.", stored.content)
         self.assertEqual(_P90D, stored.preferred_duration)
         self.assertEqual(_P45D, stored.minimum_duration)
         self.assertEqual(_P180D, stored.maximum_duration)
@@ -306,8 +280,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
         """DUR-05-001, DUR-05-002: timedelta → 'P90D' → timedelta round-trips correctly."""
         p = make(
             ep_module.as_EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=timedelta(days=90),
         )
         json_str = p.model_dump_json(exclude_none=True, by_alias=True)
@@ -321,8 +294,10 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
     def test_json_serialization(self):
         j = self.policy.model_dump_json(exclude_none=True, by_alias=True)
         self.assertIn("EmbargoPolicy", j)
-        self.assertIn(ACTOR_ID, j)
-        self.assertIn(INBOX, j)
+        data = json.loads(j)
+        self.assertEqual(ACTOR_ID, data["attributedTo"])
+        self.assertEqual("Prefer 90 days.", data["content"])
+        self.assertFalse({"actorId", "inbox", "notes"} & data.keys())
 
     def test_type_distinctness(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -349,12 +324,11 @@ class TestEmbargoPolicyCoreConversion(unittest.TestCase):
         self.wire_cls = ep_module.as_EmbargoPolicy
         self.core_policy = make(
             CoreEmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P90D,
             minimum_duration=_P45D,
             maximum_duration=_P180D,
-            notes="Prefer 90 days.",
+            content="Prefer 90 days.",
         )
 
     def test_from_core_produces_wire_instance(self):
@@ -366,19 +340,17 @@ class TestEmbargoPolicyCoreConversion(unittest.TestCase):
         """Direct core instantiation via wire alias preserves all fields."""
         policy = make(
             self.wire_cls,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P90D,
             minimum_duration=_P45D,
             maximum_duration=_P180D,
-            notes="Prefer 90 days.",
+            content="Prefer 90 days.",
         )
-        self.assertEqual(policy.actor_id, ACTOR_ID)
-        self.assertEqual(policy.inbox, INBOX)
+        self.assertEqual(policy.attributed_to, ACTOR_ID)
         self.assertEqual(policy.preferred_duration, _P90D)
         self.assertEqual(policy.minimum_duration, _P45D)
         self.assertEqual(policy.maximum_duration, _P180D)
-        self.assertEqual(policy.notes, "Prefer 90 days.")
+        self.assertEqual(policy.content, "Prefer 90 days.")
 
     def test_to_core_produces_core_instance(self):
         """Wire instance IS already a core instance."""
@@ -386,7 +358,7 @@ class TestEmbargoPolicyCoreConversion(unittest.TestCase):
 
     def test_to_core_preserves_fields(self):
         """Core instance fields are accessible directly (no to_core() conversion)."""
-        self.assertEqual(self.core_policy.actor_id, ACTOR_ID)
+        self.assertEqual(self.core_policy.attributed_to, ACTOR_ID)
         self.assertEqual(self.core_policy.preferred_duration, _P90D)
         self.assertEqual(self.core_policy.minimum_duration, _P45D)
         self.assertEqual(self.core_policy.maximum_duration, _P180D)
@@ -402,5 +374,7 @@ class TestEmbargoPolicyCoreConversion(unittest.TestCase):
         self.assertEqual(
             restored.preferred_duration, self.core_policy.preferred_duration
         )
-        self.assertEqual(restored.actor_id, self.core_policy.actor_id)
-        self.assertEqual(restored.notes, self.core_policy.notes)
+        self.assertEqual(
+            restored.attributed_to, self.core_policy.attributed_to
+        )
+        self.assertEqual(restored.content, self.core_policy.content)

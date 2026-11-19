@@ -134,7 +134,7 @@ def _archive_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
 
 
 def _unnamed_entry_refusal(*, answer: str, spec_id: str) -> FaultReading:
-    """The refusal of a fault that names no ``Announce(CaseLedgerEntry)``
+    """The refusal of a fault that names no ``Add(CaseLedgerEntry)``
     this actor sent: there is no case to *answer* for.
 
     *spec_id* is the requirement of the response that cannot run.  A door
@@ -142,7 +142,7 @@ def _unnamed_entry_refusal(*, answer: str, spec_id: str) -> FaultReading:
     other failure of the intake-only tree is a local fault.
     """
     refusal = HandlerResult.refused(
-        "the fault names no Announce(CaseLedgerEntry) this actor sent, so it"
+        "the fault names no Add(CaseLedgerEntry) this actor sent, so it"
         f" names no case to {answer} ({spec_id}, ASK-07-004)"
     )
 
@@ -172,7 +172,7 @@ def _reseed_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
 
     ``APPLIED`` when a case copy was queued; ``SKIPPED`` when the re-seed
     cooldown held it back; ``REFUSED`` for a fault that names no
-    ``Announce(CaseLedgerEntry)`` this actor sent, for a sender that is not
+    ``Add(CaseLedgerEntry)`` this actor sent, for a sender that is not
     an active participant, and at any receiver that is not the case's
     CASE_MANAGER (HP-01-005).
     """
@@ -219,10 +219,10 @@ def _hash_mismatch_tree(
     rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """The hash-mismatch tree, or the intake-only one for a fault that names
-    no ``Announce(CaseLedgerEntry)`` this actor sent (ADR-0032: the tree
-    receives the entry and its ``Announce`` id, never ``None``)."""
+    no ``Add(CaseLedgerEntry)`` this actor sent (ADR-0032: the tree
+    receives the entry and its ``Add`` id, never ``None``)."""
     announce_id = fault.failed_activity_id
-    # The entry is read from the Announce announce_id names, so the second
+    # The entry is read from the Add announce_id names, so the second
     # test only narrows the event's optional field for the type checker.
     if refused_entry is None or announce_id is None:
         return create_intake_only_received_tree("HashMismatchFaultReceivedBT")
@@ -241,7 +241,7 @@ def _hash_mismatch_verdict(
 
     ``SKIPPED`` once the CASE_MANAGER has logged the fault and checked its
     own copy, since nothing changes; ``REFUSED`` for a fault that names no
-    ``Announce(CaseLedgerEntry)`` this actor sent, for a sender that is not
+    ``Add(CaseLedgerEntry)`` this actor sent, for a sender that is not
     an active participant, and at any receiver that is not the case's
     CASE_MANAGER (HP-01-005).
     """

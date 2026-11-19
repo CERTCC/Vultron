@@ -130,6 +130,7 @@ def _apply(bridge, embargo: Any, *, accept: bool = True):
                 else "reject_embargo_proposal_on_case"
             ),
             payload_snapshot={
+                "id": "https://example.org/activities/owner-decision",
                 "type": "Add" if accept else "Reject",
                 "actor": OWNER_ACTOR_ID,
                 "context": CASE_ID,

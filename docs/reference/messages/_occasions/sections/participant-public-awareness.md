@@ -7,7 +7,7 @@ Announces, in the sender's own participant status, evidence that the vulnerabili
 === "Details"
 
     - **When…** a Participant learns that the public knows of the vulnerability
-    - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+    - **Send:** `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the CASE_MANAGER or the Case Owner or the participant status's author
     - **Distinguished by:** `caseStatus.pxaState` = `Pxa`
@@ -15,7 +15,7 @@ Announces, in the sender's own participant status, evidence that the vulnerabili
     - **Formal definition:** [Public Awareness (CP)](../../../formal_protocol/messages.md#cs-message-types)
     - **Mapping status:** [collapse](../../index.md#mapping-status)
 
-    A participant status is a snapshot of every dimension the sender holds, so it can also carry an unchanged `vfState` or `dState`; the dimension that changed makes the occasion. The report is the sender's view of the case status, not a change to it. The CASE_MANAGER records the status on the sender's participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization. Only an adopted value changes the case status, and while an embargo is active or proposed, it ends or abandons the embargo.
+    A participant status is a snapshot of every dimension the sender holds, so it can also carry an unchanged `vfState` or `dState`; the dimension that changed makes the occasion. The report is the sender's view of the case status, not a change to it. The CASE_MANAGER adds the status to the sender's status history `<participant>/statuses` (ADR-0204) and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization. Only an adopted value changes the case status, and while an embargo is active or proposed, it ends or abandons the embargo.
 
 === "Example activity"
 

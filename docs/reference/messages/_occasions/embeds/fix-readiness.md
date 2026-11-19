@@ -2,10 +2,10 @@
 
 !!! info "Fix Readiness (CF)"
 
-    Announces that the Vendor whose participant record is the target has a fix ready.
+    Announces that the Vendor whose status history is the target has a fix ready.
 
     - **When…** a Vendor has a fix ready
-    - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+    - **Send:** `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the CASE_MANAGER or the Case Owner or the participant status's author (usually: vendor)
     - **Distinguished by:** `vfState` = `VF`

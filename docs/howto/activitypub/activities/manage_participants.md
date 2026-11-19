@@ -133,7 +133,7 @@ A later `Join` or `Ignore` moves the participant to `ACCEPTED` or `DEFERRED` as 
 {% include-markdown "./_vfd_one_activity.md" trailing-newlines=false %}
 See [How to Post a Status Update or a Case Note](status_updates.md) for the field that selects each.
 
-Send `Add(ParticipantStatus)`, targeting the participant record, with the new status inline as its `object`.
+Send `Add(ParticipantStatus)`, targeting the participant's status history `<participant>/statuses` and naming the case in `context`, with the new status inline as its `object` ([ADR-0204](../../../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md)).
 The status carries the participant's `rmState` and, for a Vendor or Deployer, its `vfState` and `dState`.
 The protocol names `Add(ParticipantStatus)` as the one form; a received `Create(ParticipantStatus)` is not a protocol message (VAM-01-019), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-017).
 
@@ -204,7 +204,7 @@ A participant that has not accepted the active embargo stays inert: the CASE_MAN
 |---|---|
 | `Invite(VulnerabilityCase preview)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
 | `Accept(Invite(VulnerabilityCase preview))` | The roster holds the participant with its roles. |
-| `Add(ParticipantStatus)` | The participant record carries the new status. |
+| `Add(ParticipantStatus)` | The participant's status history carries the new status. |
 | `Remove(CaseParticipant)` | The roster still lists the participant, and its record names your `Remove` as its `removalActivity`. |
 | `Add(CaseParticipant)` | The participant's record has no `removalActivity`, and the participant holds the ledger entries it missed. |
 | `Accept`, `TentativeReject` or `Reject` of the full-case Invite | The CASE_MANAGER's record of the participant shows RM `VALID`, `INVALID` or `CLOSED`. |

@@ -16,7 +16,7 @@
 """Holding transitions on the one received record (ADR-0154, IO-03-009).
 
 The case that matters here is the record that is **archived and still owes a
-replay** — a buffered ``Announce(CaseLedgerEntry)``.  Before ADR-0154 that was
+replay** — a buffered ``Add(CaseLedgerEntry)``.  Before ADR-0154 that was
 two rows, and releasing or discarding the hold deleted the second one while
 the archive stood.  With one row, the same must hold: the archive survives and
 only the replay claim goes (CLP-10-018).

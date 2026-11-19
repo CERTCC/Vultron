@@ -24,6 +24,8 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 
 from datetime import datetime
 
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.status_history import status_history_id
 from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
@@ -123,25 +125,33 @@ def update_participant_activity(
 
 def add_status_to_participant_activity(
     status: as_ParticipantStatus,
-    target: as_CaseParticipantRef | None = None,
+    participant: as_CaseParticipantRef,
     *,
     at: datetime,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(ParticipantStatus)[target=CaseParticipant].
+    """Build an Add(ParticipantStatus, target=<participant>/statuses).
+
+    The ``target`` is the participant's status history, an ordered
+    collection whose newest item is its current status, and ``context`` is
+    the case (ADR-0204).  An explicit ``context`` is kept; otherwise it is
+    the case the status names in its own ``context`` (HP-08-008).
 
     Args:
         status: The ``as_ParticipantStatus`` to add.
-        target: The ``as_CaseParticipant`` (or its URI) to which the
-            status is being added.
+        participant: The ``as_CaseParticipant`` (or its URI) whose status
+            history the status joins.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+            (e.g. ``actor``, ``context``).
 
     Returns:
-        An ``as_Add`` whose ``object_`` is the status.
+        An ``as_Add`` whose ``object_`` is the status and whose ``target`` is
+        ``<participant>/statuses``.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If *participant* names no record,
+            no case can be named in ``context``, or Pydantic validation
+            fails.
     """
     return build_activity(
         "add_status_to_participant_activity",
@@ -149,9 +159,10 @@ def add_status_to_participant_activity(
         at,
         lambda: {
             "object_": status,
-            "target": case_target_ref(target),
-            **kwargs,
+            "target": status_history_id(_as_id(participant) or ""),
+            **with_case_context(kwargs, getattr(status, "context", None)),
         },
+        also=(ValueError,),
     )
 
 

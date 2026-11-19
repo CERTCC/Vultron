@@ -23,7 +23,7 @@ describes an impossible composite state (RSH-09-006).
 Provides :class:`EmitImpossibleStateFaultNode`, which emits
 ``Create(ProcessingFault)`` with failure class
 ``StatusAssertionRefused/ImpossibleState`` to the CASE_MANAGER when the Apply
-node returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree/``
+node returns FAILURE.  The two nodes are wired in a Selector in ``add_log_entry_tree/``
 to guarantee that either the status is applied successfully or a fault is emitted.
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
@@ -56,6 +56,7 @@ from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.status_history import status_history_owner_or_none
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -69,12 +70,13 @@ class ApplyParticipantStatusFromLedgerNode(
     """Apply an ``add_participant_status_to_participant`` ledger entry locally.
 
     When a non-Case-Actor participant receives
-    ``Announce(CaseLedgerEntry)`` and the entry's ``semantic_type`` is
+    ``Add(CaseLedgerEntry)`` and the entry's ``semantic_type`` is
     ``add_participant_status_to_participant``, this node reconstructs the
     :class:`~vultron.core.models.participant_status.ParticipantStatus` from
-    the entry's ``payload_snapshot`` and appends it to the matching
-    :class:`~vultron.core.models.case_participant.CaseParticipant` in the
-    local DataLayer.
+    the entry's ``payload_snapshot`` and appends it to the
+    :class:`~vultron.core.models.case_participant.CaseParticipant` whose
+    status history the entry's ``target`` names (ADR-0204) in the local
+    DataLayer.
 
     The entry carries the status the CASE_MANAGER stored, in full, so this
     node copies it — id, times and every dimension as carried — and derives
@@ -91,7 +93,7 @@ class ApplyParticipantStatusFromLedgerNode(
     Lenient on missing data: if the participant is not found in the local
     DataLayer (this actor may have a partial view of the case), or the
     payload snapshot is incomplete, the node returns SUCCESS without error to
-    avoid blocking the ``Announce`` processing flow.  An entry describing an
+    avoid blocking the ``Add`` processing flow.  An entry describing an
     impossible composite state yields FAILURE (RSH-09-006).
 
     Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
@@ -123,12 +125,17 @@ class ApplyParticipantStatusFromLedgerNode(
         target_data = snapshot.get("target")
 
         status_id = _extract_id_from_field(status_data)
-        participant_id = _extract_id_from_field(target_data)
+        # The target is the participant's status history (ADR-0204), so the
+        # participant is its owner.
+        participant_id = status_history_owner_or_none(
+            _extract_id_from_field(target_data)
+        )
 
         if not status_id or not participant_id:
             self.logger.debug(
-                "%s: payload_snapshot missing 'object' or 'target' id"
-                " — skipping status apply (non-fatal)",
+                "%s: payload_snapshot missing 'object' id or a participant"
+                " status history 'target' — skipping status apply"
+                " (non-fatal)",
                 self.name,
             )
             return Status.SUCCESS

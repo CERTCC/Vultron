@@ -22,6 +22,7 @@ related_specs:
   - specs/actor-knowledge-model.yaml
   - specs/vultron-protocol-spec.yaml
 related_notes:
+  - notes/csaf-case-inputs-on-proposal.md
   - notes/csaf-report-content.md
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md

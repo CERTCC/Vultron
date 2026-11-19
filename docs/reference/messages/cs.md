@@ -14,10 +14,10 @@ a scope boundary that the "case state" name obscures:
 
 - **`V`, `F`, `D` are participant-scoped** — one per (actor × case). They ride
   `as_ParticipantStatus` (`vfState` and `dState`) on
-  `Add(ParticipantStatus)[target=CaseParticipant]`.
+  `Add(ParticipantStatus, target=<participant>/statuses)`.
 - **`P`, `X`, `A` are case-scoped** — one per case, in the `pxaState` field of `as_CaseStatus`.
-  A participant reports them in the case status its own `Add(ParticipantStatus)[target=CaseParticipant]` embeds.
-  Only the CASE_MANAGER sends `Add(CaseStatus)[target=VulnerabilityCase]`, to participants, as its record of the value it adopted, and a receiver refuses one from any other sender (RSH-04-001, RSH-04-005).
+  A participant reports them in the case status its own `Add(ParticipantStatus, target=<participant>/statuses)` embeds.
+  Only the CASE_MANAGER sends `Add(CaseStatus, target=<case>/statuses)`, to participants, as its record of the value it adopted, and a receiver refuses one from any other sender (RSH-04-001, RSH-04-005).
 
 There are **no case-level `V`/`F`/`D` states**. A case-level status cannot
 express *which* vendor became aware or ready, which is the purpose of the V/F/D
@@ -26,6 +26,11 @@ dimensions in multi-party CVD; those dimensions are always participant-specific
 Vendor nor Deployer.
 
 The `Add` carries the new status object inline.
+Its `target` is the status history the status joins, and its `context` is the case ([ADR-0204](../../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md)).
+Each participant's statuses are `<participant>/statuses`, and the case's are `<case>/statuses`.
+Each history is an `OrderedCollection` that has an identity only: no route serves it.
+A status is never updated, so the newest item in a history is the current status.
+In the occasion tables, the history shows as `target=OrderedCollection` and the case as `context=VulnerabilityCase`.
 The protocol names one form for each: `Add(CaseStatus)` brings a case status into the case, and `Add(ParticipantStatus)` brings a participant status into the case ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md)).
 A received `Create(CaseStatus)` or `Create(ParticipantStatus)` is not a protocol message, and its receiver must not change the case file because of it (VAM-01-019).
 This implementation's inbox refuses either one as an unrecognized activity and changes nothing (VAM-01-017).

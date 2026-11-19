@@ -84,7 +84,7 @@ Load additional files only when the task touches the relevant area. See the
 | Activity factory functions | `activity-factories.yaml` |
 | Response generation / outbox | `response-format.yaml`, `outbox.yaml` |
 | Synchronization | `sync-ledger-replication.yaml` |
-| Sync behavior trees (AnnounceLogEntry, RejectLogEntry, CommitLogEntry BTs) | `sync-behavior-trees.yaml` |
+| Sync behavior trees (AddLogEntry, RejectLogEntry, CommitLogEntry BTs) | `sync-behavior-trees.yaml` |
 | Participant case replica lifecycle | `participant-case-replica.yaml` |
 | Participant role management (add/remove/has_role) | `participant-role-management.yaml` |
 | Embargo / duration | `embargo-policy.yaml`, `duration.yaml` |
@@ -308,7 +308,7 @@ related requirements across files.
   transport, conflict handling, per-peer state, and retry semantics
   (SYNC-01 through SYNC-07)
 - **`sync-behavior-trees.yaml`** - Behavior-tree requirements for sync
-  protocol flows: AnnounceLogEntryReceivedBT (with case-actor vs
+  protocol flows: AddLogEntryReceivedBT (with case-actor vs
   non-case-actor branching), RejectLogEntryReceivedBT, CommitLogEntryBT,
   and port-injection-via-blackboard pattern
   (SBT-01 through SBT-05)

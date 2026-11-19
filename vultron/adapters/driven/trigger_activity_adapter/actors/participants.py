@@ -381,7 +381,8 @@ class _ParticipantsMixin:
         *,
         at: datetime,
     ) -> str:
-        """Create and persist an ``Add(ParticipantStatus)[target=CaseParticipant]``."""
+        """Create and persist an ``Add(ParticipantStatus,
+        target=<participant>/statuses)``."""
         raw = self._dl.read(status_id)
         if raw is None:
             raise VultronNotFoundError(
@@ -397,7 +398,7 @@ class _ParticipantsMixin:
         # construction failed".
         activity = add_status_to_participant_activity(
             status=cast(as_ParticipantStatus, raw),
-            target=participant_id,
+            participant=participant_id,
             actor=actor,
             to=to,
             at=at,

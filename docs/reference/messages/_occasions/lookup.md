@@ -82,15 +82,15 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| the CASE_MANAGER records that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `Pxa` | [Public awareness in a case status](../cs.md#public-awareness) |
-| the CASE_MANAGER records that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `PXa` | [Exploit public in a case status](../cs.md#exploit-public) |
-| the CASE_MANAGER records that attackers are exploiting the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `pxA` | [Attacks observed in a case status](../cs.md#attacks-observed) |
-| a Vendor becomes aware of the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: vendor) | `vfState` = `Vf` | [Vendor Awareness (CV)](../cs.md#vendor-awareness) |
-| a Vendor has a fix ready | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: vendor) | `vfState` = `VF` | [Fix Readiness (CF)](../cs.md#fix-readiness) |
-| a Deployer has deployed the fix | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: deployer) | `dState` = `D` | [Fix Deployed (CD)](../cs.md#fix-deployed) |
-| a Participant learns that the public knows of the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `Pxa` | [Public awareness in a participant status](../cs.md#participant-public-awareness) |
-| a Participant learns that an exploit for the vulnerability is public | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `PXa` | [Exploit public in a participant status](../cs.md#participant-exploit-public) |
-| a Participant observes attacks that exploit the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `pxA` | [Attacks observed in a participant status](../cs.md#participant-attacks-observed) |
+| the CASE_MANAGER records that the public knows of the vulnerability | `Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `Pxa` | [Public awareness in a case status](../cs.md#public-awareness) |
+| the CASE_MANAGER records that an exploit for the vulnerability is public | `Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `PXa` | [Exploit public in a case status](../cs.md#exploit-public) |
+| the CASE_MANAGER records that attackers are exploiting the vulnerability | `Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `pxA` | [Attacks observed in a case status](../cs.md#attacks-observed) |
+| a Vendor becomes aware of the vulnerability | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: vendor) | `vfState` = `Vf` | [Vendor Awareness (CV)](../cs.md#vendor-awareness) |
+| a Vendor has a fix ready | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: vendor) | `vfState` = `VF` | [Fix Readiness (CF)](../cs.md#fix-readiness) |
+| a Deployer has deployed the fix | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: deployer) | `dState` = `D` | [Fix Deployed (CD)](../cs.md#fix-deployed) |
+| a Participant learns that the public knows of the vulnerability | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `Pxa` | [Public awareness in a participant status](../cs.md#participant-public-awareness) |
+| a Participant learns that an exploit for the vulnerability is public | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `PXa` | [Exploit public in a participant status](../cs.md#participant-exploit-public) |
+| a Participant observes attacks that exploit the vulnerability | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `pxA` | [Attacks observed in a participant status](../cs.md#participant-attacks-observed) |
 
 ## General
 
@@ -117,6 +117,6 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| the CASE_MANAGER has committed a case event to the case ledger | `Announce(CaseLedgerEntry)` | a participant | the CASE_MANAGER | — | [Announce case ledger entry](../ledger_replication.md#announce-case-ledger-entry) |
+| the CASE_MANAGER has committed a case event to the case ledger | `Add(CaseLedgerEntry)` | a participant | the CASE_MANAGER | — | [Add case ledger entry](../ledger_replication.md#add-case-ledger-entry) |
 | a received ledger entry does not chain onto the Participant's own ledger | `Reject(CaseLedgerEntry)` | the CASE_MANAGER | an active participant, including one that has left the case | — | [Reject case ledger entry](../ledger_replication.md#reject-case-ledger-entry) |
 | a Participant checks that its ledger is current, such as after a restart | `Read(CaseLedgerEntry)` | the CASE_MANAGER | a participant | — | [Read case ledger entry](../ledger_replication.md#read-case-ledger-entry) |

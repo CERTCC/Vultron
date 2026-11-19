@@ -124,26 +124,90 @@ def test_create_participant_invalid_raises():
 @pytest.mark.spec("AF-01-002")
 def test_add_status_to_participant_returns_add(sample_participant_status):
     result = add_status_to_participant_activity(
-        status=sample_participant_status, actor=_ACTOR_URI, at=authored_at()
+        status=sample_participant_status,
+        participant=_PARTICIPANT_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert isinstance(result, as_Add)
 
 
 def test_add_status_to_participant_object_is_status(sample_participant_status):
     result = add_status_to_participant_activity(
-        status=sample_participant_status, actor=_ACTOR_URI, at=authored_at()
+        status=sample_participant_status,
+        participant=_PARTICIPANT_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.object_ == sample_participant_status
 
 
-def test_add_status_to_participant_target_is_set(sample_participant_status):
+@pytest.mark.spec("VAM-08-004")
+def test_add_status_to_participant_targets_its_status_history(
+    sample_participant_status,
+):
+    """ADR-0204: the target is <participant>/statuses, the context the case."""
     result = add_status_to_participant_activity(
         status=sample_participant_status,
-        target=_PARTICIPANT_URI,
+        participant=_PARTICIPANT_URI,
         actor=_ACTOR_URI,
         at=authored_at(),
     )
-    assert result.target == _PARTICIPANT_URI
+    assert result.target == f"{_PARTICIPANT_URI}/statuses"
+    assert result.context == _CASE_URI
+
+
+def test_add_status_to_participant_names_a_whole_participants_history(
+    sample_participant, sample_participant_status
+):
+    """A participant passed whole is named by its id in the history."""
+    result = add_status_to_participant_activity(
+        status=sample_participant_status,
+        participant=sample_participant,
+        actor=_ACTOR_URI,
+        at=authored_at(),
+    )
+    assert result.target == f"{sample_participant.id_}/statuses"
+
+
+def test_add_status_to_participant_keeps_an_explicit_context(
+    sample_participant_status,
+):
+    """An explicit ``context`` wins over the status's own; the parse edge,
+    not the factory, refuses one that disagrees (HP-08-015)."""
+    explicit = "https://example.org/cases/explicit"
+    result = add_status_to_participant_activity(
+        status=sample_participant_status,
+        participant=_PARTICIPANT_URI,
+        actor=_ACTOR_URI,
+        context=explicit,
+        at=authored_at(),
+    )
+    assert result.context == explicit
+
+
+def test_add_status_to_participant_defaults_context_to_the_statuss_case(
+    sample_participant_status,
+):
+    result = add_status_to_participant_activity(
+        status=sample_participant_status,
+        participant=_PARTICIPANT_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
+    )
+    assert result.context == sample_participant_status.context
+
+
+def test_add_status_to_participant_without_a_participant_raises(
+    sample_participant_status,
+):
+    with pytest.raises(VultronActivityConstructionError):
+        add_status_to_participant_activity(
+            status=sample_participant_status,
+            participant="",
+            actor=_ACTOR_URI,
+            at=authored_at(),
+        )
 
 
 @pytest.mark.spec("AF-04-001")
@@ -151,6 +215,8 @@ def test_add_status_to_participant_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         add_status_to_participant_activity(
             status="not-a-status",  # type: ignore[arg-type]
+            participant=_PARTICIPANT_URI,
+            context=_CASE_URI,
             at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
