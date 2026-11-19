@@ -82,7 +82,8 @@ The marker type is `vultron/core/models/redacted.py`, registered in
 `WIRE_TYPE_MAP`, and refuses every field but `type` and `summary`.
 `reads_as_typed_reference` excludes `Redacted`, so a marker of only `id` and
 `type` is a marker, never a reference. Today `CasePreview.redactable_fields` is
-empty, so a marker anywhere is refused; the profile below replaces that list.
+empty, so a marker anywhere is refused; #6372's loose `CasePreview` removes that
+list, so any preview field may carry the marker.
 
 ## The Case Preview Profile (#6641, ADR-0217)
 
@@ -178,8 +179,9 @@ The parse edge sets aside an unknown key before the class validates
 (MV-11-003), so a marker carrying `content` or `id` arrives at `Redacted`
 without them. Do not add a parse-edge refusal of those keys: the receiver keeps
 the normal unknown-key handling, and the rule moves to the sender (MV-12-005
-below). `test_a_marker_carrying_the_withheld_value_is_refused` asserts the old
-receiver-side refusal; #6372 replaces it.
+below).
+`test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
+asserts the old receiver-side refusal; #6372 replaces it.
 
 ### Requirement Changes the Tasks Land
 
