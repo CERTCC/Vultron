@@ -3,7 +3,9 @@ title: "Projecting a CSAF Document From a Case (Design Direction)"
 status: draft
 kind: plan
 tracks:
-  - "#5134"
+  - "#6705"
+  - "#6706"
+  - "#6707"
   - "#5130"
 description: >
   Design direction for producing a CSAF 2.1 document from a participant's case
@@ -53,7 +55,8 @@ invitation preview. Nothing here is built yet.
 ## The Preview Carries a Ledger List
 
 `CasePreview` (`vultron/core/models/case_preview.py`, built in #6372 and #6692)
-gains an optional list of ledger entries, which only a render-bound profile fills.
+gains an optional list of ledger entries (#6705), which only a render-bound
+profile fills.
 The profile cuts the list by element, as it cuts the status history to its
 current entry, so a preview may hold an incomplete ledger. The invitation profile
 omits it, because ledger bookkeeping means nothing to an invitee (ADR-0217). The
