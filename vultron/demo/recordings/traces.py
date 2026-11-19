@@ -149,7 +149,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "closed",
         "content",
         "contentMap",
-        "cve",
         "describes",
         "failureClass",
         "formerType",

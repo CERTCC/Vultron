@@ -48,7 +48,10 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItem,
+    VulnerabilityItemId,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -220,7 +223,7 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
                 item=make(
                     VulnerabilityItem,
                     id_=f"{CASE_ID}/items/1",
-                    cve="CVE-2026-0001",
+                    ids=[VulnerabilityItemId.cve("CVE-2026-0001")],
                 ),
                 case_id=CASE_ID,
                 actor=CASE_ACTOR_ID,

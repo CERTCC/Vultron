@@ -174,7 +174,7 @@ A published note whose `datefirstpublished` is earlier than the case's `created`
 
 | Row | VINCE source | Vultron counterpart | Type | Time |
 |---|---|---|---|---|
-| VINCE-CT-01 | `vuls/`: one item per vul, with `name`, `cve` and `description` | A [vulnerability item](glossary.md#domain-model-cvd-coordination), with its Common Vulnerabilities and Exposures (CVE) ID when `cve` is present | Mechanical | `date_added` |
+| VINCE-CT-01 | `vuls/`: one item per vul, with `name`, `cve` and `description` | A [vulnerability item](glossary.md#domain-model-cvd-coordination), with its Common Vulnerabilities and Exposures (CVE) ID as an `ids` entry of system `CVE` when `cve` is present | Mechanical | `date_added` |
 | VINCE-CT-02 | `posts/`: one item per post | A case note, credited to the participant whose organization is the post author's `org` | Mechanical | `created` |
 | VINCE-CT-03 | `report/`: the vendor, product and vulnerability description fields | The content of the report | Mechanical | `date_submitted` |
 | VINCE-CT-04 | `posts/pinned`, `note/revision`, `note/dateupdated` | None | None | None |

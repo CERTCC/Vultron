@@ -33,6 +33,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.note import VultronNote
+from vultron.core.models.vulnerability_item import VulnerabilityItemId
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
@@ -1072,7 +1073,9 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
         from vultron.core.models.case_reference import CaseReference
         from vultron.core.models.vulnerability_item import VulnerabilityItem
 
-        item = make(VulnerabilityItem, cve="CVE-2026-0001")
+        item = make(
+            VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2026-0001")]
+        )
         ref = make(CaseReference, url={"href": "https://example.org/a"})
         dl.create(item)
         dl.create(ref)
@@ -1093,7 +1096,7 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
         assert body is not None
         [carried_item] = body["object"]["vulnerabilityItems"]
         [carried_ref] = body["object"]["caseReferences"]
-        assert (carried_item["id"], carried_item["cve"]) == (
+        assert (carried_item["id"], carried_item["ids"][0]["text"]) == (
             item.id_,
             "CVE-2026-0001",
         )

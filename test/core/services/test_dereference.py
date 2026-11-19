@@ -44,7 +44,10 @@ from vultron.core.models.object_fetch import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItem,
+    VulnerabilityItemId,
+)
 from vultron.core.services.dereference import (
     case_object_for_participant,
     references_to_fetch,
@@ -496,7 +499,9 @@ class TestCaseObjectForParticipant:
     @pytest.mark.spec("AKM-05-006")
     def test_a_listed_item_and_reference_are_served(self):
         dl, case = self._host()
-        item = make(VulnerabilityItem, cve="CVE-2024-0001")
+        item = make(
+            VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2024-0001")]
+        )
         ref = make(CaseReference, url={"href": "https://example.org/advisory"})
         dl.save(item)
         dl.save(ref)
