@@ -49,7 +49,7 @@ for an object the recipient already holds.
 
 The stub is the `preview` of a typed case reference, `{id, type, preview}`, that
 is the stub Invite's `object` (CM-11-013, ADR-0205). The reference's `id` names
-the case; the stub carries no case id and no ID derived from the case's. Its own
+the case; the stub's own `id` is not the case's, nor derived from it. Its own
 `type`, `CasePreview`, is the case's defined preview (MV-10-012), and
 its own `id` is minted like any object's (OID-01-013). The Invite is routed by
 the reference's `type` and its form: only a pattern with

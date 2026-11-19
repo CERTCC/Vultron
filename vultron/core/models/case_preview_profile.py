@@ -44,14 +44,14 @@ from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
 
+from pydantic import BaseModel
+
 from vultron.core.models._helpers import new_object_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.models.preview_object import to_loose
 from vultron.core.models.redacted import Redacted
-from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.errors import VultronActivityConstructionError
 
 
@@ -160,22 +160,6 @@ class PreviewFieldRule:
 type CasePreviewProfile = Mapping[str, PreviewFieldRule]
 
 
-def in_force_entry(case: VulnerabilityCase) -> EmbargoRegisterEntry | None:
-    """The register entry of the embargo in force on *case*, or ``None``.
-
-    The one entry a stub Invite's ``embargoRegister`` shows (CM-17-002): the
-    ``ACTIVE`` one, never an open proposal (CM-17-014).
-    """
-    return next(
-        (
-            entry
-            for entry in case.embargo_register
-            if entry.status == EmbargoRegisterStatus.ACTIVE
-        ),
-        None,
-    )
-
-
 def _stub_summary(case: VulnerabilityCase) -> object:
     """The owner's chosen ``stub_summary`` (CM-17-020)."""
     return case.stub_summary
@@ -193,8 +177,20 @@ def _preview_type(_case: VulnerabilityCase) -> object:
 
 
 def _current_status(case: VulnerabilityCase) -> object:
-    """The case's statuses reduced to the current one, whole (CM-17-013)."""
-    return [to_loose(case.current_status)]
+    """The case's statuses reduced to the current one, whole (CM-17-013).
+
+    Raises:
+        VultronActivityConstructionError: When the case holds no status
+            object to show, only ids.
+    """
+    try:
+        current = case.current_status
+    except ValueError as exc:
+        raise VultronActivityConstructionError(
+            f"case {case.id_!r} holds no case status to show its current one"
+            " (CM-17-013)"
+        ) from exc
+    return [to_loose(current)]
 
 
 def _in_force_embargo(case: VulnerabilityCase) -> object:
@@ -205,7 +201,7 @@ def _in_force_embargo(case: VulnerabilityCase) -> object:
             by id alone: the preview carries the embargo whole, and the
             invitee has no way to read the terms by id (CM-17-024).
     """
-    entry = in_force_entry(case)
+    entry = case.active_register_entry
     if entry is None:
         return None
     if not isinstance(entry.embargo, EmbargoEvent):
@@ -353,12 +349,91 @@ INVITATION_PROFILE: CasePreviewProfile = MappingProxyType(
 )
 
 
+def _wire_name(field_name: str) -> str:
+    """The key the case field *field_name* is written under."""
+    info = VulnerabilityCase.model_fields[field_name]
+    return info.serialization_alias or info.alias or field_name.rstrip("_")
+
+
+def _has_value(held: object) -> bool:
+    """Whether a case field holds a value: not ``None``, not empty."""
+    if held is None:
+        return False
+    if isinstance(held, (list, dict, set, tuple)):
+        return bool(held)
+    return True
+
+
+def _shown_as_held(held: object) -> object:
+    """*held* as a preview shows it: each object in its loose form."""
+    if isinstance(held, list):
+        return [_shown_as_held(item) for item in held]
+    if isinstance(held, BaseModel):
+        return to_loose(held)
+    return held
+
+
+def _cut_field(
+    case: VulnerabilityCase, name: str, rule: PreviewFieldRule
+) -> object:
+    """What the preview shows for *case*'s field *name* under *rule*, or
+    ``None`` to leave the field out."""
+    if rule.chosen is _OP.OMIT:
+        return None
+    if rule.chosen is _OP.SUBSTITUTE:
+        return rule.substitute(case)
+    held = getattr(case, name, None)
+    if not _has_value(held):
+        return None
+    if rule.chosen is _OP.REDACT:
+        return Redacted()
+    return _shown_as_held(held)
+
+
+def cut_case(
+    case: VulnerabilityCase, profile: CasePreviewProfile
+) -> dict[str, object]:
+    """*case*'s fields as *profile* shows them, by Python field name.
+
+    Each case field takes its row's chosen operation.  A field with no held
+    value (absent, ``None`` or an empty collection) is left out, never
+    marked: there is nothing to withhold.  A list field is redacted as one
+    marker.
+
+    Raises:
+        VultronActivityConstructionError: When *profile* has no row for a
+            case field, so the cut would have to guess; when the cut leaves a
+            field the envelope requires it to show without a value; or when
+            a substitution cannot be made.
+    """
+    unclassified = sorted(set(VulnerabilityCase.model_fields) - set(profile))
+    if unclassified:
+        raise VultronActivityConstructionError(
+            f"case {case.id_!r}: the preview profile has no row for"
+            f" {unclassified}, so the cut cannot decide what to show"
+            " (ADR-0217)"
+        )
+    in_force = case.embargo_in_force
+    data: dict[str, object] = {}
+    for name, rule in profile.items():
+        value = _cut_field(case, name, rule)
+        if value is not None:
+            data[name] = value
+        elif rule.must_show(in_force=in_force):
+            raise VultronActivityConstructionError(
+                f"case {case.id_!r}: the preview cannot show"
+                f" {_wire_name(name)!r}, which an invitation preview"
+                f" must show: {rule.reason} (CM-17-010)"
+            )
+    return data
+
+
 __all__ = [
     "INVITATION_PROFILE",
+    "cut_case",
     "SHOWING_OPERATIONS",
     "CasePreviewProfile",
     "PreviewFieldRule",
     "PreviewOperation",
     "Substitution",
-    "in_force_entry",
 ]

@@ -4361,8 +4361,11 @@ groups:
       The sender chooses the stub's `summary`, which MAY be the case name or a
       deliberately less revealing string.
     rationale: >-
-      The case name can be an opsec risk. Thus the sender writes the summary for the
-      invitee, and does not have to copy it from the case.
+      The summary is what a person reads to decide whether to join, so the
+      sender writes it for the invitee rather than copying the case's own
+      `summary`, which is written for participants. The sender may also
+      withhold the case name, which can itself reveal what the embargo protects;
+      this codebase shows it.
     verification: >-
       `test_rm_invite_to_case_refuses_when_no_stub_summary` in
       `test/wire/as2/factories/test_case_factories.py` confirms the factory takes

@@ -40,7 +40,6 @@ from vultron.core.models.case_preview_profile import (
     SHOWING_OPERATIONS,
     PreviewFieldRule,
     PreviewOperation,
-    in_force_entry,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.preview_object import is_loose_form_of
@@ -408,6 +407,17 @@ def test_a_case_with_no_owner_is_refused() -> None:
         CasePreview.from_case(case, INVITATION_PROFILE)
 
 
+@pytest.mark.spec("CM-17-013")
+def test_a_case_holding_no_status_object_is_refused() -> None:
+    """A copy that names its statuses only by id has no current status to
+    show, so the cut refuses it as the construction error the factory
+    raises, not a bare ``ValueError``."""
+    case = _case().model_copy(update={"case_statuses": ["urn:uuid:s1"]})
+
+    with pytest.raises(VultronActivityConstructionError, match="CM-17-013"):
+        CasePreview.from_case(case, INVITATION_PROFILE)
+
+
 @pytest.mark.spec("CM-17-011")
 @pytest.mark.spec("CM-17-024")
 def test_an_in_force_embargo_held_by_id_is_refused() -> None:
@@ -458,10 +468,10 @@ def test_in_force_entry_is_the_active_one() -> None:
         embargo_register=register(active=embargo, proposed=[_embargo()])
     )
 
-    entry = in_force_entry(case)
+    entry = case.active_register_entry
 
     assert entry is not None and entry.embargo_id == embargo.id_
-    assert in_force_entry(_case()) is None
+    assert _case().active_register_entry is None
 
 
 # --- The envelope check a cut passes ------------------------------------

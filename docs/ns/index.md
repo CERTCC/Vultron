@@ -58,7 +58,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `caseParticipants` | set of iri | The participants of a case, each a CaseParticipant or its id |
 | `caseReferences` | set of iri | The external references of a case, each a CaseReference or its id |
 | `caseRoles` | set | The CVD roles a participant holds in a case |
-| `caseStatus` | iri | The case status a participant status reports: a CaseStatus object or its id |
+| `caseStatus` | iri | The case status a participant status reports, as a CaseStatus object |
 | `caseStatuses` | list of iri | The statuses of a case, oldest first, each a CaseStatus or its id; the last is its current status |
 | `category` | plain | The CSAF category of a vulnerability note, such as description or summary |
 | `cause` | plain | Why an embargo ended early: an object whose kind names the cause |

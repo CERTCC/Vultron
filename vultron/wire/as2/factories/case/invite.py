@@ -24,10 +24,7 @@ from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_preview_profile import (
-    INVITATION_PROFILE,
-    in_force_entry,
-)
+from vultron.core.models.case_preview_profile import INVITATION_PROFILE
 from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.enums import as_TransitiveActivityType
@@ -78,7 +75,7 @@ def _with_embargo_inline(
             read the terms, since the case host serves case objects only to
             active participants (AKM-05-006, CM-17-011), so it is not sent.
     """
-    entry = in_force_entry(case)
+    entry = case.active_register_entry
     if embargo_obj is None or entry is None:
         return case
     if not isinstance(embargo_obj, WireEmbargoEvent):

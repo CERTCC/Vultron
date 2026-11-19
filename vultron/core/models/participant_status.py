@@ -173,8 +173,8 @@ class ParticipantStatus(CoreObject):
     case_status: CaseStatus | None = Field(
         default=None,
         json_schema_extra=vultron_property(
-            "The case status a participant status reports: a CaseStatus"
-            " object or its id",
+            "The case status a participant status reports, as a CaseStatus"
+            " object",
             PropertyValueKind.IRI,
         ),
     )

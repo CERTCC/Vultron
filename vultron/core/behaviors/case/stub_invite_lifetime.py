@@ -49,7 +49,6 @@ from vultron.core.models.case_preview import (
     preview_embargo_id,
     previewed_case_id,
 )
-from vultron.core.models.case_preview_profile import in_force_entry
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
@@ -212,13 +211,10 @@ def current_preview_embargo_id(case: VulnerabilityCase) -> str | None:
     """The embargo whose terms a stub Invite sent now would carry.
 
     The embargo of the one register entry a preview's ``embargoRegister``
-    keeps, the in-force one (:func:`~vultron.core.models.
-    case_preview_profile.in_force_entry`): EM ``ACTIVE`` or ``REVISE``, never
-    the open revision (CM-17-002, CM-17-014).  With none in force it carries
-    none.
+    keeps, the in-force one: EM ``ACTIVE`` or ``REVISE``, never the open
+    revision (CM-17-002, CM-17-014).  With none in force it carries none.
     """
-    entry = in_force_entry(case)
-    return entry.embargo_id if entry is not None else None
+    return case.active_embargo_id
 
 
 def current_preview_embargo_end(
@@ -229,10 +225,7 @@ def current_preview_embargo_end(
     Read from the in-force entry's embargo when the register holds it whole,
     as the preview carries it, else from the store.
     """
-    entry = in_force_entry(case)
-    if entry is None:
-        return None
-    embargo: object = entry.embargo
+    embargo: object = case.active_embargo
     if isinstance(embargo, str):
         embargo = dl.read(embargo)
     return embargo.end_time if isinstance(embargo, EmbargoEvent) else None

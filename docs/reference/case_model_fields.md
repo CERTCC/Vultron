@@ -153,7 +153,7 @@ classDiagram
         vulnerability_items list~str|VulnerabilityItem~
         case_references list~str|CaseReference~
         case_statuses list~CaseStatus~
-        active_embargo EmbargoEvent | None
+        embargo_register list~EmbargoRegisterEntry~
         genesis_hash str
         ledger_position LedgerPosition
     }

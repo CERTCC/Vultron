@@ -37,7 +37,7 @@ and what the invitee decides on from the preview.
 
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from pydantic import BaseModel, Field, ValidationInfo, model_validator
+from pydantic import Field, ValidationInfo, model_validator
 
 from vultron.core.models._helpers import INBOUND_CONTEXT_KEY, new_object_id
 from vultron.core.models.base import (
@@ -46,10 +46,15 @@ from vultron.core.models.base import (
 )
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_preview_envelope import (
+    invitation_preview_faults,
+    preview_current_status,
+    preview_em_state,
+    preview_in_force_entry,
+)
 from vultron.core.models.case_preview_profile import (
     CasePreviewProfile,
-    PreviewFieldRule,
-    PreviewOperation,
+    cut_case,
 )
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
@@ -59,13 +64,10 @@ from vultron.core.models.preview_object import (
     PreviewObject,
     PreviewValue,
     loose_form,
-    to_loose,
 )
-from vultron.core.models.redacted import Redactable, Redacted
+from vultron.core.models.redacted import Redactable
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_item import VulnerabilityItem
-from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.errors import VultronActivityConstructionError
 
 # The loose forms the preview's fields hold.  A type checker reads each as the
@@ -111,9 +113,9 @@ class CasePreview(PreviewObject):
     - ``id`` is the preview's own, minted like any object's (OID-01-013).
       No reader derives anything from it.
     - ``summary`` is the required human-readable context (CM-17-010, MV-10-001).
-      The sender chooses it: the case name MAY be used, or a deliberately less
-      revealing string, since the case name can be sensitive to share with an
-      invitee not yet bound by the embargo.  A receiver MUST refuse a preview
+      The sender chooses it (CM-17-020): the case's ``stub_summary``,
+      written for the invitee rather than for participants.  A receiver
+      MUST refuse a preview
       whose ``summary`` is absent or blank.  On the inbound parse path,
       absence triggers :meth:`_refuse_absent_summary`.  It is the one case
       field a marker may not stand in.
@@ -249,10 +251,9 @@ class CasePreview(PreviewObject):
     ) -> CasePreview:
         """Cut *case*'s preview by *profile*, one field at a time (ADR-0217).
 
-        Each case field takes its row's chosen operation.  A field with no
-        held value (absent, ``None`` or an empty collection) is left out,
-        never marked: there is nothing to withhold.  A list field is
-        redacted as one marker.
+        Each case field takes its row's chosen operation
+        (:func:`~vultron.core.models.case_preview_profile.cut_case`), and the
+        result is checked against the envelope.
 
         Raises:
             VultronActivityConstructionError: When *profile* has no row for a
@@ -264,28 +265,7 @@ class CasePreview(PreviewObject):
                 when the cut breaks the envelope
                 (:func:`invitation_preview_faults`).
         """
-        unclassified = sorted(
-            set(VulnerabilityCase.model_fields) - set(profile)
-        )
-        if unclassified:
-            raise VultronActivityConstructionError(
-                f"case {case.id_!r}: the preview profile has no row for"
-                f" {unclassified}, so the cut cannot decide what to show"
-                " (ADR-0217)"
-            )
-        in_force = case.embargo_in_force
-        data: dict[str, object] = {}
-        for name, rule in profile.items():
-            value = _cut_field(case, name, rule)
-            if value is not None:
-                data[name] = value
-            elif rule.must_show(in_force=in_force):
-                raise VultronActivityConstructionError(
-                    f"case {case.id_!r}: the preview cannot show"
-                    f" {_wire_name(name)!r}, which an invitation preview"
-                    f" must show: {rule.reason} (CM-17-010)"
-                )
-        preview = cls.model_validate(data)
+        preview = cls.model_validate(cut_case(case, profile))
         faults = invitation_preview_faults(preview)
         if faults:
             raise VultronActivityConstructionError(
@@ -311,103 +291,6 @@ class PreviewedCaseReference(CoreObject):
     preview: CasePreview  # type: ignore[assignment]
 
 
-def _wire_name(field_name: str) -> str:
-    """The key the case field *field_name* is written under."""
-    info = VulnerabilityCase.model_fields[field_name]
-    return info.serialization_alias or info.alias or field_name.rstrip("_")
-
-
-def _has_value(held: object) -> bool:
-    """Whether a case field holds a value: not ``None``, not empty."""
-    if held is None:
-        return False
-    if isinstance(held, (list, dict, set, tuple)):
-        return bool(held)
-    return True
-
-
-def _cut_field(
-    case: VulnerabilityCase, name: str, rule: PreviewFieldRule
-) -> object:
-    """What the preview shows for *case*'s field *name* under *rule*, or
-    ``None`` to leave the field out."""
-    if rule.chosen is PreviewOperation.OMIT:
-        return None
-    if rule.chosen is PreviewOperation.SUBSTITUTE:
-        return rule.substitute(case)
-    held = getattr(case, name, None)
-    if not _has_value(held):
-        return None
-    if rule.chosen is PreviewOperation.REDACT:
-        return Redacted()
-    return _shown_as_held(held)
-
-
-def _shown_as_held(held: object) -> object:
-    """*held* as a preview shows it: each object in its loose form."""
-    if isinstance(held, list):
-        return [_shown_as_held(item) for item in held]
-    if isinstance(held, BaseModel):
-        return to_loose(held)
-    return held
-
-
-def preview_current_status(preview: CasePreview) -> PreviewObject | None:
-    """The current status *preview* shows, the last of its ``caseStatuses``.
-
-    ``None`` when the preview shows no status, marks the list or the status,
-    or names it by id.
-    """
-    statuses = preview.case_statuses
-    if not isinstance(statuses, list) or not statuses:
-        return None
-    current = statuses[-1]
-    return current if isinstance(current, PreviewObject) else None
-
-
-def preview_em_state(preview: CasePreview) -> EM | None:
-    """The case's EM state *preview*'s current status carries (CM-17-013).
-
-    ``None`` when the preview carries no current status, gives it by id, or
-    withholds the status or its EM state with a marker.
-
-    A module function, not a property: a replica slot's reach is checked by
-    attribute name (``test_participant_replica_slots_copy.py``), and a
-    property named for the status would read as the case's own.
-    """
-    status = preview_current_status(preview)
-    state = getattr(getattr(status, "em", None), "state", None)
-    return state if isinstance(state, EM) else None
-
-
-def _shown_register(preview: CasePreview) -> list[object]:
-    """The register entries *preview* shows; none when it marks the list."""
-    register = preview.embargo_register
-    return list(register) if isinstance(register, list) else []
-
-
-def _entry_status(entry: object) -> object:
-    """The register status *entry* shows, or ``None`` when it shows none."""
-    return getattr(entry, "status", None)
-
-
-def preview_in_force_entry(preview: CasePreview) -> PreviewValue | None:
-    """The in-force register entry *preview* shows (CM-17-002).
-
-    The entry whose status is ``ACTIVE``.  ``None`` when the preview shows no
-    register, marks it, or shows no ``ACTIVE`` entry.
-    """
-    return next(
-        (
-            entry
-            for entry in _shown_register(preview)
-            if isinstance(entry, PreviewValue)
-            and _entry_status(entry) == EmbargoRegisterStatus.ACTIVE
-        ),
-        None,
-    )
-
-
 def preview_embargo_id(preview: object) -> str | None:
     """The id of the embargo *preview* carries as its terms (CM-17-002).
 
@@ -423,79 +306,6 @@ def preview_embargo_id(preview: object) -> str | None:
         return embargo
     embargo_id = getattr(embargo, "id_", None)
     return embargo_id if isinstance(embargo_id, str) else None
-
-
-#: The EM states in which an embargo is in force (CM-17-002).
-_IN_FORCE_EM = frozenset({EM.ACTIVE, EM.REVISE})
-
-
-def invitation_preview_faults(preview: CasePreview) -> list[str]:
-    """What *preview*, as a stub Invite's preview, lacks or shows wrongly.
-
-    An invitation preview shows its ``summary`` and the Case Owner, never as
-    a marker (CM-17-010).  While an embargo is in force it also shows the
-    embargo's terms, as an in-force ``embargoRegister`` entry whose embargo
-    is not a marker, and the EM state of its current status (CM-17-002,
-    CM-17-013).  The embargo is in force when the current status's EM state
-    is ``ACTIVE`` or ``REVISE``, or when the register shows an ``ACTIVE``
-    entry.  The register carries no open proposal (CM-17-014).
-
-    Each fault names its position under the preview, so a receiver can name
-    where it is (MV-10-007).  The type already refuses a marked
-    ``summary``.  Every other field is the sender's choice, so a fault is
-    never about it (MV-12-006).
-
-    Returns:
-        One phrase per fault, in field order; empty when there is none.
-    """
-    faults: list[str] = []
-    if preview.summary is None:
-        faults.append("lacks 'summary'")
-    owner = preview.attributed_to
-    if owner is None:
-        faults.append("lacks the Case Owner at 'attributedTo'")
-    elif isinstance(owner, Redacted):
-        faults.append("marks the Case Owner at 'attributedTo' Redacted")
-    em_state = preview_em_state(preview)
-    entry = preview_in_force_entry(preview)
-    if em_state in _IN_FORCE_EM or entry is not None:
-        faults.extend(_in_force_faults(preview, em_state, entry))
-    for index, shown in enumerate(_shown_register(preview)):
-        if _entry_status(shown) == EmbargoRegisterStatus.PROPOSED:
-            faults.append(
-                f"carries an open embargo proposal at"
-                f" 'embargoRegister[{index}]' (CM-17-014)"
-            )
-    return faults
-
-
-def _in_force_faults(
-    preview: CasePreview, em_state: EM | None, entry: PreviewValue | None
-) -> list[str]:
-    """What *preview* lacks of an embargo in force (CM-17-002, CM-17-013)."""
-    faults: list[str] = []
-    if em_state is None:
-        faults.append(
-            "shows an embargo in force but lacks or marks the EM state at"
-            " 'caseStatuses[-1].em'"
-        )
-    if isinstance(preview.embargo_register, Redacted):
-        faults.append(
-            "marks 'embargoRegister' Redacted while an embargo is in force"
-        )
-    elif entry is None:
-        faults.append(
-            "lacks the in-force entry in 'embargoRegister' while an embargo"
-            " is in force"
-        )
-    else:
-        embargo = getattr(entry, "embargo", None)
-        if embargo is None or isinstance(embargo, Redacted):
-            faults.append(
-                "lacks or marks the in-force embargo at"
-                " 'embargoRegister[].embargo'"
-            )
-    return faults
 
 
 def case_preview_of(obj: object) -> CasePreview | None:
@@ -518,3 +328,16 @@ def previewed_case_id(obj: object) -> str | None:
         return None
     case_id = getattr(obj, "id_", None)
     return case_id if isinstance(case_id, str) and case_id else None
+
+
+__all__ = [
+    "CasePreview",
+    "PreviewedCaseReference",
+    "case_preview_of",
+    "invitation_preview_faults",
+    "preview_current_status",
+    "preview_em_state",
+    "preview_embargo_id",
+    "preview_in_force_entry",
+    "previewed_case_id",
+]

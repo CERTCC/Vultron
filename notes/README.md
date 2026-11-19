@@ -92,10 +92,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   **Load when**: touching `CVDRole`, a participant's role fields, or where a case
   owner's roles come from.
 - **`selective-disclosure.md`** · `plan`
-  Referencing objects without inlining them, the preview-only `Redacted` marker, and
-  the field-by-field profile that cuts a case preview from the case (ADR-0217).
-  **Load when**: scoping privacy, redaction, by-reference payloads, or what a case
-  preview shows.
+  Referencing objects without inlining them, and previews beyond the case's, which
+  reuse the preview-only `Redacted` marker and the field-by-field profile (ADR-0217).
+  **Load when**: scoping privacy, redaction, by-reference payloads, or a new kind of
+  preview.
 - **`vulnerability-items.md`** · `plan`
   A case's CSAF-shaped vulnerability items and references, and the offers that
   change them (ADR-0187).
@@ -168,8 +168,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   Received and emitted wire bodies are sealed evidence; delivery is a dumb relay.
   **Load when**: touching the inbox freeze point, a delivery port, or a sealed body.
 - **`stub-objects.md`** · `guidance`
-  The VulnerabilityCase stub, the only stub type the protocol permits.
-  **Load when**: deciding whether an outbound object may be sent as a stub.
+  The VulnerabilityCase stub, the only stub type the protocol permits: the profile
+  that cuts it from the case, its loose forms and the receiver's envelope check.
+  **Load when**: deciding whether an outbound object may be sent as a stub, or
+  changing what a case preview shows.
 - **`message-occasion-table.md`** · `guidance`
   Occasion-table rules: derived "Sent by"/"Send to", "When…" grammar, distinguishers.
   **Load when**: adding or changing a message occasion or its generated fragments.

@@ -748,8 +748,9 @@ groups:
     kind: project
     statement: Inbound stubs MUST NOT be used to create new domain records
     rationale: >-
-      A stub has only an id, a type and a summary. A record built from a stub is an
-      empty copy, and later reads use it as the real object. The full case arrives only
+      A stub shows only what its sender cut from the case for the invitee
+      (CM-17-010). A record built from a stub is a partial copy, and later reads use
+      it as the real object. The full case arrives only
       when the participant is active (MV-10-005), and a record created from the stub
       goes around that gate.
     verification: >-
