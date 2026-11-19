@@ -1262,10 +1262,10 @@ def test_no_class_declares_a_jsonld_keyword_as_a_spelling() -> None:
     MV-11-002: a receiver MUST NOT declare them as an alias.  Checked on the
     spellings the partition itself derives, so an alias added through
     ``validation_alias``, ``AliasChoices`` or an ``alias_generator`` is caught.
-    The private ``_class_spellings`` is read on purpose: it is the partition's
-    own definition of "declared", and a public restatement could drift from it.
+    ``class_spellings`` is read on purpose: it is the partition's own
+    definition of "declared", and a restatement here could drift from it.
     """
-    from vultron.wire.as2.unknown_keys import _class_spellings
+    from vultron.wire.as2.inline_class import class_spellings
 
     keywords = {k for k, _ in JSONLD_KEYWORDS}
     classes = _registered_classes()
@@ -1281,7 +1281,7 @@ def test_no_class_declares_a_jsonld_keyword_as_a_spelling() -> None:
     offenders = [
         f"{cls.__module__}.{cls.__qualname__}: {sorted(found)}"
         for cls in classes
-        if (found := keywords & _class_spellings(cls).annotations.keys())
+        if (found := keywords & class_spellings(cls).annotations.keys())
     ]
     assert offenders == [], offenders
 

@@ -113,11 +113,7 @@ def _misplaced(
     # and a misplaced form inside one is as misplaced as anywhere else.
     if not isinstance(value, BaseModel):
         return
-    for field_name, info in type(value).model_fields.items():
-        child = getattr(value, field_name, None)
-        # The key the sender wrote, so the refusal names the slot it used.
-        key = info.serialization_alias or field_name.rstrip("_")
-        child_path = f"{path}.{key}" if path else key
+    for field_name, child, child_path in _fields_at(value, path):
         if not admits(value, field_name, child):
             yield from _misplaced(child, child_path, is_form, admits, inside)
             continue
@@ -137,14 +133,22 @@ def _fields_misplaced(
 ) -> Iterator[str]:
     """The paths in *value*'s fields, not *value* itself, that hold the form
     in a slot *admits* refuses."""
+    for _, child, child_path in _fields_at(value, path):
+        yield from _misplaced(child, child_path, is_form, admits, inside)
+
+
+def _fields_at(
+    value: BaseModel, path: str
+) -> Iterator[tuple[str, object, str]]:
+    """Each field of *value*: its name, what it holds, and its path below
+    *path* under the key the sender wrote, so a refusal names the slot it
+    used."""
     for field_name, info in type(value).model_fields.items():
         key = info.serialization_alias or field_name.rstrip("_")
-        yield from _misplaced(
+        yield (
+            field_name,
             getattr(value, field_name, None),
-            f"{path}.{key}",
-            is_form,
-            admits,
-            inside,
+            f"{path}.{key}" if path else key,
         )
 
 

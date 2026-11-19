@@ -74,7 +74,7 @@ CONTEXT_KEY = "@context"
 
 
 @dataclass(frozen=True)
-class _Spellings:
+class Spellings:
     """The declared spellings of one or more classes, indexed two ways."""
 
     #: Every declared spelling, mapped to the fields' annotations it can fill.
@@ -101,7 +101,7 @@ def _alias_keys(alias: object) -> list[str]:
 
 
 @cache
-def _class_spellings(cls: type[BaseModel]) -> _Spellings:
+def class_spellings(cls: type[BaseModel]) -> Spellings:
     """Enumerate every key *cls* accepts on input (MV-11-001).
 
     A declared spelling is a field name (both roots validate by name, CS-14-001
@@ -139,25 +139,25 @@ def _class_spellings(cls: type[BaseModel]) -> _Spellings:
     by_normalised: dict[str, str] = {}
     for spelling in [*preferred, *fallback, CONTEXT_KEY]:
         by_normalised.setdefault(normalise(spelling), spelling)
-    return _Spellings(
+    return Spellings(
         annotations=MappingProxyType(annotations),
         by_normalised=MappingProxyType(by_normalised),
     )
 
 
-def _merged_spellings(classes: tuple[type[BaseModel], ...]) -> _Spellings:
+def merged_spellings(classes: tuple[type[BaseModel], ...]) -> Spellings:
     """Merge the spellings of several candidate classes (an untyped dict)."""
     if len(classes) == 1:
-        return _class_spellings(classes[0])
+        return class_spellings(classes[0])
     annotations: dict[str, tuple[object, ...]] = {}
     by_normalised: dict[str, str] = {}
     for cls in classes:
-        spellings = _class_spellings(cls)
+        spellings = class_spellings(cls)
         for key, found in spellings.annotations.items():
             annotations[key] = annotations.get(key, ()) + found
         for norm, spelling in spellings.by_normalised.items():
             by_normalised.setdefault(norm, spelling)
-    return _Spellings(annotations=annotations, by_normalised=by_normalised)
+    return Spellings(annotations=annotations, by_normalised=by_normalised)
 
 
 def _model_candidates(
@@ -201,7 +201,7 @@ def _model_candidates(
     return tuple(dict.fromkeys(found))
 
 
-def _candidates_for(
+def candidates_for(
     annotations: tuple[object, ...],
 ) -> tuple[type[BaseModel], ...]:
     """Union the model candidates of every annotation a key can fill."""
@@ -270,8 +270,8 @@ def slot_classes(
     Empty when *cls* declares no such spelling, or the field also admits a
     plain dict or ``Any``, so no class decides the dict's keys.
     """
-    annotations = _class_spellings(cls).annotations.get(key)
-    return _candidates_for(annotations) if annotations else ()
+    annotations = class_spellings(cls).annotations.get(key)
+    return candidates_for(annotations) if annotations else ()
 
 
 def declared_slot_class(
@@ -283,10 +283,10 @@ def declared_slot_class(
     *resolved*, the wire class its ``type`` names, or ``None`` to keep that.
 
     The partition and the parser's expansion read a slot-declared class the
-    same way (:func:`_declared_for_type`), so one class decides a nested
+    same way (:func:`declared_for_type`), so one class decides a nested
     object's keys and validates it.
     """
-    declared = _declared_for_type(value, candidates, resolved)
+    declared = declared_for_type(value, candidates, resolved)
     return declared[0] if len(declared) == 1 else None
 
 
@@ -301,7 +301,7 @@ def _type_literal_values(cls: type[BaseModel]) -> tuple[object, ...]:
     return get_args(annotation)
 
 
-def _declared_for_type(
+def declared_for_type(
     value: dict[str, Any],
     candidates: tuple[type[BaseModel], ...],
     resolved: type[BaseModel] | None,
@@ -370,9 +370,10 @@ def inline_class(
     *slots* are the model classes the field holding *value* declares, and
     *in_preview* says *value* sits inside a preview.  Inside one, a field's
     declared loose form wins; a dict with no ``type`` in a field that declares
-    one loose form takes it, as does one whose ``type`` names nothing known;
-    any other typed object takes the loose form of the class its ``type``
-    names (MV-12-006, ADR-0217).
+    one loose form takes it, as does one whose ``type`` names nothing known,
+    and in a field that declares none it is read as the loose object
+    (:class:`PreviewObject`); any other typed object takes the loose form of
+    the class its ``type`` names (MV-12-006, ADR-0217).
 
     Raises:
         VultronParseValidationError: For a typed reference carrying a preview
@@ -386,7 +387,12 @@ def inline_class(
     loose = tuple(cls for cls in slots if is_preview_form(cls))
     if resolved is None:
         # No ``type``, or one naming nothing known: a field that declares one
-        # loose form reads it, so a key that form lacks is set aside.
+        # loose form reads it, so a key that form lacks is set aside.  A
+        # field that declares none reads it as the loose object, as a bare
+        # ``CoreObject`` stands for it outside a preview, so a marker in it
+        # and a missing ``id`` are read as sent.
+        if not loose:
+            return PreviewObject
         return loose[0] if len(loose) == 1 else None
     declared = declared_slot_class(dict(value), loose, resolved)
     if declared is not None:

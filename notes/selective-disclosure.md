@@ -180,6 +180,17 @@ Our cut, with an embargo in force:
   parser where a preview field declares it. A class with its own wire shape (a
   scalar dimension, written as its bare state) has nothing to cut: it is shown
   whole or marked. `to_loose(obj, fields)` is how a sender shows a held object.
+- **A loose form reads a value as its full class does**: it carries the class's
+  `before` field validators and `plain` field serializers, a marker passed by,
+  so a role written by name or one `rel` as a string is read, not refused. It
+  drops the `after` validators and model validators: those are invariants and
+  derived values a cut-down object does not have. It keeps `type_` and any
+  `Literal` tag (a termination cause's `kind`) as declared, so a discriminated
+  union still picks its member.
+- **A loose form extends its parent's** (a loose Note is a loose Object), so a
+  field declaring the parent's form holds the subclass's. A class whose fields
+  name itself, or a subclass of itself, is named by a reference that is resolved
+  once the outermost derivation ends.
 - **A drift test** (#6692) pins every `CasePreview` field to a `VulnerabilityCase`
   field, and every `VulnerabilityCase` field to the preview or the profile's
   omit-only rows, so a new case field fails CI until it is classified. It lands

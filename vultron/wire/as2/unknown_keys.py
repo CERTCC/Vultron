@@ -51,12 +51,11 @@ from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.inline_class import (
     CONTEXT_KEY,
-    _candidates_for,
-    _class_spellings,
-    _declared_for_type,
-    _merged_spellings,
+    candidates_for,
+    declared_for_type,
     declared_slot_class,
     inline_class,
+    merged_spellings,
     normalise,
     reads_inside_preview,
     resolve_inline_class,
@@ -146,7 +145,7 @@ def _partition_value(
         classes = (shown,) if shown is not None else candidates
     else:
         resolved = resolve_inline_class(value, path)
-        declared = _declared_for_type(value, candidates, resolved)
+        declared = declared_for_type(value, candidates, resolved)
         fallback = (resolved,) if resolved is not None else candidates
         classes = declared or fallback
     return _partition_object(value, classes, path, walk, in_preview)
@@ -172,7 +171,7 @@ def _partition_object(
             )
             for key, item in value.items()
         }
-    spellings = _merged_spellings(classes)
+    spellings = merged_spellings(classes)
     kept: dict[str, Any] = {}
     location = location_of(path, walk.root)
     embedded_profile = bool(path) and _is_actor_profile(classes)
@@ -188,7 +187,7 @@ def _partition_object(
                 if key in _UNEXAMINED_KEYS
                 else _partition_value(
                     item,
-                    _candidates_for(spellings.annotations[key]),
+                    candidates_for(spellings.annotations[key]),
                     _join(path, key),
                     walk,
                     inner,
@@ -291,7 +290,6 @@ __all__ = [
     "ENVELOPE",
     "OPAQUE_PAYLOAD_KEYS",
     "SetAsideKey",
-    "_class_spellings",
     "declared_slot_class",
     "inline_class",
     "location_of",

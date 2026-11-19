@@ -326,6 +326,43 @@ CUT_DOWN_OBJECTS: dict[str, dict[str, Any]] = {
     "AS2 note with a marker in tag": {
         "tag": [{"type": "Note", "content": {"type": "Redacted"}}]
     },
+    "participant roles as the full class writes them": {
+        "caseParticipants": [
+            {
+                "type": "CaseParticipant",
+                "caseRoles": ["vendor", MARKER],
+                "participantStatuses": [
+                    {"type": "ParticipantStatus", "cvdRole": ["VENDOR"]}
+                ],
+            }
+        ]
+    },
+    "termination cause cut to its kind": {
+        "embargoRegister": [
+            {
+                "termination": {
+                    "reason": "EARLY",
+                    "cause": {"kind": "FIX_READY", "vendors": [MARKER]},
+                }
+            }
+        ]
+    },
+    "note in a note's tag": {
+        "tag": [
+            {
+                "type": "Note",
+                "content": "outer",
+                "tag": [{"type": "Note", "content": MARKER}],
+            }
+        ]
+    },
+    "offer whose object is a note": {
+        "tag": [{"type": "Offer", "object": {"type": "Note", "content": "x"}}]
+    },
+    "object with no type and a marker": {"tag": [{"content": MARKER}]},
+    "object of an unknown type and a marker": {
+        "tag": [{"type": "NoSuchType", "content": MARKER}]
+    },
 }
 
 
@@ -344,6 +381,72 @@ def test_a_preview_shows_a_nested_object_cut_down_as_sent(shown: str) -> None:
 
     dumped = preview.model_dump(by_alias=True, exclude_none=True, mode="json")
     assert {key: dumped.get(key) for key in fields} == fields
+
+
+#: A value shown in a spelling the full class reads, and the spelling the
+#: full class writes it back in.
+FULL_CLASS_SPELLINGS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
+    "one rel as a string": (
+        {
+            "caseReferences": [
+                {
+                    "type": "CaseReference",
+                    "url": {
+                        "type": "Link",
+                        "href": "https://example.org/advisory",
+                        "rel": "advisory",
+                    },
+                }
+            ]
+        },
+        {
+            "caseReferences": [
+                {
+                    "type": "CaseReference",
+                    "url": {
+                        "type": "Link",
+                        "href": "https://example.org/advisory",
+                        "rel": ["advisory"],
+                    },
+                }
+            ]
+        },
+    ),
+    "one attachment as an object": (
+        {
+            "vulnerabilityReports": [
+                {
+                    "type": "VulnerabilityReport",
+                    "attachment": {"type": "Document", "name": "csaf.json"},
+                }
+            ]
+        },
+        {
+            "vulnerabilityReports": [
+                {
+                    "type": "VulnerabilityReport",
+                    "attachment": [{"type": "Document", "name": "csaf.json"}],
+                }
+            ]
+        },
+    ),
+}
+
+
+@pytest.mark.spec("MV-12-006")
+@pytest.mark.parametrize("shown", list(FULL_CLASS_SPELLINGS))
+def test_a_preview_reads_a_value_as_its_full_class_reads_it(
+    shown: str,
+) -> None:
+    """A loose form carries its full class's reading rules, so a value a full
+    object may spell more than one way is read the same way inside a
+    preview, not refused or misread."""
+    fields, written = FULL_CLASS_SPELLINGS[shown]
+
+    preview = _preview_of(parse_activity(_stub_invite(**fields)))
+
+    dumped = preview.model_dump(by_alias=True, exclude_none=True, mode="json")
+    assert {key: dumped.get(key) for key in written} == written
 
 
 @pytest.mark.spec("MV-12-001")

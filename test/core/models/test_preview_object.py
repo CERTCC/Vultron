@@ -19,10 +19,18 @@ How a received preview is read is the parse edge's question, held by
 ``test/wire/as2/test_redaction_marker.py``.
 """
 
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
-from pydantic import BaseModel
+from pydantic import (
+    BaseModel,
+    Field as PydanticField,
+    SerializationInfo,
+    ValidationError,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+)
 
 from test.support.objects import make
 from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
@@ -199,7 +207,7 @@ def test_a_loose_form_is_received_without_an_id_or_a_published() -> None:
     assert item.published is None
 
 
-@pytest.mark.parametrize("cls", [CoreObject, Redacted, CasePreview])
+@pytest.mark.parametrize("cls", [BaseModel, CoreObject, Redacted, CasePreview])
 def test_a_class_with_no_loose_form_is_refused(cls: type) -> None:
     with pytest.raises(TypeError, match="no loose form"):
         loose_form(cls)
@@ -320,7 +328,9 @@ class _Collections(BaseModel):
 @pytest.mark.parametrize(
     ("field", "shown"),
     [
-        ("tags", {"x", Redacted()}),
+        # Built from a tuple: a frozen model hashes, which a set literal
+        # cannot show a type checker.
+        ("tags", set(("x", Redacted()))),
         ("names", ("x", Redacted())),
         ("scores", {"x": Redacted()}),
     ],
@@ -390,10 +400,216 @@ def test_to_loose_refuses_a_field_its_class_lacks() -> None:
 
 
 def test_a_class_whose_fields_name_it_again_has_a_loose_form() -> None:
-    """``as_Object.tag`` holds ``as_Object``s: the form is held whole where
-    it would name itself, so the derivation ends."""
+    """``as_Object.tag`` holds ``as_Object``s: the form names itself by a
+    reference, resolved once it is built, so the derivation ends and the
+    form holds a loose object at every depth.  Which loose form a typed
+    object takes is the parse edge's choice (``test_redaction_marker.py``).
+    """
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-    note: Any = loose_form(as_Note).model_validate({"content": Redacted()})
+    note: Any = loose_form(as_Note).model_validate(
+        {
+            "content": Redacted(),
+            "tag": [{"type": "Note", "tag": [{"type": "Note"}]}],
+        }
+    )
 
     assert note.content == Redacted()
+    (inner,) = note.tag
+    (innermost,) = inner.tag
+    assert isinstance(innermost, loose_form(as_Object))
+
+
+def test_a_loose_subclass_is_read_where_its_parents_loose_form_is() -> None:
+    """A subclass's form extends its parent's, so a field declaring the
+    parent's loose form holds the subclass's."""
+    from vultron.core.models.case_participant.roles import VendorParticipant
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    assert issubclass(loose_form(as_Note), loose_form(as_Object))
+    assert issubclass(
+        loose_form(VendorParticipant), loose_form(CaseParticipant)
+    )
+
+
+def test_a_loose_form_extends_no_mixin_its_class_shares() -> None:
+    """A mixin without fields, and the record base every object shares, are
+    not a loose form's base: an object's form extends the loose object, a
+    value's the loose value."""
+    from vultron.core.models.base.record import CoreRecord
+
+    item_form = loose_form(VulnerabilityItem)
+
+    assert PreviewObject in item_form.__bases__
+    assert not any(
+        is_loose_form_of(base, CoreRecord) for base in item_form.__mro__
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "shown_as"),
+    [
+        ({"cvdRole": ["VENDOR"]}, ["VENDOR"]),
+        ({"cvdRole": ["vendor", Redacted()]}, ["VENDOR", Redacted()]),
+        (
+            {"cvdRole": [{"type": "Redacted"}, "vendor"]},
+            [Redacted(), "VENDOR"],
+        ),
+    ],
+)
+def test_a_loose_form_reads_and_writes_a_value_as_its_full_class(
+    status: dict[str, Any], shown_as: list[object]
+) -> None:
+    """The full class's reading rule (a role by name or value) and writing
+    rule (a role by name) are carried, a marker passed by in its place."""
+    from vultron.core.models.participant_status import ParticipantStatus
+
+    shown = loose_form(ParticipantStatus).model_validate(status)
+
+    assert shown.model_dump(by_alias=True)["cvdRole"] == [
+        item.model_dump(by_alias=True) if isinstance(item, Redacted) else item
+        for item in shown_as
+    ]
+
+
+def test_to_loose_shows_a_value_its_full_class_writes_its_own_way() -> None:
+    """``to_loose`` reads back the full class's own dump, so a role written
+    by name is read by name."""
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.enums import CVDRole
+
+    status = make(
+        ParticipantStatus, context=CASE_ID, cvd_role=[CVDRole.VENDOR]
+    )
+
+    shown = to_loose(status, ("cvd_role",))
+
+    assert shown.model_dump(by_alias=True)["cvdRole"] == ["VENDOR"]
+
+
+class _Deduped(BaseModel):
+    """A stand-in whose reading rule changes how many items there are."""
+
+    names: list[str] = []
+
+    @field_validator("names", mode="before")
+    @classmethod
+    def _once_each(cls, value: Any) -> Any:
+        return list(dict.fromkeys(value)) if isinstance(value, list) else value
+
+
+def test_a_rule_that_changes_the_item_count_reads_the_whole_list() -> None:
+    """Markers cannot keep their places when the rule drops an item, so the
+    rule is given the whole list, markers and all, and decides."""
+    form = loose_form(_Deduped)
+
+    shown: Any = form.model_validate({"names": ["a", "a", Redacted()]})
+
+    assert shown.names == ["a", Redacted()]
+
+
+class _WithInfo(BaseModel):
+    """A stand-in whose reading and writing rules take pydantic's info."""
+
+    label: str = "x"
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def _read(cls, value: Any, info: ValidationInfo) -> Any:
+        return value.strip() if isinstance(value, str) else value
+
+    @field_serializer("label")
+    def _write(self, value: str, info: SerializationInfo) -> str:
+        return value.upper()
+
+
+def test_a_rule_that_takes_info_is_carried_with_it() -> None:
+    form = loose_form(_WithInfo)
+
+    shown = form.model_validate({"label": " a "})
+
+    assert shown.model_dump()["label"] == "A"
+
+
+class _Parent(BaseModel):
+    """A stand-in whose field names its own subclass."""
+
+    name: str = "parent"
+    child: _Child | None = None
+
+
+class _Child(_Parent):
+    age: int = 0
+
+
+_Parent.model_rebuild()
+
+
+def test_a_subclass_named_by_its_parent_is_derived_after_the_parent() -> None:
+    """The subclass's form extends the parent's, which is still being built
+    when the parent's field names it, so it is derived once the parent is."""
+    parent: Any = loose_form(_Parent).model_validate(
+        {"child": {"name": Redacted(), "age": 3}}
+    )
+
+    assert issubclass(loose_form(_Child), loose_form(_Parent))
+    assert is_loose_form_of(parent.child, _Child)
+    assert parent.child.name == Redacted()
+
+
+def test_a_discriminated_union_keeps_its_discriminator() -> None:
+    """A termination cause is chosen by its ``kind``: each loose member keeps
+    its ``kind`` as declared, and a cut-down cause is read as the member it
+    names."""
+    from vultron.core.models.embargo_termination import (
+        EmbargoTermination,
+        FixReadyCause,
+    )
+
+    form = loose_form(EmbargoTermination)
+
+    shown: Any = form.model_validate(
+        {"cause": {"kind": "FIX_READY", "vendors": [Redacted()]}}
+    )
+    assert is_loose_form_of(shown.cause, FixReadyCause)
+    assert shown.cause.vendors == [Redacted()]
+    withheld: Any = form.model_validate({"cause": Redacted()})
+    assert withheld.cause == Redacted()
+
+
+class _Annotated(BaseModel):
+    """A stand-in with annotated fields that name no model."""
+
+    count: Annotated[int, PydanticField(ge=0)] | None = None
+    any_model: BaseModel | None = None
+
+
+def test_an_annotation_naming_no_model_keeps_its_constraints() -> None:
+    """Loosening rebuilds only an ``Annotated`` that names a model, so a
+    constraint on any other value still holds."""
+    form = loose_form(_Annotated)
+
+    with pytest.raises(ValidationError):
+        form.model_validate({"count": -1})
+
+
+def test_a_field_holding_any_model_holds_it_as_declared() -> None:
+    """``BaseModel`` stands for any model, as ``CoreObject`` does for any
+    object, so it has no loose form of its own."""
+    held = _status()
+
+    shown: Any = loose_form(_Annotated).model_validate({"any_model": held})
+
+    assert shown.any_model is held
+
+
+def test_the_loose_object_keeps_the_type_it_was_given() -> None:
+    """An object read as the loose object, because its ``type`` names nothing
+    known, keeps that ``type``, or none, rather than taking the base's name."""
+    assert PreviewObject.model_validate({"content": "x"}).type_ is None
+    assert (
+        PreviewObject.model_validate({"type": "NoSuchType"}).type_
+        == "NoSuchType"
+    )

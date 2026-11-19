@@ -13,6 +13,7 @@ from typing import Any, cast
 from pydantic import BaseModel, ValidationError
 
 from vultron.core.models._helpers import MissingClaimedTimeError
+from vultron.core.models.preview_object import PreviewObject
 from vultron.core.models.sender_sequence import is_sender_sequence
 from vultron.wire.as2.case_proposal_envelope import (
     refuse_malformed_case_proposal_envelope,
@@ -115,8 +116,9 @@ def _expand_inline_value(
         return expanded
     # The class holds one ``type``: a list is read as the term it resolved
     # to, which a core class's own validation could not do (ADR-0196).  Only
-    # the ``type`` the class was resolved from is narrowed.
-    if "type" in expanded:
+    # the ``type`` the class was resolved from is narrowed: the loose object
+    # a preview reads an unknown ``type`` as keeps it as sent.
+    if "type" in expanded and inline_cls is not PreviewObject:
         _, expanded = resolve_received_type(expanded)
 
     # Once the type has resolved to a wire class, failing that class's own

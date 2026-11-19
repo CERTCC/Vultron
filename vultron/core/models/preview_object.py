@@ -22,7 +22,10 @@ a **loose form** of its class: the class's fields under the class's names,
 every one optional, and any field or list item may hold a
 :class:`~vultron.core.models.redacted.Redacted` marker.  A loose form keeps
 none of its full class's invariants: a vul item shown with only its ``ids``,
-with no ``id`` or ``published`` of its own, is read as shown.
+with no ``id`` or ``published`` of its own, is read as shown.  It keeps the
+class's spelling of a value: the class's ``before`` field validators and
+``plain`` field serializers are carried, so a value is read and written as the
+full class reads and writes it.
 
 The case preview itself is written by hand (:class:`~vultron.core.models.
 case_preview.CasePreview`).  Every object nested in it takes a form derived
@@ -37,14 +40,20 @@ row is read back as (:func:`~vultron.core.models.base.record.
 shares_full_form_type`).
 """
 
+import inspect
+import re
 import types
-from collections.abc import Collection, Sequence
+from annotationlib import Format
+from collections.abc import Callable, Collection, Mapping, Sequence
 from datetime import datetime, timedelta
 from typing import (
     Annotated,
     Any,
     ClassVar,
+    ForwardRef,
+    Literal,
     TypeAliasType,
+    TypeGuard,
     Union,
     get_args,
     get_origin,
@@ -55,10 +64,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializationInfo,
     SerializerFunctionWrapHandler,
+    ValidationInfo,
     create_model,
     field_serializer,
     field_validator,
+    model_validator,
 )
 from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
@@ -69,12 +81,15 @@ from vultron.core.models.base import (
     NonEmptyString,
     ValidatedAssignmentMixin,
 )
-from vultron.core.models.base.core_object import CoreObjectOrIri
+from vultron.core.models.base.core_object import (
+    CoreObjectOrIri,
+    type_from_class_name,
+)
 from vultron.core.models.base.language_map import (
     LanguageMap,
     language_map_field,
 )
-from vultron.core.models.redacted import Redactable, Redacted
+from vultron.core.models.redacted import REDACTED_TYPE, Redactable, Redacted
 
 
 def _utc_unless_marked(value: object) -> object:
@@ -154,6 +169,20 @@ class PreviewObject(_LooseForm, CoreObject):  # type: ignore[misc]
     _received_without_published: ClassVar[bool] = True
     _received_without_id: ClassVar[bool] = True
 
+    @model_validator(mode="before")
+    @classmethod
+    def _set_type_from_class_name(cls, data: Any) -> Any:
+        """Name a typeless object by its class, as ``CoreObject`` does, except
+        on this base itself.
+
+        A preview reads an object with no known ``type`` as this base, the
+        loose counterpart of the bare ``CoreObject`` that stands for any
+        embedded object, and keeps the ``type`` the sender gave, or none.
+        """
+        if cls is PreviewObject:
+            return data
+        return type_from_class_name(cls, data)
+
     id_: Redactable[NonEmptyString] | None = Field(  # type: ignore[assignment]
         default=None,
         validation_alias="id",
@@ -192,9 +221,10 @@ class PreviewValue(_LooseForm):
     )
 
 
-#: Classes a preview holds as they are: the marker, the bare ``CoreObject``
-#: that stands for any embedded object, and preview types already loose.
-_KEPT = (Redacted, PreviewObject, PreviewValue)
+#: Classes a preview holds as they are: the marker and preview types already
+#: loose.  ``BaseModel`` and the bare ``CoreObject`` stand for any object, so
+#: they are held as declared too (:func:`_is_loosenable`).
+_KEPT = (Redacted, _LooseForm)
 
 
 def _has_own_wire_shape(cls: type[BaseModel]) -> bool:
@@ -210,14 +240,127 @@ def _has_own_wire_shape(cls: type[BaseModel]) -> bool:
     return any(serializer.info.mode == "plain" for serializer in serializers)
 
 
-def _is_loosenable(ann: object) -> bool:
+def _is_loosenable(ann: object) -> TypeGuard[type[BaseModel]]:
     return (
         isinstance(ann, type)
         and issubclass(ann, BaseModel)
-        and ann is not CoreObject
+        and ann not in (BaseModel, CoreObject)
         and not issubclass(ann, _KEPT)
         and not _has_own_wire_shape(ann)
     )
+
+
+def _is_marker(value: object) -> bool:
+    """Whether *value* is a marker, built or as the wire writes it."""
+    return isinstance(value, Redacted) or (
+        isinstance(value, Mapping) and value.get("type") == REDACTED_TYPE
+    )
+
+
+def _around_markers(value: Any, apply: Callable[[Any], Any]) -> Any:
+    """*apply* to *value*, a marker in it, or the absence of it, kept as is.
+
+    A full class's reading or writing rule knows nothing of markers.  A
+    marker in place of the whole value, or of one list item, is passed by,
+    and the rule is applied to the items shown, which keep their places.
+    When the rule changes how many items there are, it is applied to the
+    whole list, markers and all, and decides.
+    """
+    if value is None or _is_marker(value):
+        return value
+    if isinstance(value, list) and any(_is_marker(item) for item in value):
+        shown = [item for item in value if not _is_marker(item)]
+        applied = apply(shown)
+        if isinstance(applied, list) and len(applied) == len(shown):
+            read = iter(applied)
+            return [item if _is_marker(item) else next(read) for item in value]
+    return apply(value)
+
+
+def _takes_info(func: Callable[..., Any], *, skip: int) -> bool:
+    """Whether *func* takes pydantic's info argument after its value.
+
+    *skip* counts the leading parameters before the value (``self``).
+    Annotations are not evaluated (PEP 649), so a name imported only for type
+    checking does not stop the read.
+    """
+    parameters = inspect.signature(
+        func, annotation_format=Format.FORWARDREF
+    ).parameters.values()
+    positional = [
+        p
+        for p in parameters
+        if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+    ]
+    return len(positional) - skip > 1
+
+
+def _carried_validator(decorator: Any) -> Any:
+    """The full class's ``before`` field validator *decorator*, for its loose
+    form: what the sender showed is read as the full class reads it, a marker
+    passed by.
+
+    Only the ``before`` rules are carried: they read the wire's spelling of a
+    value (a role written by name, one ``rel`` as a list of one).  An
+    ``after`` rule is an invariant of the whole object, which a loose form
+    does not keep.
+    """
+    read: Callable[..., Any] = decorator.func
+    with_info = _takes_info(read, skip=0)
+
+    def carried(cls: type[BaseModel], value: Any, info: ValidationInfo) -> Any:
+        return _around_markers(
+            value, (lambda v: read(v, info)) if with_info else read
+        )
+
+    return field_validator(
+        *decorator.info.fields, mode="before", check_fields=False
+    )(carried)
+
+
+def _carried_serializer(decorator: Any) -> Any:
+    """The full class's ``plain`` field serializer *decorator*, for its loose
+    form: a value shown is written as the full class writes it, so the
+    receiver reads it back the same way, and a marker is written as itself.
+    """
+    write: Callable[..., Any] = decorator.func
+    with_info = _takes_info(write, skip=1)
+
+    def carried(self: BaseModel, value: Any, info: SerializationInfo) -> Any:
+        return _around_markers(
+            value,
+            (lambda v: write(self, v, info))
+            if with_info
+            else (lambda v: write(self, v)),
+        )
+
+    return field_serializer(
+        *decorator.info.fields,
+        mode="plain",
+        when_used=decorator.info.when_used,
+        check_fields=False,
+    )(carried)
+
+
+def _carried_rules(cls: type[BaseModel]) -> dict[str, Any]:
+    """*cls*'s field reading and writing rules, for its loose form.
+
+    ``CoreObject``'s own rules are left to the loose base, which replaces its
+    timestamp rules with ones that pass a marker by.
+    """
+    decorators = cls.__pydantic_decorators__
+    own = CoreObject.__pydantic_decorators__
+    rules: dict[str, Any] = {
+        name: _carried_validator(decorator)
+        for name, decorator in decorators.field_validators.items()
+        if decorator.info.mode == "before" and name not in own.field_validators
+    }
+    rules.update(
+        (name, _carried_serializer(decorator))
+        for name, decorator in decorators.field_serializers.items()
+        if decorator.info.mode == "plain" and name not in own.field_serializers
+    )
+    return rules
 
 
 # The helpers below build annotations at run time.  An annotation is a type
@@ -229,35 +372,69 @@ def _loose_inner(ann: Any) -> Any:
     if isinstance(ann, TypeAliasType):
         return _loose_inner(ann.__value__)
     origin = get_origin(ann)
-    if isinstance(origin, TypeAliasType) or origin is Annotated:
-        # Already a ``Redactable[...]``, a constrained scalar
-        # (``NonEmptyString``) or an already-built object
-        # (``UnmodelledObject``): read as declared.
+    if isinstance(origin, TypeAliasType):
+        # Already a ``Redactable[...]``: read as declared.
         return ann
+    if origin is Annotated:
+        return _loose_annotated(ann)
     if ann is str:
         # A full class that checks its string by a validator a loose form
         # does not carry still has a value, if shown, that is not blank
         # (CS-08-001).
         return NonEmptyString
     if _is_loosenable(ann):
-        # A class met again while its own form is being derived is held whole
-        # at that depth: the form cannot name itself before it exists.
-        return ann if ann in _DERIVING else loose_form(ann)
+        return _form_or_reference(ann)
     if origin is Union or isinstance(ann, types.UnionType):
         members = [_loose_inner(arg) for arg in get_args(ann)]
         return Union[tuple(members)]  # noqa: UP007 - built from a tuple
     return _loose_container(origin, ann)
 
 
+def _loose_annotated(ann: Any) -> Any:
+    """``Annotated[T, ...]`` with *T* loosened and its metadata kept.
+
+    A constrained scalar (``NonEmptyString``) and an already-built object
+    (``UnmodelledObject``) name no model, so they are read as declared.  A
+    discriminated union (``TerminationCause``) keeps its discriminator, which
+    each member's loose form keeps as declared (:func:`_loose_field`).
+    """
+    inner, *metadata = get_args(ann)
+    if inner is str:
+        return ann
+    loosened = _loose_inner(inner)
+    if loosened == inner:
+        return ann
+    return Annotated[loosened, *metadata]
+
+
+def _form_or_reference(cls: type[BaseModel]) -> Any:
+    """*cls*'s loose form, or a reference to it while it cannot yet be built.
+
+    A class met while its own form is being derived (``as_Object.tag`` holds
+    ``as_Object``s), or while a class it extends is (its form is built on
+    theirs), is named by a reference, resolved once the outermost derivation
+    ends (:func:`loose_form`).
+    """
+    if cls in _FORMS:
+        return _FORMS[cls]
+    if any(held in _DERIVING for held in (cls, *_form_ancestors(cls))):
+        _HELD.add(cls)
+        return ForwardRef(_reference_name(cls))
+    return loose_form(cls)
+
+
 def _loose_container(origin: Any, ann: Any) -> Any:
     """A collection annotation *ann* with each item loosened."""
     args = get_args(ann)
+    item = _loose_value(args[0] if args else Any)
     if origin in (list, Sequence):
-        return list[_loose_value(args[0] if args else Any)]  # type: ignore[misc]
-    if origin in (set, frozenset):
-        return origin[_loose_value(args[0] if args else Any)]
+        return list[item]  # type: ignore[valid-type]
+    if origin is set:
+        return set[item]  # type: ignore[valid-type]
+    if origin is frozenset:
+        return frozenset[item]  # type: ignore[valid-type]
     if origin is tuple and len(args) == 2 and args[1] is ...:
-        return tuple[_loose_value(args[0]), ...]  # type: ignore[misc]
+        return tuple[item, ...]  # type: ignore[valid-type]
     if origin is dict:
         key, value = args or (Any, Any)
         return dict[key, _loose_value(value)]  # type: ignore[misc,valid-type]
@@ -271,11 +448,19 @@ def _loose_value(ann: Any) -> Any:
     return Redactable[_loose_inner(ann)]  # type: ignore[misc]
 
 
+def _names_the_object(name: str, info: FieldInfo) -> bool:
+    """Whether the full field *name* says which object this is.
+
+    ``type_`` and a ``Literal`` tag (a termination cause's ``kind``) name the
+    object's class, so the parse edge and a discriminated union can tell its
+    loose form by them.
+    """
+    return name == "type_" or get_origin(info.annotation) is Literal
+
+
 def _loose_field(name: str, info: FieldInfo) -> tuple[Any, Any]:
     """The loose definition of the full class's field *name*."""
-    if name == "type_":
-        # The object's own type, as its full class names it: never loosened,
-        # so the parse edge can tell a loose form by it.
+    if _names_the_object(name, info):
         return info.annotation, _aliased(info, default=info.default)
     annotation = _loose_value(info.annotation)
     return annotation | None, _aliased(info, default=None)
@@ -308,19 +493,61 @@ def _declares_its_own(
     """
     if name == "type_" or name not in base.model_fields:
         return True
-    inherited = CoreObject.model_fields.get(name)
+    shown: type[BaseModel] = getattr(base, "full_form", None) or CoreObject
+    inherited = shown.model_fields.get(name)
     return (
         inherited is None
         or cls.model_fields[name].annotation != inherited.annotation
     )
 
 
+def _form_ancestors(cls: type[BaseModel]) -> list[type[BaseModel]]:
+    """The classes *cls* extends whose loose forms its own form extends.
+
+    Each is a model of *cls*'s kind (a ``CoreObject`` for a ``CoreObject``)
+    with fields of its own; a mixin without fields, and the bases every
+    model or object shares, are not.
+    """
+    is_object = issubclass(cls, CoreObject)
+    return [
+        parent
+        for parent in cls.__mro__[1:]
+        if _is_loosenable(parent)
+        and issubclass(parent, CoreObject) == is_object
+        and parent.model_fields
+    ]
+
+
+def _base_form(cls: type[BaseModel]) -> type[PreviewObject | PreviewValue]:
+    """The class *cls*'s loose form extends.
+
+    The loose form of the nearest class *cls* extends that has one, so a loose
+    subclass is read wherever its parent's loose form is declared (a loose
+    vendor participant where a loose participant is), and otherwise the
+    loose base for its kind of model.
+    """
+    ancestors = _form_ancestors(cls)
+    if ancestors:
+        return loose_form(ancestors[0])
+    return PreviewObject if issubclass(cls, CoreObject) else PreviewValue
+
+
+def _reference_name(cls: type[BaseModel]) -> str:
+    """The name a reference to *cls*'s loose form resolves by."""
+    return re.sub(r"\W", "_", f"{cls.__module__}.{cls.__qualname__}")
+
+
 #: Each class's loose form, once derived.
 _FORMS: dict[type[BaseModel], type[PreviewObject | PreviewValue]] = {}
 
-#: The classes whose loose forms are being derived, for a class whose fields
-#: name it again (``as_Object.tag`` holds ``as_Object``s).
+#: Each derived form under its reference name, to resolve references by.
+_BY_REFERENCE: dict[str, type[PreviewObject | PreviewValue]] = {}
+
+#: The classes whose loose forms are being derived.
 _DERIVING: set[type[BaseModel]] = set()
+
+#: The classes named by a reference, whose forms are still to derive.
+_HELD: set[type[BaseModel]] = set()
 
 
 @overload
@@ -338,11 +565,15 @@ def loose_form(
 
     Derived field by field: each of *cls*'s fields under its own name and
     aliases, optional, and admitting a marker; each model class a field
-    names, at any depth, replaced by its own loose form.  ``type_`` keeps its
-    full declaration.  A ``CoreObject`` class's form is a
-    :class:`PreviewObject`, any other model's a :class:`PreviewValue`; the
-    fields the base already declares loosely keep the base's declaration.
-    The same form is returned for every call with the same class.
+    names, at any depth, replaced by its own loose form.  ``type_`` and a
+    ``Literal`` tag keep their full declarations, and the full class's
+    ``before`` field validators and ``plain`` field serializers are carried,
+    so a value is read and written in the full class's spelling.  The form
+    extends the loose form of the nearest class *cls* extends, or else a
+    :class:`PreviewObject` for a ``CoreObject`` class and a
+    :class:`PreviewValue` for any other model; the fields the base already
+    declares loosely keep the base's declaration.  The same form is
+    returned for every call with the same class.
 
     Raises:
         TypeError: When *cls* is not a model class or is already loose.
@@ -350,25 +581,44 @@ def loose_form(
     if not _is_loosenable(cls):
         raise TypeError(f"{cls!r} has no loose form (ADR-0217)")
     if cls not in _FORMS:
-        _DERIVING.add(cls)
-        try:
-            _FORMS[cls] = _derive(cls)
-        finally:
-            _DERIVING.discard(cls)
+        outermost = not _DERIVING
+        _derive_once(cls)
+        if outermost:
+            _settle()
     return _FORMS[cls]
+
+
+def _derive_once(cls: type[BaseModel]) -> None:
+    """Derive *cls*'s form into the cache, unless it is there."""
+    if cls in _FORMS:
+        return
+    _DERIVING.add(cls)
+    try:
+        form = _derive(cls)
+    finally:
+        _DERIVING.discard(cls)
+    _FORMS[cls] = form
+    _BY_REFERENCE[_reference_name(cls)] = form
+
+
+def _settle() -> None:
+    """Derive every held class's form, then resolve every reference."""
+    while _HELD:
+        _derive_once(_HELD.pop())
+    for form in list(_FORMS.values()):
+        if not form.__pydantic_complete__:
+            form.model_rebuild(_types_namespace=_BY_REFERENCE)
 
 
 def _derive(cls: type[BaseModel]) -> type[PreviewObject | PreviewValue]:
     """Build the loose form :func:`loose_form` returns for *cls*."""
-    base: type[PreviewObject | PreviewValue] = (
-        PreviewObject if issubclass(cls, CoreObject) else PreviewValue
-    )
-    fields = {
+    base = _base_form(cls)
+    fields: dict[str, Any] = {
         name: _loose_field(name, info)
         for name, info in cls.model_fields.items()
         if _declares_its_own(cls, name, base)
     }
-    return create_model(  # type: ignore[call-overload,no-any-return]
+    form: type[PreviewObject | PreviewValue] = create_model(
         f"{cls.__name__}Preview",
         __base__=base,
         __module__=__name__,
@@ -376,9 +626,11 @@ def _derive(cls: type[BaseModel]) -> type[PreviewObject | PreviewValue]:
             f"A {cls.__name__} as a preview shows it: every field optional"
             " and redactable (ADR-0217)."
         ),
+        __validators__=_carried_rules(cls),
         __cls_kwargs__={"full_form": cls},
         **fields,
     )
+    return form
 
 
 @overload
