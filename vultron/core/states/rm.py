@@ -169,6 +169,15 @@ _transitions = [
 ]
 
 
+def rm_transition_rows() -> tuple[RmTransition, ...]:
+    """The RM transition table as typed rows, in table order.
+
+    For tools that draw or export the machine, so none reads the table's
+    private list.
+    """
+    return tuple(RmTransition.model_validate(t) for t in _transitions)
+
+
 def is_valid_rm_transition(source: RM, dest: RM) -> bool:
     """Return True if (source → dest) is a valid RM state transition."""
     return any(

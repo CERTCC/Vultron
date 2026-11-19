@@ -17,10 +17,11 @@
 
 :func:`render` asks the analyst for a case, reads it through the one
 :class:`~vultron.core.ports.case_reader.CaseReader` it is given, and shows
-the case's level 1 standing as a scoreboard, with its open moves in the
-bands of the case's move advice (ADR-0200), and the case narrative: one
-line per ledger entry, naming who did what, when, and which states it
-changed.  Beside the analysis it always
+the case's level 1 standing as a scoreboard, each state on a small map of
+its state machine (#6674), with its open moves in the bands of the case's
+move advice (ADR-0200), and the case narrative: one line per ledger entry,
+naming who did what, when, and which states it changed.  Beside the
+analysis it always
 shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
@@ -58,8 +59,9 @@ from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import VultronError
 from vultron.logging_correlation import correlation_context
 from vultron.measure.advice import CaseAdvice, case_advice
+from vultron.measure.standing import ParticipantStanding
 from vultron.shadow.analysis import CaseAnalysis, analyse
-from vultron.shadow.dashboard import view
+from vultron.shadow.dashboard import minimap, view
 from vultron.shadow.log_content import CaseLog, case_log_context
 from vultron.shadow.readers.following import CaseFollower
 
@@ -161,9 +163,16 @@ def _show_standing(analysis: CaseAnalysis) -> None:
     columns = st.columns(4)
     columns[0].metric("Embargo", view.EM_BADGES[standing.case.em])
     for column, badge in zip(
-        columns[1:], view.public_badges(standing.case.pxa), strict=True
+        columns[1:],
+        view.public_badges(standing.case.pxa, standing.case.unobservable),
+        strict=True,
     ):
         column.metric("Public state", badge)
+    for column, case_map in zip(
+        st.columns(2), minimap.case_minimaps(standing.case), strict=True
+    ):
+        with column:
+            _show_minimap(case_map)
     if not standing.end_confirmed:
         st.caption(
             "The ledger does not prove its last entry is the case's last:"
@@ -171,12 +180,43 @@ def _show_standing(analysis: CaseAnalysis) -> None:
         )
     st.subheader("Participants")
     _table(view.participant_rows(standing.participants, names), "None.")
+    _show_participant_minimaps(standing.participants, names)
     st.subheader("Desiderata")
     _table(
         view.desiderata_rows(standing.participants, names),
         "No vendor has a case-state history to score yet.",
     )
     _show_advice(case_advice(standing), names)
+
+
+def _show_minimap(state_map: minimap.Minimap) -> None:
+    """One state on its machine's map, with the state in words below."""
+    st.markdown(f"**{state_map.title}**")
+    st.graphviz_chart(
+        state_map.dot, alt=f"{state_map.title}: {state_map.caption}"
+    )
+    st.caption(state_map.caption)
+
+
+def _show_participant_minimaps(
+    participants: Sequence[ParticipantStanding], names: Mapping[str, str]
+) -> None:
+    """Each participant's RM and VFD maps, one tab per participant."""
+    maps = minimap.participant_minimaps(participants, names)
+    if not maps:
+        return
+    for tab, participant in zip(
+        st.tabs([m.tab for m in maps]), maps, strict=True
+    ):
+        with tab:
+            rm_column, vfd_column = st.columns(2)
+            with rm_column:
+                _show_minimap(participant.rm)
+            with vfd_column:
+                if participant.vfd is None:
+                    st.caption(minimap.NO_FIX_PATH)
+                else:
+                    _show_minimap(participant.vfd)
 
 
 def _show_legend(band: view.BandView) -> None:

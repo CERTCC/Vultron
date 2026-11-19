@@ -35,7 +35,7 @@ case-state flag the source cannot observe shown as unknown (CRD-02-005).
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from fractions import Fraction
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -74,6 +74,11 @@ from vultron.measure.standing import (
     DesideratumStatus,
     ParticipantStanding,
     StandingGap,
+)
+from vultron.shadow.dashboard.case_state import (
+    PXA_NOTATION,
+    unknown_events,
+    vfd_badge,
 )
 
 #: A row of a table the page shows, column name to cell: text, or a number
@@ -152,10 +157,16 @@ def desideratum_code(desideratum: DesideratumStanding) -> str:
     return f"{desideratum.before.value} ≺ {desideratum.after.value}"
 
 
-def public_badges(pxa: PxaName) -> tuple[str, str, str]:
-    """The case's public state as three badges: public, exploit, attacks."""
+def public_badges(
+    pxa: PxaName, unobservable: Collection[CSEvent] = ()
+) -> tuple[str, str, str]:
+    """The case's public state as three badges: public, exploit, attacks.
+
+    An event the source cannot observe, and the reading does not show as
+    happened, reads as unknown (CRD-02-005).
+    """
     state = pxa.value
-    return (
+    known = (
         "📢 Public aware"
         if state.public_awareness is PublicAwareness.PUBLIC_AWARE
         else "🤫 Not public",
@@ -166,6 +177,12 @@ def public_badges(pxa: PxaName) -> tuple[str, str, str]:
         if state.attack_observation is AttackObservation.ATTACKS_OBSERVED
         else "🛡️ No attacks observed",
     )
+    unknown = unknown_events(pxa.name, PXA_NOTATION, unobservable)
+    public, exploit, attacks = (
+        f"❔ {EVENT_LABELS[event]} unknown" if event in unknown else badge
+        for event, badge in zip(PXA_NOTATION, known, strict=True)
+    )
+    return public, exploit, attacks
 
 
 def _tally(desiderata: Sequence[DesideratumStanding]) -> str:
@@ -182,7 +199,7 @@ def _tally(desiderata: Sequence[DesideratumStanding]) -> str:
 def participant_rows(
     participants: Sequence[ParticipantStanding], names: Mapping[str, str]
 ) -> list[Row]:
-    """One row per participant: roles, report state, case state, tally."""
+    """One row per participant: roles, report state, fix path, tally."""
     rows: list[Row] = []
     for p in participants:
         rows.append(
@@ -191,7 +208,7 @@ def participant_rows(
                 "Roles": ", ".join(p.roles) or "—",
                 "Joined": "✔️ joined" if p.joined else "✉️ invited",
                 "Report": RM_BADGES[p.rm],
-                "Case state": p.case_state.name
+                "Fix path": vfd_badge(p.case_state, p.case.unobservable)
                 if p.case_state is not None
                 else "—",
                 "Desiderata": _tally(p.desiderata) if p.desiderata else "—",

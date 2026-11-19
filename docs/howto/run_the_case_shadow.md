@@ -112,7 +112,12 @@ It still has no volume, and it still publishes its port on the loopback interfac
 The page shows the case as it stands at its last ledger entry.
 
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
-- **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳), and of those it cannot know (❔) when the source cannot observe an event.
+  Below it, each of the two states is marked on a small map of its state machine, so you can see where the case could go next.
+- **Participants** lists each participant with its roles and its report state.
+  For a Vendor, it also shows the [Vendor Fix Path](../reference/glossary.md#cs-model-details) (vendor aware, fix ready, fix deployed) and a count of the desiderata met (✅), broken (❌), and still open (⏳), and of those it cannot know (❔) when the source cannot observe an event.
+  Below the table, one tab for each participant marks its report state and its vendor fix path on the maps of their state machines.
+  Hover over a state or an arrow on a map to read it in words.
+  When the source cannot observe an event, such as a fix being ready, the page reads it as unknown (❔) and marks every state the case could be in with a dashed border.
 - **Desiderata** lists each of the twelve desiderata in words, with one column for each Vendor.
 - **Move advice** puts each open move in one of three bands, by the method that [Move Bands Against Pathology Cases](../topics/measuring_cvd/move_bands.md) tests.
   A move's band is set by its end desiderata, or by its embargo desiderata when it changes no end desideratum.
