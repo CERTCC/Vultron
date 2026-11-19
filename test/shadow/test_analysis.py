@@ -4,6 +4,10 @@ The bridge turns a reading's ledger into the rows the measure layer reads,
 so the shadow's standing is the one ``case_standing`` reads from the file
 itself; a reading with no entry has no standing, only its reader's report.
 
+The standing at an earlier point is the same computation over a prefix of
+the reading: it equals the standing of a reading that holds only those
+entries, read from a file cut after them (#6671).
+
 Spec: CRD-01-003, CRD-02-005 (strict xfail, #6563).
 """
 
@@ -25,10 +29,18 @@ from vultron.core.models.case_reading import (
 )
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.demo.recordings.layout import RECORDINGS_DIR
+from vultron.measure.advice import case_advice
 from vultron.measure.history import case_narrative
 from vultron.measure.ledger import read_case_ledgers
 from vultron.measure.standing import DesideratumStatus, case_standing
-from vultron.shadow.analysis import analyse, reading_ledger
+from vultron.shadow.analysis import (
+    analyse,
+    analyse_prefix,
+    count_through,
+    prefix_advice,
+    reading_ledger,
+    reading_prefix,
+)
 from vultron.shadow.readers import VultronCaseReader
 
 _RECORDING = RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
@@ -183,3 +195,114 @@ def test_a_move_that_rests_on_an_unobservable_event_has_a_reason_not_a_number():
     for move in newly:
         assert move.unscored is not None
         assert "cannot observe" in move.unscored
+
+
+def _cut_reading(tmp_path, count: int) -> CaseReading:
+    """The recorded case read from a copy of its file cut after *count*
+    entries: a reading that holds only those entries."""
+    lines = _RECORDING.read_text().splitlines()[:count]
+    (tmp_path / "cut.jsonl").write_text("\n".join(lines) + "\n")
+    return VultronCaseReader(root=tmp_path).read_case("cut.jsonl")
+
+
+@pytest.mark.parametrize("count", [1, 4, 20, 45])
+def test_the_standing_at_a_prefix_is_that_of_a_reading_of_only_it(
+    tmp_path, count
+):
+    """#6671 AC-2: the case just after its *count*-th entry, read from the
+    whole reading, is the case a reading of only those entries gives."""
+    whole = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RECORDING))
+    assert count < len(whole.ledger)
+    cut = analyse(_cut_reading(tmp_path, count))
+    at_prefix = analyse_prefix(whole, count)
+    assert at_prefix.standing is not None
+    assert at_prefix.standing == cut.standing
+    assert at_prefix.narrative == cut.narrative
+    assert at_prefix.standing != analyse(whole).standing
+
+
+def test_the_whole_prefix_is_the_whole_reading():
+    whole = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RECORDING))
+    assert analyse_prefix(whole, len(whole.ledger)) == analyse(whole)
+
+
+def test_the_advice_at_a_prefix_is_the_advice_of_its_standing(tmp_path):
+    whole = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RECORDING))
+    standing = analyse(_cut_reading(tmp_path, 4)).standing
+    assert standing is not None
+    assert prefix_advice(whole, 4) == case_advice(standing)
+
+
+def test_before_the_first_entry_there_is_no_advice():
+    whole = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RECORDING))
+    assert analyse_prefix(whole, 0).standing is None
+    assert prefix_advice(whole, 0) is None
+
+
+def test_a_prefix_keeps_what_its_entries_carry_and_the_reader_report():
+    """Each kept entry keeps its citation and inferences; the untranslated
+    facts and the unobservable declaration stay whole (CRD-02-005)."""
+    reading = FakeCaseReader({FAKE_CASE: fake_case_records()}).read_case(
+        FAKE_CASE
+    )
+    prefix = reading_prefix(reading, 2)
+    kept = {entry.id_ for entry in reading.ledger[:2]}
+    assert prefix.ledger == reading.ledger[:2]
+    assert {c.entry_id for c in prefix.citations} == kept
+    assert prefix.inferences == tuple(
+        i for i in reading.inferences if i.entry_id in kept
+    )
+    assert len(prefix.inferences) < len(reading.inferences)
+    assert prefix.untranslated == reading.untranslated
+    assert prefix.unobservable == reading.unobservable
+    assert prefix.unobservable_events == reading.unobservable_events
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_event_reads_as_unknown_at_every_point():
+    whole = _recorded_with(_NO_FIX)
+    for count in (3, len(whole.ledger) // 2):
+        standing = analyse_prefix(whole, count).standing
+        assert standing is not None
+        for p in standing.participants:
+            for d in p.desiderata:
+                if {CSEvent.F, CSEvent.D} & {d.before, d.after}:
+                    assert d.status is DesideratumStatus.UNKNOWN
+
+
+def test_a_prefix_before_a_hole_has_a_standing_and_one_past_it_has_none(
+    tmp_path,
+):
+    rows = _RECORDING.read_text().splitlines()
+    (tmp_path / "holed.jsonl").write_text(
+        "\n".join(rows[:2] + rows[3:]) + "\n"
+    )
+    holed = VultronCaseReader(root=tmp_path).read_case("holed.jsonl")
+    before = analyse_prefix(holed, 2).standing
+    past = analyse_prefix(holed, 3).standing
+    assert before is not None and before.gap is None
+    assert past is not None and past.gap is not None
+    assert past.gap.missing_log_indices == [2]
+
+
+@pytest.mark.parametrize("count", [-1, 99])
+def test_a_prefix_longer_than_the_reading_or_negative_is_refused(count):
+    reading = FakeCaseReader({FAKE_CASE: fake_case_records()}).read_case(
+        FAKE_CASE
+    )
+    with pytest.raises(ValueError, match=f"cannot hold {count}"):
+        reading_prefix(reading, count)
+    with pytest.raises(ValueError, match=f"cannot hold {count}"):
+        prefix_advice(reading, count)
+
+
+def test_the_prefix_through_an_entry_ends_with_it():
+    whole = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RECORDING))
+    third = whole.ledger[2].log_index
+    assert count_through(whole, third) == 3
+    assert (
+        reading_prefix(whole, count_through(whole, third)).ledger[-1]
+        == (whole.ledger[2])
+    )
+    with pytest.raises(ValueError, match="no ledger entry at 9999"):
+        count_through(whole, 9999)

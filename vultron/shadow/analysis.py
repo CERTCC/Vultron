@@ -25,6 +25,13 @@ the case narrative from the same ledger
 (:func:`~vultron.measure.history.case_narrative`): one line per entry,
 naming who did what, when, and which states the entry changed.
 
+The case as it stood at an earlier point is the same computation over a
+prefix of the reading: :func:`reading_prefix` keeps the reading's first
+entries, and :func:`analyse_prefix` analyses that, so the standing at a
+point is the standing of a reading that holds only those entries (#6671).
+:func:`prefix_advice` gives the move advice at a point, for a caller that
+grades an entry against the advice open before it.
+
 A reading is already one case's ledger in log-index order, refused whole
 otherwise (CRD-02-001), so the rows it yields are one complete copy.
 Nothing here is written anywhere: the rows live only for the request
@@ -38,6 +45,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.models.case_reading import CaseReading
+from vultron.measure.advice import CaseAdvice, case_advice
 from vultron.measure.history import (
     NarrativeLine,
     case_narrative,
@@ -127,4 +135,89 @@ def analyse(reading: CaseReading) -> CaseAnalysis:
     )
 
 
-__all__ = ["READING_SOURCE", "CaseAnalysis", "analyse", "reading_ledger"]
+def reading_prefix(reading: CaseReading, count: int) -> CaseReading:
+    """*reading* as if it held only its first *count* ledger entries.
+
+    Each kept entry keeps its citation and its inferences.  The facts the
+    reader could not translate and its declaration of what the source cannot
+    observe are kept whole: neither belongs to an entry, and an unobservable
+    event still reads as unknown at every point (CRD-02-005).
+
+    Raises:
+        ValueError: When *count* is negative or more than the reading's
+            entries.
+    """
+    if not 0 <= count <= len(reading.ledger):
+        raise ValueError(
+            f"A prefix of a reading with {len(reading.ledger)} ledger"
+            f" entries cannot hold {count}"
+        )
+    ledger = reading.ledger[:count]
+    kept = {entry.id_ for entry in ledger}
+    return CaseReading(
+        ledger=ledger,
+        citations=tuple(c for c in reading.citations if c.entry_id in kept),
+        inferences=tuple(i for i in reading.inferences if i.entry_id in kept),
+        untranslated=reading.untranslated,
+        unobservable=reading.unobservable,
+    )
+
+
+def count_through(reading: CaseReading, log_index: int) -> int:
+    """How many of *reading*'s entries come up to and including the entry
+    at *log_index*: the prefix that ends with that entry.
+
+    Raises:
+        ValueError: When no entry of the reading has *log_index*.
+    """
+    for count, entry in enumerate(reading.ledger, start=1):
+        if entry.log_index == log_index:
+            return count
+    raise ValueError(f"The reading holds no ledger entry at {log_index}")
+
+
+def analyse_prefix(reading: CaseReading, count: int) -> CaseAnalysis:
+    """The analysis of *reading*'s first *count* entries alone.
+
+    The same computation as :func:`analyse`, over
+    :func:`reading_prefix`: the standing is where the case stood just after
+    its *count*-th entry, read from those entries only, and a hole after
+    them does not reach it.  A *count* of 0 is the reading before its first
+    entry, which has no standing.
+
+    Raises:
+        ValueError: When *count* is negative or more than the reading's
+            entries.
+    """
+    return analyse(reading_prefix(reading, count))
+
+
+def prefix_advice(reading: CaseReading, count: int) -> CaseAdvice | None:
+    """The move advice open just after *reading*'s *count*-th entry.
+
+    The advice of :func:`analyse_prefix`'s standing (ADR-0200), so the moves
+    open before an entry are ``prefix_advice(reading, i)`` for the entry at
+    position *i* (from 0).  A prefix with a hole yields only the hole.
+
+    Returns:
+        The advice, or ``None`` for the prefix that holds no entry, which
+        has no standing to advise from.
+
+    Raises:
+        ValueError: When *count* is negative or more than the reading's
+            entries.
+    """
+    standing = analyse_prefix(reading, count).standing
+    return None if standing is None else case_advice(standing)
+
+
+__all__ = [
+    "READING_SOURCE",
+    "CaseAnalysis",
+    "analyse",
+    "analyse_prefix",
+    "count_through",
+    "prefix_advice",
+    "reading_ledger",
+    "reading_prefix",
+]

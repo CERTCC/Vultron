@@ -36,11 +36,13 @@ from vultron.shadow.dashboard.page import (
     NARRATIVE_NOTE,
     NO_ENTRY_NOTE,
     NOT_LIVE_NOTE,
+    POINT_KEY,
     TITLE,
 )
 from vultron.shadow.dashboard.view import (
     BAND_EMPTY,
     EM_BADGES,
+    LATEST_POINT,
     LEADING_MARK,
     RM_BADGES,
     TOP_MARK,
@@ -115,7 +117,8 @@ render(Empty())
 
 #: A page following a case through the live reader over a scripted stream.
 #: ``__ANSWERS__`` is replaced by one tuple of scripted answers per follow,
-#: the last one repeated; ``rows`` are the rv recording's first rows.  The
+#: the last one repeated; ``rows`` are the rv recording's first rows, of its
+#: ``every_row``.  The
 #: follow is watched: after the page takes each item, the size of the
 #: reading it kept is recorded in ``seen``.
 _FOLLOW_PAGE = """
@@ -129,7 +132,8 @@ from test.support.ledger_stream import (
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.shadow.dashboard.page import LAST_READING_KEY, render
 
-rows = recording_rows(RECORDINGS_DIR / "rv" / "case-actor.jsonl")[:3]
+every_row = recording_rows(RECORDINGS_DIR / "rv" / "case-actor.jsonl")
+rows = every_row[:3]
 bad = sse_event({"type": "CaseLedgerEntry"}, 1)
 
 
@@ -321,6 +325,107 @@ def test_a_recorded_case_shows_its_narrative_one_line_per_entry(
     assert narrative["Activity"].tolist()[0] == "Case Actor created the case"
     changes = " ".join(narrative["State changes"])
     assert "EM: " in changes and "VFD: " in changes and "PXA: " in changes
+
+
+#: The tables a scoreboard draws, which follow the picked point.
+_SCOREBOARD = ("Participants", "Harm-free", "Trade-off", "Moves with no band")
+
+
+def _scoreboard(at: AppTest) -> dict[str, object]:
+    """What the page's scoreboard shows: its metrics, its captions and each
+    of its tables, ``None`` for one it draws empty."""
+    shown: dict[str, object] = {
+        "metrics": _texts(at.metric),
+        "captions": _texts(at.caption),
+    }
+    for frame in at.dataframe:
+        columns = frame.value.columns.tolist()
+        heading = next(
+            (h for h, c in _COLUMNS.items() if c == columns), columns[0]
+        )
+        if heading in _SCOREBOARD or heading == "Desideratum":
+            shown[heading] = frame.value.to_dict("list")
+    return shown
+
+
+def _point_picker(at: AppTest):
+    (picker,) = [box for box in at.selectbox if box.label.startswith("Show")]
+    return picker
+
+
+def _cut_page(tmp_path, recording, count: int) -> AppTest:
+    """The page over a copy of *recording* cut after *count* entries."""
+    rows = recording.read_text().splitlines()[:count]
+    (tmp_path / "cut.jsonl").write_text("\n".join(rows) + "\n")
+    with config_override(VULTRON_SHADOW__LEDGER_DIR=str(tmp_path)):
+        at = AppTest.from_file(str(APP_PATH), default_timeout=_TIMEOUT).run()
+        at.selectbox[0].select("cut.jsonl").run()
+    assert not at.exception
+    return at
+
+
+_RCVV = RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
+
+
+@pytest.mark.parametrize("log_index", [3, 30])
+def test_picking_a_narrative_line_shows_the_case_just_after_it(
+    recordings_app, tmp_path, log_index
+):
+    """#6671 AC-1: the states, desiderata and move bands at line N are the
+    ones a reading of entries up to N alone shows; the narrative stays
+    whole."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    now = _scoreboard(at)
+    picker = _point_picker(at)
+    assert picker.value == LATEST_POINT
+    picker.select(log_index).run()
+    assert not at.exception
+    assert _point_picker(at).value == log_index
+    assert at.session_state[POINT_KEY] == (
+        "rcvv-embargo/case-actor.jsonl",
+        log_index,
+    )
+    assert any(f"just after entry #{log_index}" in i for i in _texts(at.info))
+    at_point = _scoreboard(at)
+    assert at_point != now
+    assert at_point == _scoreboard(_cut_page(tmp_path, _RCVV, log_index + 1))
+    entries = recording_rows(_RCVV)
+    assert len(_table(at, "Case narrative")) == len(entries)
+
+
+def test_picking_now_shows_where_the_case_stands_again(recordings_app):
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    now = _scoreboard(at)
+    _point_picker(at).select(3).run()
+    assert _scoreboard(at) != now
+    _point_picker(at).select(LATEST_POINT).run()
+    assert not at.exception
+    assert POINT_KEY not in at.session_state
+    assert _scoreboard(at) == now
+    assert not any("just after entry" in i for i in _texts(at.info))
+
+
+@pytest.mark.parametrize(
+    "kept",
+    [("rv/case-actor.jsonl", 3), ("rcvv-embargo/case-actor.jsonl", 9999)],
+    ids=["another case", "an entry the reading does not reach"],
+)
+def test_a_pick_this_reading_cannot_show_leaves_the_case_as_it_stands(
+    recordings_app, kept
+):
+    """A pick of another case, or of an entry the reading does not hold
+    yet, shows the case now; a pick of this case is kept for later."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    now = _scoreboard(at)
+    at.session_state[POINT_KEY] = kept
+    at.run()
+    assert not at.exception
+    assert _point_picker(at).value == LATEST_POINT
+    assert _scoreboard(at) == now
+    assert at.session_state[POINT_KEY] == kept
 
 
 @pytest.fixture(scope="module")
@@ -530,6 +635,31 @@ def test_a_followed_case_adds_a_narrative_line_per_entry_and_keeps_the_rest():
     assert first["#"].tolist() == [0]
     assert three["#"].tolist() == [0, 1, 2]
     assert three.iloc[:1].equals(first)
+
+
+def test_a_new_entry_does_not_move_the_picked_point():
+    """#6671 AC-3: picked at #0 while following, the scoreboard stays at #0
+    as the rerun's follow replays the case and new entries arrive.
+
+    The rv recording's standing first changes at its 11th and 13th entries,
+    so the case as it stands now differs from the case at #0.
+    """
+    at = _follow_page(
+        "(sse_rows(every_row[:11]) + CLOSE,),"
+        " (sse_rows(every_row[:13]) + CLOSE,)"
+    )
+    now = _scoreboard(at)
+    _point_picker(at).select(0).run()
+    assert not at.exception
+    assert at.session_state["follows"] == 2
+    # The kept reading, its replay, then the two new entries.
+    assert at.session_state["seen"][-3:] == [11, 12, 13]
+    assert _point_picker(at).value == 0
+    assert _table(at, "Case narrative")["#"].tolist() == list(range(13))
+    assert any("just after entry #0" in i for i in _texts(at.info))
+    one_entry = _scoreboard(_follow_page("(sse_rows(rows[:1]) + CLOSE,)"))
+    assert one_entry != now
+    assert _scoreboard(at) == one_entry
 
 
 @pytest.mark.spec("SHD-04-005")

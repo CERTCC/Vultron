@@ -24,6 +24,13 @@ changed.  Beside the analysis it always
 shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
+Above the scoreboard the analyst can pick a narrative line: the scoreboard
+then shows the case as it stood just after that entry, worked out from the
+entries up to it alone (:func:`~vultron.shadow.analysis.analyse_prefix`),
+so they can ask whether a better move was open earlier (#6671).  The pick
+is kept in session state by the entry's log index, so a followed case's new
+entries add narrative lines without moving it.
+
 A reader that can follow a case
 (:class:`~vultron.shadow.readers.following.CaseFollower`), the live Vultron
 case reader, is followed instead of read once: the page shows the case's new
@@ -58,7 +65,12 @@ from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import VultronError
 from vultron.logging_correlation import correlation_context
 from vultron.measure.advice import CaseAdvice, case_advice
-from vultron.shadow.analysis import CaseAnalysis, analyse
+from vultron.shadow.analysis import (
+    CaseAnalysis,
+    analyse,
+    analyse_prefix,
+    count_through,
+)
 from vultron.shadow.dashboard import view
 from vultron.shadow.log_content import CaseLog, case_log_context
 from vultron.shadow.readers.following import CaseFollower
@@ -105,6 +117,16 @@ NARRATIVE_NOTE = (
 #: The session-state key counting the follow's heartbeats.
 HEARTBEAT_KEY = "follow_heartbeats"
 
+#: The session-state key of the point the analyst picked: the case id and
+#: the log index of the entry the scoreboard shows the case just after.
+#: Absent while the scoreboard shows the case as it stands now.
+POINT_KEY = "narrative_point"
+
+#: The widget key of the point picker, before its draw number.  A followed
+#: case draws the picker anew for each reading in one script run, and one
+#: run may not draw two widgets under one key.
+POINT_WIDGET_KEY = "narrative_point_picker"
+
 
 def forget_case() -> None:
     """Drop the case entered and the reading kept for it.
@@ -115,6 +137,7 @@ def forget_case() -> None:
     """
     st.session_state.pop(CASE_KEY, None)
     st.session_state.pop(LAST_READING_KEY, None)
+    st.session_state.pop(POINT_KEY, None)
 
 
 def _table(rows: Sequence[view.Row], empty: str) -> None:
@@ -317,7 +340,7 @@ def render(reader: CaseReader, suggestions: Sequence[str] = ()) -> None:
             st.error(str(exc))
             return
         _accept(case_log, case_id, reading)
-        _show_reading(reading)
+        _show_reading(reading, case_id)
 
 
 def _accept(case_log: CaseLog, case_id: str, reading: CaseReading) -> None:
@@ -326,9 +349,78 @@ def _accept(case_log: CaseLog, case_id: str, reading: CaseReading) -> None:
     _log_reading(case_id, reading)
 
 
-def _show_reading(reading: CaseReading) -> None:
+def _picked_point(case_id: str, analysis: CaseAnalysis) -> int:
+    """The log index the analyst picked for *case_id*, or
+    :data:`~vultron.shadow.dashboard.view.LATEST_POINT`.
+
+    A pick this reading does not reach yet, as during a rerun's replay,
+    shows the case as it stands now and stays kept for a later reading.
+    """
+    picked = st.session_state.get(POINT_KEY)
+    if picked is None or picked[0] != case_id:
+        return view.LATEST_POINT
+    log_index: int = picked[1]
+    if any(line.log_index == log_index for line in analysis.narrative):
+        return log_index
+    return view.LATEST_POINT
+
+
+def _remember_point(case_id: str, widget_key: str) -> None:
+    """Keep the point the picker under *widget_key* now holds."""
+    log_index = st.session_state[widget_key]
+    if log_index == view.LATEST_POINT:
+        st.session_state.pop(POINT_KEY, None)
+    else:
+        st.session_state[POINT_KEY] = (case_id, log_index)
+
+
+def _pick_point(case_id: str, analysis: CaseAnalysis, draw: int) -> int:
+    """Draw the point picker and return the point it shows.
+
+    The picker's value is set from the kept pick before it is drawn, so a
+    picker drawn anew under another key still shows the pick.
+    """
+    point = _picked_point(case_id, analysis)
+    widget_key = f"{POINT_WIDGET_KEY}-{draw}"
+    st.session_state[widget_key] = point
+    st.selectbox(
+        "Show the case as it stood just after",
+        options=view.point_options(analysis.narrative),
+        format_func=lambda log_index: view.point_label(
+            log_index, analysis.narrative
+        ),
+        key=widget_key,
+        on_change=_remember_point,
+        args=(case_id, widget_key),
+    )
+    return point
+
+
+def _point_analysis(analysis: CaseAnalysis, point: int) -> CaseAnalysis:
+    """*analysis* at *point*: the standing read from the entries up to it.
+
+    The actors keep the names the whole reading gives them, so a label
+    does not change with the point.
+    """
+    if point == view.LATEST_POINT:
+        return analysis
+    at_point = analyse_prefix(
+        analysis.reading, count_through(analysis.reading, point)
+    )
+    return at_point.model_copy(update={"actor_names": analysis.actor_names})
+
+
+def _show_reading(reading: CaseReading, case_id: str, draw: int = 0) -> None:
+    """Show *reading*: the scoreboard at the picked point, the narrative and
+    the reader's report.  *draw* numbers the reading's draw in this run."""
     analysis = analyse(reading)
-    _show_standing(analysis)
+    shown = analysis
+    if analysis.narrative:
+        point = _pick_point(case_id, analysis, draw)
+        if point != view.LATEST_POINT:
+            st.info(view.point_note(point, analysis.narrative))
+        shown = _point_analysis(analysis, point)
+    _show_standing(shown)
     _show_narrative(analysis)
     _show_reader_report(reading)
 
@@ -354,7 +446,7 @@ def _follow(follower: CaseFollower, case_id: str, case_log: CaseLog) -> None:
         case_log.withhold(kept_reading)
         notice.info(RECONNECTING_NOTE)
         with body.container():
-            _show_reading(kept_reading)
+            _show_reading(kept_reading, case_id)
     else:
         st.session_state.pop(LAST_READING_KEY, None)
         notice.info(WAITING_NOTE)
@@ -368,6 +460,7 @@ def _follow(follower: CaseFollower, case_id: str, case_log: CaseLog) -> None:
         )
 
     refused = False
+    draws = 1
     # A rerun's follow replays the case from its first entry, so a kept
     # reading stays until the replay reaches it rather than stepping back.
     catching_up = last is not None
@@ -387,7 +480,8 @@ def _follow(follower: CaseFollower, case_id: str, case_log: CaseLog) -> None:
             problem.empty()
             refused = False
             with body.container():
-                _show_reading(item)
+                _show_reading(item, case_id, draws)
+            draws += 1
         else:
             refused = True
             problem.error(str(item))
@@ -407,6 +501,8 @@ __all__ = [
     "NARRATIVE_NOTE",
     "NOT_LIVE_NOTE",
     "NO_ENTRY_NOTE",
+    "POINT_KEY",
+    "POINT_WIDGET_KEY",
     "RECONNECTING_NOTE",
     "TITLE",
     "WAITING_NOTE",

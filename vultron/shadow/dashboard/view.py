@@ -618,6 +618,45 @@ def narrative_rows(
     return rows
 
 
+#: The point picker's option for the case as it stands at its last entry,
+#: which a followed case moves on with.  No log index is negative.
+LATEST_POINT = -1
+
+#: What the point picker says of :data:`LATEST_POINT`.
+LATEST_POINT_LABEL = "Now: the latest entry, moving on as entries arrive"
+
+
+def point_options(lines: Sequence[NarrativeLine]) -> list[int]:
+    """The points the analyst can pick: now, then each narrative line's log
+    index, in ledger order."""
+    return [LATEST_POINT, *(line.log_index for line in lines)]
+
+
+def point_label(log_index: int, lines: Sequence[NarrativeLine]) -> str:
+    """The point picker's words for the point at *log_index*.
+
+    A line reads as its ``#`` and its activity, as the narrative table reads
+    it, so it names its actor by display name (DRPT-03-009).
+    """
+    if log_index == LATEST_POINT:
+        return LATEST_POINT_LABEL
+    for line in lines:
+        if line.log_index == log_index:
+            return f"#{line.log_index} · {line.phrase}"
+    raise ValueError(f"The narrative holds no line at {log_index}")
+
+
+def point_note(log_index: int, lines: Sequence[NarrativeLine]) -> str:
+    """What the page says above a picked point's scoreboard."""
+    shown = sum(1 for line in lines if line.log_index <= log_index)
+    return (
+        f"Showing the case as it stood just after entry #{log_index}: its"
+        f" states, desiderata and move advice read from its first {shown}"
+        f" of {len(lines)} entries only. New entries add narrative lines,"
+        " and the point stays put; pick Now to see where the case stands."
+    )
+
+
 def untranslated_rows(reading: CaseReading) -> list[Row]:
     """One row per fact the case reader could not translate (SHD-01-004)."""
     return [
@@ -672,6 +711,8 @@ __all__ = [
     "Shade",
     "EM_BADGES",
     "EVENT_LABELS",
+    "LATEST_POINT",
+    "LATEST_POINT_LABEL",
     "NOT_TRANSLATED_NOTE",
     "RM_BADGES",
     "UNOBSERVABLE_NOTE",
@@ -686,6 +727,9 @@ __all__ = [
     "change_text",
     "cs_spelling",
     "narrative_rows",
+    "point_label",
+    "point_note",
+    "point_options",
     "harm_text",
     "shade",
     "unbanded_rows",
