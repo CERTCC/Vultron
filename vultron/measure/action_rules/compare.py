@@ -61,6 +61,7 @@ from vultron.measure.action_rules.model import (
     MatchStatus,
     Position,
     machine_of,
+    trigger_of,
 )
 from vultron.measure.action_rules.verdicts import MoveVerdict, VendorPoint
 from vultron.measure.advice.bands import Band, Part
@@ -196,6 +197,12 @@ class PointComparison(BaseModel):
     undecided: tuple[AuthoredRule, ...] = ()
 
 
+def _not_measured(rule: AuthoredRule) -> str:
+    """Why a rule that names no desideratum gets no band, with its reason
+    (SHD-05-028)."""
+    return f"{NOT_MEASURED}; its reason: {rule.reason}"
+
+
 def rule_move(rule: AuthoredRule, position: Position) -> str | None:
     """The move *rule*'s action is at *position*; ``None`` when it changes
     no state there (:func:`resolve_action`)."""
@@ -239,7 +246,7 @@ def _role_refusal(rule: AuthoredRule, move: str) -> str | None:
     so it constrains no role.
     """
     machine = machine_of(move)
-    trigger = move.split(".", 1)[1]
+    trigger = trigger_of(move)
     role: CVDRole | None = None
     if machine is Machine.EM:
         role = EM_TRIGGER_ROLES[EM_Trigger(trigger)]
@@ -281,16 +288,24 @@ def _rule_result(
             }
         )
 
+    def unscored(why: str | None, **fields: object) -> RuleResult:
+        """An unscored-rule result; one for a rule that names no
+        desideratum also carries the rule's reason (SHD-05-028)."""
+        if not rule.measured:
+            why = (
+                _not_measured(rule)
+                if why is None
+                else (f"{why}; {_not_measured(rule)}")
+            )
+        return result(ResultKind.UNSCORED_RULE, reason=why, **fields)
+
     if move is None:
-        return result(ResultKind.UNSCORED_RULE, reason=no_state)
+        return unscored(no_state)
     refusal = _role_refusal(rule, move)
     if refusal is not None:
         return result(ResultKind.MISPLACED_RULE, reason=refusal)
     if machine_of(move) not in SCORED_MACHINES:
-        return result(
-            ResultKind.UNSCORED_RULE,
-            reason=f"move advice does not score {move} (#6677)",
-        )
+        return unscored(f"move advice does not score {move} (#6677)")
     joined = [v for v in point.verdicts if _joins(rule, v, move)]
     if not joined:
         return result(
@@ -301,17 +316,11 @@ def _rule_result(
             ),
         )
     if not rule.measured:
-        return result(
-            ResultKind.UNSCORED_RULE,
-            participant=joined[0].move.participant,
-            reason=f"{NOT_MEASURED}; its reason: {rule.reason}",
-        )
+        return unscored(None, participant=joined[0].move.participant)
     scored = [v for v in joined if v.score is not None]
     if not scored:
-        return result(
-            ResultKind.UNSCORED_RULE,
-            participant=joined[0].move.participant,
-            reason=joined[0].unscored,
+        return unscored(
+            joined[0].unscored, participant=joined[0].move.participant
         )
     verdict = scored[0]
     score = verdict.score

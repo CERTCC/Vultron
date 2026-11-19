@@ -358,13 +358,13 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
         _carry(
             "VfdP..",
             a.ESCALATE_VIGILANCE_FOR_EXPLOITS,
-            reason="SA, Coordination",
+            reason="SA",
             desiderata=("F≺X", "D≺X"),
         ),
         _carry(
             "VfdP..",
             a.ESCALATE_VIGILANCE_FOR_ATTACKS,
-            reason="SA, Coordination",
+            reason="SA",
             desiderata=("F≺A", "D≺A"),
         ),
         _carry("VfdP..", a.PUBLISH_MITIGATION, reason="Defense"),

@@ -75,6 +75,7 @@ from vultron.measure.action_rules.model import (
     machine_of,
     move_advice_desiderata,
     move_names,
+    trigger_of,
 )
 from vultron.measure.action_rules.verdicts import (
     VENDOR,
@@ -132,6 +133,7 @@ __all__ = [
     "generated_rules",
     "group_positions",
     "machine_of",
+    "trigger_of",
     "move_advice_desiderata",
     "move_names",
     "move_role",

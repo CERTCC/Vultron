@@ -19,6 +19,11 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from test.measure.action_rules.builders import (
+    ACTION_RULES_GROUP,
+    make_rule,
+    rule_fields,
+)
 from vultron.core.scoring.potential_actions import Actions
 from vultron.core.states.cs import CS
 from vultron.core.states.cs_actions import CS_ACTION_RULES, CSPattern
@@ -44,7 +49,10 @@ from vultron.measure.action_rules import (
     cs_action_pairs,
     machine_of,
     move_advice_desiderata,
+    trigger_of,
 )
+
+pytestmark = ACTION_RULES_GROUP
 
 _C = EmbargoConsentState
 
@@ -64,17 +72,7 @@ def _position(**parts: Any) -> Position:
     return Position(**fields)
 
 
-def _rule(**fields: Any) -> AuthoredRule:
-    base: dict[str, Any] = {
-        "pattern": RulePattern(),
-        "roles": ANY_ROLE,
-        "action": Actions.MONITOR_FOR_ATTACKS,
-        "reason": "SA",
-        "desiderata": ("D≺P",),
-        "source": None,
-    }
-    base.update(fields)
-    return AuthoredRule(**base)
+_rule = make_rule
 
 
 # --- SHD-05-001: a rule reads each part of one vendor's position ---
@@ -228,15 +226,7 @@ def test_a_proposal_part_matches_once_for_each_matching_proposal():
 def test_a_rule_without_roles_one_action_and_listed_desiderata_is_refused(
     fields, dropped, message
 ):
-    base: dict[str, Any] = {
-        "pattern": RulePattern(),
-        "roles": ANY_ROLE,
-        "action": Actions.MONITOR_FOR_ATTACKS,
-        "reason": "SA",
-        "desiderata": ("D≺P",),
-        "source": None,
-    }
-    base.update(fields)
+    base = rule_fields(**fields)
     if dropped is not None:
         del base[dropped]
     with pytest.raises(ValidationError, match=message):
@@ -489,6 +479,19 @@ def test_a_pec_move_rule_needs_a_pec_part_its_move_exists_from():
     assert rule.move == "pec.agree"
 
 
+def test_a_pec_move_rule_whose_in_force_part_it_cannot_leave_is_refused():
+    with pytest.raises(ValidationError, match="from in-force PEC AGREED"):
+        _rule(
+            action="pec.agree",
+            pattern=RulePattern(in_force=frozenset({_C.AGREED})),
+        )
+    rule = _rule(
+        action="pec.agree",
+        pattern=RulePattern(in_force=frozenset({_C.INVITED})),
+    )
+    assert rule.move == "pec.agree"
+
+
 def test_the_r27_split_reads_em_and_drops_exited():
     negotiate = Actions.NEGOTIATE_OR_ESTABLISH_DISCLOSURE_EMBARGO
     split = [
@@ -532,3 +535,11 @@ def test_the_embargo_rules_carry_the_terms_advice():
         EM.ACTIVE,
         EM.REVISE,
     }
+
+
+def test_a_move_name_splits_into_its_machine_and_trigger():
+    assert machine_of("em.propose") is Machine.EM
+    assert trigger_of("em.propose") == "propose"
+    assert trigger_of("cs.fix_is_ready") == "fix_is_ready"
+    with pytest.raises(ValueError, match="names no move"):
+        trigger_of("em.no_such_trigger")

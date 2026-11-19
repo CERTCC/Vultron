@@ -132,6 +132,16 @@ def machine_of(move: str) -> Machine:
         ) from None
 
 
+def trigger_of(move: str) -> str:
+    """The trigger of the move named *move*, its name less the machine.
+
+    Raises:
+        ValueError: *move* names no move.
+    """
+    machine = machine_of(move)
+    return move.removeprefix(f"{machine}.")
+
+
 def _a_move_name(move: str) -> str:
     machine_of(move)
     return move
@@ -567,7 +577,7 @@ class AuthoredRule(BaseModel):
         """The parts that match states from which *move* does not exist
         (SHD-05-026, SHD-05-027)."""
         machine = machine_of(move)
-        trigger = move.split(".", 1)[1]
+        trigger = trigger_of(move)
         if machine is Machine.RM:
             return _within("RM", self.pattern.rm, _rm_sources(trigger), move)
         if machine is Machine.EM:

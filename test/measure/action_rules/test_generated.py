@@ -20,6 +20,7 @@ from fractions import Fraction
 import pytest
 from pydantic import ValidationError
 
+from test.measure.action_rules.builders import ACTION_RULES_GROUP
 from test.measure.history.builders import (
     OWNER,
     VENDOR as VENDOR_1,
@@ -29,13 +30,20 @@ from test.measure.history.builders import (
     status,
 )
 from vultron.core.states.cs import CS
-from vultron.core.states.cs_invariants import required_next_cs_events
+from vultron.core.states.cs_invariants import (
+    CSEvent,
+    cs_happened_events,
+    required_next_cs_events,
+)
 from vultron.core.states.em import EM, EM_TRIGGER_ROLES, EM_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.measure.action_rules import (
     ANY_ROLE,
     VENDOR,
+    ConditionalBranch,
+    ConditionalVerdict,
+    GeneratedRule,
     Machine,
     MatchStatus,
     MoveVerdict,
@@ -43,17 +51,22 @@ from vultron.measure.action_rules import (
     VendorScore,
     case_points,
     conditional_verdicts,
+    conditionals_from,
     generated_rules,
     group_positions,
     machine_of,
     move_advice_desiderata,
     point_at,
     point_prefix,
+    rules_from,
+    trigger_of,
     vendor_points,
 )
 from vultron.measure.advice import Band, Part, advise, move_shifts, open_moves
 from vultron.measure.standing import StandingGap, StandingRecord, case_standing
 from vultron.measure.standing.joint import joint_step
+
+pytestmark = ACTION_RULES_GROUP
 
 
 def _key(point) -> tuple[RM, CS, EM]:
@@ -90,12 +103,39 @@ def test_a_desideratum_is_open_until_either_of_its_events_happens():
         p.open_desiderata
         for p in vendor_points()
         if _key(p) == (RM.DEFERRED, CS.Vfdpxa, EM.NONE)
+        and p.open_desiderata is not None
     ]
     assert len(deferred) == 2
     accepted, never = sorted(deferred, key=len)
     assert "Ac_i≺P" in never
     assert "Ac_i≺P" not in accepted
     assert set(accepted) < set(never)
+
+
+def test_a_six_event_desideratum_is_closed_once_either_event_happens():
+    """``D ≺ P`` and ``V ≺ P`` read the walk's own events, as the one-vendor
+    desiderata do: closed once the public is aware."""
+    public = [
+        p.open_desiderata
+        for p in vendor_points()
+        if CSEvent.P in cs_happened_events(p.position.cs)
+    ]
+    assert public
+    for opened in public:
+        assert opened is not None
+        assert {"D≺P", "V≺P", "F≺P", "P≺X", "P≺A"}.isdisjoint(opened)
+    (start,) = [
+        p.open_desiderata
+        for p in vendor_points()
+        if _key(p) == (RM.START, CS.vfdpxa, EM.NONE)
+    ]
+    assert start is not None and {"D≺P", "V≺P", "X≺A"} <= set(start)
+    done = {
+        p.open_desiderata
+        for p in vendor_points()
+        if p.position.cs is CS.VFDPXA
+    }
+    assert done == {()}, "every desideratum is settled once all six happen"
 
 
 @pytest.mark.spec("SHD-05-007")
@@ -270,7 +310,7 @@ def test_each_generated_rule_carries_the_role_move_advice_gives_its_move():
     for rule in generated_rules():
         machine = machine_of(rule.move)
         if machine is Machine.EM:
-            role = EM_TRIGGER_ROLES[EM_Trigger(rule.move.split(".")[1])]
+            role = EM_TRIGGER_ROLES[EM_Trigger(trigger_of(rule.move))]
             assert rule.role == (role or ANY_ROLE)
         else:
             assert rule.role is CVDRole.VENDOR
@@ -293,8 +333,6 @@ def test_no_generated_rule_names_a_move_move_advice_does_not_band():
 
 
 def test_generated_rules_are_the_same_on_every_build():
-    from vultron.measure.action_rules import rules_from
-
     assert rules_from(vendor_points()) == generated_rules()
 
 
@@ -351,3 +389,72 @@ def test_each_authored_move_is_a_move_move_advice_can_list():
             # Move advice has no PEC moves yet (#6677): named by its trigger.
             continue
         assert move in listed, rule
+
+
+# --- the generated tables refuse what they cannot state ---
+
+
+def test_a_generated_rule_with_no_pattern_is_refused():
+    with pytest.raises(ValidationError, match="patterns"):
+        GeneratedRule(
+            move="cs.fix_is_ready",
+            role=CVDRole.VENDOR,
+            band=Band.HARM_FREE,
+            patterns=(),
+        )
+
+
+def test_a_conditional_branch_that_names_no_desideratum_is_refused():
+    with pytest.raises(ValidationError, match="names the desiderata"):
+        ConditionalBranch(band=Band.HARM_FREE)
+
+
+_DEFERRED = PositionKey(RM.DEFERRED, CS.Vfdpxa, EM.NONE)
+_GOOD = ConditionalBranch(band=Band.HARM_FREE, open=("Ac_i≺P",))
+_BAD = ConditionalBranch(band=Band.UNHELPFUL, settled=("Ac_i≺P",))
+
+
+@pytest.mark.parametrize(
+    ("branches", "message"),
+    [((_GOOD,), "at least 2"), ((_GOOD, _GOOD), "has its band")],
+    ids=["one-branch", "repeated-band"],
+)
+def test_a_conditional_verdict_needs_two_distinct_bands(branches, message):
+    with pytest.raises(ValidationError, match=message):
+        ConditionalVerdict(
+            move="rm.accept",
+            role=CVDRole.VENDOR,
+            position=_DEFERRED,
+            branches=branches,
+        )
+
+
+def test_a_move_forced_on_one_history_and_not_another_is_refused():
+    point = point_at(RM.START, CS.vfdpxa, EM.NONE)
+    first = point.model_copy(update={"open_desiderata": ("D≺P",)})
+    flipped = tuple(
+        v.model_copy(update={"forced": not v.forced}) for v in point.verdicts
+    )
+    second = point.model_copy(
+        update={"open_desiderata": ("V≺P",), "verdicts": flipped}
+    )
+    for build in (rules_from, conditionals_from):
+        with pytest.raises(
+            ValueError, match=r"forced at .* on some histories"
+        ):
+            build([first, second])
+
+
+def test_a_point_no_walk_reaches_is_refused():
+    with pytest.raises(KeyError, match="no walk reaches"):
+        point_at(RM.START, CS.VFDPXA, EM.NONE)
+    with pytest.raises(KeyError, match="no walk reaches"):
+        point_at(RM.START, CS.vfdpxa, EM.NONE, opened=("not-a-set",))
+
+
+def test_a_live_points_walk_or_an_unknown_one_is_refused():
+    point = point_at(RM.START, CS.vfdpxa, EM.NONE)
+    with pytest.raises(KeyError, match="no walk of its own"):
+        point_prefix(point.model_copy(update={"open_desiderata": None}))
+    with pytest.raises(KeyError):
+        point_prefix(point.model_copy(update={"open_desiderata": ("x",)}))

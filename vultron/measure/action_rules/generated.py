@@ -57,6 +57,7 @@ from vultron.measure.action_rules.model import (
     cs_pattern_matches,
     machine_of,
     move_advice_desiderata,
+    trigger_of,
 )
 from vultron.measure.action_rules.verdicts import VendorPoint, vendor_points
 from vultron.measure.advice.bands import BAND_ORDER, Band
@@ -162,7 +163,7 @@ class ConditionalVerdict(BaseModel):
 def move_role(move: str) -> CVDRole | Literal["any"]:
     """The role move advice gives *move* (SHD-05-016)."""
     if machine_of(move) is Machine.EM:
-        return EM_TRIGGER_ROLES[EM_Trigger(move.split(".", 1)[1])] or ANY_ROLE
+        return EM_TRIGGER_ROLES[EM_Trigger(trigger_of(move))] or ANY_ROLE
     return CVDRole.VENDOR
 
 

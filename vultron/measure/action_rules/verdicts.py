@@ -57,8 +57,10 @@ from vultron.core.states.em import EM
 from vultron.core.states.rm import RM, RM_Trigger
 from vultron.enums.roles import CVDRole
 from vultron.measure.action_rules.model import (
+    Machine,
     Position,
     desideratum_name,
+    machine_of,
     move_advice_desiderata,
 )
 from vultron.measure.advice.bands import Band, Part, band, deciding_parts
@@ -67,12 +69,10 @@ from vultron.measure.advice.shifts import scope_shift
 from vultron.measure.baselines import (
     ONE_VENDOR_MODEL,
     Event,
-    ModelName,
     VendorDesideratum,
     WalkPrefix,
     desideratum_by_notation,
 )
-from vultron.measure.baselines.desiderata import JOINT_TO_CS
 from vultron.measure.standing import (
     CSMove,
     ScoredMove,
@@ -227,7 +227,7 @@ def _verdict(
 def _bears_on(move: AllowedMove, vendor: str) -> bool:
     """An EM move bears on every vendor; an RM or CS move on the vendor whose
     state it moves."""
-    return move.name.startswith("em.") or move.participant == vendor
+    return machine_of(move.name) is Machine.EM or move.participant == vendor
 
 
 def vendor_verdicts(
@@ -241,9 +241,12 @@ def vendor_verdicts(
 
     *roles* gives each participant's roles, which an EM move's participant
     holds.
+
+    Raises:
+        KeyError: A move's participant is not in *roles*.
     """
     return tuple(
-        _verdict(s, vendor, roles.get(s.move.participant, frozenset()), state)
+        _verdict(s, vendor, roles[s.move.participant], state)
         for s in scored
         if _bears_on(s.move, vendor)
     )
@@ -312,18 +315,15 @@ def open_desiderata(prefix: CasePrefix) -> tuple[str, ...]:
 
     A desideratum ``a ≺ b`` is open while neither ``a`` nor ``b`` has
     occurred; once either has, it is met or broken and stays so, so no move
-    changes it.  A six-event desideratum reads the vendor's case-state
-    events.  In catalog order.
+    changes it.  Both models' orderings name the walk's own events (a
+    six-event one names vendor 1's), so each is read against the walk's
+    history.  In catalog order.
     """
     had = _had(prefix)
-    cs_had = frozenset(JOINT_TO_CS[e] for e in had if e in JOINT_TO_CS)
     found = []
     for name, desideratum in move_advice_desiderata().items():
         (ordering,) = desideratum.query.orderings
-        events: frozenset[object] = (
-            cs_had if desideratum.model is ModelName.CASE_STATE else had
-        )
-        if ordering.before not in events and ordering.after not in events:
+        if ordering.before not in had and ordering.after not in had:
             found.append(name)
     return tuple(found)
 

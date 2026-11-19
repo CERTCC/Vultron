@@ -15,10 +15,10 @@
 """The comparison of authored rules with move advice (ADR-0216, SHD-05-010)."""
 
 import copy
-from typing import Any
 
 import pytest
 
+from test.measure.action_rules.builders import ACTION_RULES_GROUP, make_rule
 from test.measure.history.builders import (
     OWNER,
     VENDOR as VENDOR_1,
@@ -28,6 +28,9 @@ from test.measure.history.builders import (
 from vultron.core.scoring.potential_actions import Actions
 from vultron.core.states.cs import CS
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.measure.action_rules import (
@@ -54,7 +57,10 @@ from vultron.measure.action_rules import (
 from vultron.measure.advice import Band, Part
 from vultron.measure.standing import case_standing
 
+pytestmark = ACTION_RULES_GROUP
+
 _K = ResultKind
+_INVITED = EmbargoConsentState.INVITED
 
 
 def _point(rm: RM, cs: CS, em: EM) -> VendorPoint:
@@ -66,17 +72,7 @@ def _point(rm: RM, cs: CS, em: EM) -> VendorPoint:
 _EXTENSION = (RM.ACCEPTED, CS.VFdpxa, EM.ACTIVE)
 
 
-def _rule(**fields: Any) -> AuthoredRule:
-    base: dict[str, Any] = {
-        "pattern": RulePattern(),
-        "roles": ANY_ROLE,
-        "action": Actions.MONITOR_FOR_ATTACKS,
-        "reason": "SA",
-        "desiderata": ("D≺P",),
-        "source": None,
-    }
-    base.update(fields)
-    return AuthoredRule(**base)
+_rule = make_rule
 
 
 def _only(comparison: PointComparison, rule: AuthoredRule) -> RuleResult:
@@ -147,14 +143,80 @@ def test_a_misplaced_rule_says_why():
     assert "CASE_OWNER" in (_only(comparison, _wrong_role()).reason or "")
 
 
+@pytest.mark.parametrize(
+    ("roles", "misplaced"),
+    [
+        (frozenset({CVDRole.COORDINATOR}), True),
+        (frozenset({CVDRole.VENDOR}), False),
+        (ANY_ROLE, False),
+    ],
+    ids=["coordinator", "vendor", "any-role"],
+)
+def test_only_the_vendor_moves_its_own_report(roles, misplaced):
+    rule = _rule(
+        action="rm.close",
+        roles=roles,
+        pattern=RulePattern(rm=frozenset({RM.ACCEPTED})),
+    )
+    result = _only(compare_point(_point(*_EXTENSION), [rule]), rule)
+    assert (result.kind is _K.MISPLACED_RULE) is misplaced
+    if misplaced:
+        assert "VENDOR" in (result.reason or "")
+
+
+def test_whoever_sends_the_report_causes_its_receipt():
+    rule = _rule(
+        action="rm.receive",
+        roles=frozenset({CVDRole.REPORTER}),
+        pattern=RulePattern(rm=frozenset({RM.START})),
+    )
+    point = _point(RM.START, CS.vfdpxa, EM.NONE)
+    result = _only(compare_point(point, [rule]), rule)
+    assert result.kind is not _K.MISPLACED_RULE
+
+
+def test_a_rule_joined_to_a_move_with_no_band_is_unscored_with_why():
+    """No participant chooses a public exploit, so move advice gives it no
+    band; the rule that names it is unscored with move advice's reason."""
+    rule = _rule(action="cs.exploit_made_public", desiderata=("X≺A",))
+    point = _point(RM.ACCEPTED, CS.VFdPxa, EM.NONE)
+    (verdict,) = [
+        v for v in point.verdicts if v.move.name == "cs.exploit_made_public"
+    ]
+    assert verdict.score is None
+    result = _only(compare_point(point, [rule]), rule)
+    assert result.kind is _K.UNSCORED_RULE
+    assert result.reason == verdict.unscored
+
+
+def test_an_unclaimed_move_is_listed_once_by_its_name():
+    point = _point(*_EXTENSION)
+    (harm_free,) = [
+        v
+        for v in point.verdicts
+        if v.score is not None
+        and v.score.band is Band.HARM_FREE
+        and v.move.name == "cs.fix_is_deployed"
+    ]
+    doubled = point.model_copy(
+        update={"verdicts": (*point.verdicts, harm_free)}
+    )
+    unclaimed = [
+        r.move
+        for r in compare_point(doubled, []).results
+        if r.kind is _K.UNCLAIMED_MOVE
+    ]
+    assert unclaimed.count("cs.fix_is_deployed") == 1
+
+
 def test_a_pec_move_rule_is_unscored():
     rule = _rule(
         action="pec.agree",
-        pattern=RulePattern(proposal=frozenset({"INVITED"})),
+        pattern=RulePattern(proposal=frozenset({_INVITED})),
     )
     point = _point(*_EXTENSION)
     consent = ConsentReading(
-        proposals=(ProposalConsent(proposal="p", state="INVITED"),)
+        proposals=(ProposalConsent(proposal="p", state=_INVITED),)
     )
     live = VendorPoint(
         position=point.position.model_copy(update={"consent": consent}),
@@ -168,7 +230,7 @@ def test_a_pec_move_rule_is_unscored():
 
 @pytest.mark.spec("SHD-05-003")
 def test_a_rule_undecided_at_a_point_gives_no_result_and_is_listed():
-    rule = _rule(pattern=RulePattern(proposal=frozenset({"INVITED"})))
+    rule = _rule(pattern=RulePattern(proposal=frozenset({_INVITED})))
     comparison = compare_point(_point(*_EXTENSION), [rule])
     assert comparison.undecided == (rule,)
     assert all(r.rule != rule for r in comparison.results)
@@ -242,7 +304,7 @@ def test_a_harm_free_move_no_rule_names_is_unclaimed_and_an_unhelpful_one_is_not
     assert Band.HARM_FREE in bands.values()
     assert Band.UNHELPFUL in bands.values()
     comparison = compare_point(point, [])
-    unclaimed = [r.move for r in comparison.results]
+    unclaimed = [r.move or "" for r in comparison.results]
     assert all(r.kind is _K.UNCLAIMED_MOVE for r in comparison.results)
     assert sorted(unclaimed) == sorted(
         n for n, b in bands.items() if b is Band.HARM_FREE
@@ -286,6 +348,32 @@ def test_a_rule_naming_no_desideratum_is_unscored_with_its_reason():
     assert result.band is None
     assert NOT_MEASURED in (result.reason or "")
     assert "Coordination: a test reason" in (result.reason or "")
+
+
+@pytest.mark.spec("SHD-05-028")
+def test_an_unmeasured_rule_whose_action_changes_no_state_keeps_its_reason():
+    """The authored rule to monitor for more attacks once attacks are seen
+    names no desideratum (D11): its result says both why it has no band and
+    the rule's own reason (D9)."""
+    (monitor,) = [
+        r
+        for r in authored_rules()
+        if r.action is Actions.MONITOR_FOR_ADDITIONAL_ATTACKS
+    ]
+    assert not monitor.measured
+    point = _point(RM.ACCEPTED, CS.VFdpxA, EM.NONE)
+    result = _only(compare_point(point, [monitor]), monitor)
+    assert result.kind is _K.UNSCORED_RULE
+    assert NO_STATE_CHANGE in (result.reason or "")
+    assert NOT_MEASURED in (result.reason or "")
+    assert f"its reason: {monitor.reason}" in (result.reason or "")
+
+
+def test_a_measured_rule_whose_action_changes_no_state_says_only_why():
+    result = _only(
+        compare_point(_point(*_EXTENSION), [_no_state()]), _no_state()
+    )
+    assert result.reason == NO_STATE_CHANGE
 
 
 def test_a_misplaced_rule_is_misplaced_even_with_no_desideratum():
