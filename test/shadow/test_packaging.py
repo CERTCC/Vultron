@@ -295,7 +295,23 @@ def test_no_module_outside_the_shadow_package_imports_streamlit():
 
 def test_the_scan_sees_the_shadow_packages_own_streamlit_import():
     """The scan above would find an import: the page's own is found."""
-    assert "streamlit" in _imports(_SHADOW / "dashboard" / "page.py")
+    assert "streamlit" in _imports(_SHADOW / "dashboard" / "page" / "frame.py")
+
+
+def test_no_view_module_imports_streamlit():
+    """What the page shows is worked out with no Streamlit call, so it is
+    tested without a browser; only the page lays it out."""
+    view_modules = sorted((_SHADOW / "dashboard" / "view").glob("*.py"))
+    assert view_modules
+    importers = [
+        path.name
+        for path in view_modules
+        if any(
+            name == "streamlit" or name.startswith("streamlit.")
+            for name in _imports(path)
+        )
+    ]
+    assert importers == []
 
 
 #: Module prefixes that can deliver an activity: every adapter but the

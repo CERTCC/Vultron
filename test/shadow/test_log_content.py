@@ -115,6 +115,7 @@ from test.support.case_reader import (
 )
 from vultron.errors import VultronError
 from vultron.shadow.dashboard import page
+from vultron.shadow.dashboard.page import reading as page_reading
 
 def analyse(reading):
     title = reading.ledger[0].payload_snapshot["object"]["name"]
@@ -123,12 +124,12 @@ def analyse(reading):
     except ValueError as exc:
         raise VultronError("analysis of " + title + " failed") from exc
 
-saved = page.analyse
-page.analyse = analyse
+saved = page_reading.analyse
+page_reading.analyse = analyse
 try:
     page.render(FakeCaseReader({FAKE_CASE: marked_case_records()}))
 finally:
-    page.analyse = saved
+    page_reading.analyse = saved
 """
 
 # The reader itself fails, as a reader that validates its source's records
