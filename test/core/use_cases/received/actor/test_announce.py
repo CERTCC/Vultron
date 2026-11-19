@@ -1116,7 +1116,7 @@ class TestFirstSeedStatesLedgerPosition:
         """
         _anchor_expected_authority(dl)
         failing = MagicMock(spec=SyncActivityPort)
-        failing.send_read_ledger_entry.side_effect = RuntimeError("store down")
+        failing.send_read_ledger.side_effect = RuntimeError("store down")
 
         with pytest.raises(VultronBTInternalError):
             run_in_act(
@@ -1151,7 +1151,7 @@ class TestFirstSeedStatesLedgerPosition:
         hold_received(dl, held)
         replay = RecordingInboxReplay()
         failing = MagicMock(spec=SyncActivityPort)
-        failing.send_read_ledger_entry.side_effect = RuntimeError("store down")
+        failing.send_read_ledger.side_effect = RuntimeError("store down")
 
         with pytest.raises(VultronBTInternalError):
             run_in_act(
@@ -1164,7 +1164,7 @@ class TestFirstSeedStatesLedgerPosition:
                 )
             )
 
-        failing.send_read_ledger_entry.assert_called_once()
+        failing.send_read_ledger.assert_called_once()
         assert replay.replayed == [held.activity_id]
         assert held_depth(dl, _CASE_ID) == 0
 
@@ -1182,4 +1182,4 @@ class TestFirstSeedStatesLedgerPosition:
 
         assert result.status is Status.FAILURE
         assert "VultronNotFoundError" in result.feedback_message
-        port.send_read_ledger_entry.assert_not_called()
+        port.send_read_ledger.assert_not_called()

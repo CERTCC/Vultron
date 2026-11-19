@@ -8,12 +8,12 @@
     - **Send:** `Read(CaseLedgerEntry)`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** a participant
-    - **Reference:** [Read case ledger entry](../../ledger_replication.md#read-case-ledger-entry)
+    - **Reference:** [Read case ledger entry](../../ledger_replication.md#read-case-ledger)
 
     ??? example "Example activity"
 
         ```python exec="true" idprefix=""
         from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-        print(render_example("read_case_ledger_entry"))
+        print(render_example("read_case_ledger"))
         ```

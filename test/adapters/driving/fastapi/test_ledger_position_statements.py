@@ -137,10 +137,10 @@ def test_each_statement_is_a_new_activity(participant_dl) -> None:
         log_index=tail.log_index, entry_hash=tail.entry_hash
     )
 
-    adapter.send_read_ledger_entry(
+    adapter.send_read_ledger(
         tail.case_id, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
     )
-    adapter.send_read_ledger_entry(
+    adapter.send_read_ledger(
         tail.case_id, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
     )
 

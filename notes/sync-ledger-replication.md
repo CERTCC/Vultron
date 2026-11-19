@@ -628,7 +628,7 @@ before a quiet period leaves the replica behind with no signal on either side.
 - **Never ledgered** (SYNC-17-006): a `Read` is an observation (ADR-0152).
 - **A fresh id per statement**, unlike a rebuildable send (SYNC-09-002): a repeat
   is a new observation the CASE_MANAGER must answer, and a derived id would be
-  skipped as a redelivery (`SyncActivityAdapter.send_read_ledger_entry`).
+  skipped as a redelivery (`SyncActivityAdapter.send_read_ledger`).
 - **A first seed states the copy's position** (SYNC-17-008): the chain stores no
   entry yet, so the `Read` names the entry at the seeded case's position
   (`stated_replica_position`), not a chain tail. A replacing copy sends none; its

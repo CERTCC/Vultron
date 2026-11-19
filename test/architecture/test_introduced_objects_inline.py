@@ -324,7 +324,7 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "reject_log_entry_activity": _held("entry"),
     # Names, by reference, the entry it states it applied last: one the
     # CASE_MANAGER holds (SYNC-17-001).
-    "read_ledger_entry_activity": _held("entry"),
+    "read_ledger_at_entry_activity": _held("entry"),
     # Names, by reference, the entry at the position it states, one the
     # CASE_MANAGER holds; it takes only the case id and the position.
     "read_ledger_position_activity": NoIntroduction(

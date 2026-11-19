@@ -674,7 +674,7 @@ and case (#6486). Delivery receipts are an open question
 
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1
 or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0156,
-ADR-0137 and ADR-0155 (partially superseded by ADR-0204), `READ_CASE_LEDGER_ENTRY`,
+ADR-0137 and ADR-0155 (partially superseded by ADR-0204), `READ_CASE_LEDGER`,
 `REJECT_CASE_LEDGER_ENTRY`, `ADD_CASE_STATUS_TO_CASE`,
 `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`. The ledger-commit part
 (`ADD_CASE_LEDGER_ENTRY_TO_LEDGER` and the notes naming the replication channel,

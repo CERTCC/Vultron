@@ -267,7 +267,7 @@
       "phrase": "{actor} rejected a ledger entry"
     },
     {
-      "semanticType": "read_case_ledger_entry",
+      "semanticType": "read_case_ledger",
       "wire": "Read(CaseLedgerEntry)",
       "phrase": "{actor} stated its ledger position"
     },

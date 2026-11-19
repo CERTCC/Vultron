@@ -46,15 +46,16 @@ from vultron.adapters.outbox_sealed_body import (
     seal_outbound_body,
 )
 from vultron.core.models.activity_ids import derived_activity_id
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_ledger_entry import (
+    CaseLedgerEntry,
+    case_ledger_id,
+)
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import ResendOutcome
-from vultron.core.sync_helpers import ledger_tail_position
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
     add_log_entry_activity,
-    genesis_replay_reject_activity,
     read_ledger_position_activity,
     reject_log_entry_activity,
 )
@@ -191,8 +192,9 @@ class SyncActivityAdapter:
         both *entry* and *tail_hash*, so its id keys on the tail, not on the
         copy: the replay it asks for starts there whichever copy prompted
         it, and the entries committed after that replay reach the replica by
-        fan-out.  The genesis-replay ``Reject`` has no entry to key on, so
-        :meth:`send_genesis_replay_reject` keys on the copy's position.
+        fan-out.  A replica whose chain stores no entry has none to name, so
+        it states its position with :meth:`send_read_ledger` at index -1
+        instead (SYNC-16-027).
 
         *in_reply_to* names the inbound activity that prompted the Reject
         (RF-08-004) and does not key the id.  So when a later copy prompts
@@ -224,79 +226,36 @@ class SyncActivityAdapter:
             ),
         )
 
-    def send_genesis_replay_reject(
-        self,
-        case_id: str,
-        copy_tail_hash: str,
-        actor_id: str,
-        to: list[str],
-        *,
-        in_reply_to: str,
-        at: datetime,
-    ) -> None:
-        """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
-
-        The activity id is derived from the case, the ledger position of the
-        copy that replaced it and the recipients, so a repeat for the same copy builds
-        no new activity and reuses the id (ID-04-004), while a request after
-        a later copy is its own; a sealed one no longer pending is queued
-        once more (ID-04-005).  *in_reply_to*, the copy's
-        ``Announce(VulnerabilityCase)`` (RF-08-004), does not key the id, so
-        a repeat of the same copy under another Announce sends the stored
-        body, which names the first one.
-
-        Spec: SYNC-16-007, RF-08-004.
-        """
-        reject_id = derived_activity_id(
-            "genesis-replay-reject",
-            actor_id,
-            case_id,
-            copy_tail_hash,
-            *sorted(to),
-        )
-        self._queue_reject(
-            reject_id,
-            actor_id,
-            f"genesis-replay Reject(CaseLedgerEntry) for case '{case_id}'",
-            lambda: genesis_replay_reject_activity(
-                case_id,
-                ledger_tail_position(case_id, self._dl),
-                in_reply_to=in_reply_to,
-                actor=actor_id,
-                to=to,
-                id_=reject_id,
-                at=at,
-            ),
-        )
-
-    def send_read_ledger_entry(
+    def send_read_ledger(
         self,
         case_id: str,
         ledger_position: LedgerPosition,
         actor_id: str,
         to: list[str],
         *,
+        in_reply_to: str | None = None,
         at: datetime,
     ) -> None:
-        """Build and queue a ``Read(CaseLedgerEntry)`` position statement.
+        """Build and queue a ``Read(<case>/ledger)`` position statement.
 
         The activity gets a fresh id: each statement is a new observation of
         the participant's position, and the CASE_MANAGER must answer it even
-        when an earlier one named the same entry, because its ledger may have
-        grown since (SYNC-17-004).  A derived id would make the repeat a
+        when an earlier one stated the same position, because its ledger may
+        have grown since (SYNC-17-004).  A derived id would make the repeat a
         redelivery the CASE_MANAGER skips.
 
-        Spec: SYNC-17-001, SYNC-17-008.
+        Spec: SYNC-17-001, SYNC-17-008, SYNC-16-027.
         """
+        extra = {} if in_reply_to is None else {"in_reply_to": in_reply_to}
         read = read_ledger_position_activity(
-            case_id, ledger_position, actor=actor_id, to=to, at=at
+            case_id, ledger_position, actor=actor_id, to=to, at=at, **extra
         )
         self._save_seal_and_queue(actor_id, read)
         logger.info(
-            "sync adapter: queued Read(CaseLedgerEntry) '%s' for entry '%s'"
-            " to %s",
+            "sync adapter: queued Read '%s' of '%s' at log_index=%d to %s",
             read.id_,
-            read.object_,
+            case_ledger_id(case_id),
+            ledger_position.log_index,
             to,
         )
 

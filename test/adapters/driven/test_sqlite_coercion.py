@@ -468,14 +468,14 @@ class TestCoerceByReferenceFields:
     """
 
     def test_read_log_entry_round_trips_without_warning(self, dl, caplog):
-        """A stored Read(CaseLedgerEntry) reads back as _ReadLogEntryActivity."""
+        """A stored Read(CaseLedgerEntry) reads back as _ReadLedgerActivity."""
         import logging
 
         from vultron.core.behaviors.sync.nodes.chain import (
             _to_persistable_entry,
         )
         from vultron.core.models.case_ledger import HashChainLedgerRecord
-        from vultron.wire.as2.factories import read_ledger_entry_activity
+        from vultron.wire.as2.factories import read_ledger_at_entry_activity
 
         entry = _to_persistable_entry(
             HashChainLedgerRecord(
@@ -491,7 +491,7 @@ class TestCoerceByReferenceFields:
                 received_at=ACT_AT,
             )
         )
-        read = read_ledger_entry_activity(
+        read = read_ledger_at_entry_activity(
             entry,
             actor="https://example.org/actors/reporter",
             at=authored_at(),
@@ -502,7 +502,7 @@ class TestCoerceByReferenceFields:
         with caplog.at_level(logging.WARNING):
             result = dl.read(read.id_)
 
-        assert type(result).__name__ == "_ReadLogEntryActivity"
+        assert type(result).__name__ == "_ReadLedgerActivity"
         assert result.object_ == entry.id_  # type: ignore[union-attr]
         assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
@@ -590,7 +590,7 @@ class TestCoerceByReferenceFields:
 class TestCollapseByReferenceFields:
     """Each branch of ``_collapse_by_reference_fields`` (#5513).
 
-    ``_ReadLogEntryActivity.object_`` is a by-reference field: the class
+    ``_ReadLedgerActivity.object_`` is a by-reference field: the class
     declares it a plain URI (SYNC-17-001).
     """
 
@@ -631,19 +631,19 @@ class TestCollapseByReferenceFields:
 
     def test_object_collapses_to_its_id(self):
         entry = self._entry()
-        result = self._collapse(self._read(entry), "READ_CASE_LEDGER_ENTRY")
+        result = self._collapse(self._read(entry), "READ_CASE_LEDGER")
         assert result.object_ == entry.id_  # type: ignore[attr-defined]
 
     def test_bare_id_is_left_alone(self):
         read = self._read("https://example.org/ledger/entry-5513")
-        assert self._collapse(read, "READ_CASE_LEDGER_ENTRY") is read
+        assert self._collapse(read, "READ_CASE_LEDGER") is read
 
     def test_object_without_an_id_is_left_alone(self):
         from vultron.wire.as2.vocab.base.objects.base import as_Object
 
         nameless = as_Object.model_construct(id_=None)
         read = self._read(nameless)
-        assert self._collapse(read, "READ_CASE_LEDGER_ENTRY") is read
+        assert self._collapse(read, "READ_CASE_LEDGER") is read
 
     def test_field_that_admits_an_object_keeps_it(self):
         """The full-case Invite carries the case whole in ``object``

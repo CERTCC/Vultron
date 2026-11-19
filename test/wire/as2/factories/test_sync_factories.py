@@ -31,7 +31,7 @@ from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     add_log_entry_activity,
-    read_ledger_entry_activity,
+    read_ledger_at_entry_activity,
     read_ledger_position_activity,
     reject_log_entry_activity,
 )
@@ -301,7 +301,7 @@ def test_read_ledger_entry_is_the_read_of_its_position():
         received_at=ACT_AT,
         published=ACT_AT,
     )
-    by_entry = read_ledger_entry_activity(
+    by_entry = read_ledger_at_entry_activity(
         sample_log_entry, actor=_ACTOR_URI, at=authored_at()
     )
     by_position = read_ledger_position_activity(
@@ -322,6 +322,6 @@ def test_read_ledger_entry_is_the_read_of_its_position():
 def test_read_ledger_entry_without_a_hash_raises(sample_log_entry):
     """An entry whose position cannot be stated is a construction error."""
     with pytest.raises(VultronActivityConstructionError):
-        read_ledger_entry_activity(
+        read_ledger_at_entry_activity(
             sample_log_entry, actor=_ACTOR_URI, at=authored_at()
         )

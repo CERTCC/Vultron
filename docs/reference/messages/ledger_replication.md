@@ -151,7 +151,7 @@ The check runs before any write, so a stranger cannot obtain case content by sen
 
 ---
 
-{% include-markdown "./_occasions/sections/read-case-ledger-entry.md" %}
+{% include-markdown "./_occasions/sections/read-case-ledger.md" %}
 
 - **Object:** the last canonical entry the participant has applied, by reference: its id, not the entry.
 - **Context:** the case.
@@ -159,9 +159,9 @@ The check runs before any write, so a stranger cannot obtain case content by sen
   The entry it names is the participant's tail, so this is the same `ledgerPosition` every case activity carries (SYNC-18-001).
 - **Triggering transition:** a case copy seeding the participant's replica (SYNC-17-008), and otherwise the participant's own policy, not a protocol shorthand. The reference participant also sends one for each case it holds after every restart, and on `ledger.position_statement_interval_seconds` when that is set, which is off by default (SYNC-17-007).
 - **Spec:** SYNC-17-001 through SYNC-17-008; the Invite resend, SYNC-20-001 through SYNC-20-008.
-- **Pattern:** `ReadLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.
-- **Factory:** `read_ledger_entry_activity`, or `read_ledger_position_activity` for a position whose entry the sender does not store, in `vultron/wire/as2/factories/sync.py`.
-- **Example artifact:** [read_case_ledger_entry.json](../examples/read_case_ledger_entry.json).
+- **Pattern:** `ReadLedgerPattern` in `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `read_ledger_at_entry_activity`, or `read_ledger_position_activity` for a position whose entry the sender does not store, in `vultron/wire/as2/factories/sync.py`.
+- **Example artifact:** [read_case_ledger.json](../examples/read_case_ledger.json).
 
 `Read(CaseLedgerEntry)` is the participant's position statement.
 `Read` states a fact and asks for nothing, so it claims no refusal, where a `Reject` would.
@@ -227,7 +227,7 @@ It records the time of the last one as a `GenesisRejectRecord` and deletes that 
 A report submitter's replica is seeded by the report receiver's `Create(VulnerabilityCase)` instead (CBT-01-001), and that seed replays the held `Add` the same way (SYNC-15-005).
 The report receiver's own seed, the CASE_MANAGER's `Create(VulnerabilityCase)`, replays held entries the same way too.
 The receiver and the CASE_MANAGER are separate senders, so the CASE_MANAGER's entries often arrive before that `Create`.
-After an `Announce(VulnerabilityCase)` seed, the participant states its position in the seeded case with `Read(CaseLedgerEntry)` ([Read case ledger entry](#read-case-ledger-entry), SYNC-17-008).
+After an `Announce(VulnerabilityCase)` seed, the participant states its position in the seeded case with `Read(CaseLedgerEntry)` ([Read case ledger entry](#read-case-ledger), SYNC-17-008).
 A `Create(VulnerabilityCase)` seed sends no such statement, because SYNC-17-008 covers only the `Announce(VulnerabilityCase)` seed.
 
 - **Pattern:** `AnnounceVulnerabilityCasePattern` in

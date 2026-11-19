@@ -1,6 +1,6 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-## Read case ledger entry { #read-case-ledger-entry }
+## Read case ledger entry { #read-case-ledger }
 
 States the last ledger entry the sender has applied. The CASE_MANAGER resends every Invite the sender has not answered and, for an active participant, records the position as the sender's acknowledged position and replays every entry after it.
 
@@ -17,5 +17,5 @@ States the last ledger entry the sender has applied. The CASE_MANAGER resends ev
     ```python exec="true" idprefix=""
     from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(render_example("read_case_ledger_entry"))
+    print(render_example("read_case_ledger"))
     ```

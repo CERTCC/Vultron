@@ -69,7 +69,7 @@ LEDGER_POSITION_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
         (
             "STATED_POSITION_ANSWERED_BY_TREE",
             "vultron/core/behaviors/sync/read_tree.py",
-            "create_read_log_entry_tree",
+            "create_read_ledger_tree",
         ),
     }
 )

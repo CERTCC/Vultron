@@ -127,7 +127,7 @@ groups:
       `test/test_semantic_activity_patterns.py` checks every registered pattern whose
       `object_` is a type, except `Read(CaseLedgerEntry)`, and fails if any of them
       accepts a bare URI as its object.
-      `test_only_read_case_ledger_entry_accepts_a_bare_object` in the same file pins
+      `test_only_read_case_ledger_accepts_a_bare_object` in the same file pins
       the set of patterns that set `accepts_bare_object` to `Read(CaseLedgerEntry)`,
       and fails if a member matches an activity of its verb that carries nothing but
       a bare `object`.

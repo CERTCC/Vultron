@@ -30,7 +30,6 @@ from vultron.wire.as2.factories import (
     stamp_sender_sequence,
 )
 from vultron.wire.as2.factories.sync import (
-    genesis_replay_reject_activity,
     read_ledger_position_activity,
     reject_log_entry_activity,
 )
@@ -135,12 +134,8 @@ def test_the_ledger_requests_take_no_number() -> None:
         ),
         _TAIL,
     )
-    genesis = genesis_replay_reject_activity(
-        _CASE,
-        _EMPTY,
-        actor=_ACTOR,
-        in_reply_to="https://example.org/activities/prompting-announce",
-        at=authored_at(),
+    genesis = read_ledger_position_activity(
+        _CASE, _EMPTY, actor=_ACTOR, at=authored_at()
     )
 
     for request in (read, reject, genesis):

@@ -107,7 +107,7 @@ _LEDGER_REPLICATION_SEAMS = frozenset(
         "send_add_log_entry",
         "send_verified_log_entry",
         "send_reject_log_entry",
-        "send_read_ledger_entry",
+        "send_read_ledger",
         "send_ledger_suffix",
         "backfill_admitted_peers",
         "create_commit_log_entry_tree",

@@ -1255,16 +1255,16 @@ groups:
       hash. This negative acknowledgment serves the purpose of the formal EK and CK messages.
     seen_in: []
     example: reject_case_ledger_entry
-  - anchor: read-case-ledger-entry
+  - anchor: read-case-ledger
     heading: Read case ledger entry
     when: a Participant checks that its ledger is current, such as after a restart
     send: Read(CaseLedgerEntry)
     send_to: the CASE_MANAGER
     sent_by: a participant
-    semantics: read_case_ledger_entry
+    semantics: read_case_ledger
     status: none
     description: States the last ledger entry the sender has applied. The CASE_MANAGER resends
       every Invite the sender has not answered and, for an active participant, records the
       position as the sender's acknowledged position and replays every entry after it.
     seen_in: []
-    example: read_case_ledger_entry
+    example: read_case_ledger

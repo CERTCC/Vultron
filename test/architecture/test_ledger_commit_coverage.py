@@ -65,7 +65,7 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     "add_case_ledger_entry_to_ledger": NotACaseEvent.REPLICA_APPLY,
     "reject_case_ledger_entry": NotACaseEvent.LEDGER_MECHANICS,
     # A stated ledger position changes nothing in the case file (SYNC-17-006).
-    "read_case_ledger_entry": NotACaseEvent.LEDGER_MECHANICS,
+    "read_case_ledger": NotACaseEvent.LEDGER_MECHANICS,
     "announce_vulnerability_case": NotACaseEvent.NOT_LEDGERED_BY_CLP_10_013,
     "unknown": NotACaseEvent.UNMATCHED,
     "unknown_unresolvable_object": NotACaseEvent.UNMATCHED,

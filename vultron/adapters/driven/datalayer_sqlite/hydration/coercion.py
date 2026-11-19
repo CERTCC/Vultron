@@ -212,7 +212,7 @@ def _collapse_by_reference_fields(
     :func:`rehydrate_fields` expands a reference by the *stored* class's
     declared type, and the pattern match needs that expansion to confirm the
     referent's type.  The semantic class may still declare the field a plain
-    URI — ``_ReadLogEntryActivity.object_`` (SYNC-17-001),
+    URI — ``_ReadLedgerActivity.object_`` (SYNC-17-001),
     ``_RmInviteToFullCaseActivity.target`` (AKM-02-003) — so the expanded
     object goes back to its id before validation (#5513).
 
