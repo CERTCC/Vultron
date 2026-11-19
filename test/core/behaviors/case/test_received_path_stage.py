@@ -32,6 +32,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BlackboardKeyProbe, BTTestScenario
 from test.support.act_clock import ACT_AT
 from test.support.objects import make
+from vultron.core.behaviors.act_key_scope import ActKeyScope
 from vultron.core.behaviors.bridge.act_instant import act_instant_in_tree_run
 from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
@@ -65,7 +66,7 @@ from vultron.core.behaviors.case.received_run import (
     received_path,
 )
 from vultron.core.behaviors.case_id_scope import (
-    CaseIdScope,
+    seeded_case_id,
     unscoped,
     with_case_id,
 )
@@ -166,10 +167,10 @@ def _run_stage(
     return stage
 
 
-def _seeding_scope(stage: ReceivedPathNode) -> CaseIdScope:
-    """The :class:`CaseIdScope` that seeds *stage*'s ``/case_id`` port."""
+def _seeding_scope(stage: ReceivedPathNode) -> ActKeyScope:
+    """The :class:`ActKeyScope` that seeds *stage*'s ``/case_id`` port."""
     scope = stage.parent
-    assert isinstance(scope, CaseIdScope)
+    assert isinstance(scope, ActKeyScope)
     return scope
 
 
@@ -441,7 +442,7 @@ def test_the_stage_reads_the_case_the_sender_context_names() -> None:
         node for node in tree.iterate() if isinstance(node, ReceivedPathNode)
     )
     scope = _seeding_scope(stage)
-    assert scope.case_id == CASE_ID
+    assert seeded_case_id(stage) == CASE_ID
     scenario = BTTestScenario(actor_id=VENDOR_ID)
     _seed_case(scenario)
     scenario.run(scope, actor_id=VENDOR_ID)

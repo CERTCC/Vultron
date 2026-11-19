@@ -66,6 +66,7 @@ These rules live in `vultron/measure/history/` (`derive.py`, `snapshot.py`).
   Its events carry the seated-at-creation label (CM-14-001, CEH-03-011).
 - **Read the case's EM from the register the walk rebuilds.** The walk keeps each
   embargo register entry's status from the steps the ledger records (`derive_case`,
+  or `derive_case_steps` for the state after each entry,
   `vultron/measure/history/reached.py`), and a measure that needs EM derives it from
   those statuses with `derive_em`, not from the stamped `CaseStatus.em`. Reason: EM
   is derived from the register, and the stamp is only a copy written when a case

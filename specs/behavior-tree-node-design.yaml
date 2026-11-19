@@ -79,12 +79,13 @@ groups:
     priority: MUST
     kind: project
     verification: >-
-      For `case_id`, the value every current BTND-01-006 node reads at tick time:
-      `test_no_node_reads_case_id_from_both_a_port_and_its_constructor` in
-      `test/architecture/test_case_id_one_channel.py` imports every `PortsMixin`
-      class under `vultron/core/behaviors/` and fails when a class that declares a
-      `case_id` input port also accepts a `case_id` constructor parameter or
-      `**kwargs`.
+      For every key of the act-key vocabulary:
+      `test_no_node_reads_an_act_key_from_both_a_port_and_its_constructor` in
+      `test/architecture/test_act_key_one_channel.py` imports every `PortsMixin`
+      class under `vultron/core/behaviors/` and fails when a class that declares an
+      input port named for a vocabulary key, or bound to one by its class's port
+      remappings, also accepts a constructor parameter named for that port or key,
+      or `**kwargs`.
     statement: >-
       A node that reads an input value from a blackboard input port under
       BTND-01-006 MUST NOT also take that value as a constructor parameter.
@@ -109,9 +110,11 @@ groups:
       unchanged, and a reader can state its logic as "given these inputs, do this"
       (ADR-0207).
     verification: >-
-      An architecture ratchet imports every node class under `vultron/core/behaviors/`
-      and fails on a constructor parameter that names a per-act value. Its list of
-      known sites only shrinks and ends empty.
+      `test/architecture/test_per_act_parameter_ratchet.py` reads the `__init__`
+      of every top-level class under `vultron/core/behaviors/` and fails on a
+      parameter that names a per-act value and is not in its list of known
+      sites, each tagged with the Task that removes it. The list only shrinks
+      and ends empty.
     relationships:
     - rel_type: extends
       spec_id: BTND-01-006
@@ -130,9 +133,10 @@ groups:
       nested runs (ADR-0207). A value fixed at build time also forces a store read
       before the tree runs whenever the value is found in the store (ADR-0195).
     verification: >-
-      The BTND-01-008 ratchet also reads the parameters of every module-level tree
-      factory under `vultron/core/behaviors/` and fails on one that names a per-act
-      value. Its list of known sites only shrinks and ends empty.
+      The BTND-01-008 ratchet, `test/architecture/test_per_act_parameter_ratchet.py`,
+      also reads the parameters of every module-level function under
+      `vultron/core/behaviors/` and fails on one that names a per-act value. Its
+      list of known sites only shrinks and ends empty.
     relationships:
     - rel_type: implements
       spec_id: BTND-01-008

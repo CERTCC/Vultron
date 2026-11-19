@@ -293,6 +293,16 @@ facts, each with a reason; and the facts the source can never observe, which a c
 reads as unknown, never as false (ADR-0197).
 *Avoid*: translated case, seeded case
 
+**Case narrative**:
+Who did what in a case, when, and which states it changed: one line per case ledger
+entry, in ledger order, read from the ledger and never written by hand. A line names the
+time the activity claims (and the commit stamp only where it differs), the actor by
+display name, the semantic type's registry phrase, the object, and every state change
+the entry caused in each state machine the ledger records. Each line is tied to its
+entry's log index, so a reader can point at one point of the case's history.
+*Avoid*: case story, case timeline (a demo story is written by hand; a narrative is not),
+case log (the case ledger is the log the narrative reads)
+
 **VINCE gateway**:
 A component in front of VINCE that speaks Vultron wire activities, such as
 `Offer(VulnerabilityReport)`, on one side and the VINCE API on the other, so VINCE takes

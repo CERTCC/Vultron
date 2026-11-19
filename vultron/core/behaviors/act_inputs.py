@@ -52,7 +52,12 @@ from typing import Any, Protocol, runtime_checkable
 
 import py_trees
 
-from vultron.core.behaviors.act_keys import ACT_KEYS, SENDER_ID, ActKey
+from vultron.core.behaviors.act_keys import (
+    ACT_KEYS,
+    SENDER_ID,
+    ActKey,
+    require_act_key,
+)
 from vultron.core.models.events.base import VultronEvent
 from vultron.errors import VultronWiringError
 
@@ -156,30 +161,13 @@ def declare_inputs[NodeT: py_trees.behaviour.Behaviour](
         declaration = declaration.merged(
             TreeInputs(
                 MappingProxyType(
-                    {
-                        _vocabulary_act_key(key, tree.name): source
-                        for key in keys
-                    }
+                    {require_act_key(key, tree.name): source for key in keys}
                 )
             ),
             where=tree.name,
         )
     setattr(tree, _INPUTS_ATTR, declaration)
     return tree
-
-
-def _vocabulary_act_key(key: ActKey, where: str) -> ActKey:
-    """*key*, when it is the vocabulary's own :class:`ActKey` of its name.
-
-    Raises:
-        TypeError: *key* is not a key of the vocabulary (BTND-03-022).
-    """
-    if ACT_KEYS.get(getattr(key, "name", "")) is not key:
-        raise TypeError(
-            f"{where}: {key!r} is not a key of the act-key vocabulary"
-            " (BTND-03-022)"
-        )
-    return key
 
 
 def declared_inputs(node: py_trees.behaviour.Behaviour) -> TreeInputs:
@@ -209,7 +197,7 @@ class PublishesActKeys(Protocol):
     """A node that writes per-act keys by a means other than an output port.
 
     A seeder that writes a key for its child's tick (such as
-    :class:`~vultron.core.behaviors.case_id_scope.CaseIdScope`) implements
+    :class:`~vultron.core.behaviors.act_key_scope.ActKeyScope`) implements
     it, so :func:`seed_act_inputs` counts it as the key's source.
     """
 

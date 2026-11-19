@@ -12,11 +12,13 @@ Spec: SHD-01-002, SHD-01-004, SHD-03-002.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from test.measure.history.builders import two_vendors_ledger
 from test.support.ledger_stream import recording_rows
 from vultron.config import clear_config_cache, config_override
 from vultron.config.shadow import ShadowConfig
@@ -27,12 +29,16 @@ from vultron.measure.advice import (
     HARM_NOTE,
     HELP_TEXT,
     Band,
+    case_advice,
 )
+from vultron.measure.standing import case_standing
+from vultron.shadow.dashboard import view
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
     HEARTBEAT_KEY,
     LAST_READING_KEY,
     LIVE_NOTE,
+    NARRATIVE_NOTE,
     NO_ENTRY_NOTE,
     NOT_LIVE_NOTE,
     TITLE,
@@ -41,6 +47,8 @@ from vultron.shadow.dashboard.view import (
     BAND_EMPTY,
     EM_BADGES,
     LEADING_MARK,
+    LEGEND_BETTER,
+    LEGEND_DOMINATED,
     RM_BADGES,
     TOP_MARK,
 )
@@ -216,6 +224,15 @@ _COLUMNS = {
         "From → to",
         "Why no band",
     ],
+    "Case narrative": [
+        "#",
+        "Time",
+        "Committed",
+        "Actor",
+        "Activity",
+        "Object",
+        "State changes",
+    ],
     "Not translated": ["Source record", "Fact", "Why"],
     "Inferred": ["Entry", "Rule", "Caveat"],
     "Not observable": ["Fact", "Why", "Reads as unknown"],
@@ -293,6 +310,26 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
     assert not any("moved on" in c for c in _texts(at.caption))
 
 
+def test_a_recorded_case_shows_its_narrative_one_line_per_entry(
+    recordings_app,
+):
+    """#6670 AC-1, AC-2: one line per ledger entry, in log-index order,
+    naming who did what and which states it changed."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    assert not at.exception
+    assert "Case narrative" in _texts(at.subheader)
+    assert NARRATIVE_NOTE in _texts(at.caption)
+    narrative = _table(at, "Case narrative")
+    entries = recording_rows(
+        RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
+    )
+    assert narrative["#"].tolist() == list(range(len(entries)))
+    assert narrative["Activity"].tolist()[0] == "Case Actor created the case"
+    changes = " ".join(narrative["State changes"])
+    assert "EM: " in changes and "VFD: " in changes and "PXA: " in changes
+
+
 @pytest.fixture(scope="module")
 def advice_app() -> AppTest:
     """The advice section for a case with a move in every band."""
@@ -307,7 +344,12 @@ def test_the_bands_are_shown_in_order_with_the_unhelpful_one_collapsed(
     """AC-1: harm-free, trade-off, then the unhelpful band as a closed
     group the analyst can open."""
     at = advice_app
-    assert _texts(at.markdown)[:2] == ["**Harm-free**", "**Trade-off**"]
+    # Band titles appear in markdown, with legends between them
+    markdowns = _texts(at.markdown)
+    band_titles = [
+        m for m in markdowns if m.startswith("**") and m.endswith("**")
+    ]
+    assert band_titles[:2] == ["**Harm-free**", "**Trade-off**"]
     (unhelpful,) = at.expander
     assert unhelpful.label.startswith("Unhelpful (")
     assert unhelpful.proto.expanded is False
@@ -343,6 +385,38 @@ def test_the_page_shows_the_marks_help_text_and_harm_note(advice_app):
     trade_off = _table(at, "Trade-off")
     assert all("−" in h for h in trade_off["Harms by vendor"])
     assert DOMINATED_BY_HARM_FREE in trade_off["Dominated by"].tolist()
+
+
+_BACKGROUND = re.compile(r"background-color: (#[0-9a-f]{6})")
+
+
+@pytest.mark.spec("SHD-03-003", "SHD-03-004")
+def test_each_shaded_band_shows_a_legend_in_its_rows_shades(advice_app):
+    """#6673 AC-1, AC-2: one legend under each shaded band's title, labelled
+    at both ends, its cells the band's own layer shades and holding each
+    row's shade; the help text is shown and no caption says "darkest"."""
+    at = advice_app
+    captions = _texts(at.caption)
+    assert HELP_TEXT in captions
+    assert not any("darkest" in c.lower() for c in captions)
+    markdowns = _texts(at.markdown)
+    legends = [m for m in markdowns if LEGEND_BETTER in m]
+    assert len(legends) == 2
+    expected = {
+        b.title: b
+        for b in view.band_views(
+            case_advice(case_standing(two_vendors_ledger().case_ledger())), {}
+        )
+    }
+    for heading in ("Harm-free", "Trade-off"):
+        legend = markdowns[markdowns.index(f"**{heading}**") + 1]
+        assert LEGEND_BETTER in legend and LEGEND_DOMINATED in legend
+        assert legend.index(LEGEND_BETTER) < legend.index(LEGEND_DOMINATED)
+        cells = _BACKGROUND.findall(legend)
+        assert cells == [s.background for s in expected[heading].legend]
+        styles = _frame(at, heading).proto.arrow_data.styler.styles
+        row_backgrounds = set(_BACKGROUND.findall(styles))
+        assert row_backgrounds and row_backgrounds <= set(cells)
 
 
 def test_the_moves_with_no_band_are_listed_with_why(advice_app):
@@ -402,6 +476,7 @@ def test_a_reading_with_no_entry_shows_its_report_and_no_standing():
     assert not at.exception
     assert any("translated no ledger entry" in w for w in _texts(at.warning))
     assert "Participants" not in _texts(at.subheader)
+    assert "Case narrative" not in _texts(at.subheader)
     assert _table(at, "Not translated")["Source record"].tolist() == ["rec-9"]
 
 
@@ -487,6 +562,18 @@ def test_a_followed_case_shows_its_new_standing_after_each_entry():
     assert "Participants" in _texts(at.subheader)
     assert not at.error
     assert _texts(at.warning) == [NOT_LIVE_NOTE]
+
+
+@pytest.mark.spec("SHD-04-003")
+def test_a_followed_case_adds_a_narrative_line_per_entry_and_keeps_the_rest():
+    """#6670 AC-3: each entry that arrives adds its line; none is lost."""
+    first = _table(
+        _follow_page("(sse_rows(rows[:1]) + CLOSE,)"), "Case narrative"
+    )
+    three = _table(_follow_page("(sse_rows(rows) + CLOSE,)"), "Case narrative")
+    assert first["#"].tolist() == [0]
+    assert three["#"].tolist() == [0, 1, 2]
+    assert three.iloc[:1].equals(first)
 
 
 @pytest.mark.spec("SHD-04-005")

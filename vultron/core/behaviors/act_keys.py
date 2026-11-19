@@ -76,6 +76,7 @@ __all__ = [
     "SENDER_PROPOSED_EMBARGO_DURATION",
     "ActKey",
     "RunKey",
+    "require_act_key",
     "vocabulary_key",
 ]
 
@@ -290,3 +291,21 @@ def vocabulary_key(path_or_name: str) -> ActKey | RunKey | None:
     """
     name = path_or_name.removeprefix("/")
     return ACT_KEYS.get(name) or RUN_KEYS.get(name)
+
+
+def require_act_key(key: object, where: str) -> ActKey:
+    """*key*, when it is the vocabulary's own :class:`ActKey` of its name.
+
+    Args:
+        key: The key a declaration or a seeder names.
+        where: The tree or node, for the message.
+
+    Raises:
+        TypeError: *key* is not a key of the vocabulary (BTND-03-022).
+    """
+    if not isinstance(key, ActKey) or ACT_KEYS.get(key.name) is not key:
+        raise TypeError(
+            f"{where}: {key!r} is not a key of the act-key vocabulary"
+            " (BTND-03-022)"
+        )
+    return key

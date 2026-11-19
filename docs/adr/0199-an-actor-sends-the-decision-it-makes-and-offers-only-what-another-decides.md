@@ -1,21 +1,24 @@
 ---
 status: accepted-provisional
 status_override: >-
-  Revision 2 edited in place with the decider's approval (Allen D. Householder,
-  issue #6487 planning interview, 2026-11-17); none of revision 1 was built, and
-  this change rewrites its dependent requirements in the same pull request.
+  Revisions 2 and 3 edited in place with the decider's approval (Allen D.
+  Householder, issue #6487 planning interview, 2026-11-17, and issue #6626
+  planning interview, 2026-11-19); neither the announced ownership Offer of
+  revision 2 nor any of revision 1 was built, and the implementation issues
+  rewrite the dependent requirements.
 date: 2026-11-13
 created: 2026-11-13
-updated: 2026-11-17
-revision: 2
+updated: 2026-11-19
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; ADR-0053, ADR-0109, ADR-0113, ADR-0116, ADR-0122, ADR-0146,
-  ADR-0148, ADR-0180, ADR-0196, ADR-0202, ADR-0203;
-  specs/case-management.yaml CM-16, CM-21, CM-24, CM-31;
+  Claude Opus 5.5; ADR-0053, ADR-0109, ADR-0113, ADR-0114, ADR-0116, ADR-0122,
+  ADR-0146, ADR-0148, ADR-0180, ADR-0196, ADR-0202, ADR-0203, ADR-0205;
+  specs/case-management.yaml CM-16, CM-17, CM-21, CM-24, CM-31;
+  specs/embargo-policy.yaml EP-09; specs/participant-case-replica.yaml PCR-08;
   specs/message-semantics-mapping.yaml MSM-07; specs/vultron-as2-mapping.yaml VAM-05;
   notes/activitystreams-semantics.md, notes/as2-vocabulary-alignment.md;
-  issues #6245, #6293, #6487
+  issues #6245, #6293, #6487, #6626
 informed: []
 partially_supersedes:
   - 0116-removing-a-participant-withdraws-entitlement-not-membership.md
@@ -48,6 +51,7 @@ Applied consistently, it would make every participant's consent an Offer as well
 The disagreement showed when the Owner's activation was left as a bare act while its early end became an Offer (issue #6487).
 
 Which actor sends a decision on the case as the act itself, and when is the act offered to another actor instead?
+And when a decision asks another actor for an answer, which message does that actor receive and answer?
 
 ## Decision Drivers
 
@@ -57,7 +61,10 @@ Which actor sends a decision on the case as the act itself, and when is the act 
 - A case message reaches a participant from the CASE_MANAGER it trusts (CBT-01-006, PCR-03-004).
 - One fact has one activity, so a peer does not count two removals where one happened.
 - An answer names what it answers (VOC `inReplyTo`).
+- An `Offer` or an `Invite` expects an answer; an `Announce` informs and expects none.
+  The ledger's fan-out already follows this: it carries case state and never asks (ADR-0113).
 - Distinct actors communicate only through the protocol, wherever they run (ADR-0109).
+- The decider's act is the record of its decision wherever that record is kept, whether by a CASE_MANAGER service or by a ledger the participants share.
 
 ## Considered Options
 
@@ -65,9 +72,17 @@ Which actor sends a decision on the case as the act itself, and when is the act 
 - **The decider acts.** An actor sends the decision it has the authority to make as the act itself; the CASE_MANAGER admits or refuses it. An `Offer` is sent only when another actor decides.
 - **Each message decided case by case**, as the protocol does today.
 
+When the decision asks another actor for an answer, as an invitation or an ownership Offer does, the answering actor can receive it in three ways:
+
+- **The CASE_MANAGER announces the decider's act**, and the answering actor answers the announced act by its id (revision 2).
+- **The CASE_MANAGER makes the ask**: the decider sends its own act to the CASE_MANAGER, and the CASE_MANAGER sends its own `Offer` or `Invite`, carrying the decider's act, which the answering actor answers.
+- **The decider requests the ask**: the decider sends an `Offer` of the act it wants made, and the CASE_MANAGER makes the only act.
+
 ## Decision Outcome
 
 Chosen option: "The decider acts", because it is the one rule that every existing message already fits or can fit, it matches what the ledger is (a record of admitted assertions), and every message states what its sender did.
+
+For a decision that asks another actor for an answer, the chosen option is "the CASE_MANAGER makes the ask" (revision 3), because an `Announce` then always only informs, and the decider's own act is still the decision the ledger records.
 
 ### The decider sends the act
 
@@ -101,7 +116,12 @@ The Case Owner decides these, and sends each as the act, to the CASE_MANAGER:
   Every change of an embargo's status is then an `Update` of the embargo, and a `Reject` from the Owner only ever means its own consent, `Reject(Invite(EmbargoEvent))`.
 - **Ending an embargo early.** `Update(EmbargoEvent)` setting its `status` to terminated, with its termination (ADR-0203).
 - **Offering ownership.** `Offer(VulnerabilityCase)` with the transferee as its `target`.
-  The transferee answers the Owner's Offer, by its id.
+  The transferee answers the CASE_MANAGER's Offer made from it.
+- **Inviting an actor to the case.** `Invite(<case>)` with the invitee as its `target`, the case's preview as the stub (ADR-0205), and the invitee's roles.
+  The invitee answers the CASE_MANAGER's Invite made from it.
+  When the Owner accepts a participant's suggestion of an actor, its `Accept` of the suggestion is its decision, and the CASE_MANAGER's Invite is made from that `Accept`.
+
+Both acts name the thing offered in `object` and the actor it is offered to in `target`, as VOC `Offer` and `Invite` do.
 
 ADR-0180's consent effects of an activation stand.
 The activation records the Owner's own agreement when the Owner has given no answer, and the CASE_MANAGER refuses an activation from an Owner that declined the proposal until the Owner accepts it.
@@ -110,29 +130,43 @@ A rejection changes no one's consent.
 An `Update` of an embargo changes its status, and its termination when it ends.
 An embargo's terms change only through a revision proposal.
 
-### The CASE_MANAGER delivers an admitted act by announcing it
+### An Announce informs and asks nothing
 
 An admitted act reaches the participants by ledger fan-out.
-An actor that must answer the act, or that the act concerns and the fan-out does not reach, receives `Announce(<the admitted act>)` from the CASE_MANAGER.
-The transferee of an ownership Offer, a removed participant and a reinstated participant receive one.
+An actor that the act concerns and the fan-out does not reach receives `Announce(<the admitted act>)` from the CASE_MANAGER.
+A removed participant and a reinstated participant receive one, and an end of an embargo is announced the same way (ADR-0203).
 The `Announce`'s `actor` is the CASE_MANAGER, so the receiver's trust check reads the CASE_MANAGER, and the announced act keeps its own author and id.
-An end of an embargo is announced the same way (ADR-0203).
+No actor answers an `Announce`, or the act it carries.
+
+### The CASE_MANAGER makes the ask a decision needs
+
+When an admitted act asks another actor for an answer, the CASE_MANAGER sends that actor its own `Offer` or `Invite`, with the same `object` and `target` as the decider's act.
+It sets `attributedTo` to the decider and `inReplyTo` to the decider's act.
+The answering actor answers the CASE_MANAGER's act, to the CASE_MANAGER.
+The CASE_MANAGER commits the decider's act it admitted as one ledger entry, and its own ask as another once the ask is in its outbox.
+The ownership Offer to the transferee, the stub Invite to an invitee, and each embargo Invite to a participant other than the proposer (ADR-0113) are made this way.
+
+The CASE_MANAGER thus carries the participants' acts, not acts of its own invention: it admits each decision, and it asks each actor whose answer the decision needs.
+The decider's act is the decision, wherever its record is kept; the CASE_MANAGER's ask is how the answering actor is reached.
 
 ### The CASE_MANAGER's own acts
 
-The CASE_MANAGER sends its own decisions as its own acts: ending an embargo at its end time or on a threat signal, abandoning a proposal, and the bookkeeping acts it makes as it commits an admitted act.
+The CASE_MANAGER sends its own decisions as its own acts: ending an embargo at its end time or on a threat signal, abandoning a proposal, the revision it registers at case creation, the full-case Invite to a joiner, and the bookkeeping acts it makes as it commits an admitted act.
 When it carries out an act another actor asked it for, it sets `attributedTo` to the asker and `inReplyTo` to the request it received.
 It sets both exactly when the asker is an actor other than the `actor`.
+An Owner that also holds the CASE_MANAGER role sends its ask straight to the answering actor, with neither field.
 
 ### Consequences
 
 - Good, because one test, "who decides?", gives the form of every message, and participant consent and the Owner's decisions follow the same rule.
 - Good, because every message states what its sender did: the Owner's act is its decision, and the CASE_MANAGER's entry is its admission of it.
-- Good, because an ownership transfer has one Offer, the Owner's, which the ledger records and the transferee answers.
+- Good, because an ownership transfer has one decision, the Owner's Offer, which the ledger records; the CASE_MANAGER's Offer made from it is the one the transferee answers.
+- Good, because an `Announce` never asks, so a receiver never has to tell an announcement it must answer from one that only informs.
+- Good, because the case invitation and the embargo-proposal relay already have the CASE_MANAGER make the ask, so one shape covers every act that needs an answer.
 - Good, because every change of an embargo's status is an `Update` of the embargo.
 - Bad, because activation, rejection and an early end share the shape `Update(EmbargoEvent)`, so the message patterns that tell them apart read the `status` the `Update` sets.
-- Bad, because the activation, rejection and ownership-transfer messages change form, and with them their patterns, examples, received trees and message reference pages. Pre-1.0, the old forms are replaced outright.
-- Neutral, because the case invitation and the embargo-proposal relay still have the CASE_MANAGER make the act a proposer asked for (ADR-0113). Whether they become the proposer's own act, announced, is a separate question.
+- Bad, because the activation, rejection, ownership-transfer and direct-invitation messages change form, and with them their patterns, examples, received trees and message reference pages. Pre-1.0, the old forms are replaced outright.
+- Bad, because a decision that needs an answer puts two acts on the wire, the decider's and the CASE_MANAGER's ask, and two ledger entries; `inReplyTo` links them, and only the decider's is the decision.
 
 ## Validation
 
@@ -142,7 +176,10 @@ It sets both exactly when the asker is an actor other than the `actor`.
   Another asserts that the same act from an Owner that declined the proposal is refused with nothing committed.
 - A test sends the Owner's `Update(EmbargoEvent)` setting `status` rejected, and asserts that the embargo is rejected and no consent row changes.
 - A test asserts that an `Update(EmbargoEvent)` that changes the embargo's terms is refused.
-- A test sends the Owner's `Offer(VulnerabilityCase)` and asserts that the transferee receives an `Announce` of it and that the transferee's `Accept` names the Owner's Offer.
+- A test sends the Owner's `Offer(VulnerabilityCase)` and asserts that the ledger records it, and that the transferee receives the CASE_MANAGER's own Offer with `attributedTo` naming the Owner and `inReplyTo` naming the Owner's Offer.
+  Another asserts that the transferee's `Accept` names the CASE_MANAGER's Offer.
+- A test sends the Owner's `Invite(<case>)` naming an invitee and asserts that the ledger records it, and that the invitee receives the CASE_MANAGER's own stub Invite with `attributedTo` naming the Owner and `inReplyTo` naming the Owner's Invite.
+- A test asserts that no answer to an `Announce`, or to the act it carries, is admitted.
 - A test asserts that every act the CASE_MANAGER makes on another actor's request carries `inReplyTo` naming that request.
 
 ## Pros and Cons of the Options
@@ -157,7 +194,26 @@ It sets both exactly when the asker is an actor other than the `actor`.
 
 - Good, because every message states what its sender did, and one rule covers consent and the Owner's decisions.
 - Good, because it matches the ledger's own model, admission of assertions.
-- Bad, because the CASE_MANAGER relays an ownership Offer or a removal by `Announce`, a wrapper the receiver opens.
+- Bad, because the CASE_MANAGER informs a removed or reinstated actor by `Announce`, a wrapper the receiver opens.
+
+### The CASE_MANAGER announces the decider's act
+
+- Good, because each decision is one act on the wire.
+- Bad, because the receiver must answer an act carried inside an `Announce`, so an `Announce` sometimes asks and sometimes only informs.
+- Bad, because "the CASE_MANAGER says the Owner invited you" reads as a report of an invitation, not as the invitation; the receiver would wait for the invitation itself.
+- Bad, because a per-invitee deadline, an Invite to an actor who joins later, and a resend of an unanswered ask have no act of their own to carry them.
+
+### The CASE_MANAGER makes the ask (chosen)
+
+- Good, because an `Offer` or `Invite` always expects an answer and an `Announce` never does.
+- Good, because it is the shape the embargo-proposal relay and the case invitation already have, so it adds none.
+- Good, because it keeps the decider's own act as the decision, which a ledger the participants share could record as well as a CASE_MANAGER service.
+- Bad, because a decision that needs an answer is two acts and two ledger entries.
+
+### The decider requests the ask
+
+- Good, because each decision is one act on the wire.
+- Bad, because it brings back the `Offer` of an act that "the writer acts" used, so the decider's message is a request, not its decision.
 
 ### Each message decided case by case
 
@@ -168,16 +224,19 @@ It sets both exactly when the asker is an actor other than the `actor`.
 
 Revision 1 chose "the writer acts" and made the Owner's removal, reinstatement and early end Offers of the act.
 Revision 2 chooses "the decider acts" (issue #6487), before any of revision 1 was built.
+Revision 3 (issue #6626) keeps that choice and changes how an act that needs an answer reaches the answering actor.
+Revision 2 had the CASE_MANAGER announce the Owner's ownership Offer to the transferee, who answered the announced Offer.
+Revision 3 has the CASE_MANAGER make its own Offer from the Owner's, so that an `Announce` only ever informs, and extends the same shape to the case invitation, whose direct path had the Owner send a recommend-actor `Offer(Actor)` for a decision the Owner makes.
+The announced Offer of revision 2 was not built.
 
 This record partially supersedes ADR-0116 in its choice of the removal and reinstatement messages.
 These ADR-0116 statements no longer hold: the message names the participant record with the case as its `target`; the CASE_MANAGER sends the removed party a separate, unledgered notice; and an Owner that is also the CASE_MANAGER posts the request to its own inbox.
 ADR-0116's decision that removal is a stored fact that withdraws entitlement, not membership, stands, and so does its rule that the Owner's admitted act is the ledger entry.
 
-It partially supersedes ADR-0148 in the transfer messages: the Owner's `Offer(Offer(VulnerabilityCase))` and the CASE_MANAGER's own transfer Offer give way to the Owner's `Offer(VulnerabilityCase)`, announced to the transferee.
-ADR-0148's other decisions stand: one Offer per transfer, only an active participant may be offered ownership, at most one open Offer per case, and the Owner withdraws with `Undo` of its own Offer.
-ADR-0148 rejected relaying the Owner's Offer for two reasons: the delivered activity's `actor` would not be its sender, and the CASE_MANAGER would keep its record of the Offer under the Owner's id.
-The `Announce` answers the first, because its `actor` is the CASE_MANAGER.
-The second no longer applies, because the Offer is the Owner's own act, kept as received.
+It partially supersedes ADR-0148 in the Owner's transfer message: the Owner's `Offer(Offer(VulnerabilityCase))` gives way to the Owner's own `Offer(VulnerabilityCase)` naming the transferee, sent to the CASE_MANAGER and ledgered as the Owner's decision.
+ADR-0148's other decisions stand: the CASE_MANAGER makes the one Offer the transferee receives and answers, under an id derived from the Owner's, only an active participant may be offered ownership, at most one open Offer per case, and the Owner withdraws with `Undo` of its own Offer.
+ADR-0148 rejected relaying the Owner's Offer to the transferee because the delivered activity's `actor` would not be its sender, and the CASE_MANAGER would keep its record of the Offer under the Owner's id.
+Both reasons still hold, and the CASE_MANAGER's own Offer still answers them.
 
 It partially supersedes ADR-0180 in the Owner's two decision messages: `Add(EmbargoEvent, target=VulnerabilityCase)` and `Reject(EmbargoEvent, target=VulnerabilityCase)` become `Update(EmbargoEvent)` setting `status` active or rejected.
 ADR-0180's other decisions stand: participants answer invitations and the Owner decides for the case, each decision names its proposal in `inReplyTo`, an Owner that declined accepts before it activates, and the Owner's answer does not constrain its rejection.

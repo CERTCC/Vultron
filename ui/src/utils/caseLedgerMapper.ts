@@ -298,17 +298,17 @@ function referentLabel(ctx: ReplayContext, ref: As2Object | string | null | unde
 
 /**
  * The entry's summary in the semantic registry's phrasing, rendered as the
- * Python demo report's `CaseTimelineEvent.summary` renders it (DRPT-03-002): the
- * actor slot is the acting lane's name, and the object and target slots both
- * take the label of the activity's object. An unfilled slot renders as `—`.
+ * Python demo report's `CaseTimelineEvent.summary` renders it (DRPT-03-002,
+ * DRPT-03-004): the actor slot is the acting lane's name, the object slot the
+ * label of the activity's object, and the target slot the label of its target.
+ * An unfilled slot renders as `—`.
  */
 function entryPhrase(ctx: ReplayContext, entry: CaseLedgerEntry): string {
   const snapshot = entry.payloadSnapshot
-  const objectLabel = referentLabel(ctx, snapshot?.object)
   return renderPhrase(entry.semanticType, {
     actor: actorSlot(ctx, snapshot?.actor),
-    object: objectLabel,
-    target: objectLabel,
+    object: referentLabel(ctx, snapshot?.object),
+    target: referentLabel(ctx, snapshot?.target),
   })
 }
 
@@ -997,7 +997,7 @@ function handleOfferOwnershipTransfer(ctx: ReplayContext, entry: CaseLedgerEntry
   const outgoingLane = laneOf(ctx, snapshot?.actor)
   if (outgoingLane === undefined) return logOnly(ctx, entry)
   const incoming = lanedName(ctx, snapshot?.target) ?? snapshot?.target?.name ?? undefined
-  const nodes = phrasedCluster(ctx, entry, outgoingLane, { actor: nameOf(ctx, outgoingLane), object: incoming })
+  const nodes = phrasedCluster(ctx, entry, outgoingLane, { actor: nameOf(ctx, outgoingLane), target: incoming })
   return { nodes, logLines: [] }
 }
 
@@ -1260,7 +1260,7 @@ function handleParticipantStatus(ctx: ReplayContext, entry: CaseLedgerEntry): Ma
     ctx,
     entry,
     decisionLane,
-    { actor: actorSlot(ctx, snapshot?.actor), object: subject },
+    { actor: actorSlot(ctx, snapshot?.actor), target: subject },
     changes.map(changeDetail),
     () => changes.map((c) => changeConsequence(c, subject)),
     { violation: violations.join(' ') || undefined, inferred: inferences.join(' ') || undefined }

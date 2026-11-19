@@ -46,7 +46,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.models._helpers import parse_published
 from vultron.core.models.type_terms import first_named
-from vultron.measure.ledger import actor_uri, first_present
+from vultron.measure.ledger import actor_uri, first_present, payload_of
 
 #: The activity type whose whole subtree is a recommendation or an offer.
 _OFFER = "Offer"
@@ -82,6 +82,24 @@ def parse_time(value: object) -> datetime | None:
     compare (the shared ``parse_published`` rule, CS-22-001).
     """
     return parse_published(value)
+
+
+def entry_times(
+    entry: Mapping[str, Any],
+) -> tuple[datetime | None, datetime | None]:
+    """*entry*'s commit stamp and the time its activity claims, in that order.
+
+    The commit stamp is the entry's own ``published`` (or, in older rows, its
+    receipt time), from the CASE_MANAGER's clock; the claimed time is its
+    activity's ``published``, from the sender's.  Each is ``None`` when the
+    entry states none, and neither stands in for the other (CEH-03-008).
+    """
+    return (
+        parse_time(
+            first_present(entry, "published", "receivedAt", "received_at")
+        ),
+        parse_time(payload_of(entry).get("published")),
+    )
 
 
 def roles_of(*values: object) -> set[str]:
