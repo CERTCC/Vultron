@@ -90,6 +90,11 @@ that meets the new ones. Until then, they describe the code as it is.
 - **Replica nodes that apply an answer** (`ApplyEmbargoAcceptanceFromLedgerNode`
   and its siblings in `relay_effect.py`) are removed, not left as dead
   effect slots. The status entry after the answer carries the change.
+- **Notes that state today's consent entries.** `notes/as2-vocabulary-alignment.md`
+  § "`Update` is partial" says the CASE_MANAGER sends `Update` for consent rows.
+  #6655 corrects it in the same change. Closed Concern #6330 asked for consent
+  entries to be one `Add` aimed at their holder; the status entry meets that, so
+  no `Add(EmbargoConsent)` is built along the way.
 - **The received-time exemption for consent rows** (CLP-15-011, added by PR
   #6611) is removed with the consent rows, in the same change.
 
