@@ -33,6 +33,7 @@ Exit status: 0 when the last hop is reached, 1 when the chain stalls.
 import os
 import sys
 import threading
+from typing import NoReturn
 
 import anyio.to_thread
 from fastapi import BackgroundTasks, FastAPI
@@ -70,6 +71,13 @@ def _chain_app(router: InProcessRouter, reached: threading.Event) -> FastAPI:
     return app
 
 
+def _fail(message: str) -> NoReturn:
+    print(message, file=sys.stderr)
+    sys.stderr.flush()
+    # A stalled app never lets its TestClient close, so leave without it.
+    os._exit(1)
+
+
 def main() -> int:
     """Run the chain; return 0 if its last hop is reached in time."""
     router = InProcessRouter()
@@ -90,15 +98,18 @@ def main() -> int:
     )
     poster.start()
     poster.join(WAIT_SECONDS)
-    if poster.is_alive() or not reached.is_set():
-        print(
+    if poster.is_alive():
+        # Still waiting on the chain: a stall.
+        _fail(
             f"delivery chain of {DEPTH} hops stalled with a pool of"
-            f" {POOL_TOKENS} threads",
-            file=sys.stderr,
+            f" {POOL_TOKENS} threads"
         )
-        sys.stderr.flush()
-        # A stalled app never lets its TestClient close: leave without it.
-        os._exit(1)
+    if not reached.is_set():
+        # The chain returned, but a hop was dropped (emit logs and drops a
+        # failed delivery), so the last hop was never reached.
+        _fail(
+            f"delivery chain of {DEPTH} hops returned without reaching hop 0"
+        )
     client.__exit__(None, None, None)
     return 0
 

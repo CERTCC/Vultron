@@ -2337,8 +2337,7 @@ class TestVerifyCaseActive:
 # The full rv workflow runs every fragment through report submission, case
 # activation, embargo, fix development and case closure.  It takes about 9 s
 # idle, well inside the integration tier (TB-14-001), so it carries no timeout
-# of its own.  Its old 180 s marker covered a stall that was the in-process
-# transport running the loop's thread pool dry, not slowness (#6190).
+# of its own (TB-14-011, #6190).
 class TestRunRvDemo:
     """The complete rv workflow through ``run_rv_demo``."""
 

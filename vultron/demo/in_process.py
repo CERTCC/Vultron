@@ -152,17 +152,17 @@ async def _call_off_loop(call: Callable[[], httpx.Response]) -> httpx.Response:
     """Run one blocking ``TestClient`` call off the loop, on a thread of its own.
 
     Off the loop because the target app may be the caller's own, served on
-    this very loop (a CaseActor's ``cc:``-to-self delivery): a blocking call
-    made on it would wait on itself.
+    this very loop (co-hosted actors share one ``TestClient`` and its loop): a
+    blocking call made on it would wait on itself.
 
     On a thread of its own, never one borrowed from the loop's shared AnyIO
     pool.  A ``TestClient`` call returns only once the target app's background
     tasks have finished, and those deliver onward with this same hop, so the
-    thread is held for the rest of the chain.  Borrowed threads ran out: each
-    one waited on a hop that needed one more, the loop stopped for good, and
-    its ``TestClient`` could never close, which hung the session past any
-    per-test timeout (#6190).  A limiter of one token per call gives every hop
-    a thread and leaves the shared pool to the apps' own sync routes.
+    thread is held for the rest of the chain.  A chain deeper than the shared
+    pool can therefore run it dry: each borrowed thread waits on a hop that
+    needs one more, the loop stops for good, and its ``TestClient`` can never
+    close (#6190).  A limiter of one token per call gives every hop a thread
+    and leaves the shared pool to the apps' own sync routes.
     """
     return await anyio.to_thread.run_sync(
         call, limiter=anyio.CapacityLimiter(1)
@@ -189,9 +189,10 @@ class InProcessRouter:
        app's ``TestClient`` portal event loop.  The target ``TestClient.post``
        call is blocking and drives the target app on its own portal thread, so
        it runs off the calling event loop on a thread of its own
-       (:func:`_call_off_loop`): a loopback delivery would otherwise wait on
-       its own loop, and a chain of hops on threads from the loop's shared pool
-       would run that pool dry (#6190).
+       (:func:`_call_off_loop`): a delivery between co-hosted actors, which
+       share one ``TestClient`` and its loop, would otherwise wait on its own
+       loop, and a chain of hops on threads from the loop's shared pool can
+       run that pool dry (#6190).
     """
 
     def __init__(self) -> None:
