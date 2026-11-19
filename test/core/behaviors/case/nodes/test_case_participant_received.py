@@ -313,3 +313,79 @@ class TestReinstatementGuards:
         assert self._run(bridge, node).status == Status.FAILURE
         assert role in node.feedback_message
         assert f"{move} REFUSED" in node.feedback_message
+
+
+class TestEffectAndAnnounceFailures:
+    """The effect and the shared Announce emit fail whole, sending nothing."""
+
+    @staticmethod
+    def _seed(dl, case, participant):
+        case.add_participant(participant)
+        dl.create(case)
+        dl.create(participant)
+
+    @pytest.mark.spec("CM-31-001")
+    def test_removal_with_no_received_act_fails_before_writing(
+        self, bridge, dl, case, participant
+    ) -> None:
+        self._seed(dl, case, participant)
+
+        result = _run_move(bridge, RecordParticipantRemovalNode())
+
+        assert result.status == Status.FAILURE
+        record = dl.read(PARTICIPANT_ID)
+        assert isinstance(record, CaseParticipant)
+        assert not record.removed
+
+    @pytest.mark.spec("CM-31-006")
+    def test_announce_with_no_received_act_sends_nothing(
+        self, dl, case, participant
+    ) -> None:
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes.case_participant_received import (
+            AnnounceParticipantMoveNode,
+        )
+
+        self._seed(dl, case, participant)
+        bridge = BTBridge(
+            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        )
+
+        result = _run_move(bridge, AnnounceParticipantMoveNode())
+
+        assert result.status == Status.FAILURE
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-31-006")
+    def test_announce_naming_no_recipient_sends_nothing(
+        self, dl, case, participant
+    ) -> None:
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes.announce_admitted_act import (
+            EmitAnnounceAdmittedActNode,
+        )
+
+        class _NoOne(EmitAnnounceAdmittedActNode):
+            def _recipients(self) -> list[str]:
+                return []
+
+        self._seed(dl, case, participant)
+        bridge = BTBridge(
+            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        )
+
+        result = run_tree(
+            bridge,
+            tree=_NoOne(),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+            activity=SimpleNamespace(activity_id=REMOVE_ID),
+        )
+
+        assert result.status == Status.FAILURE
+        assert "names no recipient" in (result.feedback_message or "")
+        assert dl.outbox_list() == []

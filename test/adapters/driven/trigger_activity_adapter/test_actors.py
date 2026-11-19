@@ -1118,3 +1118,18 @@ class TestAnswerReceivedOwnershipOffer:
         assert body["id"] == given_id
         assert body["context"] == case.id_
         assert body["attributedTo"] == _OWNER
+
+
+def test_announce_of_a_held_object_that_is_no_activity_raises(adapter, dl):
+    """The adapter announces only an activity it holds (ADR-0199)."""
+    case = _make_case(dl)
+
+    with pytest.raises(VultronValidationError, match="not as an activity"):
+        adapter.announce_admitted_act(
+            admitted_act_id=case.id_,
+            case_id=case.id_,
+            actor=_ACTOR,
+            to=[_INVITEE],
+            id_="urn:uuid:7d0e5a4b-1111-5000-8000-0000000000ac",
+            at=authored_at(),
+        )

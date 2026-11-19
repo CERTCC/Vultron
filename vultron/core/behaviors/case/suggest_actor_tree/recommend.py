@@ -70,7 +70,7 @@ def create_recommend_actor_to_case_received_tree(
 
     Refuses, before any commit, the recommendation of a removed participant:
     it is sent no stub Invite, and only the Case Owner's
-    ``Add(CaseParticipant)`` reinstates it (CM-31-013, CM-31-011).  Refuses
+    ``Add(<Actor>)`` reinstates it (CM-31-013, CM-31-011).  Refuses
     the same way a recommendation whose suggested roles name
     ``CASE_MANAGER`` or ``CASE_OWNER``: an invitation confers neither, and
     the roles are never stripped (CM-20-008).  Otherwise

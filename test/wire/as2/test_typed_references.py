@@ -705,3 +705,26 @@ def test_a_proposed_embargo_by_reference_is_no_proposal(
 
     assert found is None
     assert any("by reference" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("VAM-06-008")
+def test_a_received_announce_with_a_mismatched_reply_is_taken_as_received():
+    """The receiver is lenient about the Announce's ``inReplyTo``: it acts on
+    neither the field nor the Announce, so a mismatch is not refused."""
+    import json
+    from pathlib import Path
+
+    body = json.loads(
+        (
+            Path(__file__).parents[3]
+            / "docs/reference/examples/announce_participant_removal.json"
+        ).read_text(encoding="utf-8")
+    )
+    body["inReplyTo"] = "https://example.org/activities/other"
+
+    parsed = parse_activity(body)
+
+    assert (
+        find_matching_semantics(parsed)
+        is MessageSemantics.ANNOUNCE_ADMITTED_ACT
+    )

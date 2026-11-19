@@ -89,7 +89,7 @@ def removed_participant_refusal(
     return (
         f"actor '{actor_id}' is a removed participant of case"
         f" '{case_id}' and is sent no stub Invite; the Case Owner"
-        " reinstates it with Add(CaseParticipant) — REFUSED (CM-31-013)"
+        " reinstates it with its own Add(Actor) — REFUSED (CM-31-013)"
     )
 
 
@@ -97,8 +97,8 @@ class _NotRemovedGuardBase(DataLayerConditionWithPorts):
     """Refuse when the actor :meth:`_suggested_actor` names was removed.
 
     A removed participant is sent no stub Invite (CM-31-013): the Case Owner
-    took it out, and only the Case Owner's ``Add(CaseParticipant)`` brings it
-    back (CM-31-011, ADR-0116).  So a recommendation of it, and the Case
+    took it out, and only the Case Owner's ``Add(<Actor>)`` brings it back
+    (CM-31-011, ADR-0199).  So a recommendation of it, and the Case
     Owner's acceptance of one, are refused before the guarded commit, with a
     reason naming reinstatement.  An actor the case does not list, or one
     whose record carries no removal fact, passes.

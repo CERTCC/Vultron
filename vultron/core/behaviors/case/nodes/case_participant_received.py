@@ -339,13 +339,25 @@ class RecordParticipantRemovalNode(
     removed participant (CM-31-027).
     """
 
-    def _apply(self, record: CaseParticipant) -> bool:
-        removal_id = self._received_request_id()
-        if removal_id is None:
-            raise VultronNotFoundError(
-                "Remove activity", "(no received act on this run)"
+    def initialise(self) -> None:
+        super().initialise()
+        self._removal_id = self._received_request_id()
+
+    def update(self) -> Status:
+        if self._removal_id is None:
+            # Read before any write, so the effect fails whole: the run
+            # carries no received act to record (BT-HELPER-01).
+            self.feedback_message = (
+                f"{self.name}: no received Remove on this run to record as"
+                " the removal fact"
             )
-        return record.record_removal(removal_id)
+            self.logger.error("%s", self.feedback_message)
+            return Status.FAILURE
+        return super().update()
+
+    def _apply(self, record: CaseParticipant) -> bool:
+        assert self._removal_id is not None
+        return record.record_removal(self._removal_id)
 
     def _log_applied(self, record: CaseParticipant) -> None:
         self.logger.info(

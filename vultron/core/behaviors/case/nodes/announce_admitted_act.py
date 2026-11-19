@@ -18,10 +18,11 @@
 An admitted act reaches the participants by the ledger fan-out.  An actor the
 act concerns that the fan-out does not reach receives
 ``Announce(<the admitted act>)`` from the CASE_MANAGER instead: a removed or
-reinstated participant (CM-31-044), and, by ADR-0203, a signatory an
-embargo's end may have bound.  :class:`EmitAnnounceAdmittedActNode` is the one
-emit every such notice uses; a use names its recipients by overriding
-:meth:`~EmitAnnounceAdmittedActNode._recipients`.
+reinstated participant (CM-31-044).  :class:`EmitAnnounceAdmittedActNode` is
+the one emit every such notice uses; a use names its recipients by overriding
+:meth:`~EmitAnnounceAdmittedActNode._recipients`.  The ADR-0203 notice of an
+embargo's end to every signatory it may have bound is planned to reuse it
+(#6483).
 
 The ``Announce`` informs and asks nothing.  Its ``actor`` is the CASE_MANAGER,
 so the receiver's trust check reads the CASE_MANAGER, and the announced act

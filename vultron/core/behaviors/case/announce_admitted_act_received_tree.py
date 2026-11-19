@@ -36,6 +36,12 @@ alone, so an ``Announce`` reaching the case's CASE_MANAGER, or a store that
 holds no replica of the case, is refused at the path stage (HP-01-038,
 HP-01-039), and one from any sender but the CASE_MANAGER by the sender guard
 (HP-01-006).
+
+The receiver is deliberately lenient about the ``Announce``'s own fields: an
+``inReplyTo`` that names something other than the act it carries is taken as
+received, not refused.  The receiver acts on neither, so a mismatch changes
+nothing it holds, and the parse edge refuses only what a receiver needs
+refused (CLP-15-007).
 """
 
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath

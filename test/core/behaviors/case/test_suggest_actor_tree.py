@@ -1300,8 +1300,7 @@ class TestDuplicateDetectionTreeStructure:
     def test_owner_direct_invite_structure(self):
         """CASE_OWNER arm: owner check, roles, Invite, inert participant.
 
-        No ``Add(CaseParticipant)`` follows the inert record: that message
-        means reinstatement only (CM-31-011, CM-31-012).
+        No ``Add(CaseParticipant)`` follows the inert record (CM-31-012).
         """
         owner = self._duplicate_selector().children[4]
         assert isinstance(owner, py_trees.composites.Sequence)

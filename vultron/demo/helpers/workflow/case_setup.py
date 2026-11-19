@@ -112,9 +112,9 @@ def seat_participant_through_stub_invite(
     creates the inert record, and seats *invitee* when its ``Accept``
     arrives (ADR-0114, CM-17-004).  The chain is
     :func:`~vultron.demo.helpers.invite_chain.run_case_invite_chain`, driven
-    through the triggers in one container.  ``Add(CaseParticipant)`` never
-    seats a member: it is the Case Owner's request to reinstate a removed
-    one (CM-31-011, ADR-0116).
+    through the triggers in one container.  No ``Add`` seats a member: the
+    Case Owner's ``Add(<Actor>)`` only reinstates a removed one (CM-31-011,
+    ADR-0199).
 
     Args:
         client: DataLayerClient for the container hosting every actor.
@@ -322,7 +322,7 @@ def setup_initialized_case(
     2. Vendor asks the CASE_MANAGER (itself) to invite the reporter, which
        sends the stub Invite
     3. Reporter accepts, which seats it as REPORTER (ADR-0114, ADR-0078;
-       ``Add(CaseParticipant)`` only reinstates, CM-31-011)
+       the Case Owner's ``Add(<Actor>)`` only reinstates, CM-31-011)
     4. Logs final case state
 
     Args:

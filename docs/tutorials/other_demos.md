@@ -169,8 +169,9 @@ See [How to Suggest an Actor for a Case](../howto/activitypub/activities/suggest
 
 This demo combines the full participant lifecycle.
 The steps are invite, accept, record a participant status, remove the participant from active participation, and reinstate it.
-Here the vendor is both Case Owner and CASE_MANAGER, so the owner sends the removal and the reinstatement requests to itself.
-The participant receives a direct notice of each from the CASE_MANAGER, and its record stays on the case during all of these steps.
+The vendor, as Case Owner, removes and reinstates the participant with its own acts, sent through the `remove-participant` and `reinstate-participant` triggers.
+Here the vendor is also the CASE_MANAGER, so each act goes to its own inbox, which admits it as the ledger entry.
+The CASE_MANAGER then announces each admitted act to the participant, and the participant's record stays on the case during all of these steps.
 
 A second path shows the participant as it declines the invitation.
 Its `Reject` is a case event, and the CASE_MANAGER ledgers it just as it ledgers an `Accept`.
