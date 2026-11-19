@@ -64,7 +64,6 @@ from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EmbargoActivityBuilder,
 )
 from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
     PortInformation,
 )
@@ -112,24 +111,22 @@ class CommitAndApplyEmbargoActivationNode(
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
+        **_CommitCaseManagerActivityBase.INPUT_PORTS,
         "activity": PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
+        return {**super()._domain_port_remappings(), "activity": "/activity"}
 
     def __init__(
         self,
-        case_id: str,
         embargo_id: str,
         result_out: dict[str, object],
         builder: EmbargoActivityBuilder | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(
-            case_id=case_id,
             semantic_type=EMBARGO_ACTIVATION_SEMANTIC_TYPE,
             notify_participants=False,
             name=name,
@@ -161,7 +158,7 @@ class CommitAndApplyEmbargoActivationNode(
         if super().update() != Status.SUCCESS:
             raise BtNodePreconditionError(
                 f"{self.name}: the Add of embargo '{self._embargo_id}' on"
-                f" case '{self._case_id}' did not commit:"
+                f" case '{self._act_case_id()}' did not commit:"
                 f" {self.feedback_message}"
             )
 
@@ -183,7 +180,7 @@ class CommitAndApplyEmbargoActivationNode(
             datalayer=cast(CaseOutboxPersistence, self.datalayer),
             trigger_activity=self._require_trigger_activity_port(),
             actor_id=cast(str, self.actor_id),
-            case_id=self._case_id,
+            case_id=self._act_case_id(),
             change=change,
             cause_id=self._cause_id(),
             at=self._require_act_instant(),
@@ -219,7 +216,7 @@ class CommitAndApplyEmbargoActivationNode(
             return f
         dl = cast(CaseOutboxPersistence, self.datalayer)
         try:
-            before = read_embargo_case_file(dl, self._case_id)
+            before = read_embargo_case_file(dl, self._act_case_id())
             decision = EmbargoLifecycle(persistence=dl).decide_activation(
                 before, self._embargo_id
             )
@@ -227,7 +224,7 @@ class CommitAndApplyEmbargoActivationNode(
             # so a refused step commits nothing.  A commit that fails raises
             # past this: it is not a refusal (BT-14-001).
             commit_and_apply_embargo_entries(
-                dl, self._case_id, self._planned(decision)
+                dl, self._act_case_id(), self._planned(decision)
             )
         except INTERNAL_FAULTS:
             raise  # a composition fault or a bug, never a refusal (ARCH-15-001)
@@ -259,7 +256,7 @@ class CommitAndApplyEmbargoActivationNode(
         )
         self.feedback_message = (
             f"CASE_MANAGER activated embargo '{self._embargo_id}' on case"
-            f" '{self._case_id}' after committing its Add"
+            f" '{self._act_case_id()}' after committing its Add"
             f" ({len(decision.carry_overs)} carry-over entr(ies),"
             f" EM {decision.em_before} → {decision.em_after})"
         )
@@ -267,7 +264,7 @@ class CommitAndApplyEmbargoActivationNode(
         log_em_transition(
             self.logger,
             cast(str, self.actor_id),
-            self._case_id,
+            self._act_case_id(),
             decision.em_before,
             decision.em_after,
         )

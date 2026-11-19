@@ -325,6 +325,8 @@ class EmitNoteDuplicateRecommendationToOwnerNode(_CommitCaseManagerNoteBase):
 
     Fails when the case names no Case Owner other than the executing actor:
     there is nobody the note is for.
+
+    The case is read from ``/case_id`` (BTND-01-008).
     """
 
     _NOTE_KIND = "duplicate-recommendation"
@@ -334,15 +336,13 @@ class EmitNoteDuplicateRecommendationToOwnerNode(_CommitCaseManagerNoteBase):
         recommendation_id: str,
         recommender_id: str,
         recommended_id: str,
-        case_id: str,
         offer_content: str | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(case_id=case_id, name=name)
+        super().__init__(name=name)
         self.recommendation_id = recommendation_id
         self.recommender_id = recommender_id
         self.recommended_id = recommended_id
-        self.case_id = case_id
         self.offer_content = (
             (offer_content.strip() or None) if offer_content else None
         )
@@ -353,12 +353,13 @@ class EmitNoteDuplicateRecommendationToOwnerNode(_CommitCaseManagerNoteBase):
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
+        case_id = self._act_case_id()
         self._owner_id = _resolve_owner_recipient(
-            self.datalayer, self.case_id, self.actor_id
+            self.datalayer, case_id, self.actor_id
         )
         if not self._owner_id:
             self.feedback_message = (
-                f"case '{self.case_id}' names no Case Owner other than "
+                f"case '{case_id}' names no Case Owner other than "
                 f"'{self.actor_id}' — nobody to record the "
                 "duplicate-recommendation Note for"
             )
@@ -371,7 +372,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(_CommitCaseManagerNoteBase):
         content = (
             f"Duplicate actor recommendation for the Case Owner "
             f"'{self._owner_id}': '{self.recommender_id}' also recommends "
-            f"actor '{actor_segment}' for case '{self.case_id}'.  An "
+            f"actor '{actor_segment}' for case '{self._act_case_id()}'.  An "
             f"Offer(CaseParticipant) is already pending your decision (no "
             f"second offer sent)."
         )

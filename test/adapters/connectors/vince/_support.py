@@ -114,6 +114,13 @@ def records(reading: CaseReading, kind: str) -> list[Mapping[str, Any]]:
     ]
 
 
+def cve_of(item: Mapping[str, Any]) -> str | None:
+    """The CVE ID a wire item's ``ids`` holds, or ``None`` (CM-05-018)."""
+    return next(
+        (i["text"] for i in item["ids"] if i["systemName"] == "CVE"), None
+    )
+
+
 def actors_by_name(reading: CaseReading) -> dict[str, str]:
     """Each seated participant's name and actor id."""
     return {

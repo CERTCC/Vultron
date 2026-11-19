@@ -74,7 +74,6 @@
         "@id": "vultron:cvdRole",
         "@container": "@set"
       },
-      "cve": "vultron:cve",
       "dState": "vultron:dState",
       "emState": "vultron:emState",
       "embargo": {

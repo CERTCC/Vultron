@@ -37,6 +37,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.proposal_ledger import (
     CommitNativeLedgerEntriesNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
@@ -57,8 +58,11 @@ def _unreachable(to: list[str] | None) -> tuple[str, str]:
 
 
 NODES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
-    "embargo decision": lambda: CommitEmbargoDecisionNode(
-        case_id=_CASE, semantic_type="accept_embargo", builder=_unreachable
+    "embargo decision": lambda: with_case_id(
+        CommitEmbargoDecisionNode(
+            semantic_type="accept_embargo", builder=_unreachable
+        ),
+        _CASE,
     ),
     "demo log entry": lambda: with_act_keys(
         CommitDemoLogEntryNode(),

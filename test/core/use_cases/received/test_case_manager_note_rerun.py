@@ -300,7 +300,7 @@ def test_a_note_with_no_kind_answering_a_received_activity_raises() -> None:
     net = LedgerNetwork(
         "https://example.org/cases/note-rerun-no-kind", em_state=EM.NONE
     )
-    node = _KindlessNote(case_id=net.case_id)
+    node = _KindlessNote()
     node._answers = _regression_event(net)
 
     with pytest.raises(VultronWiringError, match="names no _NOTE_KIND"):
@@ -310,7 +310,7 @@ def test_a_note_with_no_kind_answering_a_received_activity_raises() -> None:
 @pytest.mark.spec("ID-04-004")
 def test_a_note_answering_no_received_activity_gets_a_minted_id() -> None:
     """The add-note trigger answers nothing received: no derived id."""
-    node = _KindlessNote(case_id="https://example.org/cases/c")
+    node = _KindlessNote()
     node._answers = None
 
     assert node._derived_note_id(MANAGER) is None

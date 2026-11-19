@@ -40,6 +40,12 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_KEY,
+    REFUSED_ACTIVITY_ID,
+    SENDER_ID,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.case_clock_decisions import (
     case_clock_decisions,
@@ -276,15 +282,22 @@ def test_clearing_a_refused_assertion_judges_its_timeout_at_the_acts_instant(
     at = emitted + timedelta(
         seconds=owner_pending_store.timeout_seconds + 1 if overdue else 0
     )
-    node = ClearRefusedAssertionNode(
-        case_id=_CASE,
-        refused_activity_id=refused,
-        reason="refused",
-        sender_id=_OTHER,
-    )
+    node = ClearRefusedAssertionNode(reason="refused")
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_OWNER)
 
-    result = run_tree(BTBridge(datalayer=dl), node, actor_id=_OWNER, at=at)
+    result = run_tree(
+        BTBridge(datalayer=dl),
+        with_act_keys(
+            node,
+            {
+                CASE_KEY: _CASE,
+                REFUSED_ACTIVITY_ID: refused,
+                SENDER_ID: _OTHER,
+            },
+        ),
+        actor_id=_OWNER,
+        at=at,
+    )
 
     assert result.status == Status.SUCCESS
     assert [e.object_id for e in node.cleared] == (
