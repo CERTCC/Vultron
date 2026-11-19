@@ -259,8 +259,8 @@ groups:
     kind: project
     statement: >-
       An `ActivityPattern` MUST NOT discriminate on the sender's identity or role. It
-      matches only the activity's type and the types of its object, target, context and
-      recipients.
+      matches only the activity's type and the types of its object, target, origin,
+      context and recipients.
     rationale: >-
       A semantic type says what an activity is; the sender's standing says whether it is
       permitted (ADR-0152). A matcher that read the sender would need to know who holds
