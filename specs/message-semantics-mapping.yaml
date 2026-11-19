@@ -511,7 +511,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `CV` (Vendor Aware) MUST have the semantic type `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
-      its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
+      its AS2 wire form is `Add(ParticipantStatus, target=<participant>/statuses)` per
+      VAM-08-004 and ADR-0204. The `ParticipantStatus` payload
       encodes vendor awareness in the `vfState` field, advancing the
       vendor-path ladder from `vf` to `Vf`.
     rationale: 'The V dimension is participant-scoped, not case-scoped: it records whether a *specific* vendor is aware. Per
@@ -520,7 +521,8 @@ groups:
     verification: >-
       Inspection of `vultron/semantic_registry/status.py` confirms that
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` is paired with an
-      `ActivityPattern` matching `Add(ParticipantStatus)[target=CaseParticipant]`, and
+      `ActivityPattern` matching
+      `Add(ParticipantStatus, target=<participant>/statuses)`, and
       that `as_ParticipantStatus` declares `vf` (`vfState`) while `as_CaseStatus` does
       not.
     relationships:
@@ -537,7 +539,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `CF` (Fix Ready) MUST have the semantic type `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
-      its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
+      its AS2 wire form is `Add(ParticipantStatus, target=<participant>/statuses)` per
+      VAM-08-004 and ADR-0204. The `ParticipantStatus` payload
       encodes fix readiness in the `vfState` field, advancing the vendor-path
       ladder from `Vf` to `VF`.
     rationale: >-
@@ -547,7 +550,7 @@ groups:
     verification: >-
       Inspection of `vultron/semantic_registry/status.py` confirms that
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` maps to
-      `Add(ParticipantStatus)[target=CaseParticipant]`, and that fix readiness is
+      `Add(ParticipantStatus, target=<participant>/statuses)`, and that fix readiness is
       carried by `as_ParticipantStatus.vf` rather than by any `as_CaseStatus`
       field.
     relationships:
@@ -563,7 +566,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `CD` (Fix Deployed) MUST have the semantic type `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
-      its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
+      its AS2 wire form is `Add(ParticipantStatus, target=<participant>/statuses)` per
+      VAM-08-004 and ADR-0204. The `ParticipantStatus` payload
       encodes deployment in the `dState` field, advancing the deployer-path
       ladder from `d` to `D`.
     rationale: 'The D dimension is participant-scoped on the *deployer*, and ADR-0075 split it into its own sub-machine
@@ -573,7 +577,7 @@ groups:
     verification: >-
       Inspection of `vultron/semantic_registry/status.py` confirms that
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` maps to
-      `Add(ParticipantStatus)[target=CaseParticipant]`, and that deployment is
+      `Add(ParticipantStatus, target=<participant>/statuses)`, and that deployment is
       carried by `as_ParticipantStatus.d` rather than by any `as_CaseStatus`
       field.
     relationships:
@@ -593,9 +597,9 @@ groups:
       Protocol shorthand `CP` (Public Aware) MUST have the semantic type
       `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
       reports it, which it does only in the `CaseStatus` that its
-      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001), and
+      `Add(ParticipantStatus, target=<participant>/statuses)` embeds (RSH-04-001), and
       the semantic type `ADD_CASE_STATUS_TO_CASE` when it is carried in
-      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), the
+      `Add(CaseStatus, target=<case>/statuses)` (VAM-08-002), the
       CASE_MANAGER's record of the case status it adopted (RSH-04-001,
       RSH-04-005). In both forms the `CaseStatus` payload encodes public awareness (P)
       in its `pxaState`.
@@ -632,9 +636,9 @@ groups:
       Protocol shorthand `CX` (Exploit Published) MUST have the semantic type
       `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
       reports it, which it does only in the `CaseStatus` that its
-      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001), and
+      `Add(ParticipantStatus, target=<participant>/statuses)` embeds (RSH-04-001), and
       the semantic type `ADD_CASE_STATUS_TO_CASE` when it is carried in
-      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), the
+      `Add(CaseStatus, target=<case>/statuses)` (VAM-08-002), the
       CASE_MANAGER's record of the case status it adopted (RSH-04-001,
       RSH-04-005). In both forms the `CaseStatus` payload encodes a published exploit (X)
       in its `pxaState`.
@@ -671,9 +675,9 @@ groups:
       Protocol shorthand `CA` (Attacks Observed) MUST have the semantic type
       `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
       reports it, which it does only in the `CaseStatus` that its
-      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001), and
+      `Add(ParticipantStatus, target=<participant>/statuses)` embeds (RSH-04-001), and
       the semantic type `ADD_CASE_STATUS_TO_CASE` when it is carried in
-      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), the
+      `Add(CaseStatus, target=<case>/statuses)` (VAM-08-002), the
       CASE_MANAGER's record of the case status it adopted (RSH-04-001,
       RSH-04-005). In both forms the `CaseStatus` payload encodes observed attacks (A)
       in its `pxaState`.
@@ -904,19 +908,66 @@ groups:
       spec_id: MSM-05-002
     stories:
     - story_2026_045
+  - id: MSM-05-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `Add(CaseLedgerEntry)` that commits an act MUST be that act's positive
+      acknowledgement.
+    rationale: >-
+      MSM-05-002 and MSM-05-007 govern a replica acknowledging the entries it receives,
+      which hash-chain continuity already does. The sender of an act needs the other
+      direction: to learn that its act committed. The commit's own `Add`, which names
+      the act in `inReplyTo` (SYNC-02-007), tells it at no extra cost, because the
+      sender is an active participant and receives every commit (SYNC-02-003). A
+      refused act gets the refusal notice instead.
+    verification: >-
+      `test/wire/as2/factories/test_sync_factories.py::test_add_log_entry_names_the_ledger_the_case_and_the_act`
+      confirms the commit's `Add` names the committed act in `inReplyTo`.
+    adr:
+    - ADR-0204
+    stories:
+    - story_2026_045
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-02-007
+  - id: MSM-05-010
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT send a separate acknowledgement message for a committed
+      act.
+    rationale: >-
+      The commit's `Add` already acknowledges the act (MSM-05-009), so a separate
+      acknowledgement would only add a message per act.
+    verification: >-
+      `test/test_message_semantics_mapping.py`
+      (`test_ledger_acknowledgement_is_negative_and_cumulative`) confirms no
+      acknowledgement semantic exists, and
+      `test/core/use_cases/received/test_embargo_revision_relay.py` confirms a commit
+      queues only its `Add`s.
+    adr:
+    - ADR-0204
+    stories:
+    - story_2026_045
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-05-009
   - id: MSM-05-005
     priority: MUST
     kind: protocol
     statement: All protocol-significant activities MUST be committed to the canonical case ledger by the CASE_MANAGER
       before fan-out to participant actors. No protocol-significant activity bypasses the ledger replication path.
     rationale: >-
-      The hash-chain acknowledgement model (MSM-05-002) is only complete if every activity a participant needs to
-      acknowledge reaches them via an Announce(CaseLedgerEntry). Activities that bypassed the ledger would have no
-      acknowledgement mechanism. Report submission (RS) is the only activity not carried by the ledger; it uses RK
-      (MSM-01-008) instead, which is the intended exception rather than a gap.
+      The hash-chain acknowledgement model (MSM-05-002) is only complete if every
+      activity a participant needs to acknowledge reaches them via an
+      Add(CaseLedgerEntry). Activities that bypassed the ledger would have no
+      acknowledgement mechanism. Report submission (RS) is the only activity not carried
+      by the ledger; it uses RK (MSM-01-008) instead, which is the intended exception
+      rather than a gap.
     verification: >-
       Inspection of the CASE_MANAGER receive paths confirms that every inbound protocol
-      activity results in at least one CaseLedgerEntry committed before Announce fan-out,
+      activity results in at least one CaseLedgerEntry committed before Add fan-out,
       except for Offer(VulnerabilityReport) which uses the RK path.
     stories:
     - story_2026_015
@@ -924,10 +975,12 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A conformant implementation MAY rely solely on Announce(CaseLedgerEntry) deliveries for liveness inference,
-      without emitting a dedicated periodic heartbeat. Silence between Announce deliveries is therefore an
-      accepted protocol property: a participant that is online but has received all entries is indistinguishable
-      from one that is unreachable. This does not preclude a future revision adding a normative heartbeat requirement.
+      A conformant implementation MAY rely solely on Add(CaseLedgerEntry) deliveries for
+      liveness inference, without emitting a dedicated periodic heartbeat. Silence
+      between Add deliveries is therefore an accepted protocol property: a participant
+      that is online but has received all entries is indistinguishable from one that is
+      unreachable. This does not preclude a future revision adding a normative heartbeat
+      requirement.
     rationale: >-
       The hash-chain NAK model (MSM-05-002) provides implicit acknowledgement only when
       new entries arrive. Between deliveries, silence and unreachability are
@@ -1613,7 +1666,7 @@ groups:
       content, so a second message would only duplicate it.
     note: >-
       The Case Owner learns of the expiry, as of an explicit refusal (MSM-07-004), from
-      that entry. It gets the entry by its `Announce(CaseLedgerEntry)` fan-out while it
+      that entry. It gets the entry by its `Add(CaseLedgerEntry)` fan-out while it
       is an active participant (CM-10-004), or from its own ledger when it holds the
       CASE_MANAGER role. No separate notification activity is sent to the owner; for an
       explicit refusal it would also be the acknowledgement EP-09-009 forbids.
@@ -1623,7 +1676,7 @@ groups:
       `test_the_owner_learns_of_both_from_the_fan_out_alone`) confirms the
       CASE_MANAGER commits the expiry's TIMED_OUT `Update(EmbargoConsent)` entry, that
       an active Case Owner without the CASE_MANAGER role is among its recipients, and
-      that the commit emits no activity other than the Announce fan-out.
+      that the commit emits no activity other than the Add fan-out.
     relationships:
     - rel_type: refines
       spec_id: CM-28-005

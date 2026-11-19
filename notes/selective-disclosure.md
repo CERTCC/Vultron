@@ -4,16 +4,15 @@ status: draft
 kind: plan
 tracks:
   - "#3258"
-  - "#6372"
-  - "#6641"
   - "#6692"
   - "#6511"
 description: >
   Design direction for referencing objects without inlining them, the
   preview-only redaction marker (ADR-0193), and the field-by-field profile that
-  cuts a stub Invite's case preview from the case (ADR-0217). The marker type
-  exists, but no preview field accepts it yet; the delivered VulnerabilityCase
-  stub is in notes/stub-objects.md.
+  cuts a stub Invite's case preview from the case (ADR-0217). A receiver reads
+  a preview as sent: a marker anywhere inside it, nested objects in loose
+  forms. The cut itself is #6692; the delivered stub is in
+  notes/stub-objects.md.
 related_specs:
   - specs/message-validation.yaml (AKM-03-001, MV-10-002, MV-12)
   - specs/actor-knowledge-model.yaml (AKM-05-006, AKM-05-007)
@@ -64,8 +63,8 @@ reserved vul record, draft advisory) are #6257.
 - **Wire form** (MV-12-003): `{"type": "Redacted", "summary": "<reason>"}`,
   `summary` optional, no other field, never the withheld value. `Redacted` is
   declared as a Vultron extension term under the rule #5743 writes.
-- **Previews only** (MV-12-002): a receiver refuses a marker in any other
-  position. A full object never holds one, so no domain field widens to "value or
+- **Previews only** (MV-12-002): a receiver refuses a marker outside a
+  preview. A full object never holds one, so no domain field widens to "value or
   marker" and a stored case never carries one. Withholding one field of an
   otherwise full object is not supported: the shared, hash-chained ledger would
   hide it from the whole case anyway.
@@ -81,9 +80,16 @@ reserved vul record, draft advisory) are #6257.
 The marker type is `vultron/core/models/redacted.py`, registered in
 `WIRE_TYPE_MAP`, and refuses every field but `type` and `summary`.
 `reads_as_typed_reference` excludes `Redacted`, so a marker of only `id` and
-`type` is a marker, never a reference. Today `CasePreview.redactable_fields` is
-empty, so a marker anywhere is refused; #6372's loose `CasePreview` removes that
-list, so any preview field may carry the marker.
+`type` is a marker, never a reference.
+
+**A receiver reads a preview as sent** (MV-12-001, MV-12-006): a marker anywhere
+inside it, at any depth, and each nested object as far as the sender showed it.
+It decides on the invitation, not on the preview's shape, so it does not refuse
+a cut-down nested object. It still refuses a marker outside a preview, a
+preview out of place (MV-10-002), and a case preview without its own `id`,
+`type` or `summary` (MV-10-001). The walk in
+`vultron/wire/as2/case_reference_placement.py` stops at a preview, so it meets
+a marker only outside one.
 
 ## The Case Preview Profile (#6641, ADR-0217)
 
@@ -159,13 +165,32 @@ Our cut, with an embargo in force:
 
 ### Code Shape
 
-- **`CasePreview` is a hand-written loose case** (#6372): the case's fields
-  under the case's names, every one optional, each loosened with a
-  `type Redactable[T] = T | Redacted` alias, nested objects in their own loose
-  forms (a loose `VulnerabilityItem`). It is not a subclass of
+- **`CasePreview` is a hand-written loose case**: the case's fields under the
+  case's names, every one optional, each loosened with a
+  `type Redactable[T] = T | Redacted` alias. It is not a subclass of
   `VulnerabilityCase`, so `isinstance(case, CasePreview)` stays false for a full
   case. Omit-only fields are not declared: a received one is set aside as an
-  unknown key (MV-11-003), the sender's fault, like a leaky marker.
+  unknown key (MV-11-003), the sender's fault, like a leaky marker. Its `id`,
+  `type` and `summary` hold no marker (MV-10-001).
+- **Nested loose forms are derived, not written**:
+  `vultron/core/models/preview_object.py`'s `loose_form(cls)` builds each
+  nested class's form, all the way down, so none falls behind its full class
+  (ADR-0217's "kept in step" cost). A form keeps its full class's wire `type`,
+  takes no type-registry slot (`shares_full_form_type`), and is picked by the
+  parser where a preview field declares it. A class with its own wire shape (a
+  scalar dimension, written as its bare state) has nothing to cut: it is shown
+  whole or marked. `to_loose(obj, fields)` is how a sender shows a held object.
+- **A loose form reads a value as its full class does**: it carries the class's
+  `before` field validators and `plain` field serializers, a marker passed by,
+  so a role written by name or one `rel` as a string is read, not refused. It
+  drops the `after` validators and model validators: those are invariants and
+  derived values a cut-down object does not have. It keeps `type_` and any
+  `Literal` tag (a termination cause's `kind`) as declared, so a discriminated
+  union still picks its member.
+- **A loose form extends its parent's** (a loose Note is a loose Object), so a
+  field declaring the parent's form holds the subclass's. A class whose fields
+  name itself, or a subclass of itself, is named by a reference that is resolved
+  once the outermost derivation ends.
 - **A drift test** (#6692) pins every `CasePreview` field to a `VulnerabilityCase`
   field, and every `VulnerabilityCase` field to the preview or the profile's
   omit-only rows, so a new case field fails CI until it is classified. It lands
@@ -186,31 +211,21 @@ Our cut, with an embargo in force:
 
 The parse edge sets aside an unknown key before the class validates
 (MV-11-003), so a marker carrying `content` or `id` arrives at `Redacted`
-without them. Do not add a parse-edge refusal of those keys: the receiver keeps
-the normal unknown-key handling, and the rule moves to the sender (MV-12-005
-below).
-`test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
-asserts the old receiver-side refusal; #6372 replaces it.
+without them. Do not add a parse-edge refusal of those keys: refusing would not
+undo the leak, and only the sender can prevent it (MV-12-005).
 
 ### Requirement Changes the Tasks Land
 
 Each change lands with the code that verifies it, so no requirement states a rule
 its tests contradict.
 
-Landed by #6372 (`message-validation.yaml`):
-
-- **MV-12-001**: a receiver reads a marker in *any* field of a preview as that
-  field's value withheld, never as absent or empty. The per-type opening goes.
-- **MV-12-002**: a receiver refuses a marker anywhere other than a preview's
-  field, naming the position.
-- **MV-12-004**: a sender redacts a held value it does not show, unless the
-  value's existence is itself sensitive, when it MAY omit the field. A field
-  with no held value is not redacted.
-- **MV-12-005**: becomes a sender rule. A sender MUST NOT put any field but
-  `type` and `summary` in a marker. A receiver applies MV-11-003 to a marker's
-  other keys.
-
 Landed by #6692 (`case-management.yaml`, `message-validation.yaml`):
+
+- **MV-12-004**: lands with the cut, since today's stub omits every field but
+  the summary and the embargo terms (CM-17-010). New text: "A sender SHOULD put
+  a `Redacted` marker in place of each value it has but does not show. It MAY
+  leave the field out instead when the fact that the value exists is itself
+  sensitive. It leaves out a field it has no value for, rather than marking it."
 
 - **CM-17-010**: replaced by the envelope. A stub Invite's preview MUST show
   its `summary` and the Case Owner, and while an embargo is in force its terms

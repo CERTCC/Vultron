@@ -2,7 +2,7 @@ id: SBT
 title: Sync Behavior Trees
 description: >-
   Requirements for behavior-tree-based implementation of sync log entry protocol flows.
-  Covers three BTs: AnnounceLogEntryReceivedBT (received-side hash-chain validation with
+  Covers three BTs: AddLogEntryReceivedBT (received-side hash-chain validation with
   case-actor vs non-case-actor branching), RejectLogEntryReceivedBT (replication state
   update and replay), and CommitLogEntryBT (append, persist, fan-out).
 scope:
@@ -21,7 +21,7 @@ relationships:
     note: CommitLogEntryBT fan-out replaces procedural _fan_out_log_entry()
   - rel_type: implements
     spec_id: SYNC-03-001
-    note: AnnounceLogEntryReceivedBT hash-chain validation and reject path
+    note: AddLogEntryReceivedBT hash-chain validation and reject path
   - rel_type: implements
     spec_id: SYNC-03-002
     note: RejectLogEntryReceivedBT replay from last-accepted hash
@@ -72,7 +72,7 @@ groups:
         verification_debt: '#2574'
         statement: >-
           Sync BTs MUST be organized as separate trees, each corresponding
-          to a single message-type use case: (1) AnnounceLogEntryReceivedBT,
+          to a single message-type use case: (1) AddLogEntryReceivedBT,
           (2) RejectLogEntryReceivedBT, (3) CommitLogEntryBT, (4)
           ReadLogEntryReceivedBT, the CASE_MANAGER's answer to a position
           statement (SYNC-17-002), and (5) the participant's
@@ -143,14 +143,14 @@ groups:
           This puts its guards, its commit order and its trace in two places.
 
   - id: SBT-02
-    title: AnnounceLogEntryReceivedBT
+    title: AddLogEntryReceivedBT
     specs:
       - id: SBT-02-001
         priority: MUST
         kind: project
         verification_debt: '#2574'
         statement: >-
-          AnnounceLogEntryReceivedBT MUST include an explicit branch that decides whether
+          AddLogEntryReceivedBT MUST include an explicit branch that decides whether
           the receiving actor is the CASE_MANAGER for the case that the log entry names.
         rationale: >-
           The CASE_MANAGER and a participant do different things with an announced
@@ -163,7 +163,7 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          In AnnounceLogEntryReceivedBT, the CASE_MANAGER path and the participant path
+          In AddLogEntryReceivedBT, the CASE_MANAGER path and the participant path
           MUST be distinct subtrees.
         rationale: >-
           Separate subtrees keep the two rule sets apart, so a change to the
@@ -336,7 +336,7 @@ groups:
         statement: >-
           After updating replication state, RejectLogEntryReceivedBT MUST
           replay all missing entries from the peer's last-accepted hash
-          forward by queuing `Announce(CaseLedgerEntry)` activities via
+          forward by queuing `Add(CaseLedgerEntry)` activities via
           SyncActivityPort, unless the replay rate bound suppresses the
           replay (SYNC-15-009) or the Reject is declined as already
           answered (SYNC-15-024).
@@ -361,7 +361,7 @@ groups:
         statement: >-
           RejectLogEntryReceivedBT MUST resolve the case-actor for the
           referenced case and use the case-actor's identity as the sender
-          for replayed Announce activities.
+          for replayed Add(CaseLedgerEntry) activities.
         rationale: >-
           Ledger entries replicate in one direction, from the CASE_MANAGER to each
           participant (SYNC-00-002). A participant replica accepts case-state updates
@@ -379,7 +379,7 @@ groups:
           CommitLogEntryBT MUST compose as a Sequence of discrete BT nodes:
           (1) reconstruct chain tail hash, (2) create CaseLedgerEntry with
           computed entry_hash, (3) persist entry to DataLayer, (4) fan out
-          Announce(CaseLedgerEntry) to case participants via SyncActivityPort.
+          Add(CaseLedgerEntry) to case participants via SyncActivityPort.
         rationale: >-
           Each step of a commit can fail independently. The chain tail can fail to
           rebuild, the write can fail, or the port can be missing. When each step is a

@@ -107,14 +107,14 @@ def _answer(
 
 def _sync_port() -> MagicMock:
     port = MagicMock(spec=SyncActivityPort)
-    port.send_announce_log_entry.return_value = True
+    port.send_add_log_entry.return_value = True
     return port
 
 
 def _sent_indices(port: MagicMock) -> list[int]:
     return [
         call.kwargs["entry"].log_index
-        for call in port.send_announce_log_entry.call_args_list
+        for call in port.send_add_log_entry.call_args_list
     ]
 
 
@@ -204,7 +204,7 @@ def _assert_refused_with_nothing(
     assert result.disposition is HandlerDisposition.REFUSED
     assert reason in (result.reason or "")
     assert _state(dl, sender) is None
-    port.send_announce_log_entry.assert_not_called()
+    port.send_add_log_entry.assert_not_called()
     # It holds no Invite it owes an answer to, so none is resent either
     # (SYNC-20-001).
     port.resend_sealed_activity.assert_not_called()
@@ -293,7 +293,7 @@ def test_replica_that_is_not_the_case_manager_refuses_a_read() -> None:
     assert result.disposition is HandlerDisposition.REFUSED
     assert "not the CASE_MANAGER" in (result.reason or "")
     assert _state(replica, NON_SIGNATORY_ID) is None
-    port.send_announce_log_entry.assert_not_called()
+    port.send_add_log_entry.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +320,7 @@ def test_lagging_position_is_recorded_and_the_suffix_replayed(dl) -> None:
     assert all(
         call.kwargs["to"] == [SIGNATORY_ID]
         and call.kwargs["actor_id"] == MANAGER_ID
-        for call in port.send_announce_log_entry.call_args_list
+        for call in port.send_add_log_entry.call_args_list
     )
     assert _ledger_ids(dl) == before
 
@@ -339,7 +339,7 @@ def test_position_at_the_tail_is_recorded_and_sends_nothing(dl) -> None:
     state = _state(dl, SIGNATORY_ID)
     assert isinstance(state, VultronReplicationState)
     assert state.last_acknowledged_hash == entries[-1].entry_hash
-    port.send_announce_log_entry.assert_not_called()
+    port.send_add_log_entry.assert_not_called()
     assert _ledger_ids(dl) == before
 
 
@@ -353,12 +353,12 @@ def test_second_lagging_position_inside_the_cooldown_replays_nothing(
     entries = seed_ledger(dl, 3)
     port = _sync_port()
     _answer(dl, _read(entries[0], SIGNATORY_ID), port)
-    port.send_announce_log_entry.reset_mock()
+    port.send_add_log_entry.reset_mock()
 
     result = _answer(dl, _read(entries[0], SIGNATORY_ID), port)
 
     assert result.disposition is HandlerDisposition.APPLIED
-    port.send_announce_log_entry.assert_not_called()
+    port.send_add_log_entry.assert_not_called()
 
 
 @pytest.mark.spec("SYNC-17-004")
@@ -371,10 +371,10 @@ def test_replay_counts_only_rows_the_outbox_queued(dl) -> None:
     """
     entries = seed_ledger(dl, 2)
     port = _sync_port()
-    port.send_announce_log_entry.return_value = False
+    port.send_add_log_entry.return_value = False
     _answer(dl, _read(entries[0], SIGNATORY_ID), port)
-    port.send_announce_log_entry.return_value = True
-    port.send_announce_log_entry.reset_mock()
+    port.send_add_log_entry.return_value = True
+    port.send_add_log_entry.reset_mock()
 
     _answer(dl, _read(entries[0], SIGNATORY_ID), port)
 
@@ -409,7 +409,7 @@ def _assert_unknown_position(
         "; nothing recorded or sent (SYNC-17-005)"
     )
     assert _state(dl, SIGNATORY_ID) is None
-    port.send_announce_log_entry.assert_not_called()
+    port.send_add_log_entry.assert_not_called()
     warnings = [
         record
         for record in caplog.records

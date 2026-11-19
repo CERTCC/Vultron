@@ -15,11 +15,11 @@
 
 :class:`CaseLedgerEntry` is the authoritative domain representation of a
 single hash-chained log entry used for replication via
-``Announce(CaseLedgerEntry)`` activities.
+``Add(CaseLedgerEntry)`` activities.
 
 It extends :class:`~vultron.core.models.base.CoreObject` so that it can be
 placed in :attr:`~vultron.core.models.events.base.VultronEvent.object_` and
-used by :class:`~vultron.core.use_cases.received.sync.AnnounceLedgerEntryReceivedUseCase`.
+used by :class:`~vultron.core.use_cases.received.sync.AddLedgerEntryReceivedUseCase`.
 
 The wire-layer module ``vultron.wire.as2.vocab.objects.case_ledger_entry``
 imports this class and registers the wire projection in the wire vocabulary
@@ -54,6 +54,7 @@ from vultron.core.models.ledger_position import (
     LOG_INDEX_PROPERTY,
 )
 from vultron.core.models.wire_keys import wire_key
+from vultron.errors import VultronCanonicalEntryError
 
 
 def ledger_entry_id(case_id: str, log_index: int) -> str:
@@ -64,6 +65,17 @@ def ledger_entry_id(case_id: str, log_index: int) -> str:
     case's ledger can name the entry there without holding it.
     """
     return f"{case_id}/log/{log_index}"
+
+
+def case_ledger_id(case_id: str) -> str:
+    """The identity of *case_id*'s ledger: ``{case_id}/ledger``.
+
+    The ledger is an ``OrderedCollection`` whose items are the case's entries
+    in ``logIndex`` order.  A commit names it as the ``target`` of its
+    ``Add(CaseLedgerEntry)`` (ADR-0204).  This is an identity only: no route
+    serves it (IE-02-003).
+    """
+    return f"{case_id}/ledger"
 
 
 class CaseLedgerEntry(CoreObject):
@@ -202,6 +214,26 @@ class CaseLedgerEntry(CoreObject):
     )
     _serialize_received_at = timestamp_serializer("received_at")
 
+    def committed_act_id(self) -> str:
+        """The id of the act this entry commits: its snapshot's ``id``.
+
+        The snapshot is the committed activity verbatim (CLP-07-011), so its
+        ``id`` is the act's.  The ``Add(CaseLedgerEntry)`` that publishes the
+        entry names that act in ``inReplyTo``, which makes the ``Add`` the
+        positive acknowledgement of the act (ADR-0204).
+
+        Raises:
+            VultronCanonicalEntryError: The snapshot states no ``id``, so the
+                entry names no act to acknowledge.
+        """
+        act_id = self.payload_snapshot.get("id")
+        if not isinstance(act_id, str) or not act_id.strip():
+            raise VultronCanonicalEntryError(
+                f"ledger entry {self.id_!r}: its payloadSnapshot states no"
+                " id, so it names no committed act (ADR-0204)"
+            )
+        return act_id
+
     @model_validator(mode="before")
     @classmethod
     def _set_id_from_case(cls, data: Any) -> Any:
@@ -226,5 +258,6 @@ class CaseLedgerEntry(CoreObject):
 
 __all__ = [
     "CaseLedgerEntry",
+    "case_ledger_id",
     "ledger_entry_id",
 ]

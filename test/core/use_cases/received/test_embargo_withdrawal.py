@@ -215,11 +215,11 @@ def _register(dl: SqliteDataLayer) -> list[tuple[str, str]]:
 
 
 def _announced_to(dl: SqliteDataLayer) -> set[str]:
-    """Every recipient of an ``Announce(CaseLedgerEntry)`` queued in *dl*."""
+    """Every recipient of an ``Add(CaseLedgerEntry)`` queued in *dl*."""
     recipients: set[str] = set()
     for activity_id in dl.outbox_list():
         activity = dl.read(activity_id)
-        if getattr(activity, "type_", None) != "Announce":
+        if getattr(activity, "type_", None) != "Add":
             continue
         for recipient in getattr(activity, "to", None) or []:
             recipients.add(str(getattr(recipient, "id_", recipient)))

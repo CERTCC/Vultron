@@ -50,7 +50,7 @@ class ApplyOfferReportFromLedgerNode(
 ):
     """Apply an ``add_report_to_case`` ledger entry to the local DataLayer.
 
-    When an invited actor receives ``Announce(CaseLedgerEntry)`` for the
+    When an invited actor receives ``Add(CaseLedgerEntry)`` for the
     canonical ``add_report_to_case`` entry, this node stores the report from the
     entry's ``payload_snapshot`` when the replica lacks it, and attaches it to
     the case replica's ``vulnerability_reports``.
@@ -62,7 +62,7 @@ class ApplyOfferReportFromLedgerNode(
     from there.
 
     Lenient on missing data — an incomplete snapshot returns SUCCESS to avoid
-    blocking the ``Announce`` processing flow.  SYNC-02-001, ISSUE-2134.
+    blocking the ``Add`` processing flow.  SYNC-02-001, ISSUE-2134.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {

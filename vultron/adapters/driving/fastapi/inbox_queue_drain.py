@@ -3,7 +3,7 @@
 
 ``run_inbox_pipeline`` processes one delivery, then replays every activity
 queued in the receiving actor's inbox: activities deferred until their case
-was bootstrapped, and held ``Announce(CaseLedgerEntry)`` deliveries replayed
+was bootstrapped, and held ``Add(CaseLedgerEntry)`` deliveries replayed
 once their entry applies (SYNC-14-009).  The app lifespan replays every
 hosted actor's queue once at startup the same way (IE-06-006,
 :mod:`~vultron.adapters.driving.fastapi.inbox_startup_replay`).  Each attempt
@@ -161,7 +161,7 @@ class StoredActivityIngressAdapter:
 
     Used when the payload is an activity-ID string popped from the inbox
     queue: an activity deferred pending its case, or a held
-    ``Announce(CaseLedgerEntry)`` replayed once its entry applies
+    ``Add(CaseLedgerEntry)`` replayed once its entry applies
     (SYNC-14-009).  Either is held whole, as received, on its one
     :class:`~vultron.core.models.received_activity_record.ReceivedActivityRecord`,
     never under its own id (DL-06-006).

@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Shared helpers for Announce(CaseLedgerEntry) ledger-apply modules.
+"""Shared helpers for Add(CaseLedgerEntry) ledger-apply modules.
 
 Provides :func:`_extract_id_from_field`, used by the per-effect modules listed
 below. Effect classes live in their own modules (BTND-07-004):

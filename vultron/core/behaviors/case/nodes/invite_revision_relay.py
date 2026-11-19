@@ -39,7 +39,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
 )
-from vultron.core.behaviors.embargo.proposer import embargo_proposer_id
+from vultron.core.behaviors.embargo.proposer import embargo_proposal
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -66,6 +66,8 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
     goes wrong here is the manager's own store failing, never a refusal of
     the joiner's Accept, so it raises (Regime 1, ADR-0087).
     """
+
+    _NAMES_PROPOSAL = True
 
     def __init__(
         self,
@@ -128,7 +130,9 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
         )
         for embargo_id in pending:
             self._embargo_id = embargo_id
-            self._proposer_id = self._proposer_of(case, embargo_id, entries)
+            self._proposer_id, self._proposal_request = self._proposer_of(
+                case, embargo_id, entries
+            )
             self._relay_to(self._invitee_id)
         self.feedback_message = (
             f"Relayed {len(pending)} open embargo proposal(s) on case"
@@ -158,21 +162,24 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
         case: VulnerabilityCase,
         embargo_id: str,
         entries: list[CaseLedgerEntry],
-    ) -> str:
-        """Who proposed *embargo_id*, read from its committed proposal entry.
+    ) -> tuple[str, str | None]:
+        """Who proposed *embargo_id*, and the request that proposed it.
 
-        A relayed or creation-time Invite names the proposer in
-        ``attributedTo``; a proposal the proposer sent itself names it as
-        ``actor`` (:func:`~vultron.core.behaviors.embargo.proposer.embargo_proposer_id`).
+        Read from its committed proposal entry.  A relayed or creation-time
+        Invite names the proposer in ``attributedTo``; a proposal the
+        proposer sent itself names it as ``actor``
+        (:func:`~vultron.core.behaviors.embargo.proposer.embargo_proposal`).
+        The relay names the request in ``inReplyTo`` (CM-24-020), never the
+        stub Invite the joiner accepted.
         """
-        proposer = embargo_proposer_id(entries, embargo_id)
-        if not proposer:
+        proposal = embargo_proposal(entries, embargo_id)
+        if proposal is None:
             raise RuntimeError(
                 f"{self.name}: open proposal '{embargo_id}' on case"
                 f" '{self._case_id}' has no committed proposal entry, so its"
                 " proposer is unknown"
             )
-        return proposer
+        return proposal.proposer_id, proposal.request_id
 
 
 __all__ = ["RelayOpenProposalsToJoinerNode"]

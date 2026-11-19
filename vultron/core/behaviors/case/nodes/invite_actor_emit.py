@@ -16,8 +16,10 @@
 """The CASE_MANAGER's ``stub Invite(<case>)[target=<invitee>]`` emit node.
 
 Split out of ``actor.py`` (BTND-07-004).  Every stub Invite it emits carries a
-reply deadline (CM-11-014); a replacement issued after an embargo change names
-the Invite it supersedes in ``inReplyTo`` (CM-11-044).
+reply deadline (CM-11-014).  An Invite the CASE_MANAGER makes for another
+actor names that actor in ``attributedTo`` and the request it carries out in
+``inReplyTo`` (CM-24-002, CM-24-020); a replacement names the Invite it
+supersedes there instead (CM-11-044), which itself named the request.
 """
 
 from datetime import datetime
@@ -33,7 +35,10 @@ from vultron.core.behaviors.case.stub_invite_lifetime import (
     current_preview_embargo_end,
     recorded_stub_invites,
 )
-from vultron.core.behaviors.delegated_authorship import delegated_authorship
+from vultron.core.behaviors.delegated_authorship import (
+    DelegatedAuthorship,
+    delegated_authorship,
+)
 from vultron.core.behaviors.embargo.rsvp_stamp import (
     stamp_rsvp_deadline,
 )
@@ -61,7 +66,7 @@ def build_stub_invite(
     case_id: str,
     invitee_id: str,
     roles: list[str] | None,
-    attributed_to: str | None = None,
+    authorship: DelegatedAuthorship | None = None,
     in_reply_to: str | None = None,
     actor_config: ActorConfig | None = None,
     activity_id: str | None = None,
@@ -75,6 +80,10 @@ def build_stub_invite(
     queues it and then commits it with :func:`commit_stub_invite` (CM-17-006,
     ADR-0119).  *at* is the sending act's instant (ADR-0176): the Invite's
     ``published``, which its deadline is measured from.
+    *authorship*, from :func:`delegated_authorship`, names who asked for the
+    Invite and the request it carries out (CM-24-005, CM-24-020); ``None`` is
+    the CASE_MANAGER's own invitation.  *in_reply_to*, when given, is the
+    stub Invite this one replaces (CM-11-044), named in place of the request.
     *activity_id*, when given, is the Invite's id; absent, the factory mints
     one.  An Invite built under an id the store already holds
     is the earlier attempt's Invite: the factory hands back the body sealed
@@ -100,14 +109,9 @@ def build_stub_invite(
         current_preview_embargo_end(datalayer, case), at, actor_config
     )
     # ``None`` is the manager's own invitation; otherwise the participant who
-    # asked for it is the attributed author (PCR-08-007, CM-24-005).
-    authorship = (
-        delegated_authorship(
-            doing_actor_id=actor_id, requesting_actor_id=attributed_to
-        )
-        if attributed_to is not None
-        else None
-    )
+    # asked for it is the attributed author (PCR-08-007, CM-24-005), and a
+    # first Invite names the request it carries out (CM-24-020).
+    named_request = authorship.in_reply_to if authorship else None
     activity_id, activity_blob = factory.invite_actor_to_case(
         invitee_id=invitee_id,
         case_id=case_id,
@@ -118,7 +122,7 @@ def build_stub_invite(
         roles=roles,
         case=case,
         rsvp_deadline=stamp.rsvp_deadline,
-        in_reply_to=in_reply_to,
+        in_reply_to=in_reply_to or named_request,
         at=at,
     )
     return activity_id, activity_blob
@@ -157,7 +161,11 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
     the invitee (:meth:`_invitee`), the roles the Invite offers
     (:meth:`_read_suggested_roles`) and the request it answers
     (:meth:`_answered_request`): fixed at construction, or read from the
-    recorded Offer the Case Owner accepted.
+    recorded Offer the Case Owner accepted.  Who asked for the Invite
+    (:meth:`_requester`) and the request it carries out
+    (:meth:`_carried_out_request`) give its ``attributedTo`` and
+    ``inReplyTo`` through the delegated-authorship helper (CM-24-005,
+    CM-24-020).
     """
 
     def __init__(
@@ -189,6 +197,26 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
     def _answered_request(self) -> str | None:
         """The request the Invite answers, which its id derives from."""
         raise NotImplementedError
+
+    def _requester(self) -> str | None:
+        """Who asked for the Invite; ``None`` is the CASE_MANAGER's own."""
+        return self.attributed_to
+
+    def _carried_out_request(self) -> str | None:
+        """The received request the Invite carries out (CM-24-020)."""
+        return self._answered_request()
+
+    def _authorship(self) -> DelegatedAuthorship | None:
+        """The Invite's delegated authorship, or ``None`` for the manager's own."""
+        requester = self._requester()
+        if requester is None:
+            return None
+        assert self.actor_id is not None
+        return delegated_authorship(
+            doing_actor_id=self.actor_id,
+            requesting_actor_id=requester,
+            request_id=self._carried_out_request(),
+        )
 
     def _in_reply_to_id(self) -> str | None:
         """The earlier stub Invite this one replaces, if it replaces one.
@@ -222,7 +250,7 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
             case_id=self.case_id,
             invitee_id=self._invitee(),
             roles=roles,
-            attributed_to=self.attributed_to,
+            authorship=self._authorship(),
             in_reply_to=self._in_reply_to_id(),
             actor_config=self._actor_config,
             activity_id=self._invite_id(),

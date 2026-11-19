@@ -965,7 +965,7 @@ groups:
       hydrates it.
     rationale: >-
       The received artifact is the evidence of what arrived, and the ledger replicates it via
-      `Announce(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
+      `Add(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
       reach nested models, and since ARCH-25-003 the nested objects are mutable core
       classes. The evidence is therefore a value taken at parse, not a property of the graph.
     verification: >-

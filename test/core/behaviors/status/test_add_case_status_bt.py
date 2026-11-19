@@ -107,7 +107,7 @@ from vultron.core.models.dimensions import (
     PxaDimension,
 )
 from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.pending_assertion import (
     PendingAssertion,
     get_pending_assertion_store,
@@ -119,11 +119,11 @@ from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
+    add_log_entry_activity,
     add_status_to_case_activity,
-    announce_log_entry_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -180,7 +180,7 @@ def _from_manager(
     """The CASE_MANAGER's ``Add(CaseStatus)``, addressed to *replica_id*."""
     return add_status_to_case_activity(
         status,
-        target=target,
+        case=target,
         actor=CASE_MANAGER_ID,
         to=[replica_id],
         at=authored_at(),
@@ -623,7 +623,7 @@ class TestAddCaseStatusTreeSenderRule:
         populated_dl.save(case)
         activity = add_status_to_case_activity(
             status_obj,
-            target=CASE_ID,
+            case=CASE_ID,
             actor=peer,
             to=[ACTOR_ID],
             at=authored_at(),
@@ -663,7 +663,7 @@ class TestAddCaseStatusTreeSenderRule:
         dl.create(status_obj)
         activity = add_status_to_case_activity(
             status_obj,
-            target=CASE_ID,
+            case=CASE_ID,
             actor="https://example.org/actors/stranger",
             to=[ACTOR_ID],
             at=authored_at(),
@@ -703,7 +703,7 @@ class TestAddCaseStatusTreeSenderRule:
         for sender in (ACTOR_ID, CASE_MANAGER_ID):
             activity = add_status_to_case_activity(
                 status_obj,
-                target=CASE_ID,
+                case=CASE_ID,
                 actor=sender,
                 to=[CASE_MANAGER_ID],
                 at=authored_at(),
@@ -1156,6 +1156,51 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         ]
         assert any("missing" in m.lower() for m in warn_msgs)
 
+    @pytest.mark.spec("VAM-08-002")
+    @pytest.mark.parametrize(
+        "target",
+        [
+            "https://example.org/cases/another/statuses",
+            # The pre-ADR-0204 form: the case itself, not its history.
+            CASE_ID,
+        ],
+    )
+    def test_a_case_status_added_to_another_history_is_refused(
+        self, make_payload, target
+    ):
+        """ADR-0204: the status joins its context case's own history.
+
+        A delivered ``Add(CaseStatus)`` that names its case in ``context``
+        but whose ``target`` is another history, or the case record itself,
+        still matches the pattern (its target is lenient), and the
+        incomplete-activity tree refuses it; the case keeps its statuses.
+        """
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Add,
+        )
+
+        status_obj = make(as_CaseStatus, id_=STATUS_ID, context=CASE_ID)
+        dl = _replica_with_status(status_obj)
+        before = _status_ids(dl)
+        delivered = as_Add.model_validate(
+            _from_manager(status_obj).model_dump(by_alias=True)
+            | {"target": target}
+        )
+        event = make_payload(delivered, at=dl)
+        assert event.case_id == CASE_ID
+
+        result = run_in_act(
+            AddCaseStatusToCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            )
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "not the status history of its context case" in (
+            result.reason or ""
+        ), result.reason
+        assert _status_ids(dl) == before
+
 
 # ---------------------------------------------------------------------------
 # ThreatTerminationBranchNode (RSH-03-001 to RSH-03-003)
@@ -1456,7 +1501,7 @@ class TestThreatTerminationBranchNode:
             received_at=ACT_AT,
         )
         entry = record.to_ledger_entry()
-        activity = announce_log_entry_activity(
+        activity = add_log_entry_activity(
             WireCaseLedgerEntry.model_validate(
                 with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
             ),
@@ -1464,11 +1509,9 @@ class TestThreatTerminationBranchNode:
             to=[ACTOR_ID],
             at=authored_at(),
         )
-        event = cast(
-            AnnounceLogEntryReceivedEvent, received_event(activity, at=dl)
-        )
+        event = cast(AddLogEntryReceivedEvent, received_event(activity, at=dl))
         run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl,
                 event.model_copy(update={"receiving_actor_id": ACTOR_ID}),
                 sync_port=SyncActivityAdapter(dl),
@@ -1962,7 +2005,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
             received_event(
                 add_status_to_case_activity(
                     status_obj,
-                    target=make(
+                    case=make(
                         as_VulnerabilityCase,
                         attributed_to=CASE_OWNER_ID,
                         id_=DIAG_CASE_ID,

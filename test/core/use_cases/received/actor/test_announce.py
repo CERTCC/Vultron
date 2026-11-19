@@ -57,7 +57,7 @@ from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.sync import (
     state_ledger_positions_trigger,
@@ -602,7 +602,7 @@ class TestAnnounceFirstContactTrustGap:
 
 
 # ---------------------------------------------------------------------------
-# #2186 / #2180: pre-genesis Announce(CaseLedgerEntry) drains on case seed
+# #2186 / #2180: pre-genesis Add(CaseLedgerEntry) drains on case seed
 # ---------------------------------------------------------------------------
 
 
@@ -613,7 +613,10 @@ def _genesis_entry_for(case_id: str, genesis_hash: str) -> CaseLedgerEntry:
         log_index=0,
         object_id="https://example.org/activities/genesis",
         semantic_type="test_event",
-        payload_snapshot={"key": "value"},
+        payload_snapshot={
+            "id": "https://example.org/activities/genesis",
+            "key": "value",
+        },
         prev_log_hash=genesis_hash,
         received_at=ACT_AT,
     )
@@ -624,7 +627,7 @@ class TestAnnounceDrainsPreGenesisBuffer:
     """Seeding a VulnerabilityCase replays the held pre-genesis Announces.
 
     Regression for #2186 (root cause) / #2180 (symptom): an
-    ``Announce(CaseLedgerEntry)`` that arrives before the ``VulnerabilityCase``
+    ``Add(CaseLedgerEntry)`` that arrives before the ``VulnerabilityCase``
     is seeded is held as received (SYNC-15-004) instead of being permanently
     dropped.  Once the case seed lands — anchoring the deterministic per-case
     genesis hash — that held ``Announce`` is replayed through the receiving
@@ -710,7 +713,7 @@ class TestAnnounceDrainsPreGenesisBuffer:
             dl,
             _RECEIVER_ID,
             lambda ev: run_in_act(
-                AnnounceLedgerEntryReceivedUseCase(
+                AddLedgerEntryReceivedUseCase(
                     dl,
                     ev,
                     sync_port=SyncActivityAdapter(dl),

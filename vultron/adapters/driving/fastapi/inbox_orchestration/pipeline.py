@@ -269,7 +269,7 @@ async def run_inbox_pipeline(
 
         # Replay what this delivery, or an earlier one, queued: activities
         # pushed back by the post-bootstrap replay, and held ledger
-        # Announces replayed once their entry applies (SYNC-14-009).
+        # Adds replayed once their entry applies (SYNC-14-009).
         run.drain_queue()
 
     await _run_serialised(actor_dl, actor_id, emitter, _process_and_replay)

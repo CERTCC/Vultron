@@ -12,10 +12,10 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""``send_announce_log_entry`` has one caller in core: the verified send.
+"""``send_add_log_entry`` has one caller in core: the verified send.
 
 ``send_verified_log_entry()`` recomputes an entry's hash before it queues
-``Announce(CaseLedgerEntry)`` and holds back one that does not verify
+``Add(CaseLedgerEntry)`` and holds back one that does not verify
 (SYNC-03-009).  It covers every send path (fan-out, the ``Reject`` and
 ``Read`` replays, the embargo backfill and the join-time backfill) only while
 no other code in ``vultron/core/`` reaches the port method directly.
@@ -39,24 +39,24 @@ _ALLOWED = {
 def _referrers() -> set[str]:
     found: set[str] = set()
     for path, tree in _corpus.files_mentioning(
-        "send_announce_log_entry", under=_CORE
+        "send_add_log_entry", under=_CORE
     ):
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.Attribute)
-                and node.attr == "send_announce_log_entry"
+                and node.attr == "send_add_log_entry"
             ) or (
                 isinstance(node, ast.Constant)
-                and node.value == "send_announce_log_entry"
+                and node.value == "send_add_log_entry"
             ):
                 found.add(path.relative_to(_corpus.REPO_ROOT).as_posix())
     return found
 
 
 @pytest.mark.spec("SYNC-03-009")
-def test_only_the_verified_send_calls_send_announce_log_entry() -> None:
+def test_only_the_verified_send_calls_send_add_log_entry() -> None:
     assert _referrers() - _ALLOWED == set(), (
-        "send_announce_log_entry() queues an entry unchecked; core sends one"
+        "send_add_log_entry() queues an entry unchecked; core sends one"
         " only through send_verified_log_entry(), which holds back an entry"
         " whose hash does not verify (SYNC-03-009)"
     )

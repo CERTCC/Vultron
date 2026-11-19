@@ -119,7 +119,7 @@ def demo_add_note_to_case(
     description=(
         "Demo-only scaffold. "
         "Self-reports VFD state VFd (fix ready, not yet deployed) "
-        "to the Case Manager via Add(ParticipantStatus)[target=CaseParticipant]. "
+        "to the Case Manager via Add(ParticipantStatus, target=<participant>/statuses). "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: DEMOMA-07-001."
     ),
@@ -183,7 +183,7 @@ def demo_notify_fix_ready(
     description=(
         "Demo-only scaffold. "
         "Self-reports VFD state VFD (fix deployed) "
-        "to the Case Manager via Add(ParticipantStatus)[target=CaseParticipant]. "
+        "to the Case Manager via Add(ParticipantStatus, target=<participant>/statuses). "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: DEMOMA-07-001."
     ),
@@ -219,7 +219,7 @@ def demo_notify_fix_deployed(
     description=(
         "Demo-only scaffold. "
         "Self-reports VFD=VFD and PXA=Pxa (public aware) "
-        "to the Case Manager via Add(ParticipantStatus)[target=CaseParticipant]. "
+        "to the Case Manager via Add(ParticipantStatus, target=<participant>/statuses). "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: DEMOMA-07-001."
     ),
@@ -255,7 +255,7 @@ def demo_notify_published(
     description=(
         "Demo-only trigger. Commits a ``CaseLedgerEntry`` for the "
         "given case via the canonical BT commit path and queues an "
-        "``Announce(CaseLedgerEntry)`` per participant for fan-out delivery. "
+        "``Add(CaseLedgerEntry)`` per participant for fan-out delivery. "
         "Uses ``Announce(VulnerabilityCase)`` as the canonical payload type. "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: TRIG-09-001, SYNC-02-001, SYNC-02-003."

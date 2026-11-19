@@ -12,23 +12,23 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Where a held out-of-order ``Announce(CaseLedgerEntry)`` waits (SYNC-14).
+"""Where a held out-of-order ``Add(CaseLedgerEntry)`` waits (SYNC-14).
 
-A participant that receives an ``Announce(CaseLedgerEntry)`` it cannot apply
+A participant that receives an ``Add(CaseLedgerEntry)`` it cannot apply
 yet (a forward gap, SYNC-14-001; a case not yet seeded, SYNC-15-004; or an
-entry the case is not yet at, ADR-0124) holds the ``Announce`` it received,
+entry the case is not yet at, ADR-0124) holds the ``Add`` it received,
 not the entry inside it: the received body stays on the activity's one
 :class:`~vultron.core.models.received_activity_record.ReceivedActivityRecord`,
 marked as owing the replay the inbox will run (IO-03-009).  When the
-entry's predecessor commits, or the case is seeded, that very ``Announce`` is
+entry's predecessor commits, or the case is seeded, that very ``Add`` is
 replayed through the inbox as a delivery of its own (SYNC-14-009).  Nothing
 is rebuilt and nothing is attributed to a sender who did not send it.
 
-This record is the index that finds it: one row per held ``Announce``, keyed
+This record is the index that finds it: one row per held ``Add``, keyed
 by the receiver from the entry's case and ``prev_log_hash``, so the successor
 of a new chain tail is one read (:meth:`HeldLedgerAnnounce.build_id`).  It
 holds no entry and no body, only what the drain and the size bound read
-(SYNC-14-006), and the id of the held ``Announce``.  It is not a
+(SYNC-14-006), and the id of the held ``Add``.  It is not a
 ``CaseLedgerEntry``, so the presence of a ``CaseLedgerEntry`` still means
 "committed and effects applied" (SYNC-13-001, SYNC-14-005).
 """
@@ -49,7 +49,7 @@ from vultron.core.models.base import (
 
 
 class HeldLedgerAnnounce(CoreRecord):
-    """One held ``Announce(CaseLedgerEntry)``, found by its entry's predecessor.
+    """One held ``Add(CaseLedgerEntry)``, found by its entry's predecessor.
 
     Attributes:
         case_id: The case the held entry belongs to.
@@ -59,7 +59,7 @@ class HeldLedgerAnnounce(CoreRecord):
         entry_hash: The held entry's own hash, which tells a duplicate from a
             fork under the same predecessor.
         entry_id: The held entry's id, for the log.
-        activity_id: The sender's id for the held ``Announce``; its received
+        activity_id: The sender's id for the held ``Add``; its received
             body is held under ``ReceivedActivityRecord.build_id`` of it.
     """
 
@@ -78,7 +78,7 @@ class HeldLedgerAnnounce(CoreRecord):
     )
     entry_id: UriString = Field(..., description="The held entry's id")
     activity_id: UriString = Field(
-        ..., description="The sender's id for the held Announce"
+        ..., description="The sender's id for the held Add"
     )
 
     @classmethod

@@ -71,7 +71,8 @@ _PARTICIPANT_PXA_NOTES = (
     "holds, so it can also carry an unchanged `vfState` or `dState`; the "
     "dimension that changed makes the occasion. The report is the "
     "sender's view of the case status, not a change to it. The "
-    "CASE_MANAGER records the status on the sender's participant record and "
+    "CASE_MANAGER adds the status to the sender's status history "
+    "`<participant>/statuses` (ADR-0204) and "
     "chooses whether to adopt the reported `pxaState` for the case, by "
     "default only with the Case Owner's authorization. Only an adopted "
     "value changes the case status, and while an embargo is active or "
@@ -97,7 +98,8 @@ _CASE_PXA_WHEN: dict[CS_pxa, str] = {
 #: What every case P/X/A occasion says about who sends it.
 _CASE_PXA_NOTES = (
     "Only the CASE_MANAGER sends a case status, as its record of the "
-    "`pxaState` it adopted, and a receiver refuses one from any other "
+    "`pxaState` it adopted, added to the case's status history "
+    "`<case>/statuses` (ADR-0204), and a receiver refuses one from any other "
     "sender. A participant reports public awareness, a public exploit or "
     "observed attacks in its own participant status instead."
 )
@@ -235,7 +237,7 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Announces that the report has reached the Vendor whose "
-                    "participant record is the target."
+                    "status history is the target."
                 ),
                 example="add_vendor_awareness_to_participant",
                 distinguisher=FieldValue(
@@ -252,7 +254,7 @@ ENTRIES: list[SemanticEntry] = [
                 anchor="fix-readiness",
                 addressee=AddresseeSide.CASE_MANAGER,
                 description=(
-                    "Announces that the Vendor whose participant record is the"
+                    "Announces that the Vendor whose status history is the"
                     " target has a fix ready."
                 ),
                 example="add_fix_readiness_to_participant",
@@ -270,7 +272,7 @@ ENTRIES: list[SemanticEntry] = [
                 anchor="fix-deployed",
                 addressee=AddresseeSide.CASE_MANAGER,
                 description=(
-                    "Announces that the Deployer whose participant record is "
+                    "Announces that the Deployer whose status history is "
                     "the target has deployed the fix."
                 ),
                 example="add_fix_deployment_to_participant",

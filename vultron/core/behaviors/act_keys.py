@@ -171,8 +171,9 @@ PROPOSAL_ID = _act_key(
 ANNOUNCE_ID = _act_key(
     "announce_id",
     str,
-    "The id of the Announce activity the act answers or names, such as the"
-    " Announce(CaseLedgerEntry) a replica's processing fault refers to.",
+    "The id of the activity that carried a ledger entry the act answers or"
+    " names, such as the Add(CaseLedgerEntry) a replica's processing fault"
+    " refers to.",
 )
 PARTICIPANT_ID = _act_key(
     "participant_id",
@@ -211,7 +212,7 @@ REFUSED_ENTRY = _act_key(
     "refused_entry",
     CaseLedgerEntry,
     "The ledger entry a replica's processing fault reports it refused: the"
-    " entry the fault's Announce(CaseLedgerEntry) carried (SYNC-03-007,"
+    " entry the fault's Add(CaseLedgerEntry) carried (SYNC-03-007,"
     " SYNC-16-008).",
 )
 

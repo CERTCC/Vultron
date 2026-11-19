@@ -40,6 +40,7 @@ from test.support.objects import with_times
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
 )
+from vultron.wire.as2.vocab.activities.sync import _AddLogEntryActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Reject,
@@ -57,7 +58,12 @@ _RESPONSE_BASES = (
 #: Responses whose verb is not an answer.  The case owner's activation is an
 #: ``Add`` of the embargo to the case (ADR-0180), yet it decides the proposal
 #: an ``Invite(EmbargoEvent)`` made, and names that Invite in ``inReplyTo``.
-_RESPONSES_BY_MEANING: tuple[type[Any], ...] = (_ActivateEmbargoActivity,)
+#: The ledger ``Add`` of a committed entry is the positive acknowledgement of
+#: the act it commits, and names that act in ``inReplyTo`` (ADR-0204).
+_RESPONSES_BY_MEANING: tuple[type[Any], ...] = (
+    _ActivateEmbargoActivity,
+    _AddLogEntryActivity,
+)
 
 
 def _response_classes() -> dict[str, type[Any]]:

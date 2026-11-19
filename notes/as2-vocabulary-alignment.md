@@ -261,13 +261,6 @@ Issue: #6245.
 - `Add(VulnerabilityReport)` and `CaseProposal` drop the Vultron `offerId` for
   `inReplyTo` (the report Offer); `offerActorId` is read from that Offer or the
   report's `attributedTo`.
-- A delegated emit (CM-24) sets `attributedTo` = the asker and `inReplyTo` = the
-  request it received, both exactly when the asker is a different actor from the
-  `actor` (ADR-0199). Every delegated emit has a received request to name: a
-  distinct asker reaches the CASE_MANAGER only by message, wherever the two run
-  (ADR-0109; the ownership-transfer trigger already sends its proposal). The
-  CASE_MANAGER is not modelled as anyone's `instrument`: it has its own authority and
-  must be the `actor` receivers authenticate (CM-24-001).
 - `Remove(CaseParticipant)` is replaced by the Case Owner's `Remove(<Actor>,
   origin=<case>)` (§ "The Owner Sends Its Removal or Reinstatement"), and
   `Remove(EmbargoEvent)` by an `Update` (§ "Embargo End Is an Update With a
@@ -282,9 +275,7 @@ which this object is considered a response".
 **Today.** `Remove(Note)` and `Remove(EmbargoEvent)` name the case in `origin`,
 and `ActivityPattern.origin_` matches it as `target_` matches `target` (#6463);
 `Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`; `offerId` /
-`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`. CM-24-002's
-rationale calls `attributedTo` "the AS2-standard field for recording who delegated
-an action"; AS2 says only "entities to which this object is attributed".
+`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`.
 
 **Term-check owner.** #6419 owns `offerId`/`offerActorId` in the #6253 term-check
 ratchet, so the entry keeps an open owner. Planning this section adopts #6419
@@ -642,8 +633,8 @@ Issue: #6247. Record: ADR-0204.
    items are the entries in order, position = `logIndex`. Identity only — no fetch
    surface; no ledger fetch surface exists today (#5089).
 2. The CASE_MANAGER publishes a commit as `Add(CaseLedgerEntry,
-   target=<case>/ledger)`, replacing `Announce(CaseLedgerEntry)`. A replica receiving
-   it appends to its copy.
+   target=<case>/ledger)`, replacing `Announce(CaseLedgerEntry)` (built: #6484). A
+   replica receiving it appends to its copy.
 3. That `Add` is the positive acknowledgment: it carries `inReplyTo` = the committed
    act and no `result` (below). No separate ack message. A refusal stays the
    refusal notice.
@@ -669,24 +660,23 @@ target's attention to the object" (issues #179, #196). Primer: `result` is for
 "changes of state or indirect outcomes"; VOC Ex 148 is an `Accept` whose `result`
 lists the activities it caused.
 
-**Today.** `vultron/adapters/driven/sync_activity_adapter.py` sends
-`Announce(CaseLedgerEntry)`, which carries no `context` (the case is in
-`object.caseId`). `vultron/wire/as2/ledger_reject_envelope.py` admits the objectless
+**Today.** The ledger `Add` is built (#6484): `add_log_entry_activity` names the
+ledger, the case and the committed act. `vultron/wire/as2/ledger_reject_envelope.py`
+admits the objectless
 `Reject`. The `Read` pattern accepts a bare entry id only for the position statement
-(`vultron/wire/as2/extractor/_pattern.py`). `Add(ParticipantStatus)` names its case
-only through the nested status's `context`. Delivery receipts are an open question
+(`vultron/wire/as2/extractor/_pattern.py`). Both status `Add` forms name their history
+and case (#6486). Delivery receipts are an open question
 (`docs/topics/future_work/_oq-delivery-receipts.md`).
 
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1
 or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0156,
-ADR-0137 and ADR-0155 (partially superseded by ADR-0204),
-`ANNOUNCE_CASE_LEDGER_ENTRY`, `READ_CASE_LEDGER_ENTRY`, `REJECT_CASE_LEDGER_ENTRY`,
-`ADD_CASE_STATUS_TO_CASE`, `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`. The guidance
-notes that name `Announce(CaseLedgerEntry)` as the replication channel change with
-it: `notes/case-communication-model.md`, `notes/sync-ledger-replication.md` (whose
-rule "keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them" stands,
-since the `Add` lists no follow-on ids, below), `notes/case-actor-cluster.md`,
-`notes/ownership-transfer.md`, `notes/case-ledger-authority.md`,
+ADR-0137 and ADR-0155 (partially superseded by ADR-0204), `READ_CASE_LEDGER_ENTRY`,
+`REJECT_CASE_LEDGER_ENTRY`, `ADD_CASE_STATUS_TO_CASE`,
+`ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`. The ledger-commit part
+(`ADD_CASE_LEDGER_ENTRY_TO_LEDGER` and the notes naming the replication channel,
+whose rule "keep `Add(CaseLedgerEntry)` ids freshly minted; never derive them"
+stands) is done (#6484); the position-statement and status parts remain:
+`notes/case-ledger-authority.md`,
 `notes/participant-embargo-consent.md`, `notes/received-status-authorization.md`, and
 every docs page naming these forms, among them
 `docs/reference/messages/ledger_replication.md` and

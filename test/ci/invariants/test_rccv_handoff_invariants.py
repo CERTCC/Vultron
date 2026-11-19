@@ -18,7 +18,7 @@ RCCV-handoff-specific invariants:
 The ``Accept(Offer(VulnerabilityCase))`` for ownership transfer routes through
 the CaseActor (ADR-0053, CM-21-006/007).  The CaseActor commits a canonical
 ``accept_case_ownership_transfer`` ledger entry and broadcasts
-``Announce(CaseLedgerEntry)`` to all participants.  All replicas MUST agree on
+``Add(CaseLedgerEntry)`` to all participants.  All replicas MUST agree on
 the same ``entry_hash`` for that index (ISSUE-2252, AC-3).
 
 All tests are tagged ``@pytest.mark.case_ledger_invariants``.  They skip
@@ -148,7 +148,7 @@ def test_rccv_handoff_accept_ownership_transfer_hash_agreement(
     ``CommitCaseLedgerEntryNode``, producing a different ``received_at`` and
     ``payload_snapshot`` and therefore a different hash than the CaseActor's
     canonical entry at the same ``logIndex``.  After the fix only the CaseActor
-    writes that entry; all replicas receive it via ``Announce(CaseLedgerEntry)``
+    writes that entry; all replicas receive it via ``Add(CaseLedgerEntry)``
     and must carry the identical ``entryHash`` (AC-3).
     """
     transfer_entries: dict[str, list[dict]] = {

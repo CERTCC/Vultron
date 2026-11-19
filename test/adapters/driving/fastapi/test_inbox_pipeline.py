@@ -33,16 +33,16 @@ from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.errors import (
     VultronProtocolViolationError,
     VultronValidationError,
 )
 from vultron.wire.as2.factories import (
+    add_log_entry_activity,
     add_note_to_case_activity,
     add_status_to_case_activity,
-    announce_log_entry_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
     em_propose_embargo_activity,
@@ -297,7 +297,7 @@ def test_routing_safety_net_status_domain(test_pipeline, monkeypatch):
     # CASE_MANAGER alone, RSH-04-005) never runs.
     activity = add_status_to_case_activity(
         status,
-        target=case,
+        case=case,
         context=case.id_,
         actor=SENDER_ID,
         to=[RECEIVER_ID],
@@ -316,7 +316,7 @@ def test_routing_safety_net_status_domain(test_pipeline, monkeypatch):
 def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
     marker_id = "https://example.org/markers/sync"
     _patch_execute_with_marker(
-        monkeypatch, AnnounceLedgerEntryReceivedUseCase, marker_id
+        monkeypatch, AddLedgerEntryReceivedUseCase, marker_id
     )
     entry = make(
         as_CaseLedgerEntry,
@@ -325,12 +325,13 @@ def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
         log_index=0,
         log_object_id="https://example.org/activities/a-1",
         semantic_type="announce",
+        payload_snapshot={"id": "https://example.org/activities/a-1"},
         prev_log_hash="0",
         entry_hash="1",
         received_at=ACT_AT,
         published=ACT_AT,
     )
-    activity = announce_log_entry_activity(
+    activity = add_log_entry_activity(
         entry,
         context=CASE_ID,
         actor=SENDER_ID,
@@ -343,7 +344,7 @@ def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
     )
 
     assert event is not None
-    assert event.semantic_type.name == "ANNOUNCE_CASE_LEDGER_ENTRY"
+    assert event.semantic_type.name == "ADD_CASE_LEDGER_ENTRY_TO_LEDGER"
     assert dl.read(marker_id) is not None
 
 

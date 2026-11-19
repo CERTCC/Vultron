@@ -195,7 +195,7 @@ def create_reject_ownership_transfer_tree(
     The Accept's tree with no effects: the sender guard admits only the
     transferee of an open Offer the CASE_MANAGER recorded (CM-21-013), and the
     guarded commit ledgers the Reject and broadcasts
-    ``Announce(CaseLedgerEntry)`` (CM-21-032, CLP-02-016).  That entry closes
+    ``Add(CaseLedgerEntry)`` (CM-21-032, CLP-02-016).  That entry closes
     the Offer (CM-21-014); ownership is unchanged, so nothing else is written.
 
     Args:
@@ -259,7 +259,7 @@ def create_undo_ownership_transfer_tree(
     The owner withdraws its proposal, and with it the open Offer the
     CASE_MANAGER made from it (CM-21-015, ADR-0148).  The sender guard
     admits only the Case Owner that Offer was made for; the guarded commit
-    ledgers the withdrawal and broadcasts ``Announce(CaseLedgerEntry)``.
+    ledgers the withdrawal and broadcasts ``Add(CaseLedgerEntry)``.
     That entry closes the Offer (CM-21-014), so a later Accept or Reject of
     it is refused and the case may be offered again.  Ownership is
     unchanged.

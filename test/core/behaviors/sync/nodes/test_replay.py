@@ -149,8 +149,8 @@ def test_send_missing_entries_node_replays_entries_after_divergence(
     )
 
     assert result.status == Status.SUCCESS
-    sync_port.send_announce_log_entry.assert_called_once()
-    kwargs = sync_port.send_announce_log_entry.call_args.kwargs
+    sync_port.send_add_log_entry.assert_called_once()
+    kwargs = sync_port.send_add_log_entry.call_args.kwargs
     assert kwargs["entry"].id_ == second_entry.id_
     assert kwargs["actor_id"] == case_actor.id_
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
@@ -436,8 +436,8 @@ def test_replay_missing_entries_node_replays_from_divergence(
     )
 
     assert result.status == Status.SUCCESS
-    sync_port.send_announce_log_entry.assert_called_once()
-    kwargs = sync_port.send_announce_log_entry.call_args.kwargs
+    sync_port.send_add_log_entry.assert_called_once()
+    kwargs = sync_port.send_add_log_entry.call_args.kwargs
     assert kwargs["entry"].id_ == second_entry.id_
     assert kwargs["actor_id"] == case_actor.id_
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
@@ -485,8 +485,8 @@ def test_fanout_log_entry_node_sends_to_active_participants(bridge, datalayer):
     )
 
     assert result.status == Status.SUCCESS
-    sync_port.send_announce_log_entry.assert_called_once()
-    kwargs = sync_port.send_announce_log_entry.call_args.kwargs
+    sync_port.send_add_log_entry.assert_called_once()
+    kwargs = sync_port.send_add_log_entry.call_args.kwargs
     assert kwargs["entry"].id_ == entry.id_
     assert kwargs["actor_id"] == OWNER_ACTOR_ID
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
@@ -534,7 +534,7 @@ def _adapter(datalayer):
 
 
 def _queued_announces(datalayer) -> list[tuple[str, list[str]]]:
-    """``(entry id, recipients)`` for every Announce row in the outbox, in order."""
+    """``(entry id, recipients)`` for every ledger Add row in the outbox, in order."""
     rows = []
     for activity_id in datalayer.outbox_list():
         activity = datalayer.read(activity_id)
@@ -572,13 +572,13 @@ def test_replay_skips_entries_whose_announce_to_this_peer_is_still_queued(
     second = _make_entry(1, first.entry_hash)
     third = _make_entry(2, second.entry_hash)
     adapter = _adapter(datalayer)
-    adapter.send_announce_log_entry(
+    adapter.send_add_log_entry(
         entry=second,
         actor_id=case_actor.id_,
         to=[PARTICIPANT_ACTOR_ID],
         at=authored_at(),
     )
-    adapter.send_announce_log_entry(
+    adapter.send_add_log_entry(
         entry=third,
         actor_id=case_actor.id_,
         to=["https://example.org/actors/other"],
@@ -608,7 +608,7 @@ def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
     first = _make_entry(0)
     second = _make_entry(1, first.entry_hash)
     adapter = _adapter(datalayer)
-    adapter.send_announce_log_entry(
+    adapter.send_add_log_entry(
         entry=second,
         actor_id=case_actor.id_,
         to=[PARTICIPANT_ACTOR_ID],

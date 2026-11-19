@@ -43,6 +43,7 @@ from .._base import (
     _addressing,
     _already_sealed,
     _create_and_seal,
+    _delegation,
 )
 from ._helpers import (
     _held_actor,
@@ -99,6 +100,7 @@ class _OwnershipMixin:
         id_: str | None = None,
         *,
         at: datetime,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
@@ -116,8 +118,7 @@ class _OwnershipMixin:
         extra: dict[str, Any] = _addressing(actor, to or [transferee_id], id_)
         if content is not None:
             extra["content"] = content
-        if attributed_to is not None:
-            extra["attributed_to"] = attributed_to
+        extra.update(_delegation(attributed_to, in_reply_to))
         if end_time is not None:
             extra["end_time"] = end_time
         # The CASE_MANAGER ledgers the Offer it makes, and a ledger snapshot

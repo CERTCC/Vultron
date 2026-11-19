@@ -17,7 +17,7 @@
 
 :class:`IsRemoveCaseParticipantEventNode` and
 :class:`ApplyRemoveCaseParticipantFromLedgerNode` form the
-``RemoveCaseParticipantEffects`` slot in ``create_announce_log_entry_tree``;
+``RemoveCaseParticipantEffects`` slot in ``create_add_log_entry_tree``;
 :class:`IsReinstateCaseParticipantEventNode` and
 :class:`ApplyReinstateCaseParticipantFromLedgerNode` form the
 ``ReinstateCaseParticipantEffects`` slot (CM-31-007, CM-31-011, RSH-08-004).

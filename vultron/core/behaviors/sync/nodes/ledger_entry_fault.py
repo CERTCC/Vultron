@@ -15,8 +15,8 @@
 
 """The one emission of a replica's fault about a refused ledger entry.
 
-A replica that refuses a received ``Announce(CaseLedgerEntry)`` tells the
-CASE_MANAGER with ``Create(ProcessingFault)`` naming that ``Announce`` by
+A replica that refuses a received ``Add(CaseLedgerEntry)`` tells the
+CASE_MANAGER with ``Create(ProcessingFault)`` naming that ``Add`` by
 reference (ASK-07-001, ASK-07-004, MSM-05-001).  The failure class says why:
 the entry describes an impossible participant status
 (``StatusAssertionRefused/ImpossibleState``, RSH-09-013), its content does not
@@ -30,13 +30,13 @@ apply node that refuses inside its own ``update()`` calls it, and
 
 The fault goes to the case's CASE_MANAGER as this replica knows it
 (:func:`~vultron.core.participants.authority.case_manager_address`), and only
-when the ``Announce``'s sender is that actor.  The announce tree's sender guard
-lets an ``Announce`` through for bootstrap handling when this store knows no
+when the ``Add``'s sender is that actor.  The add-log-entry tree's sender guard
+lets an ``Add`` through for bootstrap handling when this store knows no
 CASE_MANAGER for the case, and a fault to a sender no one has verified is not
 allowed (ASK-07-002), so such a refusal is logged and answered with nothing.
-The fault's id is derived from the refused ``Announce`` and the failure class
+The fault's id is derived from the refused ``Add`` and the failure class
 by the trigger-activity port, so a retried refusal builds no second fault
-(ID-04-004); a replay of a still-held ``Announce`` queues the same fault again,
+(ID-04-004); a replay of a still-held ``Add`` queues the same fault again,
 which the CASE_MANAGER drops as a repeat.  The fault is replication signalling,
 like ``Reject(CaseLedgerEntry)``, and nothing here commits it to a case ledger
 (SYNC-16-002).
@@ -71,11 +71,11 @@ def emit_ledger_entry_fault(
     *,
     at: datetime,
 ) -> None:
-    """Queue *node*'s actor's fault about the ``Announce`` *activity* carried.
+    """Queue *node*'s actor's fault about the ``Add`` *activity* carried.
 
-    *activity* is the received ``Announce(CaseLedgerEntry)`` event.  The fault
+    *activity* is the received ``Add(CaseLedgerEntry)`` event.  The fault
     names it by its id and goes to the case's CASE_MANAGER.  When this store
-    knows no CASE_MANAGER for the case, or the ``Announce``'s sender is not
+    knows no CASE_MANAGER for the case, or the ``Add``'s sender is not
     it, the WARNING says so and nothing is built.
 
     Raises:
@@ -109,7 +109,7 @@ def emit_ledger_entry_fault(
         or not same_actor_id(sender_id, manager_id)
     ):
         node.logger.warning(
-            "%s: ProcessingFault/%s not emitted for refused announce '%s':"
+            "%s: ProcessingFault/%s not emitted for refused Add '%s':"
             " its sender '%s' is not the CASE_MANAGER this store knows for"
             " case '%s' (%s) (ASK-07-002)",
             node.name,
@@ -132,11 +132,11 @@ def emit_ledger_entry_fault(
     except VultronError as exc:
         raise VultronBTInternalError(
             f"{node.name}: could not queue ProcessingFault/{class_label} for"
-            f" refused announce '{failed_id}': {exc}"
+            f" refused Add '{failed_id}': {exc}"
         ) from exc
     node.logger.info(
         "%s: emitted ProcessingFault/%s to the CASE_MANAGER '%s' for refused"
-        " announce '%s' of ledger entry '%s' (case '%s')",
+        " Add '%s' of ledger entry '%s' (case '%s')",
         node.name,
         class_label,
         manager_id,

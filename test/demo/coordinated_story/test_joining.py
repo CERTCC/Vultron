@@ -545,7 +545,7 @@ class TestReporterCaseReplicaWaitBeforeVendorTriage:
     """The Vendor's acceptance broadcasts to every participant.
 
     The Vendor's reply to the full-case Invite broadcasts
-    ``Announce(CaseLedgerEntry)`` to all participants including the Reporter.
+    ``Add(CaseLedgerEntry)`` to all participants including the Reporter.
     If the Reporter's DataLayer does not yet hold the ``VulnerabilityCase``
     (genesis hash unavailable), the chain bootstrap fails with CLP-08-005.
     """

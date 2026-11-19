@@ -21,7 +21,7 @@ relayed Invite by authorship and by whether the replica's register already
 holds the embargo (:func:`is_relayed_embargo_invite`), and the CASE_MANAGER's
 ``Reject`` of a proposal from a participant's by the payload's ``actor``
 (:func:`sent_by_case_manager`).  Used as preconditions in the
-``AnnounceLogEntryReceivedBT`` embargo slots (EP-09-007, BTND-08-001).
+``AddLogEntryReceivedBT`` embargo slots (EP-09-007, BTND-08-001).
 """
 
 from __future__ import annotations
@@ -168,7 +168,7 @@ class IsEmbargoProposalEventNode(_EmbargoInviteEventNode):
 
     Matches an ``invite_to_embargo_on_case`` entry that is *not* a relayed
     Invite (:func:`is_relayed_embargo_invite`).  Used in the
-    ``EmbargoProposalEffects`` slot of ``AnnounceLogEntryReceivedBT``.
+    ``EmbargoProposalEffects`` slot of ``AddLogEntryReceivedBT``.
 
     Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
@@ -182,7 +182,7 @@ class IsEmbargoInviteRelayEventNode(_EmbargoInviteEventNode):
     Matches an ``invite_to_embargo_on_case`` entry whose ``actor`` is the
     CASE_MANAGER and whose ``attributedTo`` is the proposer
     (:func:`is_relayed_embargo_invite`).  Used in the
-    ``EmbargoInviteRelayEffects`` slot of ``AnnounceLogEntryReceivedBT``.
+    ``EmbargoInviteRelayEffects`` slot of ``AddLogEntryReceivedBT``.
 
     Per EP-09-002, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
@@ -194,7 +194,7 @@ class IsAcceptEmbargoInviteEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is an ``accept_invite_to_embargo_on_case`` event.
 
     Used in the ``EmbargoAcceptanceEffects`` slot of
-    ``AnnounceLogEntryReceivedBT``.
+    ``AddLogEntryReceivedBT``.
 
     Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
@@ -243,7 +243,7 @@ class IsRejectEmbargoInviteEventNode(_RejectEmbargoInviteEventNode):
     Matches a ``reject_invite_to_embargo_on_case`` entry whose ``actor`` is
     not the case's CASE_MANAGER: the sender's own consent, recorded
     ``DECLINED`` (MSM-07-004).  Used in the ``EmbargoRejectionEffects`` slot
-    of ``AnnounceLogEntryReceivedBT``.
+    of ``AddLogEntryReceivedBT``.
 
     Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
@@ -257,7 +257,7 @@ class IsEmbargoAbandonmentEventNode(_RejectEmbargoInviteEventNode):
     Matches a ``reject_invite_to_embargo_on_case`` entry whose ``actor`` is
     the case's CASE_MANAGER: its abandonment of the proposal it received once
     P/X/A is set, which cancels the proposal (EMB-16-001, ADR-0152).  Used in
-    the ``EmbargoAbandonmentEffects`` slot of ``AnnounceLogEntryReceivedBT``.
+    the ``EmbargoAbandonmentEffects`` slot of ``AddLogEntryReceivedBT``.
 
     Per EMB-16-001, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
@@ -271,7 +271,7 @@ class IsUndoEmbargoInviteEventNode(_SingleSemanticTypeNode):
     Matches ``undo_invite_to_embargo_on_case``: the CASE_MANAGER's withdrawal
     of an Invite it sent, when it abandons an open proposal (EMB-16-001,
     ADR-0152).  Used in the ``EmbargoInviteWithdrawalEffects`` slot of
-    ``AnnounceLogEntryReceivedBT``.
+    ``AddLogEntryReceivedBT``.
 
     Per EMB-16-001, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """

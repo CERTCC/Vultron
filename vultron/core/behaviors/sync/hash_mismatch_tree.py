@@ -52,9 +52,9 @@ def create_hash_mismatch_fault_tree(
 ) -> py_trees.composites.Sequence:
     """Create the BT that reports a replica's hash-mismatch fault.
 
-    *refused_entry* is the entry the fault's ``inReplyTo`` ``Announce``
+    *refused_entry* is the entry the fault's ``inReplyTo`` ``Add``
     (*announce_id*) carried; its case is the case the fault concerns.  A
-    fault that names no ``Announce(CaseLedgerEntry)`` this store sent has no
+    fault that names no ``Add(CaseLedgerEntry)`` this store sent has no
     case to answer for: the use case archives it with the intake-only tree
     and refuses it, never calling this factory (ADR-0032).  At that case's
     CASE_MANAGER the tree logs
@@ -72,7 +72,7 @@ def create_hash_mismatch_fault_tree(
 
     Args:
         refused_entry: The ``CaseLedgerEntry`` the replica refused.
-        announce_id: The fault's ``inReplyTo``: the refused ``Announce``.
+        announce_id: The fault's ``inReplyTo``: the refused ``Add``.
         sender_id: The fault's ``actor``: the replica that refused it.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
@@ -81,7 +81,7 @@ def create_hash_mismatch_fault_tree(
         name="HashMismatchFaultReceivedBT",
         case_id=None,
         precondition_guards=[],
-        # The fault answers an Announce this store sent, so it reaches the
+        # The fault answers an Add this store sent, so it reaches the
         # CASE_MANAGER that holds the canonical ledger and nobody else; a
         # fault is replication signalling and is never relayed to a replica
         # (SYNC-16-002, HP-01-038).

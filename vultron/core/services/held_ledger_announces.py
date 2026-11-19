@@ -11,20 +11,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Hold an out-of-order ``Announce(CaseLedgerEntry)`` as it was received.
+"""Hold an out-of-order ``Add(CaseLedgerEntry)`` as it was received.
 
 A participant that cannot apply a received ledger entry yet holds the
-``Announce`` that carried it, never the entry alone (SYNC-14-010,
+``Add`` that carried it, never the entry alone (SYNC-14-010,
 SYNC-15-004): the body intake recorded is marked as owing a replay on its own
 :class:`~vultron.core.models.received_activity_record.ReceivedActivityRecord`
 (IO-03-009, ADR-0154), and a
 :class:`~vultron.core.models.held_ledger_announce.HeldLedgerAnnounce` row,
 keyed on the entry's ``prev_log_hash``, finds it again when the chain tail
-reaches it.  The drain replays that held ``Announce`` through the inbox
+reaches it.  The drain replays that held ``Add`` through the inbox
 (SYNC-14-009), so what is applied is what the CASE_MANAGER sent.
 
 This hold is the one that lands on a record intake already wrote: the
-``Announce`` passed its doors and intake recorded it, ``HELD`` (``HANDLED`` on
+``Add`` passed its doors and intake recorded it, ``HELD`` (``HANDLED`` on
 a re-run), before the handler found the gap.  The hold makes it ``HELD`` with
 its body, not archived, until
 its replay applies it (ADR-0154): releasing it hands the body to the replay,
@@ -33,9 +33,9 @@ bound, SYNC-14-013, or a fork's replacement) drops the message, body and all
 (``received_holding``).
 
 The holding area is per case and bounded (SYNC-14-006): when full, the held
-``Announce`` farthest ahead of the gap (highest ``log_index``) is dropped
+``Add`` farthest ahead of the gap (highest ``log_index``) is dropped
 with a warning, or the new one when it is itself the farthest (SYNC-14-013).
-A dropped ``Announce`` is recovered by the ``Reject(CaseLedgerEntry)`` already
+A dropped ``Add`` is recovered by the ``Reject(CaseLedgerEntry)`` already
 sent for it (SYNC-14-002), never by the drop (SYNC-14-014).
 
 Spec: SYNC-14-001, SYNC-14-005, SYNC-14-006, SYNC-14-009, SYNC-15-004.
@@ -63,7 +63,7 @@ from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
-#: Default bound on the ``Announce``\ s held per case (SYNC-14-006).  Sized
+#: Default bound on the ``Add``\ s held per case (SYNC-14-006).  Sized
 #: generously against any realistic reorder window, while still bounding what
 #: a misbehaving peer can make a receiver hold.
 DEFAULT_HELD_LEDGER_ANNOUNCES_MAX: int = 256
@@ -74,7 +74,7 @@ _HELD_TYPE = "HeldLedgerAnnounce"
 def held_ledger_announces(
     dl: CasePersistence, case_id: str
 ) -> list[HeldLedgerAnnounce]:
-    """Every ``Announce`` held for *case_id*, in ``log_index`` order."""
+    """Every ``Add`` held for *case_id*, in ``log_index`` order."""
     held = [
         obj
         for obj in dl.list_objects(_HELD_TYPE)
@@ -86,7 +86,7 @@ def held_ledger_announces(
 def held_successor(
     dl: CasePersistence, case_id: str, tail_hash: str
 ) -> HeldLedgerAnnounce | None:
-    """The held ``Announce`` whose entry extends *tail_hash*, if any."""
+    """The held ``Add`` whose entry extends *tail_hash*, if any."""
     held = dl.read(HeldLedgerAnnounce.build_id(case_id, tail_hash))
     return held if isinstance(held, HeldLedgerAnnounce) else None
 
@@ -97,7 +97,7 @@ def holds_held_body(dl: CasePersistence, held: HeldLedgerAnnounce) -> bool:
 
 
 def release_held(dl: CasePersistence, held: HeldLedgerAnnounce) -> None:
-    """Drop the index row of an ``Announce`` handed to the inbox replay.
+    """Drop the index row of an ``Add`` handed to the inbox replay.
 
     The held body stays: the replay reads it and releases it (IO-03-009).
     """
@@ -105,9 +105,9 @@ def release_held(dl: CasePersistence, held: HeldLedgerAnnounce) -> None:
 
 
 def discard_held(dl: CasePersistence, held: HeldLedgerAnnounce) -> None:
-    """Drop a held ``Announce``: its index row and its held record.
+    """Drop a held ``Add``: its index row and its held record.
 
-    The ``Announce`` was never applied, so it leaves no archive; its
+    The ``Add`` was never applied, so it leaves no archive; its
     recovery is the ``Reject(CaseLedgerEntry)`` already sent for it, whose
     answer is a delivery the receiver has not seen (SYNC-14-014).
     """
@@ -128,12 +128,12 @@ def _record_in_holding(
         VultronWiringError: When intake recorded no body in holding.  Intake
             records every received activity its doors admit, ahead of the
             handling tree, so a hold that finds none runs in a miswired
-            tree, and holding nothing would lose the ``Announce``.
+            tree, and holding nothing would lose the ``Add``.
     """
     record = held_received_record(dl, activity_id)
     if record is None or record.stage not in HOLDING_STAGES:
         raise VultronWiringError(
-            f"Announce(CaseLedgerEntry) '{activity_id}' is not in holding, so"
+            f"Add(CaseLedgerEntry) '{activity_id}' is not in holding, so"
             " there is no received body to hold for its replay (CLP-10-017,"
             " SYNC-14-001)"
         )
@@ -158,7 +158,7 @@ def _make_room(
     if not held or entry.log_index >= held[-1].log_index:
         logger.warning(
             "held ledger announces: holding area full for case %s (max=%d,"
-            " actor %s); not holding Announce '%s' of far-future entry"
+            " actor %s); not holding Add '%s' of far-future entry"
             " index=%d",
             entry.case_id,
             max_per_case,
@@ -171,8 +171,8 @@ def _make_room(
     discard_held(dl, farthest)
     logger.warning(
         "held ledger announces: holding area full for case %s (max=%d,"
-        " actor %s); dropped the Announce '%s' of farthest-ahead entry"
-        " index=%d to hold Announce '%s' of index=%d",
+        " actor %s); dropped the Add '%s' of farthest-ahead entry"
+        " index=%d to hold Add '%s' of index=%d",
         entry.case_id,
         max_per_case,
         actor_id,
@@ -192,11 +192,11 @@ def hold_ledger_announce(
     *,
     actor_id: str | None = None,
 ) -> bool:
-    """Hold the received ``Announce`` *activity_id* until *entry* applies.
+    """Hold the received ``Add`` *activity_id* until *entry* applies.
 
     Marks the body intake recorded as owing a replay, as the inbox marks an
     activity it defers (IO-03-009), and indexes it under the entry's
-    case and ``prev_log_hash``.  An ``Announce`` whose entry is already held
+    case and ``prev_log_hash``.  An ``Add`` whose entry is already held
     under the same predecessor is not held again, whatever its id, unless the
     held one lost its body; a different entry under the same predecessor (a
     fork) replaces the held one, with a warning.  Every write, the replaced
@@ -206,7 +206,7 @@ def hold_ledger_announce(
     *actor_id*, the receiving actor, names it in the log lines only.
 
     Returns:
-        ``True`` when the entry's ``Announce`` is now held, ``False`` when
+        ``True`` when the entry's ``Add`` is now held, ``False`` when
         the bound dropped it.
 
     Raises:
@@ -217,7 +217,7 @@ def hold_ledger_announce(
         if holds_held_body(dl, existing):
             logger.debug(
                 "held ledger announces: entry '%s' is already held in"
-                " Announce '%s' (actor %s); not holding Announce '%s'",
+                " Add '%s' (actor %s); not holding Add '%s'",
                 entry.id_,
                 existing.activity_id,
                 actor_id,
@@ -225,10 +225,10 @@ def hold_ledger_announce(
             )
             return True
         # The held row lost its body, so it could never replay; this
-        # delivery's Announce of the same entry takes its place.
+        # delivery's Add of the same entry takes its place.
         logger.warning(
-            "held ledger announces: held Announce '%s' of entry '%s' has no"
-            " held body (actor %s); holding Announce '%s' in its place",
+            "held ledger announces: held Add '%s' of entry '%s' has no"
+            " held body (actor %s); holding Add '%s' in its place",
             existing.activity_id,
             entry.id_,
             actor_id,
@@ -278,7 +278,7 @@ def hold_ledger_announce(
             )
         )
     logger.debug(
-        "held ledger announces: holding Announce '%s' of entry '%s' for case"
+        "held ledger announces: holding Add '%s' of entry '%s' for case"
         " %s (actor %s, index=%d, prev_log_hash=%.16s…)",
         activity_id,
         entry.id_,

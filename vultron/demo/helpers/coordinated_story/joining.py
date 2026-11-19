@@ -57,7 +57,7 @@ def await_reporter_case_replica(
 
     The Reporter must hold it before the invitee's reply to the full-case
     Invite (RM Received to Valid), which broadcasts
-    ``Announce(CaseLedgerEntry)`` to all participants (CLP-08-005): a Reporter
+    ``Add(CaseLedgerEntry)`` to all participants (CLP-08-005): a Reporter
     without the case has no genesis hash to anchor the chain on (Bug #2135).
     The case is already open, so the replica does not depend on the invitee
     joining.

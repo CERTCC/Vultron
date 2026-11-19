@@ -73,7 +73,10 @@ def _entry(snapshot: dict[str, Any]):
             log_index=0,
             object_id="https://example.org/activities/accept-role",
             semantic_type="accept_case_participant_role",
-            payload_snapshot=snapshot,
+            payload_snapshot={
+                "id": "https://example.org/activities/accept-role",
+                **snapshot,
+            },
             prev_log_hash="0" * 64,
             received_at=ACT_AT,
         )

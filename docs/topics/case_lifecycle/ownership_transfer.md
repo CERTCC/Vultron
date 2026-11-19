@@ -55,7 +55,7 @@ Case Actor inbox receives the proposal:
        actor:         case_actor_id   (delegated-message contract)
        attributed_to: owner_id
   4. Commits CaseLedgerEntry (the offer).
-  5. Announce(CaseLedgerEntry) → all participants.   ← all parties learn the offer
+  5. Add(CaseLedgerEntry) → all participants.   ← all parties learn the offer
 ```
 
 The owner asks for the transfer by sending a proposal to the CASE_MANAGER — in the prototype, the Case Actor ([ADR-0148](../../adr/0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md)).
@@ -103,10 +103,10 @@ Case Actor inbox receives Accept:
      offer it recorded (anyone else: refused),          ← CM-21-011
      and is still an active participant.                ← CM-21-022
   1. Commits CaseLedgerEntry (ownership-transferred).   ← CM-21-007
-  2. Announce(CaseLedgerEntry) → all participants.
+  2. Add(CaseLedgerEntry) → all participants.
   3. Applies the CASE_OWNER role change (CM-21-001 through CM-21-004).
   4. Commits one entry per changed object, each        ← CLP-07-013
-     Announce(CaseLedgerEntry) → all participants:
+     Add(CaseLedgerEntry) → all participants:
        update_case_participant  (previous owner, CASE_OWNER removed)
        update_case_participant  (new owner, CASE_OWNER added)
        update_case_owner        (the case, attributed_to = new owner)
@@ -160,7 +160,7 @@ Case Actor inbox receives Reject:
   0. Checks the sender is the proposed owner of an open
      offer it recorded (anyone else: refused).          ← CM-21-013
   1. Commits CaseLedgerEntry (transfer-declined).       ← CM-21-012
-  2. Announce(CaseLedgerEntry) → all participants.
+  2. Add(CaseLedgerEntry) → all participants.
 ```
 
 The proposed owner declines an offer by sending a `Reject` with the `reject-case-ownership-transfer` trigger ([TRIG-11-005](../../reference/specs/project.md#trig-11-005)), and the `Reject` is also sent to the CASE_MANAGER ([CM-21-010](../../reference/vultron-spec/requirements/case-management.md#cm-21-010)).
@@ -192,7 +192,7 @@ Case Actor inbox receives Undo:
      checks the sender is the Case Owner it was made
      for, and the offer is open (anyone else: refused). ← CM-21-039
   1. Commits CaseLedgerEntry (offer withdrawn).         ← CM-21-015
-  2. Announce(CaseLedgerEntry) → all participants.
+  2. Add(CaseLedgerEntry) → all participants.
 ```
 
 The owner may withdraw the offer while it is open, with the `withdraw-case-ownership-transfer` trigger.

@@ -45,7 +45,7 @@ LATE_JOINER_REPLICA_TIMEOUT: float = 30.0
 # 10 s: early participant's replica participant-index propagation budget.
 REPLICA_PARTICIPANT_TIMEOUT: float = 10.0
 # 30 s: the EM-transition delivery chain — the CASE_MANAGER commits the
-# transition, fans out Announce(CaseLedgerEntry), and the polled replica
+# transition, fans out Add(CaseLedgerEntry), and the polled replica
 # applies it (ADR-0058).  The longest wait on that chain is embargo teardown
 # at publication, measured at 1.92–4.73 s over 13 samples from 7 main-push
 # Demo Integration runs on 2026-11-04/05, in both extension scenarios; 30 s
@@ -56,18 +56,18 @@ REPLICA_PARTICIPANT_TIMEOUT: float = 10.0
 # the same scenario, so there was nothing to widen for.
 EM_TRANSITION_TIMEOUT: float = 30.0
 # 30 s: contiguous ledger-coverage budget for a replica that has been receiving
-# Announce(CaseLedgerEntry) as each entry was committed. 15 s fired at 0/29
+# Add(CaseLedgerEntry) as each entry was committed. 15 s fired at 0/29
 # entries under CI load (#1911, #2337).
 LEDGER_COVERAGE_TIMEOUT: float = 30.0
 # 45 s: contiguous ledger-coverage budget for a late joiner, which catches up
-# from genesis through the CM-17-004 backfill — one Announce per prior entry.
+# from genesis through the CM-17-004 backfill — one Add per prior entry.
 # Both coverage budgets are stall budgets: each newly arrived entry restarts
 # them, up to BACKFILL_PROGRESS_CEILING (wait_for_contiguous_ledger_coverage).
 LATE_JOINER_COVERAGE_TIMEOUT: float = 45.0
 # 300 s: ceiling for a wait that follows a late joiner's backfill
 # (:class:`ProgressDeadline`).  Such a wait fails when the joiner's ledger copy
 # stops advancing, not when a fixed budget runs out: the backfill is one
-# Announce per prior entry, applied one at a time by the joiner's inbox, and
+# Add per prior entry, applied one at a time by the joiner's inbox, and
 # under CI load it ran from 26 s to over 100 s for the same 50-odd entries
 # (#4424).  The ceiling only stops a wait that keeps seeing progress from
 # running for ever; it is about three times the slowest backfill seen in CI.

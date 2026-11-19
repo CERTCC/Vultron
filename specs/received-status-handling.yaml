@@ -330,7 +330,7 @@ groups:
       a second `CaseStatus` entry for it would be a duplicate.
     rationale: >-
       Remote actors see EM state changes only through `CaseStatus` entries in
-      `Announce(CaseLedgerEntry)` messages. If a change has no ledger write after it,
+      `Add(CaseLedgerEntry)` messages. If a change has no ledger write after it,
       the replicas of the participants keep a stale EM state. If the committed entry
       records the activity that caused the change, and replicas replay the same
       transition, that entry carries the change. A second `CaseStatus` entry then only
@@ -372,7 +372,7 @@ groups:
     statement: >-
       The CASE_MANAGER MUST make the `CaseStatus` record of RSH-04-002 and RSH-04-003
       by committing a canonical `CaseLedgerEntry` that carries the new `CaseStatus`.
-      It then announces the entry with `Announce(CaseLedgerEntry)` for participant
+      It then announces the entry with `Add(CaseLedgerEntry)` for participant
       replica sync.
     rationale: >
       Replicas learn of the CASE_MANAGER's own EM or PXA change only from the
@@ -448,7 +448,7 @@ groups:
       In this implementation, one shared BT node, `EmitCaseStatusUpdateNode`, MUST make
       the `CaseStatus` record of RSH-01-003, RSH-04-002 and RSH-04-003. It writes the
       new `CaseStatus` directly to `case.case_statuses`, commits the `CaseLedgerEntry`
-      and emits `Announce(CaseLedgerEntry)`.
+      and emits `Add(CaseLedgerEntry)`.
     rationale: >
       One node keeps every tree that changes EM or PXA from carrying its own
       copy of the commit and announce.
@@ -496,7 +496,7 @@ groups:
     statement: >-
       `EmitCaseStatusUpdateNode` and `add_participant_status_tree` MUST NOT reach the
       canonical write indirectly. They never route through `add_case_status_tree`, and
-      never emit a self-addressed `Add(CaseStatus)[target=VulnerabilityCase]` to the
+      never emit a self-addressed `Add(CaseStatus, target=<case>/statuses)` to the
       CASE_MANAGER.
     rationale: >-
       A self-addressed message would make the announce trigger the ledger write instead
@@ -580,7 +580,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CASE_MANAGER receiving an `Add(ParticipantStatus)[target=CaseParticipant]` that
+      A CASE_MANAGER receiving an
+      `Add(ParticipantStatus, target=<participant>/statuses)` that
       carries a non-adjacent forward RM jump (a move forward on the RM progress
       scale to a state that is not adjacent to the recorded one) MUST accept the
       reported `rm` state.
@@ -606,7 +607,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CASE_MANAGER receiving an `Add(ParticipantStatus)[target=CaseParticipant]` that
+      A CASE_MANAGER receiving an
+      `Add(ParticipantStatus, target=<participant>/statuses)` that
       carries a backward RM regression (i.e. the reported `rm` state is earlier
       on the RM progress scale than the receiver's current value) MUST refuse
       the whole update (RSH-09-001, RSH-09-003).
@@ -708,7 +710,7 @@ groups:
     statement: >-
       The CASE_MANAGER MUST NOT send the RSH-06-004 note to the sender as a direct
       `Add(Note)`, which a participant refuses (HP-01-005). The sender learns of the
-      note from the entry's `Announce(CaseLedgerEntry)` fan-out (SYNC-02-001,
+      note from the entry's `Add(CaseLedgerEntry)` fan-out (SYNC-02-001,
       SYNC-02-003).
     rationale: >-
       The note is a case act of the CASE_MANAGER, so it goes to the sender through the
@@ -776,7 +778,8 @@ groups:
       `Reject(Invite(whole VulnerabilityCase)[target=Actor])` (CM-11-011). They include
       the
       case activities `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not
-      only `Add(ParticipantStatus)[target=CaseParticipant]`. A declaration from a sender
+      only `Add(ParticipantStatus, target=<participant>/statuses)`. A declaration from a
+      sender
       whose closure the case's ledger records is not adjudicated. It is refused before
       the rule applies, with no note (CM-23-018). A `Reject(Offer(VulnerabilityReport))`
       for a report that belongs to the case is not adjudicated either. It is refused
@@ -1133,7 +1136,7 @@ groups:
       A replica without the CASE_MANAGER role that receives such an activity directly
       MUST store it and write no participant or case state. The exception of RSH-08-003
       still applies. It takes the resulting state from the
-      `Announce(CaseLedgerEntry)` broadcast (PCR-03-001).
+      `Add(CaseLedgerEntry)` broadcast (PCR-03-001).
     rationale: >-
       The replica keeps the activity it received, so a later entry can name it, but its
       case state comes only from the CASE_MANAGER's committed entries. Otherwise its
@@ -1157,7 +1160,7 @@ groups:
     kind: project
     statement: >-
       Each ledger `semantic_type` the CASE_MANAGER commits MUST have a replica apply node
-      reachable from `create_announce_log_entry_tree`, or a recorded no-effect
+      reachable from `create_add_log_entry_tree`, or a recorded no-effect
       declaration. A no-effect declaration records that the event has no replica-side
       effect.
     rationale: >-
@@ -1169,7 +1172,7 @@ groups:
       committed `semantic_type` set from code (`_ledger_commit_inventory.py`: the
       receive-side commit path, plus every explicit `semantic_type=` commit under
       `vultron/core`) and asserts each member is matched by exactly one
-      effect-slot condition of `create_announce_log_entry_tree`, found by tree
+      effect-slot condition of `create_add_log_entry_tree`, found by tree
       position rather than by class or module, or is listed in the
       declared-no-effect set; the classification equals the committed set
       (ARCH-18-001). The types still violating this requirement are an exact
@@ -1285,12 +1288,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Participant status is self-declared. The CASE_MANAGER MUST refuse, before the
-      commit, a received `Add(ParticipantStatus)` whose target participant record is not
-      the sender's own, whichever dimensions it carries. A record is the sender's own
-      when its `attributedTo` is the sender. The dimensions are RM, VF, D and the P, X
-      and A of its case status. The only exceptions are the on-behalf assertions of
-      RSH-08-014.
+      Participant status is self-declared. The CASE_MANAGER MUST refuse, before
+      the commit, a received `Add(ParticipantStatus)` that targets the status
+      history of a participant record that is not the sender's own, whichever
+      dimensions it carries. A record is the sender's own when its `attributedTo`
+      is the sender. The dimensions are RM, VF, D and the P, X and A of its case
+      status. The only exceptions are the on-behalf assertions of RSH-08-014.
     rationale: >-
       A received activity is a statement about the state of the sender (HP-00-001), and
       RSH-08-001 makes the sender the subject of an RM declaration. With no subject
@@ -1353,8 +1356,8 @@ groups:
 - id: RSH-09
   title: Whole Accept or Reject of a Received Status
   description: >
-    A received `Add(ParticipantStatus)[target=CaseParticipant]` or
-    `Add(CaseStatus)[target=VulnerabilityCase]` states a whole status, so the
+    A received `Add(ParticipantStatus, target=<participant>/statuses)` or
+    `Add(CaseStatus, target=<case>/statuses)` states a whole status, so the
     CASE_MANAGER accepts it
     as sent or refuses all of it. It never records a status the sender did
     not send. Derived from ADR-0107 and ISSUE-3741.
@@ -1363,7 +1366,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A CASE_MANAGER receiving an `Add(ParticipantStatus)[target=CaseParticipant]` MUST
+      A CASE_MANAGER receiving an
+      `Add(ParticipantStatus, target=<participant>/statuses)` MUST
       either accept the status whole, recording exactly the status it received, or
       refuse the whole update.
     rationale: >
@@ -1548,7 +1552,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant that receives `Add(CaseStatus)[target=VulnerabilityCase]` from the
+      A participant that receives `Add(CaseStatus, target=<case>/statuses)` from the
       case's CASE_MANAGER MUST accept it whole if two conditions hold, and refuse the
       whole update if either fails. Its EM state must be identical to the EM
       state the case derives from its embargo register. Its P/X/A state must be the
@@ -1590,7 +1594,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A receiver MUST NOT apply the participant status that an `Announce(CaseLedgerEntry)`
+      A receiver MUST NOT apply the participant status that an `Add(CaseLedgerEntry)`
       entry adds if that status violates any composite-state entailment. It judges the
       participant state the entry carries. The entailments are
       RM↔VF and RM↔D (CSB-18-001), and VF↔D (CSB-17-001).
@@ -1600,7 +1604,7 @@ groups:
       enforce (RSH-09-004). Without this check every replica silently adopts an
       impossible combination it would have refused to emit.
     verification: >
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
       confirms an entailment violation blocks the status update and emits
       `Create(ProcessingFault)` to the CASE_MANAGER.
     note: >
@@ -1642,7 +1646,7 @@ groups:
     - rel_type: extends
       spec_id: RSH-09-006
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
       confirms an entailment violation emits `Create(ProcessingFault)` to the
       CASE_MANAGER.
     stories:
@@ -1662,7 +1666,7 @@ groups:
       emission a composable side-effect, consistent with protocol-significant
       behavior living in the tree (BTND-01).
     verification: >
-      Inspection of `vultron/core/behaviors/sync/announce_tree/` confirms the
+      Inspection of `vultron/core/behaviors/sync/add_log_entry_tree/` confirms the
       fault is emitted by `EmitImpossibleStateFaultNode`, the fallback child of
       the `ApplyOrFault` Selector whose first child is
       `ApplyParticipantStatusFromLedgerNode`, so the apply node only returns
@@ -1675,7 +1679,8 @@ groups:
     kind: project
     statement: >
       When `CheckParticipantStatusAcceptableNode` refuses an
-      `Add(ParticipantStatus)[target=CaseParticipant]`, the received use case MUST
+      `Add(ParticipantStatus, target=<participant>/statuses)`, the received use case
+      MUST
       return `HandlerResult.refused`, which the inbox maps to a `rejected`
       `InboxOutcome` rather than `202 Accepted / processed`.
     rationale: >-

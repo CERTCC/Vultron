@@ -135,7 +135,7 @@ to its `DEMOTED_FRAGMENTS` rather than relying on a manual grep.
 | `Parsing activity from ...` | HTTP handler internals |
 | `Processing outbox for actor ...` | Preamble; the delivery result is the meaningful line |
 | `process_payload: outcome ...` / `run_inbox_pipeline: status=...` | Mechanical pipeline completion |
-| `sync adapter: queued Announce(CaseLedgerEntry) ...` | Fires per recipient per entry |
+| `sync adapter: queued Add(CaseLedgerEntry) ...` | Fires per recipient per entry |
 | `store_embedded_participants: stored participant ...` | Fires per participant on every case announcement |
 | `... already exists locally` / `already stored — skipping` | Routine idempotency skips |
 | `discover_actors()` full `logfmt()` actor dump | Only the ID is meaningful |

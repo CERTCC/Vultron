@@ -5,7 +5,7 @@
     Tells a participant that the case status now records that the public knows of the vulnerability.
 
     - **When…** the CASE_MANAGER records that the public knows of the vulnerability
-    - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
+    - **Send:** `Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]`
     - **Send to:** a participant
     - **Sent by:** the CASE_MANAGER
     - **Distinguished by:** `pxaState` = `Pxa`

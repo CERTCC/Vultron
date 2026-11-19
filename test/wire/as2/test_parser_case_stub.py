@@ -29,14 +29,16 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from test.support.future_dates import days_from_now
 from test.support.objects import with_times
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_preview import preview_em_state
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.preview_object import is_loose_form_of
+from vultron.core.states.em import EM
 from vultron.wire.as2.errors import (
-    VultronParseError,
     VultronParseValidationError,
 )
 from vultron.wire.as2.parser import parse_activity
@@ -289,26 +291,31 @@ def _stub_with_untyped_status_without_published() -> dict:
     return stub
 
 
-@pytest.mark.spec("MV-04-005")
+@pytest.mark.spec("MV-12-001")
 @pytest.mark.spec("CM-17-013")
-def test_an_invite_whose_stub_status_is_no_case_status_is_refused():
-    """An untyped ``caseStatus`` that fails ``CaseStatus`` is refused.
+def test_an_untyped_stub_status_is_read_as_a_status_keeping_its_em_state():
+    """An untyped ``caseStatus`` in a preview is read in the field's loose
+    status form, never as a bare Link, so its EM state is kept (#5715).
 
-    The preview's ``caseStatus`` is a ``CaseStatus`` or its id, never a bare
-    Link, so the preview cannot lose its EM state without a trace (#5715).
+    What a preview shows is read as its sender sent it (ADR-0217): the status
+    is not refused for its missing ``type`` or ``published``.
     """
-    with pytest.raises(VultronParseError, match="caseStatus"):
-        parse_activity(
-            _invite(_previewed(_stub_with_untyped_status_without_published()))
-        )
+    activity = parse_activity(
+        _invite(_previewed(_stub_with_untyped_status_without_published()))
+    )
+
+    preview = cast(Any, activity).object_.preview
+    assert is_loose_form_of(preview.case_status, CaseStatus)
+    assert preview_em_state(preview) is EM.ACTIVE
 
 
-@pytest.mark.spec("MV-04-005")
-def test_a_stub_built_here_with_no_case_status_is_refused():
+@pytest.mark.spec("MV-12-001")
+def test_a_stub_built_here_reads_an_untyped_status_as_a_status():
     """The same holds for a stub this process builds from a dict (#5715)."""
     stub = _stub_with_untyped_status_without_published()
     del stub["activeEmbargo"]  # inbound-shaped: it carries no times
-    with pytest.raises(ValidationError) as exc_info:
-        as_CasePreview.model_validate(stub)
-    locs = {error["loc"][0] for error in exc_info.value.errors()}
-    assert locs == {"caseStatus"}
+
+    preview = as_CasePreview.model_validate(stub)
+
+    assert is_loose_form_of(preview.case_status, CaseStatus)
+    assert preview_em_state(preview) is EM.ACTIVE

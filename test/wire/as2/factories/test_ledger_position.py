@@ -31,7 +31,7 @@ from vultron.wire.as2.factories import (
     stamp_ledger_position,
     update_case_activity,
 )
-from vultron.wire.as2.factories.sync import announce_log_entry_activity
+from vultron.wire.as2.factories.sync import add_log_entry_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Remove
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -109,7 +109,7 @@ def test_a_participant_status_names_its_case_on_the_status() -> None:
     participant_id = f"{_CASE}/participants/vendor"
     add = add_status_to_participant_activity(
         make(as_ParticipantStatus, id_=f"{participant_id}/s1", context=_CASE),
-        target=participant_id,
+        participant=participant_id,
         actor=_ACTOR,
         at=authored_at(),
     )
@@ -145,14 +145,16 @@ def test_a_stub_invite_and_its_reply_name_the_case_their_object_names() -> (
 @pytest.mark.parametrize(
     "build",
     [
-        lambda: announce_log_entry_activity(
+        lambda: add_log_entry_activity(
             make(
                 as_CaseLedgerEntry,
                 case_id=_CASE,
                 log_index=0,
                 log_object_id=f"{_CASE}/activities/0",
                 semantic_type="create_case",
-                payload_snapshot={},
+                payload_snapshot={
+                    "id": f"{_CASE}/activities/0",
+                },
                 prev_log_hash="00" * 32,
                 entry_hash="11" * 32,
                 received_at=ACT_AT,

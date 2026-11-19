@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""A replica's Announce of the ownership-transfer Offer entry writes nothing.
+"""A replica's Add of the ownership-transfer Offer entry writes nothing.
 
 The CASE_MANAGER makes the one ownership-transfer Offer and ledgers it
 (ADR-0148).  The transferee answers that Offer from its intake archive, the
@@ -39,8 +39,8 @@ from test.support.act_runner import run_tree
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -50,7 +50,7 @@ from vultron.core.models.protocol_pair import (
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -71,7 +71,7 @@ def datalayer():
 
 @pytest.fixture
 def case_actor(datalayer) -> VultronService:
-    """The CaseActor that signs the replicated Announce(CaseLedgerEntry)."""
+    """The CaseActor that signs the replicated Add(CaseLedgerEntry)."""
     actor = make(
         VultronService,
         name="Case Actor",
@@ -131,8 +131,8 @@ def test_offer_entry_persists_and_writes_nothing_else(
 
     result = run_tree(
         BTBridge(datalayer=datalayer),
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=REPLICA_ID,
         activity=event,
@@ -144,7 +144,7 @@ def test_offer_entry_persists_and_writes_nothing_else(
     (stored,) = datalayer.list_objects("CaseLedgerEntry")
     assert getattr(stored, "log_object_id", None) == offer_id
     # ... and nothing is written for the Offer, under its id or any other:
-    # the only other new row is intake's archive of the Announce itself
+    # the only other new row is intake's archive of the Add itself
     # (CLP-10-017).
     assert datalayer.read(offer_id) is None
     after = datalayer.count_all()

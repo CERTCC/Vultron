@@ -196,7 +196,7 @@ groups:
       copy_tail_hash, actor_id, to, *, in_reply_to)`,
       `send_read_ledger_entry(case_id, ledger_position,
       actor_id, to)` and
-      `send_announce_log_entry(entry, actor_id, to)`. `send_announce_log_entry`
+      `send_add_log_entry(entry, actor_id, to)`. `send_add_log_entry`
       reports whether a row was queued (`bool`; `False` when an identical row was
       already pending, SYNC-15-012); callers need not use the result, and no other
       value crosses the port back into core.
@@ -204,12 +204,12 @@ groups:
       Sync use cases must send ledger activities, but core must not import wire types
       (ARCH-01-001). This port lets core give domain objects to an adapter, which builds
       and queues each wire activity. Core gets nothing back from the port except one
-      `bool` from `send_announce_log_entry`. That value lets a replay count only the
+      `bool` from `send_add_log_entry`. That value lets a replay count only the
       rows that it really queued (SYNC-15-011), with no core read of the outbox
       (DL-06-001). See ADR-0112.
     verification: >-
       `test/adapters/driven/test_sync_adapter_pending_dedup.py` exercises the boolean
-      result of `send_announce_log_entry`; `test/core/behaviors/sync/nodes/test_replay.py`
+      result of `send_add_log_entry`; `test/core/behaviors/sync/nodes/test_replay.py`
       confirms `SendMissingEntriesNode` reaches the outbox only through the port.
     relationships:
     - rel_type: implements
@@ -248,7 +248,7 @@ groups:
     verification_debt: '#2575'
     statement: >-
       Core use cases and BT nodes MUST NOT import wire types (`CaseLedgerEntry`,
-      `WireCaseLedgerEntry`) or wire factory functions (`announce_log_entry_activity`,
+      `WireCaseLedgerEntry`) or wire factory functions (`add_log_entry_activity`,
       `reject_log_entry_activity`).
     rationale: >-
       Wire type imports in core violate the hexagonal boundary; all wire concerns

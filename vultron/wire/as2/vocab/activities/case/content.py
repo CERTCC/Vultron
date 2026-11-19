@@ -14,11 +14,14 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Case activities that create, update, announce or add content to a case."""
 
-from typing import ClassVar
+from typing import ClassVar, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from vultron.primitives import NonEmptyString
+from vultron.wire.as2.vocab.activities._status_history import (
+    require_status_history_add,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Announce,
@@ -76,20 +79,25 @@ class _AddReportToCaseActivity(as_Add):
 # see _AddParticipantToCaseActivity in case_participant.py
 
 
-# add CaseStatus to VulnerabilityCase
+# add CaseStatus to <case>/statuses
 class _AddStatusToCaseActivity(as_Add):
-    """Add a CaseStatus to a VulnerabilityCase.
-    This should only be performed by the case owner.
-    Other case participants can add a case status to their participant record, which the case
-    owner should then add to the case if appropriate.
-    object_: as_CaseStatus
-    target: as_VulnerabilityCase
+    """Add a CaseStatus to the case's status history (ADR-0204).
+
+    Only the CASE_MANAGER sends it (RSH-04-001).  ``target`` is
+    ``<case>/statuses``, the ordered history whose newest item is the case's
+    current status, and ``context`` is that same case.  A participant reports
+    a case status inside its own ``Add(ParticipantStatus)`` (RSH-04-007).
     """
 
     object_: as_CaseStatus = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: NonEmptyString  # type: ignore[assignment]
+
+    @model_validator(mode="after")
+    def _names_its_case_status_history(self) -> Self:
+        require_status_history_add(self, case_history=True)
+        return self
 
 
 # add a VulnerabilityItem or a CaseReference to a VulnerabilityCase

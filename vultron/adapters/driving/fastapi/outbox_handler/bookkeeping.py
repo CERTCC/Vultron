@@ -63,14 +63,14 @@ UNDELIVERABLE_BODY_ERRORS: tuple[type[Exception], ...] = (
 
 
 def _resolve_ledger_entry_id(activity_id: str, dl: DataLayer) -> str | None:
-    """Return the CaseLedgerEntry ID if *activity_id* is an Announce(CaseLedgerEntry).
+    """Return the CaseLedgerEntry ID if *activity_id* is an Add(CaseLedgerEntry).
 
     Reads the sealed body and extracts ``object.id`` when the inline object's
     type is ``"CaseLedgerEntry"``.  Returns ``None`` for all other activity
     types so non-ledger activities dead-letter unchanged (OX-14-001).
 
     The CaseLedgerEntry is always committed before its
-    ``Announce(CaseLedgerEntry)`` fan-out is queued (SYNC-09-002), so the entry is always
+    ``Add(CaseLedgerEntry)`` fan-out is queued (SYNC-09-002), so the entry is always
     present when this function runs.
     """
     try:

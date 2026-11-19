@@ -210,7 +210,7 @@ A Sentinel decides for itself that the moment has come.
 
 A Sentinel takes one of two forms:
 
-- a case **Participant**, typically holding the `CVDRole.OBSERVER` role, that learns case state through ordinary ledger replication (`Announce(CaseLedgerEntry)`) and acts by sending ordinary protocol messages, visible to every participant;
+- a case **Participant**, typically holding the `CVDRole.OBSERVER` role, that learns case state through ordinary ledger replication (`Add(CaseLedgerEntry)`) and acts by sending ordinary protocol messages, visible to every participant;
 - operator-side machinery with no case identity, which drives one actor through its [call-in triggers](#call-in-triggers) and is invisible to the case.
 
 Examples are an embargo timer that calls `terminate-embargo` when the agreed end date passes, a threat-feed monitor that reports active attacks, and a deployment monitor that reports a fix as deployed.

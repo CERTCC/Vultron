@@ -38,7 +38,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
     """Ask for a missing case once per interval, not once per early entry.
 
     Runs when the participant does not hold the entry's case (CLP-08-005),
-    after :class:`BufferPreGenesisEntryNode` has held the ``Announce``.  It
+    after :class:`BufferPreGenesisEntryNode` has held the ``Add``.  It
     sends the genesis Reject, a ``Reject(CaseLedgerEntry)`` with
     ``last_accepted_hash=""`` asking for the case and its whole ledger
     (SYNC-15-001), unless it sent one for the same case less than

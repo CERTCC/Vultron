@@ -57,7 +57,10 @@ def _make_entry(
         log_index=log_index,
         object_id="https://example.org/activities/act1",
         semantic_type="test_event",
-        payload_snapshot={"key": "value"},
+        payload_snapshot={
+            "id": "https://example.org/activities/act1",
+            "key": "value",
+        },
         prev_log_hash=prev_hash,
         received_at=ACT_AT,
     )
@@ -280,7 +283,7 @@ class TestRejectLedgerEntryReceivedUseCase:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert "not the CASE_MANAGER" in (result.reason or "")
-        sync_port.send_announce_log_entry.assert_not_called()
+        sync_port.send_add_log_entry.assert_not_called()
         state_id = VultronReplicationState(
             case_id=CASE_URI, peer_id=PARTICIPANT_URI, updated_at=ACT_AT
         ).id_
@@ -311,9 +314,9 @@ class TestRejectLedgerEntryReceivedUseCase:
         )
         assert result.disposition == HandlerDisposition.APPLIED
 
-        # Should have queued one replay Announce (for entry1).
-        # announce saved to DataLayer; outbox queue uses actor-scoped table.
-        announces = manager_dl.by_type("Announce")
+        # Should have queued one replay Add (for entry1).
+        # The Add is saved to the DataLayer; the outbox queue is actor-scoped.
+        announces = manager_dl.by_type("Add")
         assert len(announces) == 1
         # Only the CASE_MANAGER answers a Reject (SYNC-03-005), so the
         # executing actor and the resolved role holder are one id here.  The

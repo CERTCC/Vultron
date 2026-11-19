@@ -155,7 +155,7 @@ Both the Reporter's and Vendor2's case replicas are synchronized with Vendor1's.
 The Reporter adds a question note to the case; Vendor1 replies.
 Each note is sent to the Case Actor as one `Add(Note)` that names the case as its `target` and carries the note inline.
 The Case Actor commits an `add_note_to_case` entry to the case ledger, which attaches the note.
-It fans the entry out to every participant via `Announce(CaseLedgerEntry)`.
+It fans the entry out to every participant via `Add(CaseLedgerEntry)`.
 This phase ends with a `✓ Notes exchange complete` line rather than a numbered milestone.
 
 ### Phase 4 — Fix lifecycle (M4–M5)

@@ -30,7 +30,8 @@ plans the N-node generalization.
 2. **Participant replication** delivers the canonical log from the leader to
    participants. That is built (SYNC-02 through SYNC-15).
 
-Both use the `Announce(CaseLedgerEntry)` wire format.
+Both use the `Add(CaseLedgerEntry)` wire format, an `Add` of the entry to the
+case's ledger, `<case>/ledger` (ADR-0204).
 
 ## Settled during planning
 
@@ -43,7 +44,7 @@ Both use the `Announce(CaseLedgerEntry)` wire format.
 - **Static membership**: cluster size is deployment configuration. Dynamic
   membership is out of scope.
 - **Commit**: an entry commits once a majority of cluster peers acknowledge it.
-  `Announce(CaseLedgerEntry)` still follows its commit (SYNC-09-002), so
+  `Add(CaseLedgerEntry)` still follows its commit (SYNC-09-002), so
   participant fan-out stays downstream of the commit index.
 - **`term`**: `CaseLedgerEntry.term` is optional now and becomes required here.
 - **Leadership guard and leadership vs. ownership**: the cluster supplies a real
@@ -57,7 +58,7 @@ Cluster messages share the ActivityPub inbox with CVD messages, under their own
 
 | Raft function | AS2 activity |
 |---|---|
-| AppendEntries | `Announce(CaseLedgerEntry)` |
+| AppendEntries | `Add(CaseLedgerEntry)` |
 | Heartbeat | `Announce(CaseActorHeartbeat)` (new object) |
 | Vote request | `Question(OneOf)` |
 | Vote granted | `Accept(Question)` |

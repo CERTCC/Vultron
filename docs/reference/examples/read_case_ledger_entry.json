@@ -16,7 +16,7 @@
   "actor": "https://vultron.example/organizations/vendorco",
   "ledgerPosition": {
     "logIndex": 1,
-    "entryHash": "67bc0404dc325f47fc23af06c78abf9369264c0402873628dff816ca198875bb"
+    "entryHash": "6d51c69e0b6e2ce33c464ece5ff0ec4b486b29f62734ba6123dead2a3f577633"
   },
   "object": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/1",
   "proof": {
@@ -30,6 +30,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4fj88j63F1zczHza2t7vZHwzhVPmRMHpnJKxZ71KJ8UEzQnyZH4m5i3pEboCJhNcHFZuJBDQ2GqHnGm9hUpFzfWr"
+    "proofValue": "z2ofKAyrrnqt25WRA7jF6ykqNZa6bnyjX6NjmahqgkYpEmqBHLqvrg3BUo95we6ckpBanVeNagWNtwnm5zHEDziTV"
   }
 }

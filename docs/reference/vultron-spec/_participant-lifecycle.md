@@ -74,17 +74,15 @@ A stub carries these fields only while an embargo is in force:
 
 - `activeEmbargo` and `caseStatus`: present whenever an embargo is in force, that is, while the embargo state is `ACTIVE` or `REVISE`.
   They state the embargo terms the invitee would agree to by accepting: the embargo in force and the case's embargo state.
-  The `caseStatus` also carries its `published` time, as every case status does, and a receiver refuses one without it ([CLP-15-010](requirements/ledger-replication.md#clp-15-010)).
+  The sender gives the `caseStatus` its `published` time, as every case status has one.
+  A receiver reads the status as sent, with or without that time, because it sits inside the stub ([MV-12-006](requirements/messages.md#mv-12-006), [CLP-15-010](requirements/ledger-replication.md#clp-15-010)).
   During a revision the stub carries the embargo in force, never the open revision, which the invitee receives after joining.
   The stub may carry the embargo inline or name it by an identifier the invitee can ask the inviter to resolve.
   The reference implementation always carries the full embargo inline, because it does not build that lookup.
 
 The sender sets no other field.
-The reference implementation's stub object does accept more on receipt, all optional:
-
-- `published` and `updated`: the times the stub itself was created and last changed.
-- The generic ActivityStreams object fields it inherits, such as `name` and `content`.
-
+On receipt, the stub accepts any field the case has, under the case's name, all optional, and reads it as sent ([MV-12-006](requirements/messages.md#mv-12-006)).
+Any value in the stub, at any depth, may be a `Redacted` marker: a value the sender has but does not show ([MV-12-001](requirements/messages.md#mv-12-001)).
 The reference implementation sets none of these on a stub it sends.
 
 ```python exec="true" idprefix=""
@@ -92,7 +90,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 ```
 
 The stub does not name the case's coordinator or Case Owner.
-The `Invite` that carries the stub already identifies who is asking: its `actor` is the CASE_MANAGER, and its `attributedTo` can name the Case Owner.
+The `Invite` that carries the stub already identifies who is asking: its `actor` is the CASE_MANAGER, and its `attributedTo` can name the Case Owner, with `inReplyTo` naming the Case Owner's request.
 Full content follows only after the invitee accepts.
 
 Two paths bring an actor into a case, and they differ in who initiates.
@@ -210,7 +208,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 An accepted removal is one ledger entry: the Case Owner's received `Remove(CaseParticipant)`, committed by the CASE_MANAGER as received.
 The CASE_MANAGER commits no second entry of its own for the same removal.
 After the commit, the CASE_MANAGER sends the removed participant a direct `Remove(CaseParticipant)` that names it.
-The notice has `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
+The notice has `actor` set to the CASE_MANAGER, `attributedTo` set to the Case Owner and `inReplyTo` set to the Case Owner's `Remove`.
 This notice is delivery, not a record, and is not ledgered.
 
 ```python exec="true" idprefix=""

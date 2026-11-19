@@ -43,7 +43,13 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BROADCAST,
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    LedgerNetwork,
+)
 
 JOINER = "https://example.org/users/vendor-new"
 
@@ -118,7 +124,7 @@ def _the_owner_invites_the_joiner(
 
 
 def _deliver_announcements(net: LedgerNetwork, to: str) -> None:
-    for type_, verdict in net.deliver(MANAGER, to=to, type_="Announce"):
+    for type_, verdict in net.deliver(MANAGER, to=to, type_=BROADCAST):
         assert verdict.disposition is HandlerDisposition.APPLIED, (
             type_,
             verdict.reason,
@@ -177,7 +183,7 @@ def test_the_stub_invite_entry_fans_out_and_gives_a_replica_the_inert_record(
     active participants even though it passes no ``sync_port`` of its own.
     """
     _the_owner_invites_the_joiner(net)
-    announced = net.queued(MANAGER, to=BYSTANDER, type_="Announce")
+    announced = net.queued(MANAGER, to=BYSTANDER, type_=BROADCAST)
     entry_types = [
         (read_sealed_body_dict(net.stores[MANAGER], a.id_) or {})
         .get("object", {})
@@ -251,7 +257,7 @@ def test_replaying_the_whole_stream_leaves_one_record(
     assert before["record"]["joined"] is True
     assert before == _view(net, MANAGER)
 
-    for activity in net.queued(MANAGER, to=BYSTANDER, type_="Announce"):
+    for activity in net.queued(MANAGER, to=BYSTANDER, type_=BROADCAST):
         body = read_sealed_body_dict(net.stores[MANAGER], activity.id_)
         assert body is not None
         verdict = net.receive(BYSTANDER, body)

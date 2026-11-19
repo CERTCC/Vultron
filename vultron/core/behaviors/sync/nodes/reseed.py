@@ -162,32 +162,32 @@ def announce_case_to_peer(
 def announced_ledger_entry(
     datalayer: CasePersistence, announce_id: str, announcer_id: str
 ) -> CaseLedgerEntry:
-    """The ``CaseLedgerEntry`` *announcer_id*'s ``Announce`` *announce_id* carried.
+    """The ``CaseLedgerEntry`` *announcer_id*'s ``Add`` *announce_id* carried.
 
     A fault about a refused ledger entry names the refused
-    ``Announce(CaseLedgerEntry)`` by reference and carries no case
-    (ASK-07-004, ASK-07-006).  The CASE_MANAGER stored that ``Announce``
-    when it sent it, so the entry, and with it the case and its index, is
-    read from there.  Only an ``Announce`` *announcer_id* sent counts: one
-    this store merely received names nothing *announcer_id* sent the peer.
+    ``Add(CaseLedgerEntry)`` by reference and carries no case
+    (ASK-07-004, ASK-07-006).  The CASE_MANAGER stored that ``Add`` when it
+    sent it, so the entry, and with it the case and its index, is read from
+    there.  Only an ``Add`` *announcer_id* sent counts: one this store
+    merely received names nothing *announcer_id* sent the peer.
 
     Raises:
-        VultronNotFoundError: This store holds no ``Announce`` of a
+        VultronNotFoundError: This store holds no ``Add`` of a
             ``CaseLedgerEntry`` by *announcer_id* under *announce_id*.
     """
     activity = datalayer.read(announce_id)
     sender = _as_id(getattr(activity, "actor", None))
     if (
-        getattr(activity, "type_", None) != "Announce"
+        getattr(activity, "type_", None) != "Add"
         or not isinstance(sender, str)
         or not same_actor_id(sender, announcer_id)
     ):
-        raise VultronNotFoundError("Announce(CaseLedgerEntry)", announce_id)
+        raise VultronNotFoundError("Add(CaseLedgerEntry)", announce_id)
     entry: object = getattr(activity, "object_", None)
     if isinstance(entry, str):
         entry = datalayer.read(entry)
     if not isinstance(entry, CaseLedgerEntry):
-        raise VultronNotFoundError("Announce(CaseLedgerEntry)", announce_id)
+        raise VultronNotFoundError("Add(CaseLedgerEntry)", announce_id)
     return entry
 
 

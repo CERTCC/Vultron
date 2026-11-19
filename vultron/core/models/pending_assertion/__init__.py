@@ -15,7 +15,7 @@
 
 :class:`PendingAssertionStore` tracks outbound log-entry assertions that
 have been emitted but not yet confirmed by a canonical
-``Announce(CaseLedgerEntry)`` or ``Reject(CaseLedgerEntry)`` round-trip.
+``Add(CaseLedgerEntry)`` or ``Reject(CaseLedgerEntry)`` round-trip.
 While an entry is *pending* and within the configurable timeout window,
 duplicate re-emits for the same ``(case_id, semantic_type, object_id)`` triple
 are suppressed.

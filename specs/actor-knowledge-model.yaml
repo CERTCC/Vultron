@@ -669,7 +669,7 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST NOT fetch an object from itself, or the entry an
-      `Announce(CaseLedgerEntry)` carries.
+      `Add(CaseLedgerEntry)` carries.
     rationale: >-
       The CASE_MANAGER holds the canonical case, so nobody holds a case object it lacks.
       Replication carries its entries inline (SYNC-02-005), and replay needs no fetch.

@@ -47,7 +47,7 @@ Offer and the proposal's withdrawal are addressed to the **CaseActor's** inbox,
 never to the transferee or the offerer directly (CM-21-005, CM-21-006,
 CM-21-010, CM-21-015).  The CaseActor records the proposal, makes the one
 ``Offer(VulnerabilityCase)`` of the transfer under its own id, sends it to the
-transferee and ledgers it, broadcasting each ``Announce(CaseLedgerEntry)`` to
+transferee and ledgers it, broadcasting each ``Add(CaseLedgerEntry)`` to
 every participant — which is how actors outside the negotiation, such as the
 reporter, learn a transfer is pending.  The demo therefore discovers the
 CaseActor's Offer by its properties rather than by the proposal's id
@@ -165,7 +165,7 @@ def demo_transfer_ownership_accept(
             with demo_check("Case attributed_to updated to coordinator"):
                 # Poll rather than read once: the Accept reaches the CaseActor
                 # through the coordinator's outbox, and the CaseActor commits
-                # the receipt, fans out Announce(CaseLedgerEntry) and applies
+                # the receipt, fans out Add(CaseLedgerEntry) and applies
                 # the role change in a background task, so a single read races it.
                 wait_for_case_attributed_to(
                     client=client.model_copy(

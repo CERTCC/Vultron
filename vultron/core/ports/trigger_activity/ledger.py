@@ -135,7 +135,8 @@ class TriggerLedgerRecordsPort(Protocol):
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """``Add(ParticipantStatus)[target=CaseParticipant]`` (``add_participant_status_to_participant``).
+        """``Add(ParticipantStatus, target=<participant>/statuses)``
+        (``add_participant_status_to_participant``).
 
         Both are carried inline, as the caller just stored them.
         """
@@ -149,7 +150,7 @@ class TriggerLedgerRecordsPort(Protocol):
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """``Add(CaseStatus)[target=VulnerabilityCase]`` (``add_case_status_to_case``).
+        """``Add(CaseStatus, target=<case>/statuses)`` (``add_case_status_to_case``).
 
         *status* is carried inline; it may be one the caller persists only
         once the entry is committed.

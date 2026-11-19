@@ -18,6 +18,7 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
@@ -47,7 +48,7 @@ from vultron.core.models.case_ledger import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.pending_assertion import PendingAssertionStore
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -62,10 +63,10 @@ from vultron.core.services.held_ledger_announces import (
 from vultron.core.services.received_holding import owes_replay
 from vultron.core.sync_helpers import reconstruct_tail_hash
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.errors import VultronBTInternalError, VultronWiringError
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import add_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -84,7 +85,10 @@ def _make_entry(
         log_index=log_index,
         object_id="https://example.org/activities/act1",
         semantic_type="test_event",
-        payload_snapshot={"key": "value"},
+        payload_snapshot={
+            "id": "https://example.org/activities/act1",
+            "key": "value",
+        },
         prev_log_hash=prev_hash,
         received_at=ACT_AT,
     )
@@ -200,20 +204,18 @@ class TestReconstructTailHash:
 RECEIVER_URI = "https://example.org/actors/reporter"
 
 
-class TestAnnounceLedgerEntryReceivedUseCase:
-    def _make_event(
-        self, entry: CaseLedgerEntry
-    ) -> AnnounceLogEntryReceivedEvent:
+class TestAddLedgerEntryReceivedUseCase:
+    def _make_event(self, entry: CaseLedgerEntry) -> AddLogEntryReceivedEvent:
         wire_entry = WireCaseLedgerEntry.model_validate(
             with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
         )
-        activity = announce_log_entry_activity(
+        activity = add_log_entry_activity(
             wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI], at=authored_at()
         )
-        event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
+        event = cast(AddLogEntryReceivedEvent, received_event(activity))
         # The inbox adapter always sets receiving_actor_id in production; set
         # it here so the reject is enqueued against the receiving actor's
-        # outbox (matching send_announce_log_entry's explicit-actor queueing).
+        # outbox (matching send_add_log_entry's explicit-actor queueing).
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
     @pytest.mark.spec("SYNC-02-005")
@@ -222,23 +224,27 @@ class TestAnnounceLedgerEntryReceivedUseCase:
     def test_inline_case_ledger_entry_round_trip(self, first_entry):
         """parse_activity must preserve inline as_CaseLedgerEntry fields (BUG-26041501).
 
-        Simulates the Finder receiving an Announce activity with a full inline
+        Simulates the Finder receiving an Add activity with a full inline
         as_CaseLedgerEntry dict via HTTP, and verifies the event's log_entry has all
         domain fields intact after the parse → extract pipeline.
         """
         body = {
-            "type": "Announce",
-            "id": "urn:uuid:test-announce-rt",
+            "type": "Add",
+            "id": "urn:uuid:test-add-rt",
             "actor": ACTOR_URI,
+            "target": f"{first_entry.case_id}/ledger",
+            "context": first_entry.case_id,
+            "inReplyTo": first_entry.payload_snapshot["id"],
             # Required on every inbound activity: the parser refuses one
             # without a sender-supplied claimed time (ISSUE-3149).
             "published": "2026-03-04T05:06:07+00:00",
             "object": first_entry.model_dump(mode="json", by_alias=True),
         }
         parsed = parse_activity(signed_body(body))
-        event = cast(AnnounceLogEntryReceivedEvent, received_event(parsed))
+        event = cast(AddLogEntryReceivedEvent, received_event(parsed))
         assert (
-            event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
+            event.semantic_type
+            == MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER
         )
         assert event.log_entry is not None
         assert event.log_entry.case_id == CASE_URI
@@ -248,10 +254,11 @@ class TestAnnounceLedgerEntryReceivedUseCase:
     def test_accepts_valid_first_entry(self, dl, genesis_entry):
         event = self._make_event(genesis_entry)
         assert (
-            event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
+            event.semantic_type
+            == MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER
         )
 
-        uc = AnnounceLedgerEntryReceivedUseCase(dl, event)
+        uc = AddLedgerEntryReceivedUseCase(dl, event)
         run_in_act(uc)
 
         stored = dl.read(genesis_entry.id_)
@@ -263,7 +270,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         bad_entry = _make_entry(CASE_URI, 0, "deadbeef" * 8)
         event = self._make_event(bad_entry)
         sync_port = MagicMock(spec=SyncActivityPort)
-        uc = AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+        uc = AddLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
         run_in_act(uc)
         # Entry not stored
         assert dl.read(bad_entry.id_) is None
@@ -277,7 +284,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
         event = self._make_event(bad_entry)
         sync_port = SyncActivityAdapter(dl)
-        uc = AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+        uc = AddLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
         run_in_act(uc)
 
         # Bad entry still not stored
@@ -306,7 +313,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         event = self._make_event(bad_entry)
         sync_port = SyncActivityAdapter(dl)
         run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+            AddLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
         )
 
         queued = dl.outbox_list()
@@ -324,7 +331,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         event = self._make_event(bad_entry)
         sync_port = SyncActivityAdapter(dl)
         run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+            AddLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
         )
 
         queued = dl.outbox_list()
@@ -349,7 +356,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         event = event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
         sync_port = SyncActivityAdapter(dl)
         run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+            AddLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
         )
 
         # Entry must NOT be stored (no case → cannot validate genesis)
@@ -377,7 +384,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         """Calling execute twice with the same entry stores it only once."""
         dl.save(first_entry)  # pre-store
         event = self._make_event(first_entry)
-        uc = AnnounceLedgerEntryReceivedUseCase(dl, event)
+        uc = AddLedgerEntryReceivedUseCase(dl, event)
         run_in_act(uc)  # should skip silently
         # Still exactly one entry for this case
         case_entries = [
@@ -392,11 +399,11 @@ class TestAnnounceLedgerEntryReceivedUseCase:
     def test_sequential_chain(self, dl, genesis_entry):
         """Accept two sequential entries; chain is maintained."""
         event0 = self._make_event(genesis_entry)
-        run_in_act(AnnounceLedgerEntryReceivedUseCase(dl, event0))
+        run_in_act(AddLedgerEntryReceivedUseCase(dl, event0))
 
         second = _make_entry(CASE_URI, 1, genesis_entry.entry_hash)
         event1 = self._make_event(second)
-        run_in_act(AnnounceLedgerEntryReceivedUseCase(dl, event1))
+        run_in_act(AddLedgerEntryReceivedUseCase(dl, event1))
 
         assert dl.read(genesis_entry.id_) is not None
         assert dl.read(second.id_) is not None
@@ -406,7 +413,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
     def test_semantic_type_is_correct(self, dl, first_entry):
         event = self._make_event(first_entry)
         assert (
-            event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
+            event.semantic_type
+            == MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER
         )
         assert event.log_entry is not None
         assert event.log_entry.case_id == CASE_URI
@@ -414,14 +422,14 @@ class TestAnnounceLedgerEntryReceivedUseCase:
 
 def _announce_event(
     entry: CaseLedgerEntry, actor: str = ACTOR_URI, to: str = RECEIVER_URI
-) -> AnnounceLogEntryReceivedEvent:
-    """The received ``Announce`` of *entry* from *actor*, as delivered."""
+) -> AddLogEntryReceivedEvent:
+    """The received ``Add`` of *entry* from *actor*, as delivered."""
     event = ledger_announce_event(entry, actor=actor, to=to)
     return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
 
 class TestOutOfOrderAnnounceBuffering:
-    """Out-of-order ``Announce(CaseLedgerEntry)`` must not permanently drop
+    """Out-of-order ``Add(CaseLedgerEntry)`` must not permanently drop
     entries; the replica converges to a contiguous prefix regardless of
     delivery order (issue #1556, SYNC-10-004).  What is held and replayed is
     the ``Announce`` that was received (SYNC-14-009).
@@ -446,11 +454,11 @@ class TestOutOfOrderAnnounceBuffering:
         sync_port: SyncActivityPort,
         replay: RecordingInboxReplay,
     ) -> None:
-        """Deliver *entry*, then each held Announce its tree replays."""
+        """Deliver *entry*, then each held Add its tree replays."""
 
-        def run(event: AnnounceLogEntryReceivedEvent) -> None:
+        def run(event: AddLogEntryReceivedEvent) -> None:
             run_in_act(
-                AnnounceLedgerEntryReceivedUseCase(
+                AddLedgerEntryReceivedUseCase(
                     dl, event, sync_port=sync_port, inbox_replay=replay
                 )
             )
@@ -472,13 +480,13 @@ class TestOutOfOrderAnnounceBuffering:
     def test_forward_gap_holds_the_received_announce(
         self, dl, case_with_genesis
     ):
-        """A forward-gap entry is held as the ``Announce`` that arrived, its
+        """A forward-gap entry is held as the ``Add`` that arrived, its
         body as intake recorded it, and no ledger entry is stored."""
         _, e1 = self._chain(case_with_genesis, 2)
         event = _announce_event(e1)
 
         run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl, event, sync_port=MagicMock(spec=SyncActivityPort)
             )
         )
@@ -508,7 +516,7 @@ class TestOutOfOrderAnnounceBuffering:
         replay = RecordingInboxReplay()
 
         result = run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl,
                 _announce_event(e0),
                 sync_port=MagicMock(spec=SyncActivityPort),
@@ -538,7 +546,7 @@ class TestOutOfOrderAnnounceBuffering:
         hold_received(dl, e1_event)
         replay = RecordingInboxReplay()
         run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl,
                 _announce_event(e0),
                 sync_port=MagicMock(spec=SyncActivityPort),
@@ -563,7 +571,7 @@ class TestOutOfOrderAnnounceBuffering:
         replay = RecordingInboxReplay()
 
         run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl,
                 _announce_event(e0),
                 sync_port=MagicMock(spec=SyncActivityPort),
@@ -587,7 +595,7 @@ class TestOutOfOrderAnnounceBuffering:
 
         with pytest.raises(VultronBTInternalError, match="inbox_replay"):
             run_in_act(
-                AnnounceLedgerEntryReceivedUseCase(
+                AddLedgerEntryReceivedUseCase(
                     dl,
                     _announce_event(e0),
                     sync_port=MagicMock(spec=SyncActivityPort),
@@ -625,13 +633,16 @@ class TestOutOfOrderAnnounceBuffering:
             log_index=2,
             object_id="https://example.org/activities/status-2",
             semantic_type="add_case_status_to_case",
-            payload_snapshot={"not": "a case status"},
+            payload_snapshot={
+                "id": "https://example.org/activities/status-2",
+                "not": "a case status",
+            },
             prev_log_hash=e0.entry_hash,
             received_at=ACT_AT,
         ).to_ledger_entry()
 
         result = run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl,
                 _announce_event(status_entry),
                 sync_port=MagicMock(spec=SyncActivityPort),
@@ -745,7 +756,7 @@ class TestOutOfOrderAnnounceBuffering:
 class TestHeldAnnounceBound:
     """The holding area is bounded per case (SYNC-14-006)."""
 
-    def _held_event(self, index: int) -> AnnounceLogEntryReceivedEvent:
+    def _held_event(self, index: int) -> AddLogEntryReceivedEvent:
         return _announce_event(_make_entry(CASE_URI, index, f"{index:064x}"))
 
     @pytest.mark.spec("SYNC-14-006")
@@ -776,7 +787,7 @@ class TestHeldAnnounceBound:
         # it leaves no archive (SYNC-14-013, ADR-0154).
         assert far.activity_id not in _replays_owed(dl)
         assert received_record(dl, far.activity_id) is None
-        assert "dropped the Announce" in caplog.text
+        assert "dropped the Add" in caplog.text
 
     @pytest.mark.spec("SYNC-14-006")
     def test_full_area_does_not_hold_a_farther_announce(
@@ -802,7 +813,7 @@ class TestHeldAnnounceBound:
     def test_a_second_announce_of_a_held_entry_is_not_held_again(
         self, dl, case_with_genesis
     ):
-        """A redelivered entry under another Announce id leaves the first
+        """A redelivered entry under another Add id leaves the first
         Announce held, alone."""
         entry = _make_entry(CASE_URI, 4, "4" * 64)
         first, second = _announce_event(entry), _announce_event(entry)
@@ -824,7 +835,10 @@ class TestHeldAnnounceBound:
             log_index=4,
             object_id="https://example.org/activities/fork",
             semantic_type="test_event",
-            payload_snapshot={"fork": True},
+            payload_snapshot={
+                "id": "https://example.org/activities/fork",
+                "fork": True,
+            },
             prev_log_hash="4" * 64,
             received_at=ACT_AT,
         ).to_ledger_entry()
@@ -850,7 +864,7 @@ class TestHeldAnnounceBound:
 
 
 class TestPreGenesisAnnounceBuffering:
-    """A pre-genesis ``Announce(CaseLedgerEntry)`` — one that arrives before the
+    """A pre-genesis ``Add(CaseLedgerEntry)`` — one that arrives before the
     ``VulnerabilityCase`` is seeded, so the per-case genesis hash is unavailable
     (CLP-08-005) — MUST be held rather than permanently dropped, and MUST
     drain into the local ledger once the case is seeded (issue #2186, #2180,
@@ -872,7 +886,7 @@ class TestPreGenesisAnnounceBuffering:
         sync_port = SyncActivityAdapter(dl)
 
         run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl, _announce_event(entry), sync_port=sync_port
             )
         )
@@ -898,7 +912,7 @@ class TestPreGenesisAnnounceBuffering:
 
         with caplog.at_level(logging.DEBUG):
             run_in_act(
-                AnnounceLedgerEntryReceivedUseCase(
+                AddLedgerEntryReceivedUseCase(
                     dl,
                     _announce_event(entry),
                     sync_port=SyncActivityAdapter(dl),
@@ -915,13 +929,13 @@ class TestPreGenesisAnnounceBuffering:
 
     @pytest.mark.spec("SYNC-15-001")
     def test_own_echo_for_missing_case_is_refused_at_error(self, dl, caplog):
-        """The CASE_MANAGER's own echoed Announce still needs its case.
+        """The CASE_MANAGER's own echoed Add still needs its case.
 
-        Its sender is the receiving actor, and the actor that announces an
+        Its sender is the receiving actor, and the actor that adds an
         entry holds the case's canonical ledger, so a case it does not hold
         is a Regime 1 anomaly (ADR-0087, #5513).  The path stage reads the
-        absent case as the no-case path, which for a peer's Announce is the
-        self-healing pre-genesis window; ``AnnouncedEntryIsNotOwnEchoNode``
+        absent case as the no-case path, which for a peer's Add is the
+        self-healing pre-genesis window; ``AddedEntryIsNotOwnEchoNode``
         is what keeps this delivery out of it, reporting the anomaly at ERROR
         and refusing it rather than letting the store buffer its own entry
         and ask itself for the case.
@@ -931,7 +945,7 @@ class TestPreGenesisAnnounceBuffering:
 
         with caplog.at_level(logging.DEBUG):
             result = run_in_act(
-                AnnounceLedgerEntryReceivedUseCase(
+                AddLedgerEntryReceivedUseCase(
                     dl,
                     _announce_event(entry, actor=RECEIVER_URI),
                     sync_port=SyncActivityAdapter(dl),
@@ -944,7 +958,7 @@ class TestPreGenesisAnnounceBuffering:
             for r in caplog.records
             if r.levelno >= logging.ERROR
         ]
-        assert any("AnnouncedEntryIsNotOwnEcho:" in m for m in errors), errors
+        assert any("AddedEntryIsNotOwnEcho:" in m for m in errors), errors
         # The entry is neither stored nor held, and nothing is asked for.
         assert dl.read(entry.id_) is None
         assert held_depth(dl, CASE_URI) == 0
@@ -956,11 +970,16 @@ class TestPreGenesisAnnounceBuffering:
         """A tampered entry for an unseeded case is refused, not held."""
         case = _make_case()  # deliberately NOT saved — pre-genesis window
         entry = _make_entry(CASE_URI, 0, case.genesis_hash).model_copy(
-            update={"payload_snapshot": {"tampered": True}}
+            update={
+                "payload_snapshot": {
+                    "id": "https://example.org/activities/act1",
+                    "tampered": True,
+                }
+            }
         )
 
         result = run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl,
                 _announce_event(entry),
                 sync_port=SyncActivityAdapter(dl),
@@ -977,8 +996,8 @@ class TestPreGenesisAnnounceBuffering:
         assert dl.outbox_list() == []
 
 
-class TestAnnounceLedgerEntryDisposition:
-    """Each ``Announce(CaseLedgerEntry)`` exit reports what happened (#2255).
+class TestAddLedgerEntryDisposition:
+    """Each ``Add(CaseLedgerEntry)`` exit reports what happened (#2255).
 
     APPLIED reads as "processed" in the InboxOutcome.  A duplicate or a
     self-echo is a no-op (SKIPPED), a held entry is DEFERRED, and an entry
@@ -989,7 +1008,7 @@ class TestAnnounceLedgerEntryDisposition:
 
     def _make_event(
         self, entry: CaseLedgerEntry, actor: str = ACTOR_URI
-    ) -> AnnounceLogEntryReceivedEvent:
+    ) -> AddLogEntryReceivedEvent:
         return _announce_event(entry, actor=actor)
 
     def _seed_case_managed_by(self, dl, manager_id: str) -> None:
@@ -1021,7 +1040,7 @@ class TestAnnounceLedgerEntryDisposition:
 
     def _run(self, dl, event, replay=None):
         return run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl,
                 event,
                 sync_port=SyncActivityAdapter(dl),
@@ -1070,7 +1089,12 @@ class TestAnnounceLedgerEntryDisposition:
     def test_entry_failing_its_own_hash_is_refused(self, dl, genesis_entry):
         """A tampered entry is REFUSED with the integrity reason, not stored."""
         tampered = genesis_entry.model_copy(
-            update={"payload_snapshot": {"tampered": True}}
+            update={
+                "payload_snapshot": {
+                    **genesis_entry.payload_snapshot,
+                    "tampered": True,
+                }
+            }
         )
 
         result = self._run(dl, self._make_event(tampered))
@@ -1093,7 +1117,12 @@ class TestAnnounceLedgerEntryDisposition:
         """The already-stored shortcut does not hide a failed hash check."""
         dl.save(genesis_entry)
         tampered = genesis_entry.model_copy(
-            update={"payload_snapshot": {"tampered": True}}
+            update={
+                "payload_snapshot": {
+                    **genesis_entry.payload_snapshot,
+                    "tampered": True,
+                }
+            }
         )
 
         result = self._run(dl, self._make_event(tampered))
@@ -1215,7 +1244,7 @@ class TestUnaddressedAnnounceActsOnNothing:
         unaddressed, the door refuses it before either happens."""
         genesis = _make_entry(CASE_URI, 0, case_with_genesis.genesis_hash)
         successor = _make_entry(CASE_URI, 1, genesis.entry_hash)
-        # The successor's Announce waits for the genesis entry the copy
+        # The successor's Add waits for the genesis entry the copy
         # announces, so an admitted copy would replay it.
         hold_received(dl, _announce_event(successor))
         pending = PendingAssertionStore()
@@ -1230,7 +1259,7 @@ class TestUnaddressedAnnounceActsOnNothing:
         )
 
         result = run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl,
                 copy,
                 sync_port=sync_port,
@@ -1253,3 +1282,68 @@ class TestUnaddressedAnnounceActsOnNothing:
         )
         assert sync_port.mock_calls == []
         assert dl.list_objects("CaseLedgerEntry") == []
+
+
+class TestAddLedgerEntryShapeAtTheEdge:
+    """An ``Add(CaseLedgerEntry)`` misnaming its ledger, case or act is refused.
+
+    The ``Add`` names the case's ledger in ``target``, the case in
+    ``context`` and the committed act in ``inReplyTo`` (ADR-0204), so a
+    replica reads all three from the message.  One that contradicts its own
+    entry fails extraction, before any tree runs (ADR-0032).
+    """
+
+    _ACT_ID = "https://example.org/activities/act1"
+
+    def _body(self) -> dict:
+        entry = _make_entry(CASE_URI, 0, _ZERO_HASH)
+        activity = add_log_entry_activity(
+            entry=WireCaseLedgerEntry.model_validate(
+                with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
+            ),
+            actor="https://example.org/actors/case-actor",
+            to=["https://example.org/actors/replica"],
+            at=authored_at(),
+        )
+        return activity.model_dump(
+            by_alias=True, exclude_none=True, mode="json"
+        )
+
+    @pytest.mark.spec("SYNC-02-006")
+    @pytest.mark.spec("SYNC-02-007")
+    def test_a_well_formed_add_reads_its_ledger_and_act(self):
+        event = cast(
+            AddLogEntryReceivedEvent,
+            received_event(parse_activity(self._body())),
+        )
+        assert event.ledger_id == f"{CASE_URI}/ledger"
+        assert event.context_id == CASE_URI
+        assert event.acknowledged_act_id == self._ACT_ID
+
+    @pytest.mark.spec("SYNC-02-008")
+    @pytest.mark.spec("SYNC-02-010")
+    @pytest.mark.parametrize(
+        ("key", "value", "slot"),
+        [
+            ("target", "https://example.org/cases/other/ledger", "target"),
+            ("target", None, "ledger_id"),
+            ("context", "https://example.org/cases/other", "context"),
+            ("inReplyTo", "https://example.org/activities/other", "inReplyTo"),
+            ("inReplyTo", None, "acknowledged_act_id"),
+        ],
+        ids=[
+            "other-ledger",
+            "no-ledger",
+            "other-case",
+            "other-act",
+            "no-act",
+        ],
+    )
+    def test_a_misnamed_add_is_refused_at_extraction(self, key, value, slot):
+        body = self._body()
+        if value is None:
+            del body[key]
+        else:
+            body[key] = value
+        with pytest.raises(PydanticValidationError, match=slot):
+            received_event(parse_activity(body))

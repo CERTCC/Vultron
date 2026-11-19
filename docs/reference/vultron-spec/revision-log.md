@@ -48,8 +48,8 @@ Its opened date is the day its entry was added to the drafts register, which is 
 Draft 2 is the current draft, and its text can still change.
 This entry lists what changed since [Draft 1](#draft-1).
 
-- The [Requirements Catalog](requirements/messages.md#protocol-mv-12) adds the protocol requirements MV-12-001 to MV-12-005, on the `Redacted` marker that a preview uses for a withheld field.
-- The [Known Gaps](known-gaps.md) page lists MV-12-001, MV-12-002, MV-12-003 and MV-12-005, which issue #6372 tracks.
+- The [Requirements Catalog](requirements/messages.md#protocol-mv-12) adds the protocol requirements MV-12-001 to MV-12-006, on the `Redacted` marker that a preview uses for a value the sender does not show, and on reading a preview as the sender sent it.
+- OID-01-013 and CLP-15-011 no longer reach an object inside a preview: a receiver reads such an object without its own `id` or `published` (MV-12-006).
 
 ## Draft 1
 
