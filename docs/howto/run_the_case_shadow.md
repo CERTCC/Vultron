@@ -153,7 +153,7 @@ The tool reads each line from the ledger; nobody writes it by hand.
 - **Notes**, when shown, says what the tool could not read in an entry.
 
 To see whether a better move was open earlier, pick a narrative line in **Show the case as it stood just after**, above the scoreboard.
-The scoreboard then shows the case as it stood just after that entry: its states, desiderata and move bands, worked out from the entries up to that line only.
+The scoreboard then shows the case as it stood just after that entry: its states and their maps, its participants and their tabs, its desiderata, and its move bands with their color legends, worked out from the entries up to that line only.
 A note above the scoreboard names the entry, and the case narrative still lists every entry.
 A point before a missing entry has a standing, even when the whole ledger shows the missing entry instead.
 Pick **Now** to see where the case stands at its last entry again.
