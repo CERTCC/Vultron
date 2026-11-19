@@ -24,7 +24,10 @@ from vultron.core.models.case_reference import (
     CVE_REFERENCE_TAG_RELS,
     CaseReference,
 )
-from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItem,
+    VulnerabilityItemId,
+)
 
 OWNER = "https://test.example/actors/owner"
 
@@ -48,7 +51,9 @@ def test_both_lists_are_empty_by_default():
 
 @pytest.mark.spec("CM-05-021")
 def test_the_lists_survive_save_and_read(dl):
-    item = make(VulnerabilityItem, cve="CVE-2024-0001")
+    item = make(
+        VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2024-0001")]
+    )
     ref = make(
         CaseReference,
         url={
@@ -79,7 +84,9 @@ def test_the_lists_survive_save_and_read(dl):
 
 @pytest.mark.spec("CM-05-021")
 def test_the_lists_ride_the_case_snapshot_to_a_replica():
-    item = make(VulnerabilityItem, cve="CVE-2024-0001")
+    item = make(
+        VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2024-0001")]
+    )
     ref = make(CaseReference, url={"href": "https://example.org/a"})
     case = make(
         VulnerabilityCase,
@@ -106,7 +113,9 @@ def test_a_received_case_keeps_both_lists_through_the_extractor():
         _build_case_object,
     )
 
-    item = make(VulnerabilityItem, cve="CVE-2024-0001")
+    item = make(
+        VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2024-0001")]
+    )
     case = make(
         VulnerabilityCase,
         attributed_to=OWNER,
