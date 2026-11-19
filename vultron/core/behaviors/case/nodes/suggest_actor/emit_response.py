@@ -218,7 +218,7 @@ class EmitAcceptRecordedRecommendationNode(_AnswerOnRecordNode):
 
     CM-16-006 step 3: the recommender and the recommended actor are the
     recorded Offer's.  ``in_reply_to`` is the original recommender's offer
-    ID, carried as the recorded Offer's ``origin``.
+    ID, carried as the recorded Offer's ``in_reply_to``.
     """
 
     _SEMANTIC_TYPE = EmitAcceptActorRecommendationNode._SEMANTIC_TYPE

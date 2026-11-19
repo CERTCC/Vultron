@@ -6,6 +6,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make, with_times
+from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
@@ -44,6 +45,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
+    as_Offer,
 )
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,
@@ -956,7 +958,7 @@ def test_a_pattern_that_accepts_a_bare_object_matches_one():
 
 @pytest.mark.spec("VAM-01-013")
 @pytest.mark.spec("SE-01-007")
-def test_strict_governs_target_alone():
+def test_strict_governs_target_and_origin_alone():
     """``strict`` tightens ``target_`` and leaves ``object_`` as it was."""
     from vultron.wire.as2.enums import as_ObjectType as AOtype
 
@@ -979,10 +981,124 @@ def test_strict_governs_target_alone():
 
 @pytest.mark.spec("VAM-01-013")
 @pytest.mark.spec("SE-08-004")
-def test_strict_without_a_target_constraint_is_refused():
-    """``strict`` on a pattern with no ``target_`` would tighten nothing."""
-    with pytest.raises(ValueError, match="strict governs target_ alone"):
+def test_strict_without_a_target_or_origin_constraint_is_refused():
+    """``strict`` on a pattern with no ``target_`` or ``origin_`` would
+    tighten nothing."""
+    with pytest.raises(
+        ValueError, match="strict governs target_ and origin_ alone"
+    ):
         _offer_case_pattern(strict=True)
+
+
+@pytest.mark.spec("VAM-01-013")
+@pytest.mark.spec("SE-08-004")
+def test_strict_with_only_an_origin_constraint_is_allowed():
+    """An ``origin_`` constraint is one ``strict`` can tighten."""
+    from vultron.wire.as2.enums import as_ObjectType as AOtype
+
+    pattern = _offer_case_pattern(origin_=AOtype.ACTOR, strict=True)
+    assert pattern.strict
+
+
+# ---------------------------------------------------------------------------
+# origin_: where the object comes from, matched as target_ is
+# ---------------------------------------------------------------------------
+
+
+def _remove_note_pattern(**fields: Any) -> ActivityPattern:
+    """A ``Remove(Note)`` pattern that asks for a case in ``origin``."""
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
+
+    return ActivityPattern(
+        activity_=TAtype.REMOVE,
+        object_=AOtype.NOTE,
+        origin_=VOtype.VULNERABILITY_CASE,
+        **fields,
+    )
+
+
+def _remove_note(**fields: Any) -> as_Activity:
+    """A ``Remove`` of an inline note, its case placed as *fields* say."""
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Remove,
+    )
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note = make(as_Note, id_="https://example.org/notes/n1", content="x")
+    return make(as_Remove, actor=_VENDOR_URI, object_=note, **fields)
+
+
+def _held_case() -> as_VulnerabilityCase:
+    return make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/origin-test",
+        name="O-001",
+    )
+
+
+@pytest.mark.spec("SE-01-007")
+def test_origin_constraint_matches_a_case_in_origin():
+    """A case in ``origin``, inline or as its bare URI, satisfies ``origin_``."""
+    case = _held_case()
+    pattern = _remove_note_pattern()
+
+    assert pattern.match(_remove_note(origin=case))
+    assert pattern.match(_remove_note(origin=case.id_))
+
+
+@pytest.mark.spec("SE-01-001")
+@pytest.mark.spec("SE-01-007")
+def test_origin_constraint_refuses_a_case_only_in_target():
+    """A pattern that requires ``origin_`` does not read the case from
+    ``target``: an activity whose case is only there does not match."""
+    case = _held_case()
+    pattern = _remove_note_pattern()
+
+    assert not pattern.match(_remove_note(target=case))
+    assert not pattern.match(_remove_note(target=case.id_))
+
+
+@pytest.mark.spec("SE-01-001")
+def test_origin_constraint_refuses_an_origin_of_another_type():
+    """An ``origin`` whose type is not the constraint's does not match."""
+    actor = make(as_Actor, id_="https://example.org/actors/alice")
+    assert not _remove_note_pattern().match(_remove_note(origin=actor))
+
+
+@pytest.mark.spec("VAM-01-013")
+@pytest.mark.spec("SE-08-004")
+def test_strict_refuses_a_bare_origin_and_admits_a_typed_one():
+    """``strict`` tightens ``origin_`` as it tightens ``target_``."""
+    case = _held_case()
+    strict = _remove_note_pattern(strict=True)
+
+    assert not strict.match(_remove_note(origin=case.id_))
+    assert strict.match(_remove_note(origin=case))
+
+
+def test_a_nested_origin_pattern_matches_an_inline_activity_only():
+    """An ``origin_`` that is itself a pattern needs an inline activity."""
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
+
+    inner = ActivityPattern(activity_=TAtype.OFFER, object_=AOtype.ACTOR)
+    pattern = ActivityPattern(
+        activity_=TAtype.REMOVE, object_=AOtype.NOTE, origin_=inner
+    )
+    offer = make(
+        as_Offer,
+        actor=_VENDOR_URI,
+        object_=make(as_Actor, id_="https://example.org/actors/alice"),
+    )
+
+    assert pattern.match(_remove_note(origin=offer))
+    assert not pattern.match(_remove_note(origin="https://example.org/o/1"))
 
 
 # ---------------------------------------------------------------------------

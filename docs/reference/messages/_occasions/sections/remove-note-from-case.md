@@ -7,7 +7,7 @@ Asks to remove the note from the case named by the target. This implementation d
 === "Details"
 
     - **When…** a note's author or the Case Owner withdraws a note from the case
-    - **Send:** `Remove(Note)[target=VulnerabilityCase]`
+    - **Send:** `Remove(Note)[origin=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the Case Owner or the note's author
     - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)

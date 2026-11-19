@@ -175,7 +175,7 @@ class _ParticipantsMixin:
         recommended_id: str,
         case_id: str,
         actor: str,
-        origin: str | None = None,
+        in_reply_to: str | None = None,
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list | None = None,
@@ -189,8 +189,8 @@ class _ParticipantsMixin:
         participant into an Offer(CaseParticipant) naming the actor and its roles,
         addressed to the Case Owner.
         ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
-        ``origin`` carries the original Offer ID for causal traceability
-        (CM-16-004).  ``content`` carries the recommender's reason text so the
+        ``in_reply_to`` names the original Offer, the suggestion this forward
+        answers, for causal traceability (CM-16-004).  ``content`` carries the recommender's reason text so the
         Case Owner can decide on the suggestion with its evidence (CM-16-020).
         An Offer already built under *id_* is returned as sealed, without
         storing a second inline participant.
@@ -198,8 +198,8 @@ class _ParticipantsMixin:
         if (built := _already_sealed(self._dl, id_)) is not None:
             return built
         extra = _addressing(actor, to, id_)
-        if origin is not None:
-            extra["origin"] = origin
+        if in_reply_to is not None:
+            extra["in_reply_to"] = in_reply_to
         if content is not None:
             extra["content"] = content
         activity = offer_case_participant_activity(

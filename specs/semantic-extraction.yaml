@@ -138,11 +138,11 @@ groups:
     priority: MAY
     kind: project
     statement: >-
-      A bare URI in an activity's `target`, `context` or `to` MAY satisfy an
-      `ActivityPattern`'s type constraint on that field, except where SE-08-004 requires
-      `strict=True`.
+      A bare URI in an activity's `target`, `origin`, `context` or `to` MAY satisfy
+      an `ActivityPattern`'s type constraint on that field, except where SE-08-004
+      requires `strict=True`.
     rationale: >-
-      A case in `target` or `context` travels as its URI by rule (MV-10-009,
+      A case in `target`, `origin` or `context` travels as its URI by rule (MV-10-009,
       AKM-02-003);
       the stub travels only as a preview in an Invite's `object` (MV-10-002). A pattern
       that
@@ -151,7 +151,8 @@ groups:
     verification: >-
       `test_bare_case_uri_in_target_or_context_satisfies_the_pattern` in
       `test/test_semantic_activity_patterns.py` matches activities whose `target` or
-      `context` is a bare case URI and checks their semantic type.
+      `context` is a bare case URI and checks their semantic type;
+      `test_origin_constraint_matches_a_case_in_origin` does the same for `origin`.
   - id: SE-01-009
     priority: MUST_NOT
     kind: project
@@ -767,12 +768,13 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When an `ActivityPattern` uses `target_` as the sole field that distinguishes it from
-      a less-specific competing pattern, `strict=True` MUST be set on that pattern so that
-      a bare URI string in the `target` field does NOT match the typed target constraint.
+      When an `ActivityPattern` uses `target_` or `origin_` as the sole field that
+      distinguishes it from a less-specific competing pattern, `strict=True` MUST be set
+      on that pattern so that a bare URI string in that field does NOT match the typed
+      constraint.
     rationale: >-
-      A `target_` constraint accepts a bare URI by default (SE-01-007), and
-      `ActivityPattern.strict` governs `target_` alone. Without `strict=True`, an
+      A `target_` or `origin_` constraint accepts a bare URI by default (SE-01-007),
+      and `ActivityPattern.strict` governs those two alone. Without `strict=True`, an
       unresolved `target` URI lets the more specific pattern match each competing
       shape, whatever the type of the target. Registry order is then the only
       protection against routing errors, and the discriminator has no effect
