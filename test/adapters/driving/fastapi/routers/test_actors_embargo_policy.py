@@ -239,15 +239,20 @@ class TestPutEmbargoPolicy:
 
     @pytest.mark.spec("EP-01-005")
     @pytest.mark.spec("EP-02-005")
+    @pytest.mark.spec("EP-02-011")
+    @pytest.mark.parametrize(
+        "key", ["attributed_to", "attributedTo", "actor_id", "inbox"]
+    )
     def test_a_body_cannot_publish_in_another_actors_name(
-        self, client_actors, hosted_actor
+        self, client_actors, hosted_actor, key
     ):
-        """``attributed_to`` comes from the path actor, never the body."""
+        """``attributedTo`` comes from the path actor, never the body: no
+        spelling of the actor or its inbox is accepted in the body."""
         resp = client_actors.put(
             _PATH,
             json={
                 "preferred_duration": "P30D",
-                "attributed_to": "https://elsewhere.test/actors/imposter",
+                key: "https://elsewhere.test/actors/imposter",
             },
         )
 

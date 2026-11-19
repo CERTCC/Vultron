@@ -336,5 +336,5 @@ def test_a_policys_attributed_to_must_be_a_full_uri() -> None:
         EmbargoPolicy, attributed_to=ACTOR_ID, preferred_duration=_P90D
     )
     assert policy.attributed_to == ACTOR_ID
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="must be a URI"):
         make(EmbargoPolicy, attributed_to="vendor", preferred_duration=_P90D)

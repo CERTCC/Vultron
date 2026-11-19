@@ -210,9 +210,9 @@ class CoreActor(CoreObject):
         policy = self.embargo_policy
         if policy is not None and policy.attributed_to != self.id_:
             raise ValueError(
-                "embargoPolicy.attributedTo"
-                f" {policy.attributed_to!r} differs from the profile id {self.id_!r}: an"
-                " actor profile carries only its own embargo policy (EP-01-001, CP-01-010)"
+                f"embargoPolicy.attributedTo {policy.attributed_to!r} differs"
+                f" from the profile id {self.id_!r}: an actor profile carries"
+                " only its own embargo policy (EP-01-001, CP-01-010)"
             )
         return self
 
