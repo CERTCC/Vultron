@@ -82,8 +82,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   **Load when**: touching `CVDRole`, a participant's role fields, or where a case
   owner's roles come from.
 - **`selective-disclosure.md`** · `plan`
-  Referencing objects without inlining them, and the preview-only `Redacted` marker.
-  **Load when**: scoping privacy, redaction, or by-reference payload features.
+  Referencing objects without inlining them, the preview-only `Redacted` marker, and
+  the field-by-field profile that cuts a case preview from the case (ADR-0217).
+  **Load when**: scoping privacy, redaction, by-reference payloads, or what a case
+  preview shows.
 - **`vulnerability-items.md`** · `plan`
   A case's CSAF-shaped vulnerability items and references, and the offers that
   change them (ADR-0187).

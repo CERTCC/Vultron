@@ -161,7 +161,7 @@ def test_a_preview_type_opens_only_the_fields_it_declares() -> None:
 
 @pytest.mark.spec("MV-12-002")
 def test_the_case_preview_opens_no_field_yet() -> None:
-    """Which case fields the preview may redact is Concern #6641's to decide."""
+    """No field opens until #6372 makes every preview field redactable."""
     assert not opens_to_redaction(CasePreview(summary="a case"), "name")
 
 
