@@ -188,6 +188,10 @@ def test_every_vul_and_post_with_a_counterpart_is_translated(stem):
     ]
     # A VINCE cve is the item's ``CVE`` ids entry (CM-05-018).
     assert [cve_of(item) for item in items] == [v["cve"] for v in raw["vuls"]]
+    # The CVE entry, when there is one, comes before the VINCE id.
+    assert [[i["systemName"] for i in item["ids"]] for item in items] == [
+        ["CVE", "VINCE"] if v["cve"] else ["VINCE"] for v in raw["vuls"]
+    ]
     orgs = set(actors_by_name(reading))
     assert [note["content"] for note in records(reading, "Note")] == [
         post["content"]

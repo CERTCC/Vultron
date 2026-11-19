@@ -463,7 +463,6 @@ def test_a_selection_other_than_ssvc_exploitation_is_not_read() -> None:
     assert reading.claims.vulnerabilities[0].exploitation is None
 
 
-@pytest.mark.spec("CM-05-008")
 @pytest.mark.spec("CM-05-008", "CM-05-019")
 def test_the_tracking_ids_are_read_as_written_each_once() -> None:
     """Only a ``CVE`` entry's text is checked; any other system's is opaque."""

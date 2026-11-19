@@ -39,7 +39,6 @@ only core models (ARCH-22-001).
 import hashlib
 import json
 import logging
-import re
 from collections.abc import Iterator, Sequence
 from datetime import datetime
 from typing import TypeGuard
@@ -64,9 +63,9 @@ from vultron.core.models.report_claims import (
     csaf_document_text,
 )
 from vultron.core.models.vulnerability_item import (
-    CVE_ID_PATTERN,
-    CVE_SYSTEM_NAME,
     NoteCategory,
+    is_cve_id,
+    is_malformed_cve_entry,
 )
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
 
@@ -86,7 +85,6 @@ _SSVC_EXPLOITATION_KEY = "E"
 _SUMMARY_NOTE_CATEGORIES = ("summary", "description")
 
 _AWARE_DATETIME: TypeAdapter[datetime] = TypeAdapter(AwareDatetime)
-_CVE_ID = re.compile(CVE_ID_PATTERN)
 _NOTE_CATEGORIES = frozenset(category.value for category in NoteCategory)
 
 
@@ -514,7 +512,7 @@ class _FieldReader:
         cve = self._text(vul, "cve", path)
         if cve is None:
             return None
-        if _CVE_ID.fullmatch(cve) is None:
+        if not is_cve_id(cve):
             self._skip(f"{path}.cve", "not a CVE ID (CM-05-019)")
             return None
         return cve
@@ -537,10 +535,7 @@ class _FieldReader:
                     here, item, ("system_name", "text"), "an id"
                 )
                 continue
-            if (
-                system_name == CVE_SYSTEM_NAME
-                and _CVE_ID.fullmatch(text) is None
-            ):
+            if is_malformed_cve_entry(system_name, text):
                 self._skip(f"{here}.text", "not a CVE ID (CM-05-019)")
                 continue
             ids.append(

@@ -12291,11 +12291,14 @@ groups:
     rationale: >-
       This is the partial-update meaning ActivityStreams gives `Update`. Two admitted
       updates to different fields of one item then both survive, and a full revision is
-      an update that supplies every field (ADR-0187).
+      an update that supplies every field (ADR-0187). A list such as `ids` is one field,
+      replaced whole, so an update that adds a CVE ID supplies the item's other
+      identifiers too.
     verification: >-
-      A test marked `CM-34-007` admits an update that supplies only a CVE ID, as an
-      `ids` entry with `system_name` `CVE`, to an item that has a `title` and asserts
-      the item keeps its `title` and gains that `ids` entry.
+      A test marked `CM-34-007` admits an update that supplies only `ids`, the item's
+      identifiers plus a new entry with `system_name` `CVE`, to an item that has a
+      `title`, and asserts the item keeps its `title` and its `ids` are the supplied
+      list.
     adr:
     - ADR-0187
     stories:
