@@ -285,7 +285,8 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Catch-up:** after the participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry.
   It sends the entries in log order, so the participant's copy of the ledger has no gap.
   A participant that is not a signatory to the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and the catch-up waits until it accepts.
-- **Notice:** the CASE_MANAGER also sends the reinstated participant a direct `Add(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER, `attributedTo` set to the Case Owner and `inReplyTo` set to the Case Owner's `Add`.
+- **Notice:** the CASE_MANAGER also sends the reinstated participant a direct `Add(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
+  Its `inReplyTo` names the Case Owner's `Add`.
   The notice is not ledgered.
 - **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
 
@@ -308,7 +309,8 @@ Only `caseRoles` on the attached object differs.
   A participant replica accepts it only from the CASE_MANAGER, as the direct notice below, and writes nothing from it.
 - **Ledger:** the Case Owner's received `Remove` is the one ledger entry for the removal.
   Every replica applies the removal from that entry, the removed participant's own included.
-- **Notice:** the CASE_MANAGER then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER, `attributedTo` set to the Case Owner and `inReplyTo` set to the Case Owner's `Remove`.
+- **Notice:** the CASE_MANAGER then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
+  Its `inReplyTo` names the Case Owner's `Remove`.
   The notice is not ledgered.
 - **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
 - **Example artifact:** [remove_participant_from_case.json](../examples/remove_participant_from_case.json).

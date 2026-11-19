@@ -90,7 +90,7 @@ The receiver uses the EM state of the case (MSM-02).
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal.md" %}
 
 2. The CASE_MANAGER asks each other participant about the terms with an `Invite(EmbargoEvent)` of its own.
-   This Invite is addressed to that participant, names it in `target` and names the proposer in `attributedTo`.
+   This Invite is addressed to that participant, names it in `target`, names the proposer in `attributedTo` and names the proposal in `inReplyTo`.
    If you are the CASE_MANAGER, you send this Invite.
    If you are not the CASE_MANAGER, you answer this Invite.
 
