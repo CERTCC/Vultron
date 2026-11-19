@@ -12,11 +12,13 @@ Spec: SHD-01-002, SHD-01-004, SHD-03-002.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from test.measure.history.builders import two_vendors_ledger
 from test.support.ledger_stream import recording_rows
 from vultron.config import clear_config_cache, config_override
 from vultron.config.shadow import ShadowConfig
@@ -27,7 +29,11 @@ from vultron.measure.advice import (
     HARM_NOTE,
     HELP_TEXT,
     Band,
+    case_advice,
 )
+from vultron.measure.standing import case_standing
+from vultron.shadow.analysis import analyse
+from vultron.shadow.dashboard import minimap, view
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
     END_UNCONFIRMED_NOTE,
@@ -45,10 +51,12 @@ from vultron.shadow.dashboard.view import (
     EM_BADGES,
     LATEST_POINT,
     LEADING_MARK,
+    LEGEND_BETTER,
+    LEGEND_DOMINATED,
     RM_BADGES,
     TOP_MARK,
 )
-from vultron.shadow.readers import CaseSource
+from vultron.shadow.readers import CaseSource, VultronCaseReader
 
 #: Seconds one script run may take; the first run imports the measures.
 _TIMEOUT = 60
@@ -188,7 +196,7 @@ _COLUMNS = {
         "Roles",
         "Joined",
         "Report",
-        "Case state",
+        "Fix path",
         "Desiderata",
         "Not scored because",
         "Actor",
@@ -306,6 +314,132 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
     assert _texts(unhelpful.caption) == [BAND_EMPTY[Band.UNHELPFUL]]
     # The recording ends on the CASE_MANAGER's closure: nothing follows.
     assert not any("moved on" in c for c in _texts(at.caption))
+
+
+def test_each_state_is_shown_on_its_machines_map(recordings_app):
+    """#6674 AC-1: the case's EM and public state, then each participant's
+    RM and fix path in its own tab, each on its map with its state marked."""
+    case = "rcvv-embargo/case-actor.jsonl"
+    at = recordings_app.run()
+    at.selectbox[0].select(case).run()
+    assert not at.exception
+    analysis = analyse(
+        VultronCaseReader(root=RECORDINGS_DIR).read_case(
+            str(RECORDINGS_DIR / case)
+        )
+    )
+    standing = analysis.standing
+    assert standing is not None and standing.case is not None
+    participants = minimap.participant_minimaps(
+        standing.participants, analysis.actor_names
+    )
+    expected = list(minimap.case_minimaps(standing.case))
+    for p in participants:
+        expected.extend(m for m in (p.rm, p.vfd) if m is not None)
+    charts = at.get("graphviz_chart")
+    assert [c.proto.spec for c in charts] == [m.dot for m in expected]
+    assert [t.label for t in at.tabs] == [p.tab for p in participants]
+    captions = _texts(at.caption)
+    assert all(m.caption in captions for m in expected)
+    assert any(p.vfd is None for p in participants)
+    assert minimap.NO_FIX_PATH in captions
+
+
+_NO_PARTICIPANTS_PAGE = """
+from vultron.shadow.dashboard.page import _show_participant_minimaps
+
+_show_participant_minimaps([], {})
+"""
+
+
+#: One participant whose name, from the case's source, is Markdown.
+_MARKDOWN_NAME_PAGE = """
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.measure.sequences import (
+    UnprojectableParticipant,
+    UnprojectableReason,
+)
+from vultron.measure.standing import CaseStanding, ParticipantStanding
+from vultron.shadow.dashboard.page import _show_participant_minimaps
+
+VENDOR = "https://vendor.example/actors/vendor"
+_show_participant_minimaps(
+    [
+        ParticipantStanding(
+            participant=VENDOR,
+            rm=RM.RECEIVED,
+            case=CaseStanding(em=EM.NONE, pxa=CS_pxa.pxa),
+            unscored=UnprojectableParticipant(
+                participant=VENDOR,
+                reason=UnprojectableReason.NO_CASE_STATE_EVENTS,
+                detail="it has no event of its own",
+            ),
+        )
+    ],
+    {VENDOR: "![x](https://host.example/p.png)"},
+)
+"""
+
+
+def test_a_participants_tab_shows_its_name_as_literal_text():
+    """A name from the case's source reaches its tab escaped, so the page
+    never renders it as Markdown (an image would fetch an outside URL)."""
+    at = AppTest.from_string(
+        _MARKDOWN_NAME_PAGE, default_timeout=_TIMEOUT
+    ).run()
+    assert not at.exception
+    assert [t.label for t in at.tabs] == [
+        minimap.markdown_literal("![x](https://host.example/p.png)")
+    ]
+
+
+def test_a_standing_with_no_participant_draws_no_participant_tabs():
+    at = AppTest.from_string(
+        _NO_PARTICIPANTS_PAGE, default_timeout=_TIMEOUT
+    ).run()
+    assert not at.exception
+    assert not at.tabs
+    assert not at.get("graphviz_chart")
+
+
+#: The fake case, read from a source that cannot observe attacks or a
+#: fix being ready.
+_UNSEEN_PAGE = """
+from test.support.case_reader import FAKE_CASE, FakeCaseReader, fake_case_records
+from vultron.core.models.case_reading import UnobservableFact
+from vultron.core.states.cs_invariants import CSEvent
+from vultron.shadow.dashboard.page import render
+
+
+class Unseen(FakeCaseReader):
+    unobservable = (
+        UnobservableFact(
+            fact="Attacks (A), fix ready (F)",
+            why="No field records them.",
+            events=frozenset({CSEvent.A, CSEvent.F}),
+        ),
+    )
+
+
+render(Unseen({FAKE_CASE: fake_case_records()}))
+"""
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_event_reads_as_unknown_on_the_page():
+    """The top row's badge and the public-state map both read an event the
+    source cannot observe as unknown."""
+    at = AppTest.from_string(_UNSEEN_PAGE, default_timeout=_TIMEOUT).run()
+    at.text_input[0].input("urn:uuid:case-1").run()
+    assert not at.exception
+    assert _texts(at.metric)[3] == "❔ Attacks Observed unknown"
+    pxa = at.get("graphviz_chart")[1]
+    assert "dashed" in pxa.proto.spec
+    assert any(
+        c.endswith("❔ Attacks Observed unknown") for c in _texts(at.caption)
+    )
 
 
 def test_a_recorded_case_shows_its_narrative_one_line_per_entry(
@@ -462,7 +596,12 @@ def test_the_bands_are_shown_in_order_with_the_unhelpful_one_collapsed(
     """AC-1: harm-free, trade-off, then the unhelpful band as a closed
     group the analyst can open."""
     at = advice_app
-    assert _texts(at.markdown)[:2] == ["**Harm-free**", "**Trade-off**"]
+    # Band titles appear in markdown, with legends between them
+    markdowns = _texts(at.markdown)
+    band_titles = [
+        m for m in markdowns if m.startswith("**") and m.endswith("**")
+    ]
+    assert band_titles[:2] == ["**Harm-free**", "**Trade-off**"]
     (unhelpful,) = at.expander
     assert unhelpful.label.startswith("Unhelpful (")
     assert unhelpful.proto.expanded is False
@@ -498,6 +637,38 @@ def test_the_page_shows_the_marks_help_text_and_harm_note(advice_app):
     trade_off = _table(at, "Trade-off")
     assert all("−" in h for h in trade_off["Harms by vendor"])
     assert DOMINATED_BY_HARM_FREE in trade_off["Dominated by"].tolist()
+
+
+_BACKGROUND = re.compile(r"background-color: (#[0-9a-f]{6})")
+
+
+@pytest.mark.spec("SHD-03-003", "SHD-03-004")
+def test_each_shaded_band_shows_a_legend_in_its_rows_shades(advice_app):
+    """#6673 AC-1, AC-2: one legend under each shaded band's title, labelled
+    at both ends, its cells the band's own layer shades and holding each
+    row's shade; the help text is shown and no caption says "darkest"."""
+    at = advice_app
+    captions = _texts(at.caption)
+    assert HELP_TEXT in captions
+    assert not any("darkest" in c.lower() for c in captions)
+    markdowns = _texts(at.markdown)
+    legends = [m for m in markdowns if LEGEND_BETTER in m]
+    assert len(legends) == 2
+    expected = {
+        b.title: b
+        for b in view.band_views(
+            case_advice(case_standing(two_vendors_ledger().case_ledger())), {}
+        )
+    }
+    for heading in ("Harm-free", "Trade-off"):
+        legend = markdowns[markdowns.index(f"**{heading}**") + 1]
+        assert LEGEND_BETTER in legend and LEGEND_DOMINATED in legend
+        assert legend.index(LEGEND_BETTER) < legend.index(LEGEND_DOMINATED)
+        cells = _BACKGROUND.findall(legend)
+        assert cells == [s.background for s in expected[heading].legend]
+        styles = _frame(at, heading).proto.arrow_data.styler.styles
+        row_backgrounds = set(_BACKGROUND.findall(styles))
+        assert row_backgrounds and row_backgrounds <= set(cells)
 
 
 def test_the_moves_with_no_band_are_listed_with_why(advice_app):

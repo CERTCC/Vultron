@@ -106,8 +106,13 @@ The changes these rules imply for today's code are tracked in
   actor sends a decision it has the authority to make as the act itself, and the
   CASE_MANAGER admits it as the ledger entry or refuses it with a refusal notice,
   never re-making it (ADR-0199). Only when another actor decides is the act sent as
-  `Offer(<the act>)`. An admitted act that someone outside the fan-out must see or
-  answer is delivered as the CASE_MANAGER's `Announce(<the act>)`.
+  `Offer(<the act>)`.
+- **An `Announce` informs and asks nothing; an `Offer` or `Invite` asks.** An
+  admitted act that someone outside the fan-out must only see is delivered as the
+  CASE_MANAGER's `Announce(<the act>)`, and no one answers it. When the act needs an
+  answer, the CASE_MANAGER sends its own `Offer` or `Invite` with the act's `object`
+  and `target`, `attributedTo` the decider and `inReplyTo` the decider's act, and
+  that is what is answered (ADR-0199 revision 3, #6626).
 
 ## Responses Reference the Request Twice
 

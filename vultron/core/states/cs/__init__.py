@@ -79,6 +79,7 @@ from vultron.core.states.cs.transitions import (
     PxaTransition,
     VF_Trigger,
     VfTransition,
+    d_transition_rows,
     is_monotonic_d_forward,
     is_monotonic_pxa_forward,
     is_monotonic_vf_forward,
@@ -86,6 +87,8 @@ from vultron.core.states.cs.transitions import (
     is_valid_d_transition,
     is_valid_pxa_transition,
     is_valid_vf_transition,
+    pxa_transition_rows,
+    vf_transition_rows,
 )
 
 __all__ = [
@@ -119,6 +122,7 @@ __all__ = [
     "all_states",
     "cs_state",
     "create_pxa_machine",
+    "d_transition_rows",
     "is_d_fix_deployed",
     "is_monotonic_d_forward",
     "is_monotonic_pxa_forward",
@@ -134,7 +138,9 @@ __all__ = [
     "is_vf_vendor_aware",
     "main",
     "pxa",
+    "pxa_transition_rows",
     "state_string_to_enum2",
     "state_string_to_enums",
+    "vf_transition_rows",
     "vfd",
 ]
