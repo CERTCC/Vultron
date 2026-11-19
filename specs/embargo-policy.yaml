@@ -1266,7 +1266,7 @@ groups:
       spec_id: CM-18-001
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_089
     - story_2022_027
@@ -1311,7 +1311,7 @@ groups:
       spec_id: MSM-07-005
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_089
     - story_2022_027
@@ -1341,7 +1341,7 @@ groups:
       for the embargo in force unchanged.
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_089
     relationships:
@@ -1834,7 +1834,7 @@ groups:
       spec_id: EP-08-002
     adr:
     - ADR-0100
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_088
   - id: EP-08-004
@@ -2200,7 +2200,7 @@ groups:
     adr:
     - ADR-0113
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_001
     see_also:
@@ -2241,8 +2241,7 @@ groups:
       a revision from `REVISE` activates it with no other participant having answered.
     adr:
     - ADR-0113
-    - ADR-0122
-    - ADR-0180
+    - ADR-0212
     stories:
     - story_2026_087
     relationships:
@@ -2654,7 +2653,7 @@ groups:
       (`test_answers_the_embargo_in_force_by_invite_id`) answers the embargo in force by
       Invite id with an `INVITED` row and with a `TIMED_OUT` row (accept and reject).
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_093
     relationships:
@@ -2678,7 +2677,7 @@ groups:
     - rel_type: extends
       spec_id: EP-09-012
     adr:
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_085
   - id: EP-09-015
@@ -2764,7 +2763,7 @@ groups:
       spec_id: VP-13-017
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_090
   - id: EP-09-028
@@ -2788,7 +2787,7 @@ groups:
       spec_id: EP-09-013
     adr:
     - ADR-0093
-    - ADR-0122
+    - ADR-0212
     stories:
     - story_2026_090
   - id: EP-09-016

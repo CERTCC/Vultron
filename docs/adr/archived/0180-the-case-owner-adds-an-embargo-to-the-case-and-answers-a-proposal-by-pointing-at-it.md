@@ -1,5 +1,5 @@
 ---
-status: accepted-provisional
+status: superseded
 date: 2026-11-06
 created: 2026-11-06
 updated: 2026-11-06
@@ -13,7 +13,12 @@ partially_superseded_by: 0199-an-actor-sends-the-decision-it-makes-and-offers-on
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0122-per-embargo-participant-consent.md
+superseded_by: 0212-how-embargo-status-and-participant-consent-are-recorded.md
 ---
+
+> **Superseded by [ADR-0212](../0212-how-embargo-status-and-participant-consent-are-recorded.md).**
+> ADR-0212 states the embargo register, the per-embargo consent rows, the EM derivation, the owner's decisions and an embargo's end as one decision, consolidating ADR-0122, ADR-0130, ADR-0180, ADR-0202 and ADR-0203.
+> This record is kept as it stood when it was superseded.
 
 # The Case Owner Adds an Embargo to the Case, and Each Owner Decision Points at the Proposal It Answers
 
@@ -113,7 +118,7 @@ The implementation is confirmed when the activation activity is an `Add` with `t
 
 This record partially supersedes [ADR-0122](0122-per-embargo-participant-consent.md): it replaces the activation activity in ADR-0122's table of register and consent effects and in its table of register steps, refuses an activation from an owner that declined the proposal, and adds `inReplyTo` to both owner decisions.
 
-A proposer cannot decline its own proposal and then activate it: it receives no invitation to its own proposal, so its `Reject(Invite(EmbargoEvent))` is refused, and it withdraws a proposal with `Undo(Invite(EmbargoEvent))` ([ADR-0152](0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md)).
+A proposer cannot decline its own proposal and then activate it: it receives no invitation to its own proposal, so its `Reject(Invite(EmbargoEvent))` is refused, and it withdraws a proposal with `Undo(Invite(EmbargoEvent))` ([ADR-0152](../0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md)).
 
-Whether the owner may delegate the `Add` to the CASE_MANAGER, as it may delegate ending an embargo ([ADR-0118](0118-pec-expired-and-unbound-exited-states.md)), is an open question of the specification; if it is allowed, only an owner row that is `AGREED` authorizes it.
+Whether the owner may delegate the `Add` to the CASE_MANAGER, as it may delegate ending an embargo ([ADR-0118](../0118-pec-expired-and-unbound-exited-states.md)), is an open question of the specification; if it is allowed, only an owner row that is `AGREED` authorizes it.
 ADR-0122's other decisions stand.

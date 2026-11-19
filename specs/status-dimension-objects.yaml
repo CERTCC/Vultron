@@ -26,7 +26,7 @@ groups:
     adr:
     - ADR-0036
     - ADR-0075
-    - ADR-0122
+    - ADR-0212
   - id: SDO-01-002
     priority: MUST_NOT
     kind: project
@@ -398,7 +398,7 @@ groups:
     - rel_type: implements
       spec_id: EMB-18-001
     adr:
-    - ADR-0122
+    - ADR-0212
   - id: SDO-03-010
     priority: MUST
     kind: project
@@ -418,7 +418,7 @@ groups:
     - rel_type: implements
       spec_id: SDO-03-006
     adr:
-    - ADR-0122
+    - ADR-0212
 - id: SDO-04
   title: Wire Projection and Migration Scope
   specs:

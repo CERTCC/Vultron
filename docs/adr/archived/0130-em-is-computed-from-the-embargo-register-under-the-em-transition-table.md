@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: superseded
 status_override: >-
   The maintainer kept ADR-0130 proposed on 2026-10-12: the PR #4452 review edits
   (the multi-proposal sub-decisions, the threat-signal CANCEL row, ADR-0124
@@ -15,7 +15,12 @@ consulted: >-
   specs/em-behavior.yaml EMB-06, EMB-16, EMB-17, EMB-18
 informed: []
 stakeholder_type: [project-contributor]
+superseded_by: 0212-how-embargo-status-and-participant-consent-are-recorded.md
 ---
+
+> **Superseded by [ADR-0212](../0212-how-embargo-status-and-participant-consent-are-recorded.md).**
+> ADR-0212 states the embargo register, the per-embargo consent rows, the EM derivation, the owner's decisions and an embargo's end as one decision, consolidating ADR-0122, ADR-0130, ADR-0180, ADR-0202 and ADR-0203.
+> This record is kept as it stood when it was superseded.
 
 # EM Is Computed From the Embargo Register Under the EM Transition Table
 

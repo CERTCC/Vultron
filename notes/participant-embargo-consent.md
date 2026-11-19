@@ -46,13 +46,13 @@ relevant_packages:
 
 Consent is recorded once, per (participant, embargo): `CaseParticipant.embargo_consents`
 holds one `EmbargoConsent(embargo_id, state, rsvp_deadline)` row for **every entry
-in the case's embargo register** (CM-18, ADR-0122). The machine is in
+in the case's embargo register** (CM-18, ADR-0212). The machine is in
 `vultron/core/states/participant_embargo_consent.py`; the normative transition
 table is CM-18-003.
 
 A note, comment or test that describes `SIGNATORY`, `LAPSED`, `UNBOUND`,
 `ACCEPTED` or `EXPIRED` as a stored consent state, or "no row" as "never asked",
-predates ADR-0122 and is wrong.
+predates ADR-0212 and is wrong.
 
 ---
 
@@ -128,7 +128,7 @@ and exited are reads; code that writes a row to record one re-creates the second
 record ADR-0122 removed.
 
 `ParticipantStatus` carries no consent and `embargo_adherence` is gone
-(ADR-0122 supersedes ADR-0056). The former wire keys `emConsentState`,
+(ADR-0212; ADR-0056 is retired). The former wire keys `emConsentState`,
 `embargoAdherence`, `embargoConsentState` and `acceptedEmbargoIds` are ordinary
 unknown keys inbound, set aside and reported (MV-11-003, ADR-0175).
 
@@ -175,7 +175,7 @@ Only the owner's decision changes the embargo on the case, through
 activation writes are the owner's own agreement and the carry-over
 (`_consent_at_activation`, `_carry_signatories_over`).
 
-**Participants answer invitations; the owner acts on embargoes** (ADR-0180).
+**Participants answer invitations; the owner acts on embargoes** (ADR-0212).
 Activation is `Add(EmbargoEvent)[target=VulnerabilityCase]`, the pair of the
 `Remove` that ends an embargo; rejection is `Reject(EmbargoEvent)`; both name
 the proposal's `Invite(EmbargoEvent)` in `inReplyTo`. Reason: a case change and a
@@ -190,7 +190,7 @@ owner's own Invite when it proposed the terms. Reason: every one is an Invite
 the owner holds, and with no open proposal recorded the trigger refuses, so no
 decision is built without `inReplyTo`. No receiver reads it to decide.
 
-**An owner's decision never rewrites its own answer** (ADR-0180, MSM-07-028,
+**An owner's decision never rewrites its own answer** (ADR-0212, MSM-07-028,
 MSM-07-037). Activation records the owner's `AGREE` only from `UNINVITED`,
 `INVITED` or `TIMED_OUT`, rows that hold no answer it gave; from `DECLINED` it is
 refused, so the order is Reject, Accept, Add. Reason: otherwise one activity is
@@ -317,7 +317,7 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   roster order. The proposal's rows are `Create`s (the proposer's `AGREED`,
   every other `UNINVITED`); a relayed Invite's, the manager's policy
   consent's and a re-issued stub's are `Update`s. A participant's
-  `Accept`/`Reject(Invite(EmbargoEvent))` is the exception ADR-0122 names: its
+  `Accept`/`Reject(Invite(EmbargoEvent))` is the exception ADR-0212 names: its
   own entry carries the row it states (`ConsentRowChange.answer()`), so no
   second entry follows, and a received answer that would record nothing the
   case can take is refused among its guards (`EmbargoAnswerAppliesNode`)
@@ -514,14 +514,14 @@ sender's id is needed or kept (DL-06-006).
   active embargo (`resolve_embargo_to_withdraw`, beside
   `_resolve_embargo_proposal` in the same module), so a signatory made by
   seeding or joining can leave too. The reject trigger never withdraws
-  (MSM-07-014; ADR-0122).
+  (MSM-07-014; ADR-0212).
 
 ---
 
 ## Handlers and Triggers
 
 The owner's decision and each participant's consent are different messages
-(ADR-0122), so no handler branches on the sender to learn what a message means:
+(ADR-0212), so no handler branches on the sender to learn what a message means:
 
 - `AcceptInviteToEmbargoOnCaseReceivedUseCase` (`Accept(Invite(EmbargoEvent))`)
   marks the sender's row for that embargo `AGREED` and moves no register entry.
@@ -537,7 +537,7 @@ The owner's decision and each participant's consent are different messages
   refused (HP-01-003); a new Leave after the withdrawal is still refused.
 - `ActivateEmbargoOnCaseReceivedUseCase` (`Add(EmbargoEvent)[target=VulnerabilityCase]`,
   owner only) activates the proposal (EM derives `ACTIVE`, or `REVISE` while
-  another proposal stays open, ADR-0130), marks the owner's row `AGREED` unless it
+  another proposal stays open, ADR-0212), marks the owner's row `AGREED` unless it
   already is, and applies the carry-over above.
 - **Triggers pick the activity by ownership.** The case owner's
   `accept-embargo`/`reject-embargo` send

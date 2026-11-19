@@ -11,7 +11,9 @@ consulted: >-
   specs/em-behavior.yaml EMB-01, EMB-03, EMB-17; specs/handler-protocol.yaml HP-01;
   specs/message-semantics-mapping.yaml MSM-07
 informed: []
-partially_superseded_by: docs/adr/0122-per-embargo-participant-consent.md
+partially_superseded_by:
+  - docs/adr/0122-per-embargo-participant-consent.md
+  - 0212-how-embargo-status-and-participant-consent-are-recorded.md
 stakeholder_type: [project-contributor]
 ---
 
