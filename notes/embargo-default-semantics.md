@@ -19,6 +19,7 @@ related_specs:
   - specs/vultron-as2-mapping.yaml
   - specs/actor-knowledge-model.yaml
 related_notes:
+  - notes/csaf-case-inputs-on-proposal.md
   - notes/participant-embargo-consent.md
   - notes/embargo-lifecycle.md
   - notes/case-communication-model.md

@@ -192,11 +192,14 @@ groups:
     kind: project
     statement: >-
       The case-actor MUST read the Reporter's proposed embargo terms (EP-04-004) only
-      from the Offer in the proposal's `inReplyTo`, never fetching or reconstructing
-      them elsewhere.
+      from the Offer in the proposal's `inReplyTo`, or, when that Offer proposes
+      none, from the CSAF disclosure date its proposer copied from that Offer's
+      report, never fetching or reconstructing them elsewhere.
     rationale: >-
       The carried Offer is the activity the report receiver received, so the terms
-      arrive as the Reporter stated them. Terms rebuilt from another source would be
+      arrive as the Reporter stated them. A disclosure date the proposer copies as
+      the document states it is still the Reporter's own value, since the proposer
+      passes it along without judging it. Terms rebuilt from another source would be
       the receiver's paraphrase, and a fetch would need an object the case-actor
       has never seen.
     relationships:

@@ -1,12 +1,16 @@
 ---
 status: accepted-provisional
+status_override: >-
+  Revision 2 adds a sixth part (the report receiver states CSAF case inputs on its
+  proposal, and the CASE_MANAGER falls back to the document) at the maintainer's
+  direction in #6197; the first five parts are unchanged.
 date: 2026-11-06
 created: 2026-11-06
-updated: 2026-11-06
-revision: 1
+updated: 2026-11-19
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; Idea #5131, Epic #5911; the CSAF 2.1 crosswalk pages; the CSAF 2.1
+  Claude Opus 5.5; Idea #5131, Idea #6197, Epic #5911; the CSAF 2.1 crosswalk pages; the CSAF 2.1
   draft (CSD04) and its Vulnerability Report profile
 informed: []
 stakeholder_type: [project-contributor]
@@ -20,12 +24,13 @@ The Common Security Advisory Framework (CSAF) 2.1 draft adds a Vulnerability Rep
 CVD tools will send such documents to Vultron participants, and the [CSAF crosswalk](../reference/csaf_crosswalk/overview.md) expects them to travel inside a case.
 Participants will also produce CSAF documents from their copies of a case and pass draft advisories around in CSAF, so CSAF documents will appear in a case for reasons other than reporting.
 
-Four questions are open (Idea #5131):
+Five questions are open (Idea #5131, Idea #6197):
 
 1. Where in a Vultron message does a CSAF document go, and what tells a receiver that it is CSAF?
 2. When may a receiver read the content of a CSAF document as the sender's statement about the case?
 3. When a Vultron field and the CSAF document state a value for the same thing, which one counts?
 4. What does a receiver do with a CSAF document it cannot read, or one that fails the CSAF schema?
+5. When the report receiver and the CASE_MANAGER are separate actors, which of them turns the document into case inputs, and against which time are its dates judged?
 
 ## Decision Drivers
 
@@ -35,6 +40,7 @@ Four questions are open (Idea #5131):
 - The case changes only through Vultron's own activities and fields.
 - A broken attachment must not stop a real vulnerability report from being received.
 - CSAF 2.1 is a draft that its Technical Committee can still change.
+- The case owner states the starting content of its own case, and the Reporter's embargo proposal stays the Reporter's.
 
 ## Considered Options
 
@@ -55,11 +61,17 @@ For the occasion of reading:
 - Read any CSAF document that arrives in a case.
 - Read only a CSAF Vulnerability Report attached to the first offer of a report, before a case exists for it.
 
+For the reader of the document, when a proposal creates the case:
+
+- The CASE_MANAGER reads the document on the Offer that the proposal carries, and the proposal states nothing.
+- The report receiver reads the document and states the case inputs on its proposal, and the CASE_MANAGER never reads it.
+- The report receiver reads the document and states the case inputs on its proposal, and the CASE_MANAGER reads the document only when a proposal states none.
+
 ## Decision Outcome
 
-Chosen options: **the attached `Document`**, **`application/json` with self-identification**, and **only at the first offer of a report**, because together they keep AS2 shapes, keep the report readable without CSAF, and keep every other CSAF document from rewriting a case.
+Chosen options: **the attached `Document`**, **`application/json` with self-identification**, **only at the first offer of a report**, and **the report receiver reads, with the CASE_MANAGER as the fallback**, because together they keep AS2 shapes, keep the report readable without CSAF, keep every other CSAF document from rewriting a case, and let the case owner state its own case.
 
-The decision has five parts:
+The decision has six parts:
 
 1. **Carriage.** A CSAF document travels as a `Document` in the `attachment` of a `VulnerabilityReport`, with the JSON text of the document as the `content` of that `Document`.
    The report's own `content` is human-readable text, and the report can carry other attachments beside the CSAF document.
@@ -73,6 +85,12 @@ The decision has five parts:
    A field that the document omits states nothing, and neither does a default that the CSAF schema declares.
 5. **Strict sender, lenient receiver.** A sender should not attach a document that fails the CSAF 2.1 schema.
    A receiver never refuses a report because of its CSAF attachment, and it reads what it can.
+6. **The report receiver states the case inputs.**
+   The report receiver turns the document into the case inputs of its case proposal, and the case owner may change them before it sends the proposal.
+   When a proposal states case inputs, the CASE_MANAGER builds the case from them and reads no CSAF document.
+   When a proposal states none, the CASE_MANAGER may fill the inputs from the document on the Offer that the proposal carries.
+   The proposer passes the CSAF disclosure date along as the document states it.
+   The CASE_MANAGER judges the date when it creates the case: a future date is the Reporter's proposed embargo end, and a past date makes the vulnerability public.
 
 The mapping from CSAF fields to case inputs, the receiver's local record of what it read, and how the codebase follows the changing draft are current policy, and they live in the specification that cites this decision.
 
@@ -87,6 +105,9 @@ The mapping from CSAF fields to case inputs, the receiver's local record of what
 - Bad, because `application/json` alone does not tell a receiver that an attachment is CSAF until it reads the document.
 - Bad, because a CSAF document that arrives after the case exists can only be read by a human, even when it carries news, such as a later exploitation report.
   Such news reaches the case through the Vultron activity that reports it.
+- Good, because the receiver's record of what it read agrees with the proposal it sent.
+- Good, because a disclosure date that passes while a proposal is delivered never becomes an embargo end.
+- Bad, because the CASE_MANAGER keeps two ways to get the case inputs: from the proposal, or from the document.
 
 ## Validation
 
@@ -112,6 +133,23 @@ Each marker is a strict expected failure until its behavior is built.
 - Good, because the report keeps its text and can carry other files.
 - Neutral, because a receiver must look in the attachments to find the document.
 
+### The CASE_MANAGER reads the document, and the proposal states nothing
+
+- Good, because the mapping runs in one place.
+- Bad, because the case owner cannot change the starting content of its own case before the case exists.
+- Bad, because the receiver's record of what it read cannot say what the case took from it.
+
+### The report receiver reads the document, and the CASE_MANAGER never reads it
+
+- Good, because only the actor that received the Offer reads the document.
+- Bad, because a CSAF report from a receiver that does not convert it gives nothing to the case, and no error says so.
+
+### The report receiver reads the document, with the CASE_MANAGER as the fallback
+
+- Good, because the case owner states its own case, as it states its case roles (ADR-0133).
+- Good, because a receiver that does not convert the document still gets a case that takes what the document says.
+- Neutral, because both paths use one mapping, so the fallback costs one check for the case inputs on the proposal.
+
 ### A `profile` parameter or an unregistered media type
 
 - Good, because the format is visible without reading the document.
@@ -129,5 +167,7 @@ The crosswalk [proposals](../reference/csaf_crosswalk/proposals.md) include a re
 If the committee registers one, the identification part of this decision can change without changing the others.
 
 Producing a CSAF document from a case is planned separately (Idea #5134).
+
+The requirements for the sixth part are planned in `notes/csaf-case-inputs-on-proposal.md` and land in `case-proposal.yaml` and `embargo-policy.yaml` with their code (#6722, #6723, #6725).
 
 Generated spec requirements: `csaf-report-content.yaml` CSAF-01 through CSAF-03.
