@@ -22,7 +22,6 @@ tracks:
   - "#6409"   # typed term for every Vultron field
   - "#6422"   # term check and owned ratchets
   - "#6411"   # ledger entry case in context
-  - "#6413"   # vulnerability item title -> name
   - "#6415"   # dead participantCaseName, caseActivity
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
