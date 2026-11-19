@@ -40,8 +40,10 @@ from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
-    HasEmbargoActiveNode,
     SendAnnounceEmbargoEventNode,
+)
+from vultron.core.behaviors.embargo.nodes.teardown_guards import (
+    HasEmbargoActiveNode,
 )
 from vultron.core.behaviors.embargo.nodes.termination_cause_guard import (
     TerminationCauseIsAdmissibleNode,

@@ -21,7 +21,9 @@ seed for a key it requires is a composition fault: the read raises, naming
 the key, rather than the node deciding anything without it.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from datetime import datetime
+from typing import cast
 
 import py_trees
 import pytest
@@ -30,6 +32,7 @@ from py_trees.ports import NoDataAvailable
 from test.core.behaviors.embargo.nodes.conftest import setup_blackboard
 from test.support.act_runner import in_act
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.act_keys import ACT_KEYS, ActKey, vocabulary_key
 from vultron.core.behaviors.case.nodes.leave.settle import (
     ExpirePendingInvitesOnCloseNode,
 )
@@ -68,8 +71,10 @@ from vultron.core.behaviors.embargo.nodes.invitation_expiry import (
 )
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ClearActiveEmbargoNode,
-    HasEmbargoActiveNode,
     SendAnnounceEmbargoEventNode,
+)
+from vultron.core.behaviors.embargo.nodes.teardown_guards import (
+    HasEmbargoActiveNode,
     TerminationIsTimelyNode,
 )
 from vultron.core.behaviors.embargo.nodes.terminate import (
@@ -82,6 +87,7 @@ from vultron.core.behaviors.embargo.nodes.termination_cause_guard import (
 from vultron.core.behaviors.embargo.nodes.termination_commit import (
     CommitAndApplyEmbargoTerminationNode,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationCauseKind,
@@ -89,86 +95,107 @@ from vultron.core.models.embargo_termination import (
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 
-#: Each moved node, built from configuration alone, and the first key it
-#: reads when it ticks.
-_NODES: list[tuple[Callable[[], py_trees.behaviour.Behaviour], str]] = [
-    (lambda: EmbargoAlreadyEndedNode(result_out={}), "/case_id"),
-    (EmbargoEndTimePassedNode, "/case_id"),
-    (PersistEmbargoEventNode, "/embargo"),
-    (
-        lambda: ChooseTerminationCauseNode(
-            kind=TerminationCauseKind.OTHER, chosen=ChosenTermination()
-        ),
-        "/case_id",
+#: Each moved node, built from configuration alone.
+_BUILDERS: list[Callable[[], py_trees.behaviour.Behaviour]] = [
+    lambda: EmbargoAlreadyEndedNode(result_out={}),
+    EmbargoEndTimePassedNode,
+    PersistEmbargoEventNode,
+    lambda: ChooseTerminationCauseNode(
+        kind=TerminationCauseKind.OTHER, chosen=ChosenTermination()
     ),
-    (CaptureActiveEmbargoNode, "/case_id"),
-    (
-        lambda: SendEmbargoEndingNoticesNode(
-            capture=CaptureActiveEmbargoNode()
-        ),
-        "/case_id",
+    CaptureActiveEmbargoNode,
+    lambda: SendEmbargoEndingNoticesNode(capture=CaptureActiveEmbargoNode()),
+    AwaitsEmbargoEndingNoticeNode,
+    ApplyAnnouncedEmbargoRevisionNode,
+    AdoptRemovedEmbargoRevisionNode,
+    lambda: EvaluateInviteExpiryNode(result_out={}),
+    CommitAndApplyInviteExpiryNode,
+    ExpireOverdueInvitesNode,
+    ExpirePendingInvitesOnCloseNode,
+    lambda: ClearActiveEmbargoNode(termination=EmbargoTermination.early()),
+    HasEmbargoActiveNode,
+    SendAnnounceEmbargoEventNode,
+    lambda: TerminationIsTimelyNode(termination=EmbargoTermination.early()),
+    lambda: SendTerminateEmbargoActivityNode(reason=TerminationReason.EARLY),
+    TeardownAskPendingNode,
+    lambda: TerminationCauseIsAdmissibleNode(
+        termination=EmbargoTermination.early()
     ),
-    (AwaitsEmbargoEndingNoticeNode, "/case_id"),
-    (ApplyAnnouncedEmbargoRevisionNode, "/case_id"),
-    (AdoptRemovedEmbargoRevisionNode, "/case_id"),
-    (lambda: EvaluateInviteExpiryNode(result_out={}), "/case_id"),
-    (CommitAndApplyInviteExpiryNode, "/case_id"),
-    (ExpireOverdueInvitesNode, "/case_id"),
-    (ExpirePendingInvitesOnCloseNode, "/case_id"),
-    (
-        lambda: ClearActiveEmbargoNode(termination=EmbargoTermination.early()),
-        "/case_id",
-    ),
-    (HasEmbargoActiveNode, "/case_id"),
-    (SendAnnounceEmbargoEventNode, "/case_id"),
-    (
-        lambda: TerminationIsTimelyNode(
-            termination=EmbargoTermination.early()
-        ),
-        "/case_id",
-    ),
-    (
-        lambda: SendTerminateEmbargoActivityNode(
-            reason=TerminationReason.EARLY
-        ),
-        "/case_id",
-    ),
-    (TeardownAskPendingNode, "/case_id"),
-    (
-        lambda: TerminationCauseIsAdmissibleNode(
-            termination=EmbargoTermination.early()
-        ),
-        "/case_id",
-    ),
-    (
-        lambda: CommitAndApplyEmbargoTerminationNode(
-            result_out={}, termination=EmbargoTermination.early()
-        ),
-        "/case_id",
+    lambda: CommitAndApplyEmbargoTerminationNode(
+        result_out={}, termination=EmbargoTermination.early()
     ),
 ]
 
 
+#: A stand-in value for a seeded key, by the port's declared type; the read
+#: under test raises before any node logic sees it.
+_STAND_INS: dict[type, object] = {
+    str: "urn:uuid:stand-in",
+    datetime: now_utc(),
+}
+
+
+def _required_act_keys(node: py_trees.behaviour.Behaviour) -> list[ActKey]:
+    """The act keys *node* declares as required input ports, in port order."""
+    remaps = type(node)._domain_port_remappings()  # type: ignore[attr-defined]
+    keys: list[ActKey] = []
+    for port, info in type(node).INPUT_PORTS.items():  # type: ignore[attr-defined]
+        key = vocabulary_key(remaps.get(port, ""))
+        if info.required and isinstance(key, ActKey):
+            keys.append(key)
+    return keys
+
+
+#: Every (node, required act key) pair: each key is left unseeded once, with
+#: every other required key seeded.
+_CASES: list[tuple[Callable[[], py_trees.behaviour.Behaviour], ActKey]] = [
+    (build, key) for build in _BUILDERS for key in _required_act_keys(build())
+]
+
+
+@pytest.fixture
+def act_key_storage() -> Iterator[None]:
+    """Put every act key the test touches back as it was."""
+    storage = py_trees.blackboard.Blackboard.storage
+    saved = {
+        k.path: storage[k.path] for k in ACT_KEYS.values() if k.path in storage
+    }
+    yield
+    for key in ACT_KEYS.values():
+        storage.pop(key.path, None)
+    storage.update(saved)
+
+
+def test_every_moved_node_declares_a_required_act_key() -> None:
+    assert all(_required_act_keys(build()) for build in _BUILDERS)
+
+
 @pytest.mark.spec("BTND-01-008")
+@pytest.mark.usefixtures("act_key_storage")
 @pytest.mark.parametrize(
     ("build", "key"),
-    _NODES,
-    ids=[f"{i:02d}" for i in range(len(_NODES))],
+    _CASES,
+    ids=[f"{type(b()).__name__}-{k.name}" for b, k in _CASES],
 )
 def test_a_node_ticked_without_its_key_seeded_raises_naming_the_key(
-    build: Callable[[], py_trees.behaviour.Behaviour], key: str
+    build: Callable[[], py_trees.behaviour.Behaviour], key: ActKey
 ) -> None:
-    py_trees.blackboard.Blackboard.storage.pop(key, None)
+    node = build()
+    storage = py_trees.blackboard.Blackboard.storage
+    for other in _required_act_keys(node):
+        if other is not key:
+            storage[other.path] = _STAND_INS[cast(type, other.value_type)]
+    storage.pop(key.path, None)
     setup_blackboard(
         SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://example.org/users/vendor",
         )
     )
-    tree = py_trees.trees.BehaviourTree(root=build())
+    tree = py_trees.trees.BehaviourTree(root=node)
     tree.setup()
 
-    with in_act(), pytest.raises(NoDataAvailable, match=key):
+    with in_act(), pytest.raises(NoDataAvailable, match=key.path):
         tree.tick()
 
 
@@ -181,11 +208,10 @@ def test_a_base_built_with_no_case_and_no_case_port_is_a_wiring_fault(
 ) -> None:
     """``case_id=None`` is only for a subclass that reads ``/case_id``."""
 
-    class _NoCasePort(base):  # type: ignore[misc, valid-type]
-        pass
-
+    # A name of its own per base: py_trees registers port classes by name.
+    no_case_port = type(f"_NoCasePort{base.__name__}", (base,), {})
     kwargs: dict[str, object] = {"case_id": None}
     if base is _CommitCaseManagerActivityBase:
         kwargs["semantic_type"] = "Remove"
     with pytest.raises(VultronWiringError, match="/case_id"):
-        _NoCasePort(**kwargs)
+        no_case_port(**kwargs)

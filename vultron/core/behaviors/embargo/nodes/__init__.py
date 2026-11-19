@@ -142,8 +142,10 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
-    HasEmbargoActiveNode,
     SendAnnounceEmbargoEventNode,
+)
+from vultron.core.behaviors.embargo.nodes.teardown_guards import (
+    HasEmbargoActiveNode,
     TerminationIsTimelyNode,
 )
 from vultron.core.behaviors.embargo.nodes.terminate import (

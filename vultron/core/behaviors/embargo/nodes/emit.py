@@ -18,13 +18,13 @@
 from py_trees.common import Status
 
 from vultron.core.behaviors.act_keys import CASE_ID
+from vultron.core.behaviors.case_id_scope import require_case_source
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
 from vultron.core.use_cases._helpers import add_activity_to_outbox
-from vultron.errors import VultronWiringError
 
 
 class _SendEmbargoActivityBase(DataLayerActionWithPorts, EmitCapable):
@@ -56,13 +56,9 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts, EmitCapable):
 
     def __init__(self, case_id: str | None, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        require_case_source(self, case_id)
         if case_id is not None:
             self._case_id = case_id
-        elif CASE_ID.name not in type(self).INPUT_PORTS:
-            raise VultronWiringError(
-                f"{self.name}: no case_id and no '{CASE_ID.path}' port to"
-                " read it from (BTND-01-008)"
-            )
 
     def _on_factory_unavailable(self) -> Status:
         """Status to return when ``trigger_activity_factory`` is ``None``.

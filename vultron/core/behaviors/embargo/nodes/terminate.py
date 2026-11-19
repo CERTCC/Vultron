@@ -78,7 +78,7 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
         CASE_ID.name: PortInformation(data_type=str, required=True),
-        "embargo_id": PortInformation(data_type=str, required=True),
+        EMBARGO_ID.name: PortInformation(data_type=str, required=True),
     }
 
     def __init__(self, name: str | None = None) -> None:
@@ -86,12 +86,12 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path, "embargo_id": EMBARGO_ID.path}
+        return {CASE_ID.name: CASE_ID.path, EMBARGO_ID.name: EMBARGO_ID.path}
 
     def initialise(self) -> None:
         super().initialise()
         self._case_id: str = self.get_input(CASE_ID.name)
-        self.embargo_id: str = self.get_input("embargo_id")
+        self.embargo_id: str = self.get_input(EMBARGO_ID.name)
 
     def update(self) -> Status:
         if not self.actor_id:
@@ -160,22 +160,22 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_SendEmbargoActivityForCaseKey.INPUT_PORTS,
-        "embargo_id": PortInformation(data_type=str, required=True),
-        "case_manager_id": PortInformation(data_type=str, required=True),
+        EMBARGO_ID.name: PortInformation(data_type=str, required=True),
+        CASE_MANAGER_ID.name: PortInformation(data_type=str, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             **super()._domain_port_remappings(),
-            "embargo_id": EMBARGO_ID.path,
-            "case_manager_id": CASE_MANAGER_ID.path,
+            EMBARGO_ID.name: EMBARGO_ID.path,
+            CASE_MANAGER_ID.name: CASE_MANAGER_ID.path,
         }
 
     def initialise(self) -> None:
         super().initialise()
-        self.embargo_id: str = self.get_input("embargo_id")
-        self.case_manager_id: str = self.get_input("case_manager_id")
+        self.embargo_id: str = self.get_input(EMBARGO_ID.name)
+        self.case_manager_id: str = self.get_input(CASE_MANAGER_ID.name)
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (

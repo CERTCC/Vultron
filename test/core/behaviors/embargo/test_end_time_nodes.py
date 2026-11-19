@@ -39,7 +39,7 @@ from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.end_time_tree import (
     EmbargoEndTimePassedNode,
 )
-from vultron.core.behaviors.embargo.nodes.teardown import (
+from vultron.core.behaviors.embargo.nodes.teardown_guards import (
     TerminationIsTimelyNode,
 )
 from vultron.core.models._helpers import now_utc
@@ -164,7 +164,7 @@ def test_timely_guard_trial_applies_the_step_the_remove_names(
     a refused step refuses the act."""
     from unittest.mock import patch
 
-    from vultron.core.behaviors.embargo.nodes import teardown
+    from vultron.core.behaviors.embargo.nodes import teardown_guards
     from vultron.errors import VultronEntryRefusedError
 
     dl, case = _store(end_time=now_utc() + timedelta(days=1))
@@ -177,9 +177,9 @@ def test_timely_guard_trial_applies_the_step_the_remove_names(
     )
 
     with patch.object(
-        teardown,
+        teardown_guards,
         "trial_apply",
-        wraps=teardown.trial_apply,
+        wraps=teardown_guards.trial_apply,
         side_effect=(
             VultronEntryRefusedError("does not apply")
             if trial_refuses

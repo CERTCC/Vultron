@@ -22,25 +22,19 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.act_keys import (
     CASE_ID,
-    EMBARGO,
     EMBARGO_ID,
     TERMINATED_AT,
 )
 from vultron.core.behaviors.embargo.copy_commit import (
     read_embargo_case_file,
     save_case_file,
-    trial_apply,
 )
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.emit import (
     _SendEmbargoActivityForCaseKey,
 )
-from vultron.core.behaviors.embargo.nodes.ending_notice_replica import (
-    adopted_revision_timing_violations,
-)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    DataLayerConditionWithPorts,
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
@@ -52,7 +46,6 @@ from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
 )
 from vultron.core.models._helpers import parse_published
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
     EmbargoChange,
@@ -60,7 +53,6 @@ from vultron.core.models.embargo_apply import (
     RegisterStepKind,
     apply_embargo_change,
 )
-from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -75,176 +67,12 @@ from vultron.core.states.embargo_register import (
     termination_reason_from_content,
 )
 from vultron.errors import (
-    INTERNAL_FAULTS,
     BtNodePreconditionError,
     VultronEntryRefusedError,
     VultronError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
 )
-
-
-class HasEmbargoActiveNode(DataLayerConditionWithPorts):
-    """Condition: EM state is ACTIVE or REVISE (embargo is active).
-
-    Returns SUCCESS when ``case.em_state`` is not EXITED
-    (i.e., the embargo is still active and teardown has not been applied).
-    Returns FAILURE when EM is EXITED (teardown already done — idempotent
-    guard) or when the case is not found.
-
-    Uses ``ReadEmStateNode`` to read EM state (AC-1 of issue #1554).  The
-    case is read from ``/case_id`` (BTND-01-008).
-    """
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerConditionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
-    }
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {CASE_ID.name: CASE_ID.path}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.case_id: str = self.get_input(CASE_ID.name)
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        try:
-            em_state = read_case_em_state(self.datalayer, self.case_id)
-        except BtNodePreconditionError as exc:
-            self.feedback_message = str(exc)
-            return Status.FAILURE
-
-        if em_state == EM.EXITED:
-            self.feedback_message = f"Case '{self.case_id}' EM already EXITED — teardown not needed"
-            return Status.FAILURE
-
-        return Status.SUCCESS
-
-
-class TerminationIsTimelyNode(DataLayerConditionWithPorts):
-    """Guard: a received termination may end the embargo in force now.
-
-    FAILURE when *termination* is ``END_TIME_REACHED`` claimed at
-    *terminated_at* before the end time of the case's embargo in force, or
-    carries no time (ADR-0122); SUCCESS otherwise, an ``EARLY`` termination
-    or a case with no embargo in force included.  It runs among the received
-    tree's precondition guards, so a refused termination is never committed
-    (CLP-10-006).  An embargo that cannot be read fails closed (EMB-18-003).
-
-    With *embargo_id* (the embargo the ``Remove`` names) in force, the
-    ``TERMINATE`` step is also trial-applied through the one apply function
-    (ADR-0124): a step it refuses refuses the act before the guarded commit of its
-    entry, so no entry is ledgered for a change that cannot be applied.
-
-    At a paused signatory's replica (CM-31-010), a named revision it has not
-    activated is adopted ahead of the teardown (CM-31-042), so the claim is
-    judged against that revision's own end time: the stored record, else
-    *embargo*, the ``Remove``'s inline copy (EMB-18-003).
-
-    The case is read from ``/case_id`` (BTND-01-008), and, each when the
-    ``Remove`` carries it, *terminated_at* from ``/terminated_at``,
-    *embargo_id* from ``/embargo_id`` and *embargo* from ``/embargo``.
-    """
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerConditionWithPorts.INPUT_PORTS,
-        CASE_ID.name: PortInformation(data_type=str, required=True),
-        TERMINATED_AT.name: PortInformation(
-            data_type=datetime, required=False
-        ),
-        EMBARGO_ID.name: PortInformation(data_type=str, required=False),
-        EMBARGO.name: PortInformation(data_type=EmbargoEvent, required=False),
-    }
-
-    def __init__(
-        self,
-        termination: EmbargoTermination,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._termination = termination
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            key.name: key.path
-            for key in (CASE_ID, TERMINATED_AT, EMBARGO_ID, EMBARGO)
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.case_id: str = self.get_input(CASE_ID.name)
-        self._terminated_at = cast(
-            datetime | None, self._try_get_input(TERMINATED_AT.name)
-        )
-        self._embargo_id = cast(
-            str | None, self._try_get_input(EMBARGO_ID.name)
-        )
-        self._embargo = cast(
-            EmbargoEvent | None, self._try_get_input(EMBARGO.name)
-        )
-
-    def _violations(self, case: VulnerabilityCase) -> list[str]:
-        dl = cast(CasePersistence, self.datalayer)
-        adopted = adopted_revision_timing_violations(
-            dl,
-            case,
-            self.actor_id,
-            self._embargo_id,
-            self._embargo,
-            self._termination,
-            self._terminated_at,
-        )
-        if adopted is not None:
-            return adopted
-        if (
-            self._embargo_id is None
-            or case.active_embargo_id != self._embargo_id
-        ):
-            return termination_timing_violations(
-                dl, case, self._termination, self._terminated_at
-            )
-        try:
-            step = decide_termination(
-                dl, case, self._termination, self._terminated_at
-            )
-            trial_apply(read_embargo_case_file(dl, self.case_id), [step])
-        except (
-            VultronInvalidStateTransitionError,
-            VultronEntryRefusedError,
-        ) as exc:
-            return [str(exc)]
-        return []
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure
-        try:
-            violations = self._violations(case)
-        except INTERNAL_FAULTS:
-            raise  # never a refusal, so never answered (ADR-0095)
-        except VultronError as exc:
-            violations = [str(exc)]
-        if not violations:
-            return Status.SUCCESS
-        self.feedback_message = (
-            f"Refused termination on case '{self.case_id}': "
-            + "; ".join(violations)
-        )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
