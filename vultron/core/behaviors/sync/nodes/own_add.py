@@ -13,9 +13,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The anomaly in an ``Announce(CaseLedgerEntry)`` a store sent to itself.
+"""The anomaly in an ``Add(CaseLedgerEntry)`` a store sent to itself.
 
-Split from the announce tree's factory so the factory holds composition only
+Split from the add-log-entry tree's factory so the factory holds composition only
 (BTND-07-004).
 """
 
@@ -27,23 +27,23 @@ from vultron.core.behaviors.sync.nodes._event_condition_base import (
     _ActivityEventNode,
 )
 
-__all__ = ["AnnouncedEntryIsNotOwnEchoNode"]
+__all__ = ["AddedEntryIsNotOwnEchoNode"]
 
 
-class AnnouncedEntryIsNotOwnEchoNode(_ActivityEventNode):
-    """Guard: this ``Announce`` was not sent by the actor receiving it.
+class AddedEntryIsNotOwnEchoNode(_ActivityEventNode):
+    """Guard: this ``Add`` was not sent by the actor receiving it.
 
-    An actor that announces a ledger entry holds the case's canonical ledger,
+    An actor that adds an entry to the ledger holds the canonical ledger,
     so it is that case's CASE_MANAGER (SYNC-13-006).  On the manager path its
-    own echoed ``Announce`` only confirms delivery, and this guard is not
+    own echoed ``Add`` only confirms delivery, and this guard is not
     there.  Off that path the echo cannot happen: a replica receiver that
-    sent the ``Announce`` is not the manager of the case it holds, and the
+    sent the ``Add`` is not the manager of the case it holds, and the
     sender guard has already refused it.  What is left is the receiver that
-    holds no replica of the case it announced — a Regime 1 anomaly
+    holds no replica of the case it added to — a Regime 1 anomaly
     (ADR-0087), because the manager always holds the case it manages.
 
     So this guard refuses it, at ERROR: the pre-genesis window the no-case
-    path otherwise takes is self-healing for a *peer's* ``Announce``, which
+    path otherwise takes is self-healing for a *peer's* ``Add``, which
     the genesis ``Reject`` repairs (SYNC-15-001), and that reading does not
     hold here — the store would buffer its own entry and ask itself for the
     case it is the authority for.  Reads only the blackboard.
@@ -54,10 +54,10 @@ class AnnouncedEntryIsNotOwnEchoNode(_ActivityEventNode):
         if sender_id != self.actor_id:
             return Status.SUCCESS
         self.feedback_message = (
-            f"'{self.actor_id}' announced this ledger entry and holds no"
-            " replica of the case it names: the actor that announces an"
-            " entry is the case's CASE_MANAGER, so this store is missing a"
-            " case it is the authority for (ADR-0087, SYNC-13-006)"
+            f"'{self.actor_id}' added this ledger entry and holds no"
+            " replica of the case it names: the actor that adds an entry"
+            " to the ledger is the case's CASE_MANAGER, so this store is"
+            " missing a case it is the authority for (ADR-0087, SYNC-13-006)"
         )
         self.logger.error("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE

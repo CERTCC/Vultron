@@ -401,7 +401,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # --- note (#5785) ----------------------------------------------------
     # A directed type: the trigger side resolves the CASE_MANAGER and
     # addresses the one activity to it (PCR-08-001), and no one relays it, so
-    # a note reaches a replica only as the entry's Announce fan-out
+    # a note reaches a replica only as the entry's Add fan-out
     # (SYNC-02-001, SYNC-02-003).  The manager path alone (#6394).
     # Remove(Note) is addressed the same way; its tree then refuses every
     # one at the CASE_MANAGER (CM-30-003, #6430).
@@ -416,7 +416,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         0,
     ): frozenset({CM}),
     # --- sync: the ledger replication envelopes (#5044) ------------------
-    # Announce(CaseLedgerEntry) is the one replication message every
+    # Add(CaseLedgerEntry) is the one replication message every
     # receiver takes: the CASE_MANAGER gets its own announcement echoed
     # back, a replica applies the entry to its chain, and a receiver that
     # holds no replica yet is in the pre-genesis window, where the entry is
@@ -424,8 +424,8 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # is a ledger-activity guard with no side split, so the no-case path
     # costs nothing there (HP-01-024).
     (
-        f"{_SY}/announce_tree/factory.py",
-        "create_announce_log_entry_tree",
+        f"{_SY}/add_log_entry_tree/factory.py",
+        "create_add_log_entry_tree",
         0,
     ): frozenset({CM, PR, NC}),
     # The remaining four are directed at the holder of the canonical ledger

@@ -14,7 +14,7 @@
 """Send-side hash check: the CASE_MANAGER holds back an entry it cannot verify.
 
 Covers the shared pieces every send path uses: ``send_verified_log_entry``,
-the one ``send_announce_log_entry`` call, and ``send_ledger_suffix``, the
+the one ``send_add_log_entry`` call, and ``send_ledger_suffix``, the
 loop the replays and backfills share (SYNC-03-009).  Each send site has its
 own test in ``nodes/test_send_side_hash_check_sites.py``.
 """
@@ -46,12 +46,12 @@ _PEER_ID = "https://example.org/actors/vendor"
 
 
 class _RecordingSyncPort:
-    """Records each ``Announce(CaseLedgerEntry)`` it is asked to queue."""
+    """Records each ``Add(CaseLedgerEntry)`` it is asked to queue."""
 
     def __init__(self) -> None:
         self.sent: list[int] = []
 
-    def send_announce_log_entry(
+    def send_add_log_entry(
         self,
         entry: CaseLedgerEntry,
         actor_id: str,
@@ -144,7 +144,7 @@ class _PendingAboveSyncPort(_RecordingSyncPort):
         super().__init__()
         self.pending_from = pending_from
 
-    def send_announce_log_entry(
+    def send_add_log_entry(
         self,
         entry: CaseLedgerEntry,
         actor_id: str,
@@ -154,7 +154,7 @@ class _PendingAboveSyncPort(_RecordingSyncPort):
     ) -> bool:
         if entry.log_index >= self.pending_from:
             return False
-        return super().send_announce_log_entry(entry, actor_id, to)
+        return super().send_add_log_entry(entry, actor_id, to)
 
 
 @pytest.mark.spec("SYNC-15-022")

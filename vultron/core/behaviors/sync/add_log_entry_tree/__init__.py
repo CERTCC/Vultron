@@ -13,20 +13,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Behavior tree factory for inbound Announce(CaseLedgerEntry) handling.
+"""Behavior tree factory for inbound Add(CaseLedgerEntry) handling.
 
 Split by concern (CS-18-005): ``factory`` composes the tree and
 ``effect_slots`` builds the replica's per-entry effect slots.
 """
 
-from vultron.core.behaviors.sync.announce_tree.factory import (
+from vultron.core.behaviors.sync.add_log_entry_tree.factory import (
     AT_CASE_MANAGER,
     OFF_CASE_MANAGER,
-    create_announce_log_entry_tree,
+    create_add_log_entry_tree,
 )
 
 __all__ = [
     "AT_CASE_MANAGER",
     "OFF_CASE_MANAGER",
-    "create_announce_log_entry_tree",
+    "create_add_log_entry_tree",
 ]

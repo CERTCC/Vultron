@@ -67,7 +67,7 @@ logger = logging.getLogger(__name__)
 
 # AC-6 audit (#2203): the case-replica waits this scenario reaches through
 # poll for VulnerabilityCase object delivery (ADR-0041 seeding path). ADR-0037
-# and ADR-0059 buffer Announce(CaseLedgerEntry) entries, not VulnerabilityCase
+# and ADR-0059 buffer Add(CaseLedgerEntry) entries, not VulnerabilityCase
 # objects, so each of those waits remains necessary.
 
 #: The RCVCV story: the opening it shares with ``rcv`` up to C1's decision,

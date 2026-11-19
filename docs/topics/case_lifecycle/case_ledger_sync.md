@@ -56,7 +56,7 @@ So a case its owner creates and one the CASE_MANAGER creates from the owner's pr
 Before a replica holds, applies or stores an entry, it recomputes the hash from the entry's fields and compares it with `entryHash` ([SYNC-03-006](../../reference/vultron-spec/requirements/ledger-replication.md#sync-03-006)).
 An entry whose content does not reproduce its hash is refused and logged as an error ([SYNC-03-012](../../reference/vultron-spec/requirements/ledger-replication.md#sync-03-012)).
 The replica sends no `Reject(CaseLedgerEntry)` for it, because a replay would resend the same entry.
-It sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead, naming the refused `Announce(CaseLedgerEntry)` ([SYNC-03-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-03-007)).
+It sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead, naming the refused `Add(CaseLedgerEntry)` ([SYNC-03-007](../../reference/vultron-spec/requirements/ledger-replication.md#sync-03-007)).
 The CASE_MANAGER does not try to repair it, since a replay or a fresh case copy would resend the same content ([SYNC-03-008](../../reference/vultron-spec/requirements/ledger-replication.md#sync-03-008)).
 This implementation logs the fault as an error and rechecks its own stored copy of the entry, so the log says which side is broken ([SYNC-03-010](../../reference/specs/project.md#sync-03-010)).
 
@@ -182,10 +182,11 @@ So the CASE_MANAGER refuses a message without a claimed time at the door ([CLP-1
 A field that is present but empty carries no claimed time either.
 A blank `published` — an empty string, or one holding only whitespace — is refused the same way as an omitted one, and reports the same reason ([MV-03-002](../../reference/vultron-spec/requirements/messages.md#mv-03-002)).
 
-A case status is held to the same rule wherever it sits in a message.
+A case status is held to the same rule wherever it sits in a message, except inside a case preview.
 Every case status carries the time its author made it.
 The CASE_MANAGER gives each new status a later time than the one before it, so time order and the order of the history agree ([CM-29-005](../../reference/vultron-spec/requirements/case-management.md#cm-29-005)).
 A receiver therefore refuses an activity that carries a case status with no `published` ([CLP-15-010](../../reference/vultron-spec/requirements/ledger-replication.md#clp-15-010)).
+Inside a case preview it reads the status as the sender showed it, because a preview shows only what its sender chose ([MV-12-006](../../reference/vultron-spec/requirements/messages.md#mv-12-006)).
 The same holds for every other whole object a message carries, at any depth, except an actor profile, a collection or an embargo consent row; a typed reference is not a whole object, and the case preview it may carry is a projection of the object it names ([CLP-15-011](../../reference/vultron-spec/requirements/ledger-replication.md#clp-15-011)).
 A receiver also refuses a case that arrives with no case statuses at all, because starting one would put the receiver's own clock on the case's first status ([CM-29-004](../../reference/vultron-spec/requirements/case-management.md#cm-29-004)).
 
@@ -242,7 +243,7 @@ A reject from a position that *has* advanced always triggers a replay, so a peer
 A reject from genesis for an entry the last replay from genesis already sent asks for nothing new, so the CASE_MANAGER may send nothing for it until the ceiling has passed ([SYNC-15-019](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-019)).
 
 The holding area should also be bounded, so that a hostile or broken peer streaming far-future entries cannot exhaust the replica's storage.
-When it is full, the replica discards the held `Announce` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/project.md#sync-14-006), [SYNC-14-013](../../reference/specs/project.md#sync-14-013)).
+When it is full, the replica discards the held `Add` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/project.md#sync-14-006), [SYNC-14-013](../../reference/specs/project.md#sync-14-013)).
 Discarding is safe because the replica already sent the reject for that gap.
 But the eviction itself sends nothing.
 
@@ -274,9 +275,9 @@ The successor is the held entry whose `prevLogHash` equals the hash of the entry
 
 The drain then repeats until no held entry extends the chain ([SYNC-14-003](../../reference/vultron-spec/requirements/ledger-replication.md#sync-14-003)).
 Each step is a delivery of its own.
-The replica replays the `Announce(CaseLedgerEntry)` that carried the successor through its own inbox ([SYNC-14-009](../../reference/specs/project.md#sync-14-009)).
-That `Announce` is the one it received and held as it arrived.
-The replica never builds an `Announce` of its own for a held entry, so nothing is attributed to a sender that did not send it.
+The replica replays the `Add(CaseLedgerEntry)` that carried the successor through its own inbox ([SYNC-14-009](../../reference/specs/project.md#sync-14-009)).
+That `Add` is the one it received and held as it arrived.
+The replica never builds an `Add` of its own for a held entry, so nothing is attributed to a sender that did not send it.
 
 The replica does not process the successor inside the delivery that committed its predecessor.
 When that delivery commits the successor, it replays *its* successor in turn.

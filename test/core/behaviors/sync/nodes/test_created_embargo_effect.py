@@ -38,15 +38,15 @@ from test.support.objects import make
 from vultron.core.behaviors.embargo.nodes import (
     ApplyCreatedEmbargoFromLedgerNode,
 )
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 
 MANAGER_ACTOR_ID = "https://example.org/actors/case-manager"
@@ -153,11 +153,11 @@ def test_a_replica_without_the_case_skips(datalayer, bridge):
 
 
 @pytest.mark.spec("RSH-08-004")
-def test_the_announce_tree_carries_the_slot():
+def test_the_add_log_entry_tree_carries_the_slot():
     names = {
         node.name
-        for node in create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        for node in create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ).iterate()
     }
 

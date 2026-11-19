@@ -15,7 +15,10 @@
 
 from typing import ClassVar, Literal, cast
 
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_ledger_entry import (
+    CaseLedgerEntry,
+    case_ledger_id,
+)
 from vultron.core.models.events.base import (
     LedgerPositionedEvent,
     MessageSemantics,
@@ -25,34 +28,85 @@ from vultron.core.models.ledger_position import (
     LedgerPosition,
     accepted_entry_hash,
 )
+from vultron.errors import VultronCanonicalEntryError
 
 
-class AnnounceLogEntryReceivedEvent(VultronEvent):
-    """CaseActor announced a canonical CaseLedgerEntry for log replication.
+class AddLogEntryReceivedEvent(VultronEvent):
+    """The CASE_MANAGER added a committed CaseLedgerEntry to the case's ledger.
 
-    Spec: SYNC-02-003, SYNC-03-001, SYNC-03-002, SYNC-03-003.
+    Received as ``Add(CaseLedgerEntry, target=<case>/ledger)``, with
+    ``context`` the case and ``inReplyTo`` the committed act (ADR-0204).  An
+    ``Add`` that names another ledger, another case or another act is
+    refused at the parse edge, so core reads all three from the entry
+    (ADR-0032).
+
+    Spec: SYNC-02-003, SYNC-02-008, SYNC-02-010, SYNC-03-001, SYNC-03-002,
+    SYNC-03-003.
     """
 
-    semantic_type: Literal[MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY] = (
-        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
+    semantic_type: Literal[
+        MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER
+    ] = MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER
+    required_slots: ClassVar[tuple[str, ...]] = (
+        "log_entry",
+        "ledger_id",
+        "acknowledged_act_id",
     )
-    required_slots: ClassVar[tuple[str, ...]] = ("log_entry",)
 
     @property
     def log_entry(self) -> CaseLedgerEntry:
-        """The received :class:`CaseLedgerEntry`, inline in the Announce."""
-        return self._required(
+        """The received :class:`CaseLedgerEntry`, inline in the Add."""
+        entry = self._required(
             "log_entry", cast("CaseLedgerEntry | None", self.object_)
         )
+        if self.context_id != entry.case_id:
+            raise ValueError(
+                f"{type(self).__name__} {self.activity_id!r}: context names"
+                f" {self.context_id!r}, not the entry's case"
+                f" {entry.case_id!r} (SYNC-02-008)"
+            )
+        return entry
 
     @property
     def log_entry_id(self) -> str | None:
         """Return the ID of the received log entry."""
         return self.object_id
 
+    @property
+    def ledger_id(self) -> str:
+        """The ledger the entry is added to: its case's ledger (SYNC-02-006)."""
+        ledger = self._required("ledger_id", self.target_id)
+        expected = case_ledger_id(self.log_entry.case_id)
+        if ledger != expected:
+            raise ValueError(
+                f"{type(self).__name__} {self.activity_id!r}: target names"
+                f" {ledger!r}, not the entry's ledger {expected!r}"
+                " (SYNC-02-008)"
+            )
+        return ledger
+
+    @property
+    def acknowledged_act_id(self) -> str:
+        """The act the entry commits, which the Add names in ``inReplyTo``.
+
+        The ``Add`` is that act's positive acknowledgement (SYNC-02-007).
+        """
+        act_id = self._required("acknowledged_act_id", self.in_reply_to)
+        try:
+            committed = self.log_entry.committed_act_id()
+        except VultronCanonicalEntryError as exc:
+            raise ValueError(str(exc)) from exc
+        if act_id != committed:
+            raise ValueError(
+                f"{type(self).__name__} {self.activity_id!r}: inReplyTo names"
+                f" {act_id!r}, not the committed act {committed!r}"
+                " (SYNC-02-010)"
+            )
+        return act_id
+
 
 class RejectLogEntryReceivedEvent(VultronEvent):
-    """Participant rejected an ``Announce(CaseLedgerEntry)`` due to hash-chain mismatch.
+    """Participant rejected an ``Add(CaseLedgerEntry)`` due to hash-chain mismatch.
 
     ``ledger_position`` is the sender's ledger tail, which the activity
     states as ``ledgerPosition`` (SYNC-18-001): the last entry it accepted,

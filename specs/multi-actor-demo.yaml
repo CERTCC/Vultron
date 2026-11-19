@@ -529,7 +529,7 @@ groups:
     rationale: >-
       A demo step must wait for its cause, not for a fixed time or a fixed order
       (ADR-0058). A VFD change reaches each container through
-      `Announce(CaseLedgerEntry)`, at a time that nobody can predict. `verify_fix_ready`
+      `Add(CaseLedgerEntry)`, at a time that nobody can predict. `verify_fix_ready`
       and `verify_fix_deployed` check each container once and do not retry. Thus a check
       on a container that has not yet received the change fails, although the protocol
       is correct. A wait on every container that the helper checks makes the check
@@ -621,7 +621,7 @@ groups:
       (1) It verifies that the activity actor is a known case participant (precondition
       guard).
       (2) It updates the participant status record.
-      (3) It propagates the update with Announce(CaseLedgerEntry) fan-out (ADR-0019,
+      (3) It propagates the update with Add(CaseLedgerEntry) fan-out (ADR-0019,
       SYNC-02-001, SYNC-02-003), never a re-broadcast of a direct raw
       Add(ParticipantStatus). It sends it to the other participants that receive case
       content (CM-10-004, CM-23-004).
@@ -636,7 +636,7 @@ groups:
       reordered without notice.
     verification: >-
       Unit tests on the received tree confirm the status entry is committed and fanned
-      out as Announce(CaseLedgerEntry) with no raw Add(ParticipantStatus)
+      out as Add(CaseLedgerEntry) with no raw Add(ParticipantStatus)
       re-broadcast.  Unit tests on the shared recipient selection
       (`test/core/participants/test_recipients.py`) and the fan-out
       (`test/core/behaviors/sync/nodes/test_fanout_embargo_gate.py`) confirm the
@@ -663,7 +663,7 @@ groups:
     - order: 3
       actor: case_actor
       action: >-
-        Commit a canonical CaseLedgerEntry and fan-out Announce(CaseLedgerEntry)
+        Commit a canonical CaseLedgerEntry and fan-out Add(CaseLedgerEntry)
         to the case's content recipients (CM-10-004, CM-23-004)
       expected: >-
         Every active peer not at RM.CLOSED receives the status update via the
@@ -712,7 +712,7 @@ groups:
     see_also:
     - spec_id: SYNC-02-001
       reason: >-
-        provenance for the fan-out's envelope; the step names the Announce it sends and
+        provenance for the fan-out's envelope; the step names the Add it sends and
         neither narrows nor needs SYNC-02-001's rule
     - spec_id: SYNC-02-003
       reason: >-
@@ -791,11 +791,11 @@ groups:
     statement: >-
       The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST NOT
       send a raw Add(ParticipantStatus) re-broadcast directly to peer participants after
-      updating the local participant record. Announce(CaseLedgerEntry) fan-out is the sole
+      updating the local participant record. Add(CaseLedgerEntry) fan-out is the sole
       canonical propagation path for status updates to peers (DEMOMA-07-003 step 3); a
       parallel raw re-broadcast causes every peer to receive and process the same status
       update twice — once as a raw Add(ParticipantStatus) and once wrapped in
-      Announce(CaseLedgerEntry) — producing duplicate state transitions and non-canonical
+      Add(CaseLedgerEntry) — producing duplicate state transitions and non-canonical
       messages in peer inboxes. This artefact is superseded by ADR-0019.
     rationale: >-
       Each status update must reach a peer once, through the case ledger. A second raw
@@ -2259,10 +2259,10 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The P-set CS state MUST be visible in all replicas via Announce(CaseLedgerEntry)
+      The P-set CS state MUST be visible in all replicas via Add(CaseLedgerEntry)
       fan-out after the Coordinator triggers CS.P.
     rationale: >-
-      Announce(CaseLedgerEntry) is the sole canonical propagation path for status
+      Add(CaseLedgerEntry) is the sole canonical propagation path for status
       updates to peers (SYNC-02-001, SYNC-02-003); this invariant confirms the fan-out
       fired.
   - id: DEMOMA-12-017

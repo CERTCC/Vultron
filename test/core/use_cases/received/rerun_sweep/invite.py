@@ -51,7 +51,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-from .._ledger_network import MANAGER, LedgerNetwork
+from .._ledger_network import BROADCAST, MANAGER, LedgerNetwork
 from ..conftest import seed_inert_invitee
 from . import Scenario, applied, refused
 from ._net import deliver, send_applied
@@ -208,7 +208,7 @@ def invite_actor_to_full_case() -> Scenario:
     assert anchored.disposition is HandlerDisposition.APPLIED, anchored.reason
     (announce,) = [
         a
-        for a in net.queued(MANAGER, to=JOINER, type_="Announce")
+        for a in net.queued(MANAGER, to=JOINER, type_=BROADCAST)
         if (read_sealed_body_dict(net.stores[MANAGER], a.id_) or {})
         .get("object", {})
         .get("type")

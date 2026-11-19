@@ -374,7 +374,7 @@ groups:
       `VultronObjectType`) rather than an inline `Literal`. `DEFERRED` is a member because
       handler-side deferral is real: `BufferOutOfOrderEntryNode` and
       `BufferPreGenesisEntryNode` return `SUCCESS` after holding the received
-      `Announce(CaseLedgerEntry)` for replay once its predecessor arrives, which is
+      `Add(CaseLedgerEntry)` for replay once its predecessor arrives, which is
       neither a state change nor a benign no-op nor a refusal. `DeferCheckNode`
       decides the *other* kind of deferral — missing case context — before
       dispatch; the two are distinct and both map

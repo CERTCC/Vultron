@@ -117,5 +117,5 @@ def test_backfill_of_an_empty_ledger_sends_nothing():
     result = _backfill(bridge, INVITEE_ID, sync_port)
 
     assert result.status == Status.SUCCESS
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     assert dl.list_objects("ReplicationState") == []

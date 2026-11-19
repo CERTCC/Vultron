@@ -97,7 +97,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
 
     On both paths it runs *after* the ``Create(VulnerabilityCase)`` is
     queued, which is also the genesis entry: the proposer must hold the case
-    before its first ``Announce(CaseLedgerEntry)`` arrives (CM-14-011,
+    before its first ``Add(CaseLedgerEntry)`` arrives (CM-14-011,
     CP-09-009, #3033), and the entries record a case whose creation was sent
     (ADR-0119).  On the create-case trigger path the creator is the only
     participant, so the entries fan out to nobody.

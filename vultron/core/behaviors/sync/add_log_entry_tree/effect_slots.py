@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The replica's per-entry effect slots of the ``Announce(CaseLedgerEntry)`` tree.
+"""The replica's per-entry effect slots of the ``Add(CaseLedgerEntry)`` tree.
 
 Each slot applies one kind of ledger entry to the replica's copy of the
 case, and is a no-op for every other kind (SYNC-12-004).

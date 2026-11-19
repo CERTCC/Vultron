@@ -179,7 +179,7 @@ class SyncLogEntryRequest(CaseTriggerRequest):
     """Request body for the demo sync-log-entry trigger.
 
     Commits a canonical case ledger entry and fans it out to all participants
-    via Announce(CaseLedgerEntry). Uses Announce(VulnerabilityCase) as the
+    via Add(CaseLedgerEntry). Uses Announce(VulnerabilityCase) as the
     canonical payload type (case-actor-authored), and the entry's semantic
     type is the registry's label for it (ADR-0140), so the caller names none.
 

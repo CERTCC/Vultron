@@ -465,13 +465,17 @@ CloseCasePattern = ActivityPattern(
 # Case log / announcement patterns
 # ---------------------------------------------------------------------------
 
-AnnounceLogEntryPattern = ActivityPattern(
+AddLogEntryToLedgerPattern = ActivityPattern(
     description=(
-        "Announce a canonical CaseLedgerEntry to a participant for log "
-        "replication. The object is a CaseLedgerEntry object."
+        "The CASE_MANAGER adds a committed CaseLedgerEntry to the case's "
+        "ledger, <case>/ledger, for log replication (ADR-0204). The object is "
+        "a CaseLedgerEntry object; the target is the ledger's id."
     ),
-    activity_=TAtype.ANNOUNCE,
+    activity_=TAtype.ADD,
     object_=VOtype.CASE_LEDGER_ENTRY,
+    # No target_ constraint: the ledger is an identity only, a bare IRI no
+    # vocabulary type describes, and no other Add carries a CaseLedgerEntry.
+    # The event checks the target names the entry's own ledger (SYNC-02-006).
 )
 AnnounceVulnerabilityCasePattern = ActivityPattern(
     description=(

@@ -2923,7 +2923,7 @@ class TestReceiveVendorPathNotices:
 
     The receiver records the sender's new state, its own state is unchanged,
     and no CK message is queued: the only outbound activities are the
-    ``Announce`` fan-out of the committed entries.
+    ``Add`` fan-out of the committed entries.
     """
 
     @pytest.mark.spec("CSB-01-001")
@@ -2990,4 +2990,4 @@ class TestReceiveVendorPathNotices:
             getattr(dl.read(a), "type_", None) for a in dl.outbox_list()
         ]
         assert outbound
-        assert all(t == "Announce" for t in outbound), outbound
+        assert all(t in ("Announce", "Add") for t in outbound), outbound

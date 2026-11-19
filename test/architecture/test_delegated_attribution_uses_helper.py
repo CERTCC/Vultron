@@ -166,10 +166,12 @@ def test_ratchet_detects_a_hand_built_attribution() -> None:
 def test_ratchet_accepts_helper_and_literal_none() -> None:
     tree = _corpus.parse_inline(
         "def f(self):\n"
-        "    a = delegated_authorship(doing_actor_id=1, requesting_actor_id=2)\n"
+        "    a = delegated_authorship(\n"
+        "        doing_actor_id=1, requesting_actor_id=2, request_id=3)\n"
         "    self.trigger_activity_factory.x(attributed_to=a.attributed_to)\n"
         "def h(self):\n"
-        "    a = delegated_authorship(doing_actor_id=1, requesting_actor_id=2)\n"
+        "    a = delegated_authorship(\n"
+        "        doing_actor_id=1, requesting_actor_id=2, request_id=3)\n"
         "    self.trigger_activity_factory.x(\n"
         "        attributed_to=a.attributed_to if self.p else None)\n"
         "def g(self):\n"
@@ -182,7 +184,8 @@ def test_ratchet_accepts_helper_and_literal_none() -> None:
 def test_ratchet_rejects_a_bypassed_helper_result() -> None:
     tree = _corpus.parse_inline(
         "def f(self):\n"
-        "    a = delegated_authorship(doing_actor_id=1, requesting_actor_id=2)\n"
+        "    a = delegated_authorship(\n"
+        "        doing_actor_id=1, requesting_actor_id=2, request_id=3)\n"
         "    self.trigger_activity_factory.x(attributed_to=self.proposer)\n"
     )
     assert _violations(_HELPER, tree)
@@ -200,7 +203,8 @@ def test_ratchet_rejects_a_bypassed_helper_result() -> None:
 def test_ratchet_rejects_bypass_shapes(call: str) -> None:
     tree = _corpus.parse_inline(
         "def f(self):\n"
-        "    a = delegated_authorship(doing_actor_id=1, requesting_actor_id=2)\n"
+        "    a = delegated_authorship(\n"
+        "        doing_actor_id=1, requesting_actor_id=2, request_id=3)\n"
         f"    {call}\n"
     )
     assert _violations(_HELPER, tree)

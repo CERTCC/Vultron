@@ -42,7 +42,7 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-from ._ledger_network import BYSTANDER, MANAGER, LedgerNetwork
+from ._ledger_network import BROADCAST, BYSTANDER, MANAGER, LedgerNetwork
 from .test_embargo_relay_replay import _propose
 
 _WATCHER = "https://example.org/users/watcher"
@@ -105,7 +105,7 @@ def test_the_accept_trigger_embeds_the_invite_as_received():
     trigger, and the Accept its outbox delivers embeds the Invite verbatim."""
     net = LedgerNetwork("https://example.org/cases/verbatim-trigger")
     body = _relayed_invite_with_extras(net)
-    net.deliver(MANAGER, to=BYSTANDER, type_="Announce")
+    net.deliver(MANAGER, to=BYSTANDER, type_=BROADCAST)
     net.receive(BYSTANDER, body)
     dl = net.stores[BYSTANDER]
     # The trigger runs as the actor whose store this is (ADR-0073).

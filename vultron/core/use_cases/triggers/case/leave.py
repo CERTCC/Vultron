@@ -74,7 +74,7 @@ class SvcLeaveCaseUseCase(SvcActivityTriggerBase):
 
     The sender does NOT update their own RM state here — its replica, like
     every other, applies the status entries the Case Actor commits, received
-    via ``Announce(CaseLedgerEntry)`` (ADR-0050, CM-23-004).
+    via ``Add(CaseLedgerEntry)`` (ADR-0050, CM-23-004).
 
     Before the Leave is built, the tree refuses the Case Owner while its
     replica records an embargo in force (``VultronInvalidStateTransitionError``,

@@ -536,7 +536,7 @@ groups:
       the hold for unknown cases (PCR-06-002), so the participant can process it before
       it holds the case.
     verification: >-
-      A unit test confirms that `Announce(CaseLedgerEntry)` and
+      A unit test confirms that `Add(CaseLedgerEntry)` and
       `Announce(VulnerabilityCase)` emitted by the CASE_MANAGER each carry
       `context` equal to the case's ID.
     stories:
@@ -680,7 +680,8 @@ groups:
     verification: >-
       `test/core/behaviors/inbox/nodes/test_defer_check_node.py` asserts the deferral gate
       passes a stub Invite for an unknown case and still defers a full-case Invite, an
-      Accept of the stub Invite and a ledger-entry Announce.
+      Accept of the stub Invite and a case-scoped Add(Note), and passes a ledger-entry
+      Add, which the replica holds itself (SYNC-15-004).
       `test/adapters/driving/fastapi/test_stub_invite_on_arrival.py` delivers the
       CASE_MANAGER's sealed stub Invite through the real inbox to an invitee holding no
       case and asserts it is processed and that it is answerable with no sender-keyed
@@ -776,11 +777,11 @@ groups:
     verification_debt: '#3612'
     statement: >-
       A participant actor MUST NOT assume that other participants will receive its case-scoped
-      messages through any channel other than the CASE_MANAGER's `Announce(CaseLedgerEntry)` broadcast.
+      messages through any channel other than the CASE_MANAGER's `Add(CaseLedgerEntry)` broadcast.
       Sending to the whole roster or any multi-recipient list that includes non-CASE_MANAGER actors
       is a violation of this rule.
     rationale: >-
-      Only the CASE_MANAGER's `Announce(CaseLedgerEntry)` tells a participant what the
+      Only the CASE_MANAGER's `Add(CaseLedgerEntry)` tells a participant what the
       case ledger holds. A participant that sends its message to other participants as
       well gives them a change that the CASE_MANAGER has not yet checked or recorded,
       and they may act on a change that the CASE_MANAGER later refuses.
@@ -792,7 +793,7 @@ groups:
     statement: >-
       The CASE_MANAGER MUST, for every participant message it receives and accepts,
       commit a `CaseLedgerEntry` recording the outcome and broadcast
-      `Announce(CaseLedgerEntry)` to the case's active participants (CM-10-004) as the
+      `Add(CaseLedgerEntry)` to the case's active participants (CM-10-004) as the
       standard cascade. This cascade is the only mechanism by which participants learn
       of accepted case-state changes.
     rationale: >-
@@ -804,7 +805,7 @@ groups:
       `test_add_note_commits_log_entry_when_sync_port_provided` in
       `test/core/use_cases/received/test_note.py` asserts that the CASE_MANAGER's
       processing of an `Add(Note)` commits exactly one `CaseLedgerEntry` and queues
-      its `Announce(CaseLedgerEntry)` to exactly the two participants.
+      its `Add(CaseLedgerEntry)` to exactly the two participants.
       `test_ledger_fanout_reaches_only_active_participants` in
       `test/core/behaviors/sync/nodes/test_active_participant_fanout.py` asserts that
       the announcement reaches only the active participants (CM-10-004).
@@ -840,7 +841,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `CaseLedgerEntry` commit and `Announce(CaseLedgerEntry)` broadcast
+      The `CaseLedgerEntry` commit and `Add(CaseLedgerEntry)` broadcast
       (PCR-08-003) MUST follow automatically from the CASE_MANAGER processing any
       accepted participant message, without any further request or operator action.
     rationale: >-

@@ -154,6 +154,7 @@ def _open_revision(case_id: str, make_payload, proposer: str = PROPOSER):
 
 
 @pytest.mark.spec("EP-09-011")
+@pytest.mark.spec("CM-24-020")
 def test_joiner_during_revise_is_invited_to_the_open_revision(make_payload):
     """AC-1: one committed Invite for the revision, attributed to its proposer."""
     case_id = "https://example.org/cases/joiner-relay"
@@ -169,6 +170,9 @@ def test_joiner_during_revise_is_invited_to_the_open_revision(make_payload):
     assert len(invites) == 1
     assert invites[0].actor == MANAGER
     assert invites[0].attributed_to == PROPOSER
+    # It names the proposer's own proposal, never the joiner's Accept or the
+    # stub Invite (CM-24-020).
+    assert invites[0].in_reply_to == f"{case_id}/embargo_proposals/revision"
     committed = [
         e
         for e in dl.list_objects("CaseLedgerEntry")

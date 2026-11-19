@@ -107,7 +107,7 @@ from vultron.core.models.dimensions import (
     PxaDimension,
 )
 from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.pending_assertion import (
     PendingAssertion,
     get_pending_assertion_store,
@@ -119,11 +119,11 @@ from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
+    add_log_entry_activity,
     add_status_to_case_activity,
-    announce_log_entry_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -1501,7 +1501,7 @@ class TestThreatTerminationBranchNode:
             received_at=ACT_AT,
         )
         entry = record.to_ledger_entry()
-        activity = announce_log_entry_activity(
+        activity = add_log_entry_activity(
             WireCaseLedgerEntry.model_validate(
                 with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
             ),
@@ -1509,11 +1509,9 @@ class TestThreatTerminationBranchNode:
             to=[ACTOR_ID],
             at=authored_at(),
         )
-        event = cast(
-            AnnounceLogEntryReceivedEvent, received_event(activity, at=dl)
-        )
+        event = cast(AddLogEntryReceivedEvent, received_event(activity, at=dl))
         run_in_act(
-            AnnounceLedgerEntryReceivedUseCase(
+            AddLedgerEntryReceivedUseCase(
                 dl,
                 event.model_copy(update={"receiving_actor_id": ACTOR_ID}),
                 sync_port=SyncActivityAdapter(dl),

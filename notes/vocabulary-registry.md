@@ -252,7 +252,10 @@ only for classes that are defined, and a never-imported module defines none.
 
 Core types never enter the wire `VOCABULARY` (ARCH-12-014). `CoreRecord` and
 `CoreObject` subclasses auto-register in `CORE_TYPE_MAP`
-(`vultron/core/models/registry.py`). The hook lives on `CoreRecord` because the
+(`vultron/core/models/registry.py`), except a preview's loose form, which
+keeps its full class's `type` and so takes no slot: registering it would
+replace the class a stored row is read back as (`shares_full_form_type`,
+ADR-0217). The hook lives on `CoreRecord` because the
 bookkeeping records extend it but not `CoreObject` (ARCH-12-010); ratchets
 `test_core_record_types_in_core_type_map` and
 `test_no_wire_types_in_core_type_map` hold both directions.

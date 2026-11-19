@@ -115,7 +115,7 @@ To clear or override a field on a frozen wire object, build a new one with
   ledger; the entry records A's evidence, carried on the event.
 
 A is never modified to produce B; if rehydration fails, A is intact. Replicas
-receive A via `Announce(CaseLedgerEntry)` and build their own B, so mutating A
+receive A via `Add(CaseLedgerEntry)` and build their own B, so mutating A
 would propagate a form no other actor can reconcile with what was received.
 
 ## Outbound: Frozen Blob Pipeline

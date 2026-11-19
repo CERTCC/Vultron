@@ -22,7 +22,7 @@ Multiple independent organizations — a Reporter, a Vendor, a Coordinator — e
 They keep those copies in step by exchanging ActivityStreams 2.0 messages.
 
 One participant, the [CASE_MANAGER](case_manager_and_ledger.md), keeps the authoritative history of the case: an append-only, hash-chained ledger.
-Every other participant holds a replica that converges on that ledger as the CASE_MANAGER sends it each new entry in an `Announce(CaseLedgerEntry)` message.
+Every other participant holds a replica that converges on that ledger as the CASE_MANAGER sends it each new entry in an `Add(CaseLedgerEntry)` message.
 [The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md) explains how.
 
 ## `VulnerabilityCase`

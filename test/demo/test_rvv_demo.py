@@ -701,7 +701,7 @@ class TestVendor1InvitesTheSecondVendor:
         """Bug #2135: the join broadcasts to every participant.
 
         Vendor2's reply to the full-case Invite and its RM triage both
-        broadcast ``Announce(CaseLedgerEntry)`` to all participants, so a
+        broadcast ``Add(CaseLedgerEntry)`` to all participants, so a
         Reporter without the case replica has no genesis hash to anchor the
         chain on.  The shared step owns the wait; this scenario is the one
         that reaches it through a Vendor as inviter.
@@ -1642,7 +1642,7 @@ class TestWaitForContiguousLedgerCoverage:
     """The pre-dump ledger coverage gate (issue #1363).
 
     The bug: the closure phase waited only for the tail entry hash before
-    dumping the logs.  Because ``Announce(CaseLedgerEntry)`` activities arrive
+    dumping the logs.  Because ``Add(CaseLedgerEntry)`` activities arrive
     independently, an intermediate entry (e.g. ``logIndex=17``) could arrive
     after the tail, leaving the JSONL with a gap.
     ``wait_for_contiguous_ledger_coverage`` closes the race by verifying that

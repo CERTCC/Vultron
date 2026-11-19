@@ -745,14 +745,14 @@ groups:
       (VM-08-002) is not exactly the body held for that id. The held body is the
       deferred record's while the first delivery is still deferred, else the body intake
       recorded. This applies to every activity type, including an
-      `Announce(CaseLedgerEntry)` that ingress hydrates in place (SYNC-13-004).
+      `Add(CaseLedgerEntry)` that ingress hydrates in place (SYNC-13-004).
     rationale: >-
       An activity id names one activity (ID-01-001). A second body under a held id is a
       sender bug or a changed version of what was said. The comparison uses the exact
       sealed text of each body (a SHA-256 digest), so no rule decides which differences
       count. The inbox answers 202 before it processes the activity (IE-05-002), so the
       refusal is the inbox outcome, not an HTTP status. The already-stored gate
-      (SYNC-12-003) still answers a same-body repeat of an `Announce(CaseLedgerEntry)`.
+      (SYNC-12-003) still answers a same-body repeat of an `Add(CaseLedgerEntry)`.
     note: >-
       Known limitation: the sealed text is the body as the parser decoded and
       re-serialized it, so two bodies that differ only in how they are written, such
@@ -765,10 +765,10 @@ groups:
       and `::test_a_different_body_under_an_archived_id_is_refused` assert that a
       different body under a deferred id, and under an archived id, is refused
       through `process_payload`;
-      `::test_a_different_body_under_an_archived_ledger_announce_id_is_refused` and
-      `::test_a_different_body_under_a_held_ledger_announce_id_is_refused` assert the
-      same for an `Announce(CaseLedgerEntry)`, and
-      `::test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place` that its
+      `::test_a_different_body_under_an_archived_ledger_add_id_is_refused` and
+      `::test_a_different_body_under_a_held_ledger_add_id_is_refused` assert the
+      same for an `Add(CaseLedgerEntry)`, and
+      `::test_a_repeat_of_an_archived_ledger_add_is_hydrated_in_place` that its
       same-body repeat still takes the in-place path to the SYNC-12-003 gate;
       `::test_a_body_that_differs_only_in_key_order_is_refused` pins the exact match.
     relationships:

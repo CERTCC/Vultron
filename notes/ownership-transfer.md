@@ -53,7 +53,8 @@ participant's `Reject` is a case event, ledgered like its `Accept` (CLP-02-016;
 ## Correct Routing Model (ADR-0053, ADR-0148)
 
 Every step flows through the CASE_MANAGER, so every participant receives the
-`Announce(CaseLedgerEntry)` for it. The owner proposes; the CASE_MANAGER makes the
+`Add(CaseLedgerEntry)` for it, the commit's `Add` to the case's ledger
+(ADR-0204). The owner proposes; the CASE_MANAGER makes the
 one Offer of the transfer (ADR-0148).
 
 ### Proposal and Offer flow
@@ -80,7 +81,7 @@ CASE_MANAGER inbox receives the proposal
          Offer(VulnerabilityCase) id=ownership_offer_id(cm, case, proposal, owner),
          actor=case_actor_id, attributed_to=owner, to=[transferee];
          build → outbox → commit offer_case_ownership_transfer, one transaction.
-      3. Announce(CaseLedgerEntry) → all participants, for each entry.
+      3. Add(CaseLedgerEntry) → all participants, for each entry.
 ```
 
 ### Accept flow
@@ -99,7 +100,7 @@ CASE_MANAGER inbox receives Accept
       guards: the Offer is open; the transferee is still an active
               participant (OwnershipTransfereeActiveNode)  ← CM-21-022
       1. Commits CaseLedgerEntry (ownership-transferred).  ← CM-21-007
-      2. Announce(CaseLedgerEntry) → all participants.
+      2. Add(CaseLedgerEntry) → all participants.
       3. AcceptRecordedOwnershipOfferNode applies role changes (CM-21-001–004)
          to the transferee the recorded Offer names, never the sender id.
 ```
@@ -258,7 +259,7 @@ CASE_MANAGER inbox receives Reject
               it recorded                                     ← CM-21-013
               (anyone else: REFUSED, nothing written)
       1. Commits CaseLedgerEntry (reject_case_ownership_transfer).  ← CM-21-012
-      2. Announce(CaseLedgerEntry) → all participants.
+      2. Add(CaseLedgerEntry) → all participants.
 ```
 
 - **The Reject reuses the Accept's helper and guard** (CM-21-013):

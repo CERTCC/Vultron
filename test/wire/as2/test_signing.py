@@ -45,7 +45,7 @@ from vultron.wire.as2.errors import (
     VultronRefusedJsonError,
     VultronUnsignableJsonError,
 )
-from vultron.wire.as2.factories.sync import announce_log_entry_activity
+from vultron.wire.as2.factories.sync import add_log_entry_activity
 from vultron.wire.as2.vocab.examples import (
     _base as examples,
     case as case_examples,
@@ -817,7 +817,7 @@ def test_a_stack_that_runs_out_below_the_limit_is_still_a_refusal(
 
 
 def _full_case_announcement() -> str:
-    """``Announce(CaseLedgerEntry(Create(VulnerabilityCase)))`` as JSON text.
+    """``Add(CaseLedgerEntry(Create(VulnerabilityCase)))`` as JSON text.
 
     The deepest body the demos deliver is a ledger entry announced to a
     participant, whose snapshot is an activity carrying the whole case.  This
@@ -856,7 +856,7 @@ def _full_case_announcement() -> str:
         prev_log_hash=case.genesis_hash,
         received_at=examples.EXAMPLE_TIMESTAMP,
     )
-    announcement = announce_log_entry_activity(
+    announcement = add_log_entry_activity(
         record.to_ledger_entry(),
         actor=examples.case_actor().id_,
         at=examples.EXAMPLE_TIMESTAMP,

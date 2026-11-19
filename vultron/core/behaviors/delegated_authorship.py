@@ -13,42 +13,69 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The one place a delegated activity's ``actor`` and ``attributed_to`` come from.
+"""The one place a delegated activity's authorship comes from.
 
-An activity the CASE_MANAGER emits on another participant's behalf carries the
-CASE_MANAGER as ``actor`` (CM-24-001) and the participant who asked for it as
-``attributed_to`` (CM-24-002).  Every path that does this — a trigger use case
-or a received-side tree — gets the pair from :func:`delegated_authorship`
-(CM-24-005).  The module sits under ``behaviors/`` so BT nodes and use cases
-may both import it (CM-24-013, BTND-04-003).
+An activity the CASE_MANAGER emits on another actor's behalf carries the
+CASE_MANAGER as ``actor`` (CM-24-001), the actor that asked for it as
+``attributed_to`` (CM-24-002) and the request it carries out as
+``in_reply_to`` (CM-24-020, ADR-0199).  Every path that does this — a
+trigger use case or a received-side tree — gets all three from
+:func:`delegated_authorship` (CM-24-005, CM-24-012).  The module sits under
+``behaviors/`` so BT nodes and use cases may both import it (CM-24-013,
+BTND-04-003).
 
-The caller supplies both identities.  The *doing* actor is the CASE_MANAGER
-executing the role-gated tree (or, for a trigger, the role holder the use case
-resolved); the *requesting* actor is the trigger's requester or the sender of
-the activity the received tree acts on.  There is nothing to look up here and
-no fallback arm (CM-24-008): a case always has a CASE_MANAGER (CM-02-014), so a
-caller that cannot name one fails before it reaches this helper.
+The caller supplies the identities and the request.  The *doing* actor is
+the CASE_MANAGER executing the role-gated tree (or, for a trigger, the role
+holder the use case resolved); the *requesting* actor is the trigger's
+requester or the sender of the activity the received tree acts on, and the
+*request* is that received activity.  An actor that asks for its own act
+does it directly: neither ``attributed_to`` nor ``in_reply_to`` is set
+(CM-24-021).  A distinct asker reaches the CASE_MANAGER only by a message
+(ADR-0109), so a delegated act always has a request to name, and a caller
+that names none is a programming error, refused here (CM-24-022).  There is
+nothing to look up and no fallback arm (CM-24-008).
 """
 
 from typing import NamedTuple
 
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronValidationError, VultronWiringError
+from vultron.primitives import same_actor_id
 
 
 class DelegatedAuthorship(NamedTuple):
-    """Authorship of a delegated activity (CM-24-001, CM-24-002)."""
+    """Authorship of a delegated activity (CM-24-001, CM-24-002, CM-24-012).
+
+    ``attributed_to`` and ``in_reply_to`` are both ``None`` when the asker is
+    the doer, and both set otherwise.
+    """
 
     actor: str
-    attributed_to: str
+    attributed_to: str | None
+    in_reply_to: str | None
 
 
 def delegated_authorship(
-    *, doing_actor_id: str, requesting_actor_id: str
+    *,
+    doing_actor_id: str,
+    requesting_actor_id: str,
+    request_id: str | None,
 ) -> DelegatedAuthorship:
-    """Return ``actor`` = who does what was asked, ``attributed_to`` = who asked.
+    """Return ``actor`` = who does it, ``attributed_to`` = who asked, and
+    ``in_reply_to`` = the request it carries out.
+
+    When the asker is the doer (compared with
+    :func:`~vultron.primitives.same_actor_id`), the act is the doer's own:
+    ``attributed_to`` and ``in_reply_to`` are ``None`` and *request_id* is
+    not read.
 
     Raises:
         VultronValidationError: If either identity is empty.
+        VultronWiringError: If the asker differs from the doer and
+            *request_id* is empty or ``None``: the caller was composed
+            without the request it carries out.  ``BTBridge`` reports one
+            that escapes a node as internal (ADR-0095); an emit node built
+            on ``_EmitSingleActivityBase`` catches it and fails with the
+            reason, sending nothing.
     """
     for label, value in (
         ("doing_actor_id", doing_actor_id),
@@ -58,8 +85,20 @@ def delegated_authorship(
             raise VultronValidationError(
                 f"delegated authorship needs a non-empty {label}"
             )
+    if same_actor_id(doing_actor_id, requesting_actor_id):
+        return DelegatedAuthorship(
+            actor=doing_actor_id, attributed_to=None, in_reply_to=None
+        )
+    if not request_id:
+        raise VultronWiringError(
+            f"'{doing_actor_id}' acts for '{requesting_actor_id}' but names no"
+            " request it carries out: a delegated act answers the request it"
+            " received (CM-24-022, ADR-0199)"
+        )
     return DelegatedAuthorship(
-        actor=doing_actor_id, attributed_to=requesting_actor_id
+        actor=doing_actor_id,
+        attributed_to=requesting_actor_id,
+        in_reply_to=request_id,
     )
 
 

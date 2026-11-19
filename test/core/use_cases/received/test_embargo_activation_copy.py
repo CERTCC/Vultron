@@ -79,6 +79,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._ledger_network import (
+    BROADCAST,
     BYSTANDER,
     MANAGER,
     OWNER,
@@ -152,7 +153,7 @@ def _owner_rejects(net: LedgerNetwork, embargo_id: str) -> Any:
 def _sync(net: LedgerNetwork, replica: str) -> list[str]:
     """Deliver the ledger broadcast not yet sent to *replica*; each applies."""
     applied = []
-    for type_, verdict in net.deliver(MANAGER, to=replica, type_="Announce"):
+    for type_, verdict in net.deliver(MANAGER, to=replica, type_=BROADCAST):
         assert verdict.disposition is HandlerDisposition.APPLIED, (
             type_,
             verdict.reason,

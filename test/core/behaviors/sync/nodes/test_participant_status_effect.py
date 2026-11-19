@@ -10,7 +10,7 @@ expand (ADR-0034 makes the read-back vestigial).
 Also covers RSH-09-006: an entry whose effective composite state violates the
 RM↔VF, RM↔D, or VF↔D entailments must be refused (FAILURE, no DataLayer write)
 and ``Create(ProcessingFault)`` must be emitted to the CaseActor via the
-Selector(Apply, EmitFaultThenFail) tree structure in ``announce_tree/effect_slots.py``.
+Selector(Apply, EmitFaultThenFail) tree structure in ``add_log_entry_tree/effect_slots.py``.
 
 See: specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
      specs/received-status-handling.yaml RSH-09-006.
@@ -113,7 +113,10 @@ def _make_status_entry(
             log_index=0,
             object_id="https://example.org/activities/add-status",
             semantic_type="add_participant_status_to_participant",
-            payload_snapshot=snapshot,
+            payload_snapshot={
+                "id": "https://example.org/activities/add-status",
+                **snapshot,
+            },
             prev_log_hash=CASE_GENESIS_HASH,
             received_at=ACT_AT,
         )

@@ -31,7 +31,11 @@ BreakEntry = Callable[[CaseLedgerEntry], CaseLedgerEntry]
 
 def tampered(entry: CaseLedgerEntry) -> CaseLedgerEntry:
     """Content no longer reproduces the stated hash."""
-    return entry.model_copy(update={"payload_snapshot": {"tampered": True}})
+    return entry.model_copy(
+        update={
+            "payload_snapshot": {**entry.payload_snapshot, "tampered": True}
+        }
+    )
 
 
 def hashless(entry: CaseLedgerEntry) -> CaseLedgerEntry:

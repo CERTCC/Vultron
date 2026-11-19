@@ -63,8 +63,8 @@ from vultron.core.behaviors.embargo.nodes.ending_notice import (
     embargo_ending_notice,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
@@ -81,7 +81,7 @@ from vultron.core.models.embargo_termination import (
     ThreatSignal,
     ThreatSignalTermination,
 )
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     RmDimension,
@@ -107,7 +107,7 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
@@ -117,9 +117,9 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
+    add_log_entry_activity,
     add_participant_to_case_activity,
     announce_embargo_activity,
-    announce_log_entry_activity,
     em_propose_embargo_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
@@ -245,6 +245,8 @@ class _Manager:
         assert removal.disposition is HandlerDisposition.APPLIED
 
     def route(self, activity: Any) -> HandlerResult:
+        # The request a delegated notice names in inReplyTo (CM-24-020).
+        self.last_routed_id = activity.id_
         return route_received(
             self.dl,
             activity,
@@ -313,6 +315,7 @@ def _unreached_signatories() -> set[str]:
 @pytest.mark.spec("CM-31-009")
 @pytest.mark.spec("CM-24-001")
 @pytest.mark.spec("CM-24-002")
+@pytest.mark.spec("CM-24-020")
 @pytest.mark.spec("VP-13-019")
 def test_owner_termination_sends_et_to_each_unreached_signatory() -> None:
     """Removed and departed signatories each get one ET, crediting the owner."""
@@ -329,6 +332,8 @@ def test_owner_termination_sends_et_to_each_unreached_signatory() -> None:
         # One recipient per notice: no notice names another participant.
         assert [_as_id(t) for t in notice.to] == [recipient]
         assert _as_id(notice.attributed_to) == OWNER
+        # It names the owner's Remove it carries out (CM-24-020).
+        assert _as_id(notice.in_reply_to) == manager.last_routed_id
         # Delivery, not a record: the notice is never ledgered.
         assert notice.id_ not in manager.ledger_object_ids()
         assert notice.id_ in manager.dl.outbox_list()
@@ -453,6 +458,8 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
         assert len(notices[recipient]) == 1
         notice = notices[recipient][0]
         assert _as_id(notice.attributed_to) == OWNER
+        # It names the owner's Reject it carries out (CM-24-020).
+        assert _as_id(notice.in_reply_to) == manager.last_routed_id
         assert notice.id_ not in manager.ledger_object_ids()
     for recipient in (DECLINER, INVITEE, ACTIVE):
         assert not notices.get(recipient)
@@ -528,6 +535,8 @@ def test_case_manager_termination_sends_et_without_attribution(
         notice = removes[recipient][0]
         assert [_as_id(t) for t in notice.to] == [recipient]
         assert getattr(notice, "attributed_to", None) is None
+        # The CASE_MANAGER's own act answers no request (CM-24-020).
+        assert getattr(notice, "in_reply_to", None) is None
         assert notice.id_ not in manager.ledger_object_ids()
     for recipient in (OWNER, ACTIVE, DECLINER):
         assert {a.id_ for a in removes[recipient]} == committed
@@ -643,6 +652,7 @@ _ACTIVATIONS = [
 
 @pytest.mark.spec("CM-31-030")
 @pytest.mark.spec("EP-05-001")
+@pytest.mark.spec("CM-24-020")
 @pytest.mark.parametrize("activate", _ACTIVATIONS)
 def test_shorter_revision_is_announced_to_each_unreached_signatory(
     activate: Callable[[_Manager, Any], None],
@@ -662,6 +672,7 @@ def test_shorter_revision_is_announced_to_each_unreached_signatory(
         assert len(sent) == 1
         assert [_as_id(t) for t in sent[0].to] == [recipient]
         assert _as_id(sent[0].attributed_to) == OWNER
+        assert _as_id(sent[0].in_reply_to) == manager.last_routed_id
         assert sent[0].id_ not in manager.ledger_object_ids()
 
 
@@ -1280,7 +1291,7 @@ def _entry_event(
     log_index: int,
     prev_log_hash: str,
     to: str,
-) -> tuple[AnnounceLogEntryReceivedEvent, CaseLedgerEntry]:
+) -> tuple[AddLogEntryReceivedEvent, CaseLedgerEntry]:
     """The CASE_MANAGER's announcement to *to* of the entry for *activity*.
 
     The fan-out names its recipient in ``to`` (SYNC-09-002), so the replica's
@@ -1305,14 +1316,14 @@ def _entry_event(
     wire_entry = as_CaseLedgerEntry.model_validate(
         with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
     )
-    announce = announce_log_entry_activity(
+    announce = add_log_entry_activity(
         entry=wire_entry, actor=MANAGER, to=[to], at=authored_at()
     )
-    event = cast(AnnounceLogEntryReceivedEvent, received_event(announce))
+    event = cast(AddLogEntryReceivedEvent, received_event(announce))
     event.activity = make(
         VultronActivity,
         id_=event.activity_id,
-        type_="Announce",
+        type_="Add",
         actor=MANAGER,
         to=[to],
         object_=entry,
@@ -1320,11 +1331,11 @@ def _entry_event(
     return event, entry
 
 
-def _replay(replica: _Replica, event: AnnounceLogEntryReceivedEvent) -> None:
+def _replay(replica: _Replica, event: AddLogEntryReceivedEvent) -> None:
     result = run_tree(
         BTBridge(datalayer=replica.dl),
-        tree=create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=replica.actor_id,
         activity=event,

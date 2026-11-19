@@ -439,7 +439,7 @@ def test_stub_invite_accept_seeds_case_then_replays_ledger(
         for name, _args, kwargs in manager.mock_calls
         if name == "trigger.announce_vulnerability_case"
         or (
-            name == "sync.send_announce_log_entry"
+            name == "sync.send_add_log_entry"
             and invitee_id in kwargs.get("to", [])
         )
     ]
@@ -448,7 +448,7 @@ def test_stub_invite_accept_seeds_case_then_replays_ledger(
     assert ordered.count("trigger.announce_vulnerability_case") == 1
     replayed = [
         kwargs["entry"].log_index
-        for _, kwargs in joining_case.sync_port.send_announce_log_entry.call_args_list
+        for _, kwargs in joining_case.sync_port.send_add_log_entry.call_args_list
         if invitee_id in kwargs.get("to", [])
     ]
     assert {0, 1} <= set(replayed), replayed

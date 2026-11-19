@@ -39,6 +39,7 @@ from vultron.core.behaviors.case.stub_invite_lifetime import (
     current_preview_embargo_id,
     outstanding_stale_stubs,
 )
+from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.embargo.decided_entries import (
     decide_commit_and_apply,
 )
@@ -181,7 +182,20 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
             case_id=self.case_id,
             invitee_id=stale.invitee_id,
             roles=list(stale.roles) or None,
-            attributed_to=stale.attributed_to,
+            # The replacement is made for whoever asked for the Invite it
+            # replaces, and carries out what that Invite carried out: the
+            # request, or the Invite before it in the thread.  On the wire it
+            # names the Invite it supersedes (CM-11-044), so the request
+            # stays reachable along the thread (CM-24-020).
+            authorship=(
+                delegated_authorship(
+                    doing_actor_id=self.actor_id,
+                    requesting_actor_id=stale.attributed_to,
+                    request_id=stale.in_reply_to,
+                )
+                if stale.attributed_to is not None
+                else None
+            ),
             in_reply_to=stale.invite_id,
             actor_config=self._actor_config,
             activity_id=self._replacement_id(stale),

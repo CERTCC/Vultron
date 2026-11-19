@@ -340,13 +340,13 @@ class TestIsRoleOfferTargetNode:
         assert "is not the target" in node.feedback_message
 
 
-def _forward_node() -> ForwardRoleOfferToTargetNode:
+def _forward_node(owner_id: str = VENDOR_ID) -> ForwardRoleOfferToTargetNode:
     return ForwardRoleOfferToTargetNode(
         case_id=CASE_ID,
         role=CVDRole.VENDOR,
         target_actor_id=MANAGER_ID,
         offer_id=OFFER_ID,
-        owner_id=VENDOR_ID,
+        owner_id=owner_id,
     )
 
 
@@ -355,6 +355,7 @@ class TestForwardRoleOfferToTargetNode:
 
     @pytest.mark.spec("CM-33-008")
     @pytest.mark.spec("CM-24-005")
+    @pytest.mark.spec("CM-24-020")
     def test_forward_names_the_recorded_offer_and_its_owner(self, bridge, dl):
         result = run_tree(bridge, tree=_forward_node(), actor_id=ACTOR_ID)
 
@@ -366,6 +367,22 @@ class TestForwardRoleOfferToTargetNode:
         assert forward.attributed_to == VENDOR_ID
         assert forward.in_reply_to == OFFER_ID
         assert forward.object_.role is CVDRole.VENDOR
+
+    @pytest.mark.spec("CM-24-021")
+    @pytest.mark.spec("CM-33-017")
+    def test_an_owner_holding_the_role_is_credited_to_no_one(self, bridge, dl):
+        """The Owner is the CASE_MANAGER: its forward credits no one, but
+        still names the recorded Offer, which answers resolve through."""
+        result = run_tree(
+            bridge, tree=_forward_node(owner_id=ACTOR_ID), actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.SUCCESS, result
+        (forward_id,) = dl.outbox_list()
+        forward = dl.read(forward_id)
+        assert forward.actor == ACTOR_ID
+        assert getattr(forward, "attributed_to", None) is None
+        assert forward.in_reply_to == OFFER_ID
 
     @pytest.mark.spec("OX-06-002")
     def test_a_retry_queues_the_same_forward_once(self, bridge, dl):

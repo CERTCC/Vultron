@@ -71,6 +71,7 @@ from vultron.core.behaviors.case.case_participant_received_tree import (
     create_add_case_participant_received_tree,
 )
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
+    EmitParticipantReinstatementNoticeNode,
     ReinstateCaseParticipantReceivedNode,
 )
 from vultron.core.behaviors.case.nodes.refusal_stage import (
@@ -167,7 +168,7 @@ def _entry_ids_announced_to(case: _RemovalCase, actor_id: str) -> list[str]:
     """Ledger entries the manager announced to *actor_id*, in queue order."""
     return [
         entry_id
-        for announce in case.activities_to("Announce", actor_id)
+        for announce in case.ledger_adds_to(actor_id)
         if (entry_id := _as_id(getattr(announce, "object_", None)))
         and isinstance(case.dl.read(entry_id), CaseLedgerEntry)
     ]
@@ -202,8 +203,8 @@ def _replica(case: _RemovalCase, actor_id: str) -> SqliteDataLayer:
 def _announce_to_replica(
     replica: SqliteDataLayer, case: _RemovalCase, actor_id: str
 ) -> None:
-    """Deliver every ``Announce(CaseLedgerEntry)`` the manager sent *actor_id*."""
-    for announce in case.activities_to("Announce", actor_id):
+    """Deliver every ``Add(CaseLedgerEntry)`` the manager sent *actor_id*."""
+    for announce in case.ledger_adds_to(actor_id):
         if not isinstance(
             case.dl.read(_as_id(announce.object_) or ""), CaseLedgerEntry
         ):
@@ -228,6 +229,7 @@ def _announce_to_replica(
 @pytest.mark.spec("CM-31-011")
 @pytest.mark.spec("CM-24-001")
 @pytest.mark.spec("CM-24-002")
+@pytest.mark.spec("CM-24-020")
 def test_reinstatement_is_one_entry_and_a_delegated_notice(
     case: _RemovalCase,
 ) -> None:
@@ -244,6 +246,8 @@ def test_reinstatement_is_one_entry_and_a_delegated_notice(
     (notice,) = case.activities_to("Add", VENDOR)
     assert _as_id(notice.actor) == MANAGER
     assert notice.attributed_to == OWNER
+    # It names the owner's Add it carries out (CM-24-020).
+    assert _as_id(notice.in_reply_to) == _ADD_ACTIVITY_ID
     assert [_as_id(t) for t in notice.to] == [VENDOR]
     assert _as_id(notice.object_) == _participant_id(VENDOR)
     assert notice.id_ not in {e.log_object_id for e in case.ledger()}
@@ -734,7 +738,9 @@ def test_a_removed_participant_replaying_its_accept_is_sent_nothing(
     case.remove(VENDOR)
     entries = len(case.ledger())
     sent_before = len(case.activities_to("Invite", VENDOR))
-    announced_before = len(case.activities_to("Announce", VENDOR))
+    announced_before = len(case.activities_to("Announce", VENDOR)) + len(
+        case.ledger_adds_to(VENDOR)
+    )
 
     result = case.route(
         rm_accept_invite_to_case_activity(
@@ -745,7 +751,11 @@ def test_a_removed_participant_replaying_its_accept_is_sent_nothing(
     assert result.disposition is HandlerDisposition.SKIPPED
     assert len(case.ledger()) == entries
     assert len(case.activities_to("Invite", VENDOR)) == sent_before
-    assert len(case.activities_to("Announce", VENDOR)) == announced_before
+    assert (
+        len(case.activities_to("Announce", VENDOR))
+        + len(case.ledger_adds_to(VENDOR))
+        == announced_before
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -818,6 +828,7 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
         add
         for add in case.dl.list_objects("Add")
         if _as_id(getattr(add, "actor", None)) == MANAGER
+        and not isinstance(getattr(add, "object_", None), CaseLedgerEntry)
     ] == []
 
     _announce_to_replica(replica, case, OTHER)
@@ -958,6 +969,80 @@ def test_stale_accepter_re_invite_reaches_an_invitation_recipient(
 
     assert result.status == Status.SUCCESS
     assert len(_embargo_invites_to(case, OTHER)) == 1
+
+
+@pytest.mark.spec("CM-24-020")
+def test_a_re_invite_names_the_proposal_not_the_act_it_answers(
+    case: _RemovalCase, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A re-invite answers an Accept or an Add, but carries out the proposal.
+
+    It credits the embargo's proposer, so it names the proposer's own
+    request in ``inReplyTo``, never the act it *answers*.
+    """
+    from vultron.core.behaviors.embargo.nodes import reinvite
+    from vultron.core.behaviors.embargo.proposer import EmbargoProposal
+
+    proposal_id = "https://example.org/activities/vendor-proposal"
+    monkeypatch.setattr(
+        reinvite,
+        "embargo_proposal",
+        lambda entries, embargo_id: EmbargoProposal(VENDOR, proposal_id),
+    )
+    result = _run_as_manager(
+        case,
+        ReinviteStaleAccepterNode(
+            case_id=CASE_ID,
+            embargo_id=EMBARGO_ID,
+            invitee_id=OTHER,
+            answers="https://example.org/activities/other-accept",
+        ),
+    )
+
+    assert result.status == Status.SUCCESS
+    (invite,) = _embargo_invites_to(case, OTHER)
+    assert invite.attributed_to == VENDOR
+    assert invite.in_reply_to == proposal_id
+
+
+@pytest.mark.spec("CM-24-021")
+def test_a_notice_for_the_managers_own_move_credits_no_one(
+    case: _RemovalCase,
+) -> None:
+    """An Owner that holds the CASE_MANAGER role moves the participant itself."""
+    result = _run_as_manager(
+        case,
+        EmitParticipantReinstatementNoticeNode(
+            participant_id=_participant_id(VENDOR),
+            case_id=CASE_ID,
+            requesting_actor_id=MANAGER,
+        ),
+    )
+
+    assert result.status == Status.SUCCESS
+    (notice,) = case.activities_to("Add", VENDOR)
+    assert getattr(notice, "attributed_to", None) is None
+    assert getattr(notice, "in_reply_to", None) is None
+
+
+@pytest.mark.spec("CM-24-022")
+def test_a_notice_for_another_actor_with_no_request_sends_nothing(
+    case: _RemovalCase,
+) -> None:
+    """Outside a received run there is no request to name: a wiring fault,
+    which the emit node reports as its failure, with nothing sent."""
+    result = _run_as_manager(
+        case,
+        EmitParticipantReinstatementNoticeNode(
+            participant_id=_participant_id(VENDOR),
+            case_id=CASE_ID,
+            requesting_actor_id=OWNER,
+        ),
+    )
+
+    assert result.status == Status.FAILURE
+    assert "names no request" in (result.feedback_message or "")
+    assert case.activities_to("Add", VENDOR) == []
 
 
 @pytest.mark.spec("CM-31-013")

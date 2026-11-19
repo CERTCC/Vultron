@@ -146,11 +146,11 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         except VultronValidationError as exc:
             # reconstruct_tail_hash raises here for exactly one condition:
             # an empty local ledger with no per-case genesis hash yet — the
-            # pre-genesis bootstrap window where an Announce(CaseLedgerEntry)
+            # pre-genesis bootstrap window where an Add(CaseLedgerEntry)
             # arrived before the Create(VulnerabilityCase) that seeds genesis.
             # This is an expected, self-healing situation, NOT a fault: the
             # downstream ReconstructOrRejectOnMissingCase selector holds the
-            # Announce and, at most once per case per interval, sends a
+            # Add and, at most once per case per interval, sends a
             # Reject(CaseLedgerEntry) carrying the empty tail_hash sentinel,
             # prompting the CaseActor to replay from genesis (SYNC-15-001,
             # SYNC-15-016, CLP-08-005).  Log at WARNING so this designed recovery does not

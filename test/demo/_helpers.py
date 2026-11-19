@@ -679,7 +679,7 @@ def seed_replicas_for_case_participants(
     """Replicate *case_id* into the store of every actor participating in it.
 
     Stands in for the CaseActor's ``Create(VulnerabilityCase)`` /
-    ``Announce(CaseLedgerEntry)`` fan-out, which seeds each participant's replica
+    ``Add(CaseLedgerEntry)`` fan-out, which seeds each participant's replica
     in a real deployment.
 
     The CaseActor's own replica matters as much as the participants':

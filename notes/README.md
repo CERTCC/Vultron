@@ -52,6 +52,11 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   Unbuilt capability-shape work: typed ports, latency budget, composites, Sentinel.
   **Load when**: designing a capability or call-out point, or routing a question to
   a capability, an ask, or a call-in monitor.
+- **`csaf-case-inputs-on-proposal.md`** · `plan`
+  The receiver converts a CSAF report into its proposal's `caseInputs`; the
+  CASE_MANAGER applies them, judges embargo dates at creation (ADR-0184).
+  **Load when**: building `caseInputs`, the receiver's conversion, the
+  CASE_MANAGER's fallback, or the handling of a passed proposed embargo end.
 - **`csaf-projection.md`** · `plan`
   Producing a CSAF 2.1 document from a case replica: a call site's profile cuts
   the case and its ledger into a preview, and a renderer translates it (ADR-0219).

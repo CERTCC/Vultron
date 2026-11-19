@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The Announce(CaseLedgerEntry) received-tree factory."""
+"""The Add(CaseLedgerEntry) received-tree factory."""
 
 import py_trees
 
@@ -24,7 +24,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import LedgerActivityContext
-from vultron.core.behaviors.sync.announce_tree.effect_slots import (
+from vultron.core.behaviors.sync.add_log_entry_tree.effect_slots import (
     create_log_entry_event_effects,
 )
 from vultron.core.behaviors.sync.nodes import (
@@ -46,8 +46,8 @@ from vultron.core.behaviors.sync.nodes.case_copy_effect import (
 from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
     EmitLedgerEntryFaultNode,
 )
-from vultron.core.behaviors.sync.nodes.own_announce import (
-    AnnouncedEntryIsNotOwnEchoNode,
+from vultron.core.behaviors.sync.nodes.own_add import (
+    AddedEntryIsNotOwnEchoNode,
 )
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH,
@@ -55,16 +55,16 @@ from vultron.core.models.fault_classes import (
 
 #: The branch the tree runs at the case's CASE_MANAGER: past the sender
 #: guard, an announcement it admits is the CASE_MANAGER's own, echoed back.
-AT_CASE_MANAGER = "ConfirmOwnEchoedAnnounce"
+AT_CASE_MANAGER = "ConfirmOwnEchoedAdd"
 
 #: The branch the tree runs at every other receiver it declares.
-OFF_CASE_MANAGER = "ProcessAnnouncedEntry"
+OFF_CASE_MANAGER = "ProcessAddedEntry"
 
 
-def create_announce_log_entry_tree(
+def create_add_log_entry_tree(
     *, sender_rule: SenderRule
 ) -> py_trees.behaviour.Behaviour:
-    """Create the BT for an inbound ``Announce(CaseLedgerEntry)``.
+    """Create the BT for an inbound ``Add(CaseLedgerEntry)``.
 
     The sender must be the CASE_MANAGER of the case the announced entry
     names (SYNC-13-006, HP-01-006).  The factory composes that guard from the
@@ -88,7 +88,7 @@ def create_announce_log_entry_tree(
     # When the VulnerabilityCase is not yet seeded on this replica, chain tail
     # reconstruction fails and no tail_hash is available for the mismatch check.
     # Wrap reconstruct in a Selector so that on failure we (1) hold the received
-    # Announce so the case-seed path can replay it once the genesis anchor is
+    # Add so the case-seed path can replay it once the genesis anchor is
     # known (SYNC-15-004, SYNC-15-005, #2186), and (2) ask for the case with a
     # genesis Reject (stating no ledger position, read as "replay from
     # genesis") as the loss backstop, at most once per case per interval,
@@ -195,10 +195,10 @@ def create_announce_log_entry_tree(
     # Off the manager path the entry is processed against the local chain.
     off_case_manager = OnPaths.off_case_manager(
         OFF_CASE_MANAGER,
-        # An Announce this store sent, at a store holding no replica of the
+        # An Add this store sent, at a store holding no replica of the
         # case, is an anomaly rather than the pre-genesis window
         # (SYNC-15-001, ADR-0087).
-        AnnouncedEntryIsNotOwnEchoNode(name="AnnouncedEntryIsNotOwnEcho"),
+        AddedEntryIsNotOwnEchoNode(name="AddedEntryIsNotOwnEcho"),
         # An entry that fails its own hash is refused before it can be
         # buffered, applied or stored, and before the already-stored
         # shortcut could skip it unlogged (SYNC-03-006).  The refusal is
@@ -217,17 +217,17 @@ def create_announce_log_entry_tree(
         ),
         entry_processing,
         # The entry this delivery stored (or found stored) may be the
-        # predecessor a held Announce waits on.  That Announce, as it was
+        # predecessor a held Add waits on.  That Add, as it was
         # received, is replayed through this actor's inbox as its own
         # delivery; its tree replays the next one (SYNC-14-009, ADR-0135).
         ReplayHeldSuccessorNode(name="ReplayHeldSuccessor"),
-        body_name="ProcessAnnouncedEntryBody",
+        body_name="ProcessAddedEntryBody",
     )
     # The replication envelope is never itself a canonical entry (CLP-10-004),
     # so there is no commit stage (``case_id=None``); intake records the
-    # received Announce only and leaves the inlined entry to the chain check.
+    # received Add only and leaves the inlined entry to the chain check.
     return create_receive_activity_tree(
-        name="AnnounceLogEntryReceivedBT",
+        name="AddLogEntryReceivedBT",
         case_id=None,
         precondition_guards=[],
         # Three receivers, three branches (HP-01-038): the CASE_MANAGER gets

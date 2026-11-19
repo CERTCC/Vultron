@@ -78,7 +78,7 @@ def record_pending_assertion(
     through ``SvcBTTriggerBase._record_asserted_activity``) and the received
     P/X/A cascade's teardown ask
     (``SendTerminateEmbargoActivityNode``).  The matching
-    ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-003).  *at* is the
+    ``Add(CaseLedgerEntry)`` clears it (SYNC-11-003).  *at* is the
     sending act's instant, stamped on the entry (ADR-0176).
     """
     get_pending_assertion_store(actor_id).add(

@@ -45,7 +45,10 @@ from typing import Any
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.case_preview import previewed_case_id
+from vultron.core.models.case_preview import (
+    preview_embargo_id,
+    previewed_case_id,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
@@ -109,12 +112,9 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
     invite_id = getattr(obj, "id_", None)
     if not isinstance(case_id, str) or not invitee_id or not invite_id:
         return None
-    # Plain attribute access, not ``getattr`` with a string: no core string
-    # constant names a retired key (MV-11-012).
-    try:
-        embargo = reference.preview.active_embargo
-    except AttributeError:
-        embargo = None
+    # The embargo terms the preview shows, by id; a withheld or id-less
+    # embargo names none (ADR-0217).
+    embargo_id = preview_embargo_id(getattr(reference, "preview", None))
     return RecordedStubInvite(
         invite_id=invite_id,
         invitee_id=invitee_id,
@@ -122,7 +122,7 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
         published=getattr(obj, "published", None) or _EARLIEST,
         end_time=getattr(obj, "end_time", None),
         in_reply_to=_as_id(getattr(obj, "in_reply_to", None)),
-        embargo_id=_as_id(embargo) if embargo is not None else None,
+        embargo_id=embargo_id,
         roles=tuple(getattr(obj, "roles", None) or ()),
         attributed_to=_as_id(getattr(obj, "attributed_to", None)),
     )

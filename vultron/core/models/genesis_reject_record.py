@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """When a participant last asked for a case it does not hold (SYNC-15-021).
 
-A participant that receives an ``Announce(CaseLedgerEntry)`` for a case it
+A participant that receives an ``Add(CaseLedgerEntry)`` for a case it
 does not hold yet holds the ``Announce`` (SYNC-15-004) and asks the
 CASE_MANAGER for the case and its whole ledger with a genesis Reject: a
 ``Reject(CaseLedgerEntry)`` with ``last_accepted_hash=""`` (SYNC-15-001).  One

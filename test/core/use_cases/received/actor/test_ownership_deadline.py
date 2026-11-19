@@ -35,7 +35,7 @@ from test.core.use_cases.received.actor.test_ownership import (
     _VENDOR2_ID,
     _VENDOR_ID,
     _accept,
-    _announces,
+    _ledger_adds,
     _owner,
     _owner_roles,
     _ownership_offer_harness,
@@ -100,7 +100,7 @@ class TestLateAnswerIsRefused:
         assert _owner_roles(dl, case_id) == roles_before
         # Nothing records the expiry and nothing announces it.
         assert _semantic_types(dl) == before[0]
-        assert _announces(dl, before[1]) == []
+        assert _ledger_adds(dl, before[1]) == []
 
     @pytest.mark.spec("CM-21-016")
     def test_late_reject_is_refused_and_not_ledgered(self, make_payload):
@@ -113,7 +113,7 @@ class TestLateAnswerIsRefused:
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "CM-21-016" in result.reason
         assert _semantic_types(dl) == before[0]
-        assert _announces(dl, before[1]) == []
+        assert _ledger_adds(dl, before[1]) == []
 
     @pytest.mark.spec("CM-21-016")
     @pytest.mark.spec("CM-21-017")
@@ -166,7 +166,7 @@ class TestAnExpiredOfferIsClosed:
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "CM-21-017" in result.reason
         assert _semantic_types(dl) == before[0]
-        assert _announces(dl, before[1]) == []
+        assert _ledger_adds(dl, before[1]) == []
 
     @pytest.mark.spec("CM-21-017")
     @pytest.mark.spec("CM-21-014")
@@ -307,7 +307,7 @@ def test_late_reply_from_a_non_party_ledgers_nothing(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _semantic_types(dl) == before[0]
-    assert _announces(dl, before[1]) == []
+    assert _ledger_adds(dl, before[1]) == []
     assert _owner(dl, case_id) == _VENDOR_ID
 
 

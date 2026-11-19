@@ -83,7 +83,7 @@ class MessageSemantics(StrEnum):
 
     CLOSE_CASE = auto()
 
-    ANNOUNCE_CASE_LEDGER_ENTRY = auto()
+    ADD_CASE_LEDGER_ENTRY_TO_LEDGER = auto()
     REJECT_CASE_LEDGER_ENTRY = auto()
     READ_CASE_LEDGER_ENTRY = auto()
 
@@ -339,7 +339,7 @@ class LedgerPositionedEvent(VultronEvent):
     SYNC-18-001's scope; a class outside it (SYNC-18-017) is a semantic
     whose sender holds no ledger when it sends (a report, a case proposal, a
     stub-Invite reply), whose object states its own position
-    (``Announce(CaseLedgerEntry)``, a case copy), or that any receiver may
+    (``Add(CaseLedgerEntry)``, a case copy), or that any receiver may
     send about any activity (``Create(ProcessingFault)``).
     """
 

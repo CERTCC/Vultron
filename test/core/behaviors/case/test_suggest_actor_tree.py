@@ -27,6 +27,7 @@ ADR-0026/CM-16.
 
 import json
 import logging
+from types import SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -114,6 +115,7 @@ from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronWiringError
 
 _REC_ID = "https://example.org/recommendations/rec-1"
 _RECOMMENDER = "https://example.org/actors/recommender"
@@ -641,6 +643,40 @@ class TestAcceptActorRecommendationReceivedTree:
         assert node._invitee() == _RECOMMENDED
         assert node._read_suggested_roles() == ["vendor"]
         assert node.case_id == _CASE_ID
+
+    def _recorded_invite(self, sender: object) -> EmitRecordedInviteNode:
+        node: EmitRecordedInviteNode = _as_published(
+            next(
+                c
+                for c in self.tree.iterate()
+                if isinstance(c, EmitRecordedInviteNode)
+            )
+        )
+        node.actor_id = _MANAGER
+        node._received = (
+            None
+            if sender is None
+            else SimpleNamespace(actor_id=sender, activity_id=_ANSWER_ID)
+        )
+        return node
+
+    @pytest.mark.spec("CM-24-020")
+    def test_the_invite_credits_the_accepts_sender_and_names_the_accept(self):
+        authorship = self._recorded_invite(_SENDER)._authorship()
+        assert authorship is not None
+        assert authorship.attributed_to == _SENDER
+        assert authorship.in_reply_to == _ANSWER_ID
+
+    @pytest.mark.spec("CM-24-021")
+    def test_an_owner_holding_the_role_is_credited_to_no_one(self):
+        authorship = self._recorded_invite(_MANAGER)._authorship()
+        assert authorship is not None
+        assert authorship.attributed_to is None
+        assert authorship.in_reply_to is None
+
+    def test_no_received_accept_is_a_wiring_fault(self):
+        with pytest.raises(VultronWiringError, match="no received Accept"):
+            self._recorded_invite(None)._requester()
 
     @pytest.mark.spec("OX-06-002")
     def test_the_invite_id_derives_from_the_accepted_recommendation(self):

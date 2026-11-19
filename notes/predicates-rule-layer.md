@@ -53,7 +53,7 @@ refuse to emit, and local tests stay green (#2906).
 `violation_*` / `is_valid_*` / `is_monotonic_*` predicate in
 `vultron/core/states/`, bucket its call sites as **emit** (write nodes,
 outbound factories), **receive** (received-side use cases), or
-**replica-apply** (`Announce(CaseLedgerEntry)` reconstruction). A predicate
+**replica-apply** (`Add(CaseLedgerEntry)` reconstruction). A predicate
 called from only one bucket is a gap unless its docstring or a spec `note:`
 states the scoping.
 

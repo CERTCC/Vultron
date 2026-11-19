@@ -208,7 +208,7 @@ class _EagerDrain:
 
     It takes each pending activity the moment it is woken and records, for
     each, whether the act's *semantic_type* entry was committed when it was
-    taken.  The act's ``Announce(CaseLedgerEntry)`` fan-out is queued by the
+    taken.  The act's ``Add(CaseLedgerEntry)`` fan-out is queued by the
     commit itself (SYNC-09-002), so it is taken with the entry committed.
     """
 

@@ -31,7 +31,7 @@ sequenceDiagram
 
     I->>CM: Accept(Invite(VulnerabilityCase preview)[target=Actor])
     CM->>CM: Commit ledger entry for the acceptance
-    CM->>P: Announce(CaseLedgerEntry)
+    CM->>P: Add(CaseLedgerEntry)
     CM->>CM: Record effect: RM stays Received, embargo consent AGREED
     CM->>I: Announce(VulnerabilityCase) — full case content
     CM->>I: Prior ledger entries, oldest first
@@ -118,7 +118,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 ```
 
 **After a teardown.**
-The termination's own ledger entry, fanned out as `Announce(CaseLedgerEntry)`, records the end.
+The termination's own ledger entry, fanned out as `Add(CaseLedgerEntry)`, records the end.
 The activity that tells the other participants depends on which actor started the teardown:
 
 - **A received `Remove(EmbargoEvent)`.** The Case Owner sends the CASE_MANAGER a `Remove(EmbargoEvent)` before the embargo's end time.

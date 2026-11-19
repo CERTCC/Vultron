@@ -330,7 +330,7 @@ groups:
       a second `CaseStatus` entry for it would be a duplicate.
     rationale: >-
       Remote actors see EM state changes only through `CaseStatus` entries in
-      `Announce(CaseLedgerEntry)` messages. If a change has no ledger write after it,
+      `Add(CaseLedgerEntry)` messages. If a change has no ledger write after it,
       the replicas of the participants keep a stale EM state. If the committed entry
       records the activity that caused the change, and replicas replay the same
       transition, that entry carries the change. A second `CaseStatus` entry then only
@@ -372,7 +372,7 @@ groups:
     statement: >-
       The CASE_MANAGER MUST make the `CaseStatus` record of RSH-04-002 and RSH-04-003
       by committing a canonical `CaseLedgerEntry` that carries the new `CaseStatus`.
-      It then announces the entry with `Announce(CaseLedgerEntry)` for participant
+      It then announces the entry with `Add(CaseLedgerEntry)` for participant
       replica sync.
     rationale: >
       Replicas learn of the CASE_MANAGER's own EM or PXA change only from the
@@ -448,7 +448,7 @@ groups:
       In this implementation, one shared BT node, `EmitCaseStatusUpdateNode`, MUST make
       the `CaseStatus` record of RSH-01-003, RSH-04-002 and RSH-04-003. It writes the
       new `CaseStatus` directly to `case.case_statuses`, commits the `CaseLedgerEntry`
-      and emits `Announce(CaseLedgerEntry)`.
+      and emits `Add(CaseLedgerEntry)`.
     rationale: >
       One node keeps every tree that changes EM or PXA from carrying its own
       copy of the commit and announce.
@@ -710,7 +710,7 @@ groups:
     statement: >-
       The CASE_MANAGER MUST NOT send the RSH-06-004 note to the sender as a direct
       `Add(Note)`, which a participant refuses (HP-01-005). The sender learns of the
-      note from the entry's `Announce(CaseLedgerEntry)` fan-out (SYNC-02-001,
+      note from the entry's `Add(CaseLedgerEntry)` fan-out (SYNC-02-001,
       SYNC-02-003).
     rationale: >-
       The note is a case act of the CASE_MANAGER, so it goes to the sender through the
@@ -1136,7 +1136,7 @@ groups:
       A replica without the CASE_MANAGER role that receives such an activity directly
       MUST store it and write no participant or case state. The exception of RSH-08-003
       still applies. It takes the resulting state from the
-      `Announce(CaseLedgerEntry)` broadcast (PCR-03-001).
+      `Add(CaseLedgerEntry)` broadcast (PCR-03-001).
     rationale: >-
       The replica keeps the activity it received, so a later entry can name it, but its
       case state comes only from the CASE_MANAGER's committed entries. Otherwise its
@@ -1160,7 +1160,7 @@ groups:
     kind: project
     statement: >-
       Each ledger `semantic_type` the CASE_MANAGER commits MUST have a replica apply node
-      reachable from `create_announce_log_entry_tree`, or a recorded no-effect
+      reachable from `create_add_log_entry_tree`, or a recorded no-effect
       declaration. A no-effect declaration records that the event has no replica-side
       effect.
     rationale: >-
@@ -1172,7 +1172,7 @@ groups:
       committed `semantic_type` set from code (`_ledger_commit_inventory.py`: the
       receive-side commit path, plus every explicit `semantic_type=` commit under
       `vultron/core`) and asserts each member is matched by exactly one
-      effect-slot condition of `create_announce_log_entry_tree`, found by tree
+      effect-slot condition of `create_add_log_entry_tree`, found by tree
       position rather than by class or module, or is listed in the
       declared-no-effect set; the classification equals the committed set
       (ARCH-18-001). The types still violating this requirement are an exact
@@ -1594,7 +1594,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A receiver MUST NOT apply the participant status that an `Announce(CaseLedgerEntry)`
+      A receiver MUST NOT apply the participant status that an `Add(CaseLedgerEntry)`
       entry adds if that status violates any composite-state entailment. It judges the
       participant state the entry carries. The entailments are
       RM↔VF and RM↔D (CSB-18-001), and VF↔D (CSB-17-001).
@@ -1604,7 +1604,7 @@ groups:
       enforce (RSH-09-004). Without this check every replica silently adopts an
       impossible combination it would have refused to emit.
     verification: >
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
       confirms an entailment violation blocks the status update and emits
       `Create(ProcessingFault)` to the CASE_MANAGER.
     note: >
@@ -1646,7 +1646,7 @@ groups:
     - rel_type: extends
       spec_id: RSH-09-006
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
       confirms an entailment violation emits `Create(ProcessingFault)` to the
       CASE_MANAGER.
     stories:
@@ -1666,7 +1666,7 @@ groups:
       emission a composable side-effect, consistent with protocol-significant
       behavior living in the tree (BTND-01).
     verification: >
-      Inspection of `vultron/core/behaviors/sync/announce_tree/` confirms the
+      Inspection of `vultron/core/behaviors/sync/add_log_entry_tree/` confirms the
       fault is emitted by `EmitImpossibleStateFaultNode`, the fallback child of
       the `ApplyOrFault` Selector whose first child is
       `ApplyParticipantStatusFromLedgerNode`, so the apply node only returns
