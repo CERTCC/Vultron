@@ -212,7 +212,7 @@ def test_materialise_builds_a_valid_object_from_bare_ids(
     """list[as_ParticipantStatus] rejects a bare string outright.
 
     Uses as_CaseParticipant.participant_statuses (still typed as
-    list[as_ParticipantStatus]) as the canonical object-only list slot,
+    list[as_ParticipantStatus]) as the canonical object-only list slot.
     """
     status = make(
         as_ParticipantStatus,
@@ -593,7 +593,7 @@ def test_slot_supplied_under_its_as2_alias_is_materialised(
 ) -> None:
     """Callers hand over either spelling, so both must be looked for.
 
-    Uses as_CaseParticipant.participant_statuses (participantStatuses alias)
+    Uses as_CaseParticipant.participant_statuses (participantStatuses alias).
     Keying only on the Python field name made ``{"participantStatuses": [...]}``
     a silent no-op: the slot was skipped, no ``dl.read()`` fired, and
     ``model_validate`` then failed on a bare string in a
