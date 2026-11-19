@@ -109,7 +109,6 @@ def create_case_from_proposal_act(
     inline_report: VulnerabilityReport | None,
     proposer_case_roles: Sequence[CVDRole],
     offer_id: str | None,
-    offer_actor_id: str | None,
     claims_readings: Sequence[ClaimsReading] = (),
     stated_report_fields: StatedReportFields | None = None,
     activity_id: str | None = None,
@@ -248,7 +247,6 @@ def create_case_from_proposal_act(
             CommitNativeLedgerEntriesNode(
                 report_id=report_id,
                 offer_id=offer_id,
-                offer_actor_id=offer_actor_id,
             ),
             # EP-04-011: relay the losing terms InitializeDefaultEmbargoNode
             # registered, only now that initialization is complete

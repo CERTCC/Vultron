@@ -79,7 +79,6 @@ class _ProposalsMixin:
         summary: str | None = None,
         to: list[str] | None = None,
         offer_id: str | None = None,
-        offer_actor_id: str | None = None,
         proposer_case_roles: Sequence[CVDRole] = (),
         *,
         at: datetime,
@@ -90,12 +89,12 @@ class _ProposalsMixin:
         constructs an ``as_CaseProposal``, and persists
         ``Create(CaseProposal)`` to the DataLayer.
 
-        ``offer_id``/``offer_actor_id`` are the report's offer provenance and are
-        carried through when supplied (CP-01-007).  When this store holds the
-        ``Offer(VulnerabilityReport)`` itself, it is carried whole under
-        ``inReplyTo`` (CP-01-008): the case-actor has never seen it, and a
-        sender inlines what it introduces (ADR-0107).  That is how the
-        Reporter's proposed embargo terms reach case creation (EP-04-004).
+        ``offer_id`` names the report's ``Offer(VulnerabilityReport)``, and the
+        proposal's ``inReplyTo`` carries it (CP-01-007).  When this store
+        holds the Offer itself, it is carried whole (CP-01-008): the
+        case-actor has never seen it, and a sender inlines what it introduces
+        (ADR-0107).  That is how the Reporter's proposed embargo terms reach
+        case creation (EP-04-004).  Otherwise the id alone is carried.
 
         The sending actor's own profile, read from this store with its
         ``embargo_policy`` when it has published one, travels inline as the
@@ -121,16 +120,14 @@ class _ProposalsMixin:
         # Before anything is persisted: a proposal without the profile would
         # be refused at the CASE_MANAGER's parse edge (CP-01-010).
         sender = self._sender_profile(actor)
-        offer: as_Offer | None = None
+        offer: as_Offer | str | None = None
         if offer_id is not None:
-            offer = self._held_report_offer(offer_id, report_id)
+            offer = self._held_report_offer(offer_id, report_id) or offer_id
         proposal = as_CaseProposal(
             attributed_to=actor,
             object_=report,
             target=case_actor_id,
             summary=summary,
-            offer_id=offer_id,
-            offer_actor_id=offer_actor_id,
             in_reply_to=offer,
             proposer_case_roles=list(proposer_case_roles),
             **authored_times(at),
@@ -165,7 +162,7 @@ class _ProposalsMixin:
         received Offer is carried as the Reporter sent it, every field
         included, so the case-actor reads the Reporter's own terms (CP-01-008,
         DL-06-004).  ``None``, with a warning, when the store holds no such
-        Offer: the proposal then carries the bare provenance only (CP-01-007).
+        Offer: the proposal then names the Offer by id only (CP-01-007).
         """
         try:
             held = read_held_as_received(
@@ -176,8 +173,8 @@ class _ProposalsMixin:
         except (VultronNotFoundError, VultronActivityConstructionError) as exc:
             logger.warning(
                 "create_case_proposal: offer '%s' for report '%s' is not"
-                " in this store as an Offer (%s); the proposal carries"
-                " the bare provenance only (CP-01-007)",
+                " in this store as an Offer (%s); the proposal names it"
+                " by id only (CP-01-007)",
                 offer_id,
                 report_id,
                 exc,

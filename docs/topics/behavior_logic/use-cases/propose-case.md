@@ -33,7 +33,7 @@ The actor records a local case, publishes the case actor identity it will addres
 
 The proposal carries the report inline.
 The reference implementation does not permit a URI reference here, because the receiving service fetches only a few objects by reference, and a report is not one of them (CP-01-004, AKM-03-003).
-The proposal also carries the provenance of the report: which `Offer(VulnerabilityReport)` delivered it, and from whom.
+The proposal also names, in its `inReplyTo`, the `Offer(VulnerabilityReport)` that delivered the report: the Offer inline when the proposer still holds it, or its id.
 The accepting service cannot reconstruct that provenance, and it needs it for the first ledger entry (CP-01-007, CP-01-019).
 
 The proposal is addressed to the service's own actor identity, never to an identity derived per case or per report (CP-04-003).

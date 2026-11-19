@@ -19,17 +19,18 @@ The chain this pins, end to end:
 
 1. the actor that received ``Offer(VulnerabilityReport)`` holds the only
    ``VultronOfferRecord`` for it, in its own store;
-2. it puts that offer's id on the ``as_CaseProposal`` it sends the CaseActor,
-   because the CaseActor cannot read a sibling's store (ADR-0073, PCR-01-005);
-3. the CaseActor writes it into the canonical ``add_report_to_case`` ledger
-   entry;
+2. it names that offer in the ``inReplyTo`` of the ``as_CaseProposal`` it
+   sends the CaseActor (inline when it holds the Offer, else by id), because
+   the CaseActor cannot read a sibling's store (ADR-0073, PCR-01-005);
+3. the CaseActor names it in the ``inReplyTo`` of the canonical
+   ``add_report_to_case`` ledger entry;
 4. the entry keeps that provenance for the case's participants; an invited actor
    rebuilds no ``VultronOfferRecord`` from it, as it was never sent the Offer
    (CM-11-020).
 
 Step 2 was missing. Nothing complained at any link: the CaseActor's
 ``offer_for_report_or`` scanned its own (correct, empty) store,
-``build_add_report_to_case_snapshot`` omits ``offerId`` when not given one, so
+the entry omits the Offer when not given one, so
 the ledger lost the report's Offer provenance without a sound (#2548, rcvcv).
 """
 
@@ -54,6 +55,7 @@ from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
@@ -101,18 +103,15 @@ class TestFindOfferForReport:
 
     def test_the_record_for_this_report_is_found(self, datalayer):
         datalayer.save(_offer_record())
-        assert find_offer_for_report(datalayer, _REPORT_URI) == (
-            _OFFER_URI,
-            _REPORTER_URI,
-        )
+        assert find_offer_for_report(datalayer, _REPORT_URI) == _OFFER_URI
 
     def test_a_store_with_no_record_answers_none(self, datalayer):
         """The normal answer for a co-located CaseActor, not an error."""
-        assert find_offer_for_report(datalayer, _REPORT_URI) == (None, None)
+        assert find_offer_for_report(datalayer, _REPORT_URI) is None
 
     def test_a_record_for_a_different_report_is_not_returned(self, datalayer):
         datalayer.save(_offer_record("https://example.org/reports/other"))
-        assert find_offer_for_report(datalayer, _REPORT_URI) == (None, None)
+        assert find_offer_for_report(datalayer, _REPORT_URI) is None
 
     @pytest.mark.parametrize("report_id", [None, ""])
     def test_no_report_id_is_answered_without_a_scan(
@@ -124,7 +123,7 @@ class TestFindOfferForReport:
         to be falsy — there are none today, and this keeps it that way.
         """
         datalayer.save(_offer_record())
-        assert find_offer_for_report(datalayer, report_id) == (None, None)
+        assert find_offer_for_report(datalayer, report_id) is None
 
 
 @pytest.mark.spec("CP-01-007")
@@ -145,25 +144,25 @@ class TestProposalCarriesTheProvenance:
         assert len(proposals) == 1
         return proposals[0]
 
-    def test_the_offer_id_and_sender_are_carried(
+    def test_the_offer_is_named_in_reply_to(
         self, datalayer, actor, report, bridge
     ):
+        """A record whose Offer this store does not hold names it by id."""
         datalayer.save(_offer_record(report.id_))
         proposal = self._propose(bridge, datalayer, actor.id_, report.id_)
-        assert proposal.offer_id == _OFFER_URI
-        assert proposal.offer_actor_id == _REPORTER_URI
+        assert proposal.in_reply_to == _OFFER_URI
 
-    def test_they_serialise_under_their_wire_names(
+    def test_it_serialises_as_in_reply_to_only(
         self, datalayer, actor, report, bridge
     ):
-        """The CaseActor reads them out of a ``by_alias=True`` dump."""
+        """The CaseActor reads it out of a ``by_alias=True`` dump (#6419)."""
         datalayer.save(_offer_record(report.id_))
         proposal = self._propose(bridge, datalayer, actor.id_, report.id_)
         dumped = proposal.model_dump(by_alias=True, serialize_as_any=True)
-        assert dumped["offerId"] == _OFFER_URI
-        assert dumped["offerActorId"] == _REPORTER_URI
+        assert dumped["inReplyTo"] == _OFFER_URI
+        assert not {"offerId", "offerActorId"} & set(dumped)
 
-    def test_they_survive_a_wire_round_trip(self):
+    def test_it_survives_a_wire_round_trip(self):
         """The receiving side validates the dump back into a model."""
         original = make(
             as_CaseProposal,
@@ -171,8 +170,7 @@ class TestProposalCarriesTheProvenance:
             attributed_to=_VENDOR_URI,
             object_=_REPORT_URI,
             target=_CASE_ACTOR_URI,
-            offer_id=_OFFER_URI,
-            offer_actor_id=_REPORTER_URI,
+            in_reply_to=_OFFER_URI,
         )
         restored = as_CaseProposal.model_validate(
             with_times(
@@ -180,8 +178,7 @@ class TestProposalCarriesTheProvenance:
                 original.model_dump(by_alias=True, serialize_as_any=True),
             )
         )
-        assert restored.offer_id == _OFFER_URI
-        assert restored.offer_actor_id == _REPORTER_URI
+        assert restored.in_reply_to == _OFFER_URI
 
     def test_a_report_with_no_offer_record_still_proposes(
         self, datalayer, actor, report, bridge
@@ -189,8 +186,7 @@ class TestProposalCarriesTheProvenance:
         """Provenance is best-effort at the source: a report can arrive by a
         path that mints no ``OfferRecord``, and that must not stop the case."""
         proposal = self._propose(bridge, datalayer, actor.id_, report.id_)
-        assert proposal.offer_id is None
-        assert proposal.offer_actor_id is None
+        assert proposal.in_reply_to is None
 
 
 def _case_actor_store() -> SqliteDataLayer:
@@ -200,8 +196,7 @@ def _case_actor_store() -> SqliteDataLayer:
 def _run_received_bt(
     dl: SqliteDataLayer,
     *,
-    offer_id: str | None,
-    offer_actor_id: str | None,
+    in_reply_to: str | dict[str, Any] | None,
 ) -> None:
     """Deliver ``Create(CaseProposal)`` to the CaseActor and run its tree."""
     from vultron.core.models.events.case_proposal import (
@@ -230,8 +225,7 @@ def _run_received_bt(
             attributed_to=_REPORTER_URI,
         ),
         target=_CASE_ACTOR_URI,
-        offer_id=offer_id,
-        offer_actor_id=offer_actor_id,
+        in_reply_to=in_reply_to,
     )
     activity = make(
         as_Create,
@@ -278,10 +272,41 @@ class TestCaseActorCommitsTheProvenance:
 
     def test_the_snapshot_names_the_offer_the_proposal_carried(self):
         dl = _case_actor_store()
-        _run_received_bt(dl, offer_id=_OFFER_URI, offer_actor_id=_REPORTER_URI)
+        _run_received_bt(dl, in_reply_to=_OFFER_URI)
         snapshot = _add_report_snapshot(dl)
-        assert snapshot["offerId"] == _OFFER_URI
-        assert snapshot["offerActorId"] == _REPORTER_URI
+        assert snapshot["inReplyTo"] == _OFFER_URI
+        assert not {"offerId", "offerActorId"} & set(snapshot)
+
+    def test_the_snapshot_names_an_inline_offer_by_its_id(self):
+        """An inline Offer reaches the entry as its id only: the entry fans
+        out to every participant, and the Offer is the Reporter's message to
+        its receiver (#6419).  The Offer's sender is the report's
+        ``attributedTo``, which the entry carries."""
+        from vultron.wire.as2.factories import rm_submit_report_activity
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
+        )
+
+        offer = rm_submit_report_activity(
+            make(
+                as_VulnerabilityReport,
+                id_=_REPORT_URI,
+                attributed_to=_REPORTER_URI,
+            ),
+            to=_VENDOR_URI,
+            actor=_REPORTER_URI,
+            at=authored_at(),
+        )
+        dl = _case_actor_store()
+        _run_received_bt(
+            dl,
+            in_reply_to=offer.model_dump(
+                by_alias=True, mode="json", serialize_as_any=True
+            ),
+        )
+        snapshot = _add_report_snapshot(dl)
+        assert snapshot["inReplyTo"] == offer.id_
+        assert snapshot["object"]["attributedTo"] == _REPORTER_URI
 
     def test_its_own_store_is_consulted_first(self):
         """A CaseActor that received the Offer itself trusts its own record.
@@ -292,33 +317,29 @@ class TestCaseActorCommitsTheProvenance:
         dl = _case_actor_store()
         dl.save(_offer_record())
         _run_received_bt(
-            dl,
-            offer_id="urn:uuid:00000000-0000-4000-8000-000000000000",
-            offer_actor_id="https://example.org/actors/someone-else",
+            dl, in_reply_to="urn:uuid:00000000-0000-4000-8000-000000000000"
         )
         snapshot = _add_report_snapshot(dl)
-        assert snapshot["offerId"] == _OFFER_URI
-        assert snapshot["offerActorId"] == _REPORTER_URI
+        assert snapshot["inReplyTo"] == _OFFER_URI
 
     def test_no_provenance_anywhere_leaves_the_key_absent(self):
         """The pre-fix state, kept explicit: absent, never invented.
 
-        A missing ``offerId`` reads as "no known Offer". A placeholder would
+        A missing ``inReplyTo`` reads as "no known Offer". A placeholder would
         instead name an offer nobody ever sent.
         """
         dl = _case_actor_store()
-        _run_received_bt(dl, offer_id=None, offer_actor_id=None)
+        _run_received_bt(dl, in_reply_to=None)
         snapshot = _add_report_snapshot(dl)
-        assert "offerId" not in snapshot
-        assert "offerActorId" not in snapshot
+        assert "inReplyTo" not in snapshot
 
 
 class TestProposalCarriesTheOfferItself:
     """CP-01-008: the store that holds the Offer puts it on the wire whole.
 
-    ``offerId``/``offerActorId`` are the bare-reference form (CP-01-007); when
-    the vendor still has the ``Offer(VulnerabilityReport)`` it received, the
-    proposal carries it inline under ``inReplyTo`` — a sender inlines what it
+    The Offer's id is the bare-reference form (CP-01-007); when the vendor
+    still has the ``Offer(VulnerabilityReport)`` it received, the proposal
+    carries it inline under ``inReplyTo`` instead — a sender inlines what it
     introduces (ADR-0107) — and with it the Reporter's proposed embargo terms
     (EP-04-004, #3392).
     """
@@ -385,9 +406,8 @@ class TestProposalCarriesTheOfferItself:
         offer_id = self._stored_offer(datalayer, report, with_terms=True)
         proposal = self._propose(bridge, datalayer, actor.id_, report.id_)
 
-        assert proposal.offer_id == offer_id
         offer = proposal.in_reply_to
-        assert offer is not None
+        assert isinstance(offer, as_Offer)
         assert offer.id_ == offer_id
         terms = offer.proposed_embargo
         assert isinstance(terms, EmbargoEvent)
@@ -398,18 +418,17 @@ class TestProposalCarriesTheOfferItself:
     def test_the_inline_offer_survives_the_wire_dump(
         self, datalayer, actor, report, bridge
     ):
-        self._stored_offer(datalayer, report, with_terms=True)
+        offer_id = self._stored_offer(datalayer, report, with_terms=True)
         proposal = self._propose(bridge, datalayer, actor.id_, report.id_)
         dumped = proposal.model_dump(by_alias=True, serialize_as_any=True)
         assert dumped["inReplyTo"]["type"] == "Offer"
-        assert dumped["inReplyTo"]["id"] == dumped["offerId"]
+        assert dumped["inReplyTo"]["id"] == offer_id
         assert dumped["inReplyTo"]["proposedEmbargo"]["context"] == report.id_
 
-    def test_a_record_without_its_offer_carries_the_bare_provenance_only(
+    def test_a_record_without_its_offer_names_it_by_id_only(
         self, datalayer, actor, report, bridge
     ):
         """The Offer can be absent (a record replicated from a ledger entry)."""
         datalayer.save(_offer_record(report.id_))
         proposal = self._propose(bridge, datalayer, actor.id_, report.id_)
-        assert proposal.offer_id == _OFFER_URI
-        assert proposal.in_reply_to is None
+        assert proposal.in_reply_to == _OFFER_URI
