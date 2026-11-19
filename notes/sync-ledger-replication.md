@@ -140,8 +140,8 @@ tree (SYNC-01-005).
   requires the position at the parse edge (SYNC-18-015); every other received
   semantic is listed with its reason in `test/wire/as2/test_ledger_position_scope.py`.
   The sender stamps whenever its store holds the case's ledger, so an activity sent
-  before that is never stamped. `Read(CaseLedgerEntry)` is in scope: the entry it
-  names is the sender's tail. `Create(ProcessingFault)` is out: any receiver sends
+  before that is never stamped. `Read(<case>/ledger)` is in scope: the position it
+  states is the sender's tail. `Create(ProcessingFault)` is out: any receiver sends
   one, even for a body it could not parse, and it names no case (ASK-07-001).
   `Reject(CaseLedgerEntry)` admits no position, from a peer that holds no case yet.
 - **A lag is a record, never a refusal.** Log it at DEBUG and judge the act as
@@ -153,7 +153,7 @@ tree (SYNC-01-005).
   active participant through SYNC-16-003's rate-bounded path (SYNC-18-011,
   SYNC-18-012).
 - **The stamp is a position statement.** It says the sender has applied up to
-  that entry, the fact `Read(CaseLedgerEntry)` states in a quiet period. Answer it
+  that entry, the fact `Read(<case>/ledger)` states in a quiet period. Answer it
   the same way: record the acknowledged position and replay a lag, for active
   participants only (SYNC-18-007, composing SYNC-17-003/004).
 - **The answer is a factory stage, never a tree's own.** `create_receive_activity_tree`
@@ -460,8 +460,8 @@ same entry forever (ADR-0142).
   CASE_MANAGER stored when it sent it, so `announced_ledger_entry()` reads the
   entry, and with it the case and index, from there (SYNC-16-003).
 - **A `Reject(CaseLedgerEntry)` names the Add that prompted it.** Its
-  `object` is an entry or nothing, so `inReplyTo` is required and set by the
-  sender: the `Add(CaseLedgerEntry)` on a mismatch or a genesis wait, the
+  `object` is the entry, and `inReplyTo` is required and set by the sender: the
+  `Add(CaseLedgerEntry)` on a mismatch or a genesis wait, the
   `Announce(VulnerabilityCase)` after a copy ahead of the chain (RF-08-004).
   `inReplyTo` does not key the derived id, so a resent body names the first copy.
 - **One response per failure class.** `CreateProcessingFaultReceivedUseCase`
@@ -512,11 +512,11 @@ same entry forever (ADR-0142).
   past" test; `case_file_is_past()` stays for the embargo register's own replays.
   That includes the held refused entry, which the seed drains before any replay
   arrives, and the backfill after a join seed (SYNC-16-023).
-- **An empty chain still asks.** A replica with no stored entry sends the `Reject`
-  that names none: the empty chain's `ledgerPosition` (index -1), case as `target`.
-  The parser admits an objectless `Reject` only in that form
-  (`ledger_reject_envelope.py`), and the CASE_MANAGER reads the case through the
-  event's `replay_case_id`, never the entry.
+- **An empty chain still asks, with a `Read`.** A replica with no stored entry
+  states `Read(<case>/ledger)` at index -1 with the case's genesis hash
+  (SYNC-16-027, ADR-0204); every `Reject` names an object (SYNC-16-028). The
+  CASE_MANAGER replays every entry and sends no copy ahead of them: the replica
+  holds the case.
 - **A no-op still copies what the copy names by id.** A copy carries participants,
   reports and the active embargo inline but names notes, statuses and other
   embargoes by id; `StoreRecordsReflectedEntryCarriesNode` stores those records
@@ -603,14 +603,17 @@ peer. Three properties are load-bearing; tests are in
   are `SHOULD`/`MAY`; the numbers and records here are this codebase's
   (`project`, SYNC-15-008 to SYNC-15-014, SYNC-15-020 to SYNC-15-025).
 
-## A Participant Checks with Read(CaseLedgerEntry) (SYNC-17, ADR-0155)
+## A Participant Checks with Read(<case>/ledger) (SYNC-17, ADR-0155, ADR-0204)
 
 The CASE_MANAGER learns how far a participant has got only from the participant.
 Reason: the gap `Reject` fires only when a later entry arrives, so a lost last entry
 before a quiet period leaves the replica behind with no signal on either side.
 
-- **`Read`, never `Reject`, for a check** (SYNC-17-001). `Read` states a fact; a
-  `Reject` of an entry nothing refused would mislead other implementations.
+- **`Read`, never `Reject`, for a check** (SYNC-17-001). `Read` states how far the
+  sender has read the case's ledger; a `Reject` of an entry nothing refused would
+  mislead other implementations. Its object is the ledger, `<case>/ledger`, by `id`
+  and `type` alone, so no position needs a bare entry id, and -1 asks for the whole
+  ledger (ADR-0204).
 - **One answer**: record the position, replay if behind (SYNC-17-003/004). The
   position stated on every case activity composes the same nodes
   (`create_ledger_position_stage`, SYNC-18-007), never a copy of them.
@@ -628,13 +631,18 @@ before a quiet period leaves the replica behind with no signal on either side.
 - **Never ledgered** (SYNC-17-006): a `Read` is an observation (ADR-0152).
 - **A fresh id per statement**, unlike a rebuildable send (SYNC-09-002): a repeat
   is a new observation the CASE_MANAGER must answer, and a derived id would be
-  skipped as a redelivery (`SyncActivityAdapter.send_read_ledger_entry`).
+  skipped as a redelivery (`SyncActivityAdapter.send_read_ledger`).
+- **The empty-chain `Read` answers a copy, so its id is derived** (SYNC-16-027,
+  ID-04-004): it keys on the case and the copy's position, not the `Announce`, so
+  a repeat of the same copy queues one `Read` and a later copy asks anew
+  (`SyncActivityAdapter.send_empty_chain_read`). A fresh id would queue one more
+  `Read` per copy and leave only the replay rate bound to stop them.
 - **A first seed states the copy's position** (SYNC-17-008): the chain stores no
-  entry yet, so the `Read` names the entry at the seeded case's position
+  entry yet, so the `Read` states the seeded case's position
   (`stated_replica_position`), not a chain tail. A replacing copy sends none; its
-  gap goes by the SYNC-16-007 `Reject`. The send is the tree's last effect and a
-  redelivery replaces rather than seeds, so the restart statement, which also uses
-  `stated_replica_position`, is what recovers a failed one.
+  gap goes by the SYNC-16-007 `Reject`, or the empty-chain `Read` above. The send is
+  the tree's last effect and a redelivery replaces rather than seeds, so the restart
+  statement, which also uses `stated_replica_position`, is what recovers a failed one.
 - **The restart round waits for the startup inbox replay** (IE-06-006), so the
   stated tail includes every entry the queue held; a shutdown during that wait
   states nothing (`ledger_position_statements.py`).

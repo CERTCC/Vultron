@@ -19,7 +19,7 @@ Every case activity states its sender's ledger tail as ``ledgerPosition``
 
 - **held** — the position names an entry the ledger holds, at the tail or
   behind it.  A lag is logged at DEBUG (SYNC-18-010) and, for an active
-  participant, answered as a ``Read(CaseLedgerEntry)`` is: the position is
+  participant, answered as a ``Read(<case>/ledger)`` is: the position is
   recorded and the entries after it replayed (SYNC-18-007).
 - **split** — the position names an index the ledger holds with another
   hash, or an index past its tail.  It is logged at ERROR and an active
@@ -101,7 +101,7 @@ class LedgerPositionExemption(BaseModel):
 STATED_POSITION_ANSWERED_BY_TREE: Final = LedgerPositionExemption(
     name="stated-position-answered-by-tree",
     reason=(
-        "The activity is a Read(CaseLedgerEntry), whose whole act is to"
+        "The activity is a Read(<case>/ledger), whose whole act is to"
         " state the position, so its own tree answers it: it records and"
         " replays a held position and answers a split one with a WARNING and"
         " nothing sent (SYNC-17-003 to SYNC-17-005).  A second answer would"

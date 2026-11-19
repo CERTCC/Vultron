@@ -665,21 +665,21 @@ target's attention to the object" (issues #179, #196). Primer: `result` is for
 lists the activities it caused.
 
 **Today.** The ledger `Add` is built (#6484): `add_log_entry_activity` names the
-ledger, the case and the committed act. `vultron/wire/as2/ledger_reject_envelope.py`
-admits the objectless
-`Reject`. The `Read` pattern accepts a bare entry id only for the position statement
-(`vultron/wire/as2/extractor/_pattern.py`). Both status `Add` forms name their history
-and case (#6486). Delivery receipts are an open question
+ledger, the case and the committed act. Every position statement is
+`Read(<case>/ledger)`, and no pattern accepts a bare object id or an objectless
+`Reject` (#6485). Both status `Add` forms name their history and case (#6486).
+Delivery receipts are an open question
 (`docs/topics/future_work/_oq-delivery-receipts.md`).
 
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1
 or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0156,
-ADR-0137 and ADR-0155 (partially superseded by ADR-0204), `READ_CASE_LEDGER_ENTRY`,
+ADR-0137 and ADR-0155 (partially superseded by ADR-0204), `READ_CASE_LEDGER`,
 `REJECT_CASE_LEDGER_ENTRY`, `ADD_CASE_STATUS_TO_CASE`,
 `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`. The ledger-commit part
 (`ADD_CASE_LEDGER_ENTRY_TO_LEDGER` and the notes naming the replication channel,
 whose rule "keep `Add(CaseLedgerEntry)` ids freshly minted; never derive them"
-stands) is done (#6484); the position-statement and status parts remain:
+stands) is done (#6484), and so are the position statement
+(`READ_CASE_LEDGER`, #6485) and the status forms (#6486). What remains is prose:
 `notes/case-ledger-authority.md`,
 `notes/participant-embargo-consent.md`, `notes/received-status-authorization.md`, and
 every docs page naming these forms, among them

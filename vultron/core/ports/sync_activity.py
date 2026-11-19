@@ -96,7 +96,36 @@ class SyncActivityPort(Protocol):
         """
         ...
 
-    def send_genesis_replay_reject(
+    def send_read_ledger(
+        self,
+        case_id: str,
+        ledger_position: LedgerPosition,
+        actor_id: str,
+        to: list[str],
+        *,
+        at: datetime,
+    ) -> None:
+        """Build and queue a ``Read(<case>/ledger)`` position statement.
+
+        Called by a participant to state, of its own accord, that it has
+        applied *case_id*'s ledger up to *ledger_position*: the tail of its
+        chain, or the position a case copy seeded its replica at, index -1
+        when that is the empty ledger's (SYNC-17-001, SYNC-17-008).  The
+        activity's object is the case's ledger, its ``context`` the case and
+        its ``ledgerPosition`` the position; the CASE_MANAGER replays every
+        entry after it (SYNC-17-004).  Each call is a statement of its own,
+        so it queues a new activity even when an earlier one stated the same
+        position.
+
+        Args:
+            case_id: The case whose ledger position is stated.
+            ledger_position: The position stated.
+            actor_id: URI of the participant stating its position.
+            to: List of recipient actor URIs (the case's CASE_MANAGER).
+        """
+        ...
+
+    def send_empty_chain_read(
         self,
         case_id: str,
         copy_tail_hash: str,
@@ -106,52 +135,27 @@ class SyncActivityPort(Protocol):
         in_reply_to: str,
         at: datetime,
     ) -> None:
-        """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
+        """Build and queue the ``Read(<case>/ledger)`` that answers a case copy.
 
         Called by a replica whose case was replaced by a copy ahead of its
-        chain while its chain stores no entry: there is no entry to name, so
-        the Reject states the empty chain's position (index -1, SYNC-18-001)
-        and names the case as its ``target``, asking for a replay from
-        genesis (SYNC-16-027).
+        chain while its chain stores no entry: it states the empty chain's
+        position, index -1 with the case's genesis hash, which asks the
+        CASE_MANAGER for every entry (SYNC-16-027).  Unlike
+        :meth:`send_read_ledger`, this ``Read`` answers one inbound
+        activity, so its id is derived from what it asks for: a repeat for
+        the same copy queues the same activity again, never a new one
+        (ID-04-004).
 
         Args:
-            case_id: The case to replay.
+            case_id: The case whose ledger is asked for.
             copy_tail_hash: The ``entry_hash`` of the tail the replacing copy
-                named.  It keeps each request its own: a request for a later
-                copy is not a repeat of an earlier one (ID-04-004).
-            actor_id: URI of the actor sending the rejection.
-            to: List of recipient actor URIs (the CASE_MANAGER).
-            in_reply_to: The id of the ``Announce(VulnerabilityCase)`` whose
-                copy replaced the case, which the Reject names in
-                ``inReplyTo`` (RF-08-004).
-        """
-        ...
-
-    def send_read_ledger_entry(
-        self,
-        case_id: str,
-        ledger_position: LedgerPosition,
-        actor_id: str,
-        to: list[str],
-        *,
-        at: datetime,
-    ) -> None:
-        """Build and queue a ``Read(CaseLedgerEntry)`` position statement.
-
-        Called by a participant to state that it has applied *case_id*'s
-        ledger up to *ledger_position*: the tail of its chain, or the
-        position a case copy seeded its replica at (SYNC-17-001,
-        SYNC-17-008).  The activity names the entry at that position by
-        reference, the case as its ``context`` and the position as its
-        ``ledgerPosition``.  Each call is a statement of its own, so it
-        queues a new activity even when an earlier one named the same entry.
-
-        Args:
-            case_id: The case whose ledger position is stated.
-            ledger_position: The position stated; it names an entry, so its
-                ``log_index`` is not the empty ledger's.
-            actor_id: URI of the participant stating its position.
+                named.  It keys the id, so a request after a later copy is
+                its own, not a repeat of an earlier one.
+            actor_id: URI of the replica stating its position.
             to: List of recipient actor URIs (the case's CASE_MANAGER).
+            in_reply_to: The id of the ``Announce(VulnerabilityCase)`` whose
+                copy replaced the case, which the ``Read`` names in
+                ``inReplyTo`` (RF-08-004).  It does not key the id.
         """
         ...
 

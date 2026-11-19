@@ -569,7 +569,7 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
     The CASE_MANAGER holds three entries; the peer's replica received only
     the first two, and nothing further is committed, so no later entry
     arrives with a gap and the peer sends no ``Reject``.  Its
-    ``Read(CaseLedgerEntry)``, delivered through the CASE_MANAGER's inbox,
+    ``Read(<case>/ledger)``, delivered through the CASE_MANAGER's inbox,
     records its position and replays the lost entry, so the peer's tail
     reaches the CASE_MANAGER's (ADR-0155).
     """

@@ -107,7 +107,8 @@ _LEDGER_REPLICATION_SEAMS = frozenset(
         "send_add_log_entry",
         "send_verified_log_entry",
         "send_reject_log_entry",
-        "send_read_ledger_entry",
+        "send_read_ledger",
+        "send_empty_chain_read",
         "send_ledger_suffix",
         "backfill_admitted_peers",
         "create_commit_log_entry_tree",
@@ -194,7 +195,7 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "vultron.core.behaviors.case.nodes.case_copy",
             "RequestCaseCopyBackfillNode",
         ),
-        # Its only send is the replica's Read(CaseLedgerEntry) position
+        # Its only send is the replica's Read(<case>/ledger) position
         # statement after a first seed, to the CASE_MANAGER whose Announce
         # the tree's sender guard admitted (SYNC-17-008).
         (
@@ -229,7 +230,7 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "vultron.core.behaviors.sync.nodes.fanout",
             "SendLogEntryToEachNode",
         ),
-        # A participant's Read(CaseLedgerEntry) position statement, sent from
+        # A participant's Read(<case>/ledger) position statement, sent from
         # its own trigger tree, never from a received tree (SYNC-17-007).
         (
             "vultron.core.behaviors.sync.nodes.position_statement",

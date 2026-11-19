@@ -105,12 +105,12 @@ _FACTORY = "vultron/core/behaviors/case/receive_stages/decisions.py"
 # permanent: SYNC-21-001 (each entry is a recorded exemption decision)
 SENDER_SEQUENCE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
-        # A Read(CaseLedgerEntry) is a request about the ledger, not a case
+        # A Read(<case>/ledger) is a request about the ledger, not a case
         # event, so its sender numbers it not (SYNC-21-001, CLP-02-013).
         (
             "LEDGER_REQUEST_TAKES_NO_NUMBER",
             "vultron/core/behaviors/sync/read_tree.py",
-            "create_read_log_entry_tree",
+            "create_read_ledger_tree",
         ),
     }
 )
@@ -382,4 +382,4 @@ def test_the_ledger_request_is_the_only_positioned_semantic_left_unnumbered() ->
     positioned semantics, so the check above skips nothing else."""
     numbered = set(_numbered_semantic_trees())
     unnumbered = {e.semantics.name for e in _positioned_entries()} - numbered
-    assert unnumbered == {MessageSemantics.READ_CASE_LEDGER_ENTRY.name}
+    assert unnumbered == {MessageSemantics.READ_CASE_LEDGER.name}

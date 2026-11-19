@@ -438,7 +438,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     (f"{_SY}/reject_tree.py", "create_reject_log_entry_tree", 0): frozenset(
         {CM}
     ),
-    (f"{_SY}/read_tree.py", "create_read_log_entry_tree", 0): frozenset({CM}),
+    (f"{_SY}/read_tree.py", "create_read_ledger_tree", 0): frozenset({CM}),
     (
         f"{_SY}/divergence_tree.py",
         "create_case_diverged_fault_tree",

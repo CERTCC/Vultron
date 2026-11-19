@@ -111,8 +111,7 @@ from vultron.wire.as2.factories.report import (
 )
 from vultron.wire.as2.factories.sync import (
     add_log_entry_activity,
-    genesis_replay_reject_activity,
-    read_ledger_entry_activity,
+    read_ledger_at_entry_activity,
     read_ledger_position_activity,
     reject_log_entry_activity,
 )
@@ -199,8 +198,7 @@ __all__ = [
     "rm_validate_report_activity",
     # sync
     "add_log_entry_activity",
-    "genesis_replay_reject_activity",
-    "read_ledger_entry_activity",
+    "read_ledger_at_entry_activity",
     "read_ledger_position_activity",
     "reject_log_entry_activity",
 ]

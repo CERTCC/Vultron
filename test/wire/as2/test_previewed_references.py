@@ -288,13 +288,6 @@ def test_no_registered_pattern_reads_a_preview_as_the_case(
             {"object_": ActivityPattern(activity_=TAtype.INVITE)},
             id="nested-activity",
         ),
-        pytest.param(
-            {
-                "object_": VOtype.VULNERABILITY_CASE,
-                "accepts_bare_object": True,
-            },
-            id="bare-object",
-        ),
     ],
 )
 def test_an_object_form_no_object_can_have_is_refused(

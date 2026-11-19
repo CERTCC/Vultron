@@ -15,7 +15,7 @@
 
 ARCH-12-004 forbids a wire-branch validator a rule that depends on case state
 or stored data; ARCH-12-021 permits one that checks the form of the message
-itself, such as CP-01-012 or SYNC-16-028.  A validator can reach stored data
+itself, such as CP-01-012 or SYNC-17-001.  A validator can reach stored data
 or case state only through the DataLayer ports, the adapters, or the core
 code that runs on them, so two structural checks hold the line:
 
