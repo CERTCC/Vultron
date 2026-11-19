@@ -37,8 +37,10 @@ from test.support.received import TEST_SENDER_POSITION
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.preview_object import is_loose_form_of
 from vultron.semantic_registry import extract_event, find_matching_semantics
 from vultron.wire.as2.errors import (
     VultronParseError,
@@ -279,15 +281,20 @@ def test_a_case_preview_carries_no_time_of_its_own() -> None:
 
 
 @pytest.mark.spec("CLP-15-011")
-def test_an_embargo_in_a_case_preview_without_published_is_refused() -> None:
-    """The rule reaches the whole objects inside a preview, naming where."""
+@pytest.mark.spec("MV-12-006")
+def test_an_embargo_in_a_case_preview_without_published_is_read_as_shown() -> (
+    None
+):
+    """A preview's contents are read as its sender showed them (ADR-0217),
+    so the rule does not reach an object inside a preview."""
     stub = _stub(activeEmbargo=_stub_embargo())
 
-    with pytest.raises(
-        VultronParseMissingPublishedError,
-        match=r"at 'object\.preview\.activeEmbargo'.*CLP-15-011",
-    ):
-        parse_activity(_stub_invite(stub))
+    activity = parse_activity(_stub_invite(stub))
+
+    preview = getattr(_object_of(activity), "preview", None)
+    embargo = getattr(preview, "active_embargo", None)
+    assert is_loose_form_of(embargo, EmbargoEvent)
+    assert getattr(embargo, "published", None) is None
 
 
 def _object_of(activity: object) -> object:

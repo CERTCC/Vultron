@@ -4762,7 +4762,7 @@ groups:
       actor profile, a collection and an `EmbargoConsent` row are exempt. A typed
       reference (MV-10-011), a URI and a `Link` are not whole objects, and a preview a
       typed reference carries is a projection of the object it names (ADR-0205), so the
-      rule reaches none of them.
+      rule reaches none of them, nor any object inside such a preview (MV-12-006).
     rationale: >-
       A conformant sender states the time of every object it authors, so the rule
       refuses only malformed input. Refusing at the edge spares every reader of a
@@ -4775,8 +4775,8 @@ groups:
       The objects nested in a ledger entry's `payloadSnapshot` are kept as received
       JSON and are not validated into objects (CLP-07-011), so this rule does not
       reach them. A case preview carries exactly the keys CM-17-010 names, none of them
-      `published`; the embargo and status it carries are whole objects and carry
-      theirs. An `EmbargoConsent` row carries no time because a replica copies it
+      `published`; an object it carries is read as its sender shows it, with or without
+      a `published` (MV-12-006). An `EmbargoConsent` row carries no time because a replica copies it
       without reading a clock (CM-23-044). The vocabulary does not model a collection
       page (`CollectionPage`, `OrderedCollectionPage`), since Vultron sends no paged
       collection, so a page received with content is read as a plain object and

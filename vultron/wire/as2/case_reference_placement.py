@@ -33,10 +33,11 @@ the slots an act may put it in:
   a previewed case reference anywhere but an ``Invite``'s ``object``, is a
   misplaced preview.
 
-A ``Redacted`` marker stands for a value a preview withholds (ADR-0193), so its
-one slot is a field its preview type opens to the marker (MV-12-001).  A full
-object holds no marker, and no activity slot or free-form field of any object
-(``tag``, ``attachment``, ``inReplyTo``, ...) holds one (MV-12-002).
+A ``Redacted`` marker stands for a value a preview withholds (ADR-0193), so
+its place is inside a preview, at any depth: a preview is read as its sender
+sent it (MV-12-001, ADR-0217).  A full object holds no marker, and no activity
+slot or free-form field of any object outside a preview (``tag``,
+``attachment``, ``inReplyTo``, ...) holds one (MV-12-002).
 
 The walk enters every field of a parsed model and every list item; a
 dict-valued field is not entered, because the parser builds every inline
@@ -54,7 +55,8 @@ from collections.abc import Callable, Iterator
 from pydantic import BaseModel
 
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
-from vultron.core.models.redacted import Redacted, opens_to_redaction
+from vultron.core.models.preview_object import PreviewObject, PreviewValue
+from vultron.core.models.redacted import Redacted
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.typed_reference import (
     is_case_reference,
@@ -144,20 +146,13 @@ def _is_redaction_marker(value: object) -> bool:
 def _admits_redaction_marker(
     parent: BaseModel, field_name: str, child: object
 ) -> bool:
-    """A marker, or a list of only markers, in a field its preview type opens
-    to the marker (MV-12-001).
+    """A preview, which may hold a marker anywhere inside it (MV-12-001).
 
-    A list in an opened field that mixes markers with other values is walked
-    like any other, so each marker in it is refused: a field is opened to the
-    marker as its value, not as one item among objects.
+    The walk does not enter an admitted preview, so it meets a marker only
+    outside one.  The loose forms a preview holds its contents in are
+    preview forms too; the parse edge builds them only inside a preview.
     """
-    if not opens_to_redaction(parent, field_name):
-        return False
-    if isinstance(child, list):
-        return bool(child) and all(
-            isinstance(item, Redacted) for item in child
-        )
-    return isinstance(child, Redacted)
+    return isinstance(child, (PreviewObject, PreviewValue))
 
 
 def _misplaced_case_reference(activity: as_Activity) -> str | None:
@@ -201,7 +196,7 @@ def _misplaced_case_preview(activity: as_Activity) -> str | None:
 
 
 def _misplaced_redaction_marker(activity: as_Activity) -> str | None:
-    """The fault of a marker outside a preview field opened to it (MV-12-002)."""
+    """The fault of a marker outside a preview (MV-12-002)."""
     misplaced = list(
         _misplaced(
             activity,
@@ -214,8 +209,8 @@ def _misplaced_redaction_marker(activity: as_Activity) -> str | None:
         return None
     return (
         f"a Redacted marker at {', '.join(misplaced)}; a marker is permitted"
-        " only in a field its preview type opens to the marker, never in a"
-        " full object or an activity slot (MV-12-002)"
+        " only inside a preview, never in a full object or an activity slot"
+        " (MV-12-002)"
     )
 
 

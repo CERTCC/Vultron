@@ -232,6 +232,13 @@ def _model_candidates(
         ann = strip_annotated(ann)
         if isinstance(ann, TypeAliasType):
             return visit(ann.__value__)
+        alias = get_origin(ann)
+        if isinstance(alias, TypeAliasType):
+            # A generic alias applied, such as ``Redactable[CaseStatus]``: its
+            # value names the alias's own classes, its arguments the rest.
+            return visit(alias.__value__) and all(
+                visit(arg) for arg in get_args(ann)
+            )
         if ann is Any:
             return False
         if isinstance(ann, type) and issubclass(ann, BaseModel):
@@ -339,6 +346,34 @@ def _partition_value(
     fallback = (resolved,) if resolved is not None else candidates
     classes = declared or fallback
     return _partition_object(value, classes, path, walk)
+
+
+def slot_classes(
+    cls: type[BaseModel], key: str
+) -> tuple[type[BaseModel], ...]:
+    """The model classes *cls*'s field spelled *key* validates a dict into.
+
+    Empty when *cls* declares no such spelling, or the field also admits a
+    plain dict or ``Any``, so no class decides the dict's keys.
+    """
+    annotations = _class_spellings(cls).annotations.get(key)
+    return _candidates_for(annotations) if annotations else ()
+
+
+def declared_slot_class(
+    value: dict[str, Any],
+    candidates: tuple[type[BaseModel], ...],
+    resolved: type[BaseModel] | None,
+) -> type[BaseModel] | None:
+    """The class a slot declares for *value*'s ``type`` in place of
+    *resolved*, the wire class its ``type`` names, or ``None`` to keep that.
+
+    The partition and the parser's expansion read a slot-declared class the
+    same way (:func:`_declared_for_type`), so one class decides a nested
+    object's keys and validates it.
+    """
+    declared = _declared_for_type(value, candidates, resolved)
+    return declared[0] if len(declared) == 1 else None
 
 
 def _type_literal_values(cls: type[BaseModel]) -> tuple[object, ...]:

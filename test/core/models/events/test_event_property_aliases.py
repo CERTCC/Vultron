@@ -28,6 +28,7 @@ from vultron.core.models.case_preview import (
     CasePreview,
     PreviewedCaseReference,
     preview_em_state,
+    preview_embargo_id,
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
@@ -81,6 +82,7 @@ from vultron.core.models.events.status import (
 )
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.preview_object import is_loose_form_of
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
@@ -635,8 +637,9 @@ def test_the_stub_invite_event_carries_the_case_preview():
     )
     preview = _received_stub_invite(embargoed).preview
     assert preview is not None
-    assert isinstance(preview.active_embargo, EmbargoEvent)
-    assert preview.active_embargo.id_ == embargo.id_
+    # A preview holds what it shows in loose forms (ADR-0217).
+    assert is_loose_form_of(preview.active_embargo, EmbargoEvent)
+    assert preview_embargo_id(preview) == embargo.id_
     assert preview_em_state(preview) is EM.ACTIVE
 
 

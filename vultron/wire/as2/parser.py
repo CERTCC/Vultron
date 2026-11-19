@@ -10,9 +10,10 @@ import json
 import logging
 from typing import Any, cast
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from vultron.core.models._helpers import MissingClaimedTimeError
+from vultron.core.models.preview_object import PreviewObject, PreviewValue
 from vultron.core.models.sender_sequence import is_sender_sequence
 from vultron.wire.as2.case_proposal_envelope import (
     refuse_malformed_case_proposal_envelope,
@@ -29,9 +30,11 @@ from vultron.wire.as2.errors import (
 from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.unknown_keys import (
     OPAQUE_PAYLOAD_KEYS,
+    declared_slot_class,
     partition_unknown_keys,
     report_set_aside,
     resolve_inline_class,
+    slot_classes,
 )
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -57,7 +60,40 @@ _INBOUND_CONTEXT = {as_Base.INBOUND_CONTEXT_KEY: True}
 _SENDER_SEQUENCE_KEY = "senderSequence"
 
 
-def _expand_inline_value(value: object, path: str = "") -> object:
+def _is_preview_form(cls: type[BaseModel] | None) -> bool:
+    """Whether *cls* is a preview or a loose form a preview holds (ADR-0217)."""
+    return cls is not None and issubclass(cls, (PreviewObject, PreviewValue))
+
+
+def _inline_class(
+    value: dict[str, Any], path: str, slots: tuple[type[BaseModel], ...]
+) -> type[BaseModel] | None:
+    """The class that validates the inline dict *value*.
+
+    Its ``type`` names a wire class (:func:`resolve_inline_class`), except
+    inside a preview, whose fields declare loose forms (*slots*): what a
+    preview shows is read as its sender sent it, so a nested object of a
+    type a slot declares a loose form for is read in that form, and a dict
+    with no ``type`` in a slot that declares one loose form takes it
+    (ADR-0217).  The unknown-key partition reads the same slot class
+    (:func:`declared_slot_class`), so one class decides the object's keys and
+    validates it.
+    """
+    resolved = resolve_inline_class(value, path)
+    loose = tuple(cls for cls in slots if _is_preview_form(cls))
+    if not loose:
+        return resolved
+    if "type" not in value:
+        return loose[0] if len(loose) == 1 else resolved
+    declared = declared_slot_class(value, loose, resolved)
+    return declared if declared is not None else resolved
+
+
+def _expand_inline_value(
+    value: object,
+    path: str = "",
+    slots: tuple[type[BaseModel], ...] = (),
+) -> object:
     """Recursively pre-expand inline AS2 dicts to typed vocabulary instances.
 
     Generic field annotations such as ``as_Object`` or ``as_ObjectRef`` can
@@ -72,30 +108,41 @@ def _expand_inline_value(value: object, path: str = "") -> object:
             to locate a refusal for the sender. Recursion appends each field
             name and list index, so a nested fault reports e.g.
             ``object.target[0]`` rather than naming only its own type.
+        slots: The model classes the field holding *value* declares, passed
+            down only from a preview or a loose form, whose fields declare
+            the loose forms its contents are read in (:func:`_inline_class`).
     """
     if isinstance(value, list):
         return [
-            _expand_inline_value(item, f"{path}[{index}]")
+            _expand_inline_value(item, f"{path}[{index}]", slots)
             for index, item in enumerate(value)
         ]
     if not isinstance(value, dict):
         return value
 
+    inline_cls = _inline_class(value, path, slots)
+    reads_loose = _is_preview_form(inline_cls)
     expanded = {
         key: (
             item
             if key in OPAQUE_PAYLOAD_KEYS
-            else _expand_inline_value(item, f"{path}.{key}" if path else key)
+            else _expand_inline_value(
+                item,
+                f"{path}.{key}" if path else key,
+                slot_classes(inline_cls, key)
+                if reads_loose and inline_cls is not None
+                else (),
+            )
         )
         for key, item in value.items()
     }
-    inline_cls = resolve_inline_class(expanded, path)
     if inline_cls is None:
         return expanded
     # The class holds one ``type``: a list is read as the term it resolved
     # to, which a core class's own validation could not do (ADR-0196).  Only
     # the ``type`` the class was resolved from is narrowed.
-    _, expanded = resolve_received_type(expanded)
+    if "type" in expanded:
+        _, expanded = resolve_received_type(expanded)
 
     # Once the type has resolved to a wire class, failing that class's own
     # validation is a message fault and is refused (ADR-0032: validate at the

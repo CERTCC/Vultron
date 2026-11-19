@@ -74,6 +74,7 @@ from vultron.core.models.base.language_map import (
 from vultron.core.models.base.record import (
     CoreRecord,
     concrete_type_annotation,
+    shares_full_form_type,
 )
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.primitives import NonEmptyString
@@ -478,6 +479,10 @@ class CoreObject(CoreRecord):
         # (PEP 563), where raw annotations are stringified and
         # ``isinstance(..., UnionType)`` would silently fall through and
         # register abstract bases.
+        if shares_full_form_type(cls):
+            # A loose form reads under its full class's type, which already
+            # names that class (ADR-0217).
+            return
         if "type_" not in own_annotations(cls):
             # No explicit type_ annotation: _set_type_from_class_name will set
             # type_ = cls.__name__ at construction time, so register by class

@@ -365,8 +365,9 @@ Rules:
    value stays a schema fault. A nested whole object without `published` is
    refused too, at any depth, except an actor profile, a collection or an
    `EmbargoConsent` row; a typed reference, a URI and a `Link` carry no time,
-   and a case preview is a projection of the object it names (CLP-15-011,
-   ADR-0198, ADR-0205). An omitted `updated` is carried as
+   and a case preview is a projection of the object it names, read with its
+   contents as its sender showed them (CLP-15-011, MV-12-006, ADR-0198,
+   ADR-0205). An omitted `updated` is carried as
    absent (CLP-15-007). Rebuild core
    objects from a snapshot through `project_wire_snapshot_to_core`, never
    `Model.model_validate(snapshot)`,

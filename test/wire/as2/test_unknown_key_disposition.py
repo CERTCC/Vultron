@@ -30,7 +30,9 @@ from test.support.case_owner import INBOUND_CASE_OWNERSHIP
 from test.support.objects import make
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_preview import preview_em_state
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.preview_object import is_loose_form_of, to_loose
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.wire.as2.errors import (
     VultronParseMissingTypeError,
@@ -830,8 +832,8 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
     stub = as_CasePreview(
         summary="Security issue — embargo active, details after acceptance",
         active_embargo="https://example.org/embargoes/1",
-        case_status=make(
-            CaseStatus, context=case_id, em=EmDimension(state=EM.ACTIVE)
+        case_status=to_loose(
+            make(CaseStatus, context=case_id, em=EmDimension(state=EM.ACTIVE))
         ),
     )
     preview = stub.model_dump(by_alias=True, mode="json", exclude_none=True)
@@ -850,8 +852,8 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
     assert isinstance(invited, as_TypedReference)
     parsed = invited.preview
     assert type(parsed) is as_CasePreview
-    assert isinstance(parsed.case_status, CaseStatus)
-    assert parsed.case_status.em.state == EM.ACTIVE
+    assert is_loose_form_of(parsed.case_status, CaseStatus)
+    assert preview_em_state(parsed) is EM.ACTIVE
     records = _info_records_naming(caplog, FOREIGN_KEY)
     assert len(records) == 1 and "'object.preview'" in records[0].getMessage()
     assert not _info_records_naming(caplog, "caseStatus")

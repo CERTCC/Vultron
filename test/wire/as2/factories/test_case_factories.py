@@ -38,9 +38,14 @@ from test.support.future_dates import FAR_FUTURE, days_from_now
 from test.support.objects import authored_at, make
 from test.support.signing import signed_body
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_preview import (
+    preview_em_state,
+    preview_embargo_id,
+)
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.preview_object import is_loose_form_of
 from vultron.core.states.em import EM
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
@@ -1133,12 +1138,12 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     assert reference.id_ == case_id
     stub = reference.preview
     assert isinstance(stub, as_CasePreview)
-    assert isinstance(stub.active_embargo, as_EmbargoEvent)
-    assert stub.active_embargo.id_ == embargo.id_
-    assert stub.active_embargo.end_time is not None
-    assert isinstance(stub.case_status, as_CaseStatus)
-    assert stub.case_status.em is not None
-    assert stub.case_status.em.state == EM.ACTIVE
+    # A preview holds its contents in loose forms (ADR-0217); the embargo is
+    # shown whole, every term as the inviter holds it (CM-17-011).
+    assert is_loose_form_of(stub.active_embargo, as_EmbargoEvent)
+    assert _as2(stub.active_embargo) == _as2(embargo)
+    assert is_loose_form_of(stub.case_status, as_CaseStatus)
+    assert preview_em_state(stub) is EM.ACTIVE
 
 
 @pytest.mark.spec("CM-17-022")
@@ -1253,12 +1258,11 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     assert isinstance(reference, as_TypedReference)
     stub = reference.preview
     assert isinstance(stub, as_CasePreview)
-    assert isinstance(stub.active_embargo, as_EmbargoEvent)
-    assert stub.active_embargo.id_ == in_force.id_
-    assert stub.active_embargo.id_ != revision.id_
-    assert isinstance(stub.case_status, as_CaseStatus)
-    assert stub.case_status.em is not None
-    assert stub.case_status.em.state == EM.REVISE
+    assert is_loose_form_of(stub.active_embargo, as_EmbargoEvent)
+    assert preview_embargo_id(stub) == in_force.id_
+    assert preview_embargo_id(stub) != revision.id_
+    assert is_loose_form_of(stub.case_status, as_CaseStatus)
+    assert preview_em_state(stub) is EM.REVISE
 
 
 @pytest.mark.spec("CM-17-002")
@@ -1554,3 +1558,11 @@ def test_ownership_reply_refuses_a_received_offer_of_another_kind(
     # as_answered's validation of the parsed Offer refused it.
     assert isinstance(cause, ValidationError)
     assert cause.title == "_OfferCaseOwnershipTransferActivity"
+
+
+def _as2(obj: object) -> object:
+    """*obj*'s AS2 form, without the top-level ``@context``."""
+    assert isinstance(obj, BaseModel)
+    dumped = obj.model_dump(by_alias=True, exclude_none=True, mode="json")
+    dumped.pop("@context", None)
+    return dumped

@@ -252,7 +252,8 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST refuse a received message that embeds an ActivityStreams
-      Object without an `id`, at any depth. A Link carries no such requirement.
+      Object without an `id`, at any depth. A Link carries no such requirement, and
+      neither does an object inside a preview (MV-12-006).
     rationale: >-
       ActivityPub requires every object it distributes to carry a unique global
       identifier. Its one exception, an intentionally transient object, does not fit

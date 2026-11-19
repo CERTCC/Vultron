@@ -5,8 +5,9 @@ The core class is the marker's only form (ARCH-25-003, ADR-0099).
 Registering it in ``WIRE_TYPE_MAP`` declares ``Redacted`` a Vultron type term,
 so ``wire-context`` writes its ``vultron:Redacted`` term
 (``notes/vocabulary-registry.md`` § "4a. Declaring a Vultron extension term").
-Registration opens no field to the marker: each field's own type still refuses
-it until a preview type declares a field that accepts it (MV-12-002).
+Registration places the marker nowhere: a preview's fields admit it by their
+own types (``Redactable``), and the parse edge refuses one outside a preview
+(MV-12-002).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
