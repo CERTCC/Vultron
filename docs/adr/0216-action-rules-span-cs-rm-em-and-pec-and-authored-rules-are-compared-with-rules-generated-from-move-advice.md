@@ -20,6 +20,8 @@ Thus a rule cannot say that an embargo extension suits an active embargo, or tha
 The code keeps no role and no reason for a rule.
 The table that the rules come from (`docs/topics/other_uses/action_rules.md`) gives each rule a role and a reason, but each reason is a tag, such as "Exit criteria met" or "SA", and no tag names a desideratum.
 Thus an analyst cannot see what a rule is for, and nothing can check whether the rule serves it.
+The table and the code have drifted apart: the table splits or merges some rules, two of its patterns are typos, and some rules of the code have no row.
+The rules also predate the RM, EM and PEC state machines, so a rule whose action belongs to one of those machines, such as negotiating an embargo, does not say in which of its states the action exists.
 
 The case shadow tool already has a second source of advice: move advice puts each open move in a band by its outcome shift for each vendor (ADR-0200).
 Move advice states nothing as a rule, and it has known blind spots: for example, the chance model cannot see that an active embargo protects the end desiderata (#6492).
@@ -38,6 +40,8 @@ The question: **what do the action rules read, what does each one claim, and how
   Nothing resolves it silently.
 - An action rule is advice.
   It fires no trigger and moves no state, so it is read for one vendor at a time, as move advice is.
+- An action rule suggests an action and never forbids one.
+  A person can always take an action that no rule names, or one that a rule shows to be costly.
 - The CS action rules stay equal to the legacy test oracle (ADR-0060).
 - The demo stories already compare an authored narrative with "the story as the code tells it".
   The action rules use the same pattern: the claim beside the evidence.
@@ -57,7 +61,7 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
    The position is the vendor's RM state, the vendor's compound CS state, the case's EM state, and the vendor's PEC state for the embargo in force and for an open proposal.
    Each part of a rule's pattern names a set of states, or matches any state.
    The CS part keeps the six-position `vfdpxa` pattern of `CS_ACTION_RULES`.
-   A rule names the CVD role that takes the action: the vendor itself, or another role, such as a coordinator.
+   A rule names the CVD roles that may take the action, such as the vendor itself or a coordinator, or it names any role, which constrains no role.
    A rule for another role matches once for each vendor whose position matches it, and names that vendor.
    When several proposals are open, a rule whose PEC part reads a proposal matches once for each proposal, and names it.
    A rule is advice about one vendor, as each scope of move advice is (ADR-0200 rule 1).
@@ -69,15 +73,29 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
 3. **An action rule names an action and the desiderata that the action serves.**
    The action is a move or a CVD action that changes no state.
    A move is named as move advice names it, by its machine and its trigger.
-   A CVD action that changes no state, such as monitoring for attacks, is named by its member of `Actions`.
+   A CVD action that changes no state, such as monitoring for attacks, is named by its member of `Actions`, and so is an action that is a move at some positions only, such as a publication.
    The reason names one or more desiderata from the desiderata list that move advice uses.
    A tag is not a reason.
    A rule whose action is a move claims that the move serves the vendor that the rule matches.
+   An action that causes a CS event causes it only the first time.
+   A publication is any publication, such as an advisory, exploit details, a detection or a mitigation, and it is always a valid action.
+   The first publication causes P, and a later one is still a valid action that changes no state, because P happens only once.
+   The same holds for X and for A.
+   So at a position where the action's event has already happened, the action is a CVD action that changes no state, not a misplaced rule.
+   A rule suggests and never forbids: a move that no rule names stays open in move advice, and a rule that names a costly move, such as publishing before the vendor is aware, is kept and shown with its cost.
 4. **Authored action rules are the claim.**
    A person writes them in one authored table.
    Each authored rule holds one pattern and one action.
-   Each pattern and action of `CS_ACTION_RULES` carries over as one CS-only authored rule, with the role that the source table gives it and the desiderata that replace the source table's tag.
-   A source rule whose actions belong to different roles becomes one authored rule for each action, each with its own role.
+   Each pattern and action of `CS_ACTION_RULES` carries over as one or more authored rules, and each carried-over rule records the pattern and action that it came from.
+   A person sets each carried-over rule's roles and desiderata, which replace the source table's role and tag.
+   A person may narrow a carried-over rule, never widen it: the rule then matches only positions that its source pattern matches.
+   The carried-over rules predate the RM, EM and PEC machines, so a rule is narrowed with RM, EM or PEC parts where those states change what the rule is.
+   For example, negotiating an embargo at `..dpxa` becomes a proposal at EM NONE, and at EM PROPOSED an acceptance by the case owner or a participant's answer to the proposal.
+   A rule whose action is an EM move is narrowed to the EM states from which that move exists.
+   A source rule whose action belongs to several roles or several moves becomes one authored rule for each, with the same source.
+   Closing the case is the RM move `rm.close`, suggested to each participant whose RM state is not Closed.
+   Initiating the US government's Vulnerabilities Equities Process is not a move of the protocol, so its rule does not carry over.
+   A wrong source pair is changed in `CS_ACTION_RULES` and its legacy oracle (ADR-0060), not in the authored table.
    One mapping gives the move name for each `Actions` member that changes state, so that the carried-over rules name moves as rule 3 says.
    `CS_ACTION_RULES` stays as it is, and `test_cs_actions.py` still holds it equal to the legacy oracle.
 5. **Generated action rules are the evidence.**
@@ -115,7 +133,7 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
    A generated page in the measuring-CVD docs lists the generated rules and the result of the comparison over every valid position of one vendor.
    The positions on the page hold no PEC state, because the chance model has none, so an authored rule with a PEC part is undecided there (rule 2).
    The command that rebuilds the generated rules rebuilds the page too, and the same staleness check covers it.
-   The source table in `docs/topics/other_uses/action_rules.md` names, for each rule, the desiderata that the authored table names, so that the two tables do not disagree.
+   The table in `docs/topics/other_uses/action_rules.md` is generated from the carried-over authored rules by the same command, with each rule's pattern, roles, action and desiderata, so that the two tables do not disagree.
 9. **The action rules endpoint does not change.**
    The endpoint of AR-07 and CM-07 still reads the legacy module (ADR-0060).
    Whether it reads the authored table is a later decision.
@@ -130,20 +148,21 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
 - Good, because the generated rules state move advice in the language of the rules, so that a person can read and review it, rule by rule.
 - Good, because the comparison resolves nothing, so neither the model nor a person overrides the other in silence.
 - Good, because a rule is about one vendor, so no rule chooses a threshold over the vendors.
+- Good, because a carried-over rule can be narrowed with RM, EM and PEC parts, so a person can correct a rule without losing the legacy oracle that checks its source.
 - Bad, because a rule cannot read the state of a participant that is not a vendor, such as a coordinator's own RM state.
   Such rules wait for scopes for those participants (Epic #6461).
 - Bad, because the verdict is a band from all the desiderata of the vendor's scope, not from the desiderata that the authored rule names.
   An authored rule that names an end desideratum agrees with a move whose band comes from its embargo part only.
   The comparison shows the deciding part and the named desiderata's changes, so that the analyst can see this.
 - Bad, because the generated rules read one vendor's position, so a trade-off between vendors shows only on a live case, not on the generated page.
-- Bad, because two tables must be kept, and the authored table needs a person to write the desiderata for each of the carried-over CS rules.
+- Bad, because two tables must be kept, and the authored table needs a person to write the roles and desiderata for each of the carried-over CS rules, and to narrow those that act in another machine.
 - Neutral, because an authored rule for a move that move advice does not score, such as a PEC move (#6677), is an unscored rule.
 - Neutral, because the endpoint of AR-07 and CM-07 still reads the legacy module.
 
 ## Validation
 
 `test_cs_actions.py` still holds `CS_ACTION_RULES` equal to the legacy oracle over every valid compound state.
-A test holds the authored table's CS-only rules to exactly the pattern and action pairs of `CS_ACTION_RULES`.
+A test holds the source pairs of the carried-over authored rules equal to the pattern and action pairs of `CS_ACTION_RULES`, less the Vulnerabilities Equities Process pair, and holds each carried-over rule within its source pattern.
 A test pins the rule disagreement of #6492: an authored rule that serves `D ≺ P` by an embargo extension, against the unhelpful band that move advice gives it.
 The staleness check holds the generated rules and the generated page to the current move advice.
 
@@ -190,4 +209,4 @@ The spec groups that carry these rules are in `specs/case-shadow.yaml`, beside t
 CSB-17 keeps the CS validity rules that the CS part of a pattern reads.
 AR-07 and CM-07 do not change (rule 9).
 
-Generated spec requirements: `case-shadow.yaml` SHD-05-001 through SHD-05-021 and SHD-06-001 through SHD-06-007.
+Generated spec requirements: `case-shadow.yaml` SHD-05-001 through SHD-05-027 and SHD-06-001 through SHD-06-007.

@@ -348,15 +348,17 @@ groups:
     adr:
     - ADR-0216
     statement: >-
-      Each action rule MUST name its acting CVD role, one action, and at least
-      one desideratum that the action serves. Each desideratum comes from the
-      move-advice desiderata list.
+      Each action rule MUST name its roles, one action, and at least one
+      desideratum that the action serves. Its roles are a set of CVD roles, or
+      any role. Each desideratum comes from the move-advice desiderata list.
     rationale: >-
       A reason that names desiderata tells the analyst what the rule is for, and
       lets the comparison check the rule against the advice. A tag such as
-      "Exit criteria met" names no desideratum.
+      "Exit criteria met" names no desideratum. Any role constrains no role, as
+      the EM trigger roles table's empty entry does.
     verification: >-
-      A test constructs a rule with no role, with no action, with two actions,
+      A test constructs a rule with no role and no any-role mark, with an empty
+      role set, with no action, with two actions,
       with no desideratum, and with a desideratum outside the move-advice
       desiderata list, and asserts each is refused; a second test asserts that
       every desideratum each authored rule names is in that list.
@@ -381,16 +383,21 @@ groups:
     adr:
     - ADR-0216
     statement: >-
-      The authored action-rule table MUST hold exactly one CS-only rule for each
-      pattern and action pair of `CS_ACTION_RULES`.
+      The source pairs of the carried-over rules MUST equal the pairs of
+      `CS_ACTION_RULES`, less the pair that initiates the Vulnerabilities
+      Equities Process.
     rationale: >-
       The CS action rules are held equal to the legacy test oracle over the 32
       valid compound states (CSB-17-001). An authored table that drops or adds
-      a CS pair would give advice that the oracle no longer checks.
+      a source pair would give advice that the oracle no longer checks. The
+      Vulnerabilities Equities Process is a US government policy, not a move of
+      the protocol, so its rule does not carry over.
     verification: >-
-      A test compares the set of pattern and action pairs of the authored
-      table's CS-only rules with the set that `CS_ACTION_RULES` holds, asserts
-      they are equal, and asserts that no pair appears in two authored rules.
+      A test compares the set of source pairs that the carried-over authored
+      rules record with the set of pattern and action pairs that
+      `CS_ACTION_RULES` holds, less `INITIATE_VEP_USGOV` at `vfdpx.`, and
+      asserts they are equal, and that no two authored rules hold the same
+      source, pattern, roles and action.
   - id: SHD-05-007
     priority: MUST
     kind: project
@@ -590,16 +597,18 @@ groups:
     adr:
     - ADR-0216
     statement: >-
-      An action rule whose action changes no state MUST name the action by its
-      member of `Actions`.
+      An action rule whose action is not a move at every position it matches
+      MUST name the action by its member of `Actions`.
     rationale: >-
-      A CVD action such as monitoring for attacks has no move and no band, so
-      the legacy action name is the only name the analyst and the legacy
-      table share.
+      A CVD action such as monitoring for attacks has no move and no band, and
+      a publication is a move only where its event has not yet happened
+      (SHD-05-024), so the legacy action name is the one name that holds at
+      every position.
     verification: >-
       A test asserts that the action of each authored rule is either a move
-      name that move advice can list or a member of `Actions` that the move
-      mapping of SHD-05-019 does not hold.
+      name that move advice can list or a member of `Actions`, and that each
+      rule naming a move matches only positions at which move advice can list
+      that move.
   - id: SHD-05-019
     priority: MUST
     kind: project
@@ -613,10 +622,12 @@ groups:
       mapping turns each state-changing member into the move name that move
       advice uses, so a second copy cannot drift from it.
     verification: >-
-      A test asserts that the mapping holds one entry for each member of
-      `Actions` whose row in `docs/topics/other_uses/action_rules.md` names a
-      transition, and that each mapped name is a move that move advice can
-      list.
+      A test asserts that each mapped name is a move that move advice can list,
+      that each publication member maps to `cs.public_becomes_aware`,
+      `PUBLISH_EXPLOIT_CODE` to `cs.exploit_made_public` and `CLOSE_CASE` to
+      `rm.close`, and that no member of `Actions` used by a carried-over rule
+      is missing from both the mapping and the list of actions that change no
+      state.
   - id: SHD-05-020
     priority: MUST
     kind: project
@@ -648,6 +659,111 @@ groups:
       A test builds a position with a harm-free move that no rule names and an
       unhelpful move that no rule names, and asserts one unclaimed-move result
       for the first and no result for the second.
+  - id: SHD-05-022
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      Each carried-over authored rule MUST record the `CS_ACTION_RULES` pattern
+      and action that it came from.
+    rationale: >-
+      A person narrows a carried-over rule and sets its roles and desiderata,
+      so its pattern and action can differ from its source. The recorded source
+      keeps the rule tied to the legacy oracle that checks the source pair.
+    verification: >-
+      A test asserts that each authored rule either records a source pair that
+      `CS_ACTION_RULES` holds or is marked as a new rule.
+  - id: SHD-05-023
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      A carried-over authored rule MUST NOT match a position whose CS state its
+      source pattern does not match.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SHD-05-022
+    rationale: >-
+      A person may narrow a carried-over rule with RM, EM or PEC parts, or with
+      a narrower CS pattern, but a rule that widened its source would give
+      advice at CS states that the legacy oracle never checked.
+    verification: >-
+      A test asserts, for each carried-over rule and each valid compound state,
+      that the rule's CS part matches the state only when its source pattern
+      does.
+  - id: SHD-05-024
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The comparison MUST treat an action at a position where the CS event it
+      causes has already happened as an action that changes no state.
+    rationale: >-
+      Publication is any publication, such as an advisory, exploit details, a
+      detection or a mitigation, and it is always a valid action. Only the
+      first publication causes P, and the same holds for X and A, so a later
+      publication is valid and changes no state. Calling it a misplaced rule
+      would read a valid action as an authoring error.
+    verification: >-
+      A test compares a publish-vulnerability rule at a position where P has
+      happened and asserts an unscored-rule result, not a misplaced rule, and
+      at a position where P has not happened asserts that the rule joins the
+      `cs.public_becomes_aware` move.
+  - id: SHD-05-025
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The case shadow tool MUST NOT drop a move from the moves it shows because
+      of an authored action rule.
+    rationale: >-
+      An action rule suggests an action and never forbids one. A move that no
+      rule names stays open, and a move that a rule shows to be costly, such as
+      publishing before the vendor is aware, is shown with its cost.
+    verification: >-
+      A test builds the moves the page shows at each position of a recorded
+      case with and without the authored table, and asserts the two sets are
+      equal.
+  - id: SHD-05-026
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      A carried-over authored rule whose action is an EM move MUST match only
+      EM states from which that move exists.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SHD-05-022
+    rationale: >-
+      The carried-over rules predate the EM machine. Negotiating an embargo at
+      `..dpxa` is a proposal at EM NONE, and at EM PROPOSED an acceptance by
+      the case owner or a participant's answer to the proposal; a termination
+      exists only while an embargo is in force.
+    verification: >-
+      A test asserts, for each carried-over rule whose action is an EM move,
+      that every EM state its EM part matches is a source state of that move's
+      trigger in `EM_TRANSITIONS`.
+  - id: SHD-05-027
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      A carried-over close-case rule MUST name `rm.close` and match only a
+      participant whose RM state is not CLOSED.
+    rationale: >-
+      Closing the case is the RM move each participant makes for itself, so it
+      is scored as an RM move and disappears once that participant has closed.
+      A condition such as "unless monitoring for attacks" stays reason text.
+    verification: >-
+      A test asserts that each carried-over rule whose source action is
+      `CLOSE_CASE` names `rm.close`, matches a position whose RM state is
+      ACCEPTED, and matches no position whose RM state is CLOSED.
 - id: SHD-06
   title: Action Rules on the Page
   specs:
@@ -727,16 +843,23 @@ groups:
     adr:
     - ADR-0216
     statement: >-
-      The CVD action rules page `docs/topics/other_uses/action_rules.md` MUST
-      name, for each rule, the desiderata that the authored table names for it.
+      The command of SHD-05-008 MUST generate the rules table of
+      `docs/topics/other_uses/action_rules.md` from the carried-over authored
+      rules.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SHD-05-008
     rationale: >-
-      The page is the source the authored rules were carried from. If it kept
-      its tags while the authored table named desiderata, the two tables would
-      disagree about why each rule exists.
+      The page's table and `CS_ACTION_RULES` have drifted: the table splits or
+      merges rules, two of its patterns are typos, and some rules have no row.
+      A table built from the authored rules shows each rule's pattern, roles,
+      action and desiderata as the authored table holds them, so the two cannot
+      disagree.
     verification: >-
-      A test reads `docs/topics/other_uses/action_rules.md` and asserts that the
-      desiderata in each rule's reason equal the ones the authored table names for
-      that rule.
+      A test runs the command and asserts that the table it writes holds one row
+      for each carried-over authored rule, with that rule's pattern, roles,
+      action and desiderata; the currency test of SHD-05-009 asserts the
+      committed page equals it.
   - id: SHD-06-006
     priority: MUST
     kind: project
