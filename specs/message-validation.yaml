@@ -467,17 +467,31 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST refuse a stub whose `summary` is absent or blank.
+      A receiver MUST refuse a stub Invite whose preview lacks or marks an item
+      CM-17-010 requires, or carries an open embargo proposal (CM-17-014). The
+      refusal names the position of each fault.
     rationale: >-
-      A stub with no summary gives the invitee nothing to decide on, so it cannot do
-      the one job the stub form exists for (MV-10-001).
+      The shown items are what the invitee decides on. A preview that lacks or
+      withholds one gives it no basis for consent, and an open proposal is not
+      yet binding. The embargo is in force when the preview's current status
+      has EM `ACTIVE` or `REVISE`, or its `embargoRegister` shows an `ACTIVE`
+      entry. Every other field is the sender's choice, so the receiver reads
+      nothing else (MV-12-006).
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py::test_a_stub_without_a_summary_is_refused`
       asserts that a stub with an absent, empty, or blank `summary` is refused at
-      message validation.
+      message validation. `test_a_preview_without_the_case_owner_is_refused`,
+      `test_a_preview_hiding_the_embargo_in_force_is_refused` and
+      `test_a_reply_quoting_a_preview_without_its_owner_names_its_position` in
+      `test/wire/as2/test_invitation_preview_envelope.py` confirm the refusals
+      and the position each names.
     relationships:
     - rel_type: derives_from
       spec_id: MV-10-001
+    - rel_type: uses_definition
+      spec_id: CM-17-010
+    - rel_type: uses_definition
+      spec_id: CM-17-014
     adr:
     - ADR-0090
     - ADR-0114
@@ -746,11 +760,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant MUST be active (CM-10-004) before the CASE_MANAGER delivers full
-      case details to it.
+      A participant MUST be active (CM-10-004) before the CASE_MANAGER delivers to
+      it any case content beyond what a stub Invite's preview shows (CM-17-010).
     rationale: >-
-      Full case details can include embargoed vul information. An active participant
-      has joined the case and has not been removed. When an embargo is active, it has
+      Case content can include embargoed vul information. The preview shows only
+      what an invitee needs to decide on joining, cut by a fixed profile
+      (CM-17-010). An active participant has joined the case and has not been
+      removed. When an embargo is active, it has
       also agreed to that embargo (CM-10-004). Thus no actor gets the details before it
       joins, or before it agrees to the active embargo.
     verification: >-
@@ -767,6 +783,8 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: CM-17-010
 - id: MV-11
   title: Inbound Unknown-Key Disposition
   specs:
@@ -1169,18 +1187,30 @@ groups:
   - id: MV-12-004
     priority: SHOULD
     kind: protocol
+    lint_suppress:
+    # One duty with its exception: mark a withheld value, except when its
+    # existence is itself the secret. Split, the MAY reads as a free choice.
+    - compound_statement
     statement: >-
-      A sender building a preview SHOULD leave a withheld field out unless the recipient
-      needs to know that the field has a value, in which case it marks the field
-      `Redacted`.
+      A sender SHOULD put a `Redacted` marker in place of each value it has but
+      does not show. It MAY leave the field out instead when the fact that the
+      value exists is itself sensitive. It leaves out a field it has no value
+      for, rather than marking it.
     rationale: >-
-      A marker discloses that a value exists, and that is often the sensitive fact, as
-      when a case marks its exploit details withheld. Leaving the field out discloses
-      nothing the sender did not choose to disclose.
+      A marker tells the recipient that a value exists and is withheld, so it
+      can tell "not shown" from "none", and can ask or wait for it. Sometimes the
+      existence is the sensitive fact, as when a case holds exploit details, and
+      then leaving the field out discloses nothing the sender did not choose to
+      disclose. A marker for a value the sender does not have would state a
+      withheld value that does not exist.
     verification: >-
-      `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_no_case_content`
-      builds a case stub from a case with a name and a summary and requires the stub to
-      carry neither, nor any marker in their place.
+      `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_marks_the_case_content_it_withholds`
+      builds a case stub from a case holding content, reports, notes and
+      references, and requires each to travel as one marker, while a field the
+      case holds no value for is left out;
+      `test_a_field_with_no_held_value_is_left_out` in
+      `test/core/models/test_case_preview_profile.py` confirms the same field by
+      field.
     relationships:
     - rel_type: refines
       spec_id: MV-12-001

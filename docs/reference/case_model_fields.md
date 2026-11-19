@@ -36,9 +36,30 @@ Defined in `vultron/core/models/case/vulnerability_case.py`.
 | `case_activity` | Activity IDs recorded against this case (not the case ledger — see `genesis_hash`) |
 | `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity: the case id, creation time and owner (`attributed_to`), computed when the case is created; a replica keeps the hash it receives, or derives the same value from the carried case when none arrives ([CLP-08-002](vultron-spec/requirements/ledger-replication.md#clp-08-002)) |
 | `ledger_position` | The ledger position the case file is a projection of: the `log_index` and `entry_hash` of the last ledger entry applied to it, or `log_index` -1 with `genesis_hash` before any. Every case has one, since every case has an owner and so a genesis hash. Committing an entry, or a replica storing one, moves it to that entry, and it travels with the case on the wire as `ledgerPosition` ([SYNC-16-005](vultron-spec/requirements/ledger-replication.md#sync-16-005)) |
-| `stub_summary` | Owner-chosen, human-readable description of the case used as the `summary` of the `CasePreview` carried in a stub Invite. Must be set before emitting an `Invite(VulnerabilityCase preview)[target=Actor]` — the factory raises if absent ([CM-17-010](vultron-spec/requirements/case-management.md#cm-17-010), [MV-10-001](vultron-spec/requirements/messages.md#mv-10-001)) |
+| `stub_summary` | Owner-chosen, human-readable description of the case used as the `summary` of the `CasePreview` carried in a stub Invite. Must be set before emitting an `Invite(VulnerabilityCase preview)[target=Actor]` — the factory raises if absent ([CM-17-010](vultron-spec/requirements/case-management.md#cm-17-010), [MV-10-001](vultron-spec/requirements/messages.md#mv-10-001)). The preview never carries the field itself ([CM-17-025](vultron-spec/requirements/case-management.md#cm-17-025)) |
 | `parent_cases`, `child_cases`, `sibling_cases` | URIs of related cases, held as IDs only (ADR-0017); no protocol flow sets them yet. A case split will set `parent_cases` on the child and `child_cases` on the parent, and leaves `sibling_cases` unwritten (ADR-0125) |
 | `active_participants` | Computed, not stored: the ids of the inline participant records that `is_active_participant` finds active, in roster order. Sent on the wire as `activeParticipants` only; the AS2 form leaves it out while any `case_participants` entry is a bare URI, so it is never a partial list. A received value that contradicts the recomputed one is refused (CM-31-003, ARCH-23-005) |
+
+## `CasePreview`
+
+Defined in `vultron/core/models/case_preview.py`.
+The case's preview is what a stub Invite shows an invitee that is not yet entitled to the case.
+Its fields are the case's fields under the same names, each optional, and any of them may hold a `Redacted` marker.
+It declares none of the case's bookkeeping: `actor_participant_index`, `pending_embargo_proposal_index`, `case_activity`, `genesis_hash`, `ledger_position` and `stub_summary` ([CM-17-025](vultron-spec/requirements/case-management.md#cm-17-025)).
+
+`CasePreview.from_case` cuts a preview from a case by the profile in `vultron/core/models/case_preview_profile.py`.
+For each case field the profile names the operations the protocol permits and the one the reference implementation applies ([CM-17-010](vultron-spec/requirements/case-management.md#cm-17-010)):
+
+| Field | What the preview shows |
+|---|---|
+| `id_`, `type_` | The preview's own: a new identifier and the type `CasePreview`. The case reference that carries the preview names the case |
+| `summary` | The case's `stub_summary`; the cut is refused without one |
+| `attributed_to` | The Case Owner, always |
+| `name`, `published`, `updated` | The case's values |
+| `case_statuses` | The current status alone, whole, so its EM and PXA states are the case's ([CM-17-013](vultron-spec/requirements/case-management.md#cm-17-013)) |
+| `embargo_register` | The entry in force alone, with the embargo whole; left out when no embargo is in force ([CM-17-002](vultron-spec/requirements/case-management.md#cm-17-002), [CM-17-011](vultron-spec/requirements/case-management.md#cm-17-011)) |
+| `vulnerability_items` | Each item cut to its `ids`; an item the case holds only by URI is marked `Redacted` |
+| `content`, `case_participants`, `vulnerability_reports`, `notes`, `case_references`, `parent_cases`, `child_cases`, `sibling_cases`, and every other AS2 property | A `Redacted` marker when the case holds a value; left out when it holds none ([MV-12-004](vultron-spec/requirements/messages.md#mv-12-004)) |
 
 ## `CaseParticipant`
 

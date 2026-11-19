@@ -32,7 +32,7 @@ from vultron.core.models.base import (
     PropertyValueKind,
     vultron_property,
 )
-from vultron.core.models.case_status import CASE_STATUS_PROPERTY, CaseStatus
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     DDimension,
     RmDimension,
@@ -171,7 +171,12 @@ class ParticipantStatus(CoreObject):
         ),
     )
     case_status: CaseStatus | None = Field(
-        default=None, json_schema_extra=CASE_STATUS_PROPERTY
+        default=None,
+        json_schema_extra=vultron_property(
+            "The case status a participant status reports: a CaseStatus"
+            " object or its id",
+            PropertyValueKind.IRI,
+        ),
     )
 
     previous_rm_state: RM | None = Field(

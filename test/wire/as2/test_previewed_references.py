@@ -64,6 +64,7 @@ def _stub(case_id: str) -> dict[str, Any]:
     """The case's preview: its own id, which names nothing (ADR-0205)."""
     return {
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "id": f"urn:uuid:preview-of-{case_id.rsplit('/', 1)[-1]}",
         "summary": "A remote code execution vulnerability in widget.",
     }

@@ -37,6 +37,11 @@ from test.core.use_cases.received._archived_redelivery import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_preview import (
+    current_em_state,
+    in_force_embargo,
+    wire_preview,
+)
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -703,21 +708,17 @@ class TestInviteRolesAndEmbargoEnrichment:
     @pytest.mark.spec("CM-17-013")
     @pytest.mark.spec("CM-17-002")
     def test_active_embargo_enriches_case_stub(self, make_payload):
-        """The Invite stub carries activeEmbargo.endTime and emState=ACTIVE."""
+        """The Invite stub carries the in-force embargo, its end included,
+        and the current status with ``emState=ACTIVE``."""
         harness = _OwnerDirectInvite(with_active_embargo=True)
 
         _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
-        target = wire.get("object", {}).get("preview", {})
-        active_embargo = target.get("activeEmbargo")
-        assert isinstance(active_embargo, dict), (
-            "activeEmbargo must be a full embargo object (CM-17-002)"
-        )
-        assert "endTime" in active_embargo
-        assert target.get("caseStatus", {}).get("emState") in (
-            "active",
-            "ACTIVE",
-        )
+        preview = wire_preview(wire)
+        embargo = in_force_embargo(preview)
+        assert embargo is not None
+        assert "endTime" in embargo
+        assert current_em_state(preview) == EM.ACTIVE.value
 
     @pytest.mark.spec("CM-17-013")
     @pytest.mark.spec("CM-17-002")
@@ -733,13 +734,11 @@ class TestInviteRolesAndEmbargoEnrichment:
 
         _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
-        target = wire.get("object", {}).get("preview", {})
-        active_embargo = target.get("activeEmbargo")
-        assert isinstance(active_embargo, dict), (
-            "activeEmbargo must be a full embargo object (CM-17-002)"
-        )
-        assert active_embargo.get("id") == harness.embargo_id
-        assert target.get("caseStatus", {}).get("emState") == EM.REVISE.value
+        preview = wire_preview(wire)
+        embargo = in_force_embargo(preview)
+        assert embargo is not None
+        assert embargo.get("id") == harness.embargo_id
+        assert current_em_state(preview) == EM.REVISE.value
 
     @pytest.mark.spec("CM-17-002")
     def test_no_embargo_fields_when_not_active(self, make_payload):
@@ -747,9 +746,9 @@ class TestInviteRolesAndEmbargoEnrichment:
 
         _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
-        target = wire.get("target", {})
-        assert target.get("activeEmbargo") is None
-        assert target.get("caseStatus") is None
+        preview = wire_preview(wire)
+        assert in_force_embargo(preview) is None
+        assert current_em_state(preview) == EM.NONE.value
 
 
 class TestRolesThreadingIntegration:

@@ -659,8 +659,9 @@ def test_the_stub_invite_event_carries_the_case_preview():
     assert event.invitee_id == _INVITEE_URI
     assert event.preview is not None
     assert event.preview.summary == "A case to join"
-    assert event.preview.active_embargo is None
-    assert preview_em_state(event.preview) is None
+    assert event.preview.attributed_to == _ACTOR_URI
+    assert event.preview.embargo_register is None
+    assert preview_em_state(event.preview) is EM.NONE
 
     embargo = make(EmbargoEvent, context=_CASE_URI, end_time=days_from_now(30))
     embargoed = make(
@@ -682,7 +683,8 @@ def test_the_stub_invite_event_carries_the_case_preview():
     preview = _received_stub_invite(embargoed).preview
     assert preview is not None
     # A preview holds what it shows in loose forms (ADR-0217).
-    assert is_loose_form_of(preview.active_embargo, EmbargoEvent)
+    (entry,) = preview.embargo_register
+    assert is_loose_form_of(entry.embargo, EmbargoEvent)
     assert preview_embargo_id(preview) == embargo.id_
     assert preview_em_state(preview) is EM.ACTIVE
 

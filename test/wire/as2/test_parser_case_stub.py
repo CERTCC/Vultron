@@ -34,7 +34,11 @@ from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from test.support.future_dates import days_from_now
 from test.support.objects import with_times
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_preview import preview_em_state
+from vultron.core.models.case_preview import (
+    preview_current_status,
+    preview_em_state,
+    preview_embargo_id,
+)
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.preview_object import is_loose_form_of
 from vultron.core.states.em import EM
@@ -63,22 +67,30 @@ def _enriched_stub() -> dict:
     return {
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "id": _PREVIEW_ID,
         "summary": "Security issue — embargo active, details shared after acceptance",
-        "activeEmbargo": {
-            "type": "EmbargoEvent",
-            "published": "2026-01-01T00:00:00+00:00",
-            "id": f"{_CASE_ID}/embargoes/e0",
-            "context": _CASE_ID,
-            "endTime": days_from_now(30).isoformat(),
-        },
-        "caseStatus": {
-            "type": "CaseStatus",
-            "id": f"{_CASE_ID}/statuses/1",
-            "context": _CASE_ID,
-            "published": "2026-01-01T00:00:00+00:00",
-            "em": "ACTIVE",
-        },
+        "embargoRegister": [
+            {
+                "embargo": {
+                    "type": "EmbargoEvent",
+                    "published": "2026-01-01T00:00:00+00:00",
+                    "id": f"{_CASE_ID}/embargoes/e0",
+                    "context": _CASE_ID,
+                    "endTime": days_from_now(30).isoformat(),
+                },
+                "status": "ACTIVE",
+            }
+        ],
+        "caseStatuses": [
+            {
+                "type": "CaseStatus",
+                "id": f"{_CASE_ID}/statuses/1",
+                "context": _CASE_ID,
+                "published": "2026-01-01T00:00:00+00:00",
+                "em": "ACTIVE",
+            }
+        ],
     }
 
 
@@ -264,8 +276,8 @@ def test_an_invite_with_an_enriched_preview_parses():
     assert reference.id_ == _CASE_ID
     preview = reference.preview
     assert isinstance(preview, as_CasePreview)
-    assert preview.active_embargo is not None
-    assert preview.case_status is not None
+    assert preview_embargo_id(preview) == f"{_CASE_ID}/embargoes/e0"
+    assert preview_em_state(preview) is EM.ACTIVE
 
 
 @pytest.mark.spec("CM-11-038")
@@ -286,15 +298,16 @@ def test_an_invite_whose_object_is_a_sparse_case_parses_it_as_a_case():
 
 def _stub_with_untyped_status_without_published() -> dict:
     stub = _enriched_stub()
-    del stub["caseStatus"]["type"]
-    del stub["caseStatus"]["published"]
+    (status,) = stub["caseStatuses"]
+    del status["type"]
+    del status["published"]
     return stub
 
 
 @pytest.mark.spec("MV-12-001")
 @pytest.mark.spec("CM-17-013")
 def test_an_untyped_stub_status_is_read_as_a_status_keeping_its_em_state():
-    """An untyped ``caseStatus`` in a preview is read in the field's loose
+    """An untyped status in a preview is read in the field's loose
     status form, never as a bare Link, so its EM state is kept (#5715).
 
     What a preview shows is read as its sender sent it (ADR-0217): the status
@@ -305,7 +318,7 @@ def test_an_untyped_stub_status_is_read_as_a_status_keeping_its_em_state():
     )
 
     preview = cast(Any, activity).object_.preview
-    assert is_loose_form_of(preview.case_status, CaseStatus)
+    assert is_loose_form_of(preview_current_status(preview), CaseStatus)
     assert preview_em_state(preview) is EM.ACTIVE
 
 
@@ -313,9 +326,9 @@ def test_an_untyped_stub_status_is_read_as_a_status_keeping_its_em_state():
 def test_a_stub_built_here_reads_an_untyped_status_as_a_status():
     """The same holds for a stub this process builds from a dict (#5715)."""
     stub = _stub_with_untyped_status_without_published()
-    del stub["activeEmbargo"]  # inbound-shaped: it carries no times
+    del stub["embargoRegister"]  # inbound-shaped: it carries no times
 
     preview = as_CasePreview.model_validate(stub)
 
-    assert is_loose_form_of(preview.case_status, CaseStatus)
+    assert is_loose_form_of(preview_current_status(preview), CaseStatus)
     assert preview_em_state(preview) is EM.ACTIVE
