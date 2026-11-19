@@ -58,6 +58,7 @@ from vultron.measure.advice import (
     ColourMap,
 )
 from vultron.measure.advice.case import AllowedMove
+from vultron.measure.baselines import EventKind
 from vultron.measure.history import (
     NarrativeLine,
     PxaName,
@@ -69,6 +70,7 @@ from vultron.measure.ledger import (
     UNNAMED_ACTOR,
     display_label,
 )
+from vultron.measure.scoring import UnscoredScope
 from vultron.measure.standing import (
     DesideratumStanding,
     DesideratumStatus,
@@ -95,13 +97,54 @@ EVENT_LABELS: Mapping[CSEvent, str] = {
     CSEvent.A: "Attacks Observed",
 }
 
+#: Each event a desideratum can order, by name: the six case-state events
+#: as :data:`EVENT_LABELS` spells them, the report and embargo events as
+#: ``_case_events.md`` and ``process_model_desiderata.md`` name them where
+#: they do, and the rest as :class:`~vultron.measure.baselines.EventKind`
+#: describes them.  Every kind has a name, so a desideratum added to the
+#: catalog reads in words with no change here.
+DESIDERATUM_EVENT_LABELS: Mapping[EventKind, str] = {
+    **{EventKind(e.value): label for e, label in EVENT_LABELS.items()},
+    EventKind.INVALIDATED: "Report Invalidation",
+    EventKind.VALIDATED: "Report Validation",
+    EventKind.DEFERRED: "Report Deferral",
+    EventKind.ACCEPTED: "Report Acceptance",
+    EventKind.CLOSED: "Report Closure",
+    EventKind.EMBARGO_PROPOSED: "Embargo Proposal",
+    EventKind.EMBARGO_REJECTED: "Embargo Rejection",
+    EventKind.EMBARGO_CANCELLED: "Embargo Proposal Cancelled",
+    EventKind.EMBARGO_START: "Embargo Start",
+    EventKind.REVISION_PROPOSED: "Embargo Revision Proposal",
+    EventKind.REVISION_SETTLED: "Embargo Revision Settled",
+    EventKind.EXIT: "Embargo Exit",
+    EventKind.EXIT_OWN_TERMS: "Embargo Exit on Its Own Terms",
+    EventKind.EXIT_THREAT: "Embargo Exit on a Threat Signal",
+    EventKind.EXIT_OTHER: "Other Early Embargo Exit",
+}
+
 #: A desideratum's status as an icon and a word.
 DESIDERATUM_BADGES: Mapping[DesideratumStatus, str] = {
     DesideratumStatus.MET: "✅ met",
     DesideratumStatus.BROKEN: "❌ broken",
     DesideratumStatus.OPEN: "⏳ open",
     DesideratumStatus.UNKNOWN: "❔ unknown",
+    DesideratumStatus.UNSCORED: "▫️ not scored",
 }
+
+#: The statuses a tally counts only when a desideratum has one: a source
+#: that observes every event, and a vendor its walk reads, show no empty
+#: count for them.
+_COUNTED_WHEN_SEEN = frozenset(
+    {DesideratumStatus.UNKNOWN, DesideratumStatus.UNSCORED}
+)
+
+#: Why the Desiderata table has no row for ``V_i ≺ F_j``, which the
+#: desiderata page lists.  The page's other multi-party desideratum,
+#: ``F_i ≺ P``, is each vendor's ``F ≺ P`` row, so it needs no note.
+DESIDERATA_NOTE = (
+    "The table leaves out V_i ≺ F_j (every vendor aware before any fix is"
+    " ready): move advice does not use it (ADR-0200)."
+)
 
 #: A report-management state as an icon and a word.
 RM_BADGES: Mapping[RM, str] = {
@@ -147,8 +190,8 @@ def actor_label(actor: str, names: Mapping[str, str]) -> str:
 def desideratum_label(desideratum: DesideratumStanding) -> str:
     """The desideratum in words: ``Fix Ready before Public Awareness``."""
     return (
-        f"{EVENT_LABELS[desideratum.before]} before"
-        f" {EVENT_LABELS[desideratum.after]}"
+        f"{DESIDERATUM_EVENT_LABELS[desideratum.before]} before"
+        f" {DESIDERATUM_EVENT_LABELS[desideratum.after]}"
     )
 
 
@@ -186,14 +229,32 @@ def public_badges(
 
 
 def _tally(desiderata: Sequence[DesideratumStanding]) -> str:
-    """Each status's count; unknown only when a desideratum is unknown, so a
-    source that observes every event shows no empty unknown count."""
+    """Each status's count; unknown or unscored only when a desideratum is
+    (:data:`_COUNTED_WHEN_SEEN`)."""
     counts = Counter(d.status for d in desiderata)
     return "  ".join(
         f"{DESIDERATUM_BADGES[status].split()[0]} {counts[status]}"
         for status in DesideratumStatus
-        if counts[status] or status is not DesideratumStatus.UNKNOWN
+        if counts[status] or status not in _COUNTED_WHEN_SEEN
     )
+
+
+def _not_scored_because(participant: ParticipantStanding) -> str:
+    """Why the participant, or part of its scope, has no score; empty when
+    all of it is scored.
+
+    A participant with no case-state sequence says why it has none.  A
+    vendor whose walk cannot go on from its case keeps its original
+    desiderata's statuses, so the reason names the part left unscored.
+    """
+    if participant.unscored is not None:
+        return participant.unscored.detail
+    if isinstance(participant.extended, UnscoredScope):
+        return (
+            "report-handling and embargo desiderata:"
+            f" {participant.extended.reason}"
+        )
+    return ""
 
 
 def participant_rows(
@@ -212,9 +273,7 @@ def participant_rows(
                 if p.case_state is not None
                 else "—",
                 "Desiderata": _tally(p.desiderata) if p.desiderata else "—",
-                "Not scored because": p.unscored.detail
-                if p.unscored is not None
-                else "",
+                "Not scored because": _not_scored_because(p),
                 "Actor": p.participant,
             }
         )
@@ -245,7 +304,14 @@ _DESIDERATA_COLUMNS = ("Desideratum", "Events")
 def desiderata_rows(
     participants: Sequence[ParticipantStanding], names: Mapping[str, str]
 ) -> list[Row]:
-    """One row per desideratum, one status column per scored vendor."""
+    """One row per desideratum of a vendor's scope, one status column per
+    scored vendor.
+
+    The rows are the desiderata move advice sums, in catalog order, each
+    group of equivalent ones once under its first
+    (:func:`~vultron.measure.baselines.scope_desiderata`), so a desideratum
+    added to that list gets a row with no change here.
+    """
     scored = [p for p in participants if p.desiderata]
     if not scored:
         return []
@@ -771,7 +837,9 @@ __all__ = [
     "BAND_EMPTY",
     "BAND_TITLES",
     "COLOUR_STOPS",
+    "DESIDERATA_NOTE",
     "DESIDERATUM_BADGES",
+    "DESIDERATUM_EVENT_LABELS",
     "LEADING_MARK",
     "LEGEND_BETTER",
     "LEGEND_DOMINATED",

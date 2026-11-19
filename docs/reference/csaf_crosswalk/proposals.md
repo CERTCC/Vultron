@@ -148,7 +148,7 @@ The Vultron project tracks each of them as a separate item for planning, under E
 | [#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"} | Vultron could define how a Traffic Light Protocol (TLP) label appears in its data and logic, and how granular a label is. This item is a concern. | Vultron has no labels today. A projection needs a label, and a received document can carry one. |
 | [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} | Vultron could produce a CSAF document from the copy of a case that a participant keeps, at publication and during coordination. | A party outside Vultron, such as a vendor or a reporting authority, can then receive the case information in CSAF. |
 | [#5140](https://github.com/CERTCC/Vultron/issues/5140){:target="_blank"} | Vultron could track Fix Readiness (F) for each vendor and product, and Fix Deployed (D) for each vendor, product, and deployer. This item is a concern. | CSAF records status for each product, and Vultron records the fix path once for each participant. |
-| [#5135](https://github.com/CERTCC/Vultron/issues/5135){:target="_blank"} | Vultron could record which participants want public credit. This item is undecided. | CSAF acknowledgments carry this information, and Vultron has no counterpart. |
+| [#5135](https://github.com/CERTCC/Vultron/issues/5135){:target="_blank"} | Decided in [ADR-0218](../../adr/0218-whether-a-case-records-public-credit.md): a Vultron case does not record public credit. A CSAF projection takes its acknowledgments from its caller, such as a Composer plug-in, and does not derive them from case data. | Public credit is a publication choice, and Vultron coordinates a case; it does not publish. |
 
 ---
 

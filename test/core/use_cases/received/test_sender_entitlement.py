@@ -964,7 +964,7 @@ def test_note_removal_by_stranger_is_refused(
             as_Remove,
             actor=_IMPOSTOR_ID,
             object_=note,
-            target=owned_case.id_,
+            origin=owned_case.id_,
             to=[_CASE_MANAGER_ID],
         ),
         at=cm_store,

@@ -108,6 +108,7 @@ def _participant(
         rm=reached.rm,
         case=case,
         score=None if vendor is None else vendor.score,
+        extended=None if vendor is None else vendor.extended,
         unscored=None
         if vendor is not None
         else _unscored(reached.participant, scores),

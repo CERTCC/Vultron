@@ -195,9 +195,9 @@ def offer_case_participant_activity(
     Transforms the original ``Offer(Actor)[target=VulnerabilityCase]``
     recommendation into a typed
     ``Offer(CaseParticipant)[target=VulnerabilityCase]``, its participant
-    carrying ``roles=[VENDOR]``, addressed to the Case Owner.  ``origin`` in
-    ``kwargs`` SHOULD carry the ID of the original
-    ``Offer(Actor)[target=VulnerabilityCase]`` for causal traceability
+    carrying ``roles=[VENDOR]``, addressed to the Case Owner.  ``in_reply_to``
+    in ``kwargs`` names the original ``Offer(Actor)[target=VulnerabilityCase]``,
+    the suggestion the forward answers, and the forward sets no ``origin``
     (CM-16-004).
 
     Args:
@@ -205,7 +205,7 @@ def offer_case_participant_activity(
         target: The ``VulnerabilityCase`` (or its URI).
         roles: Roles to assign; defaults to ``[CVDRole.VENDOR]`` (CM-16-003).
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``, ``origin``).
+            (e.g. ``actor``, ``to``, ``in_reply_to``).
 
     Returns:
         An ``as_Offer`` whose ``object_`` is a ``as_CaseParticipant``.

@@ -26,6 +26,12 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_KEY,
+    NOTE_ID,
+    SENDER_ID,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.reference_list import (
     AttachReportToCaseNode,
@@ -138,6 +144,14 @@ def test_pending_guard_resets_its_duplicate_flag_each_run(dl):
     assert node.failed_as_repeat is False
 
 
+def _note_author_guard(sender: str):
+    """The note-author check, its note, sender and case seeded."""
+    return with_act_keys(
+        SenderIsNoteAuthorNode(),
+        {NOTE_ID: REF, SENDER_ID: sender, CASE_KEY: CASE_ID},
+    )
+
+
 @pytest.mark.spec("CM-30-001")
 @pytest.mark.parametrize(
     "note_author,sender,participant,passes",
@@ -171,7 +185,7 @@ def test_note_author_guard(dl, note_author, sender, participant, passes):
         seed_case_participant(dl, case, sender)
         dl.save(case)
 
-    result = _run(dl, SenderIsNoteAuthorNode(REF, sender, CASE_ID))
+    result = _run(dl, _note_author_guard(sender))
 
     assert (result.status == Status.SUCCESS) is passes
 
@@ -182,6 +196,6 @@ def test_note_author_guard_for_unknown_note_fails(dl):
     seed_case_participant(dl, case, sender)
     dl.save(case)
 
-    result = _run(dl, SenderIsNoteAuthorNode(REF, sender, CASE_ID))
+    result = _run(dl, _note_author_guard(sender))
 
     assert result.status == Status.FAILURE

@@ -155,7 +155,7 @@ def activate_embargo_on_case_tree(
         precondition_guards=[
             # A repeat of the applied decision finds the proposal decided, so
             # it is skipped before that guard refuses it (CLP-05-006).
-            ActivityNotYetLedgeredNode(case_id=case_id),
+            with_case_id(ActivityNotYetLedgeredNode(), case_id),
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
             OwnerMayActivateEmbargoNode(
                 case_id=case_id, embargo_id=embargo_id
@@ -164,8 +164,11 @@ def activate_embargo_on_case_tree(
         ],
         manager_effects=[
             capture,
-            CommitAndApplyEmbargoActivationNode(
-                case_id=case_id, embargo_id=embargo_id, result_out={}
+            with_case_id(
+                CommitAndApplyEmbargoActivationNode(
+                    embargo_id=embargo_id, result_out={}
+                ),
+                case_id,
             ),
             notices,
             with_case_id(BackfillAdmittedParticipantsNode(), case_id),
@@ -259,7 +262,7 @@ def reject_embargo_proposal_on_case_tree(
         precondition_guards=[
             # A repeat of the applied decision finds the proposal decided, so
             # it is skipped before that guard refuses it (CLP-05-006).
-            ActivityNotYetLedgeredNode(case_id=case_id),
+            with_case_id(ActivityNotYetLedgeredNode(), case_id),
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
             OwnerRejectionAppliesNode(case_id=case_id, embargo_id=embargo_id),
         ],

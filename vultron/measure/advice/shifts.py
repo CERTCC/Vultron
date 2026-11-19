@@ -36,8 +36,6 @@ from functools import cache
 from typing import NamedTuple
 
 from vultron.measure.baselines import (
-    EXTENDED,
-    ORIGINAL,
     Desideratum,
     Event,
     EventKind,
@@ -47,15 +45,11 @@ from vultron.measure.baselines import (
     VendorDesideratum,
     expected_outcomes,
     outcome_change,
+    scope_desiderata,
 )
-from vultron.measure.baselines.desiderata import count_once, weight
+from vultron.measure.baselines.desiderata import weight
 from vultron.measure.baselines.values import CasePrefix, case_model
 from vultron.measure.baselines.walk import Move
-
-SCOPE_GROUPS: frozenset[Group] = frozenset(
-    {Group.ORIGINAL, Group.REPORT_HANDLING, Group.EMBARGO}
-)
-"""The desiderata groups a vendor's scope holds (ADR-0200)."""
 
 CHANCE_EVENTS: frozenset[EventKind] = frozenset({EventKind.X, EventKind.A})
 """Events that no participant chooses, so no open move is one of them.
@@ -76,19 +70,10 @@ type ScopeShift = tuple[ScopeParts, ...]
 
 
 @cache
-def scope_desiderata() -> frozenset[Desideratum]:
-    """The desiderata each vendor's scope sums, each equivalent group once.
-
-    Those of the :data:`SCOPE_GROUPS`, less each one equivalent to one
-    before it (:func:`.count_once`): ``E ≺ P`` stands for the three ``E``
-    desiderata and ``Ex_own ≺ P`` for the three ``Ex_own`` ones.  Computed
-    on first use: finding the equivalent pairs walks the model.
-    """
-    return frozenset(
-        count_once(
-            d for d in (*ORIGINAL, *EXTENDED) if d.group in SCOPE_GROUPS
-        )
-    )
+def _scope() -> frozenset[Desideratum]:
+    """The desiderata each vendor's scope sums
+    (:func:`~vultron.measure.baselines.scope_desiderata`), as a set."""
+    return frozenset(scope_desiderata())
 
 
 @cache
@@ -97,7 +82,7 @@ def _weight(key: VendorDesideratum) -> Fraction:
 
 
 def _in_scope(key: VendorDesideratum) -> bool:
-    return key.desideratum in scope_desiderata()
+    return key.desideratum in _scope()
 
 
 def scope_shift(
@@ -106,7 +91,8 @@ def scope_shift(
     """*readings* summed into each vendor's end and embargo parts, each weighted.
 
     A reading of a desideratum outside the vendor's scope, or one equivalent
-    to a desideratum before it, is left out (:func:`scope_desiderata`).
+    to a desideratum before it, is left out
+    (:func:`~vultron.measure.baselines.scope_desiderata`).
     """
     end = [Fraction(0)] * vendor_count
     embargo = [Fraction(0)] * vendor_count

@@ -36,7 +36,8 @@ An actor already on the case or already awaiting the Case Owner's decision gets 
 
 {% include-markdown "./_occasions/sections/offer-case-participant.md" heading-offset=1 %}
 
-The original recommendation's ID is carried in the Offer's `origin`.
+The Offer names the original recommendation in its `inReplyTo`, because the forward answers that recommendation.
+It sets no `origin`.
 
 {% include-markdown "./_occasions/sections/accept-case-participant-offer.md" heading-offset=1 %}
 
@@ -62,7 +63,7 @@ For the `CVDRole` delegation that uses a dedicated object type, see [Offer case 
 
 {% include-markdown "./_occasions/sections/remove-note-from-case.md" heading-offset=1 %}
 
-- **Not supported:** every receiver refuses `Remove(Note)[target=VulnerabilityCase]`, the CASE_MANAGER included, whoever sent it, and the note stays in the case (CM-30-003).
+- **Not supported:** every receiver refuses `Remove(Note)[origin=VulnerabilityCase]`, the CASE_MANAGER included, whoever sent it, and the note stays in the case (CM-30-003).
   The case ledger is append-only, and the protocol does not yet define what removing ledgered content means.
 
 ## Formal messages with no dedicated wire activity

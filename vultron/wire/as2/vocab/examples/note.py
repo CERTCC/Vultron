@@ -51,10 +51,13 @@ def add_note_to_case() -> as_Add:
 
 
 def remove_note_from_case() -> as_Remove:
-    """``Remove(Note)[target=VulnerabilityCase]``: the note's author withdraws it."""
+    """``Remove(Note)[origin=VulnerabilityCase]``: the note's author withdraws it.
+
+    A ``Remove`` names the collection it takes its object from in ``origin``.
+    """
     return as_Remove(
         actor=finder().id_,
         object_=note(),
-        target=case().id_,
+        origin=case().id_,
         **_example_stamp(),
     )

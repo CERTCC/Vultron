@@ -375,7 +375,7 @@ def reject_invite_to_embargo_tree(
                     invite_id=invite_id,
                     rejecting_actor_id=rejecting_actor_id,
                 ),
-                ReplicaRefusalNode(case_id),
+                with_case_id(ReplicaRefusalNode(), case_id),
             ),
             IsAnswerableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
             # A repeat of a Reject already recorded commits nothing and

@@ -305,9 +305,11 @@ leaves subtrees no walk can reach.
   in `initialise()` and keep it on the node, since the seeding scope has ended by
   then (`ClassifySequenceNumberNode`). An optional read sees any `/case_id` on the
   blackboard, a seed or an earlier node's write, before it falls back.
-- **A case trigger tree declares `/case_id` seeded only once #6678 has landed.**
-  Reason: until the trigger adapter resolves a short case id to the full id at
-  the edge (ADR-0032), the request's `case_id` may be a short id.
+- **A case trigger tree may declare `/case_id` seeded.** Reason: `run_trigger`
+  resolves a short case id to the full id at the edge and refuses an unknown
+  case there (ADR-0032, `adapters/driving/fastapi/case_reference.py`), so a
+  request's `case_id` is a stored case's full id. Pinned by
+  `test_trigger_routes_contract.py`.
 - **Review every attribute-name seed.** `test/architecture/_act_seeding_table.py`
   records each act type's seeds, so a new property that matches a key is a
   reviewed diff. Withhold a match whose value means something else with

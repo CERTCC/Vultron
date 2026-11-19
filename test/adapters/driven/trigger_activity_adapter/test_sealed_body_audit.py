@@ -289,7 +289,7 @@ class _World:
             recommended_id=_PEER,
             case_id=self.case_id,
             actor=_ACTOR,
-            origin=self.recommendation_id(),
+            in_reply_to=self.recommendation_id(),
             to=[_ACTOR],
             at=authored_at(),
         )
@@ -708,7 +708,7 @@ RECIPES: dict[str, Recipe] = {
         recommended_id=_PEER,
         case_id=w.case_id,
         actor=_ACTOR,
-        origin=w.recommendation_id(),
+        in_reply_to=w.recommendation_id(),
         to=[_ACTOR],
         at=authored_at(),
     ),

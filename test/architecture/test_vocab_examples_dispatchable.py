@@ -34,9 +34,9 @@ keeps the module free of such orphans.
 
 Three defects found when this was first measured:
 
-* ``remove_participant_from_case`` named the case in ``origin``.  ``ActivityPattern``
-  has no ``origin_`` field, and ``RemoveCaseParticipantFromCasePattern``
-  discriminates on ``target_``, so the example matched none of the patterns and
+* ``remove_participant_from_case`` named the case in ``origin``.
+  ``RemoveCaseParticipantFromCasePattern`` discriminates on ``target_``, so the
+  example matched none of the patterns and
   ``docs/reference/messages/case_management.md`` documented the wrong field
   (fixed, #3438).
 * ``read_report`` previously built ``Read(VulnerabilityReport)`` while
@@ -123,6 +123,7 @@ def _patterns_within(pattern: ActivityPattern) -> list[ActivityPattern]:
             pattern.to_,
             pattern.object_,
             pattern.target_,
+            pattern.origin_,
             pattern.context_,
         )
         if isinstance(value, ActivityPattern)
@@ -225,8 +226,8 @@ def test_example_activity_dispatches_to_one_registry_entry(example_name: str):
         "work. An example matching several makes dispatch depend on registry "
         "order (SE-08-001).\n"
         "Check the discriminator fields the pattern requires (object_, target_, "
-        "context_); note that ActivityPattern has no origin_ field, so `origin` "
-        "is never consulted for dispatch."
+        "origin_, context_); a case in `target` does not satisfy an origin_ "
+        "constraint, nor a case in `origin` a target_ one."
     )
 
 

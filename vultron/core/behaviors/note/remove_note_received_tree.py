@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 
 
-"""Received-side BT factory for ``Remove(Note)[target=VulnerabilityCase]``.
+"""Received-side BT factory for ``Remove(Note)[origin=VulnerabilityCase]``.
 
 Removing a note is not supported.  The case ledger is append-only, so a
 removal would need a defined meaning for erasing what an entry already
@@ -47,7 +47,7 @@ from vultron.core.behaviors.sender_guard import (
 
 #: Why every ``Remove(Note)`` is refused (CM-30-003, #6430).
 REMOVE_NOTE_UNSUPPORTED = (
-    "Remove(Note)[target=VulnerabilityCase] is not supported: the case"
+    "Remove(Note)[origin=VulnerabilityCase] is not supported: the case"
     " ledger is append-only and removing ledgered content has no defined"
     " meaning (CM-30-003)"
 )
@@ -62,7 +62,7 @@ def create_remove_note_from_case_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
-    """Single-BT received-side tree for ``Remove(Note)[target=VulnerabilityCase]``.
+    """Single-BT received-side tree for ``Remove(Note)[origin=VulnerabilityCase]``.
 
     Structure (the CLP-10-010 stages)::
 
@@ -100,7 +100,7 @@ def create_remove_note_from_case_received_tree(
     if note_id is None or case_id is None:
         return create_incomplete_activity_received_tree(
             _TREE_NAME,
-            "Remove(Note)[target=VulnerabilityCase] is missing its note id"
+            "Remove(Note)[origin=VulnerabilityCase] is missing its note id"
             " or case id",
         )
     return create_receive_activity_tree(

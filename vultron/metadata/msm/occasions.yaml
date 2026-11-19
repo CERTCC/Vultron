@@ -1170,13 +1170,13 @@ groups:
   - anchor: remove-note-from-case
     heading: Remove note from case
     when: a note's author or the Case Owner withdraws a note from the case
-    send: Remove(Note)[target=VulnerabilityCase]
+    send: Remove(Note)[origin=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: the Case Owner or the note's author
     semantics: remove_note_from_case
     shorthand: GI
     status: expansion
-    description: 'Asks to remove the note from the case named by the target. This implementation
+    description: 'Asks to remove the note from the case named by the origin. This implementation
       does not support it: the case ledger is append-only and removing ledgered content has
       no defined meaning yet, so every receiver refuses it and the note stays in the case
       (CM-30-003).'

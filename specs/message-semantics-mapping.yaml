@@ -761,7 +761,7 @@ groups:
       The note lifecycle MUST realize protocol shorthand `GI` (General Inquiry) as
       `MessageSemantics.ADD_NOTE_TO_CASE` and `MessageSemantics.REMOVE_NOTE_FROM_CASE`.
       Their AS2 wire forms are `Add(Note)[target=VulnerabilityCase]` (VAM-07-002) and
-      `Remove(Note)[target=VulnerabilityCase]` (VAM-07-003). A received
+      `Remove(Note)[origin=VulnerabilityCase]` (VAM-07-003). A received
       `Create(Note)` is not a protocol message (VAM-01-019). These are not the whole
       of `GI`: MSM-04-002 adds the actor-suggestion exchange.
     rationale: '`GI` is defined in the formal protocol as any message conveying non-state-change information, so it is

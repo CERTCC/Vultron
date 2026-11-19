@@ -73,6 +73,7 @@ __all__ = [
     "OWNER_PROFILE",
     "PARTICIPANT_ID",
     "PROPOSAL_ID",
+    "REFUSED_ACTIVITY_ID",
     "REFUSED_ENTRY",
     "REPORT_ID",
     "RUN_KEYS",
@@ -196,6 +197,14 @@ OBJECT_ID = _act_key(
     str,
     "The id of the object the act carries or names.  Every received event"
     " seeds it; a tree reads a narrower key above when one names the value.",
+)
+
+REFUSED_ACTIVITY_ID = _act_key(
+    "refused_activity_id",
+    str,
+    "The id of the activity a refusal notice says the CASE_MANAGER refused:"
+    " the one its ``inReplyTo`` names, else its ``object`` (CLP-05-001,"
+    " CLP-06-006).",
 )
 
 REFUSED_ENTRY = _act_key(

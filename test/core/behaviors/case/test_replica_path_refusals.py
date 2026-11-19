@@ -166,7 +166,7 @@ def test_a_replica_refusal_node_is_read_as_the_path_stages_refusal(
 ) -> None:
     """The tree states the replica's refusal, and the runner reads it whole
     through the same door reading as the path stage's."""
-    node = ReplicaRefusalNode(CASE_ID)
+    node = ReplicaRefusalNode()
 
     root = _run(_replica(with_manager=with_manager), node)
 
@@ -201,7 +201,7 @@ def test_a_replica_refusal_logs_one_debug_fact_naming_the_receiver(
 ) -> None:
     """The node logs its reason as a DEBUG fact, prefixed with the receiver
     it refused at; the received runner logs the refusal (#6477)."""
-    node = ReplicaRefusalNode(CASE_ID)
+    node = ReplicaRefusalNode()
     with caplog.at_level(logging.DEBUG):
         _run(_replica(with_manager=True), node)
     lines = [
