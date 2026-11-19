@@ -91,6 +91,7 @@ The tool fills in both fields from `VULTRON_SHADOW__NODE_URL` and `VULTRON_SHADO
 If the tool refuses a value, the menu shows why, and the tool sends no request.
 Type the case's id on that node in the **Case** box.
 The tool then follows the case live: the page shows the case's new standing each time the node adds an entry to the case's ledger.
+The case narrative gains a line for that entry and keeps every line before it.
 The tool sends the node only `GET` requests of the case's demo ledger event-stream endpoint.
 When the connection drops, the tool connects again and asks only for the entries after the last one it received.
 A node that is not in prototype run mode does not serve that endpoint, so the tool shows an error that names the node and the case.
@@ -139,6 +140,16 @@ The page shows the case as it stands at its last ledger entry.
   The tool never adds the Vendors' values into one score, and never ranks the moves by one.
 
 A ledger with a missing entry shows the missing entry instead of a standing, because a measure over a history with a gap is wrong.
+
+Below the scoreboard, **Case narrative** tells who did what, when, and which states it changed, with one line for each ledger entry in ledger order.
+The tool reads each line from the ledger; nobody writes it by hand.
+
+- **#** is the entry's log index.
+- **Time** is the time the actor's activity claims, and **Committed** shows the Case Manager's commit stamp only where it differs.
+- **Actor**, **Activity** and **Object** name who acted, the phrase for the entry's semantic type, and what the activity names.
+- **State changes** lists each state the entry moved: a participant's report state (RM) and its fix path and deployment (VFD), and the case's embargo state (EM) and public state (PXA).
+  A `?` in a VFD or PXA state is an event the source never records, which the page reads as unknown.
+- **Notes**, when shown, says what the tool could not read in an entry.
 
 ---
 

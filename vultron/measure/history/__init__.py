@@ -22,10 +22,14 @@ Read through :mod:`vultron.measure.ledger`, never beside it:
   reached at its last entry, from the same walk.
 * :mod:`~vultron.measure.history.derive` — the derivation:
   :func:`case_event_history` for one selected case ledger,
-  :func:`derive_case` for that history with the states reached, and
+  :func:`derive_case` for that history with the states reached,
+  :func:`derive_case_steps` for it with the states reached at each entry, and
   :func:`read_case_event_histories` for the files a caller names.
 * :mod:`~vultron.measure.history.render` — the history as JSON or as a
   friendly-named Markdown table (:func:`case_history_report`, CEH-01-005).
+* :mod:`~vultron.measure.history.narrative` — the case narrative: one line
+  per ledger entry, naming who did what, when, and which states the entry
+  changed (:func:`case_narrative`).
 * :mod:`~vultron.measure.history.cli` — the ``vultron-case-history``
   command over it (CEH-01-004).
 """
@@ -33,6 +37,7 @@ Read through :mod:`vultron.measure.ledger`, never beside it:
 from vultron.measure.history.derive import (
     case_event_history,
     derive_case,
+    derive_case_steps,
     read_case_event_histories,
 )
 from vultron.measure.history.model import (
@@ -49,6 +54,13 @@ from vultron.measure.history.model import (
     UnreadableEntry,
     scope_of,
 )
+from vultron.measure.history.narrative import (
+    PARTICIPANT_MACHINES,
+    NarrativeLine,
+    StateChange,
+    StateMachine,
+    case_narrative,
+)
 from vultron.measure.history.reached import (
     BY_NAME,
     PxaName,
@@ -63,6 +75,7 @@ from vultron.measure.history.render import (
 __all__ = [
     "BY_NAME",
     "CASE_KINDS",
+    "PARTICIPANT_MACHINES",
     "RM_EVENT_KINDS",
     "CaseEvent",
     "CaseEventHistories",
@@ -73,13 +86,18 @@ __all__ = [
     "ExcludedState",
     "GapLabel",
     "HistoryFormat",
+    "NarrativeLine",
     "PxaName",
     "ReachedParticipant",
     "ReachedState",
+    "StateChange",
+    "StateMachine",
     "UnreadableEntry",
     "case_event_history",
     "case_history_report",
+    "case_narrative",
     "derive_case",
+    "derive_case_steps",
     "read_case_event_histories",
     "scope_of",
 ]

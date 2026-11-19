@@ -78,6 +78,7 @@ from vultron.measure.ledger.names import (
 )
 from vultron.measure.ledger.phrases import (
     MISSING_SLOT,
+    EntryLabels,
     event_phrase,
     render_event_phrase,
 )
@@ -86,6 +87,7 @@ __all__ = [
     "ACTOR_LIKE_TYPES",
     "FLAT_SPELLINGS",
     "MISSING_SLOT",
+    "EntryLabels",
     "UNNAMED_ACTOR",
     "UNNAMED_OBJECT",
     "WRAPPER_TYPES",

@@ -26,6 +26,10 @@ A state reads as an icon and a short label, so the page reads at a glance
 order, each move shaded by its layer and marked as the advice marks it, and
 each vendor's harm on its own.  No column combines the vendors' numbers into
 one score, and nothing here reorders a move (SHD-03-002).
+
+The case narrative reads one row per ledger entry
+(:func:`narrative_rows`), each with its state changes in words, and a
+case-state flag the source cannot observe shown as unknown (CRD-02-005).
 """
 
 from __future__ import annotations
@@ -36,6 +40,7 @@ from fractions import Fraction
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from vultron.core.models._helpers import format_timestamp
 from vultron.core.models.case_reading import CaseReading
 from vultron.core.states.cs import (
     AttackObservation,
@@ -54,8 +59,17 @@ from vultron.measure.advice import (
 )
 from vultron.measure.advice.case import AllowedMove
 from vultron.measure.baselines import EventKind
-from vultron.measure.history import PxaName
-from vultron.measure.ledger import friendly_actor_name
+from vultron.measure.history import (
+    NarrativeLine,
+    PxaName,
+    StateChange,
+    StateMachine,
+)
+from vultron.measure.ledger import (
+    MISSING_SLOT,
+    UNNAMED_ACTOR,
+    display_label,
+)
 from vultron.measure.scoring import UnscoredScope
 from vultron.measure.standing import (
     DesideratumStanding,
@@ -158,6 +172,16 @@ UNOBSERVABLE_NOTE = (
 )
 
 
+def actor_label(actor: str, names: Mapping[str, str]) -> str:
+    """*actor* by its display name, never a bare URI or UUID (DRPT-03-009).
+
+    An actor no payload names reads by the last segment of its URI, and one
+    whose id is opaque, as an outside system's ``urn:uuid:`` id is, reads
+    as :data:`~vultron.measure.ledger.UNNAMED_ACTOR`.
+    """
+    return display_label(actor, "Actor", names) or UNNAMED_ACTOR
+
+
 def desideratum_label(desideratum: DesideratumStanding) -> str:
     """The desideratum in words: ``Fix Ready before Public Awareness``."""
     return (
@@ -224,7 +248,7 @@ def participant_rows(
     for p in participants:
         rows.append(
             {
-                "Participant": friendly_actor_name(p.participant, names),
+                "Participant": actor_label(p.participant, names),
                 "Roles": ", ".join(p.roles) or "—",
                 "Joined": "✔️ joined" if p.joined else "✉️ invited",
                 "Report": RM_BADGES[p.rm],
@@ -248,7 +272,7 @@ def _vendor_columns(
     that a fixed column already uses, takes the vendor's actor id as well,
     so no vendor's column overwrites another's.
     """
-    labels = [friendly_actor_name(p.participant, names) for p in scored]
+    labels = [actor_label(p.participant, names) for p in scored]
     taken = Counter(labels) + Counter(_DESIDERATA_COLUMNS)
     return [
         label if taken[label] == 1 else f"{label} ({p.participant})"
@@ -302,7 +326,7 @@ def _move_cells(move: AllowedMove, names: Mapping[str, str]) -> Row:
     """Who makes *move*, in which machine, and from which state to which."""
     machine, label = _move_label(move)
     return {
-        "Who": friendly_actor_name(move.participant, names),
+        "Who": actor_label(move.participant, names),
         "Machine": machine,
         "Move": label,
         "From → to": f"{move.source.name} → {move.destination.name}",
@@ -436,7 +460,7 @@ def harm_text(move: AdvisedMove, names: Mapping[str, str]) -> str:
     """Each negative part of *move*'s shift, by vendor, with its size."""
     return (
         "; ".join(
-            f"{friendly_actor_name(h.vendor, names)}: {h.part} {_size(h.size)}"
+            f"{actor_label(h.vendor, names)}: {h.part} {_size(h.size)}"
             for h in move.harms
         )
         or "none"
@@ -560,8 +584,104 @@ def gap_lines(gap: StandingGap) -> list[str]:
         for entry in gap.unreadable_entries
     )
     if gap.register_problem is not None:
-        lines.append(f"Embargo register: {gap.register_problem}")
+        # Already worded as an embargo register problem (derive_em).
+        lines.append(gap.register_problem)
     return lines
+
+
+#: The case-state event each letter of a ``vfd`` or ``pxa`` spelling
+#: stands for, by its lower-case letter.
+_CS_LETTERS: Mapping[str, CSEvent] = {
+    event.value.lower(): event for event in CSEvent
+}
+
+#: What the page shows for a case-state flag its source cannot observe.
+UNKNOWN_FLAG = "?"
+
+
+def cs_spelling(state: str, unobservable: frozenset[CSEvent]) -> str:
+    """A ``vfd`` or ``pxa`` spelling, each flag the source cannot observe
+    shown as ``?``.
+
+    A lower-case letter says its event has not happened, which a source
+    that never records the event cannot say (CRD-02-005).
+    """
+    return "".join(
+        UNKNOWN_FLAG
+        if letter.islower() and _CS_LETTERS.get(letter) in unobservable
+        else letter
+        for letter in state
+    )
+
+
+def _state_label(
+    machine: StateMachine, state: str, unobservable: frozenset[CSEvent]
+) -> str:
+    if machine is StateMachine.RM:
+        return RM_BADGES[RM[state]]
+    if machine is StateMachine.EM:
+        return EM_BADGES[EM[state]]
+    return cs_spelling(state, unobservable)
+
+
+def change_text(
+    change: StateChange,
+    names: Mapping[str, str],
+    unobservable: frozenset[CSEvent] = frozenset(),
+) -> str:
+    """One state change in words: ``Vendor RM: 📥 Received → ☑️ Valid``.
+
+    The participant reads by its display name, never a bare URI or UUID
+    (DRPT-03-009).
+    """
+    who = (
+        f"{actor_label(change.participant, names)} "
+        if change.participant is not None
+        else ""
+    )
+    before, after = (
+        _state_label(change.machine, state, unobservable)
+        for state in (change.before, change.after)
+    )
+    return f"{who}{change.machine}: {before} → {after}"
+
+
+def narrative_rows(
+    lines: Sequence[NarrativeLine],
+    names: Mapping[str, str],
+    unobservable: frozenset[CSEvent] = frozenset(),
+) -> list[Row]:
+    """One row per line of the case narrative, in log-index order.
+
+    The time is the one the entry's activity claims; the commit stamp shows
+    only where it differs, each in its own column, so neither stands in for
+    the other (CEH-03-008).  The ``#`` column is the entry's log index.
+    A line that could not read its entry in full says why, in a notes column
+    the table has only when some line needs it.
+    """
+    noted = any(line.notes for line in lines)
+    rows: list[Row] = []
+    for line in lines:
+        row: Row = {
+            "#": line.log_index,
+            "Time": format_timestamp(line.claimed_at)
+            if line.claimed_at is not None
+            else MISSING_SLOT,
+            "Committed": format_timestamp(line.committed_at)
+            if line.committed_at is not None and line.commit_differs
+            else "",
+            "Actor": line.actor or MISSING_SLOT,
+            "Activity": line.phrase,
+            "Object": line.object or MISSING_SLOT,
+            "State changes": "; ".join(
+                change_text(change, names, unobservable)
+                for change in line.changes
+            ),
+        }
+        if noted:
+            row["Notes"] = "; ".join(line.notes)
+        rows.append(row)
+    return rows
 
 
 def untranslated_rows(reading: CaseReading) -> list[Row]:
@@ -615,6 +735,7 @@ __all__ = [
     "DESIDERATUM_EVENT_LABELS",
     "LEADING_MARK",
     "TOP_MARK",
+    "UNKNOWN_FLAG",
     "BandView",
     "Shade",
     "EM_BADGES",
@@ -622,6 +743,7 @@ __all__ = [
     "NOT_TRANSLATED_NOTE",
     "RM_BADGES",
     "UNOBSERVABLE_NOTE",
+    "actor_label",
     "Row",
     "desiderata_rows",
     "desideratum_code",
@@ -629,6 +751,9 @@ __all__ = [
     "gap_lines",
     "inference_rows",
     "band_views",
+    "change_text",
+    "cs_spelling",
+    "narrative_rows",
     "harm_text",
     "shade",
     "unbanded_rows",

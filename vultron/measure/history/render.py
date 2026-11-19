@@ -49,6 +49,7 @@ from vultron.measure.history.model import (
 from vultron.measure.ledger import (
     MISSING_SLOT,
     CaseLedger,
+    EntryLabels,
     UnusableRow,
     actor_uri,
     display_label,
@@ -56,7 +57,6 @@ from vultron.measure.ledger import (
     label_names,
     payload_of,
     read_case_ledgers,
-    render_event_phrase,
 )
 
 
@@ -180,6 +180,23 @@ def _object_labels(
     return obj, dest
 
 
+def entry_labels(
+    entry: Mapping[str, Any] | None, names: Mapping[str, str], case_id: str
+) -> EntryLabels:
+    """Label one ledger entry's actor, object and destination (CEH-01-006).
+
+    With no entry, every label is ``None``.
+    """
+    payload = payload_of(entry) if entry is not None else {}
+    uri = actor_uri(payload.get("actor"))
+    obj, dest = _object_labels(payload, names, case_id)
+    return EntryLabels(
+        actor=display_label(uri, "Actor", names) if uri else None,
+        object=obj,
+        destination=dest,
+    )
+
+
 def _gaps_cell(timed: Mapping[str, Any], event: CaseEvent) -> str:
     """The event's gap labels, and the deadline that bounds it."""
     parts = [str(gap) for gap in event.gaps]
@@ -201,11 +218,7 @@ def event_row(
     with no entry those cells read ``"—"`` and the activity is the bare
     registry phrase.
     """
-    payload = payload_of(entry) if entry is not None else {}
-    uri = actor_uri(payload.get("actor"))
-    actor = display_label(uri, "Actor", names) if uri else None
-    obj, dest = _object_labels(payload, names, case_id)
-    object_cell = f"{obj} → {dest}" if obj and dest else obj or dest
+    labels = entry_labels(entry, names, case_id)
     if event.scope is EventScope.CASE:
         participant = CASE_SUBJECT
     else:
@@ -221,11 +234,9 @@ def event_row(
         claimed=timed["claimed_at"] or MISSING_SLOT,
         event=str(event.kind),
         participant=participant,
-        actor=actor or MISSING_SLOT,
-        object=object_cell or MISSING_SLOT,
-        activity=render_event_phrase(
-            str(event.semantic_type), actor, object_cell
-        ),
+        actor=labels.actor or MISSING_SLOT,
+        object=labels.object_cell or MISSING_SLOT,
+        activity=labels.phrase(str(event.semantic_type)),
         gaps=_gaps_cell(timed, event),
     )
 

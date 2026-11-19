@@ -37,6 +37,7 @@ from test.measure.history.builders import (
     participant,
     seat_vendor,
     status,
+    two_vendors_ledger,
 )
 from vultron.core.states.cs import CS, CS_pxa
 from vultron.core.states.cs_invariants import (
@@ -55,7 +56,7 @@ from vultron.measure.baselines import (
     baseline,
     scope_desiderata,
 )
-from vultron.measure.history import read_case_event_histories
+from vultron.measure.history import derive_case, read_case_event_histories
 from vultron.measure.history.snapshot import snapshot_records
 from vultron.measure.ledger import (
     CaseLedger,
@@ -753,3 +754,11 @@ def test_every_participant_stands_in_the_cases_own_state():
                 )
             ],
         )
+
+
+def test_a_standing_read_from_a_walk_already_taken_is_the_same():
+    """A caller that has walked the ledger hands the walk in (#6670)."""
+    ledger = two_vendors_ledger().case_ledger()
+    assert case_standing(ledger, derived=derive_case(ledger)) == case_standing(
+        ledger
+    )
