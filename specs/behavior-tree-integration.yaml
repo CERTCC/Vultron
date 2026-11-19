@@ -3518,25 +3518,37 @@ groups:
     kind: project
     statement: >-
       In a received tree, a lookup (BT-25-009) that finds no value MUST end in a
-      declared refusal whose reason names the missing object and the requirement it
-      cites. The lookup node declares it, or, in a tree whose path stage reads the
-      value the lookup publishes, the lookup publishes nothing and the tree's guard
-      for the miss declares it.
+      declared refusal. A lookup node that refuses declares it, with a reason that
+      names the missing object and the requirement it cites. A lookup the path stage
+      reads publishes nothing on a miss instead: a tree that declares the no-case
+      path refuses the miss with a guard whose reason names the missing object and
+      the requirement it cites, and a tree that does not declare it is refused by
+      its path stage (HP-01-039). A door that refuses the delivery before that guard
+      ends it with the door's own reason.
     rationale: >-
       The runner reads a refusal only from a node's declaration (ADR-0195). A lookup
       that fails without one would be read as an unexplained failure. A lookup the
       path stage depends on runs ahead of it, so a refusal there would replace the
       path stage's and the sender guard's reasons; the guard placed after them keeps
-      both.
+      both, and a tree with no no-case path keeps the path stage's reason for a
+      receiver that holds no case.
     verification: >-
       Lookup-node tests run each received lookup against a store without the object
-      and assert a `REFUSED` verdict whose reason names it.
+      and assert a `REFUSED` verdict whose reason names it. The report lookup's
+      tests run each report verdict at a store without the report's case and
+      assert the `REFUSED` verdict: the miss guard's reason, naming the report and
+      BT-25-010, for InvalidateReport and CloseReport, and the path stage's for
+      ValidateReport.
     relationships:
     - rel_type: refines
       spec_id: BT-25-009
     adr:
     - ADR-0207
     - ADR-0195
+    see_also:
+    - spec_id: HP-01-039
+      reason: 'a rationale: the path stage refusal that ends a miss in a tree that
+        does not declare the no-case path'
   - id: BT-25-011
     priority: MUST
     kind: project

@@ -323,6 +323,8 @@ def case_lookup_stage(
     case_named: bool,
     sender_context: SenderContext | None,
     held_case: CaseNamedByReference | None,
+    case_resolution: Collection[py_trees.behaviour.Behaviour] = (),
+    nested: bool = False,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The lookup that publishes the tree's case, ahead of the path stage.
 
@@ -343,8 +345,11 @@ def case_lookup_stage(
             its sender context's), so ``/case_id`` would have two sources
             (BT-25-011); its sender context reads the case from a ledger
             activity instead; it names a ``held_case``, whose refusal needs
-            the case at build time (AKM-03-006); or the lookup is not a
-            read-only ``CaseResolving`` node that publishes ``/case_id``.
+            the case at build time (AKM-03-006); the tree is *nested*, so a
+            miss would read the enclosing run's ``/case_id`` (BT-25-011); a
+            *case_resolution* step also publishes ``/case_id`` (BT-25-011);
+            or the lookup is not a read-only ``CaseResolving`` node that
+            publishes ``/case_id``.
     """
     if lookup is None:
         return []
@@ -363,6 +368,24 @@ def case_lookup_stage(
         raise VultronWiringError(
             f"{where}: held_case refuses on the case named at build time,"
             " so it cannot take case_lookup (AKM-03-006)"
+        )
+    if nested:
+        raise VultronWiringError(
+            f"{where}: a nested tree runs inside a run that may already hold"
+            " a case, which a lookup miss would read, so it cannot take"
+            " case_lookup (BT-25-011)"
+        )
+    second = [
+        type(unscoped(step)).__name__
+        for step in case_resolution
+        if CASE_ID in published_act_keys(step)
+        or CASE_ID in published_act_keys(unscoped(step))
+    ]
+    if second:
+        raise VultronWiringError(
+            f"{where}: case_lookup is the one source of {CASE_ID.path}, so no"
+            f" case_resolution step may publish it; got {', '.join(second)}"
+            " (BT-25-011)"
         )
     # The lookup may sit in the scope that seeds its own input (the report
     # id); the check is about the node.

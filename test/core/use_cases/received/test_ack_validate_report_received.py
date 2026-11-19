@@ -734,13 +734,18 @@ class TestValidateReportReceivedGuardedCommit:
             f" (CLP-10-003); found: {entries}"
         )
 
-    def test_calls_commit_bt_when_receiving_actor_is_case_actor(self):
-        """Guarded commit BT runs when receiving_actor_id == case_actor_id (CLP-09-001).
+    def test_the_lookups_case_reaches_the_sender_guard_at_the_case_manager(
+        self,
+    ):
+        """The case the lookup found is the one the sender is judged against.
 
         When a case is linked to the report and the receiving actor holds the
         CASE_MANAGER role, the tree's lookup finds that case and the path
-        stage admits the receiver on the manager path, so the tree judges the
-        act against that case (BT-25-009).
+        stage admits the receiver on the manager path, so the sender guard
+        judges the sender against that case (BT-25-009, BT-25-011).  The
+        commit on a hit is pinned by
+        ``test_validate_report_ledger_routing.py``
+        (``test_ledger_has_validate_report_entry``).
         """
         from vultron.core.models.report_case_link import VultronReportCaseLink
         from vultron.enums.roles import CVDRole

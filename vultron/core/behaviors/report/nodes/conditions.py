@@ -169,19 +169,16 @@ class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
         return self.actor_id
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
+        assert self._actor_id is not None
 
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        participant_id = (
-            case.actor_participant_index.get(self._actor_id)
-            if self._actor_id
-            else None
-        )
+        participant_id = case.actor_participant_index.get(self._actor_id)
         if participant_id is None:
             self.logger.warning(
                 "%s: actor '%s' not in case '%s'",

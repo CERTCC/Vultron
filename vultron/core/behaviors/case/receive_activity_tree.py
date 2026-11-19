@@ -636,6 +636,8 @@ def create_receive_activity_tree(
         case_named=stage_case_id is not None,
         sender_context=sender_context,
         held_case=held_case,
+        case_resolution=case_resolution or (),
+        nested=nested,
     )
     children.extend(lookup)
     path_stage = received_path_stage(

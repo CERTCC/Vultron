@@ -2,8 +2,8 @@
 status: proposed
 date: 2026-11-13
 created: 2026-11-13
-updated: 2026-11-16
-revision: 4
+updated: 2026-11-19
+revision: 5
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers

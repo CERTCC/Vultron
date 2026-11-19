@@ -15,12 +15,17 @@
 
 """Unit tests for develop_fix and deploy_fix participant-RM guard nodes."""
 
+import py_trees
 import pytest
+from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.objects import make
 from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
+from vultron.core.behaviors.helpers.messages import (
+    DATALAYER_OR_ACTOR_UNAVAILABLE,
+)
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
     _CheckParticipantRMStateBase,
@@ -248,3 +253,25 @@ def test_check_rm_state_accepted_fails_without_participant(
         actor_id=actor.id_,
     )
     bt_scenario.assert_failure(result)
+
+
+def test_check_rm_state_accepted_fails_without_an_executing_actor(
+    bt_scenario: BTTestScenario,
+    case_with_accepted_participant: tuple[VulnerabilityCase, CaseParticipant],
+) -> None:
+    """The subject is the executing actor: with none bound, the check fails
+    as unavailable rather than looking up an actor ``None`` in the case."""
+    case, _ = case_with_accepted_participant
+    node = CheckRMStateAccepted()
+    storage = py_trees.blackboard.Blackboard.storage
+    storage.clear()
+    storage["/datalayer"] = bt_scenario.dl
+    storage["/actor_id"] = None
+    storage[CASE_KEY.path] = case.id_
+    try:
+        node.setup()
+        node.tick_once()
+        assert node.status == Status.FAILURE
+        assert node.feedback_message == DATALAYER_OR_ACTOR_UNAVAILABLE
+    finally:
+        storage.clear()

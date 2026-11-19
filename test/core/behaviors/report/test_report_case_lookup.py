@@ -51,15 +51,20 @@ from vultron.core.behaviors.act_transaction import (
     received_act_stage,
 )
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.addressee import (
+    ENCLOSING_TREE_ADDRESSEE_CHECK,
+)
 from vultron.core.behaviors.case.nodes.case_lookup import (
     CaseFoundForReport,
     FindCaseForReport,
+    RequireCaseForReport,
 )
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
     DiversionStage,
 )
 from vultron.core.behaviors.case.nodes.held_case import CaseNamedByReference
+from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
     ReceivedPathNode,
@@ -366,13 +371,19 @@ def test_a_report_with_no_case_is_refused_with_todays_reason(
 @pytest.mark.spec("BT-25-010", "CM-23-019")
 def test_a_close_with_no_case_is_refused_by_a_guard() -> None:
     """Close declares the no-case path, so its sender guard runs first; a
-    sender the Offer was not addressed to is refused there, as before."""
+    sender the Offer was not addressed to is refused there, as before, with
+    the guard's reason."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
     event = _event(
         CloseReportReceivedEvent, MessageSemantics.CLOSE_REPORT, "Reject"
     )
     result = run_in_act(CloseReportReceivedUseCase(dl, event))
     assert result.disposition is HandlerDisposition.REFUSED
+    # The sender guard's reason, not the miss guard's: a door that refuses
+    # first ends the delivery with its own reason (BT-25-010).
+    assert result.reason is not None
+    assert "cannot be shown to be its addressee" in result.reason
+    assert "(BT-25-010)" not in result.reason
 
 
 # --- The factory's wiring refusals and run-time-case stages ------------------
@@ -400,6 +411,14 @@ class _WritingLookup(FindCaseForReport, StateWriteCapable):
             "AKM-03-006",
         ),
         (
+            "second-publisher",
+            {
+                "sender_context": SenderCheckContext(sender_id=ACTOR_ID),
+                "case_resolution": [RequireCaseForReport()],
+            },
+            "BT-25-011",
+        ),
+        (
             "writing-lookup",
             {
                 "sender_context": SenderCheckContext(sender_id=ACTOR_ID),
@@ -422,6 +441,22 @@ def test_the_factory_refuses_a_lookup_it_cannot_place(
             sender_rule=_rule(),
             case_lookup=lookup,
             **arguments,
+        )
+
+
+@pytest.mark.spec("BT-25-011")
+def test_a_nested_tree_cannot_take_a_lookup() -> None:
+    """A nested tree runs inside a run that may already hold a case, which
+    a lookup miss, publishing nothing, would read as its own."""
+    with pytest.raises(VultronWiringError, match="nested tree"):
+        create_receive_activity_tree(
+            name="NestedLookupBT",
+            case_id=None,
+            precondition_guards=[],
+            case_lookup=FindCaseForReport(),
+            addressee_exemption=ENCLOSING_TREE_ADDRESSEE_CHECK,
+            post_close_exemption=PostCloseExemption.ENCLOSING_TREE_GUARDS,
+            nested=True,
         )
 
 
