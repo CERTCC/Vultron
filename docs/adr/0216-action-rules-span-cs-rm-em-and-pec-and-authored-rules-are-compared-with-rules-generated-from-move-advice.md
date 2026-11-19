@@ -2,8 +2,8 @@
 status: proposed
 date: 2026-11-18
 created: 2026-11-18
-updated: 2026-11-18
-revision: 1
+updated: 2026-11-19
+revision: 2
 deciders: Allen D. Householder
 consulted: Claude Opus 5.5; Epic #6668 (analyst feedback on the case shadow tool); ADR-0060; ADR-0190; ADR-0200; #6492
 informed: Vultron implementers
@@ -31,7 +31,7 @@ The question: **what do the action rules read, what does each one claim, and how
 
 ## Decision Drivers
 
-- A rule says why: its reason names the desiderata that the action serves, from the desiderata list that move advice uses.
+- A rule says why: it has a reason, and where that reason is a desideratum it names it from the desiderata list that move advice uses.
 - A rule can read every state machine of a participant's position: CS, RM, EM and PEC.
 - A rule and move advice read the same positions, so that each can check the other.
 - Neither a rule nor the chance model is ground truth.
@@ -70,24 +70,28 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
 2. **A part that the reading does not hold is unknown, not false.**
    When a case reading holds no state for a part of the position, such as a reading that records no embargo consent, a rule that constrains that part is undecided at that position.
    It is shown as undecided, never as matched or unmatched (CRD-02-005).
-3. **An action rule names an action and the desiderata that the action serves.**
+3. **An action rule names an action, its reason, and the desiderata that its reason is.**
    The action is a move or a CVD action that changes no state.
    A move is named as move advice names it, by its machine and its trigger.
    A CVD action that changes no state, such as monitoring for attacks, is named by its member of `Actions`, and so is an action that is a move at some positions only, such as a publication.
-   The reason names one or more desiderata from the desiderata list that move advice uses.
-   A tag is not a reason.
-   A rule whose action is a move claims that the move serves the vendor that the rule matches.
+   Every rule has a reason.
+   A reason need not be a desideratum: situation awareness, detection, defense and housekeeping are reasons, and they order no events.
+   Where the reason is a desideratum, the rule names it from the desiderata list that move advice uses; otherwise the rule names no desideratum.
+   A rule that names desiderata and whose action is a move claims that the move serves the vendor that the rule matches.
+   A rule that names no desideratum claims nothing a band could check, so the comparison shows it with its reason and no number.
    An action that causes a CS event causes it only the first time.
    A publication is any publication, such as an advisory, exploit details, a detection or a mitigation, and it is always a valid action.
    The first publication causes P, and a later one is still a valid action that changes no state, because P happens only once.
    The same holds for X and for A.
    So at a position where the action's event has already happened, the action is a CVD action that changes no state, not a misplaced rule.
+   The public's awareness is not a publication: a public exploit makes the public aware that the vul exists, which the CS model forces as P, but no participant has published information that defenders can use.
+   So at a position where a public exploit forces P next, a publication does not cause P, and it is not joined to that move.
    A rule suggests and never forbids: a move that no rule names stays open in move advice, and a rule that names a costly move, such as publishing before the vendor is aware, is kept and shown with its cost.
 4. **Authored action rules are the claim.**
    A person writes them in one authored table.
    Each authored rule holds one pattern and one action.
    Each pattern and action of `CS_ACTION_RULES` carries over as one or more authored rules, and each carried-over rule records the pattern and action that it came from.
-   A person sets each carried-over rule's roles and desiderata, which replace the source table's role and tag.
+   A person sets each carried-over rule's roles, reason and desiderata, which replace the source table's role and tag.
    A person may narrow a carried-over rule, never widen it: the rule then matches only positions that its source pattern matches.
    The carried-over rules predate the RM, EM and PEC machines, so a rule is narrowed with RM, EM or PEC parts where those states change what the rule is.
    For example, negotiating an embargo at `..dpxa` becomes a proposal at EM NONE, and at EM PROPOSED an acceptance by the case owner or a participant's answer to the proposal.
@@ -103,7 +107,12 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
    A move's **band for one vendor** is ADR-0200 rule 5 applied to that vendor's scope alone: the deciding part is the vendor's end part, or its embargo part when the end part is zero, and the move is harm-free for the vendor when that part is positive and unhelpful for the vendor when it is not.
    It can differ from the move's band in the whole case, because the rule is about one vendor.
    For each open move and each valid position of one vendor, the generated verdict is the move's band for that vendor.
-   A generated rule groups the positions in which a move gets the same band into one or more patterns, written in the same pattern language as the authored rules, with the role that move advice gives the move.
+   Move advice reads a position's history as well as its states: a desideratum that is already met or broken changes by nothing, so two histories that leave different desiderata open can give one move two bands at one position.
+   For example, at RM Deferred, `Vfdpxa` and EM NONE, accepting the report is harm-free when the report was never accepted, and unhelpful when it was accepted before it was deferred.
+   A generated rule groups the positions in which a move gets the same band, whatever desiderata are still open, into one or more patterns, written in the same pattern language as the authored rules, with the role that move advice gives the move.
+   At a position where the band depends on the history, the generated rules state a conditional verdict: each band, with the desiderata whose being open gives it.
+   They neither pick one history nor leave the position blank.
+   A verdict on an event that the position forces next, such as P beside a public exploit, is marked as forced.
    That role is the vendor for an RM or CS move, which names the vendor whose state it moves, and, for an EM move, the role that the EM trigger roles table gives its trigger, or any role when the table names none.
    One command rebuilds the generated rules, and nobody edits them by hand.
    A check fails when the move advice changes and the generated rules were not rebuilt.
@@ -116,7 +125,7 @@ Chosen option: "Both, compared, with each rule disagreement shown", because it i
    - A **misplaced rule**: an authored rule names a move that the state machines do not allow at a position that the rule matches, or a move that the rule's role may not make.
      It is an authoring error.
    - An **unclaimed move**: a move is harm-free for the vendor, and no authored rule names it at that position.
-   - An **unscored rule**: an authored rule whose action is allowed but has no band, such as a CVD action that changes no state, or a move that move advice does not score.
+   - An **unscored rule**: an authored rule whose action is allowed but has no band, such as a CVD action that changes no state, or a move that move advice does not score, or an authored rule that names no desideratum.
 
    An unhelpful move that no authored rule names gives no result.
    Each agreement and each rule disagreement shows the deciding part of the vendor's shift, and the change in each desideratum that the rule names, so that the analyst sees whether the move's band rests on the desiderata the rule claims.
@@ -196,6 +205,9 @@ The staleness check holds the generated rules and the generated page to the curr
 
 Decided in the planning session for Epic #6668 on 2026-11-18, from analyst feedback on the case shadow tool.
 The work is #6676.
+Revision 2 (2026-11-19) records the user's rule-by-rule review while #6676 was built.
+A rule's reason need not be a desideratum, a history-dependent band is stated as a conditional verdict, and the public's awareness is not a publication.
+Ideas from that review: how an embargo ends (#6709), mitigations and detections as case facts (#6714), embargo terms (#6715), case completion (#6716), and time gaps between events (#6717).
 The desiderata list that the reasons name is the move-advice definition that the desiderata table of #6669 reads.
 PEC moves in move advice are #6677, consent as part of a participant's status is #6615, and an embargo's protection in the chance model is #6492.
 The CS action rules and their legacy oracle are [ADR-0060](0060-re-express-legacy-cs-invariants.md).
@@ -209,4 +221,4 @@ The spec groups that carry these rules are in `specs/case-shadow.yaml`, beside t
 CSB-17 keeps the CS validity rules that the CS part of a pattern reads.
 AR-07 and CM-07 do not change (rule 9).
 
-Generated spec requirements: `case-shadow.yaml` SHD-05-001 through SHD-05-027 and SHD-06-001 through SHD-06-007.
+Generated spec requirements: `case-shadow.yaml` SHD-05-001 through SHD-05-030 and SHD-06-001 through SHD-06-007.
