@@ -30,6 +30,7 @@ from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sync.nodes import SendMissingEntriesNode
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     embargo_paused_from_index,
@@ -103,7 +104,7 @@ def seed_case(datalayer, *, embargo_active: bool) -> None:
 def collect_recipients(bridge, node_cls: type) -> list[str]:
     result = run_tree(
         bridge,
-        tree=node_cls(case_id=CASE_ID),
+        tree=with_case_id(node_cls(), CASE_ID),
         actor_id=MANAGER_ID,
         log_entry=_make_entry(0),
     )
@@ -174,7 +175,7 @@ def paused_from(datalayer, peer_id: str = NON_SIGNATORY_ID) -> int | None:
 def fan_out(bridge, entry, sync_port) -> None:
     result = run_tree(
         bridge,
-        tree=FanOutLogEntryNode(case_id=CASE_ID),
+        tree=with_case_id(FanOutLogEntryNode(), CASE_ID),
         actor_id=MANAGER_ID,
         log_entry=entry,
         # No CreateLogEntryNode runs before it, so the key is passed

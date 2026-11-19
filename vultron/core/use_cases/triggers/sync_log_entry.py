@@ -34,6 +34,8 @@ from typing import cast
 
 import py_trees.behaviour
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, OBJECT_ID
 from vultron.core.behaviors.store_scope import hosts_actor
 from vultron.core.behaviors.sync.demo_log_entry import (
     DEMO_LOG_ENTRY_SEMANTIC_TYPE,
@@ -89,11 +91,10 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
             )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        self._node = CommitDemoLogEntryNode(
-            case_id=self._case_id,
-            object_id=self._object_id,
+        self._node = CommitDemoLogEntryNode()
+        return with_act_keys(
+            self._node, {CASE_ID: self._case_id, OBJECT_ID: self._object_id}
         )
-        return self._node
 
     def _handle_result(self) -> None:
         # Read back from the store the commit ran *in*, not the requester's:

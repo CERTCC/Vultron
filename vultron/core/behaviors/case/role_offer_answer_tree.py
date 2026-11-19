@@ -65,6 +65,7 @@ from vultron.core.behaviors.case.nodes.role_offer_guard import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
     RoleOfferRequest,
@@ -157,7 +158,7 @@ def create_accept_case_participant_role_tree(
             # Before the CASE_MANAGER role passes, the outgoing one judges
             # everything it holds for the case (SYNC-21-025).
             *(
-                [DrainSequenceHoldsNode(case_id=case_id)]
+                [with_case_id(DrainSequenceHoldsNode(), case_id)]
                 if carried_role is CVDRole.CASE_MANAGER
                 else []
             ),

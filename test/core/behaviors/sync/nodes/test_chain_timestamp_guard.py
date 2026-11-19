@@ -42,6 +42,8 @@ from test.support.act_runner import run_tree
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.config.app import config_override
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case import VulnerabilityCase
@@ -122,12 +124,13 @@ def _run(
 ):
     return run_tree(
         bridge,
-        tree=CreateLogEntryNode(
-            case_id=CASE_ID,
-            object_id=_ACT_UNDER_TEST,
-            semantic_type="note_added",
-            payload_snapshot=snapshot,
-            name="CreateLogEntry",
+        tree=with_act_keys(
+            CreateLogEntryNode(
+                semantic_type="note_added",
+                payload_snapshot=snapshot,
+                name="CreateLogEntry",
+            ),
+            {act_keys.CASE_ID: CASE_ID, act_keys.OBJECT_ID: _ACT_UNDER_TEST},
         ),
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,

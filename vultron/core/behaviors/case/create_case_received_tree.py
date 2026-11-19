@@ -114,6 +114,7 @@ from vultron.core.behaviors.case.nodes.reporter_introduction import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.replica_emit_exemptions import (
     REPORTER_INTRODUCTION,
 )
@@ -167,8 +168,9 @@ def create_create_case_received_tree(
             # pre-genesis window may now extend the chain; replay it as a
             # delivery of its own (SYNC-15-005, SYNC-14-009).  Before the
             # introduction, which it does not depend on.
-            ReplayHeldSuccessorNode(
-                case_id=case_id, name="ReplayHeldPreGenesisEntry"
+            with_case_id(
+                ReplayHeldSuccessorNode(name="ReplayHeldPreGenesisEntry"),
+                case_id,
             ),
             IntroduceCaseManagerToReporterNode(case_id),
         ],
@@ -179,8 +181,9 @@ def create_create_case_received_tree(
         children=[
             BootstrapRouteIsNode(route, "redelivery"),
             # Retries a drain a first delivery did not finish (SYNC-15-005).
-            ReplayHeldSuccessorNode(
-                case_id=case_id, name="ReplayHeldPreGenesisEntry"
+            with_case_id(
+                ReplayHeldSuccessorNode(name="ReplayHeldPreGenesisEntry"),
+                case_id,
             ),
             # Retries an introduction a first delivery failed to queue.
             IntroduceCaseManagerToReporterNode(case_id, retry=True),

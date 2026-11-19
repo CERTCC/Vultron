@@ -25,6 +25,8 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import seeded_value
 from vultron.core.behaviors.act_transaction import (
     ActTransaction,
     OneActExemption,
@@ -1464,9 +1466,14 @@ class TestLedgerPositionStage:
             for n in gate.iterate()
             if isinstance(n, ClassifyLedgerPositionNode)
         ]
-        assert {(n.case_id, n.sender_id) for n in standings} == {
-            (CASE_ID, "https://example.org/actors/sender")
-        }
+        # The node reads both from keys its seeding scope sets (BTND-01-008).
+        assert {
+            (
+                seeded_value(n, act_keys.CASE_ID),
+                seeded_value(n, act_keys.SENDER_ID),
+            )
+            for n in standings
+        } == {(CASE_ID, "https://example.org/actors/sender")}
 
     @pytest.mark.spec("SYNC-18-007")
     def test_a_tree_with_no_sender_guard_answers_nothing(self) -> None:

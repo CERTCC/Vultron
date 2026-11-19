@@ -55,6 +55,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.accept_availability_tree import (
     never_held_embargo_fault,
     unavailable_embargo_refusal,
@@ -264,7 +265,7 @@ def accept_invite_to_embargo_tree(
             # Accepting the embargo in force can admit the participant after
             # its entry was fanned out; send what the gate withheld
             # (CM-10-006).
-            BackfillAdmittedParticipantsNode(case_id=case_id),
+            with_case_id(BackfillAdmittedParticipantsNode(), case_id),
         ],
         manager_case_id=case_id,
         manager_gate_name="RecordEmbargoAcceptance",

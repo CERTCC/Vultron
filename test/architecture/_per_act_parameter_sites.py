@@ -63,37 +63,6 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/status/nodes/rm_anomaly.py::EmitRMGapNoteNode::sender_actor_id": 6476,
         "vultron/core/behaviors/status/nodes/rm_declaration.py::AdjudicateRMDeclarationNode::case_id": 6476,
         "vultron/core/behaviors/status/nodes/rm_declaration.py::AdjudicateRMDeclarationNode::sender_actor_id": 6476,
-        # #6504: The ledger-position, sender-sequence and sync nodes read
-        #   every per-act value from vocabulary keys, not constructor
-        #   arguments
-        "vultron/core/behaviors/sync/demo_log_entry.py::CommitDemoLogEntryNode::case_id": 6504,
-        "vultron/core/behaviors/sync/demo_log_entry.py::CommitDemoLogEntryNode::object_id": 6504,
-        "vultron/core/behaviors/sync/nodes/chain.py::CreateLogEntryNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/chain.py::CreateLogEntryNode::object_id": 6504,
-        "vultron/core/behaviors/sync/nodes/chain.py::ReconstructChainTailNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/embargo_backfill.py::BackfillAdmittedParticipantsNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/fanout.py::CollectLogEntryRecipientsNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/fanout.py::FanOutLogEntryNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/hash_mismatch.py::ReportHashMismatchNode::announce_id": 6504,
-        "vultron/core/behaviors/sync/nodes/hash_mismatch.py::ReportHashMismatchNode::peer_id": 6504,
-        "vultron/core/behaviors/sync/nodes/hash_mismatch.py::ReportHashMismatchNode::refused_entry": 6504,
-        "vultron/core/behaviors/sync/nodes/invite_resend.py::ResendOwedInvitesNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/invite_resend.py::ResendOwedInvitesNode::sender_id": 6504,
-        "vultron/core/behaviors/sync/nodes/ledger_position.py::ClassifyLedgerPositionNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/ledger_position.py::ClassifyLedgerPositionNode::sender_id": 6504,
-        "vultron/core/behaviors/sync/nodes/ledger_position.py::PeerActiveParticipantNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/ledger_position.py::PeerActiveParticipantNode::sender_id": 6504,
-        "vultron/core/behaviors/sync/nodes/replay/divergence.py::FindCaseActorNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/replay/send.py::ReplayMissingEntriesNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/replay_case.py::CaseNamedReplayNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/replay_held.py::ReplayHeldSuccessorNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/reseed.py::ReportRepeatDivergenceNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/reseed.py::ReportRepeatDivergenceNode::peer_id": 6504,
-        "vultron/core/behaviors/sync/nodes/reseed.py::ReportRepeatDivergenceNode::refused_entry": 6504,
-        "vultron/core/behaviors/sync/nodes/reseed.py::ReseedPeerNode::case_id": 6504,
-        "vultron/core/behaviors/sync/nodes/reseed.py::ReseedPeerNode::peer_id": 6504,
-        "vultron/core/behaviors/sync/nodes/sender_sequence.py::ClassifySequenceNumberNode::sender_id": 6504,
-        "vultron/core/behaviors/sync/nodes/sender_sequence_drain.py::DrainSequenceHoldsNode::case_id": 6504,
         # #6505: The embargo end-time decision and termination-cascade nodes
         #   read every per-act value from vocabulary keys, not constructor
         #   arguments

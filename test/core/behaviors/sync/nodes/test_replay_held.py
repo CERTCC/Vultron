@@ -38,6 +38,7 @@ from test.support.inbox_replay import (
     hold_received,
 )
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sync.nodes import (
     ReplayHeldSuccessorNode,
     replay_held as replay_held_mod,
@@ -57,7 +58,7 @@ def replay() -> RecordingInboxReplay:
 def _run(bridge, replay):
     return run_tree(
         bridge,
-        tree=ReplayHeldSuccessorNode(case_id=CASE_ID),
+        tree=with_case_id(ReplayHeldSuccessorNode(), CASE_ID),
         actor_id=PARTICIPANT_ACTOR_ID,
         inbox_replay=replay,
     )
@@ -114,7 +115,7 @@ def test_successor_with_no_replay_port_is_a_wiring_error(
 
     result = run_tree(
         bridge,
-        tree=ReplayHeldSuccessorNode(case_id=CASE_ID),
+        tree=with_case_id(ReplayHeldSuccessorNode(), CASE_ID),
         actor_id=PARTICIPANT_ACTOR_ID,
     )
 

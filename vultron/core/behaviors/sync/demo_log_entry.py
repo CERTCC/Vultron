@@ -24,6 +24,14 @@ registry's label for that payload (ADR-0140); the caller names only its
 
 from typing import cast
 
+from py_trees.ports import PortInformation
+
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, OBJECT_ID
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
@@ -40,32 +48,47 @@ class CommitDemoLogEntryNode(_CommitCaseManagerActivityBase):
 
     Addressed to nobody: the commit tree's fan-out announces the entry to the
     case's participants (SYNC-02-001, SYNC-02-003).  The entry's
-    ``log_object_id`` is the caller's *object_id*, not the activity's id.
+    ``log_object_id`` is the caller's ``/object_id``, not the activity's id.
+
+    The case and the object are read from ``/case_id`` and ``/object_id``
+    (BTND-01-008); the trigger seeds both with
+    :func:`~vultron.core.behaviors.act_key_scope.with_act_keys`.
     """
 
-    def __init__(
-        self,
-        case_id: str,
-        object_id: str,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_CommitCaseManagerActivityBase.INPUT_PORTS,
+        **act_key_ports(CASE_ID, OBJECT_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(CASE_ID, OBJECT_ID),
+        }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(
-            case_id=case_id,
+            # Unused: the case is read from ``/case_id`` through
+            # :meth:`_act_case_id`; #6572 drops the base's parameter.
+            case_id="",
             semantic_type=DEMO_LOG_ENTRY_SEMANTIC_TYPE,
             notify_participants=False,
             name=name,
         )
-        self._object_id = object_id
+
+    def _act_case_id(self) -> str:
+        return act_value(self, CASE_ID, str)
 
     def _ledger_object_id(self, activity_id: str) -> str:
-        return self._object_id
+        return act_value(self, OBJECT_ID, str)
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
         return self.trigger_activity_factory.record_case_announced(
-            case_id=self._case_id,
+            case_id=self._act_case_id(),
             actor=cast(str, self.actor_id),
-            object_id=self._object_id,
+            object_id=act_value(self, OBJECT_ID, str),
             at=self._require_act_instant(),
         )
 

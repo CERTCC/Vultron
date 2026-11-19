@@ -20,6 +20,12 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -69,14 +75,17 @@ class ReplayHeldSuccessorNode(DataLayerActionWithPorts):
       is a composition fault, never a reason to apply the entry inline.
     - Otherwise: queues the replay, drops the index row, ``SUCCESS``.
 
+    The case whose held ``Announce``\\ s it looks in is ``/case_id`` when the
+    run holds one (a seed or an earlier node's write), else the case of the
+    ``CaseLedgerEntry`` carried by ``/activity``.
+
     Args:
-        case_id: The case whose held ``Announce``\\ s to look in.  ``None``
-            reads it from the ``CaseLedgerEntry`` carried by ``/activity``.
         name: Node name.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
         "activity": PortInformation(data_type=object, required=False),
         INBOX_REPLAY_KEY: PortInformation(data_type=object, required=False),
     }
@@ -84,20 +93,20 @@ class ReplayHeldSuccessorNode(DataLayerActionWithPorts):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
+            **act_key_remappings(CASE_ID),
             "activity": "/activity",
             INBOX_REPLAY_KEY: f"/{INBOX_REPLAY_KEY}",
         }
 
-    def __init__(
-        self, case_id: str | None = None, name: str | None = None
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+        self._case_id: str | None = None
         self.activity: object | None = None
         self._replay: InboxReplayPort | None = None
 
     def initialise(self) -> None:
         super().initialise()
+        self._case_id = optional_act_value(self, CASE_ID, str)
         self.activity = self._try_get_input("activity")
         self._replay = cast(
             "InboxReplayPort | None", self._try_get_input(INBOX_REPLAY_KEY)
