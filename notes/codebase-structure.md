@@ -199,7 +199,9 @@ that names an object by its UUID maps the segment with
 `vultron/adapters/utils.py:full_object_id` before the read. A store-level fallback
 gives one object two keys (#5737). A case or actor key may instead resolve through
 `find_case_by_short_id` / `find_actor_by_short_id`, the named surrogate-key query
-(AKM-05-006), which reports an ambiguous key as not found.
+(AKM-05-006), which reports an ambiguous key as not found. A driving route
+resolves a case key through `adapters/driving/fastapi/case_reference.py:find_case`,
+never a hand-written copy of that lookup (CS-22-001).
 
 ---
 
@@ -215,6 +217,9 @@ Routes accept short-ID surrogate keys beside canonical URIs
 - **A non-case hit does not end case-key resolution.** When `dl.read(key)` returns a
   non-case object, continue to the short-key fallback, or non-case IDs shadow valid case
   keys with false 404s.
+- **A trigger request reaches the core with the full case id.** `run_trigger` resolves
+  a short case id at the edge (`case_reference.with_full_case_id`, ADR-0032), so the
+  `/case_id` seed is the full id (BT-25-007).
 
 When asserting a mock's positional arguments, use `call_args.args`, not `call_args[0]`:
 the named attribute fails clearly if the call moves to kwargs.
