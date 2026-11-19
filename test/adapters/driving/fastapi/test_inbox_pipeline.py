@@ -297,7 +297,7 @@ def test_routing_safety_net_status_domain(test_pipeline, monkeypatch):
     # CASE_MANAGER alone, RSH-04-005) never runs.
     activity = add_status_to_case_activity(
         status,
-        target=case,
+        case=case,
         context=case.id_,
         actor=SENDER_ID,
         to=[RECEIVER_ID],

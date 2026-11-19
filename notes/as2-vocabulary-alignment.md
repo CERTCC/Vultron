@@ -677,8 +677,8 @@ lists the activities it caused.
 `Announce(CaseLedgerEntry)`, which carries no `context` (the case is in
 `object.caseId`). `vultron/wire/as2/ledger_reject_envelope.py` admits the objectless
 `Reject`. The `Read` pattern accepts a bare entry id only for the position statement
-(`vultron/wire/as2/extractor/_pattern.py`). `Add(ParticipantStatus)` names its case
-only through the nested status's `context`. Delivery receipts are an open question
+(`vultron/wire/as2/extractor/_pattern.py`). Both status `Add` forms name their history
+and case (#6486). Delivery receipts are an open question
 (`docs/topics/future_work/_oq-delivery-receipts.md`).
 
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1

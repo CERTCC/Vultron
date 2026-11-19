@@ -350,7 +350,7 @@ def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
     dl.create(status)
     activity = add_status_to_participant_activity(
         status=status,
-        target=make(
+        participant=make(
             as_CaseParticipant,
             id_=PARTICIPANT_ID,
             context=CASE_ID,
@@ -520,7 +520,7 @@ def _status_declaration(
     )
     return status, add_status_to_participant_activity(
         status=status,
-        target=make(
+        participant=make(
             as_CaseParticipant,
             id_=PARTICIPANT_ID,
             context=CASE_ID,

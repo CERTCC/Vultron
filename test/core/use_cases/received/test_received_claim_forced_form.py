@@ -139,7 +139,7 @@ def _vendor_public_report(net: LedgerNetwork) -> Any:
     )
     return add_status_to_participant_activity(
         status,
-        target=make(
+        participant=make(
             as_CaseParticipant,
             id_=record.id_,
             context=net.case_id,
@@ -236,7 +236,7 @@ def _no_threat_report(net: LedgerNetwork) -> Any:
     )
     return add_status_to_participant_activity(
         status,
-        target=make(
+        participant=make(
             as_CaseParticipant,
             id_=record.id_,
             context=net.case_id,

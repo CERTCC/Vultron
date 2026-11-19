@@ -52,7 +52,7 @@ SEEDING_TABLE: dict[str, str] = {
     "AddNoteToCaseTriggerRequest": "case_id",
     "AddObjectToCaseTriggerRequest": "case_id object_id",
     "AddOnBehalfStatusTriggerRequest": "case_id",
-    "AddParticipantStatusToParticipantReceivedEvent": "object_id participant_id sender_id<-actor_id",
+    "AddParticipantStatusToParticipantReceivedEvent": "case_id object_id participant_id sender_id<-actor_id",
     "AddParticipantStatusTriggerRequest": "case_id",
     "AddReportToCaseReceivedEvent": "case_id object_id report_id sender_id<-actor_id",
     "AddReportToCaseTriggerRequest": "case_id report_id",

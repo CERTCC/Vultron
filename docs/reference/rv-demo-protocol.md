@@ -281,8 +281,8 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-ready
 
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
-| `Add(ParticipantStatus)[target=CaseParticipant]`, `vfState` = `Vf` | [Vendor Awareness (CV)](messages/cs.md#vendor-awareness) | Vendor → Case Actor |
-| `Add(ParticipantStatus)[target=CaseParticipant]`, `vfState` = `VF` | [Fix Readiness (CF)](messages/cs.md#fix-readiness) | Vendor → Case Actor |
+| `Add(ParticipantStatus, target=<participant>/statuses)`, `vfState` = `Vf` | [Vendor Awareness (CV)](messages/cs.md#vendor-awareness) | Vendor → Case Actor |
+| `Add(ParticipantStatus, target=<participant>/statuses)`, `vfState` = `VF` | [Fix Readiness (CF)](messages/cs.md#fix-readiness) | Vendor → Case Actor |
 
 ### What happens
 
@@ -316,7 +316,7 @@ POST /api/v2/actors/{reporter_id}/demo/notify-published
 
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
-| `Add(ParticipantStatus)[target=CaseParticipant]`, `caseStatus.pxaState` = `Pxa` | [Public awareness in a participant status](messages/cs.md#participant-public-awareness) | Vendor → Case Actor; Reporter → Case Actor |
+| `Add(ParticipantStatus, target=<participant>/statuses)`, `caseStatus.pxaState` = `Pxa` | [Public awareness in a participant status](messages/cs.md#participant-public-awareness) | Vendor → Case Actor; Reporter → Case Actor |
 | `Remove(EmbargoEvent)` | [Tell a participant the embargo has ended](messages/em.md#embargo-termination-notice) | Case Actor → Vendor, Reporter |
 
 ### What happens

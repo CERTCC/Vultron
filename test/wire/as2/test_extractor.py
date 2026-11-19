@@ -455,12 +455,14 @@ def test_extract_intent_case_status_name():
     from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
     cs = make(as_CaseStatus, context="https://example.org/cases/1")
-    # AddCaseStatusToCase pattern: Add + CASE_STATUS + target=VULNERABILITY_CASE
+    # AddCaseStatusToCase pattern: Add(CaseStatus, target=<case>/statuses),
+    # context the case (ADR-0204)
     activity = make(
         as_Add,
         actor="https://example.org/alice",
         object_=cs,
-        target="https://example.org/cases/1",
+        target="https://example.org/cases/1/statuses",
+        context="https://example.org/cases/1",
     )
     event = extract_stamped(activity)
 
@@ -487,7 +489,8 @@ def test_extract_intent_participant_status_vf_state():
         as_Add,
         actor="https://example.org/alice",
         object_=ps,
-        target="https://example.org/cases/1/participants/alice",
+        target="https://example.org/cases/1/participants/alice/statuses",
+        context="https://example.org/cases/1",
     )
     event = extract_stamped(activity)
 
@@ -517,7 +520,8 @@ def test_extract_intent_participant_status_rm_and_d():
         as_Add,
         actor="https://example.org/alice",
         object_=ps,
-        target="https://example.org/cases/1/participants/alice",
+        target="https://example.org/cases/1/participants/alice/statuses",
+        context="https://example.org/cases/1",
     )
     event = extract_stamped(activity)
 

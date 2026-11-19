@@ -98,10 +98,13 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Add")
 
         self.assertEqual(activity.actor, vendor.id_)
+        # The participant's status history, with the case in context
+        # (ADR-0204).
         self.assertEqual(
             activity.target,
-            "https://vultron.example/cases/1/participants/vendor",
+            "https://vultron.example/cases/1/participants/vendor/statuses",
         )
+        self.assertEqual(activity.context, examples.case().id_)
         # The status names its case, not the participant (HP-08-008).
         self.assertEqual(status.context, examples.case().id_)
         self.assertEqual(activity.object_, status)

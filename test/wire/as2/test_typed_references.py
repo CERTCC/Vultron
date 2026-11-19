@@ -641,12 +641,13 @@ def test_a_typed_reference_target_reaches_core_as_a_reference() -> None:
         context=CASE_ID,
         attributed_to=ACTOR,
     )
-    participant_id = "https://example.org/participants/p1"
+    # The participant's status history (ADR-0204), by typed reference.
+    history_id = "https://example.org/participants/p1/statuses"
     activity = parse_activity(
         _body(
             status.model_dump(mode="json", by_alias=True, exclude_none=True),
             "Add",
-            target={"id": participant_id, "type": "CaseParticipant"},
+            target={"id": history_id, "type": "OrderedCollection"},
             context=CASE_ID,
             ledgerPosition=TEST_SENDER_POSITION.model_dump(by_alias=True),
         )
@@ -661,7 +662,7 @@ def test_a_typed_reference_target_reaches_core_as_a_reference() -> None:
     snapshot_target = getattr(event.activity, "target", None)
     assert isinstance(snapshot_target, CoreObject)
     assert not isinstance(snapshot_target, as_TypedReference)
-    assert snapshot_target.id_ == participant_id
+    assert snapshot_target.id_ == history_id
 
 
 @pytest.mark.spec("EP-04-004")

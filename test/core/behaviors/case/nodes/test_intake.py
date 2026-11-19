@@ -611,7 +611,11 @@ def test_a_sender_guard_refusal_records_nothing():
         attributed_to=stranger,
     )
     activity = add_status_to_participant_activity(
-        status, target=target, actor=stranger, context=case, at=authored_at()
+        status,
+        participant=target,
+        actor=stranger,
+        context=case,
+        at=authored_at(),
     )
     event = cast(
         AddParticipantStatusToParticipantReceivedEvent,

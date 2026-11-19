@@ -1100,7 +1100,9 @@ def _make_participant_status_entry(
                     "name": "test_status",
                     "context": CASE_ID,
                 },
-                "target": PARTICIPANT_ID,
+                # The participant's status history (ADR-0204).
+                "target": f"{PARTICIPANT_ID}/statuses",
+                "context": CASE_ID,
             },
             prev_log_hash=prev_hash,
             received_at=ACT_AT,
@@ -2252,7 +2254,9 @@ def _make_participant_status_entry_with_states(
                     "vfState": vf_state,
                     "context": CASE_ID,
                 },
-                "target": {"id": participant_id},
+                # The participant's status history (ADR-0204).
+                "target": f"{participant_id}/statuses",
+                "context": CASE_ID,
             },
             prev_log_hash=prev_hash,
             received_at=ACT_AT,

@@ -614,7 +614,8 @@ def test_fix_readiness_row_reads_as_specified(table):
     )
     assert row == (
         "| a Vendor has a fix ready"
-        " | `Add(ParticipantStatus)[target=CaseParticipant]`"
+        " | `Add(ParticipantStatus)[target=OrderedCollection,"
+        " context=VulnerabilityCase]`"
         " | the CASE_MANAGER"
         " | the CASE_MANAGER or the Case Owner or the participant status's"
         " author (usually: vendor)"

@@ -27,6 +27,8 @@ class as_ObjectType(StrEnum):
     TOMBSTONE = "Tombstone"
     RELATIONSHIP = "Relationship"
     PLACE = "Place"
+    # collections
+    ORDERED_COLLECTION = "OrderedCollection"
 
 
 as_ActorType = VultronActorType

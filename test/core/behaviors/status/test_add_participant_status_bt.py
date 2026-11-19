@@ -920,7 +920,7 @@ class TestAddParticipantStatusTree:
 
         activity = add_status_to_participant_activity(
             status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -976,7 +976,7 @@ class TestAddParticipantStatusTree:
         """Unknown sender → SenderIsParticipantNode fails, tree halts."""
         activity = add_status_to_participant_activity(
             status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -1034,7 +1034,7 @@ class TestAddParticipantStatusTree:
             status=make(
                 as_ParticipantStatus, id_=cm_status_id, context=CASE_ID
             ),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=CM_PARTICIPANT_ID,
                 context=CASE_ID,
@@ -1091,7 +1091,7 @@ class TestAddParticipantStatusTree:
         # CASE_MANAGER_ID is NOT CASE_OWNER — SenderIsCaseOwnerNode returns FAILURE → call-out fires
         cm_activity = add_status_to_participant_activity(
             status=cm_status,
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=CM_PARTICIPANT_ID,
                 context=CASE_ID,
@@ -1151,7 +1151,7 @@ class TestAddParticipantStatusTree:
         (RSH-01-004, RSH-03-001); the CS.P-only predecessor must be gone."""
         activity = add_status_to_participant_activity(
             status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -1203,7 +1203,7 @@ class TestAddParticipantStatusTree:
         """
         activity = add_status_to_participant_activity(
             status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -1255,7 +1255,7 @@ class TestAddParticipantStatusTree:
         in the tree (RSH-01-001, RSH-04-006)."""
         activity = add_status_to_participant_activity(
             status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -1328,7 +1328,7 @@ class TestNoAutoCloseSequenceInTree:
         """AutoCloseSequence must not appear in add_participant_status_tree."""
         activity = add_status_to_participant_activity(
             status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -1366,7 +1366,7 @@ class TestNoAutoCloseSequenceInTree:
 
         activity = add_status_to_participant_activity(
             status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -1618,7 +1618,7 @@ class TestRejectionValidatorBeforeCommit:
 
         activity = add_status_to_participant_activity(
             status=incoming_status,
-            target=vendor_participant,
+            participant=vendor_participant,
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
             context=make(
@@ -1718,7 +1718,7 @@ class TestRejectionValidatorBeforeCommit:
 
         activity = add_status_to_participant_activity(
             status=incoming_status,
-            target=vendor_participant,
+            participant=vendor_participant,
             actor=ACTOR_ID,
             context=make(
                 as_VulnerabilityCase,
@@ -1973,7 +1973,7 @@ class TestAddParticipantStatusTeardownWiring:
         """ThreatTerminationBranchNode must appear in add_participant_status_tree."""
         activity = add_status_to_participant_activity(
             status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -2010,7 +2010,7 @@ class TestAddParticipantStatusTeardownWiring:
         """ThreatTerminationBranchNode must follow EmitCaseStatusUpdateNode in traversal order."""
         activity = add_status_to_participant_activity(
             status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -2052,7 +2052,7 @@ class TestAddParticipantStatusTeardownWiring:
         """TeardownOrSkip must be a FailureIsSuccess decorator."""
         activity = add_status_to_participant_activity(
             status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -2119,7 +2119,7 @@ def _pxa_report(
             context=CASE_ID,
             case_status=embedded,
         ),
-        target=make(
+        participant=make(
             as_CaseParticipant,
             id_=participant_id,
             context=CASE_ID,
@@ -2355,7 +2355,7 @@ class TestAdoptedPxaReachesTheCaseStatus:
                 id_=f"{PARTICIPANT_ID}/statuses/none",
                 context=CASE_ID,
             ),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,
@@ -2962,7 +2962,7 @@ class TestReceiveVendorPathNotices:
                 rm=RmDimension(state=RM.ACCEPTED),
                 **dimensions,
             ),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 context=CASE_ID,

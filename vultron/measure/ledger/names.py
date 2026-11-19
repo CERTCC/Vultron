@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from vultron.core.display import friendly_name
+from vultron.core.models.status_history import status_history_owner_or_none
 from vultron.core.models.type_terms import body_type_terms, names_type
 from vultron.measure.ledger.fields import payload_of
 
@@ -325,12 +326,17 @@ class EntryReferences:
 
 
 def _ref_and_type(value: object) -> tuple[str | None, str | None]:
-    """The id and wire type of an inline object, or the id a string names."""
+    """The id and wire type of an inline object, or the id a string names.
+
+    A status history names the record it belongs to (ADR-0204), so a status
+    ``Add`` reads as added to that participant or case.
+    """
     if isinstance(value, str):
-        return value, None
+        return status_history_owner_or_none(value) or value, None
     if not isinstance(value, dict):
         return None, None
     ref = value.get("id") or value.get("id_")
+    ref = status_history_owner_or_none(ref) or ref
     # A type list names its own type first (VM-03-005, ADR-0196).
     terms = body_type_terms(value)
     obj_type = terms[0] if terms else None
