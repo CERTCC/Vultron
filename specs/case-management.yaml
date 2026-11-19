@@ -12294,10 +12294,11 @@ groups:
       replaced, because a sender that holds a partial or stale view of the item would
       otherwise erase entries it cannot see (ADR-0187).
     verification: >-
-      A test marked `CM-34-007` admits an update that supplies only `ids`, holding one
-      new entry with `system_name` `CVE`, to an item that has a `title` and another
-      identifier, and asserts the item keeps its `title` and its other identifier and
-      gains the `CVE` entry.
+      A test marked `CM-34-007` admits an update that supplies a new `title` and an
+      `ids` list holding one new entry with `system_name` `CVE`, to an item that has a
+      `title`, a note and another identifier, and asserts the item's `title` is the
+      supplied one, its note is kept, and its `ids` hold the other identifier and the
+      `CVE` entry.
     adr:
     - ADR-0187
     relationships:
@@ -12354,23 +12355,27 @@ groups:
     stories:
     - story_2022_030
   - id: CM-34-011
-    priority: MUST_NOT
+    priority: MUST
     kind: protocol
     statement: >-
-      An admitted update of a case-file object MUST NOT remove a list entry. Each
-      supplied entry the list lacks is appended after the entries it holds.
+      On admitting an offered update of a case-file object, the CASE_MANAGER MUST keep
+      held list entries and append each supplied entry a list lacks.
     rationale: >-
-      Participants send updates from views that may be partial, such as a case preview
-      (ADR-0217), or stale, and two may update one object at once. Replacing a list
-      would then drop entries silently; a merge keeps every admitted entry whatever
-      order the updates arrive in. Taking an entry out needs an explicit act that names
-      it, which no message defines yet (ADR-0187).
+      A sender's view may be partial, such as a case preview (ADR-0217), or stale, and
+      two updates may cross, so replacing a list would drop entries silently. An entry
+      equal to a held one, or a reference with a held one's id, is not added again.
+      Taking an entry out needs an act that names it, as removing a note from a case
+      does; none exists yet for an item's lists (ADR-0187). A replica copies the result
+      the ledger carries, so this binds only the admission.
     verification: >-
       A test marked `CM-34-011` admits two updates of one item that each add a
       different identifier, in both orders, and asserts the item ends with its original
-      identifiers in their order followed by both new ones, none repeated; and admits
-      an update whose `notes` omit a held note and asserts the note is kept.
+      identifiers in their order followed by both new ones; admits an update whose
+      `ids` hold one held identifier and one new one, and asserts the held one appears
+      once; and admits an update whose `notes` hold only a new note, and asserts the
+      item keeps its held note and gains the new one.
     adr:
     - ADR-0187
+    - ADR-0217
     stories:
     - story_2022_030
