@@ -246,6 +246,7 @@ def test_each_negative_part_is_a_harm_by_vendor_with_its_size(two_vendors):
     assert "not a broken desideratum" in HARM_NOTE
 
 
+@pytest.mark.spec("SHD-03-004")
 def test_the_record_says_how_to_show_each_band(two_vendors):
     assert [b.band for b in two_vendors.bands] == list(BAND_ORDER)
     harm_free, trade_off, unhelpful = two_vendors.bands
@@ -256,7 +257,8 @@ def test_the_record_says_how_to_show_each_band(two_vendors):
     assert unhelpful.collapsed and unhelpful.colour_map is None
     assert two_vendors.help_text == HELP_TEXT
     assert HELP_TEXT == (
-        "Choose the darkest move in the highest band that has one."
+        "Prefer the harm-free band; inside a band, moves at the 'better' end"
+        " are dominated by no other move."
     )
 
 

@@ -126,6 +126,24 @@ describe('the handleEntry default branch', () => {
     expect(s.eventLog).toContain(`  ↳ engage_case: ${renderPhrase('engage_case', { actor: 'Vendor' })}`)
   })
 
+  it('fills the phrase\'s target slot from the activity\'s target, not its object', () => {
+    const s = replay(
+      ledgerEntry(1, 'offer_case_participant_role', {
+        type: 'Offer',
+        actor: ACTORS.manager,
+        object: { type: 'CaseParticipantRole' },
+        target: { id: ACTORS.reporter, type: 'Person' },
+      })
+    )
+    expect(s.eventLog).toContain(
+      `  ↳ offer_case_participant_role: ${renderPhrase('offer_case_participant_role', {
+        actor: 'Case Manager',
+        object: 'case participant role',
+        target: 'Reporter',
+      })}`
+    )
+  })
+
   it('draws an unregistered type as an unrecognized node in its actor\'s lane', () => {
     const s = replay(ledgerEntry(1, 'frobnicate_case', { type: 'Frobnicate', actor: ACTORS.vendor }))
     const node = s.timelineEvents.find((e) => e.id.endsWith('/log/1-decision'))

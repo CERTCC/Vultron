@@ -11,7 +11,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The states a ledger has reached at its last entry (``derive_case``)."""
+"""The states a ledger has reached at its last entry (``derive_case``), and
+at each entry (``derive_case_steps``)."""
 
 import pytest
 
@@ -30,7 +31,7 @@ from test.measure.history.builders import (
     seat_vendor,
     status,
 )
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.rm import RM
@@ -41,6 +42,7 @@ from vultron.measure.history import (
     ReachedParticipant,
     ReachedState,
     derive_case,
+    derive_case_steps,
 )
 
 _S = EmbargoRegisterStatus
@@ -93,7 +95,11 @@ def test_each_participant_keeps_the_last_state_it_reached():
     ]
     vendor = reached.for_participant(VENDOR)
     assert vendor == ReachedParticipant(
-        participant=VENDOR, rm=RM.VALID, roles=("VENDOR",), joined=True
+        participant=VENDOR,
+        rm=RM.VALID,
+        vf=CS_vf.Vf,
+        roles=("VENDOR",),
+        joined=True,
     )
     manager = reached.for_participant(CM)
     assert manager is not None and manager.rm is RM.ACCEPTED
@@ -375,3 +381,59 @@ def test_with_no_stated_case_roles_every_role_named_is_reached():
     )
     vendor = _reached(ledger).for_participant(VENDOR)
     assert vendor is not None and vendor.roles == ("VENDOR",)
+
+
+@pytest.mark.spec("CEH-04-003")
+@pytest.mark.spec("CEH-04-004")
+def test_a_vendor_and_deployer_reaches_its_fix_path_and_deployment():
+    ledger = Ledger()
+    ledger.standard_genesis()
+    seat_vendor(ledger, VENDOR, "Vf", deployer=True)
+    ledger.add_status(
+        VENDOR,
+        status(
+            "v-f",
+            VENDOR,
+            "RECEIVED",
+            vf="VF",
+            d="D",
+            roles=("VENDOR", "DEPLOYER"),
+        ),
+    )
+    vendor = _reached(ledger).for_participant(VENDOR)
+    assert vendor is not None
+    assert (vendor.vf, vendor.d) == (CS_vf.VF, CS_d.D)
+
+
+def test_a_fix_path_behind_the_one_reached_is_not_reached():
+    ledger = Ledger()
+    ledger.standard_genesis()
+    seat_vendor(ledger, VENDOR, "VF")
+    ledger.add_status(VENDOR, status("v-back", VENDOR, "RECEIVED", vf="Vf"))
+    vendor = _reached(ledger).for_participant(VENDOR)
+    assert vendor is not None and vendor.vf is CS_vf.VF
+
+
+def test_the_steps_hold_one_state_per_entry_and_end_where_the_case_does():
+    ledger = Ledger()
+    ledger.standard_genesis()
+    seat_vendor(ledger, VENDOR, "Vf")
+    ledger.add_status(VENDOR, status("v-v", VENDOR, "VALID", vf="Vf"))
+    case_ledger = ledger.case_ledger()
+    history, steps = derive_case_steps(case_ledger)
+    assert len(steps) == len(case_ledger.rows)
+    assert (history, steps[-1]) == derive_case(case_ledger)
+    assert steps[0].for_participant(VENDOR) is None
+    seated = steps[1].for_participant(VENDOR)
+    assert seated is not None and seated.rm is RM.RECEIVED
+    validated = steps[2].for_participant(VENDOR)
+    assert validated is not None and validated.rm is RM.VALID
+
+
+def test_a_ledger_with_no_row_reaches_the_starting_state():
+    case_ledger = Ledger()
+    case_ledger.standard_genesis()
+    empty = case_ledger.case_ledger().model_copy(update={"rows": []})
+    history, steps = derive_case_steps(empty)
+    assert steps == []
+    assert derive_case(empty) == (history, ReachedState())

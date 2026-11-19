@@ -4,19 +4,25 @@ Every state has a badge, every desideratum reads in words, the move advice
 reads band by band with each vendor's harm on its own (#6603), and a gap or
 a reader's report reads as lines and rows.
 
-Spec: SHD-01-004, SHD-03-002.
+The case narrative reads one row per ledger entry, its state changes in
+words and a flag the source cannot observe as unknown (#6670).
+
+Spec: SHD-01-004, SHD-03-002, CRD-02-005, DRPT-03-009.
 """
 
+from datetime import UTC, datetime
 from fractions import Fraction
 
 import pytest
 from pydantic import ValidationError
 
+from test.adapters.connectors.vince._support import ACTIVE, translate
 from test.measure.history.builders import (
     VENDOR as BUILT_VENDOR,
     VENDOR_2 as BUILT_VENDOR_2,
     two_vendors_ledger,
 )
+from vultron.core.models._helpers import format_timestamp
 from vultron.core.models.case_reading import (
     CaseReading,
     UnobservableFact,
@@ -26,8 +32,13 @@ from vultron.core.models.case_reading import (
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    derive_em,
+)
 from vultron.core.states.rm import RM
 from vultron.demo.recordings.layout import RECORDINGS_DIR
+from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.advice import (
     BAND_ORDER,
     CHANCE_EVENT,
@@ -43,8 +54,13 @@ from vultron.measure.advice import (
     VendorShift,
     case_advice,
 )
-from vultron.measure.history import UnreadableEntry
-from vultron.measure.ledger import UnusableRow
+from vultron.measure.history import (
+    NarrativeLine,
+    StateChange,
+    StateMachine,
+    UnreadableEntry,
+)
+from vultron.measure.ledger import MISSING_SLOT, UNNAMED_ACTOR, UnusableRow
 from vultron.measure.sequences import (
     UnprojectableParticipant,
     UnprojectableReason,
@@ -416,6 +432,79 @@ def test_a_shade_reads_as_a_cells_css():
     )
 
 
+@pytest.mark.parametrize("deepest", [1, 2, 4])
+def test_a_legend_is_each_layers_shade_from_better_to_dominated(deepest):
+    """#6673 AC-1: one cell per layer, each the shade that layer's rows
+    take, layer 1 at the dark end."""
+    for colour_map in ColourMap:
+        legend = view.band_legend_shades(colour_map, deepest)
+        assert legend == tuple(
+            view.shade(colour_map, layer, deepest)
+            for layer in range(1, deepest + 1)
+        )
+        assert legend[0].background == view.COLOUR_STOPS[colour_map][0]
+        if deepest > 1:
+            assert legend[-1].background == view.COLOUR_STOPS[colour_map][-1]
+
+
+def test_a_legend_needs_a_layer():
+    with pytest.raises(ValueError):
+        view.band_legend_shades(ColourMap.VIRIDIS, 0)
+
+
+@pytest.mark.spec("SHD-03-003")
+def test_a_bands_legend_holds_each_layers_shade_in_its_own_map(advice):
+    """#6673 AC-1: each shaded band's legend is drawn from its own map, and
+    every row's shade is its layer's cell on that legend."""
+    deepest = max(m.layer or 1 for m in advice.moves)
+    views = _views(advice)
+    for band in advice.bands[:2]:
+        assert band.colour_map is not None
+        band_view = views[band.band]
+        assert band_view.legend == view.band_legend_shades(
+            band.colour_map, deepest
+        )
+        for move, row_shade in zip(band.moves, band_view.shades, strict=True):
+            assert row_shade == band_view.legend[(move.layer or 0) - 1]
+    assert views[Band.HARM_FREE].legend != views[Band.TRADE_OFF].legend
+    assert views[Band.UNHELPFUL].legend == ()
+
+
+def test_a_shaded_band_has_a_legend_holding_its_rows_shades():
+    """A shaded band's legend is not optional, and a row shade that is not
+    on it is refused; the unhelpful band has none."""
+    dark, light = view.band_legend_shades(ColourMap.VIRIDIS, 2)
+    row: view.Row = {"Layer": 1}
+    with pytest.raises(ValueError, match="a shaded band has a legend"):
+        view.BandView(
+            band=Band.HARM_FREE,
+            title="Harm-free",
+            collapsed=False,
+            rows=(row,),
+            shades=(dark,),
+            empty="none",
+        )
+    with pytest.raises(ValueError, match="not on the legend"):
+        view.BandView(
+            band=Band.HARM_FREE,
+            title="Harm-free",
+            collapsed=False,
+            rows=(row,),
+            shades=(view.shade(ColourMap.CIVIDIS, 1, 2),),
+            legend=(dark, light),
+            empty="none",
+        )
+    with pytest.raises(ValueError, match="the unhelpful band has no legend"):
+        view.BandView(
+            band=Band.UNHELPFUL,
+            title="Unhelpful",
+            collapsed=True,
+            rows=(),
+            legend=(dark,),
+            empty="none",
+        )
+
+
 _SHADE = view.Shade(background="#440154", text="#ffffff")
 
 
@@ -469,7 +558,17 @@ def test_a_harm_free_move_shows_its_embargo_harm():
     assert row["Mark"] == view.TOP_MARK
 
 
+def _register_problem() -> str:
+    """The words :func:`derive_em` gives a register with two active entries."""
+    with pytest.raises(VultronInvalidStateTransitionError) as raised:
+        derive_em([EmbargoRegisterStatus.ACTIVE, EmbargoRegisterStatus.ACTIVE])
+    return str(raised.value)
+
+
 def test_every_kind_of_hole_reads_as_a_line(tmp_path):
+    """The register problem reads once, in derive_em's own words, never
+    behind a second "Embargo register:"."""
+    problem = _register_problem()
     gap = StandingGap(
         missing_log_indices=[2],
         conflicting_log_indices=[4],
@@ -477,14 +576,14 @@ def test_every_kind_of_hole_reads_as_a_line(tmp_path):
             UnusableRow(path=tmp_path / "x.jsonl", line=3, reason="not JSON")
         ],
         unreadable_entries=[UnreadableEntry(log_index=5, reason="no stamp")],
-        register_problem="two active embargoes",
+        register_problem=problem,
     )
     lines = view.gap_lines(gap)
     assert lines[0] == "Missing log indices: [2]"
     assert lines[1] == "Conflicting log indices: [4]"
     assert "not JSON" in lines[2]
     assert lines[3] == "Unreadable entry at log index 5: no stamp"
-    assert lines[4] == "Embargo register: two active embargoes"
+    assert lines[4] == problem
 
 
 @pytest.mark.spec("SHD-01-004")
@@ -528,3 +627,215 @@ def test_the_readers_report_reads_as_rows():
         },
     ]
     assert view.inference_rows(reading) == []
+
+
+# -- the case narrative (#6670) -----------------------------------------
+
+
+def _line(**fields) -> NarrativeLine:
+    return NarrativeLine(
+        **{"log_index": 0, "phrase": "Vendor did a thing", **fields}
+    )
+
+
+_T0 = datetime(2026, 1, 1, tzinfo=UTC)
+_T1 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=UTC)
+
+
+def test_each_narrative_line_reads_as_a_row_keyed_by_its_log_index():
+    """AC-1 and AC-2: one row per line, in order, by log index."""
+    analysis = _analysis()
+    rows = view.narrative_rows(analysis.narrative, analysis.actor_names)
+    assert [row["#"] for row in rows] == [
+        line.log_index for line in analysis.narrative
+    ]
+    assert [row["#"] for row in rows] == list(range(len(rows)))
+    assert all(row["Activity"] and row["Actor"] for row in rows)
+    assert "Notes" not in rows[0]
+
+
+def test_a_row_shows_the_commit_stamp_only_where_it_differs():
+    same, later, unclaimed = view.narrative_rows(
+        [
+            _line(claimed_at=_T0, committed_at=_T0),
+            _line(log_index=1, claimed_at=_T0, committed_at=_T1),
+            _line(log_index=2, committed_at=_T1),
+        ],
+        {},
+    )
+    assert (same["Time"], same["Committed"]) == (format_timestamp(_T0), "")
+    assert (later["Time"], later["Committed"]) == (
+        format_timestamp(_T0),
+        format_timestamp(_T1),
+    )
+    assert (unclaimed["Time"], unclaimed["Committed"]) == (
+        MISSING_SLOT,
+        format_timestamp(_T1),
+    )
+
+
+def test_a_row_names_who_did_what_to_what():
+    (row,) = view.narrative_rows(
+        [_line(actor="Vendor", object="note → case")], {}
+    )
+    assert (row["Actor"], row["Activity"], row["Object"]) == (
+        "Vendor",
+        "Vendor did a thing",
+        "note → case",
+    )
+    (bare,) = view.narrative_rows([_line()], {})
+    assert (
+        bare["Time"],
+        bare["Committed"],
+        bare["Actor"],
+        bare["Object"],
+        bare["State changes"],
+    ) == (MISSING_SLOT, "", MISSING_SLOT, MISSING_SLOT, "")
+
+
+def test_every_state_change_reads_in_words_with_its_participant():
+    changes = (
+        StateChange(
+            machine=StateMachine.RM,
+            participant=VENDOR,
+            before="RECEIVED",
+            after="VALID",
+        ),
+        StateChange(machine=StateMachine.EM, before="ACTIVE", after="REVISE"),
+        StateChange(
+            machine=StateMachine.VFD,
+            participant=VENDOR,
+            before="Vfd",
+            after="VFd",
+        ),
+        StateChange(machine=StateMachine.PXA, before="pxa", after="Pxa"),
+    )
+    (row,) = view.narrative_rows([_line(changes=changes)], NAMES)
+    assert row["State changes"] == "; ".join(
+        [
+            f"Vendor RM: {view.RM_BADGES[RM.RECEIVED]} →"
+            f" {view.RM_BADGES[RM.VALID]}",
+            f"EM: {view.EM_BADGES[EM.ACTIVE]} → {view.EM_BADGES[EM.REVISE]}",
+            "Vendor VFD: Vfd → VFd",
+            "PXA: pxa → Pxa",
+        ]
+    )
+
+
+@pytest.mark.spec("DRPT-03-009")
+def test_a_participant_with_an_opaque_id_never_reads_as_its_id():
+    opaque = "urn:uuid:8128411c-198e-50d1-bf2f-000000000001"
+    change = StateChange(
+        machine=StateMachine.RM,
+        participant=opaque,
+        before="START",
+        after="RECEIVED",
+    )
+    text = view.change_text(change, {})
+    assert opaque not in text
+    assert text.startswith(f"{UNNAMED_ACTOR} RM: ")
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_a_flag_the_source_cannot_observe_reads_as_unknown():
+    unobservable = frozenset({CSEvent.F, CSEvent.D})
+    assert view.cs_spelling("vfd", unobservable) == "v??"
+    assert view.cs_spelling("Vfd", unobservable) == "V??"
+    assert view.cs_spelling("Vfd", frozenset()) == "Vfd"
+    assert view.cs_spelling("pXa", frozenset({CSEvent.A})) == "pX?"
+    change = StateChange(
+        machine=StateMachine.VFD, participant=VENDOR, before="vfd", after="Vfd"
+    )
+    assert view.change_text(change, NAMES, unobservable) == (
+        "Vendor VFD: v?? → V??"
+    )
+
+
+def test_a_line_that_could_not_read_its_entry_says_why_in_notes():
+    rows = view.narrative_rows(
+        [
+            _line(),
+            _line(log_index=1, notes=("no commit stamp", "unknown type")),
+        ],
+        {},
+    )
+    assert [row["Notes"] for row in rows] == [
+        "",
+        "no commit stamp; unknown type",
+    ]
+
+
+def test_a_vince_reading_has_a_narrative_line_per_entry():
+    """AC-1: an outside-system reading reads its narrative too."""
+    reading = translate(ACTIVE)
+    analysis = analyse(reading)
+    assert [line.log_index for line in analysis.narrative] == [
+        entry.log_index for entry in reading.ledger
+    ]
+    rows = view.narrative_rows(
+        analysis.narrative, analysis.actor_names, reading.unobservable_events
+    )
+    changes = " ".join(str(row["State changes"]) for row in rows)
+    assert "EM: " in changes
+    assert "VFD: v?? → V??" in changes
+
+
+@pytest.mark.spec("DRPT-03-009")
+def test_a_vince_participant_never_reads_as_its_opaque_id():
+    """#6685: a reading whose payloads name no actor shows no ``urn:uuid``."""
+    analysis = analyse(translate(ACTIVE))
+    assert analysis.standing is not None
+    participants = analysis.standing.participants
+    rows = view.participant_rows(participants, analysis.actor_names)
+    assert rows
+    assert {row["Participant"] for row in rows} == {UNNAMED_ACTOR}
+    assert all(str(row["Actor"]).startswith("urn:uuid:") for row in rows)
+    columns = view.desiderata_rows(participants, analysis.actor_names)
+    assert len(columns) == 12
+    for row in columns:
+        vendor_columns = [c for c in row if c not in ("Desideratum", "Events")]
+        assert len(set(vendor_columns)) == len(vendor_columns)
+        assert all(c.startswith(UNNAMED_ACTOR) for c in vendor_columns)
+
+
+@pytest.mark.spec("DRPT-03-009")
+def test_a_move_and_a_harm_by_an_unnamed_actor_read_as_unnamed():
+    """#6685: the move tables and the harm text name an opaque id as
+    unnamed, as the participants table does."""
+    opaque = "urn:uuid:1e7a421f-b727-4c1d-9a3e-0f6b2c9d8e71"
+    move = RMMove(participant=opaque, source=RM.RECEIVED, destination=RM.VALID)
+    advice = CaseAdvice(
+        case_id="urn:uuid:case-1",
+        end_confirmed=True,
+        vendors=(opaque,),
+        bands=tuple(BandAdvice.of(b, []) for b in BAND_ORDER),
+        unbanded=(UnbandedMove(move=move, reason="it waits"),),
+    )
+    (row,) = view.unbanded_rows(advice, {})
+    assert row["Who"] == UNNAMED_ACTOR
+    advised = AdvisedMove(
+        move=move,
+        shift=(
+            VendorShift(
+                vendor=opaque, end=Fraction(1, 4), embargo=Fraction(-1, 8)
+            ),
+        ),
+        band=Band.HARM_FREE,
+        layer=1,
+        top=True,
+        leading_among_yours=False,
+        harms=(
+            VendorHarm(vendor=opaque, part=Part.EMBARGO, size=Fraction(-1, 8)),
+        ),
+    )
+    assert view.harm_text(advised, {}) == f"{UNNAMED_ACTOR}: embargo −0.125"
+
+
+def test_an_actor_with_no_name_reads_by_its_uri_or_as_unnamed():
+    assert view.actor_label(VENDOR, NAMES) == "Vendor"
+    assert view.actor_label("https://example.org/actors/reporter", {}) == (
+        "Reporter"
+    )
+    assert view.actor_label(
+        "urn:uuid:1e7a421f-b727-4c1d-9a3e-0f6b2c9d8e71", {}
+    ) == (UNNAMED_ACTOR)
