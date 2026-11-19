@@ -28,6 +28,7 @@ from pydantic.alias_generators import to_camel
 
 from test.support.act_clock import ACT_AT
 from test.support.objects import make, with_times
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_proposal_admission import (
@@ -69,10 +70,23 @@ def _entry_data() -> dict[str, Any]:
     }
 
 
+def _activity_data() -> dict[str, Any]:
+    return {
+        "type": "Offer",
+        "id": f"{_URI}/offer-1",
+        "actor": OWNER_ID,
+        "object": f"{_URI}/actor-1",
+        "published": ACT_AT,
+    }
+
+
 #: (model, valid data, a field name the model once stored and no longer does)
 _FORMER: list[tuple[type[BaseModel], dict[str, Any], str]] = [
     (VulnerabilityCase, _case_data(), "recommendation_recommender_index"),
     (CaseLedgerEntry, _entry_data(), "event_type"),
+    # An Offer's and an Invite's proposed roles are one field, ``roles``
+    # (VM-10-012, #6417).
+    (VultronActivity, _activity_data(), "suggested_roles"),
     (
         ReceivedActivityRecord,
         {

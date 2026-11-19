@@ -468,6 +468,30 @@ def test_a_former_field_name_is_set_aside_and_reported(
     _assert_set_aside_and_reported(body, key, "object", caplog)
 
 
+@pytest.mark.spec("MV-11-003", "VM-10-012")
+@pytest.mark.parametrize("key", ["suggestedRoles", "suggested_roles"])
+def test_an_offers_former_suggested_roles_key_is_set_aside_and_reported(
+    key: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An Offer carries its proposed roles as ``roles`` (#6417).
+
+    ``suggestedRoles`` is an envelope key, so it sits apart from
+    :data:`FORMER_NAME_POSITIONS`, whose names are all on the inline object.
+    The key is set aside, and it is never read as the Offer's ``roles``.
+    """
+    body = _envelope(
+        object={
+            "type": "Organization",
+            "id": "https://example.org/actors/invitee",
+            "name": "Invitee",
+        },
+        target="https://example.org/cases/1",
+        **{key: ["vendor"]},
+    )
+    _assert_set_aside_and_reported(body, key, "", caplog)
+    assert getattr(parse_activity(body), "roles", None) is None
+
+
 @pytest.mark.spec("MV-11-003", "CM-05-018")
 def test_a_vulnerability_items_cve_key_is_set_aside_and_reported(
     caplog: pytest.LogCaptureFixture,
