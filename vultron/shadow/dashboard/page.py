@@ -34,7 +34,8 @@ entries add narrative lines without moving it.
 A reader that can follow a case
 (:class:`~vultron.shadow.readers.following.CaseFollower`), the live Vultron
 case reader, is followed instead of read once: the page shows the case's new
-standing after each ledger entry arrives (#6531), and its narrative gains a
+standing after each ledger entry arrives (#6531), unless the analyst has
+picked an earlier point, and its narrative gains a
 line for it, keeping every line before it, since each reading holds every
 entry the node has sent (SHD-04-003).  The last accepted reading
 is kept in session state.  A reading the reader refuses shows its error
@@ -68,8 +69,7 @@ from vultron.measure.advice import CaseAdvice, case_advice
 from vultron.shadow.analysis import (
     CaseAnalysis,
     analyse,
-    analyse_prefix,
-    count_through,
+    point_analysis,
 )
 from vultron.shadow.dashboard import view
 from vultron.shadow.log_content import CaseLog, case_log_context
@@ -90,7 +90,8 @@ LAST_READING_KEY = "last_accepted_reading"
 #: What the page says of a followed case while it is live, and once not.
 LIVE_NOTE = (
     "Live: the page follows the case and shows its new standing, and a new"
-    " narrative line, as each ledger entry arrives."
+    " narrative line, as each ledger entry arrives. A point you picked stays"
+    " put."
 )
 NOT_LIVE_NOTE = (
     "No longer live: the case's stream has ended. The page shows the case's"
@@ -104,6 +105,12 @@ RECONNECTING_NOTE = (
 NO_ENTRY_NOTE = (
     "No longer live: the case's stream ended before it sent any ledger"
     " entry, so there is no standing to show."
+)
+
+#: What the scoreboard says when the ledger does not prove its end.
+END_UNCONFIRMED_NOTE = (
+    "The ledger does not prove its last entry is the case's last: the case"
+    " may have moved on since."
 )
 
 #: What the case narrative's table holds.
@@ -163,7 +170,12 @@ def _ask_for_case(suggestions: Sequence[str]) -> str | None:
     return choice.strip() if choice and choice.strip() else None
 
 
-def _show_standing(analysis: CaseAnalysis) -> None:
+def _show_standing(analysis: CaseAnalysis, past_point: bool = False) -> None:
+    """The scoreboard of *analysis*'s standing.
+
+    At a *past_point* the case is known to have moved on, so the page does
+    not hedge that it may have: the point note says how far.
+    """
     standing = analysis.standing
     if standing is None:
         st.warning(
@@ -187,11 +199,8 @@ def _show_standing(analysis: CaseAnalysis) -> None:
         columns[1:], view.public_badges(standing.case.pxa), strict=True
     ):
         column.metric("Public state", badge)
-    if not standing.end_confirmed:
-        st.caption(
-            "The ledger does not prove its last entry is the case's last:"
-            " the case may have moved on since."
-        )
+    if not standing.end_confirmed and not past_point:
+        st.caption(END_UNCONFIRMED_NOTE)
     st.subheader("Participants")
     _table(view.participant_rows(standing.participants, names), "None.")
     st.subheader("Desiderata")
@@ -353,8 +362,10 @@ def _picked_point(case_id: str, analysis: CaseAnalysis) -> int:
     """The log index the analyst picked for *case_id*, or
     :data:`~vultron.shadow.dashboard.view.LATEST_POINT`.
 
-    A pick this reading does not reach yet, as during a rerun's replay,
-    shows the case as it stands now and stays kept for a later reading.
+    A pick this reading does not reach yet shows the case as it stands now
+    and stays kept for a later reading: as when the analyst views another
+    case and comes back to a followed one, whose replay starts from its
+    first entry with no reading kept for it.
     """
     picked = st.session_state.get(POINT_KEY)
     if picked is None or picked[0] != case_id:
@@ -396,31 +407,18 @@ def _pick_point(case_id: str, analysis: CaseAnalysis, draw: int) -> int:
     return point
 
 
-def _point_analysis(analysis: CaseAnalysis, point: int) -> CaseAnalysis:
-    """*analysis* at *point*: the standing read from the entries up to it.
-
-    The actors keep the names the whole reading gives them, so a label
-    does not change with the point.
-    """
-    if point == view.LATEST_POINT:
-        return analysis
-    at_point = analyse_prefix(
-        analysis.reading, count_through(analysis.reading, point)
-    )
-    return at_point.model_copy(update={"actor_names": analysis.actor_names})
-
-
 def _show_reading(reading: CaseReading, case_id: str, draw: int = 0) -> None:
     """Show *reading*: the scoreboard at the picked point, the narrative and
     the reader's report.  *draw* numbers the reading's draw in this run."""
     analysis = analyse(reading)
-    shown = analysis
+    shown, past_point = analysis, False
     if analysis.narrative:
         point = _pick_point(case_id, analysis, draw)
         if point != view.LATEST_POINT:
             st.info(view.point_note(point, analysis.narrative))
-        shown = _point_analysis(analysis, point)
-    _show_standing(shown)
+            shown = point_analysis(analysis, point)
+            past_point = point != analysis.narrative[-1].log_index
+    _show_standing(shown, past_point=past_point)
     _show_narrative(analysis)
     _show_reader_report(reading)
 
@@ -495,6 +493,7 @@ def _follow(follower: CaseFollower, case_id: str, case_log: CaseLog) -> None:
 
 __all__ = [
     "CASE_KEY",
+    "END_UNCONFIRMED_NOTE",
     "HEARTBEAT_KEY",
     "LAST_READING_KEY",
     "LIVE_NOTE",

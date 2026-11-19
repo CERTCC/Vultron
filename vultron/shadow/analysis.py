@@ -29,8 +29,9 @@ The case as it stood at an earlier point is the same computation over a
 prefix of the reading: :func:`reading_prefix` keeps the reading's first
 entries, and :func:`analyse_prefix` analyses that, so the standing at a
 point is the standing of a reading that holds only those entries (#6671).
-:func:`prefix_advice` gives the move advice at a point, for a caller that
-grades an entry against the advice open before it.
+:func:`point_analysis` is that analysis as the dashboard shows it at a
+picked entry.  :func:`prefix_advice` is the move advice for a prefix, for a
+caller that grades an entry against the advice open before it.
 
 A reading is already one case's ledger in log-index order, refused whole
 otherwise (CRD-02-001), so the rows it yields are one complete copy.
@@ -192,6 +193,22 @@ def analyse_prefix(reading: CaseReading, count: int) -> CaseAnalysis:
     return analyse(reading_prefix(reading, count))
 
 
+def point_analysis(analysis: CaseAnalysis, log_index: int) -> CaseAnalysis:
+    """*analysis* at the point just after its entry at *log_index*.
+
+    The standing and narrative are :func:`analyse_prefix`'s, over the
+    entries up to and including that one.  The actors keep the names the
+    whole reading gives them, so a participant an earlier entry names only
+    by its id reads as the rest of the page names it (DRPT-03-007).
+
+    Raises:
+        ValueError: When no entry of the reading has *log_index*.
+    """
+    reading = analysis.reading
+    at_point = analyse_prefix(reading, count_through(reading, log_index))
+    return at_point.model_copy(update={"actor_names": analysis.actor_names})
+
+
 def prefix_advice(reading: CaseReading, count: int) -> CaseAdvice | None:
     """The move advice open just after *reading*'s *count*-th entry.
 
@@ -217,6 +234,7 @@ __all__ = [
     "analyse",
     "analyse_prefix",
     "count_through",
+    "point_analysis",
     "prefix_advice",
     "reading_ledger",
     "reading_prefix",

@@ -37,6 +37,7 @@ from vultron.shadow.analysis import (
     analyse,
     analyse_prefix,
     count_through,
+    point_analysis,
     prefix_advice,
     reading_ledger,
     reading_prefix,
@@ -261,13 +262,17 @@ def test_a_prefix_keeps_what_its_entries_carry_and_the_reader_report():
 @pytest.mark.spec("CRD-02-005")
 def test_an_unobservable_event_reads_as_unknown_at_every_point():
     whole = _recorded_with(_NO_FIX)
-    for count in (3, len(whole.ledger) // 2):
+    for count in (20, len(whole.ledger) // 2):
         standing = analyse_prefix(whole, count).standing
         assert standing is not None
-        for p in standing.participants:
-            for d in p.desiderata:
-                if {CSEvent.F, CSEvent.D} & {d.before, d.after}:
-                    assert d.status is DesideratumStatus.UNKNOWN
+        over_fix = [
+            d
+            for p in standing.participants
+            for d in p.desiderata
+            if {CSEvent.F, CSEvent.D} & {d.before, d.after}
+        ]
+        assert over_fix, f"no desideratum over F or D after {count} entries"
+        assert all(d.status is DesideratumStatus.UNKNOWN for d in over_fix)
 
 
 def test_a_prefix_before_a_hole_has_a_standing_and_one_past_it_has_none(
@@ -306,3 +311,20 @@ def test_the_prefix_through_an_entry_ends_with_it():
     )
     with pytest.raises(ValueError, match="no ledger entry at 9999"):
         count_through(whole, 9999)
+
+
+def test_a_point_reads_its_prefix_and_keeps_the_whole_readings_names():
+    """The dashboard's point: the prefix's standing, with the names the
+    whole reading gives its actors, which its first entries do not."""
+    whole = analyse(
+        VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RECORDING))
+    )
+    log_index = whole.reading.ledger[3].log_index
+    prefix = analyse_prefix(whole.reading, 4)
+    assert prefix.actor_names != whole.actor_names
+    at_point = point_analysis(whole, log_index)
+    assert at_point.standing == prefix.standing
+    assert at_point.narrative == prefix.narrative
+    assert at_point.actor_names == whole.actor_names
+    with pytest.raises(ValueError, match="no ledger entry at 9999"):
+        point_analysis(whole, 9999)

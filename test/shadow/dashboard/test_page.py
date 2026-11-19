@@ -30,6 +30,7 @@ from vultron.measure.advice import (
 )
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
+    END_UNCONFIRMED_NOTE,
     HEARTBEAT_KEY,
     LAST_READING_KEY,
     LIVE_NOTE,
@@ -336,7 +337,10 @@ def _scoreboard(at: AppTest) -> dict[str, object]:
     of its tables, ``None`` for one it draws empty."""
     shown: dict[str, object] = {
         "metrics": _texts(at.metric),
-        "captions": _texts(at.caption),
+        # A past point does not hedge on the case's end, as a cut file must.
+        "captions": [
+            c for c in _texts(at.caption) if c != END_UNCONFIRMED_NOTE
+        ],
     }
     for frame in at.dataframe:
         columns = frame.value.columns.tolist()
@@ -405,6 +409,22 @@ def test_picking_now_shows_where_the_case_stands_again(recordings_app):
     assert POINT_KEY not in at.session_state
     assert _scoreboard(at) == now
     assert not any("just after entry" in i for i in _texts(at.info))
+
+
+def test_a_past_point_does_not_hedge_that_the_case_may_have_moved_on():
+    """The fake case's end is unproven: its last entry hedges, and an
+    earlier point, after which the case is known to move on, does not."""
+    at = AppTest.from_string(_FAKE_PAGE, default_timeout=_TIMEOUT).run()
+    at.text_input[0].input("urn:uuid:case-1").run()
+    assert END_UNCONFIRMED_NOTE in _texts(at.caption)
+    picker = _point_picker(at)
+    first, *_, last = picker.options[1:]
+    picker.select(last).run()
+    assert not at.exception
+    assert END_UNCONFIRMED_NOTE in _texts(at.caption)
+    _point_picker(at).select(first).run()
+    assert not at.exception
+    assert END_UNCONFIRMED_NOTE not in _texts(at.caption)
 
 
 @pytest.mark.parametrize(
@@ -512,7 +532,7 @@ def test_the_untranslated_facts_are_shown_beside_the_analysis():
         "Fix deployed (D)"
     ]
     # Nothing proves the fake case's last entry is its last.
-    assert any("may have moved on since" in c for c in _texts(at.caption))
+    assert END_UNCONFIRMED_NOTE in _texts(at.caption)
 
 
 def test_a_blank_case_is_no_case():
