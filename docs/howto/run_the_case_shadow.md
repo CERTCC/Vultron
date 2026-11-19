@@ -146,16 +146,7 @@ Below the scoreboard, **Case narrative** tells who did what, when, and which sta
 The tool reads each line from the ledger; nobody writes it by hand.
 
 - **#** is the entry's log index.
-- **Hindsight** grades the step the entry took against the move advice that was open just before it.
-  ⭐ **best** is a layer-1 move of the first band, harm-free then trade-off, that holds any move, so a trade-off move is best when no harm-free move was open.
-  👍 **good** is any other harm-free move, and ⚠️ **sub-optimal** any other trade-off move.
-  ➖ **neutral** is an unhelpful move that changes no Vendor's values, or a move that keeps every state, such as a second embargo proposal.
-  👎 **bad** is an unhelpful move that leaves a Vendor below the chance value.
-  Two marks grade nothing: 🎲 is an event no participant chooses, such as an exploit made public, and 💬 is an act that is not a move, such as a note, or a participant's answer to an embargo invitation.
-  Making the vul public is a participant's move, so the entry that first makes the case public is graded like any other move.
-  When an exploit was already public, the public's awareness follows from it, so that entry is 🎲.
-  The ledger does not record whether the public learned of the vul from a participant's publication or from a leak, so a leak with no public exploit before it is graded as a publication.
-  The icons differ in shape, so you can read them without color; a best, good or sub-optimal mark also takes the shade its layer has on its band's legend.
+- **Hindsight** grades the step the entry took against the move advice that was open just before it, as the table after this list shows.
 - **Hindsight note** names the move the mark graded, and says why a line is not graded.
   A sub-optimal move that a harm-free move beats says that a harm-free move did as well.
 - **Time** is the time the actor's activity claims, and **Committed** shows the Case Manager's commit stamp only where it differs.
@@ -163,6 +154,22 @@ The tool reads each line from the ledger; nobody writes it by hand.
 - **State changes** lists each state the entry moved: a participant's report state (RM) and its fix path and deployment (VFD), and the case's embargo state (EM) and public state (PXA).
   A `?` in a VFD or PXA state is an event the source never records, which the page reads as unknown.
 - **Notes**, when shown, says what the tool could not read in an entry.
+
+| Mark | The step the entry took |
+|---|---|
+| ⭐ best | A layer-1 move of the first band, harm-free then trade-off, that holds any move, so a trade-off move is best when no harm-free move was open. |
+| 👍 good | Any other harm-free move. |
+| ⚠️ sub-optimal | Any other trade-off move. |
+| ➖ neutral | An unhelpful move that changes no Vendor's values, or a move that keeps every state, such as a second embargo proposal. |
+| 👎 bad | An unhelpful move that leaves a Vendor below the chance value. |
+| 🎲 not graded | An event no participant chooses, such as an exploit made public. |
+| 💬 not graded | An act that is not a move, such as a note, or a participant's answer to an embargo invitation. |
+
+The icons differ in shape, so you can read them without color.
+A best, good or sub-optimal mark also takes the shade its layer has on its band's legend.
+Making the vul public is a participant's move, so the entry that first makes the case public is graded like any other move.
+When an exploit was already public, the public's awareness follows from it, so that entry is 🎲.
+The ledger does not record whether the public learned of the vul from a participant's publication or from a leak, so a leak with no public exploit before it is graded as a publication.
 
 To see whether a better move was open earlier, pick a narrative line in **Show the case as it stood just after**, above the scoreboard.
 The scoreboard then shows the case as it stood just after that entry: its states and their maps, its participants and their tabs, its desiderata, and its move bands with their color legends, worked out from the entries up to that line only.
