@@ -578,15 +578,15 @@ def test_the_full_desiderata_table_follows_the_picked_point(recordings_app):
     table = at_point["Desideratum"]
     assert isinstance(table, dict)
     assert len(table["Desideratum"]) == len(scope_desiderata())
-    assert DESIDERATA_NOTE in at_point["captions"]
-    assert (
-        _vendor_status(at_point, "ExOwn ≺ P")
-        == (DESIDERATUM_BADGES[DesideratumStatus.OPEN])
+    captions = at_point["captions"]
+    assert isinstance(captions, list)
+    assert DESIDERATA_NOTE in captions
+    open_, broken = (
+        DESIDERATUM_BADGES[DesideratumStatus.OPEN],
+        DESIDERATUM_BADGES[DesideratumStatus.BROKEN],
     )
-    assert (
-        _vendor_status(now, "ExOwn ≺ P")
-        == (DESIDERATUM_BADGES[DesideratumStatus.BROKEN])
-    )
+    assert _vendor_status(at_point, "ExOwn ≺ P") == open_
+    assert _vendor_status(now, "ExOwn ≺ P") == broken
 
 
 def _legend_cells(at: AppTest) -> dict[str, list[str]]:
