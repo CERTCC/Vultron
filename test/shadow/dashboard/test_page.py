@@ -33,7 +33,7 @@ from vultron.measure.advice import (
     case_advice,
 )
 from vultron.measure.baselines import scope_desiderata
-from vultron.measure.standing import case_standing
+from vultron.measure.standing import DesideratumStatus, case_standing
 from vultron.shadow.analysis import analyse, point_analysis
 from vultron.shadow.dashboard import minimap, view
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
@@ -51,6 +51,7 @@ from vultron.shadow.dashboard.page import (
 from vultron.shadow.dashboard.view import (
     BAND_EMPTY,
     DESIDERATA_NOTE,
+    DESIDERATUM_BADGES,
     EM_BADGES,
     LATEST_POINT,
     LEADING_MARK,
@@ -553,6 +554,39 @@ def test_picking_a_narrative_line_shows_the_case_just_after_it(
     assert at_point == _scoreboard(_cut_page(tmp_path, _RCVV, log_index + 1))
     entries = recording_rows(_RCVV)
     assert len(_table(at, "Case narrative")) == len(entries)
+
+
+def _vendor_status(board: dict[str, object], events: str) -> str:
+    """The first vendor's status for the desideratum *events* names."""
+    table = board["Desideratum"]
+    assert isinstance(table, dict)
+    return str(table["Vendor"][table["Events"].index(events)])
+
+
+def test_the_full_desiderata_table_follows_the_picked_point(recordings_app):
+    """#6669 with #6671: at a picked point the desiderata table still holds
+    every desideratum move advice sums, under its caption, and an embargo
+    desideratum reads as it stood then: ExOwn ≺ P is open just after entry
+    #30 of this recording and broken at its end."""
+    log_index = 30
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    now = _scoreboard(at)
+    _point_picker(at).select(log_index).run()
+    assert not at.exception
+    at_point = _scoreboard(at)
+    table = at_point["Desideratum"]
+    assert isinstance(table, dict)
+    assert len(table["Desideratum"]) == len(scope_desiderata())
+    assert DESIDERATA_NOTE in at_point["captions"]
+    assert (
+        _vendor_status(at_point, "ExOwn ≺ P")
+        == (DESIDERATUM_BADGES[DesideratumStatus.OPEN])
+    )
+    assert (
+        _vendor_status(now, "ExOwn ≺ P")
+        == (DESIDERATUM_BADGES[DesideratumStatus.BROKEN])
+    )
 
 
 def _legend_cells(at: AppTest) -> dict[str, list[str]]:
