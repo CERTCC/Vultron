@@ -538,7 +538,9 @@ groups:
     rationale: >-
       A human who validates the report sees what the document claimed and which
       claims shaped the case. Fields that set no case input, such as the TLP label,
-      `involvement` and `acknowledgments`, are kept for that display.
+      `involvement` and `acknowledgments`, are kept for that display. A case
+      records no public credit, so `acknowledgments` stays display only
+      (ADR-0218).
     verification: >-
       `test/core/use_cases/received/test_submit_report_csaf.py::test_the_report_keeps_a_record_of_what_its_csaf_claimed`
       reads the stored record, checks that each value read starts display only,
