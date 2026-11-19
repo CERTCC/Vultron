@@ -135,9 +135,15 @@ def case_manager_invites_actor(
     ).with_case(case).quiet().set_stub_summary(
         "Vulnerability report — details shared after acceptance."
     )
-    ActorSession(client=client, actor=vendor).with_case(
-        case
-    ).quiet().invite_actor_to_case(
+    # The vendor's own Invite carries its preview of the case too, which
+    # needs the same summary (CM-17-007, CM-17-010).
+    vendor_session = (
+        ActorSession(client=client, actor=vendor).with_case(case).quiet()
+    )
+    vendor_session.set_stub_summary(
+        "Vulnerability report — details shared after acceptance."
+    )
+    vendor_session.invite_actor_to_case(
         invitee_id=str(coordinator.id_), roles=[CVDRole.COORDINATOR]
     )
     invite_id = find_case_invite_for_actor(

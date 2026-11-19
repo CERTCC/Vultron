@@ -17,6 +17,7 @@ from vultron.core.behaviors.case.received_run import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
+    any_of,
 )
 from vultron.core.models.events.actor import (
     AcceptInviteActorToCaseReceivedEvent,
@@ -29,6 +30,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 
 if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
@@ -40,35 +42,47 @@ class InviteActorToCaseReceivedUseCase:
 
     One path for every receiver (CLP-10-005, CLP-10-013): the use case builds
     ``InviteActorToCaseReceivedBT`` and runs it once as the receiving actor.
-    The CASE_MANAGER emits the Invite from its own store and commits it in
-    the emitting tree, with no ``cc:`` copy to itself (CM-17-006, CM-17-015, ADR-0109),
-    so the receiver is the invitee.  Intake stores the Invite idempotently;
-    the commit stays behind the CASE_MANAGER gate and skips; the invitee's
-    effect nodes log the receipt (SL-04-006) and record the sender as the
-    case's expected CASE_MANAGER (PCR-03-004).  The invitee creates no case
-    from the stub (MV-10-004): the full case arrives in an Announce
-    (MV-10-003).
+    The Invite has one wire shape and two senders, which the path the
+    receiver is on tells apart (ADR-0199):
+
+    - **The Case Owner's Invite, at the CASE_MANAGER.**  The Owner decides
+      whom to invite and sends the CASE_MANAGER its own Invite, with the
+      roles, naming the invitee in ``target`` (CM-17-007).  The CASE_MANAGER
+      refuses it with the refusal notice, committing nothing, unless the
+      sender holds ``CASE_OWNER``, the invitee is neither the CASE_MANAGER
+      nor the Owner, is not removed, joined or closed, and the roles are
+      grantable.  An admitted Invite is committed as one entry, and the
+      CASE_MANAGER sends its own stub Invite to the invitee, crediting the
+      Owner (PCR-08-007, CM-24-002, CM-24-020), and commits it in that tree
+      (CM-17-006).
+    - **The CASE_MANAGER's stub Invite, at the invitee.**  Intake stores the
+      Invite idempotently; the commit stays behind the CASE_MANAGER gate and
+      skips; the invitee's effect nodes log the receipt (SL-04-006) and
+      record the sender as the case's expected CASE_MANAGER (PCR-03-004).
+      The invitee creates no case from the stub (MV-10-004): the full case
+      arrives in an Announce (MV-10-003).  The sender must be the case's
+      CASE_MANAGER (PCR-03-001); an invitee holding only the stub has no
+      CASE_MANAGER to compare the sender with, so it records the sender as
+      its trust anchor under PCR-03-004.
 
     A redelivered Invite that intake finds already archived is the benign
     no-op, ``SKIPPED`` (HP-01-014).
-
-    The sender must be the case's CASE_MANAGER, which alone issues the
-    Invite (CM-17-006, PCR-03-001); any other sender is ``REFUSED`` with
-    nothing committed or sent (HP-01-006).  An invitee holding only the stub
-    has no CASE_MANAGER to compare the sender with, so it records the sender
-    as its trust anchor under PCR-03-004.
 
     The ``sync_port`` kwarg is injected for every received use case by
     ``with_received_baseline_ports`` so ``CommitCaseLedgerEntryNode`` can fan
     out via ``sync_port`` (SYNC-02-003, #4113).
     """
 
-    # The CASE_MANAGER issues every Invite (CM-17-006, PCR-03-001),
-    # including the stub Invite an invitee receives before it holds the
-    # case, on the no-case path that reads the outside-case side
-    # (MV-10-004, HP-01-036).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.on_every_path(
-        SenderEntitlementKind.CASE_MANAGER
+    # At the CASE_MANAGER the sender is a participant of the case, whose
+    # standing to decide (CASE_OWNER) the tree's guard judges so that a
+    # refusal is answered (CM-17-007).  Every other receiver takes the stub
+    # Invite from the case's CASE_MANAGER alone, including an invitee that
+    # does not hold the case yet, on the no-case path that reads the
+    # outside-case side (MV-10-004, HP-01-036, PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_case_manager=any_of(SenderEntitlementKind.PARTICIPANT),
+        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
+        outside_case=any_of(SenderEntitlementKind.CASE_MANAGER),
     )
 
     def __init__(
@@ -78,12 +92,14 @@ class InviteActorToCaseReceivedUseCase:
         sync_port: SyncActivityPort | None = None,
         trigger_activity: TriggerActivityPort | None = None,
         wire_render_port: WireRenderPort | None = None,
+        actor_config: ActorConfig | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: InviteActorToCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
+        self._actor_config = actor_config
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -92,6 +108,8 @@ class InviteActorToCaseReceivedUseCase:
             invitee_id=request.invitee_id,
             inviter_id=request.actor_id,
             invite_id=request.activity_id,
+            roles=request.roles,
+            actor_config=self._actor_config,
             sender_rule=self.sender_entitlement,
         )
         return run_received_tree(

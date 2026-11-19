@@ -31,10 +31,16 @@ from vultron.core.behaviors.call_out.bundles.actor_resolution import (
 )
 from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_actor_recommendation_trigger_bt,
+    case_manager_invite_actor_trigger_bt,
     reject_actor_recommendation_trigger_bt,
     suggest_actor_to_case_trigger_bt,
 )
-from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
+from vultron.core.behaviors.case.nodes.suggest_actor.admission import (
+    not_invitable_refusal,
+)
+from vultron.core.behaviors.sender.send_tree import sender_side_bt
+from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
@@ -53,25 +59,26 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronInvalidStateTransitionError,
+    VultronValidationError,
 )
+from vultron.primitives import same_actor_id
 
 logger = logging.getLogger(__name__)
 
 
 class _SvcRecommendActorBase(SvcActivityTriggerBase):
-    """Send this actor's own ``Offer(Actor)[target=VulnerabilityCase]`` to the case's CASE_MANAGER.
+    """Shared preparation of the two ways an actor is named for a case.
 
-    The shared emit of the suggest-actor flow (CM-16-001) and of the Case
-    Owner's direct invite (CM-17-007): both name an actor the case does not
-    yet have, with the roles the requester intends for it, and both reach the
-    CASE_MANAGER the same way — the requester's own activity, from the
-    requester's own identity and outbox, routed by the SenderSideBT
-    (PCR-08-001). Neither executes a tree as the CASE_MANAGER (CM-24-011,
-    ADR-0109); what the CASE_MANAGER does with the Offer is decided on its
-    side, by the recommend-actor received tree.
+    A participant's suggestion, ``Offer(Actor)[target=VulnerabilityCase]``
+    (CM-16-001), and the Case Owner's own Invite (CM-17-007) both name an
+    actor the case does not yet have, with the roles the requester intends
+    for it, and both reach the CASE_MANAGER the same way: the requester's own
+    activity, from the requester's own identity and outbox, routed by the
+    SenderSideBT (PCR-08-001).  Neither executes a tree as the CASE_MANAGER
+    (CM-24-011, ADR-0109).
 
-    Subclasses implement :meth:`_prepare` and call
-    :meth:`_prepare_recommendation` from it.
+    Subclasses implement :meth:`_prepare`, call
+    :meth:`_prepare_recommendation` from it, and build their own tree.
     """
 
     def __init__(
@@ -131,6 +138,36 @@ class _SvcRecommendActorBase(SvcActivityTriggerBase):
         self._recommended_id = recommended_id
         self._suggested_roles = [r.value for r in roles] if roles else None
 
+
+class SvcSuggestActorToCaseUseCase(_SvcRecommendActorBase):
+    """Recommend another actor for participation in an existing case.
+
+    Emits a RecommendActorActivity routed through the Case Manager
+    (SenderSideBT / PCR-08-001).  The Case Owner is refused: its decision is
+    its own Invite (:class:`SvcInviteActorToCaseUseCase`, CM-17-007).
+    """
+
+    def _prepare(self) -> None:
+        request = cast(SuggestActorToCaseTriggerRequest, self._request)
+        self._prepare_recommendation(
+            request.actor_id,
+            request.case_id,
+            request.suggested_actor_id,
+            "suggested_actor_id",
+            request.roles,
+        )
+        # The Case Owner decides; it does not suggest.  The CASE_MANAGER
+        # refuses its Offer(Actor), so it is not sent (CM-17-007, ADR-0199).
+        if has_role(
+            self._actor_id, self._case.id_, CVDRole.CASE_OWNER, self._dl
+        ):
+            raise VultronValidationError(
+                f"'{self._actor_id}' is the Case Owner of case"
+                f" '{self._case.id_}': it invites an actor with"
+                " invite-actor-to-case, its own Invite, not a suggestion"
+                " (CM-17-007, ADR-0199)"
+            )
+
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
             activity_id, activity_dict = self._factory.suggest_actor_to_case(
@@ -149,24 +186,6 @@ class _SvcRecommendActorBase(SvcActivityTriggerBase):
             activity_builder=_build_activities,
         )
 
-
-class SvcSuggestActorToCaseUseCase(_SvcRecommendActorBase):
-    """Recommend another actor for participation in an existing case.
-
-    Emits a RecommendActorActivity routed through the Case Manager
-    (SenderSideBT / PCR-08-001).
-    """
-
-    def _prepare(self) -> None:
-        request = cast(SuggestActorToCaseTriggerRequest, self._request)
-        self._prepare_recommendation(
-            request.actor_id,
-            request.case_id,
-            request.suggested_actor_id,
-            "suggested_actor_id",
-            request.roles,
-        )
-
     def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' suggested actor '%s' for case '%s'",
@@ -177,19 +196,30 @@ class SvcSuggestActorToCaseUseCase(_SvcRecommendActorBase):
 
 
 class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
-    """Ask the CASE_MANAGER to invite an actor to a case (case-owner action).
+    """Invite an actor to a case (the Case Owner's decision).
 
-    The Case Owner sends its own ``Offer(Actor)[target=VulnerabilityCase]`` carrying the
-    intended
-    roles to the CASE_MANAGER, from the owner's identity and outbox
-    (CM-17-007, CM-17-017). It executes no tree as the CASE_MANAGER and never emits in
-    its name (CM-24-010, ADR-0109): the CASE_MANAGER's recommend-actor
-    received tree sees that the recommender holds ``CVDRole.CASE_OWNER`` and
-    emits the ``Invite`` itself, from its own store, committing it in that
-    emitting tree (CM-17-006).
+    The Case Owner decides whom the case invites, and says so with its own
+    ``Invite(<case preview>)[target=<invitee>]`` carrying the roles, sent to
+    the CASE_MANAGER only, from the Owner's identity and outbox (CM-17-007,
+    ADR-0199).  It executes no tree as the CASE_MANAGER and never emits in
+    its name (CM-17-017, CM-24-010, ADR-0109): the CASE_MANAGER's received
+    tree commits the Owner's Invite and sends its own stub Invite to the
+    invitee, crediting the Owner (PCR-08-007, CM-17-006).  The ``202`` this
+    trigger earns therefore means the Owner's Invite was queued, not that
+    the stub Invite was sent; the result's ``activity`` is the Owner's.
 
-    The ``202`` this trigger earns therefore means the Offer was queued, not
-    that the Invite was sent; the result's ``activity`` is the Offer.
+    An Owner that holds the CASE_MANAGER role has no one to ask: it sends
+    the stub Invite straight to the invitee, as its own act with neither
+    ``attributedTo`` nor ``inReplyTo`` (CM-24-021), committed with the inert
+    participant it creates (CM-11-006, CM-17-006); the result's
+    ``activity`` is that stub Invite.
+
+    Refused before anything is queued (TRIG-03, RSH-09): an Invite from an
+    actor that is not the Case Owner, one with no
+    roles (CM-11-019, CM-11-050), and one whose invitee is the Owner, the
+    CASE_MANAGER, or a participant that has joined or is at ``RM.CLOSED``
+    (CM-11-043, ADR-0085).  The CASE_MANAGER refuses the same Invite for
+    the same reasons, for an Invite that arrives from elsewhere.
     """
 
     def _prepare(self) -> None:
@@ -201,27 +231,90 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
             "invitee_id",
             request.roles,
         )
-        self._refuse_reinvite_of_closed(request.invitee_id)
+        self._refuse_unaskable_invite()
+        self._is_case_manager = has_role(
+            self._actor_id, self._case.id_, CVDRole.CASE_MANAGER, self._dl
+        )
 
-    def _refuse_reinvite_of_closed(self, invitee_id: str) -> None:
-        """Refuse before anything is queued: ``RM.CLOSED`` has no rejoin.
+    def _refuse_unaskable_invite(self) -> None:
+        """Refuse an Invite the CASE_MANAGER would refuse, before it is sent.
 
-        A participant at ``RM.CLOSED`` cannot be re-invited (CM-11-043,
-        ADR-0085), so the owner's Offer is never sent.  The CASE_MANAGER's
-        received tree refuses it too, for an Offer that arrives from elsewhere.
+        Raises:
+            VultronValidationError: The requester is not the Case Owner, or
+                the Invite names no role, or names the Owner or the case's
+                CASE_MANAGER as the invitee.
+            VultronInvalidStateTransitionError: The invitee has joined the
+                case or is at ``RM.CLOSED``, which has no rejoin.
         """
-        record = invitee_record(self._dl, self._case, invitee_id)
-        if record is not None and record.rm_closed:
-            raise VultronInvalidStateTransitionError(
-                f"Actor '{invitee_id}' is at RM.CLOSED in case"
-                f" '{self._case.id_}' and cannot be re-invited (CM-11-043,"
-                " ADR-0085)"
+        invitee_id = self._recommended_id
+        case_id = self._case.id_
+        if not has_role(self._actor_id, case_id, CVDRole.CASE_OWNER, self._dl):
+            raise VultronValidationError(
+                f"'{self._actor_id}' does not hold CASE_OWNER in case"
+                f" '{case_id}': only the Case Owner invites; a participant"
+                " suggests an actor with suggest-actor-to-case (CM-17-007,"
+                " CM-16-001)"
+            )
+        if not self._suggested_roles:
+            raise VultronValidationError(
+                f"the Invite of '{invitee_id}' to case '{case_id}' names no"
+                " role; the Case Owner names at least one (CM-11-019,"
+                " CM-11-050)"
+            )
+        manager_id = resolve_case_manager_id(self._case, self._dl)
+        if same_actor_id(invitee_id, self._actor_id) or (
+            manager_id is not None and same_actor_id(invitee_id, manager_id)
+        ):
+            raise VultronValidationError(
+                f"'{invitee_id}' is the Case Owner or the CASE_MANAGER of"
+                f" case '{case_id}' and is sent no stub Invite (CM-17-015)"
+            )
+        refusal = not_invitable_refusal(
+            self._dl, self._case, invitee_id, case_id
+        )
+        if refusal is not None:
+            raise VultronInvalidStateTransitionError(refusal)
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        roles = list(self._suggested_roles or [])
+        if self._is_case_manager:
+            return case_manager_invite_actor_trigger_bt(
+                case_id=self._case.id_,
+                invitee_id=self._recommended_id,
+                roles=roles,
+                captured=self._captured,
             )
 
+        def _build_activities(case_manager_id: str) -> list[str]:
+            activity_id, activity_blob = self._factory.invite_actor_to_case(
+                invitee_id=self._recommended_id,
+                case_id=self._case.id_,
+                actor=self._actor_id,
+                to=[case_manager_id],
+                roles=roles,
+                case=self._case,
+                at=self._at,
+            )
+            self._captured["activity"] = json.loads(activity_blob)
+            return [activity_id]
+
+        return sender_side_bt(
+            case_id=self._case.id_, activity_builder=_build_activities
+        )
+
     def _handle_result(self) -> None:
+        if self._is_case_manager:
+            logger.info(
+                "Actor '%s', the CASE_MANAGER, invited actor '%s' to case"
+                " '%s'",
+                self._actor_id,
+                self._recommended_id,
+                self._case.id_,
+            )
+            return
         logger.info(
-            "Actor '%s' asked the CASE_MANAGER to invite actor '%s' to case"
-            " '%s'",
+            "Actor '%s' sent the CASE_MANAGER its Invite of actor '%s' to"
+            " case '%s'",
             self._actor_id,
             self._recommended_id,
             self._case.id_,

@@ -62,9 +62,11 @@ from vultron.core.behaviors.case.nodes.invite_inert_participant import (
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    RecommenderIsNotCaseOwnerNode,
+)
 from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteAwaitingNode,
-    ReinviteNotToClosedParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     AcceptedInviteeIsNotRemovedNode,
@@ -94,7 +96,6 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_reject_actor_recommendation_received_tree,
 )
 from vultron.core.behaviors.case_id_scope import unscoped
-from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
@@ -1155,8 +1156,8 @@ class TestDuplicateDetectionTreeStructure:
             "DuplicateOrFreshSelector must exist in the tree"
         )
 
-    def test_selector_has_six_children(self):
-        assert len(self._duplicate_selector().children) == 6
+    def test_selector_has_four_children(self):
+        assert len(self._duplicate_selector().children) == 4
 
     @pytest.mark.spec("CM-20-008")
     def test_the_authority_role_guard_runs_before_the_commit_and_every_arm(
@@ -1198,82 +1199,36 @@ class TestDuplicateDetectionTreeStructure:
             assert EmitAcceptActorRecommendationNode in types
             assert EmitInviteActorToCaseNode not in types
 
-    @pytest.mark.spec("OX-06-002")
-    def test_every_invite_id_derives_from_the_offer_it_answers(self):
-        """Owner-direct and re-invite Invites alike take the Offer's id."""
-        invites = [
-            n
-            for n in self.all_nodes
-            if isinstance(n, EmitInviteActorToCaseNode)
-        ]
-        assert len(invites) >= 2, (
-            "expected the reinvite and owner-direct emits"
-        )
-        assert {_invite_id_as_manager(n) for n in invites} == {
-            _derived_invite_id(_REC_ID)
-        }
+    @pytest.mark.spec("CM-17-007")
+    def test_the_tree_sends_no_stub_invite(self):
+        """The Owner-recommender arms are retired: no arm sends an Invite.
 
-    @pytest.mark.spec("OX-06-002")
-    @pytest.mark.spec("CM-11-015")
-    def test_a_reinvite_from_a_new_offer_is_a_fresh_invite(self):
-        """A re-invite answers a new Offer, so its Invite gets a new id."""
-        later = create_recommend_actor_to_case_received_tree(
-            sender_rule=_RECOMMEND_RULE,
-            recommendation_id=f"{_REC_ID}-later",
-            recommender_id=_RECOMMENDER,
-            recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
-        )
-        reinvite = next(
-            n
-            for n in later.iterate()
-            if isinstance(n, py_trees.composites.Sequence)
-            and n.name == "OwnerReinvite"
-        )
-        node = next(
-            c
-            for c in reinvite.children
-            if isinstance(c, EmitInviteActorToCaseNode)
-        )
-        assert _invite_id_as_manager(node) == _derived_invite_id(
-            f"{_REC_ID}-later"
-        )
-        assert _invite_id_as_manager(node) != _derived_invite_id(_REC_ID)
+        The Case Owner's decision is its own Invite (ADR-0199), so a
+        recommendation is always a suggestion the Owner decides.
+        """
+        types = {type(n) for n in self.all_nodes}
+        assert EmitInviteActorToCaseNode not in types
+        assert CreateInertInviteeParticipantNode not in types
+        assert ReinviteAwaitingNode not in types
 
-    @pytest.mark.spec("CM-11-015")
-    def test_reinvite_arm_is_first_and_emits_without_creating_a_record(self):
-        """Re-invite arm: owner, unanswered record, roles, Invite — and no new record."""
-        reinvite = self._duplicate_selector().children[0]
-        assert isinstance(reinvite, py_trees.composites.Sequence)
-        assert reinvite.name == "OwnerReinvite"
-        assert [type(unscoped(c)) for c in reinvite.children] == [
-            ActorHoldsRoleInCaseNode,
-            ReinviteAwaitingNode,
-            EvaluateDefaultRolesNode,
-            EmitInviteActorToCaseNode,
-        ]
-
-    @pytest.mark.spec("CM-11-043")
-    def test_closed_participant_guard_runs_before_the_recommender_is_recorded(
-        self,
-    ):
+    @pytest.mark.spec("CM-17-007")
+    def test_the_owner_guard_runs_before_the_commit_and_every_arm(self):
+        """An Offer from the Case Owner is refused before anything is written."""
         guard = next(
             n
             for n in self.all_nodes
-            if n.name == "ReinviteIsNotToClosedParticipant"
+            if isinstance(n, RecommenderIsNotCaseOwnerNode)
         )
-        assert any(
-            isinstance(c, ReinviteNotToClosedParticipantNode)
-            for c in guard.children
-        )
+        assert guard.subject_actor_id == _RECOMMENDER
+        assert guard not in list(self._duplicate_selector().iterate())
         order = [n.name for n in self.all_nodes]
-        assert order.index("ReinviteIsNotToClosedParticipant") < order.index(
-            "RecordRecommendationRecommenderNode"
+        assert order.index(guard.name) < order.index(
+            "GuardedCommitCaseLedgerEntryBT"
         )
 
     def test_ac7b_sequence_structure(self):
         """AC-7b arm: Sequence(ActorAlreadyParticipantNode, EmitAcceptActorRecommendationNode)."""
-        ac7b = self._duplicate_selector().children[1]
+        ac7b = self._duplicate_selector().children[0]
         assert isinstance(ac7b, py_trees.composites.Sequence)
         child_types = [type(c) for c in ac7b.children]
         assert ActorAlreadyParticipantNode in child_types
@@ -1281,7 +1236,7 @@ class TestDuplicateDetectionTreeStructure:
 
     def test_ac7a_sequence_structure(self):
         """AC-7a arm: Sequence(InviteInFlightNode, EmitAcceptActorRecommendationNode)."""
-        ac7a = self._duplicate_selector().children[2]
+        ac7a = self._duplicate_selector().children[1]
         assert isinstance(ac7a, py_trees.composites.Sequence)
         child_types = [type(c) for c in ac7a.children]
         assert InviteInFlightNode in child_types
@@ -1289,48 +1244,20 @@ class TestDuplicateDetectionTreeStructure:
 
     def test_ac6_sequence_structure(self):
         """AC-6 arm: Sequence(PendingOfferCaseParticipantNode, EmitNoteDuplicateRecommendationToOwnerNode)."""
-        ac6 = self._duplicate_selector().children[3]
+        ac6 = self._duplicate_selector().children[2]
         assert isinstance(ac6, py_trees.composites.Sequence)
         child_types = [type(unscoped(c)) for c in ac6.children]
         assert PendingOfferCaseParticipantNode in child_types
         assert EmitNoteDuplicateRecommendationToOwnerNode in child_types
 
-    @pytest.mark.spec("CM-17-018")
-    @pytest.mark.spec("CM-17-007")
-    def test_owner_direct_invite_structure(self):
-        """CASE_OWNER arm: owner check, roles, Invite, inert participant.
-
-        No ``Add(CaseParticipant)`` follows the inert record: that message
-        means reinstatement only (CM-31-011, CM-31-012).
-        """
-        owner = self._duplicate_selector().children[4]
-        assert isinstance(owner, py_trees.composites.Sequence)
-        assert owner.name == "OwnerDirectInvite"
-        assert [type(unscoped(c)) for c in owner.children] == [
-            ActorHoldsRoleInCaseNode,
-            EvaluateDefaultRolesNode,
-            EmitInviteActorToCaseNode,
-            CreateInertInviteeParticipantNode,
-        ]
-        check = unscoped(owner.children[0])
-        assert isinstance(check, ActorHoldsRoleInCaseNode)
-        assert check._actor_id == _RECOMMENDER
-        assert check._role is CVDRole.CASE_OWNER
-        emit = owner.children[2]
-        assert isinstance(emit, EmitInviteActorToCaseNode)
-        assert emit.invitee_id == _RECOMMENDED
-        assert emit.attributed_to == _RECOMMENDER
-
     def test_fresh_path_structure(self):
-        """Fresh path arm: not the owner, then roles, then the Offer to the owner."""
-        fresh = self._duplicate_selector().children[5]
+        """Fresh path arm: roles, then the Offer to the owner."""
+        fresh = self._duplicate_selector().children[3]
         assert isinstance(fresh, py_trees.composites.Sequence)
-        child_types = [type(c) for c in fresh.children]
-        guard = fresh.children[0]
-        assert isinstance(guard, py_trees.decorators.Inverter)
-        assert isinstance(unscoped(guard.decorated), ActorHoldsRoleInCaseNode)
-        assert EvaluateDefaultRolesNode in child_types
-        assert EmitOfferCaseParticipantToOwnerNode in child_types
+        assert [type(c) for c in fresh.children] == [
+            EvaluateDefaultRolesNode,
+            EmitOfferCaseParticipantToOwnerNode,
+        ]
 
     def test_selector_memory_false(self):
         assert self._duplicate_selector().memory is False

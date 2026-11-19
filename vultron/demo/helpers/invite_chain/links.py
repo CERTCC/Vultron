@@ -122,15 +122,23 @@ def _trigger_invite(
     invitee_name: str,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Have *inviter* ask the CASE_MANAGER to invite *invitee* to *case*."""
-    invite_offer = (
+    """Have *inviter* send the CASE_MANAGER its own Invite of *invitee*.
+
+    The inviter's Invite carries its own preview of the case, which needs a
+    summary (CM-17-010), so its copy is seeded first, as the CASE_MANAGER's
+    is (ADR-0199).
+    """
+    session = (
         ActorSession(client=inviter.client, actor=inviter.actor)
         .with_case(case)
         .quiet()
-        .invite_actor_to_case(invitee_id=invitee.id_, roles=[inviter.role])
+    )
+    session.set_stub_summary(case.stub_summary or DEMO_STUB_SUMMARY)
+    invite_offer = session.invite_actor_to_case(
+        invitee_id=invitee.id_, roles=[inviter.role]
     ).activity
     logger.info(
-        "%s asked the CASE_MANAGER to invite %s: %s",
+        "%s sent the CASE_MANAGER its Invite of %s: %s",
         inviter.name,
         invitee_name,
         invite_offer.id_,

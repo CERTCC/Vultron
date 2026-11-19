@@ -776,16 +776,19 @@ class TestInviteActorUseCases:
         assert calls[0]["actor_id"] == owner_id
         assert calls[0]["tree"].name == "InviteActorToCaseReceivedBT"
 
-    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CM-17-025")
     @pytest.mark.spec("CLP-10-017")
-    def test_case_actor_redelivered_invite_is_skipped(self, make_payload):
-        """An Invite reaching the CASE_MANAGER's inbox reports SKIPPED on redelivery.
+    def test_case_actors_own_invite_at_its_inbox_is_refused(
+        self, make_payload
+    ):
+        """An Invite at the CASE_MANAGER's inbox is judged as an Owner's Invite.
 
-        The CASE_MANAGER emits and commits its own Invite and is never mailed
-        a copy (CM-17-006, ADR-0109).  Should one arrive anyway, the
-        invitee-only effects stay behind the replica gate — no trust anchor
-        is written — so the first delivery is APPLIED by intake and a
-        redelivery is the benign no-op of HP-01-003, never REFUSED.
+        The CASE_MANAGER emits and commits its own stub Invite and is never
+        mailed a copy (CM-17-006, ADR-0109), so an Invite that reaches it is
+        the Case Owner's decision (CM-17-007).  One whose sender is the
+        CASE_MANAGER, which does not hold ``CASE_OWNER``, is refused, with no
+        trust anchor written and nothing committed, and a redelivery is
+        refused again from its receipt stub (ADR-0154).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.received_activity_record import (
@@ -851,16 +854,20 @@ class TestInviteActorUseCases:
             )
         )
 
-        assert first.disposition is HandlerDisposition.APPLIED
-        assert second.disposition is HandlerDisposition.SKIPPED
+        assert first.disposition is HandlerDisposition.REFUSED
+        assert "CASE_OWNER" in (first.reason or ""), first.reason
+        assert second.disposition is HandlerDisposition.REFUSED
         from vultron.core.models.pending_case_inbox import (
             VultronPendingCaseInbox,
         )
 
         assert dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
-        archived = dl.read(ReceivedActivityRecord.build_id(invite.id_))
-        assert isinstance(archived, ReceivedActivityRecord)
-        assert archived.activity_id == invite.id_
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
+        # The CASE_MANAGER sends itself no refusal notice (CLP-05-001).
+        assert dl.outbox_list() == []
+        record = dl.read(ReceivedActivityRecord.build_id(invite.id_))
+        assert isinstance(record, ReceivedActivityRecord)
+        assert record.activity_id == invite.id_
 
     def test_reject_invite_actor_to_case_commits_ledger_entry(
         self, make_payload

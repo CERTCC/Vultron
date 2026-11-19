@@ -362,6 +362,23 @@ groups:
     - path: howto/activitypub/activities/invite_actor.md
       title: How to Invite an Actor to a Case
     example: invite_to_case
+  - anchor: owner-invite-actor-to-case
+    heading: Case Owner invites an actor
+    when: the Case Owner decides to invite an actor to the case
+    send: Invite(VulnerabilityCase preview)[target=Actor]
+    send_to: the CASE_MANAGER
+    sent_by: a participant
+    semantics: invite_actor_to_case
+    status: none
+    description: 'The Case Owner''s own decision, sent to the CASE_MANAGER only: the case
+      preview as the object, the invitee as the target, and the roles it offers. The CASE_MANAGER
+      records it and sends its own Stub Invite to the invitee, crediting the Case Owner in
+      `attributedTo` and naming this Invite in `inReplyTo`; the invitee answers that Stub
+      Invite.'
+    seen_in:
+    - path: howto/activitypub/activities/invite_actor.md
+      title: How to Invite an Actor to a Case
+    example: owner_invite_actor_to_case
   - anchor: accept-invite-to-case
     heading: Accept invite to case
     when: an invited actor agrees to join the case
@@ -1062,23 +1079,6 @@ groups:
     - path: howto/activitypub/activities/suggest_actor.md
       title: How to Suggest an Actor for a Case
     example: recommend_actor
-  - anchor: request-invite-actor-to-case
-    heading: Ask the CASE_MANAGER to invite an actor
-    when: the Case Owner decides to invite an actor to the case
-    send: Offer(Actor)[target=VulnerabilityCase]
-    send_to: the CASE_MANAGER
-    sent_by: a participant
-    distinguished_by: sender is the Case Owner
-    semantics: offer_actor_to_case
-    status: expansion
-    description: Asks the CASE_MANAGER to invite the actor named by the object to the case
-      named by the target, with the roles in `suggestedRoles`. For an actor with no record
-      on the case, or an invitee that has not answered, the CASE_MANAGER answers with the
-      Stub Invite to that actor, not with an offer to the Case Owner.
-    seen_in:
-    - path: howto/activitypub/activities/invite_actor.md
-      title: How to Invite an Actor to a Case
-    example: request_invite_actor_to_case
   - anchor: offer-case-participant
     heading: Offer case participant
     when: the CASE_MANAGER presents a suggested actor to the Case Owner

@@ -24,6 +24,7 @@ are normalised to full URIs before use.
 
 import json
 import logging
+from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any, cast
 from unittest.mock import MagicMock
@@ -67,6 +68,9 @@ from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.states.em import EM
+from vultron.core.use_cases.received.actor.invite import (
+    InviteActorToCaseReceivedUseCase,
+)
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
@@ -88,6 +92,7 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronBTInternalError,
+    VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -263,12 +268,13 @@ def _open_revision(dl: SqliteDataLayer, case_id: str) -> str:
 
 
 class _OwnerDirectInvite:
-    """The owner's trigger, then the CASE_MANAGER's receipt of its Offer.
+    """The owner's trigger, then the CASE_MANAGER's receipt of its Invite.
 
     Under ADR-0109 the owner's container never emits as the CASE_MANAGER: the
-    owner sends its own ``Offer(Actor)[target=VulnerabilityCase]`` and the CASE_MANAGER's
-    recommend-actor received tree emits the ``Invite`` (CM-17-018).  This
-    harness runs both halves against two stores so a test can inspect either.
+    owner sends its own ``Invite(<case preview>)[target=<invitee>]`` and the
+    CASE_MANAGER's received tree sends its own stub Invite (CM-17-007,
+    ADR-0199).  This harness runs both halves against two stores so a test
+    can inspect either.
     """
 
     def __init__(
@@ -292,13 +298,15 @@ class _OwnerDirectInvite:
         if with_open_revision:
             _open_revision(self.manager_dl, self.case.id_)
 
-    def trigger(self, roles: list[CVDRole] | None = None) -> dict[str, Any]:
+    def trigger(
+        self, roles: Sequence[CVDRole] | None = (CVDRole.VENDOR,)
+    ) -> dict[str, Any]:
         """Run the owner's trigger; return the activity it captured."""
         request = InviteActorToCaseTriggerRequest(
             actor_id=self.owner.id_,
             case_id=self.case.id_,
             invitee_id=self.invitee.id_,
-            roles=roles,
+            roles=list(roles) if roles is not None else None,
         )
         result = run_in_act(
             SvcInviteActorToCaseUseCase(
@@ -312,17 +320,37 @@ class _OwnerDirectInvite:
         )
         return activity_of(result)
 
-    def deliver_to_manager(self, offer_id: str, make_payload) -> Any:
-        """Process the owner's Offer on the CASE_MANAGER's inbox."""
-        from vultron.core.use_cases.received.actor.suggest import (
-            OfferActorToCaseReceivedUseCase,
-        )
+    def owner_invite(
+        self,
+        roles: list[str] | None,
+        invitee_id: str | None = None,
+        actor: str | None = None,
+        dl: SqliteDataLayer | None = None,
+    ) -> str:
+        """Build an owner's Invite the trigger would refuse; return its id.
 
-        offer = self.owner_dl.read(offer_id)
-        assert offer is not None
-        event = make_payload(offer, receiving_actor_id=self.manager.id_)
+        The CASE_MANAGER judges what arrives, not what the trigger allows,
+        so a test of its refusals builds the Invite with the factory.
+        """
+        activity_id, _blob = TriggerActivityAdapter(
+            dl or self.owner_dl
+        ).invite_actor_to_case(
+            invitee_id=invitee_id or self.invitee.id_,
+            case_id=self.case.id_,
+            actor=actor or self.owner.id_,
+            to=[self.manager.id_],
+            roles=roles,
+            at=authored_at(),
+        )
+        return activity_id
+
+    def deliver_to_manager(self, owner_invite_id: str, make_payload) -> Any:
+        """Process the owner's Invite on the CASE_MANAGER's inbox."""
+        owner_invite = self.owner_dl.read(owner_invite_id)
+        assert owner_invite is not None
+        event = make_payload(owner_invite, receiving_actor_id=self.manager.id_)
         return run_in_act(
-            OfferActorToCaseReceivedUseCase(
+            InviteActorToCaseReceivedUseCase(
                 self.manager_dl,
                 event,
                 trigger_activity=TriggerActivityAdapter(self.manager_dl),
@@ -332,7 +360,7 @@ class _OwnerDirectInvite:
         )
 
     def manager_invite(self) -> Any:
-        """The single Invite the CASE_MANAGER queued."""
+        """The single stub Invite the CASE_MANAGER queued."""
         queued = [
             self.manager_dl.read(item)
             for item in self.manager_dl.outbox_list()
@@ -342,11 +370,11 @@ class _OwnerDirectInvite:
         return invites[0]
 
     def invite(
-        self, make_payload, roles: list[CVDRole] | None = None
+        self, make_payload, roles: Sequence[CVDRole] | None = (CVDRole.VENDOR,)
     ) -> tuple[Any, dict[str, Any]]:
         """Both halves; return the CASE_MANAGER's Invite and its wire form."""
-        offer = self.trigger(roles)
-        result = self.deliver_to_manager(offer["id"], make_payload)
+        owner_invite = self.trigger(roles)
+        result = self.deliver_to_manager(owner_invite["id"], make_payload)
         assert result.disposition.value == "applied", result
         invite = self.manager_invite()
         # The body the outbox relays is the sealed one (OX-07-001), so that is
@@ -361,26 +389,48 @@ class TestSvcInviteActorToCaseUseCase:
 
     @pytest.mark.spec("CM-17-017")
     @pytest.mark.spec("CM-17-007")
-    def test_invite_sends_the_owners_own_offer_to_the_case_manager(self):
-        """The owner's activity is an Offer from the owner, to the CASE_MANAGER."""
+    def test_invite_sends_the_owners_own_invite_to_the_case_manager(self):
+        """The owner's activity is its own Invite, to the CASE_MANAGER only.
+
+        Its ``object`` is the case's previewed reference and its ``target``
+        the invitee, the stub Invite's one wire shape (ADR-0199, ADR-0205),
+        and it carries the roles.
+        """
         harness = _OwnerDirectInvite()
 
         activity = harness.trigger(roles=[CVDRole.VENDOR])
 
-        assert activity["type"] == "Offer"
+        assert activity["type"] == "Invite"
         assert activity["actor"] == harness.owner.id_
         assert activity.get("to") == [harness.manager.id_]
-        assert activity.get("suggestedRoles") == ["vendor"]
-        obj = activity["object"]
-        assert (obj["id"] if isinstance(obj, dict) else obj) == (
+        assert activity.get("roles") == ["vendor"]
+        assert activity["object"]["id"] == harness.case.id_
+        assert activity["object"]["preview"]["type"] == "CasePreview"
+        target = activity["target"]
+        assert (target["id"] if isinstance(target, dict) else target) == (
             harness.invitee.id_
         )
+        assert "attributedTo" not in activity
+        assert "inReplyTo" not in activity
         assert "cc" not in activity
+
+    @pytest.mark.spec("CM-17-007")
+    def test_invite_sends_no_recommend_actor_offer(self):
+        """A direct invite is not a suggestion: no Offer(Actor) is queued."""
+        harness = _OwnerDirectInvite()
+
+        harness.trigger()
+
+        queued = [
+            harness.owner_dl.read(i) for i in harness.owner_dl.outbox_list()
+        ]
+        assert len(queued) == 1
+        assert isinstance(queued[0], as_Invite)
 
     @pytest.mark.spec("CM-24-004", "CLP-10-072")
     @pytest.mark.spec("CM-24-010")
     def test_invite_is_queued_in_the_owners_outbox_only(self):
-        """The Offer leaves from the owner's outbox; nothing is queued as the
+        """The Invite leaves from the owner's outbox; nothing is queued as the
         CASE_MANAGER and nothing is committed by the owner."""
         harness = _OwnerDirectInvite()
 
@@ -388,13 +438,77 @@ class TestSvcInviteActorToCaseUseCase:
 
         assert activity["id"] in harness.owner_dl.outbox_list()
         stored = harness.owner_dl.read(activity["id"])
-        assert stored is not None and not isinstance(stored, as_Invite)
+        assert isinstance(stored, as_Invite)
         assert harness.manager_dl.outbox_list() == []
         assert (
             harness.owner_dl.clone_for_actor(harness.manager.id_).outbox_list()
             == []
         )
         assert harness.owner_dl.list_objects("CaseLedgerEntry") == []
+        owner_case = cast(Any, harness.owner_dl.read(harness.case.id_))
+        assert harness.invitee.id_ not in owner_case.actor_participant_index
+
+    @pytest.mark.spec("CM-11-019")
+    @pytest.mark.spec("CM-11-050")
+    def test_invite_without_roles_is_refused_before_it_is_sent(self):
+        harness = _OwnerDirectInvite()
+
+        with pytest.raises(VultronValidationError, match="names no role"):
+            harness.trigger(roles=None)
+
+        assert harness.owner_dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-17-015")
+    @pytest.mark.parametrize("who", ["owner", "manager"])
+    def test_invite_of_the_owner_or_the_case_manager_is_refused(self, who):
+        harness = _OwnerDirectInvite()
+        named = harness.owner if who == "owner" else harness.manager
+        harness.invitee = named
+
+        with pytest.raises(VultronValidationError, match="CM-17-015"):
+            harness.trigger()
+
+        assert harness.owner_dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-17-007")
+    def test_invite_from_a_participant_that_is_not_the_owner_is_refused(
+        self,
+    ):
+        harness = _OwnerDirectInvite()
+        participant, _ = _make_actor_dl("Participant")
+        harness.owner_dl.create(participant)
+        harness.owner = participant
+
+        with pytest.raises(VultronValidationError, match="CASE_OWNER"):
+            harness.trigger()
+
+        assert harness.owner_dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-11-043")
+    def test_invite_of_a_joined_participant_is_refused(self):
+        harness = _OwnerDirectInvite()
+        joined, _ = _make_actor_dl("Joined")
+        harness.owner_dl.create(joined)
+        record = make(
+            as_CaseParticipant,
+            attributed_to=joined.id_,
+            context=harness.case.id_,
+            case_roles=[CVDRole.VENDOR],
+            joined=True,
+        )
+        harness.owner_dl.create(record)
+        case = cast(Any, harness.owner_dl.read(harness.case.id_))
+        case.actor_participant_index[joined.id_] = record.id_
+        case.case_participants.append(record.id_)
+        harness.owner_dl.save(case)
+        harness.invitee = joined
+
+        with pytest.raises(
+            VultronInvalidStateTransitionError, match="has already joined"
+        ):
+            harness.trigger()
+
+        assert harness.owner_dl.outbox_list() == []
 
     @pytest.mark.spec("CM-24-004")
     def test_invite_uses_no_delegated_context(self, monkeypatch):
@@ -432,6 +546,7 @@ class TestSvcInviteActorToCaseUseCase:
             actor_id=actor.id_,
             case_id=case.id_,
             invitee_id=invitee.id_,
+            roles=[CVDRole.VENDOR],
         )
         with pytest.raises(VultronValidationError):
             run_in_act(
@@ -467,6 +582,7 @@ class TestSvcInviteActorToCaseUseCase:
             actor_id=actor.id_,
             case_id=case.id_,
             invitee_id=missing_id,
+            roles=[CVDRole.VENDOR],
         )
         with caplog.at_level(logging.WARNING):
             result = run_in_act(
@@ -480,7 +596,7 @@ class TestSvcInviteActorToCaseUseCase:
                 )
             )
 
-        assert activity_of(result)["type"] == "Offer"
+        assert activity_of(result)["type"] == "Invite"
         assert "actor resolution returned" not in caplog.text
 
     @pytest.mark.parametrize(
@@ -524,12 +640,14 @@ class TestSvcInviteActorToCaseUseCase:
                     actor_id=actor.id_,
                     case_id=case.id_,
                     invitee_id=bad_id,
+                    roles=[CVDRole.VENDOR],
                 )
         else:
             request = InviteActorToCaseTriggerRequest(
                 actor_id=actor.id_,
                 case_id=case.id_,
                 invitee_id=bad_id,
+                roles=[CVDRole.VENDOR],
             )
             with pytest.raises(
                 VultronValidationError, match="deliverable actor URI"
@@ -560,6 +678,7 @@ class TestSvcInviteActorToCaseUseCase:
             actor_id=actor.id_,
             case_id=missing_case_id,
             invitee_id=invitee.id_,
+            roles=[CVDRole.VENDOR],
         )
         with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             run_in_act(
@@ -587,6 +706,7 @@ class TestSvcInviteActorToCaseUseCase:
             actor_id=_UUID,
             case_id=case.id_,
             invitee_id=invitee.id_,
+            roles=[CVDRole.VENDOR],
         )
         result = run_in_act(
             SvcInviteActorToCaseUseCase(
@@ -601,6 +721,364 @@ class TestSvcInviteActorToCaseUseCase:
 
         # Activity actor field must be the full canonical URI, not the short UUID
         assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
+
+
+def _seat(
+    dl: SqliteDataLayer,
+    case_id: str,
+    actor_id: str,
+    roles: list[CVDRole],
+    *,
+    joined: bool,
+) -> str:
+    """Put *actor_id* on *case_id*'s roster in *dl*; return the record id."""
+    record = make(
+        as_CaseParticipant,
+        attributed_to=actor_id,
+        context=case_id,
+        case_roles=roles,
+        joined=joined,
+    )
+    dl.create(record)
+    case = cast(Any, dl.read(case_id))
+    case.actor_participant_index[actor_id] = record.id_
+    case.case_participants.append(record.id_)
+    dl.save(case)
+    return record.id_
+
+
+def _entries_for(dl: SqliteDataLayer, object_id: str) -> list[Any]:
+    """The ledger entries *dl* holds whose subject is *object_id*."""
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+    return [
+        e
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry) and e.log_object_id == object_id
+    ]
+
+
+def _queued_invites(dl: SqliteDataLayer) -> list[Any]:
+    queued = [dl.read(item) for item in dl.outbox_list()]
+    return [q for q in queued if isinstance(q, as_Invite)]
+
+
+class TestCaseManagerJudgesTheOwnersInvite:
+    """The CASE_MANAGER admits or refuses the Case Owner's Invite (ADR-0199).
+
+    Admitted, the Owner's Invite is one ledger entry and the CASE_MANAGER
+    makes its own stub Invite from it (CM-17-006, PCR-08-007).  Refused, it
+    is answered with the refusal notice and nothing is committed or sent
+    (CLP-05-001, CLP-10-009).
+    """
+
+    def _assert_refused(
+        self,
+        harness: _OwnerDirectInvite,
+        result: Any,
+        invite_id: str,
+        *,
+        asserter: str,
+        reason: str,
+    ) -> None:
+        from test.support.refusal_notice import assert_refusal_notice
+
+        assert result.disposition.value == "refused", result
+        assert _entries_for(harness.manager_dl, invite_id) == []
+        assert _queued_invites(harness.manager_dl) == []
+        assert_refusal_notice(
+            harness.manager_dl,
+            manager=harness.manager.id_,
+            refused_id=invite_id,
+            asserter=asserter,
+            reason=reason,
+            case_id=harness.case.id_,
+        )
+
+    @pytest.mark.spec("CM-17-006", "CM-24-002", "CM-24-020")
+    @pytest.mark.spec("PCR-08-007")
+    def test_an_admitted_invite_is_one_entry_then_the_stub_invite(
+        self, make_payload
+    ):
+        harness = _OwnerDirectInvite()
+
+        stub, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
+        owner_invite_id = stub.in_reply_to
+
+        assert len(_entries_for(harness.manager_dl, owner_invite_id)) == 1
+        assert len(_entries_for(harness.manager_dl, stub.id_)) == 1
+        assert wire["actor"] == harness.manager.id_
+        assert wire["to"] == [harness.invitee.id_]
+        assert wire["object"]["id"] == harness.case.id_
+        assert wire["roles"] == ["vendor"]
+        assert wire["attributedTo"] == harness.owner.id_
+        assert wire["inReplyTo"] == owner_invite_id
+        owner_invite = harness.owner_dl.read(owner_invite_id)
+        assert isinstance(owner_invite, as_Invite)
+        assert owner_invite.actor == harness.owner.id_
+
+    @pytest.mark.spec("PCR-08-007")
+    def test_the_invitees_accept_names_the_case_managers_invite(
+        self, make_payload
+    ):
+        from vultron.core.use_cases.received.actor.invite import (
+            AcceptInviteActorToCaseReceivedUseCase,
+        )
+        from vultron.wire.as2.factories import (
+            rm_accept_invite_to_case_activity,
+        )
+
+        harness = _OwnerDirectInvite()
+        stub, _wire = harness.invite(make_payload)
+        accept = rm_accept_invite_to_case_activity(
+            stub,
+            actor=harness.invitee.id_,
+            to=[harness.manager.id_],
+            at=authored_at(),
+        )
+
+        result = run_in_act(
+            AcceptInviteActorToCaseReceivedUseCase(
+                harness.manager_dl,
+                make_payload(accept, receiving_actor_id=harness.manager.id_),
+                sync_port=MagicMock(),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(harness.manager_dl),
+            )
+        )
+
+        assert accept.object_.id_ == stub.id_
+        assert result.disposition.value == "applied", result
+
+    @pytest.mark.spec("CM-17-007", "HP-01-006")
+    def test_an_invite_from_a_participant_that_is_not_the_owner_is_refused(
+        self, make_payload
+    ):
+        harness = _OwnerDirectInvite()
+        # The participant sends from its own store, which holds the case.
+        other, other_dl = _make_actor_dl("Participant")
+        other_dl.create(harness.invitee)
+        other_dl.create(harness.manager)
+        for obj_id in (
+            harness.case.id_,
+            *harness.case.case_participants,
+        ):
+            other_dl.create(cast(Any, harness.owner_dl.read(obj_id)))
+        for dl in (harness.manager_dl, other_dl):
+            _seat(
+                dl,
+                harness.case.id_,
+                other.id_,
+                [CVDRole.VENDOR],
+                joined=True,
+            )
+        invite_id = harness.owner_invite(
+            roles=["vendor"], actor=other.id_, dl=other_dl
+        )
+        invite = other_dl.read(invite_id)
+        assert invite is not None
+
+        result = run_in_act(
+            InviteActorToCaseReceivedUseCase(
+                harness.manager_dl,
+                make_payload(invite, receiving_actor_id=harness.manager.id_),
+                trigger_activity=TriggerActivityAdapter(harness.manager_dl),
+                sync_port=SyncActivityAdapter(harness.manager_dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
+
+        self._assert_refused(
+            harness, result, invite_id, asserter=other.id_, reason="CASE_OWNER"
+        )
+
+    @pytest.mark.spec("CM-17-015")
+    @pytest.mark.parametrize("who", ["manager", "owner"])
+    def test_an_invite_naming_the_manager_or_the_owner_is_refused(
+        self, make_payload, who
+    ):
+        harness = _OwnerDirectInvite()
+        named = harness.manager if who == "manager" else harness.owner
+        invite_id = harness.owner_invite(
+            roles=["vendor"], invitee_id=named.id_
+        )
+
+        result = harness.deliver_to_manager(invite_id, make_payload)
+
+        self._assert_refused(
+            harness,
+            result,
+            invite_id,
+            asserter=harness.owner.id_,
+            reason="CM-17-015",
+        )
+
+    @pytest.mark.spec("CM-11-043")
+    def test_an_invite_of_a_joined_participant_is_refused(self, make_payload):
+        harness = _OwnerDirectInvite()
+        _seat(
+            harness.manager_dl,
+            harness.case.id_,
+            harness.invitee.id_,
+            [CVDRole.VENDOR],
+            joined=True,
+        )
+        invite_id = harness.owner_invite(roles=["vendor"])
+
+        result = harness.deliver_to_manager(invite_id, make_payload)
+
+        self._assert_refused(
+            harness,
+            result,
+            invite_id,
+            asserter=harness.owner.id_,
+            reason="has already joined",
+        )
+
+    @pytest.mark.spec("CM-20-008")
+    def test_an_invite_offering_an_authority_role_is_refused(
+        self, make_payload
+    ):
+        harness = _OwnerDirectInvite()
+        invite_id = harness.owner_invite(roles=["case_owner"])
+
+        result = harness.deliver_to_manager(invite_id, make_payload)
+
+        self._assert_refused(
+            harness,
+            result,
+            invite_id,
+            asserter=harness.owner.id_,
+            reason="CM-20-008",
+        )
+
+    @pytest.mark.spec("CM-11-015", "CM-11-042", "CM-11-044")
+    def test_a_second_invite_of_an_unanswered_invitee_replaces_its_stub(
+        self, make_payload
+    ):
+        """The re-invite names the stub it supersedes and seats no new record.
+
+        Its ``attributedTo`` still names the Owner, whose Invite is the
+        request it carries out (CM-24-002); the ``inReplyTo`` is the earlier
+        stub, as for every replacement (CM-11-044).
+        """
+        harness = _OwnerDirectInvite()
+        first, _ = harness.invite(make_payload)
+        record_before = cast(
+            Any, harness.manager_dl.read(harness.case.id_)
+        ).actor_participant_index[harness.invitee.id_]
+
+        second_owner_invite = harness.trigger()
+        result = harness.deliver_to_manager(
+            second_owner_invite["id"], make_payload
+        )
+
+        assert result.disposition.value == "applied", result
+        stubs = _queued_invites(harness.manager_dl)
+        replacement = next(s for s in stubs if s.id_ != first.id_)
+        sealed = read_sealed_body(harness.manager_dl, replacement.id_)
+        assert sealed is not None
+        wire = json.loads(sealed.body)
+        assert wire["inReplyTo"] == first.id_
+        assert wire["attributedTo"] == harness.owner.id_
+        assert (
+            len(_entries_for(harness.manager_dl, second_owner_invite["id"]))
+            == 1
+        )
+        case = cast(Any, harness.manager_dl.read(harness.case.id_))
+        assert case.actor_participant_index[harness.invitee.id_] == (
+            record_before
+        )
+
+    @pytest.mark.spec("CM-17-007")
+    def test_the_owners_recommend_actor_offer_is_refused(self, make_payload):
+        """AC-5: the Owner's decision has one wire form, its Invite."""
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
+        )
+
+        harness = _OwnerDirectInvite()
+        offer_id, _blob = TriggerActivityAdapter(
+            harness.owner_dl
+        ).suggest_actor_to_case(
+            recommended_id=harness.invitee.id_,
+            case_id=harness.case.id_,
+            actor=harness.owner.id_,
+            to=[harness.manager.id_],
+            roles=["vendor"],
+            at=authored_at(),
+        )
+        offer = harness.owner_dl.read(offer_id)
+        assert offer is not None
+
+        result = run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                harness.manager_dl,
+                make_payload(offer, receiving_actor_id=harness.manager.id_),
+                trigger_activity=TriggerActivityAdapter(harness.manager_dl),
+                sync_port=SyncActivityAdapter(harness.manager_dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
+
+        self._assert_refused(
+            harness,
+            result,
+            offer_id,
+            asserter=harness.owner.id_,
+            reason="CM-17-007",
+        )
+
+
+class TestOwnerHoldingTheCaseManagerRoleInvitesDirectly:
+    """An Owner that is the CASE_MANAGER sends the stub Invite itself (AC-4)."""
+
+    @staticmethod
+    def _invite(roles: list[CVDRole]) -> tuple[Any, SqliteDataLayer, Any, Any]:
+        owner, dl = _make_actor_dl("OwnerManager")
+        invitee, _ = _make_actor_dl("Invitee")
+        dl.create(invitee)
+        case = _make_case_with_case_manager(dl, owner.id_, owner.id_)
+        record = cast(Any, dl.read(case.actor_participant_index[owner.id_]))
+        record.case_roles = [CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER]
+        dl.save(record)
+        result = run_in_act(
+            SvcInviteActorToCaseUseCase(
+                dl,
+                InviteActorToCaseTriggerRequest(
+                    actor_id=owner.id_,
+                    case_id=case.id_,
+                    invitee_id=invitee.id_,
+                    roles=roles,
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
+        return activity_of(result), dl, owner, invitee
+
+    @pytest.mark.spec("CM-24-021", "CM-17-006", "CM-11-006")
+    def test_the_stub_goes_straight_to_the_invitee_and_is_its_own(self):
+        activity, dl, owner, invitee = self._invite([CVDRole.VENDOR])
+
+        assert activity["type"] == "Invite"
+        assert activity["actor"] == owner.id_
+        assert activity["to"] == [invitee.id_]
+        assert activity["roles"] == ["vendor"]
+        assert "attributedTo" not in activity
+        assert "inReplyTo" not in activity
+        assert [i.id_ for i in _queued_invites(dl)] == [activity["id"]]
+        assert len(_entries_for(dl, activity["id"])) == 1
+        invite_entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if getattr(e, "semantic_type", None) == "invite_actor_to_case"
+        ]
+        assert len(invite_entries) == 1
+        case = cast(Any, dl.read(activity["object"]["id"]))
+        assert invitee.id_ in case.actor_participant_index
 
 
 class TestInviteRolesAndEmbargoEnrichment:
@@ -643,40 +1121,14 @@ class TestInviteRolesAndEmbargoEnrichment:
     @pytest.mark.spec("CM-11-048")
     @pytest.mark.spec("CM-11-019")
     def test_no_roles_requested_is_refused(self, make_payload):
-        """CM-11-048: no roles given → CASE_MANAGER refuses to emit the Invite.
-
-        The owner sends its Offer with no roles; the CASE_MANAGER's
-        EvaluateDefaultRolesNode returns FAILURE rather than defaulting to
-        VENDOR, so OfferActorToCaseReceivedUseCase returns REFUSED.
-        """
-        from vultron.core.use_cases.received.actor.suggest import (
-            OfferActorToCaseReceivedUseCase,
-        )
-
+        """CM-11-048: an owner's Invite with no roles is refused, not defaulted."""
         harness = _OwnerDirectInvite()
-        offer = harness.trigger(roles=None)
+        owner_invite_id = harness.owner_invite(roles=None)
 
-        from vultron.adapters.driven.sync_activity_adapter import (
-            SyncActivityAdapter,
-        )
+        result = harness.deliver_to_manager(owner_invite_id, make_payload)
 
-        offer_obj = harness.owner_dl.read(offer["id"])
-        assert offer_obj is not None
-        event = make_payload(offer_obj, receiving_actor_id=harness.manager.id_)
-        result = run_in_act(
-            OfferActorToCaseReceivedUseCase(
-                harness.manager_dl,
-                event,
-                trigger_activity=TriggerActivityAdapter(harness.manager_dl),
-                sync_port=SyncActivityAdapter(harness.manager_dl),
-                wire_render_port=As2WireRenderAdapter(),
-            )
-        )
-
-        assert result.disposition.value == "refused", (
-            f"Expected REFUSED when no roles given, got {result.disposition}"
-        )
-        assert result.reason is not None
+        assert result.disposition.value == "refused", result
+        assert result.reason is not None and "no role" in result.reason
 
     @pytest.mark.spec("CM-17-007")
     @pytest.mark.spec("PCR-07-008")
@@ -822,52 +1274,24 @@ class TestRolesThreadingIntegration:
     def test_no_roles_is_refused_not_defaulted(self, make_payload):
         """CM-11-048, CM-11-050: no roles → CASE_MANAGER refuses, no VENDOR default.
 
-        The CASE_MANAGER must not substitute VENDOR when the inviter provides
-        no roles. The full-round-trip fails at the CASE_MANAGER's receipt of
-        the owner's Offer because EvaluateDefaultRolesNode returns FAILURE.
+        The CASE_MANAGER must not substitute VENDOR when the owner names no
+        roles: no stub Invite goes out and no participant is seated.
         """
-        from vultron.adapters.driven.sync_activity_adapter import (
-            SyncActivityAdapter,
-        )
-        from vultron.core.use_cases.received.actor.suggest import (
-            OfferActorToCaseReceivedUseCase,
-        )
-
         harness = _OwnerDirectInvite()
-        offer = harness.trigger(roles=None)
+        owner_invite_id = harness.owner_invite(roles=None)
 
-        offer_obj = harness.manager_dl.read(offer["id"])
-        if offer_obj is None:
-            offer_obj = harness.owner_dl.read(offer["id"])
-        assert offer_obj is not None, "Offer not found in either store"
-        event = make_payload(offer_obj, receiving_actor_id=harness.manager.id_)
-        result = run_in_act(
-            OfferActorToCaseReceivedUseCase(
-                harness.manager_dl,
-                event,
-                trigger_activity=TriggerActivityAdapter(harness.manager_dl),
-                sync_port=SyncActivityAdapter(harness.manager_dl),
-                wire_render_port=As2WireRenderAdapter(),
-            )
-        )
+        result = harness.deliver_to_manager(owner_invite_id, make_payload)
 
-        assert result.disposition.value == "refused", (
-            f"Expected REFUSED when no roles given, got {result.disposition}"
-        )
-        # No Invite should have been emitted by the CASE_MANAGER
-        queued = harness.manager_dl.outbox_list()
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Invite,
-        )
-
-        invites = [
+        assert result.disposition.value == "refused", result
+        queued = [
             harness.manager_dl.read(item)
-            for item in queued
-            if isinstance(harness.manager_dl.read(item), as_Invite)
+            for item in harness.manager_dl.outbox_list()
         ]
-        assert not invites, (
+        assert not [q for q in queued if isinstance(q, as_Invite)], (
             "CASE_MANAGER must not emit an Invite when no roles are given"
         )
+        case = cast(Any, harness.manager_dl.read(harness.case.id_))
+        assert harness.invitee.id_ not in case.actor_participant_index
 
 
 class TestInviteRetrySendsOnce:
@@ -883,11 +1307,14 @@ class TestInviteRetrySendsOnce:
     def _invite_entries(harness: _OwnerDirectInvite) -> list[Any]:
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
+        # The CASE_MANAGER's own stub Invites, not the owner's Invite it
+        # admitted under the same semantic type.
         return [
             e
             for e in harness.manager_dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
             and e.semantic_type == "invite_actor_to_case"
+            and e.payload_snapshot.get("actor") == harness.manager.id_
         ]
 
     @staticmethod
@@ -902,10 +1329,10 @@ class TestInviteRetrySendsOnce:
     def test_a_retry_after_an_uncommitted_send_queues_and_commits_once(
         self, make_payload
     ):
-        """The owner's invite trigger, then its Offer processed twice.
+        """The owner's invite trigger, then its Invite processed twice.
 
-        The trigger's Invite is the CASE_MANAGER's to send (CM-17-007), so
-        the retried step is the CASE_MANAGER's tree for the trigger's Offer.
+        The stub Invite is the CASE_MANAGER's to send (CM-17-007), so the
+        retried step is the CASE_MANAGER's tree for the owner's Invite.
         """
         from test.support.ledger import fail_commits
         from vultron.core.behaviors.sync import commit_tree
@@ -913,14 +1340,17 @@ class TestInviteRetrySendsOnce:
         harness = _OwnerDirectInvite()
         offer = harness.trigger(roles=[CVDRole.VENDOR])
 
-        # The first attempt builds, seals and queues the Invite, but its
-        # commit fails.  The Invite is one act with the received Offer's own
+        # The first attempt builds, seals and queues the stub Invite, but its
+        # commit fails.  The stub is one act with the owner's Invite's own
         # entry, so the act keeps neither (CLP-07-015).
         with pytest.MonkeyPatch.context() as mp:
             failed = fail_commits(
                 mp,
                 commit_tree,
-                when=lambda kw: kw["semantic_type"] == "invite_actor_to_case",
+                when=lambda kw: (
+                    kw["semantic_type"] == "invite_actor_to_case"
+                    and kw["object_id"] != offer["id"]
+                ),
             )
             # The Invite is queued, so the failed commit escapes rather than
             # failing the tree into another arm (BT-14-001).
@@ -948,7 +1378,7 @@ class TestInviteRetrySendsOnce:
     def test_the_invite_id_is_derived_from_the_owners_offer(
         self, make_payload
     ):
-        """The id the retry relies on: one per Offer, not one per attempt."""
+        """The id the retry relies on: one per owner's Invite, not per attempt."""
         from vultron.core.behaviors.case.nodes.invite_actor_emit import (
             INVITE_ID_KIND,
         )
@@ -997,12 +1427,15 @@ class TestStubInviteIsRecordedAfterItIsSent:
             if step == ("queued", invite_id)
             or step[0] in ("invite_actor_to_case", "create_case_participant")
         ]
-        assert [kind for kind, _ in steps] == [
-            "queued",
-            "invite_actor_to_case",
-            "create_case_participant",
+        # The owner's Invite is committed first, as the act it is (AC-3);
+        # then the stub Invite is queued, committed, and the invitee seated.
+        assert steps == [
+            ("invite_actor_to_case", offer["id"]),
+            ("queued", invite_id),
+            ("invite_actor_to_case", invite_id),
+            steps[3],
         ]
-        assert steps[1] == ("invite_actor_to_case", invite_id)
+        assert steps[3][0] == "create_case_participant"
         # Committed with the Invite still pending: the commit waited for the
         # outbox write, not for delivery (OX-14-002).
         assert invite_id in harness.manager_dl.outbox_list()
@@ -1017,7 +1450,8 @@ class TestSvcSuggestActorToCaseUseCase:
         suggested, _ = _make_actor_dl("Vendor")
         dl.create(case_actor)
         dl.create(suggested)
-        case = _make_case_with_case_manager(dl, actor.id_, case_actor.id_)
+        # The suggester is not the Case Owner: the owner invites (CM-17-007).
+        case = _make_case_with_case_manager(dl, CASE_OWNER_ID, case_actor.id_)
 
         request = SuggestActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -1057,7 +1491,8 @@ class TestSvcSuggestActorToCaseUseCase:
         actor, dl = _make_actor_dl("Coordinator")
         case_actor, _ = _make_actor_dl("Case Actor")
         dl.create(case_actor)
-        case = _make_case_with_case_manager(dl, actor.id_, case_actor.id_)
+        # The suggester is not the Case Owner: the owner invites (CM-17-007).
+        case = _make_case_with_case_manager(dl, CASE_OWNER_ID, case_actor.id_)
 
         missing_id = "https://example.org/actors/ghost"
         request = SuggestActorToCaseTriggerRequest(
@@ -1101,7 +1536,8 @@ class TestSvcSuggestActorToCaseUseCase:
         actor, dl = _make_actor_dl("Coordinator")
         case_actor, _ = _make_actor_dl("Case Actor")
         dl.create(case_actor)
-        case = _make_case_with_case_manager(dl, actor.id_, case_actor.id_)
+        # The suggester is not the Case Owner: the owner invites (CM-17-007).
+        case = _make_case_with_case_manager(dl, CASE_OWNER_ID, case_actor.id_)
 
         if refused_by_model:
             with pytest.raises(ValidationError, match="must be a URI"):
@@ -1142,7 +1578,7 @@ class TestSvcSuggestActorToCaseUseCase:
         dl.create(case_actor)
         dl.create(suggested)
         case = _make_case_with_case_manager(
-            dl, owner_actor_id=_HTTP_ACTOR_ID, case_actor_id=case_actor.id_
+            dl, owner_actor_id=CASE_OWNER_ID, case_actor_id=case_actor.id_
         )
 
         request = SuggestActorToCaseTriggerRequest(
@@ -1163,6 +1599,35 @@ class TestSvcSuggestActorToCaseUseCase:
 
         assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
         assert activity_of(result).get("to") == [case_actor.id_]
+
+    @pytest.mark.spec("CM-17-007")
+    def test_suggest_by_the_case_owner_is_refused_before_it_is_sent(self):
+        """The Owner decides with its own Invite, so it suggests no one."""
+        actor, dl = _make_actor_dl("Coordinator")
+        case_actor, _ = _make_actor_dl("Case Actor")
+        suggested, _ = _make_actor_dl("Vendor")
+        dl.create(case_actor)
+        dl.create(suggested)
+        case = _make_case_with_case_manager(dl, actor.id_, case_actor.id_)
+        request = SuggestActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            suggested_actor_id=suggested.id_,
+        )
+
+        with pytest.raises(VultronValidationError, match="CM-17-007"):
+            run_in_act(
+                SvcSuggestActorToCaseUseCase(
+                    dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=SyncActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    clock=SystemClock(),
+                )
+            )
+
+        assert dl.outbox_list() == []
 
     def test_suggest_raises_when_no_case_manager(self):
         actor, dl = _make_actor_dl("Coordinator")
@@ -2692,6 +3157,7 @@ class TestActorResolutionCallOut:
             actor_id=actor.id_,
             case_id=case.id_,
             invitee_id=missing_id,
+            roles=[CVDRole.VENDOR],
         )
         with caplog.at_level(logging.WARNING):
             result = run_in_act(
@@ -2731,6 +3197,7 @@ class TestActorResolutionCallOut:
             actor_id=actor.id_,
             case_id=case.id_,
             invitee_id=missing_id,
+            roles=[CVDRole.VENDOR],
         )
         with caplog.at_level(logging.WARNING):
             result = run_in_act(
@@ -2773,6 +3240,7 @@ class TestActorResolutionCallOut:
             actor_id=actor.id_,
             case_id=case.id_,
             invitee_id=missing_id,
+            roles=[CVDRole.VENDOR],
         )
         run_in_act(
             SvcInviteActorToCaseUseCase(
@@ -2802,6 +3270,7 @@ class TestActorResolutionCallOut:
             actor_id=actor.id_,
             case_id=case.id_,
             invitee_id=missing_id,
+            roles=[CVDRole.VENDOR],
         )
         run_in_act(
             SvcInviteActorToCaseUseCase(
@@ -2852,6 +3321,7 @@ class TestActorResolutionCallOut:
             actor_id=actor.id_,
             case_id=case.id_,
             invitee_id=missing_id,
+            roles=[CVDRole.VENDOR],
         )
         with caplog.at_level(logging.WARNING):
             # Must NOT raise CallOutContractError out of the use case.

@@ -18,11 +18,13 @@
 Trigger trees provided here include:
 
 - ``suggest_actor_to_case_trigger_bt`` — SenderSideBT wrapper for
-  Offer(Actor)[target=VulnerabilityCase] routed through the Case Manager (PCR-08-001).
-  The Case
-  Owner's direct invite uses it too: the owner asks the CASE_MANAGER to
-  invite, and the CASE_MANAGER emits the Invite from its own received tree
-  (CM-17-007, ADR-0109).  No trigger tree emits an Invite.
+  Offer(Actor)[target=VulnerabilityCase] routed through the Case Manager
+  (PCR-08-001).
+- ``case_manager_invite_actor_trigger_bt`` — the direct invite of a Case
+  Owner that holds the CASE_MANAGER role: it sends the stub Invite itself
+  (CM-24-021).  Any other Owner routes its own Invite to the CASE_MANAGER
+  through the SenderSideBT, and the CASE_MANAGER sends the stub Invite from
+  its received tree (CM-17-007, ADR-0109, ADR-0199).
 - ``accept_case_invite_trigger_bt`` — Sequence for Accept(Invite)
   sent by the invitee.
 - ``accept_actor_recommendation_trigger_bt`` and
@@ -38,6 +40,7 @@ from datetime import datetime
 
 import py_trees
 
+from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.case.nodes.invite_received import (
     FixInviteTrustAnchorNode,
 )
@@ -57,6 +60,9 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
     EmitRejectCaseParticipantOfferNode,
+)
+from vultron.core.behaviors.case.stub_invite_send import (
+    owner_decided_stub_invite,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.ledger_position import LedgerPosition
@@ -83,6 +89,43 @@ def suggest_actor_to_case_trigger_bt(
         SenderSideBT Sequence.
     """
     return sender_side_bt(case_id=case_id, activity_builder=activity_builder)
+
+
+def case_manager_invite_actor_trigger_bt(
+    case_id: str,
+    invitee_id: str,
+    roles: list[str],
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the direct-invite BT of a Case Owner that is the CASE_MANAGER.
+
+    The Owner's decision needs no message to itself: it sends the stub
+    Invite straight to the invitee, as its own act with neither
+    ``attributedTo`` nor ``inReplyTo`` (CM-24-021), through the same
+    :func:`~vultron.core.behaviors.case.stub_invite_send.owner_decided_stub_invite`
+    the CASE_MANAGER runs on another Owner's Invite.  The Invite, its ledger
+    entry and the inert participant's are one act (CLP-07-015, ADR-0146).
+
+    Args:
+        case_id: ID of the VulnerabilityCase.
+        invitee_id: The invited actor.
+        roles: The roles the Owner named; never empty (CM-11-019).
+        captured: Optional dict; ``captured["activity"]`` is set to the
+            stub Invite sent.
+    """
+    return ActTransaction(
+        name="CaseManagerInviteActorToCaseTriggerBT",
+        children=[
+            owner_decided_stub_invite(
+                invitee_id=invitee_id,
+                case_id=case_id,
+                roles=roles,
+                owner_id=None,
+                owner_invite_id=None,
+                captured=captured,
+            )
+        ],
+    )
 
 
 def accept_case_invite_trigger_bt(
