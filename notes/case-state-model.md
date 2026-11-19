@@ -12,6 +12,7 @@ description: >
 related_specs:
   - specs/architecture.yaml (ARCH-12-002)
   - specs/case-management.yaml
+  - specs/case-shadow.yaml (SHD-05)
   - specs/cs-behavior.yaml
   - specs/em-behavior.yaml
   - specs/received-status-handling.yaml
@@ -32,6 +33,8 @@ related_notes:
   - notes/sync-ledger-replication.md
   - notes/documentation-strategy.md
   - notes/rfc-review-rubric.md
+related_adrs:
+  - docs/adr/0216-action-rules-span-cs-rm-em-and-pec-and-authored-rules-are-compared-with-rules-generated-from-move-advice.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -176,12 +179,15 @@ reply to the full-case Invite and its `Join`/`Ignore`. This applies to
 post-initialization invitees, not the participants created during case
 initialization (CM-12, CM-13). Full flow: [case-joining.md](case-joining.md).
 
-## Case-Level Action Rules Aggregate Across Participants
+## Case-Level Triggers Aggregate Across Participants
 
-A case-level rule (CASE_MANAGER or case owner perspective) MUST aggregate over
-all relevant participants: for example, an `EMBARGO_END` trigger MUST NOT fire
-because one vendor reached `FIX_READY` while others have not. Participant-level
-rules evaluate one participant's state. No aggregation threshold is specified
+A case-level trigger or behavior-tree node (CASE_MANAGER or case owner
+perspective) MUST aggregate over all relevant participants: for example, an
+`EMBARGO_END` trigger MUST NOT fire because one vendor reached `FIX_READY` while
+others have not. Participant-level triggers and nodes evaluate one participant's
+state. An action rule is advice that fires nothing, so it is read per vendor and
+names the vendor it matched, as move advice is (ADR-0216); the aggregation stays
+with whatever acts on it. No aggregation threshold is specified
 ("all engaged vendors at `FIX_READY`" versus "≥X% of vendors"); do not hard-code
 one in a node. It needs a spec, or a call-out that delegates the judgment.
 
