@@ -8411,14 +8411,18 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER emits a delegated Activity, the `in_reply_to` field MUST be
-      set to the id of the request the CASE_MANAGER received from the requesting
-      participant.
+      When the CASE_MANAGER emits a delegated Activity other than a replacement stub
+      Invite, the `in_reply_to` field MUST be set to the id of the request the
+      CASE_MANAGER received from the requesting participant. A replacement stub
+      Invite names the Invite it supersedes instead (CM-11-044).
     rationale: >-
       VOC `inReplyTo` names what an object answers. A receiver reads both who asked
       (`attributedTo`, CM-24-002) and which request the act carries out. A distinct
       asker reaches the CASE_MANAGER only by message (ADR-0109), so every delegated
-      act has a request to name (ADR-0199).
+      act has a request to name (ADR-0199). Stub Invites to one invitee form a thread:
+      the first names the request, and each replacement names the Invite before it,
+      so the request stays reachable along the thread and the CASE_MANAGER finds the
+      one live stub by it (CM-11-015). The maintainer chose this in the #6464 build.
     verification: >-
       `test/architecture/test_delegated_act_names_request.py` asserts no emit site and
       no example activity credits another actor without an `inReplyTo`, and the
@@ -8431,6 +8435,9 @@ groups:
     stories:
     - story_2022_089
     - story_2022_034
+    see_also:
+    - spec_id: CM-11-044
+      reason: 'the replacement stub Invite this rule leaves to it'
   - id: CM-24-021
     priority: MUST_NOT
     kind: protocol

@@ -183,13 +183,15 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
             invitee_id=stale.invitee_id,
             roles=list(stale.roles) or None,
             # The replacement is made for whoever asked for the Invite it
-            # replaces, and names that Invite (CM-11-044), which named the
-            # request (CM-24-020).
+            # replaces, and carries out what that Invite carried out: the
+            # request, or the Invite before it in the thread.  On the wire it
+            # names the Invite it supersedes (CM-11-044), so the request
+            # stays reachable along the thread (CM-24-020).
             authorship=(
                 delegated_authorship(
                     doing_actor_id=self.actor_id,
                     requesting_actor_id=stale.attributed_to,
-                    request_id=stale.invite_id,
+                    request_id=stale.in_reply_to,
                 )
                 if stale.attributed_to is not None
                 else None
