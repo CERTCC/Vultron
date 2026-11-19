@@ -13,8 +13,8 @@ description: >
   conversion turns the stored claims reading, the report and the Offer into a core
   CaseProposal whose caseInputs the CASE_MANAGER applies, with the CASE_MANAGER's
   own reading of the document kept as the fallback; the CASE_MANAGER judges every
-  embargo date when it builds the case, and records a passed one as a cancelled
-  proposal. Holds the requirement text the implementation adds to
+  embargo date when it builds the case, and records a passed one as an embargo
+  that was in force and has ended. Holds the requirement text the implementation adds to
   specs/case-proposal.yaml and specs/embargo-policy.yaml (ADR-0184).
 related_specs:
   - specs/case-proposal.yaml
@@ -62,15 +62,29 @@ is built yet.
 
 ## A Proposed End That Has Passed
 
-- **Record it as cancelled, never active.** One register step, PROPOSE with
-  CANCEL: a cancelled entry does not move EM (`derive_em`), so a public case stays
-  at `EM.NONE` (EP-04-020) and no Proposed state is visible (EP-04-002).
-  Activating then ending it would put the case in `EM.EXITED`, which says an
-  embargo was once in force.
+- **Record it as in force, then ended at its end time.** The case starts at
+  `EM.EXITED`, so no later embargo can start: an exited case has no move out.
+  Leaving the embargo out would let the owner's default, or a later proposal,
+  start an embargo after the date that ended it.
+- **Three register steps, one transaction.** PROPOSE, ACTIVATE, then TERMINATE
+  with `END_TIME_REACHED`: each moves EM along one transition, so ADR-0130 needs
+  no change. They run inside the case-creation act, as the default embargo's
+  PROPOSE and ACCEPT do (EP-04-031), so no intermediate state is visible
+  (EP-04-002). One step of PROPOSE with CANCEL is refused by the register's step
+  rules and leaves the case at `EM.NONE`, from which a new embargo could start.
+- **Shorter wins picks it.** A passed end is shorter than any actor default, so
+  the Reporter's terms win (EP-04-003); no revision is registered for the losing
+  term, since an exited embargo has none (EP-04-016).
+- **This is not a new negotiation.** The embargo is the Reporter's earlier
+  proposal and ended when the vul became public, so VP-06-001 (no embargo
+  proposed or accepted once public) is not engaged. The code check that refuses
+  any embargo on a case with P, X or A set must let this one through.
+- **The end is part of creating the case.** `Create(VulnerabilityCase)` carries
+  the register to the owner and the Reporter; no separate embargo-ending notice
+  is sent.
 - **Only a CSAF date makes the case public.** A disclosure date is the date the
   vul goes public; an Offer's `proposedEmbargo` end is not. A passed Offer
-  proposal leaves the case embargo-eligible, so the owner's actor default, else
-  the protocol default, applies alone.
+  proposal still starts the case at `EM.EXITED`, with P unset.
 
 ## Requirement Text the Implementation Adds
 
@@ -105,11 +119,15 @@ document.
 
 In `specs/embargo-policy.yaml`, group EP-04 (#6725):
 
-- EP-04-033, MUST NOT, `protocol`: The CASE_MANAGER MUST NOT activate a sender's
-  proposed embargo whose end is no later than the instant it creates the case,
-  nor count it in the comparison of EP-04-003; the case's embargo is then set as
-  if the sender proposed none.
-- EP-04-034, MAY, `protocol`: The CASE_MANAGER MAY record the proposal of
-  EP-04-033 in the case's embargo register as a proposal closed with no decision.
-- EP-04-035, MUST, `project`: This codebase MUST record the proposal of
-  EP-04-033 as a register entry proposed and cancelled in one step.
+- EP-04-033, MUST, `protocol`: When a sender's proposed embargo whose end is no
+  later than the instant the CASE_MANAGER creates the case wins the comparison of
+  EP-04-003, the CASE_MANAGER MUST record it as an embargo that was active and
+  ended at its end time, so the case starts at `EM.EXITED`.
+- EP-04-034, MUST NOT, `protocol`: For a case created under EP-04-033, the
+  CASE_MANAGER MUST NOT start another embargo or register a revision.
+- EP-04-035, MUST, `project`: This codebase MUST record the embargo of EP-04-033
+  by the register's PROPOSE, ACTIVATE and TERMINATE steps, with the reason
+  `END_TIME_REACHED`, inside the case-creation act.
+- EP-04-020 is amended with them: when any of P, X or A is set at case creation,
+  the CASE_MANAGER MUST NOT start the case with an embargo in force; it leaves the
+  case at `EM.NONE`, or at `EM.EXITED` when EP-04-033 applies.
