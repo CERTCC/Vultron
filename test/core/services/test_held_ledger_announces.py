@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Direct tests for the held ledger Announce service (SYNC-14-001, SYNC-14-006).
+"""Direct tests for the held ledger Add service (SYNC-14-001, SYNC-14-006).
 
 The use-case tests in ``test/core/use_cases/received/test_sync.py`` reach
 these through the announce tree; these pin each operation on its own.
@@ -63,7 +63,11 @@ def _entry(
         log_index=index,
         object_id=f"https://example.org/activities/{marker}-{index}",
         semantic_type="test_event",
-        payload_snapshot={"index": index, "marker": marker},
+        payload_snapshot={
+            "id": f"https://example.org/activities/{marker}-{index}",
+            "index": index,
+            "marker": marker,
+        },
         prev_log_hash=prev,
         received_at=ACT_AT,
     ).to_ledger_entry()

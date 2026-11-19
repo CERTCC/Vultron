@@ -23,7 +23,7 @@ either (EP-09-005); the sender guard refuses anyone else (HP-01-006).  The
 owner addresses its decision to the CASE_MANAGER (PCR-08-001), so both trees
 declare the CASE_MANAGER path alone (HP-01-038) and their effects write
 shared case state behind the factory's gate (BT-17-008); a participant
-replica learns the decision from the ``Announce(CaseLedgerEntry)`` broadcast
+replica learns the decision from the ``Add(CaseLedgerEntry)`` broadcast
 (EP-09-007), never from the activity itself, and is refused at the path stage
 (HP-01-039).
 """

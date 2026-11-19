@@ -138,10 +138,10 @@ print(py_trees.display.unicode_tree(tree))
 print("```")
 ```
 
-## Announce Log Entry Tree
+## Add Log Entry Tree
 
-Processes an incoming log entry announcement from the CASE_MANAGER. Constructed from
-`vultron.core.behaviors.sync.announce_tree.create_announce_log_entry_tree`.
+Processes an incoming ledger entry the CASE_MANAGER added to the case's ledger. Constructed from
+`vultron.core.behaviors.sync.add_log_entry_tree.create_add_log_entry_tree`.
 
 ```python exec="true" idprefix=""
 import sys
@@ -151,11 +151,11 @@ if str(_repo) not in sys.path:
     sys.path.insert(0, str(_repo))
 
 import py_trees
-from vultron.core.behaviors.sync.announce_tree import create_announce_log_entry_tree
-from vultron.core.use_cases.received.sync import AnnounceLedgerEntryReceivedUseCase
+from vultron.core.behaviors.sync.add_log_entry_tree import create_add_log_entry_tree
+from vultron.core.use_cases.received.sync import AddLedgerEntryReceivedUseCase
 
-tree = create_announce_log_entry_tree(
-    sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement,
+tree = create_add_log_entry_tree(
+    sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement,
 )
 print("```")
 print(py_trees.display.unicode_tree(tree))

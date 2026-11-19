@@ -1508,11 +1508,11 @@ class TestInviteActorUseCases:
 
         announced_log_indices = [
             kwargs["entry"].log_index
-            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+            for _, kwargs in sync_port.send_add_log_entry.call_args_list
         ]
         announced_entries = [
             kwargs["entry"]
-            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+            for _, kwargs in sync_port.send_add_log_entry.call_args_list
         ]
         # Entry 2 (accept_invite): committed while the invitee is inert, so
         #   its fan-out does NOT include the invitee.  It is the invitee's
@@ -1658,7 +1658,7 @@ class TestInviteActorUseCases:
         self, make_payload
     ):
         """CM-17-004 (5) then (6): Announce(VulnerabilityCase) precedes every
-        Announce(CaseLedgerEntry) addressed to the invitee.
+        Add(CaseLedgerEntry) addressed to the invitee.
 
         A late joiner that receives a ledger entry before its case seed enters
         the SYNC-15 pre-genesis path — Reject, then a from-genesis replay that
@@ -1691,14 +1691,14 @@ class TestInviteActorUseCases:
             for name, _args, kwargs in manager.mock_calls
             if name == "trigger.announce_vulnerability_case"
             or (
-                name == "sync.send_announce_log_entry"
+                name == "sync.send_add_log_entry"
                 and invitee_id in kwargs.get("to", [])
             )
         ]
         assert ordered, "neither channel reached the invitee"
         assert ordered[0] == "trigger.announce_vulnerability_case", (
             "the invitee must receive Announce(VulnerabilityCase) before any"
-            f" Announce(CaseLedgerEntry); observed order: {ordered}"
+            f" Add(CaseLedgerEntry); observed order: {ordered}"
         )
         assert ordered.count("trigger.announce_vulnerability_case") == 1
 
@@ -1720,7 +1720,7 @@ class TestInviteActorUseCases:
         first, second = lj["first"], lj["second"]
         sync_port = MagicMock()
         # The backfill sends 0, 1, then the Accept's own entry (2).
-        sync_port.send_announce_log_entry.side_effect = [
+        sync_port.send_add_log_entry.side_effect = [
             None,
             None,
             RuntimeError("delivery refused"),
@@ -1738,7 +1738,7 @@ class TestInviteActorUseCases:
                 )
             )
 
-        assert sync_port.send_announce_log_entry.call_count == 3
+        assert sync_port.send_add_log_entry.call_count == 3
         ledger = [
             e.entry_hash
             for e in dl.list_objects("CaseLedgerEntry")
@@ -1766,7 +1766,7 @@ class TestInviteActorUseCases:
         assert result.disposition is HandlerDisposition.APPLIED, result
         sent = [
             call.kwargs["entry"].log_index
-            for call in sync_port.send_announce_log_entry.call_args_list
+            for call in sync_port.send_add_log_entry.call_args_list
         ]
         assert sent[:3] == [0, 1, 2]
         record = dl.read(case.actor_participant_index[invitee_id])
@@ -1810,7 +1810,7 @@ class TestInviteActorUseCases:
         assert dl.outbox_list() == []
         sent_to_invitee = [
             call.kwargs["entry"].log_index
-            for call in sync_port.send_announce_log_entry.call_args_list
+            for call in sync_port.send_add_log_entry.call_args_list
             if call.kwargs["to"] == [invitee_id]
         ]
         assert sent_to_invitee == [0]
@@ -1932,7 +1932,7 @@ class TestInviteActorUseCases:
 
         announced_entries = [
             kwargs["entry"]
-            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+            for _, kwargs in sync_port.send_add_log_entry.call_args_list
         ]
         # The Accept's own entry (2) fans out while the invitee is inert, so
         # it skips the invitee; the backfill then sends 0, 1 and 2, and the
@@ -1973,7 +1973,7 @@ def _assert_a_duplicate_answer(
         "a duplicate changes no participant record or consent row"
     )
     assert dl.outbox_list() == []
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     trigger.announce_vulnerability_case.assert_not_called()
     trigger.invite_actor_to_full_case.assert_not_called()
 
@@ -2688,7 +2688,7 @@ class TestInviteDispositions:
         assert not any(
             e.semantic_type == "accept_invite_actor_to_case" for e in ledger
         )
-        sync_port.send_announce_log_entry.assert_not_called()
+        sync_port.send_add_log_entry.assert_not_called()
 
     @pytest.mark.spec("HP-01-003")
     def test_accept_invite_redelivery_is_skipped(self, make_payload):

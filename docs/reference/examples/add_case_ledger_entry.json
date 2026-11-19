@@ -4,12 +4,15 @@
     "https://certcc.github.io/Vultron/ns/context.jsonld",
     "https://w3id.org/security/data-integrity/v2"
   ],
-  "type": "Announce",
-  "id": "urn:uuid:9e08b946-4b29-46ac-ba18-bc70917c674a",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Announce urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/0",
+  "type": "Add",
+  "id": "urn:uuid:705101bd-584d-43c1-aad6-5b5e4cf9c0f1",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Add urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/0 to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/ledger",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "inReplyTo": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/ledger",
   "object": {
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/0",
     "type": "CaseLedgerEntry",
@@ -18,9 +21,11 @@
     "logIndex": 0,
     "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001",
     "semanticType": "create_case",
-    "payloadSnapshot": {},
+    "payloadSnapshot": {
+      "id": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001"
+    },
     "prevLogHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d",
-    "entryHash": "a1c020aef39b15d839e36dc5f5563000c56d6f4e4fdbb669a807fab20c0736dd",
+    "entryHash": "f09b79ec9013551751a903a361bf0358df5739b769a2f5e908a4d98bd51ed483",
     "receivedAt": "2024-01-01T12:00:00.000000+00:00"
   },
   "proof": {
@@ -34,6 +39,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "znBw57kpYRHJQzHEnXkvEDSroczVP7xMPBgPcnLMD9dVZvbwCUFRByFHptYg35xjVGqRK9ycHd1e9jJrf7Mf6D69"
+    "proofValue": "z35V28iTq3H6PMTwB7GWvKYVwRMSejdAd8xhJAhBnSnhHMBnZQxV8XDaYc6KyrTC9gBj9i2mvJkHsEGxZn4t2CcUV"
   }
 }

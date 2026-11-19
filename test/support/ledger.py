@@ -258,6 +258,7 @@ def commit_case_manager_closure(dl: DataLayer, case_id: str) -> None:
                     MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value
                 ),
                 payload_snapshot={
+                    "id": f"{case_id}/activities/case-manager-closed",
                     "type": "Add",
                     "actor": manager_id,
                     "object": {

@@ -117,7 +117,7 @@ def _make_add_report_ledger_entry():
             log_index=2,
             object_id=REPORT_ID,
             semantic_type="add_report_to_case",
-            payload_snapshot=snapshot,
+            payload_snapshot={"id": REPORT_ID, **snapshot},
             prev_log_hash=CASE_GENESIS_HASH,
             received_at=ACT_AT,
         )

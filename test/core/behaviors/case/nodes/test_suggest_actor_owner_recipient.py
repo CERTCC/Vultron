@@ -272,7 +272,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
         """The CaseActor records the note for the owner, never DMs itself.
 
         The note is its own ``add_note_to_case`` entry, so the Case Owner
-        learns of it from the entry's ``Announce`` (SYNC-02-001, SYNC-02-003); a direct
+        learns of it from the entry's ``Add`` (SYNC-02-001, SYNC-02-003); a direct
         ``Add(Note)`` would be refused at the owner (HP-01-005, #4829).
         """
         _seed_case_actor_store(case_actor_dl)
@@ -282,7 +282,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
         assert status == Status.SUCCESS
         note = assert_case_manager_note_recorded(case_actor_dl, CASE_ID)
         assert OWNER_ID in note["content"]
-        recipients = _queued_recipients(case_actor_dl, "Announce")
+        recipients = _queued_recipients(case_actor_dl, "Add")
         assert OWNER_ID in recipients, recipients
         assert CASE_ACTOR_ID not in recipients, recipients
 

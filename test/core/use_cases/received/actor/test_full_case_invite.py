@@ -91,7 +91,7 @@ def test_stub_accept_sends_announce_then_replay_then_full_case_invite(
             "trigger.invite_actor_to_full_case",
         }
         or (
-            name == "sync.send_announce_log_entry"
+            name == "sync.send_add_log_entry"
             and invitee_id in kwargs.get("to", [])
         )
     ]
@@ -101,8 +101,8 @@ def test_stub_accept_sends_announce_then_replay_then_full_case_invite(
     invite_at = names.index("trigger.invite_actor_to_full_case")
     # Everything replayed before the Invite is the history it follows; the one
     # send after it is the fan-out of the Invite's own ledger entry.
-    assert names[:invite_at].count("sync.send_announce_log_entry") >= 2, names
-    assert names[invite_at + 1 :] == ["sync.send_announce_log_entry"], names
+    assert names[:invite_at].count("sync.send_add_log_entry") >= 2, names
+    assert names[invite_at + 1 :] == ["sync.send_add_log_entry"], names
 
     entries = _ledger_tail(joining_case)
     invite_entry = next(

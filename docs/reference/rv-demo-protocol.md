@@ -48,7 +48,7 @@ The Reporter actor holds `REPORTER`, the role of whoever submits the report; the
 
 The demo runner drives the scenario through six phases and verifies seven milestones (M1–M7).
 The sequence diagram below shows every activity exchanged between the three actors, in the order a run produces them.
-Ledger fan-out, in which the Case Actor sends `Announce(CaseLedgerEntry)` for every entry it commits, is drawn once per phase rather than once per entry.
+Ledger fan-out, in which the Case Actor sends `Add(CaseLedgerEntry)` for every entry it commits, is drawn once per phase rather than once per entry.
 
 ```mermaid
 ---
@@ -67,8 +67,8 @@ sequenceDiagram
     V->>F: Create(VulnerabilityCase) — introduces the Case Actor
     V->>CA: Accept(Offer(VulnerabilityReport)) — Report Valid (RV)
     V->>CA: Join(VulnerabilityCase) — Report/Case Accepted (RA)
-    CA-->>V: Announce(CaseLedgerEntry) ×n
-    CA-->>F: Announce(CaseLedgerEntry) ×n
+    CA-->>V: Add(CaseLedgerEntry) ×n
+    CA-->>F: Add(CaseLedgerEntry) ×n
     note over F,CA: ✅ M1 — ≥3 participants · EM.ACTIVE · Reporter holds the case
 
     note over F,CA: Phase 2 — Replica synchronization verification (no new activity)
@@ -76,17 +76,17 @@ sequenceDiagram
 
     note over F,CA: Phase 3 — Notes exchange
     F->>CA: Add(Note)[target=VulnerabilityCase] — General Inquiry (GI)
-    CA-->>V: Announce(CaseLedgerEntry)
-    CA-->>F: Announce(CaseLedgerEntry)
+    CA-->>V: Add(CaseLedgerEntry)
+    CA-->>F: Add(CaseLedgerEntry)
     V->>CA: Add(Note)[target=VulnerabilityCase] — reply
-    CA-->>V: Announce(CaseLedgerEntry)
-    CA-->>F: Announce(CaseLedgerEntry)
+    CA-->>V: Add(CaseLedgerEntry)
+    CA-->>F: Add(CaseLedgerEntry)
     note over F,CA: ✅ M3 — Vendor holds the authoritative final case state
 
     note over F,CA: Phase 4 — Fix lifecycle
     V->>CA: Add(ParticipantStatus Vf), Add(ParticipantStatus VF) — Vendor Awareness (CV), Fix Readiness (CF)
-    CA-->>V: Announce(CaseLedgerEntry) ×n
-    CA-->>F: Announce(CaseLedgerEntry) ×n
+    CA-->>V: Add(CaseLedgerEntry) ×n
+    CA-->>F: Add(CaseLedgerEntry) ×n
     note over F,CA: ✅ M4 — both replicas show CS includes F; ✅ M5 — neither records D
 
     note over F,CA: Phase 5 — Publication and embargo teardown
@@ -94,16 +94,16 @@ sequenceDiagram
     CA->>V: Remove(EmbargoEvent) — Embargo Termination (ET)
     CA->>F: Remove(EmbargoEvent) — Embargo Termination (ET)
     F->>CA: Add(ParticipantStatus Pxa) — public awareness
-    CA-->>V: Announce(CaseLedgerEntry) ×n
-    CA-->>F: Announce(CaseLedgerEntry) ×n
+    CA-->>V: Add(CaseLedgerEntry) ×n
+    CA-->>F: Add(CaseLedgerEntry) ×n
     note over F,CA: ✅ M6 — CS.VFdPxa · EM.EXITED on both replicas
 
     note over F,CA: Phase 6 — Case closure
     F->>CA: Leave(VulnerabilityCase) — participant closes
-    CA-->>V: Announce(CaseLedgerEntry) ×n — the Reporter's closure
-    CA-->>F: Announce(CaseLedgerEntry) ×n — its own closure, then nothing
+    CA-->>V: Add(CaseLedgerEntry) ×n — the Reporter's closure
+    CA-->>F: Add(CaseLedgerEntry) ×n — its own closure, then nothing
     V->>CA: Leave(VulnerabilityCase) — owner closes last
-    CA-->>V: Announce(CaseLedgerEntry) ×n — its own closure, then nothing
+    CA-->>V: Add(CaseLedgerEntry) ×n — its own closure, then nothing
     note over F,CA: ✅ M7 — all participants RM.CLOSED in the Case Actor's store
 ```
 
@@ -221,7 +221,7 @@ This phase reads the two replicas and sends nothing.
 3. It compares the two replicas: the participant index, the active embargo id, and the ledger tail hash must match.
 4. It reads the dedicated `case-actor` container and asserts that it holds the case, with its Case Actor as a `CASE_MANAGER` participant.
 
-Ledger entries reach a replica through `Announce(CaseLedgerEntry)`, one activity per entry per participant.
+Ledger entries reach a replica through `Add(CaseLedgerEntry)`, one activity per entry per participant.
 Entries can arrive out of order; a replica that receives an entry ahead of its predecessor answers with `Reject(CaseLedgerEntry)`, and the Case Actor replays the missing range ([Ledger Replication Messages](messages/ledger_replication.md)).
 
 ### Milestone M2
@@ -250,7 +250,7 @@ POST /api/v2/actors/{vendor_id}/demo/add-note-to-case
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
 | `Add(Note)[target=VulnerabilityCase]` | [Add note to case](messages/general.md#add-note-to-case) | Participant → Case Actor |
-| `Announce(CaseLedgerEntry)` | [Announce case ledger entry](messages/ledger_replication.md#announce-case-ledger-entry) | Case Actor → every other participant |
+| `Add(CaseLedgerEntry)` | [Add case ledger entry](messages/ledger_replication.md#add-case-ledger-entry) | Case Actor → every other participant |
 
 ### What happens
 
@@ -281,8 +281,8 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-ready
 
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
-| `Add(ParticipantStatus)[target=CaseParticipant]`, `vfState` = `Vf` | [Vendor Awareness (CV)](messages/cs.md#vendor-awareness) | Vendor → Case Actor |
-| `Add(ParticipantStatus)[target=CaseParticipant]`, `vfState` = `VF` | [Fix Readiness (CF)](messages/cs.md#fix-readiness) | Vendor → Case Actor |
+| `Add(ParticipantStatus, target=<participant>/statuses)`, `vfState` = `Vf` | [Vendor Awareness (CV)](messages/cs.md#vendor-awareness) | Vendor → Case Actor |
+| `Add(ParticipantStatus, target=<participant>/statuses)`, `vfState` = `VF` | [Fix Readiness (CF)](messages/cs.md#fix-readiness) | Vendor → Case Actor |
 
 ### What happens
 
@@ -316,7 +316,7 @@ POST /api/v2/actors/{reporter_id}/demo/notify-published
 
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
-| `Add(ParticipantStatus)[target=CaseParticipant]`, `caseStatus.pxaState` = `Pxa` | [Public awareness in a participant status](messages/cs.md#participant-public-awareness) | Vendor → Case Actor; Reporter → Case Actor |
+| `Add(ParticipantStatus, target=<participant>/statuses)`, `caseStatus.pxaState` = `Pxa` | [Public awareness in a participant status](messages/cs.md#participant-public-awareness) | Vendor → Case Actor; Reporter → Case Actor |
 | `Remove(EmbargoEvent)` | [Tell a participant the embargo has ended](messages/em.md#embargo-termination-notice) | Case Actor → Vendor, Reporter |
 
 ### What happens
@@ -371,7 +371,7 @@ The owner's departure closes the case, and the Case Actor records nothing a part
    It then commits the Vendor's status entries.
    Last, it advances its own participant record to `RM.CLOSED` and commits those status entries too (CM-23-005).
    Its own status entry that reaches `RM.CLOSED` is the write boundary: the case is now fully closed (CM-23-013).
-4. Each entry is fanned out as `Announce(CaseLedgerEntry)` to every participant that has not closed, and each replica applies what it receives.
+4. Each entry is fanned out as `Add(CaseLedgerEntry)` to every participant that has not closed, and each replica applies what it receives.
    A closed participant receives its own closure entries and nothing after them (CM-23-004, CM-23-031).
    The leaving participant's replica receives its `close_case` entry and every status entry for its departure, the one that reaches `RM.CLOSED` included.
    The Reporter therefore receives none of the Vendor's closure entries.

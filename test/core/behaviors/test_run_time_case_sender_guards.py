@@ -16,7 +16,7 @@
 """Who the trees whose case is resolved at run time admit (#4696, AC-4).
 
 The Join(VulnerabilityCase), TentativeReject(Offer(VulnerabilityReport)),
-Announce(CaseLedgerEntry) and Reject(CaseLedgerEntry) trees take their sender
+Add(CaseLedgerEntry) and Reject(CaseLedgerEntry) trees take their sender
 guard from the receive-tree factory, composed from the use case's declared
 rule (HP-01-025).  Each case below builds the real tree, finds the guard the
 factory placed in it, and runs that guard at a store holding the case, once
@@ -54,8 +54,8 @@ from vultron.core.behaviors.report.received_report_trees import (
     create_invalidate_report_received_tree,
 )
 from vultron.core.behaviors.sender_guard import is_composed_sender_guard
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.reject_tree import (
@@ -70,7 +70,7 @@ from vultron.core.use_cases.received.report import (
     InvalidateReportReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
     RejectLedgerEntryReceivedUseCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -157,8 +157,8 @@ TREES: dict[str, TreeCase] = {
         unentitled=STRANGER,
     ),
     "announce-ledger-entry": TreeCase(
-        build=lambda _sender: create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        build=lambda _sender: create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ),
         activity=lambda sender: SimpleNamespace(
             actor_id=sender, log_entry=_entry()

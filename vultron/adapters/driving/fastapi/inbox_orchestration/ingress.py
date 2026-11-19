@@ -40,8 +40,8 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 logger = logging.getLogger(__name__)
 
 
-def _is_inline_ledger_entry_announce(activity: as_Activity) -> bool:
-    """Return True for an ``Announce`` carrying an inline ``CaseLedgerEntry``.
+def _is_inline_ledger_entry_add(activity: as_Activity) -> bool:
+    """Return True for an ``Add`` carrying an inline ``CaseLedgerEntry``.
 
     Used to select the in-memory rehydration path that does not depend on the
     entry being pre-stored (SYNC-13-002/003).  Detected structurally via the
@@ -49,7 +49,7 @@ def _is_inline_ledger_entry_announce(activity: as_Activity) -> bool:
     reference to an entry carries no entry (MV-10-011), so it takes the staged
     path, where rehydration reads the held entry or leaves its bare id.
     """
-    if getattr(activity, "type_", None) != "Announce":
+    if getattr(activity, "type_", None) != "Add":
         return False
     nested = getattr(activity, "object_", None)
     if isinstance(nested, as_TypedReference):
@@ -259,7 +259,7 @@ class FastAPIIngressAdapter:
         fault (ARCH-15-001), as is a held copy that does not rebuild: it is
         the same text as this delivery's.
 
-        An ``Announce(CaseLedgerEntry)`` is the exception to the staged
+        An ``Add(CaseLedgerEntry)`` is the exception to the staged
         rebuild: per SYNC-13-002 the inline entry is deliberately NOT staged,
         so a by-ID re-read would collapse ``object_`` to a bare ID string and
         mis-route the message (SYNC-13-004).  For that case the already-typed
@@ -297,7 +297,7 @@ class FastAPIIngressAdapter:
                 activity, received_body_digest(held.body), held.kind
             )
 
-        if _is_inline_ledger_entry_announce(activity):
+        if _is_inline_ledger_entry_add(activity):
             # A repeat entry is the SYNC-12-003 already-stored gate's to
             # answer, not this adapter's (SYNC-13-004).  The inbox may still
             # defer it, so the staging keeps it to hold for the replay.

@@ -307,8 +307,9 @@ groups:
     semantics: offer_case_ownership_transfer
     status: none
     description: 'Offers the case to the actor named by the target, on the Case Owner''s behalf:
-      `attributedTo` names the owner. This is the one offer of the transfer, the one the new
-      owner accepts or rejects. It carries the proposal''s `endTime`, if any.'
+      `attributedTo` names the owner and `inReplyTo` the owner''s proposal. This is the one
+      offer of the transfer, the one the new owner accepts or rejects. It carries the proposal''s
+      `endTime`, if any.'
     seen_in: []
     example: offer_case_ownership_transfer
   - anchor: accept-case-ownership-transfer
@@ -559,7 +560,8 @@ groups:
     status: direct
     description: Tells one participant that the embargo has ended, with immediate effect.
       The CASE_MANAGER sends one to each participant other than itself, naming the Case Owner
-      in `attributedTo` when the Case Owner asked for the termination.
+      in `attributedTo` and the Case Owner's request in `inReplyTo` when the Case Owner asked
+      for the termination.
     notes: The wire form is the Embargo Termination (ET) a Case Owner sends; only its sender
       and addressee differ.
     seen_in:
@@ -643,7 +645,8 @@ groups:
     status: collapse
     description: Asks one participant to accept or reject proposed embargo terms, or a proposed
       revision. The CASE_MANAGER sends one to each participant other than the proposer, naming
-      the proposer in `attributedTo`, and the participant's answer names this Invite.
+      the proposer in `attributedTo` and the proposer's Invite in `inReplyTo`, and the participant's
+      answer names this Invite.
     notes: The wire form is the Embargo Proposal (EP) or Embargo Revision Proposal (EV) a
       participant sends; only its sender and addressee differ.
     seen_in:
@@ -870,7 +873,7 @@ groups:
   - anchor: public-awareness
     heading: Public awareness in a case status
     when: the CASE_MANAGER records that the public knows of the vulnerability
-    send: Add(CaseStatus)[target=VulnerabilityCase]
+    send: Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]
     send_to: a participant
     sent_by: the CASE_MANAGER
     distinguished_by: '`pxaState` = `Pxa`'
@@ -880,14 +883,15 @@ groups:
     description: Tells a participant that the case status now records that the public knows
       of the vulnerability.
     notes: Only the CASE_MANAGER sends a case status, as its record of the `pxaState` it adopted,
-      and a receiver refuses one from any other sender. A participant reports public awareness,
-      a public exploit or observed attacks in its own participant status instead.
+      added to the case's status history `<case>/statuses` (ADR-0204), and a receiver refuses
+      one from any other sender. A participant reports public awareness, a public exploit
+      or observed attacks in its own participant status instead.
     seen_in: []
     example: add_public_awareness_to_case
   - anchor: exploit-public
     heading: Exploit public in a case status
     when: the CASE_MANAGER records that an exploit for the vulnerability is public
-    send: Add(CaseStatus)[target=VulnerabilityCase]
+    send: Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]
     send_to: a participant
     sent_by: the CASE_MANAGER
     distinguished_by: '`pxaState` = `PXa`'
@@ -897,14 +901,15 @@ groups:
     description: Tells a participant that the case status now records that an exploit is publicly
       available.
     notes: Only the CASE_MANAGER sends a case status, as its record of the `pxaState` it adopted,
-      and a receiver refuses one from any other sender. A participant reports public awareness,
-      a public exploit or observed attacks in its own participant status instead.
+      added to the case's status history `<case>/statuses` (ADR-0204), and a receiver refuses
+      one from any other sender. A participant reports public awareness, a public exploit
+      or observed attacks in its own participant status instead.
     seen_in: []
     example: add_exploit_public_to_case
   - anchor: attacks-observed
     heading: Attacks observed in a case status
     when: the CASE_MANAGER records that attackers are exploiting the vulnerability
-    send: Add(CaseStatus)[target=VulnerabilityCase]
+    send: Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]
     send_to: a participant
     sent_by: the CASE_MANAGER
     distinguished_by: '`pxaState` = `pxA`'
@@ -914,14 +919,15 @@ groups:
     description: Tells a participant that the case status now records that attackers are exploiting
       the vulnerability.
     notes: Only the CASE_MANAGER sends a case status, as its record of the `pxaState` it adopted,
-      and a receiver refuses one from any other sender. A participant reports public awareness,
-      a public exploit or observed attacks in its own participant status instead.
+      added to the case's status history `<case>/statuses` (ADR-0204), and a receiver refuses
+      one from any other sender. A participant reports public awareness, a public exploit
+      or observed attacks in its own participant status instead.
     seen_in: []
     example: add_attacks_observed_to_case
   - anchor: vendor-awareness
     heading: Vendor Awareness (CV)
     when: a Vendor becomes aware of the vulnerability
-    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send: Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: 'the CASE_MANAGER or the Case Owner or the participant status''s author (usually:
       vendor)'
@@ -929,8 +935,8 @@ groups:
     semantics: add_participant_status_to_participant
     shorthand: CV
     status: collapse
-    description: Announces that the report has reached the Vendor whose participant record
-      is the target.
+    description: Announces that the report has reached the Vendor whose status history is
+      the target.
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
@@ -938,7 +944,7 @@ groups:
   - anchor: fix-readiness
     heading: Fix Readiness (CF)
     when: a Vendor has a fix ready
-    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send: Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: 'the CASE_MANAGER or the Case Owner or the participant status''s author (usually:
       vendor)'
@@ -946,8 +952,7 @@ groups:
     semantics: add_participant_status_to_participant
     shorthand: CF
     status: collapse
-    description: Announces that the Vendor whose participant record is the target has a fix
-      ready.
+    description: Announces that the Vendor whose status history is the target has a fix ready.
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
@@ -955,7 +960,7 @@ groups:
   - anchor: fix-deployed
     heading: Fix Deployed (CD)
     when: a Deployer has deployed the fix
-    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send: Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: 'the CASE_MANAGER or the Case Owner or the participant status''s author (usually:
       deployer)'
@@ -963,7 +968,7 @@ groups:
     semantics: add_participant_status_to_participant
     shorthand: CD
     status: collapse
-    description: Announces that the Deployer whose participant record is the target has deployed
+    description: Announces that the Deployer whose status history is the target has deployed
       the fix.
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
@@ -972,7 +977,7 @@ groups:
   - anchor: participant-public-awareness
     heading: Public awareness in a participant status
     when: a Participant learns that the public knows of the vulnerability
-    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send: Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: the CASE_MANAGER or the Case Owner or the participant status's author
     distinguished_by: '`caseStatus.pxaState` = `Pxa`'
@@ -984,10 +989,10 @@ groups:
     notes: A participant status is a snapshot of every dimension the sender holds, so it can
       also carry an unchanged `vfState` or `dState`; the dimension that changed makes the
       occasion. The report is the sender's view of the case status, not a change to it. The
-      CASE_MANAGER records the status on the sender's participant record and chooses whether
-      to adopt the reported `pxaState` for the case, by default only with the Case Owner's
-      authorization. Only an adopted value changes the case status, and while an embargo is
-      active or proposed, it ends or abandons the embargo.
+      CASE_MANAGER adds the status to the sender's status history `<participant>/statuses`
+      (ADR-0204) and chooses whether to adopt the reported `pxaState` for the case, by default
+      only with the Case Owner's authorization. Only an adopted value changes the case status,
+      and while an embargo is active or proposed, it ends or abandons the embargo.
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
@@ -995,7 +1000,7 @@ groups:
   - anchor: participant-exploit-public
     heading: Exploit public in a participant status
     when: a Participant learns that an exploit for the vulnerability is public
-    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send: Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: the CASE_MANAGER or the Case Owner or the participant status's author
     distinguished_by: '`caseStatus.pxaState` = `PXa`'
@@ -1007,10 +1012,10 @@ groups:
     notes: A participant status is a snapshot of every dimension the sender holds, so it can
       also carry an unchanged `vfState` or `dState`; the dimension that changed makes the
       occasion. The report is the sender's view of the case status, not a change to it. The
-      CASE_MANAGER records the status on the sender's participant record and chooses whether
-      to adopt the reported `pxaState` for the case, by default only with the Case Owner's
-      authorization. Only an adopted value changes the case status, and while an embargo is
-      active or proposed, it ends or abandons the embargo.
+      CASE_MANAGER adds the status to the sender's status history `<participant>/statuses`
+      (ADR-0204) and chooses whether to adopt the reported `pxaState` for the case, by default
+      only with the Case Owner's authorization. Only an adopted value changes the case status,
+      and while an embargo is active or proposed, it ends or abandons the embargo.
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
@@ -1018,7 +1023,7 @@ groups:
   - anchor: participant-attacks-observed
     heading: Attacks observed in a participant status
     when: a Participant observes attacks that exploit the vulnerability
-    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send: Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: the CASE_MANAGER or the Case Owner or the participant status's author
     distinguished_by: '`caseStatus.pxaState` = `pxA`'
@@ -1030,10 +1035,10 @@ groups:
     notes: A participant status is a snapshot of every dimension the sender holds, so it can
       also carry an unchanged `vfState` or `dState`; the dimension that changed makes the
       occasion. The report is the sender's view of the case status, not a change to it. The
-      CASE_MANAGER records the status on the sender's participant record and chooses whether
-      to adopt the reported `pxaState` for the case, by default only with the Case Owner's
-      authorization. Only an adopted value changes the case status, and while an embargo is
-      active or proposed, it ends or abandons the embargo.
+      CASE_MANAGER adds the status to the sender's status history `<participant>/statuses`
+      (ADR-0204) and chooses whether to adopt the reported `pxaState` for the case, by default
+      only with the Case Owner's authorization. Only an adopted value changes the case status,
+      and while an embargo is active or proposed, it ends or abandons the embargo.
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
@@ -1224,17 +1229,19 @@ groups:
   title: Ledger replication
   mechanics: true
   occasions:
-  - anchor: announce-case-ledger-entry
-    heading: Announce case ledger entry
+  - anchor: add-case-ledger-entry
+    heading: Add case ledger entry
     when: the CASE_MANAGER has committed a case event to the case ledger
-    send: Announce(CaseLedgerEntry)
+    send: Add(CaseLedgerEntry)
     send_to: a participant
     sent_by: the CASE_MANAGER
-    semantics: announce_case_ledger_entry
+    semantics: add_case_ledger_entry_to_ledger
     status: none
-    description: Fans out the newly committed ledger entry to each active participant.
+    description: 'Fans out the newly committed ledger entry to each active participant, as
+      an Add to the case''s ledger that names the committed act in inReplyTo: the positive
+      acknowledgment of that act.'
     seen_in: []
-    example: announce_case_ledger_entry
+    example: add_case_ledger_entry
   - anchor: reject-case-ledger-entry
     heading: Reject case ledger entry
     when: a received ledger entry does not chain onto the Participant's own ledger

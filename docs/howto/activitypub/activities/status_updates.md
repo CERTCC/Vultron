@@ -11,7 +11,7 @@ Use this guide to tell the other participants something.
 For example, tell them that your fix is ready or that the vulnerability is now public.
 You can also send anything that needs narrative instead of a state change.
 
-A status update is one `as:Add(ParticipantStatus)` that carries your new status inline and attaches it to your own participant record.
+A status update is one `as:Add(ParticipantStatus)` that carries your new status inline and adds it to your own status history, `<participant>/statuses`.
 A note is sent the same way: one `as:Add` that carries the note inline.
 You finish with the update committed to the case ledger and replicated to every participant.
 
@@ -21,7 +21,7 @@ You finish with the update committed to the case ledger and replicated to every 
 
 {% include-markdown "./_demo_prerequisites.md" %}
 
-- A case you are seated on, and your own `CaseParticipant` record.
+- A case you are seated on, and the id of your own `CaseParticipant` record, whose status history is that id followed by `/statuses`.
 - For a participant status, the dimension you are reporting: `vfState` and `dState` apply only to a Vendor or a Deployer.
   The letters in these fields are the substates of the [CVD Case State Model](../../../topics/process_models/cs/cs_model.md#cvd-case-substates).
 
@@ -33,11 +33,11 @@ Use a participant status for anything that is true of you rather than of the cas
 
 {% include-markdown "./_vfd_one_activity.md" trailing-newlines=false %}
 
-In every case, send `Add(ParticipantStatus)` targeting your own participant record, with the new status inline as its `object`.
-Set the status's `context` to the case your participant record belongs to.
-The CASE_MANAGER acts on the case of the participant record you target.
+In every case, send `Add(ParticipantStatus)` whose `target` is your own status history, `<participant>/statuses`, with the new status inline as its `object` ([ADR-0204](../../../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md)).
+Set both the activity's `context` and the status's `context` to the case your participant record belongs to.
+The CASE_MANAGER acts on the case of the participant whose history you target.
 It refuses a status whose `context` names another case (HP-08-008).
-If you also set the activity's own `context`, set it to the same case: a receiver refuses any activity whose parts name different cases, with HTTP 422 (HP-08-015).
+A receiver refuses any activity whose parts name different cases, with HTTP 422 (HP-08-015).
 
 The protocol names `Add(ParticipantStatus)` as the one form.
 A received `Create(ParticipantStatus)` is not a protocol message (VAM-01-019), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-017).
@@ -66,7 +66,7 @@ That is Fix Deployed (CD).
 Send only your own status.
 Participant status is self-declaratory.
 If a participant asserts the state of another participant, that is a protocol violation, outside the narrow externally-evidenced exceptions (PRM-06-001, ADR-0121).
-The CASE_MANAGER refuses an `Add(ParticipantStatus)` that targets another participant's record, whatever it carries, and commits nothing (RSH-08-007).
+The CASE_MANAGER refuses an `Add(ParticipantStatus)` that targets another participant's status history, whatever it carries, and commits nothing (RSH-08-007).
 
 The only exceptions are the on-behalf assertions (PRM-06-003, PRM-06-004).
 A CASE_MANAGER or Case Owner may move a vendor from `vf` to `Vf`, or a deployer from `d` to `D`, if the status changes nothing else.
@@ -83,7 +83,7 @@ You report your own view of them in your participant status.
 Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) all set `pxaState` in the case status that your participant status embeds.
 Which one you are sending is determined by which letter in it changes case.
 
-Send `Add(ParticipantStatus)` targeting your own participant record, with the new status inline as its `object`, and make the change to `pxaState` in its embedded case status.
+Send `Add(ParticipantStatus)` targeting your own status history, `<participant>/statuses`, with the new status inline as its `object`, and make the change to `pxaState` in its embedded case status.
 Only the CASE_MANAGER sends `Add(CaseStatus)`, inside a case ledger entry, as its record of the case status it adopted (RSH-04-001).
 A receiver refuses an `Add(CaseStatus)` from any other sender (RSH-04-005).
 
@@ -115,7 +115,7 @@ The CASE_MANAGER takes your participant status whole or refuses it whole (RSH-09
 If it cannot accept one value, it records nothing in the update.
 Its refusal notice names every value it refused and why.
 
-The CASE_MANAGER records the status on your participant record.
+The CASE_MANAGER adds the status to your status history; the newest status there is your current one.
 It chooses whether to adopt the reported `pxaState` for the case.
 It adopts the Case Owner's own report without asking for approval (RSH-07-006).
 The protocol's default is that it adopts any other participant's report only with the Case Owner's authorization (RSH-07-001).
@@ -168,7 +168,7 @@ If the note is a fault report rather than ordinary case discussion, see [How to 
 
 | What you sent | What to confirm |
 |---|---|
-| `Add(ParticipantStatus)` | Your participant record carries the new status, on every replica. |
+| `Add(ParticipantStatus)` | Your status history carries the new status, on every replica. |
 | `Add(ParticipantStatus)` carrying a `pxaState` | Once the CASE_MANAGER adopts it, the case status carries the new `pxaState`, on every replica. |
 | `Add(Note)` | The note appears on the case, on every replica. |
 

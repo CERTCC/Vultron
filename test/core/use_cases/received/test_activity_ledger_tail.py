@@ -47,7 +47,13 @@ from vultron.core.sync_helpers import ledger_tail_position
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BROADCAST,
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    LedgerNetwork,
+)
 
 CASE_ID = "https://example.org/cases/case-ledger-tail"
 
@@ -157,7 +163,7 @@ def _announced_indices(net: LedgerNetwork, to: str) -> list[int]:
     """Log indices of the entries the CASE_MANAGER has queued to *to*."""
     return sorted(
         activity.object_.log_index
-        for activity in net.queued(MANAGER, to=to, type_="Announce")
+        for activity in net.queued(MANAGER, to=to, type_=BROADCAST)
         if isinstance(activity.object_, CaseLedgerEntry)
     )
 
@@ -165,7 +171,7 @@ def _announced_indices(net: LedgerNetwork, to: str) -> list[int]:
 def _case_copies(net: LedgerNetwork, to: str) -> list[Any]:
     return [
         activity
-        for activity in net.queued(MANAGER, to=to, type_="Announce")
+        for activity in net.queued(MANAGER, to=to, type_=BROADCAST)
         if getattr(activity.object_, "type_", None) == "VulnerabilityCase"
     ]
 
@@ -178,10 +184,10 @@ def test_a_participant_case_activity_carries_its_ledger_position():
     body = _add_note_body("https://example.org/notes/tail-1b", net=net)
 
     assert "ledgerPosition" in body
-    # An entry already states its own position, so its Announce carries none.
+    # An entry already states its own position, so its Add carries none.
     [entry_announce, *_] = [
         activity
-        for activity in net.queued(MANAGER, to=OWNER, type_="Announce")
+        for activity in net.queued(MANAGER, to=OWNER, type_=BROADCAST)
         if getattr(activity.object_, "type_", None) == "CaseLedgerEntry"
     ]
     announced = read_sealed_body_dict(net.stores[MANAGER], entry_announce.id_)
@@ -217,7 +223,7 @@ def test_a_sender_that_holds_no_ledger_for_the_case_states_none():
 def test_the_stamp_is_the_senders_tail_when_it_built_the_activity():
     net = LedgerNetwork(CASE_ID)
     _advance(net, "https://example.org/notes/tail-2a")
-    net.deliver(MANAGER, to=OWNER, type_="Announce")
+    net.deliver(MANAGER, to=OWNER, type_=BROADCAST)
     expected = ledger_tail_position(CASE_ID, net.stores[OWNER])
     assert expected.log_index >= 0, "the sender's ledger is still at genesis"
 
@@ -234,7 +240,7 @@ def test_a_rebuilt_activity_keeps_the_position_it_was_first_sent_with():
     # Delivered, so the note numbered after it is judged in order (SYNC-21-008).
     net.receive(MANAGER, first)
     _advance(net, "https://example.org/notes/tail-2d")
-    net.deliver(MANAGER, to=OWNER, type_="Announce")
+    net.deliver(MANAGER, to=OWNER, type_=BROADCAST)
     assert ledger_tail_position(CASE_ID, net.stores[OWNER]) != (
         LedgerPosition.model_validate(first["ledgerPosition"])
     ), "the sender's tail did not move"

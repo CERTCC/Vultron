@@ -306,7 +306,7 @@ class TestReplicaCopies:
         verdict = net.receive(BYSTANDER, body)
 
         assert verdict.disposition is HandlerDisposition.DEFERRED
-        assert "its Announce is held" in verdict.reason
+        assert "its Add is held" in verdict.reason
         assert replica.read(entry_id) is None, "a refused entry is not stored"
         assert held_depth(replica, net.case_id) == 1
         assert _rows(net.record(BYSTANDER, BYSTANDER)) == _rows(diverged)

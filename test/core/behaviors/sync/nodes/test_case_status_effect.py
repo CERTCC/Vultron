@@ -107,6 +107,7 @@ def _apply(bridge, status_object: Any):
             object_id="https://example.org/activities/add-case-status",
             semantic_type="add_case_status_to_case",
             payload_snapshot={
+                "id": "https://example.org/activities/add-case-status",
                 "type": "Add",
                 "actor": MANAGER,
                 "context": CASE_ID,

@@ -228,7 +228,7 @@ class _World:
         )
         activity = add_status_to_case_activity(
             status,
-            target=self.case_id,
+            case=self.case_id,
             actor=sender_id,
             to=[self.receiver_id],
             context=self.case_id,
@@ -249,7 +249,7 @@ class _World:
         )
         activity = add_status_to_participant_activity(
             status,
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=self.finder_participant_id,
                 context=self.case_id,

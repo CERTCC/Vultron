@@ -81,7 +81,7 @@ class CreateProcessingFaultReceivedUseCase:
     class (CLP-10-005).
 
     A fault carries no case (ASK-07-006).  When its ``inReplyTo`` names an
-    ``Announce(CaseLedgerEntry)`` this actor sent, the entry that announce
+    ``Add(CaseLedgerEntry)`` this actor sent, the entry that announce
     carried is read from this store and handed to the response, so the case
     is the entry's.
 

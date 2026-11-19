@@ -20,8 +20,14 @@ Provides Vultron ActivityStreams Activities related to CaseParticipants
 # "use pydantic typing more effectively" — Field aliases and model_validator are
 # idiomatic pydantic v2; no further improvement identified.
 
+from typing import Self
+
 from pydantic import Field, model_validator
 
+from vultron.primitives import NonEmptyString
+from vultron.wire.as2.vocab.activities._status_history import (
+    require_status_history_add,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
@@ -31,7 +37,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.utils import name_of
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
-    as_CaseParticipantRef,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
     as_ParticipantStatus,
@@ -79,17 +84,24 @@ class _CreateParticipantActivity(as_Create):
         return self
 
 
-# add CaseStatus to as_CaseParticipant
+# add ParticipantStatus to <participant>/statuses
 class _AddStatusToParticipantActivity(as_Add):
-    """Add a CaseStatus to a as_CaseParticipant
-    object_: CaseStatus
-    target: as_CaseParticipant
+    """Add a ParticipantStatus to a participant's status history (ADR-0204).
+
+    ``target`` is ``<participant>/statuses``, the ordered history whose
+    newest item is the participant's current status, and ``context`` is the
+    case.
     """
 
     object_: as_ParticipantStatus = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_CaseParticipantRef = None
+    target: NonEmptyString  # type: ignore[assignment]
+
+    @model_validator(mode="after")
+    def _names_a_status_history_in_a_case(self) -> Self:
+        require_status_history_add(self, case_history=False)
+        return self
 
 
 class _AddParticipantToCaseActivity(as_Add):

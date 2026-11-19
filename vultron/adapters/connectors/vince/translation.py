@@ -46,6 +46,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.status_history import status_history_id
 
 ADD_STATUS = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
 
@@ -240,7 +241,10 @@ class CaseTranslation:
                 source_record=source_record,
                 label=label,
                 rules=list(rules),
-                target=self.ids.participant(participant.actor),
+                # The participant's status history (ADR-0204).
+                target=status_history_id(
+                    self.ids.participant(participant.actor)
+                ),
             )
         )
 

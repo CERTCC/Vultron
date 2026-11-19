@@ -510,3 +510,24 @@ def test_wire_context_check_passes_on_the_real_vocabulary(
 ) -> None:
     cli.main(["--check"])
     assert "in sync" in capsys.readouterr().out
+
+
+@pytest.mark.spec("VM-10-007")
+def test_a_preview_loose_form_is_judged_as_its_full_class() -> None:
+    """A case preview's nested loose forms have their full classes' fields
+    and terms (ADR-0217), so the walk reaches the full class, whose ratchet
+    entries apply, and lists no loose form of its own."""
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.case_preview import CasePreview
+    from vultron.core.models.preview_object import PreviewObject, PreviewValue
+
+    classes = wire_field_classes()
+
+    assert CasePreview in classes
+    assert CaseParticipant in classes
+    assert not [
+        cls
+        for cls in classes
+        if issubclass(cls, (PreviewObject, PreviewValue))
+        and getattr(cls, "full_form", None) is not None
+    ]

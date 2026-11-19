@@ -42,7 +42,7 @@ def _entry() -> CaseLedgerEntry:
             log_index=1,
             object_id="urn:test:activity-1",
             semantic_type="add_note",
-            payload_snapshot={"log_index": 1},
+            payload_snapshot={"id": "urn:test:activity-1", "log_index": 1},
             prev_log_hash="0" * 64,
             received_at=ACT_AT,
         )
@@ -61,18 +61,18 @@ def test_a_body_that_cannot_be_signed_leaves_nothing_behind(monkeypatch):
     )
 
     with pytest.raises(VultronUnsignableJsonError):
-        SyncActivityAdapter(dl).send_announce_log_entry(
+        SyncActivityAdapter(dl).send_add_log_entry(
             _entry(), OWNER, [PEER], at=authored_at()
         )
 
     assert dl.outbox_list() == []
-    assert dl.list_objects("Announce") == []
+    assert dl.list_objects("Add") == []
 
 
-def test_a_signed_announce_is_stored_sealed_and_queued():
+def test_a_signed_add_is_stored_sealed_and_queued():
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
 
-    assert SyncActivityAdapter(dl).send_announce_log_entry(
+    assert SyncActivityAdapter(dl).send_add_log_entry(
         _entry(), OWNER, [PEER], at=authored_at()
     )
 
@@ -80,3 +80,24 @@ def test_a_signed_announce_is_stored_sealed_and_queued():
     assert dl.read(queued) is not None
     body = sync_activity_adapter.read_sealed_body_dict(dl, queued)
     assert body is not None and "proof" in body
+
+
+@pytest.mark.spec("SYNC-02-001")
+@pytest.mark.spec("SYNC-02-006")
+@pytest.mark.spec("SYNC-02-007")
+def test_the_sealed_commit_is_an_add_to_the_ledger_answering_the_act():
+    """What the outbox delivers names the ledger, the case and the act."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
+
+    assert SyncActivityAdapter(dl).send_add_log_entry(
+        _entry(), OWNER, [PEER], at=authored_at()
+    )
+
+    [queued] = dl.outbox_list()
+    body = sync_activity_adapter.read_sealed_body_dict(dl, queued)
+    assert body is not None
+    assert body["type"] == "Add"
+    assert body["target"] == f"{CASE}/ledger"
+    assert body["context"] == CASE
+    assert body["inReplyTo"] == "urn:test:activity-1"
+    assert "result" not in body

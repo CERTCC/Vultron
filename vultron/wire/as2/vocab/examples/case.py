@@ -210,8 +210,9 @@ def propose_case_ownership_transfer() -> as_Offer:
 def offer_case_ownership_transfer() -> as_Offer:
     """The Case Manager's Offer, made from the owner's proposal (ADR-0148).
 
-    ``actor`` is the Case Manager and ``attributedTo`` the Case Owner whose
-    proposal it carries out (CM-24-001, CM-24-002).
+    ``actor`` is the Case Manager, ``attributedTo`` the Case Owner whose
+    proposal it carries out and ``inReplyTo`` that proposal (CM-24-001,
+    CM-24-002, CM-24-020).
     """
     _vendor = vendor()
     _case = case()
@@ -220,6 +221,7 @@ def offer_case_ownership_transfer() -> as_Offer:
         _case,
         actor=case_actor().id_,
         attributed_to=_vendor.id_,
+        in_reply_to=propose_case_ownership_transfer().id_,
         target=_coordinator.id_,
         to=[_coordinator.id_],
         content=f"We're offering to transfer ownership of case {_case.name} to you.",

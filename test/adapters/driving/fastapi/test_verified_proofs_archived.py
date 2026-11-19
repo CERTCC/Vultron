@@ -357,7 +357,7 @@ def test_a_relayed_entry_archives_the_managers_proof_then_the_authors():
     """A replica's record of a relayed entry names both proofs it verified."""
     net = LedgerNetwork(CASE_ID)
     net.receive(MANAGER, _owner_note(net, "https://example.org/notes/relayed"))
-    [announce] = net.queued(MANAGER, to=BYSTANDER, type_="Announce")[-1:]
+    [announce] = net.queued(MANAGER, to=BYSTANDER, type_="Add")[-1:]
     relayed = read_sealed_body_dict(net.stores[MANAGER], announce.id_)
     assert relayed is not None
 

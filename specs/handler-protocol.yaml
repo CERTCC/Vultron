@@ -1459,8 +1459,9 @@ groups:
     kind: project
     statement: >-
       A received `Add(Note)` or `Add(CaseStatus)` whose object's `context` is not
-      the `Add`'s target case, or names no case, MUST be refused before the
-      commit. The object checked is the one the handler would attach: the record
+      the case the `Add` acts on, or names no case, MUST be refused before the
+      commit. That case is a note `Add`'s `target` and a case status `Add`'s
+      `context` (ADR-0204). The object checked is the one the handler would attach: the record
       stored under the object's id when one is held, else the carried copy.
     rationale: >-
       A note or status belongs to one case. If a handler attached an object of a

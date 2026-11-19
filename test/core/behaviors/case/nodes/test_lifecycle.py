@@ -479,8 +479,8 @@ def test_inner_commit_bt_failure_propagates(bridge):
 #
 # Participant-side pending assertions are recorded in trigger use cases
 # (e.g., SvcAddNoteToCaseUseCase) after the activity is successfully
-# enqueued, and cleared in AnnounceLedgerEntryReceivedUseCase when the
-# matching Announce(CaseLedgerEntry) arrives — see SYNC-11-002/003.
+# enqueued, and cleared in AddLedgerEntryReceivedUseCase when the
+# matching Add(CaseLedgerEntry) arrives — see SYNC-11-002/003.
 
 
 # ---------------------------------------------------------------------------

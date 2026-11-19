@@ -84,7 +84,12 @@ def assert_case_manager_note_recorded(
     assert note["id"] in [_as_id(n) for n in case.notes]
     for activity_id in dl.outbox_list():
         queued = read_sealed_body_dict(dl, activity_id) or {}
-        assert queued.get("type") != "Add", (
-            f"'{activity_id}' sends the note directly"
-        )
+        # The ledger's own Add(CaseLedgerEntry) carries the note inside its
+        # entry; only an Add of the Note itself sends it directly.
+        sent = queued.get("object")
+        assert not (
+            queued.get("type") == "Add"
+            and isinstance(sent, dict)
+            and sent.get("type") == "Note"
+        ), f"'{activity_id}' sends the note directly"
     return cast(dict[str, Any], note)

@@ -61,7 +61,7 @@ A participant-state move arrives in two layers: the **act** (an activity such as
   both paths run one table, `test/support/rm_declaration.py`. Do not give a new
   RM handler its own adjacency check.
 - **Received-side state writes are CASE_MANAGER-gated** (`manager_effects`); a
-  replica stores the activity and converges on the `Announce(CaseLedgerEntry)`
+  replica stores the activity and converges on the `Add(CaseLedgerEntry)`
   fan-out. `test/architecture/test_received_tree_state_writes_are_gated.py`
   enforces it, and every committed semantic type must be replayed
   (`test/architecture/test_ledger_semantic_types_are_replayed.py`).

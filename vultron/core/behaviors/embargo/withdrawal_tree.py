@@ -20,7 +20,7 @@ to the CASE_MANAGER (EP-09-013, PCR-08).  The withdrawal is the sender's own
 consent and changes no register entry, so the embargo stays in force for
 everyone else (VP-13-017).  Only the CASE_MANAGER records it (BT-17-001), so
 the tree declares that path alone (HP-01-038);
-every replica learns it from the ``Announce(CaseLedgerEntry)`` broadcast
+every replica learns it from the ``Add(CaseLedgerEntry)`` broadcast
 (EP-09-007), and a receiver on any other path is refused at the path stage
 and reports ``REFUSED`` (HP-01-005, HP-01-039).
 """

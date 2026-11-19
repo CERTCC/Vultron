@@ -17,7 +17,7 @@ the sender's own trigger adapter, as its outbox seals it, and moves it between
 stores only as that sealed body (ADR-0164).  The outbox signs every body
 before sealing it (#5382), so each sealed body verifies by its author's
 published key.  A replica's check runs at its inbox, on the body as
-received (SIG-03-003), so the replica tests post the relayed ``Announce`` to
+received (SIG-03-003), so the replica tests post the relayed ``Add`` to
 the owner's inbox, served by a real app.
 """
 
@@ -81,7 +81,7 @@ def _commit(net: LedgerNetwork, body: dict[str, Any]) -> None:
 
 
 def _announce_of(net: LedgerNetwork, activity_id: str) -> dict[str, Any]:
-    """The ``Announce(CaseLedgerEntry)`` relaying *activity_id* to the owner."""
+    """The ``Add(CaseLedgerEntry)`` relaying *activity_id* to the owner."""
     [announce] = [
         body
         for body in net.ledger_announcements(OWNER)
@@ -243,7 +243,7 @@ def test_a_replica_refuses_an_entry_whose_author_proof_fails(
     net = LedgerNetwork(CASE_ID)
     body = _owner_note(net, "https://example.org/notes/signed-5")
     _commit(net, body)
-    # The CASE_MANAGER's proof on the Announce is made over the altered body,
+    # The CASE_MANAGER's proof on the Add is made over the altered body,
     # so it verifies and only the author's proof fails.  The refusal must
     # name the snapshot's author, so that a replica checking only the outer
     # proof cannot pass this test.

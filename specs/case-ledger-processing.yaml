@@ -62,7 +62,7 @@ groups:
       step.
     verification: 'Integration tests in `test/demo/` confirm that every `CaseLedgerEntry`
       in the canonical ledger is authored by the CASE_MANAGER: the `actor` on the enclosing
-      `Announce(CaseLedgerEntry)` transport always matches `case_actor_id`.'
+      `Add(CaseLedgerEntry)` transport always matches `case_actor_id`.'
     stories:
     - story_2026_023
     - story_2022_106
@@ -109,7 +109,7 @@ groups:
       changes the content that the hash covers.
     verification: Inspection of `vultron/core/models/case_ledger_entry.py` confirms
       that `CaseLedgerEntry` is a standalone Pydantic model that shares no inheritance
-      with the `Announce` transport wrapper and can be serialized and validated independently.
+      with the `Add` transport wrapper and can be serialized and validated independently.
     stories:
     - story_2026_072
   - id: CLP-02-003
@@ -361,7 +361,7 @@ groups:
       a case exists are not case events, such as report submission and case proposal
       intake. RK is not one: it answers the reporter's Offer outside the case and never
       goes to the CASE_MANAGER (RMB-08-005). A replica's receipt of
-      `Announce(CaseLedgerEntry)` is not one, because it applies an entry and asserts
+      `Add(CaseLedgerEntry)` is not one, because it applies an entry and asserts
       none. Activities about the ledger itself are not case events: the CASE_MANAGER's
       refusal notice (CLP-05-001) and a replica's `Reject(CaseLedgerEntry)` that asks
       for redelivery. A replica's receipt of `Announce(VulnerabilityCase)` is not one,
@@ -588,14 +588,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: CASE_MANAGER fan-out replication MUST deliver the canonical `CaseLedgerEntry`
-      content, wrapped in an ActivityStreams transport envelope such as `Announce`
+      content, wrapped in an ActivityStreams transport envelope such as `Add`
     rationale: >-
       A replica must check the entry hash against the content that the CASE_MANAGER
       committed. If fan-out sends a rebuilt or summarized form, the replica cannot
       verify the chain. The envelope only carries the entry, so the entry stays the
       same for every recipient.
     verification: Integration tests in `test/demo/` confirm that each canonical ledger
-      entry replicated from the CASE_MANAGER arrives at participants wrapped in an `Announce(CaseLedgerEntry)`
+      entry replicated from the CASE_MANAGER arrives at participants wrapped in an `Add(CaseLedgerEntry)`
       ActivityStreams activity.
     stories:
     - story_2026_075
@@ -669,7 +669,7 @@ groups:
       freshness and tail helpers must read the ledger as stored, because a filter there
       could hide an entry the chain depends on.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py::test_replica_refuses_entry_whose_hash_does_not_match_content`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::test_replica_refuses_entry_whose_hash_does_not_match_content`
       asserts the ERROR record of a hash refusal;
       `test/core/use_cases/received/test_processing_fault_received.py::test_received_fault_is_logged_naming_its_sender_and_fault`
       asserts the WARNING record of a received fault;
@@ -2048,36 +2048,36 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      An `Announce(CaseLedgerEntry)` replication envelope MUST NOT itself be recorded as the
+      An `Add(CaseLedgerEntry)` replication envelope MUST NOT itself be recorded as the
       `payloadSnapshot` of a canonical ledger entry; it is the envelope that carries
       canonical entries to participants, not a ledger event.
     rationale: >-
-      The `Announce(CaseLedgerEntry)` envelope only delivers entries. An entry whose
+      The `Add(CaseLedgerEntry)` envelope only delivers entries. An entry whose
       payload is the envelope would itself need an envelope to deliver it. Each
       delivery would then add one more entry with no end, and the hash chain would
       change with every delivery.
     verification: >-
       `test_exemptions_name_routed_use_cases_that_do_not_commit` in
       `test/architecture/test_ledger_commit_coverage.py` confirms that the received use
-      case for `announce_case_ledger_entry` is exempt as a replica applying an entry and
-      reaches no ledger commit, so an `Announce(CaseLedgerEntry)` is never committed as a
-      canonical entry's `payloadSnapshot`.
+      case for `add_case_ledger_entry_to_ledger` is exempt as a replica applying an
+      entry and reaches no ledger commit, so an `Add(CaseLedgerEntry)` is never
+      committed as a canonical entry's `payloadSnapshot`.
     stories:
     - story_2026_002
   - id: CLP-10-023
     priority: MUST_NOT
     kind: project
     statement: >-
-      The `announce_case_ledger_entry` semantic type MUST NOT appear in `EXPECTED_SEMANTIC_TYPES`
+      The `add_case_ledger_entry_to_ledger` semantic type MUST NOT appear in `EXPECTED_SEMANTIC_TYPES`
       for the case-actor canonical log.
     rationale: >-
       The invariant suite checks that the canonical log holds each expected semantic
       type. If that list named the ledger announcement, the suite would demand an entry
-      whose snapshot is an `Announce(CaseLedgerEntry)`. CLP-10-004 forbids that entry,
+      whose snapshot is an `Add(CaseLedgerEntry)`. CLP-10-004 forbids that entry,
       so the suite would then reward a broken ledger and fail a correct one.
     verification: >-
       `test_invariant_5_expected_semantic_types_present` (after parameterization) does not
-      include `announce_case_ledger_entry` as a required semantic type for the case-actor
+      include `add_case_ledger_entry_to_ledger` as a required semantic type for the case-actor
       replica.
     relationships:
     - rel_type: derives_from
@@ -2466,7 +2466,7 @@ groups:
     statement: >-
       A receive-side tree MUST pass `case_id=None` and omit the commit stage when its
       received activity has no canonical payload signature. An example is the
-      `Announce(CaseLedgerEntry)` replication envelope (CLP-10-004).
+      `Add(CaseLedgerEntry)` replication envelope (CLP-10-004).
     rationale: >-
       A tree that commits an activity with no canonical signature makes the
       canonical-entry check refuse it, and the handler reports a refusal for a valid
@@ -2474,7 +2474,7 @@ groups:
     verification: >-
       `test_exemptions_name_routed_use_cases_that_do_not_commit` in
       `test/architecture/test_ledger_commit_coverage.py` confirms the received use case
-      for `announce_case_ledger_entry` reaches no ledger commit.
+      for `add_case_ledger_entry_to_ledger` reaches no ledger commit.
     relationships:
     - rel_type: extends
       spec_id: CLP-10-013
@@ -3666,7 +3666,7 @@ groups:
       `test_note_is_recorded_and_announced_to_the_owner` in
       `test/core/behaviors/case/nodes/test_suggest_actor_owner_recipient.py` runs the
       CASE_MANAGER's own note in its store and asserts the note is committed there and
-      its `Announce` queued from that store.
+      its `Add` queued from that store.
     relationships:
     - rel_type: implements
       spec_id: CLP-10-031
@@ -4726,7 +4726,8 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST reject at message validation an inbound activity carrying a
-      `CaseStatus` with no `published`, wherever the status sits in it.
+      `CaseStatus` with no `published`, wherever the status sits in it outside a
+      preview (MV-12-006).
     rationale: >-
       Every status carries its author's time (SM-05-003), and its `published`
       follows its place in the case history (CM-29-005). A receiver that filled in
@@ -4744,6 +4745,8 @@ groups:
       `test_post_untimed_case_status_to_actor_inbox_returns_422` in
       `test/adapters/driving/fastapi/routers/test_actors.py` asserts the inbox
       answers 422.
+      `test/wire/as2/test_parser_case_stub.py::test_an_untyped_stub_status_is_read_as_a_status_keeping_its_em_state`
+      asserts the preview exception.
     adr:
     - ADR-0103
     relationships:
@@ -4762,7 +4765,7 @@ groups:
       actor profile, a collection and an `EmbargoConsent` row are exempt. A typed
       reference (MV-10-011), a URI and a `Link` are not whole objects, and a preview a
       typed reference carries is a projection of the object it names (ADR-0205), so the
-      rule reaches none of them.
+      rule reaches none of them, nor any object inside such a preview (MV-12-006).
     rationale: >-
       A conformant sender states the time of every object it authors, so the rule
       refuses only malformed input. Refusing at the edge spares every reader of a
@@ -4775,12 +4778,12 @@ groups:
       The objects nested in a ledger entry's `payloadSnapshot` are kept as received
       JSON and are not validated into objects (CLP-07-011), so this rule does not
       reach them. A case preview carries exactly the keys CM-17-010 names, none of them
-      `published`; the embargo and status it carries are whole objects and carry
-      theirs. An `EmbargoConsent` row carries no time because a replica copies it
-      without reading a clock (CM-23-044). The vocabulary does not model a collection
-      page (`CollectionPage`, `OrderedCollectionPage`), since Vultron sends no paged
-      collection, so a page received with content is read as a plain object and
-      refused without `published`.
+      `published`; an object it carries is read as its sender shows it, with or without
+      a `published` (MV-12-006). An `EmbargoConsent` row carries no time because a
+      replica copies it without reading a clock (CM-23-044). The vocabulary does not
+      model a collection page (`CollectionPage`, `OrderedCollectionPage`), since
+      Vultron sends no paged collection, so a page received with content is read as
+      a plain object and refused without `published`.
     verification: >-
       `test_a_whole_object_without_published_is_refused` and
       `test_a_nested_whole_object_without_published_is_refused` in
@@ -4807,6 +4810,8 @@ groups:
       `test_a_fetched_whole_object_without_published_is_refused` in
       `test/adapters/driven/test_http_object_fetch.py` asserts the same at the fetch
       edge.
+      `test/wire/as2/test_typed_references.py::test_an_embargo_in_a_case_preview_without_published_is_read_as_shown`
+      asserts the preview exception (MV-12-006).
     relationships:
     - rel_type: extends
       spec_id: CLP-15-007

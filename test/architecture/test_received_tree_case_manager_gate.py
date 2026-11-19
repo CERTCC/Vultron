@@ -100,11 +100,11 @@ _OUTBOX_SEAMS = frozenset(
 #: wrap them, the commit tree whose fan-out announces a minted entry, and the
 #: replica's fault about an entry it refused, sent to the announce's sender.
 #: Gated by ledger authority (``DeclineForeignLedgerCommitNode``, ADR-0073)
-#: or, for the replica's answers, by the announce tree's sender guard, not by
+#: or, for the replica's answers, by the add-log-entry tree's sender guard, not by
 #: ``EmitCapable``; see ``vultron/core/behaviors/emit_capable.py``.
 _LEDGER_REPLICATION_SEAMS = frozenset(
     {
-        "send_announce_log_entry",
+        "send_add_log_entry",
         "send_verified_log_entry",
         "send_reject_log_entry",
         "send_read_ledger_entry",

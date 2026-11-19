@@ -390,7 +390,7 @@ class LogEntryCommittedBeforeNode(DataLayerConditionWithPorts):
 
 
 class FanOutLogEntryNode(py_trees.composites.Selector):
-    """Announce a newly committed entry to its recipients, once.
+    """Add a newly committed entry to its recipients, once.
 
     The entry is announced only when this commit recorded it.  A re-run that
     rebuilds an act under its first id finds the act's entry already
@@ -411,7 +411,7 @@ class FanOutLogEntryNode(py_trees.composites.Selector):
             children=[
                 LogEntryCommittedBeforeNode(name="LogEntryCommittedBefore"),
                 py_trees.composites.Sequence(
-                    name="AnnounceLogEntry",
+                    name="AddLogEntry",
                     memory=False,
                     children=[
                         CollectLogEntryRecipientsNode(

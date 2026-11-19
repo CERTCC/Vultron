@@ -279,11 +279,13 @@ class TestOwnershipTransferUseCases:
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
     @pytest.mark.spec("CM-21-028")
+    @pytest.mark.spec("CM-24-020")
     def test_proposal_makes_one_offer_minted_by_the_case_manager(
         self, make_payload
     ):
         """One Offer leaves the CASE_MANAGER, under an id it derived, with
-        ``actor`` itself and ``attributedTo`` the owner (ADR-0148)."""
+        ``actor`` itself, ``attributedTo`` the owner and ``inReplyTo`` the
+        proposal (ADR-0148, ADR-0199)."""
         case_id = "https://example.org/cases/case_ot_made"
         dl, deliver, trigger_activity = _ownership_offer_harness(
             make_payload, case_id
@@ -302,6 +304,7 @@ class TestOwnershipTransferUseCases:
             actor=_CASE_ACTOR_ID,
             to=[_COORDINATOR_ID],
             attributed_to=_VENDOR_ID,
+            in_reply_to=proposal_id,
             # The proposal named no deadline, so the Offer carries none.
             end_time=None,
             id_=made_id,
@@ -310,6 +313,8 @@ class TestOwnershipTransferUseCases:
         assert offer.id_ == made_id != proposal_id
         assert offer.actor == _CASE_ACTOR_ID
         assert offer.attributed_to == _VENDOR_ID
+        # The Offer names the proposal it carries out (CM-24-012, ADR-0199).
+        assert offer.in_reply_to == proposal_id
         assert made_id in dl.outbox_list()
         # Exactly one Offer of the case is queued: the one the CASE_MANAGER
         # made, never the owner's proposal.
@@ -1461,7 +1466,9 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
     @pytest.mark.spec("CM-21-011")
     def test_accept_of_the_case_managers_offer_is_applied(self, make_payload):
         """The transferee answers the one Offer of the transfer, which the
-        CASE_MANAGER made under its own id: no link to resolve (ADR-0148)."""
+        CASE_MANAGER made under its own id (ADR-0148).  The Offer names the
+        proposal it carries out (CM-24-020), but the answer names the Offer
+        itself, so there is no link to resolve."""
         case_id = "https://example.org/cases/case_ot_made_accept"
         dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
         proposal_id = "https://example.org/activities/proposal_made_accept"
@@ -1470,7 +1477,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         assert offer.id_ == ownership_offer_id(
             _CASE_ACTOR_ID, case_id, proposal_id, _VENDOR_ID
         )
-        assert getattr(offer, "in_reply_to", None) is None
+        assert getattr(offer, "in_reply_to", None) == proposal_id
 
         result = _accept(dl, make_payload, offer)
 
@@ -2050,14 +2057,14 @@ def _reject(
     )
 
 
-def _announces(dl, outbox_before: list[str]) -> list[Any]:
-    """The ``Announce`` activities queued since *outbox_before*."""
+def _ledger_adds(dl, outbox_before: list[str]) -> list[Any]:
+    """The ledger ``Add`` activities queued since *outbox_before*."""
     return [
         item
         for item in (
             dl.read(i) for i in dl.outbox_list() if i not in outbox_before
         )
-        if getattr(getattr(item, "type_", None), "value", None) == "Announce"
+        if getattr(getattr(item, "type_", None), "value", None) == "Add"
     ]
 
 
@@ -2081,8 +2088,8 @@ class TestRejectOfOwnershipTransfer:
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert _semantic_types(dl).count("reject_case_ownership_transfer") == 1
-        assert _announces(dl, outbox_before), (
-            "the Reject's entry must be broadcast as Announce(CaseLedgerEntry)"
+        assert _ledger_adds(dl, outbox_before), (
+            "the Reject's entry must be broadcast as Add(CaseLedgerEntry)"
         )
         assert _owner(dl, case_id) == _VENDOR_ID
         assert _owner_roles(dl, case_id) == roles_before
@@ -2373,8 +2380,8 @@ class TestWithdrawalOfOwnershipTransfer:
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert _semantic_types(dl).count("undo_case_ownership_transfer") == 1
-        assert _announces(dl, outbox_before), (
-            "the Undo's entry must be broadcast as Announce(CaseLedgerEntry)"
+        assert _ledger_adds(dl, outbox_before), (
+            "the Undo's entry must be broadcast as Add(CaseLedgerEntry)"
         )
         assert _owner(dl, case_id) == _VENDOR_ID
         assert _owner_roles(dl, case_id) == roles_before
@@ -3011,7 +3018,7 @@ def test_an_accept_from_a_transferee_no_longer_active_is_refused(
     _assert_nothing_changed(dl, case_id, roles_before, entries_before)
     # At most the refusal notice of its own Accept goes back to it; no
     # case content does.
-    assert _announces(dl, outbox_before) == []
+    assert _ledger_adds(dl, outbox_before) == []
 
 
 @pytest.mark.spec("CM-21-022")

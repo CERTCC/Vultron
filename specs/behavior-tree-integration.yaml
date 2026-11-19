@@ -1315,8 +1315,9 @@ groups:
       that another actor authored.
     rationale: >-
       If an actor sends the act of a different actor again under its own name, it claims
-      an act that it did not author. An on-behalf send names the doer in `actor` and the
-      requester in `attributedTo` (CM-24-001, CM-24-002).
+      an act that it did not author. An on-behalf send names the doer in `actor`, the
+      requester in `attributedTo` and the request in `inReplyTo` (CM-24-001,
+      CM-24-002, CM-24-020).
     verification: >-
       `test_attributed_to_on_factory_calls_comes_from_the_helper` in
       `test/architecture/test_delegated_attribution_uses_helper.py` fails an on-behalf

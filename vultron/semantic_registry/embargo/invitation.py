@@ -114,8 +114,9 @@ ENTRIES: list[SemanticEntry] = [
                     "Asks one participant to accept or reject proposed "
                     "embargo terms, or a proposed revision. The CASE_MANAGER "
                     "sends one to each participant other than the proposer, "
-                    "naming the proposer in `attributedTo`, and the "
-                    "participant's answer names this Invite."
+                    "naming the proposer in `attributedTo` and the "
+                    "proposer's Invite in `inReplyTo`, and the participant's "
+                    "answer names this Invite."
                 ),
                 example="relay_embargo_proposal",
                 howto=HowToGuide.ESTABLISH_EMBARGO,

@@ -6,19 +6,20 @@
   ],
   "type": "Add",
   "id": "urn:uuid:7901561e-4d94-4f14-b4c8-700954410920",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Add NONE pxA to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Add NONE pxA to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/statuses",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
   "to": [
     "https://vultron.example/users/finndervul"
   ],
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
-  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/statuses",
   "object": {
     "id": "https://vultron.example/cases/1/status/4",
     "type": "CaseStatus",
     "name": "NONE pxA",
-    "context": "https://vultron.example/cases/1",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2026-06-01T19:15:00.000000+00:00",
     "emState": "NONE",
     "pxaState": "pxA"
@@ -34,6 +35,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z21wuFPQf3ZgMJLckkhbj5PCEPreRhPcveDjHj5LioLMY9T4RpU1Xd4Zu6ZaUF7MuFQANNCmPChyvY2o9GSLy1UU5"
+    "proofValue": "z2Nzejh5DgF8fPCyz8nKtb9ZLB7ek3FYtAiDUGdvxCwbhBoXJZrpd8jZpDyKkMzT89dcN73edqMccr6NkcN8pnJ3U"
   }
 }

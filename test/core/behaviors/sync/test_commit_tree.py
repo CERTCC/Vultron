@@ -184,8 +184,8 @@ def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
     assert entries[0].log_index == 0
     assert entries[0].prev_log_hash == case_obj.genesis_hash
     assert len(entries[0].prev_log_hash) == 64
-    sync_port.send_announce_log_entry.assert_called_once()
-    call_kwargs = sync_port.send_announce_log_entry.call_args.kwargs
+    sync_port.send_add_log_entry.assert_called_once()
+    call_kwargs = sync_port.send_add_log_entry.call_args.kwargs
     assert call_kwargs["to"] == [PEER_ID]
 
 
@@ -319,10 +319,10 @@ def test_a_reused_entry_is_not_announced_again(bridge, datalayer, case_obj):
         return cast(Status, result.status)
 
     assert _commit() == Status.SUCCESS
-    sync_port.send_announce_log_entry.assert_called_once()
+    sync_port.send_add_log_entry.assert_called_once()
 
     assert _commit() == Status.SUCCESS
-    sync_port.send_announce_log_entry.assert_called_once()
+    sync_port.send_add_log_entry.assert_called_once()
 
 
 @pytest.mark.spec("SYNC-09-002", "OX-06-002")
@@ -336,7 +336,7 @@ def test_an_entry_whose_fan_out_raises_is_not_recorded(
     one transaction, so a fan-out that raises takes the entry back.
     """
     sync_port = MagicMock(spec=SyncActivityPort)
-    sync_port.send_announce_log_entry.side_effect = RuntimeError("lost")
+    sync_port.send_add_log_entry.side_effect = RuntimeError("lost")
 
     result = run_tree(
         bridge,
@@ -392,7 +392,7 @@ def test_an_entry_whose_fan_out_fails_is_not_recorded(
 
     assert result.status == Status.FAILURE
     assert result.internal_error is False
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     assert datalayer.list_objects("CaseLedgerEntry") == []
 
 
@@ -465,7 +465,7 @@ def test_commit_tree_raises_for_a_foreign_ledger(datalayer, case_obj):
         _tick_with_blackboard(tree, datalayer, _FOREIGN_CASE_ACTOR, sync_port)
 
     assert list(datalayer.list_objects("CaseLedgerEntry")) == []
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
 
 
 @pytest.mark.spec("CLP-10-014")
@@ -487,7 +487,7 @@ def test_commit_tree_as_a_foreign_actor_is_an_internal_error(
     assert result.status == Status.FAILURE
     assert result.internal_error is True
     assert list(datalayer.list_objects("CaseLedgerEntry")) == []
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
 
 
 @pytest.mark.spec("BT-05-006")
@@ -561,4 +561,4 @@ def test_commit_tree_blocked_when_ledger_has_gap(bridge, datalayer, case_obj):
         key=lambda e: e.log_index,
     )
     assert len(entries) == 2
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()

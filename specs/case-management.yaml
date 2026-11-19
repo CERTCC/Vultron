@@ -331,7 +331,7 @@ groups:
       object exists. Until that object exists, such a check makes the CASE_MANAGER treat
       its own ledger entry as the entry of a participant.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py::test_case_manager_role_takes_authority_arm_without_service_object`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::test_case_manager_role_takes_authority_arm_without_service_object`
       confirms the actor enacting `CVDRole.CASE_MANAGER` takes the authority arm on its own ledger
       entry even before any `Service` object carries `context`. Address-resolution window:
       `test/core/behaviors/sync/nodes/test_replay.py::TestFindCaseActorNode::test_resolves_without_any_service_object_carrying_context`.
@@ -1143,7 +1143,7 @@ groups:
     rationale: >-
       Every change the CASE_MANAGER makes to the case file is its own ledger entry
       (CLP-07-013), so the ledger fan-out is the notice: each change reaches the
-      active participants as `Announce(CaseLedgerEntry)`. The CASE_MANAGER also
+      active participants as `Add(CaseLedgerEntry)`. The CASE_MANAGER also
       announces the updated case as `Announce(VulnerabilityCase)` after admitting
       an engagement that moved the sender's recorded RM state. An engagement that
       restates a move already recorded changes no case state, so it announces
@@ -1153,7 +1153,7 @@ groups:
       handles, so it is reported "no use case found" (SE-05-002, ADR-0140).
     verification: >-
       Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
-      canonical case state it fans out `Announce(CaseLedgerEntry)` to every active
+      canonical case state it fans out `Add(CaseLedgerEntry)` to every active
       participant and to no inert participant.
     relationships:
     - rel_type: implements
@@ -1498,7 +1498,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      This rule covers each `Announce(CaseLedgerEntry)` the CASE_MANAGER sends, as
+      This rule covers each `Add(CaseLedgerEntry)` the CASE_MANAGER sends, as
       fan-out of a new entry or as a replay answering a `Reject(CaseLedgerEntry)`
       (SYNC-03-002). While an embargo is active, the CASE_MANAGER MUST NOT send one to a
       participant that has not accepted that embargo (the CM-10-004 content gate).
@@ -1565,10 +1565,11 @@ groups:
     adr:
     - ADR-0116
     verification: >-
-      A received-side test confirms that when a participant accepts the active embargo, the
-      CASE_MANAGER's outbox holds an `Announce(CaseLedgerEntry)` addressed to it for each entry committed
-      while it was outside the gate, in log order and ahead of any later entry, and that none of those
-      entries is re-sent to a participant that already had it.
+      A received-side test confirms that when a participant accepts the active embargo,
+      the CASE_MANAGER's outbox holds an `Add(CaseLedgerEntry)` addressed to it for each
+      entry committed while it was outside the gate, in log order and ahead of any later
+      entry, and that none of those entries is re-sent to a participant that already had
+      it.
     relationships:
     - rel_type: extends
       spec_id: CM-10-005
@@ -1873,7 +1874,7 @@ groups:
       an id or a time, and the copies of the case would then disagree.
     verification: >-
       `test_create_entry_stores_the_record_exactly_as_carried` in
-      `test/core/behaviors/sync/test_announce_tree.py` finds the stored record equal
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` finds the stored record equal
       to the one the entry carries;
       `test_replicas_hold_the_managers_whole_record_after_invite_and_accept` in
       `test/core/use_cases/received/test_stub_invite_replay.py` finds each
@@ -1929,7 +1930,7 @@ groups:
       CASE_MANAGER holds (ADR-0114, ADR-0124).
     verification: >-
       `test_the_reject_entry_declines_the_embargo_in_force` in
-      `test/core/behaviors/sync/test_announce_tree.py` applies the Reject entry on a
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` applies the Reject entry on a
       replica; `test_replicas_hold_the_managers_whole_record_after_a_reject` in
       `test/core/use_cases/received/test_stub_invite_replay.py` finds each
       replica's record equal to the CASE_MANAGER's after a reject.
@@ -2937,7 +2938,7 @@ groups:
       participant record, the ledger and the outbox unchanged. In
       `test/core/use_cases/received/test_embargo_answer_idempotency.py`,
       `test_a_repeat_answer_under_a_new_id_changes_nothing` confirms the same for a repeat
-      under a new activity id (no entry, no Announce, no state change), and
+      under a new activity id (no entry, no Add, no state change), and
       `test_another_participants_answer_is_still_its_own_consent` confirms that a different
       participant's answer is still recorded as its own consent.
     stories:
@@ -3034,7 +3035,7 @@ groups:
       participant (the Case Owner). The Create(VulnerabilityCase) notification in
       CM-14-011 is flushed before the reporter is added in CM-14-012 so each recipient
       of that `Create` holds the case object before any subsequent
-      Announce(CaseLedgerEntry) fan-out that references it.
+      Add(CaseLedgerEntry) fan-out that references it.
     verification: Integration tests in `test/demo/` confirm that the case initialization
       sequence completes exactly 6 ordered steps (CM-14-008 through CM-14-013) and that no step
       is skipped or reordered.
@@ -3093,8 +3094,10 @@ groups:
       The `Create(VulnerabilityCase)` notification MUST be queued and the outbox
       flushed before the reporter is added as a `CaseParticipant` in step 5 of
       CM-14-001
-    rationale: The reporter's system must receive and store the case object before any Announce(CaseLedgerEntry) fan-out that
-      lists them as a participant. Reversing this order causes "case not found" errors on the reporter side when the log entry
+    rationale: >-
+      The reporter's system must receive and store the case object before any
+      Add(CaseLedgerEntry) fan-out that lists them as a participant. Reversing this
+      order causes "case not found" errors on the reporter side when the log entry
       arrives referencing a case the reporter has not yet seen.
     verification: Integration tests in `test/demo/` confirm that the
       `Create(VulnerabilityCase)` outbox flush occurs before the reporter
@@ -3240,7 +3243,7 @@ groups:
       CBT-01-010).
     rationale: >-
       Each recipient must hold the case object before any
-      `Announce(CaseLedgerEntry)` fan-out that references it. The reporter trusts
+      `Add(CaseLedgerEntry)` fan-out that references it. The reporter trusts
       only the actor it sent its report to, so the case reaches it from that actor:
       directly when that actor is the CASE_MANAGER, and through the report
       receiver's introduction when it is not (ADR-0132).
@@ -3293,11 +3296,11 @@ groups:
     kind: protocol
     statement: >-
       Step 6 of the case initialization sequence MUST commit a case ledger entry,
-      triggering `Announce(CaseLedgerEntry)` fan-out to all participants.
+      triggering `Add(CaseLedgerEntry)` fan-out to all participants.
     rationale: The ledger entry commits the completed initialization as a single
       protocol-significant event and notifies all participants atomically.
     verification: Integration tests in `test/demo/` confirm that step 6 commits a case ledger
-      entry that triggers `Announce(CaseLedgerEntry)` fan-out to all participants.
+      entry that triggers `Add(CaseLedgerEntry)` fan-out to all participants.
     relationships:
     - rel_type: part_of
       spec_id: CM-14-001
@@ -3781,7 +3784,7 @@ groups:
       including the Case Owner's identity, the second recommender's identity and any
       `content` from the Offer. The note is the CASE_MANAGER's own `add_note_to_case`
       entry, attached to the case, and reaches the Case Owner's inbox as that entry's
-      `Announce(CaseLedgerEntry)` (SYNC-02-001, SYNC-02-003); a direct `Add(Note)` to
+      `Add(CaseLedgerEntry)` (SYNC-02-001, SYNC-02-003); a direct `Add(Note)` to
       the Case Owner is refused there (HP-01-005).
     rationale: >-
       A note about reinforcing suggestions gives the Case Owner more context for the
@@ -4285,7 +4288,7 @@ groups:
       entry in chain order.
     verification: >-
       `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_accept_invite_seeds_the_case_before_any_ledger_entry_reaches_the_invitee`
-      asserts `Announce(VulnerabilityCase)` precedes every `Announce(CaseLedgerEntry)`
+      asserts `Announce(VulnerabilityCase)` precedes every `Add(CaseLedgerEntry)`
       addressed to the invitee, and `test_accept_invite_backfills_canonical_ledger_from_genesis`
       asserts the invitee receives entries 0, 1, 2, 3 in order;
       `test/core/behaviors/case/test_accept_invite_tree.py::test_case_announce_and_backfill_precede_the_first_committing_effect`
@@ -5532,8 +5535,9 @@ groups:
     statement: >-
       On admitting a proposal, the CASE_MANAGER MUST make the single ownership-transfer
       `Offer(VulnerabilityCase)` itself, under an id it derives from the proposal,
-      addressed to the transferee. The Offer's `actor` is the CASE_MANAGER and its
-      `attributed_to` the owner (CM-24-001, CM-24-002).
+      addressed to the transferee. The Offer's `actor` is the CASE_MANAGER, its
+      `attributed_to` the owner and its `in_reply_to` the proposal (CM-24-001,
+      CM-24-002, CM-24-020).
     rationale: >-
       Making the Offer itself rather than forwarding the owner's gives a transfer one
       Offer, under an id no other party chose, told apart from the proposal by its shape
@@ -5541,7 +5545,7 @@ groups:
     verification: >-
       A test marked `CM-21-028` delivers the owner's proposal and asserts one
       `Offer(VulnerabilityCase)` is queued to the transferee with the derived id,
-      `actor` the CASE_MANAGER and `attributedTo` the owner.
+      `actor` the CASE_MANAGER, `attributedTo` the owner and `inReplyTo` the proposal.
     relationships:
     - rel_type: extends
       spec_id: CM-21-005
@@ -5549,6 +5553,8 @@ groups:
       spec_id: CM-24-001
     - rel_type: refines
       spec_id: CM-24-002
+    - rel_type: refines
+      spec_id: CM-24-020
     adr:
     - ADR-0148
     stories:
@@ -5633,7 +5639,7 @@ groups:
     kind: protocol
     statement: >-
       After it commits the entry for a completed ownership transfer (CM-21-007), the
-      CASE_MANAGER MUST broadcast `Announce(CaseLedgerEntry)` to all case participants.
+      CASE_MANAGER MUST broadcast `Add(CaseLedgerEntry)` to all case participants.
     rationale: >-
       The `CaseLedgerEntry` broadcast is the only way that participants outside the
       transfer learn that the Case Owner changed. Examples are a Finder or a second
@@ -5806,7 +5812,7 @@ groups:
     kind: protocol
     statement: >-
       After it commits the entry for an admitted ownership-transfer Reject (CM-21-012),
-      the CASE_MANAGER MUST broadcast `Announce(CaseLedgerEntry)` to all case
+      the CASE_MANAGER MUST broadcast `Add(CaseLedgerEntry)` to all case
       participants.
     rationale: >-
       The broadcast is how every replica learns the Offer is closed, as it learns of a
@@ -5836,8 +5842,8 @@ groups:
       who owns the case.
     verification: >-
       `test_reject_entry_is_persisted_and_ownership_unchanged` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that a replica stores the
-      Reject entry and leaves ownership unchanged.
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that a replica
+      stores the Reject entry and leaves ownership unchanged.
     relationships:
     - rel_type: extends
       spec_id: CM-21-012
@@ -6020,7 +6026,7 @@ groups:
     kind: protocol
     statement: >-
       After it commits a withdrawal entry (CM-21-015), the CASE_MANAGER MUST broadcast
-      `Announce(CaseLedgerEntry)` to all case participants.
+      `Add(CaseLedgerEntry)` to all case participants.
     rationale: >-
       The broadcast is how the transferee and every replica learn that the Offer can no
       longer be accepted.
@@ -6538,7 +6544,7 @@ groups:
       participant to RM.CLOSED only by applying the ledger's status entries, in ledger
       order.
     rationale: >-
-      The status entries reach the replica in the Announce(CaseLedgerEntry) fan-out. A
+      The status entries reach the replica in the Add(CaseLedgerEntry) fan-out. A
       replica that works out a closure path from its own stored state can write an RM
       step the ledger never recorded, so it diverges from the CASE_MANAGER (ADR-0114,
       ADR-0124).
@@ -6579,7 +6585,7 @@ groups:
     verification: >-
       `test_close_case_entry_alone_changes_no_rm_state` in
       `test/core/use_cases/received/test_close_case_role_semantics.py` and in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that applying the
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that applying the
       close_case entry alone changes no participant's RM state.
     relationships:
     - rel_type: extends
@@ -6844,7 +6850,7 @@ groups:
       `test/core/participants/test_recipients.py` assert a participant whose
       closure the ledger records is left out of every case-content send except the
       entries recording its own closure.  Integration tests in `test/demo/` confirm
-      that `Announce(CaseLedgerEntry)` fan-out skips a participant once a ledger
+      that `Add(CaseLedgerEntry)` fan-out skips a participant once a ledger
       entry has recorded its `rmState=CLOSED`, that the leaving participant's
       replica does not receive the CASE_MANAGER's own
       later closure entries, and that the CASE_MANAGER's store holds every
@@ -8034,9 +8040,10 @@ groups:
 - id: CM-24
   title: CASE_MANAGER-Delegated Activity Authorship Contract
   description: >-
-    Requirements for how trigger use cases assign `actor` and `attributed_to`
-    when the CASE_MANAGER emits an Activity on behalf of a requesting participant
-    (delegated message).  The reference implementation is `delegated_authorship()`
+    Requirements for how trigger use cases and received trees assign `actor`,
+    `attributed_to` and `in_reply_to` when the CASE_MANAGER emits an Activity on
+    behalf of a requesting participant (delegated message).  The reference
+    implementation is `delegated_authorship()`
     (`vultron/core/behaviors/delegated_authorship.py`).
     Codified from CONCERN-2170.
   specs:
@@ -8064,18 +8071,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a delegated Activity is emitted by the CASE_MANAGER, the
-      `attributed_to` field MUST be set to the requesting participant's actor
-      ID so that receivers can recover the originating identity.
+      When the CASE_MANAGER emits a delegated Activity for a requesting
+      participant other than the Activity's `actor`, the `attributed_to` field
+      MUST be set to that participant's actor ID so that receivers can recover
+      the originating identity.
     rationale: >-
-      `attributed_to` is the AS2-standard field for recording who delegated an
-      action.  Without it, the intent of the message cannot be attributed to the
-      correct participant, and audit trails are incomplete.
-    verification: Integration tests in `test/demo/` confirm that a delegated Activity carries
-      the requesting participant's actor ID in the `attributed_to` field.
+      AS2 defines `attributedTo` only as the entities an object is attributed
+      to, and it says nothing of delegation. Vultron uses it to name the actor
+      that asked for the act, so a receiver can recover the originating
+      identity, and the audit trail credits the right participant. An act the
+      `actor` asked for itself has no one else to credit (ADR-0199).
+    verification: >-
+      `test_attributed_to_is_the_requesting_actor` in
+      `test/core/behaviors/test_delegated_authorship.py` asserts the helper sets
+      `attributed_to` to the asker.
     relationships:
     - rel_type: extends
       spec_id: CM-24-001
+    adr:
+    - ADR-0199
     stories:
     - story_2022_089
     - story_2022_034
@@ -8173,42 +8187,61 @@ groups:
     kind: project
     statement: >-
       Every path that emits an Activity on another participant's behalf MUST obtain the
-      Activity's `actor` and `attributed_to` from one shared helper. Such a path is a
+      Activity's `actor`, `attributed_to` and `in_reply_to` from one shared helper,
+      except where another rule fixes `in_reply_to` itself (CM-11-044, CM-33-017).
+      Such a path is a
       trigger use case, or a received-side tree performing the CM-24-010 delegated emit.
     rationale: >-
-      If each call site builds the `actor`/`attributed_to` pair again, the pair can
-      become different at different sites. A wrong pair attributes the act to the wrong
-      actor, or makes the act fail authentication (CM-24-001, CM-24-002). The
-      received-side relay is also a delegated emit (CM-24-010).
+      If each call site builds the `actor`, `attributed_to` and `in_reply_to` values
+      again, they can become different at different sites. A wrong value attributes
+      the act to the wrong actor, names the wrong request, or makes the act fail
+      authentication (CM-24-001, CM-24-002, CM-24-020). The received-side relay is
+      also a delegated emit (CM-24-010).
     verification: >-
       `test/architecture/test_delegated_attribution_uses_helper.py` confirms
       that every trigger use case and every received-side tree emitting a
-      delegated Activity takes `actor` and `attributed_to` from the one shared
+      delegated Activity takes `attributed_to` from the one shared
       helper (`delegated_authorship()` in
       `vultron/core/behaviors/delegated_authorship.py`).
+      `test/architecture/test_delegated_act_names_request.py` confirms that every
+      such emit carries an `in_reply_to`; it checks that the value is present, not
+      where it comes from, and the per-emit tests marked `CM-24-020` check the value.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-24-010
+    see_also:
+    - spec_id: CM-11-044
+      reason: 'a replacement stub Invite names the Invite it supersedes, not the request'
+    - spec_id: CM-33-017
+      reason: 'the role-offer forward names the recorded Offer even when self-asked'
   - id: CM-24-012
     priority: MUST
     kind: project
     statement: >-
       The shared delegated-authorship helper (CM-24-005) MUST set `actor` to the actor
-      doing what was asked, and `attributed_to` to the actor that asked. The doer is the
-      CASE_MANAGER executing the gated tree. The asker is the trigger's requesting
-      actor,
-      or the sender of the activity the received tree acts on.
+      doing what was asked, `attributed_to` to the actor that asked, and `in_reply_to`
+      to the request the doer received. The doer is the CASE_MANAGER executing the
+      gated tree. The asker is the trigger's requesting actor, or the sender of the
+      activity the received tree acts on, and the request is that activity.
     rationale: >-
-      Neither value needs a calculation, because the emit point knows the doer and the
-      requester. The CASE_MANAGER is the `actor` that receivers authenticate
-      (CM-24-001), and `attributed_to` recovers who asked (CM-24-002).
+      None of the values needs a calculation, because the emit point knows the doer,
+      the requester and the request. The CASE_MANAGER is the `actor` that receivers
+      authenticate (CM-24-001), `attributed_to` recovers who asked (CM-24-002), and
+      `in_reply_to` names what the act answers (VOC `inReplyTo`). A distinct asker
+      reaches the CASE_MANAGER only by message (ADR-0109), so a delegated act with no
+      request to name is a programming error (ADR-0199).
     verification: >-
       `test_actor_is_the_doing_actor` and `test_attributed_to_is_the_requesting_actor`
-      in `test/core/behaviors/test_delegated_authorship.py` assert the helper's two
-      values.
+      in `test/core/behaviors/test_delegated_authorship.py` assert the helper's three
+      values, `test_an_asker_that_is_the_doer_gets_neither_field` asserts it sets
+      neither delegation field for a self-asked act, and
+      `test_a_distinct_asker_with_no_request_is_refused` asserts it raises for a
+      distinct asker that names no request.
     relationships:
     - rel_type: extends
       spec_id: CM-24-005
+    adr:
+    - ADR-0199
   - id: CM-24-013
     priority: MUST
     kind: project
@@ -8412,6 +8445,84 @@ groups:
     see_also:
     - spec_id: CM-24-007
       reason: 'context for the reader'
+  - id: CM-24-020
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER emits a delegated Activity other than a replacement stub
+      Invite, the `in_reply_to` field MUST be set to the id of the request the
+      CASE_MANAGER received from the requesting participant. A replacement stub
+      Invite names the Invite it supersedes instead (CM-11-044).
+    rationale: >-
+      VOC `inReplyTo` names what an object answers. A receiver reads both who asked
+      (`attributedTo`, CM-24-002) and which request the act carries out. A distinct
+      asker reaches the CASE_MANAGER only by message (ADR-0109), so every delegated
+      act has a request to name (ADR-0199). Stub Invites to one invitee form a thread:
+      the first names the request, and each replacement names the Invite before it,
+      so the request stays reachable along the thread and the CASE_MANAGER finds the
+      one live stub by it (CM-11-015). The maintainer chose this in the #6464 build.
+    verification: >-
+      `test/architecture/test_delegated_act_names_request.py` asserts no emit site and
+      no example activity credits another actor without an `inReplyTo`, and the
+      per-emit tests marked `CM-24-020` assert the request each one names.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-24-002
+    adr:
+    - ADR-0199
+    stories:
+    - story_2022_089
+    - story_2022_034
+    see_also:
+    - spec_id: CM-11-044
+      reason: 'the replacement stub Invite this rule leaves to it'
+  - id: CM-24-021
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An Activity whose requesting actor is its `actor` MUST NOT carry the
+      delegation's `attributed_to` or `in_reply_to` (CM-24-002, CM-24-020).
+    rationale: >-
+      An actor that asks for its own act does it directly, and there is no one
+      else to credit and no received request to name (ADR-0199). An Owner that
+      also holds the CASE_MANAGER role sends its ask straight to the answering
+      actor.
+    verification: >-
+      `test_an_asker_that_is_the_doer_gets_neither_field` in
+      `test/core/behaviors/test_delegated_authorship.py` asserts the helper returns
+      neither field for an asker that is the doer.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-002
+    adr:
+    - ADR-0199
+    stories:
+    - story_2022_089
+    - story_2022_034
+    see_also:
+    - spec_id: CM-24-020
+      reason: 'the in_reply_to the self-asked act omits'
+  - id: CM-24-022
+    priority: MUST
+    kind: project
+    statement: >-
+      The shared delegated-authorship helper (CM-24-005) MUST raise when the asker
+      differs from the doer and the caller names no request.
+    rationale: >-
+      A delegated act with no request to name is a programming error, so the
+      helper fails it as a wiring fault before any activity is built (CM-24-020,
+      ADR-0109).
+    verification: >-
+      `test_a_distinct_asker_with_no_request_is_refused` in
+      `test/core/behaviors/test_delegated_authorship.py` asserts the raise.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-24-012
+    adr:
+    - ADR-0199
+    see_also:
+    - spec_id: CM-24-005
+      reason: 'names the shared helper the rule applies to'
 
 - id: CM-25
   title: Observer Participant Semantics
@@ -9086,7 +9197,7 @@ groups:
       on whether the invitation is open (ADR-0113).
     verification: >-
       `test_replica_records_invitee_deadline_from_relayed_invite_entry` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that a replica
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that a replica
       records the invitee's deadline when the entry is replayed.
     relationships:
     - rel_type: depends_on
@@ -9149,7 +9260,7 @@ groups:
       `TIMED_OUT` row into a replica and asserts the participant reads `TIMED_OUT`
       only once that entry is copied:
       `test/core/use_cases/received/test_embargo_invite_lapse.py::TestExpiryIsTheManagersAlone::test_non_manager_commits_no_expiry_entry`,
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::TestAddLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
       and `test/core/use_cases/received/test_embargo_activation_copy.py::TestInviteTimeOut`.
     relationships:
     - rel_type: extends
@@ -9191,13 +9302,13 @@ groups:
     statement: >-
       In this codebase a replica MUST apply the invite-expiry
       `Update(EmbargoConsent)` entry (CM-28-014) through the consent slot of
-      `create_announce_log_entry_tree` (RSH-08-004).
+      `create_add_log_entry_tree` (RSH-08-004).
     rationale: >-
       How this codebase copies the CASE_MANAGER's expiry entry onto replicas. One
       slot applies every consent entry, so a replica reads `TIMED_OUT` only from the
       entry and never computes an expiry itself.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::TestAddLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
       confirms a replica reads `TIMED_OUT` only once that entry is copied.
     relationships:
     - rel_type: implements
@@ -10109,7 +10220,8 @@ groups:
     statement: >-
       After a removal commits, the CASE_MANAGER MUST send the removed participant a
       direct `Remove(CaseParticipant)` naming it. The notice's `actor` is the
-      CASE_MANAGER and its `attributedTo` the Case Owner (CM-24).
+      CASE_MANAGER, its `attributedTo` the Case Owner and its `inReplyTo` the Case
+      Owner's request (CM-24).
     rationale: >-
       Learning of removal only from silence is indistinguishable from a network fault, and the removed
       party needs to know it is still bound and how it will hear of the embargo's end.
@@ -10158,7 +10270,7 @@ groups:
     verification: >-
       `test_removal_entry_fans_out_to_the_removed_participant` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts an
-      `Announce(CaseLedgerEntry)` of the removal is addressed to the removed
+      `Add(CaseLedgerEntry)` of the removal is addressed to the removed
       participant.
     relationships:
     - rel_type: extends
@@ -10689,7 +10801,7 @@ groups:
       participant record, status ids and timestamps included, between the
       CASE_MANAGER and each replica after the Accept, and
       `test_the_accept_entry_signs_consent_and_marks_joined` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts the replica writes.
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts the replica writes.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-31-012
@@ -10711,7 +10823,7 @@ groups:
       replica would fall behind the CASE_MANAGER.
     verification: >-
       `test_a_stale_accept_replayed_over_a_seed_that_is_ahead_changes_nothing` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that a stale Accept
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that a stale Accept
       replayed over a seed that is ahead changes nothing.
     relationships:
     - rel_type: uses_definition
@@ -10733,7 +10845,7 @@ groups:
       never seated.
     verification: >-
       `test_a_reply_entry_with_no_record_fails_and_stores_nothing` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that the apply fails
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that the apply fails
       and stores nothing.
     relationships:
     - rel_type: extends
@@ -12144,7 +12256,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER commits an answer to a role Offer under CM-33-006, it MUST
-      broadcast `Announce(CaseLedgerEntry)` to the case's participants.
+      broadcast `Add(CaseLedgerEntry)` to the case's participants.
     rationale: >-
       Replicas learn of a granted role only when they replay the announced entry
       (CM-02-016, RSH-08-004). Thus if the answer is not announced, the roles in every

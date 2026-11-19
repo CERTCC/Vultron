@@ -198,7 +198,7 @@ class TestC1InvitesTheSecondCoordinator:
         """Bug #2135: the join broadcasts to every participant.
 
         C2's reply to the full-case Invite broadcasts
-        ``Announce(CaseLedgerEntry)`` to all participants, so a Reporter
+        ``Add(CaseLedgerEntry)`` to all participants, so a Reporter
         without the case has no genesis hash to anchor the chain on.
         """
         state = five_party_state()

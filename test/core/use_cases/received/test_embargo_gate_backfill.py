@@ -297,7 +297,7 @@ class _GateScenario:
         """Entry ids announced to *actor_id*, in outbox order."""
         announced = []
         for activity in (self.dl.read(i) for i in self.dl.outbox_list()):
-            if getattr(activity, "type_", None) != "Announce":
+            if getattr(activity, "type_", None) != "Add":
                 continue
             if actor_id not in (getattr(activity, "to", None) or []):
                 continue

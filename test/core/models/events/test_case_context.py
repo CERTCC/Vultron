@@ -21,6 +21,7 @@ from test.support.objects import make
 from vultron.core.models.events import (
     CASE_BOOTSTRAP_SEMANTICS,
     CASE_PRECEDING_SEMANTICS,
+    SELF_HOLDING_SEMANTICS,
     MessageSemantics,
     VultronEvent,
     is_case_bootstrap,
@@ -66,7 +67,7 @@ class TestIsCaseBootstrap:
         [
             MessageSemantics.ENGAGE_CASE,
             MessageSemantics.CLOSE_CASE,
-            MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+            MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
         ],
     )
     def test_non_bootstrap_semantics(self, semantic_type):
@@ -74,11 +75,15 @@ class TestIsCaseBootstrap:
 
 
 class TestIsDeferralExempt:
-    """Processed without the case: the bootstraps and the stub Invite."""
+    """Processed without the case: the bootstraps, the stub Invite, the ledger Add."""
 
     @pytest.mark.parametrize(
         "semantic_type",
-        sorted(CASE_BOOTSTRAP_SEMANTICS | CASE_PRECEDING_SEMANTICS),
+        sorted(
+            CASE_BOOTSTRAP_SEMANTICS
+            | CASE_PRECEDING_SEMANTICS
+            | SELF_HOLDING_SEMANTICS
+        ),
     )
     def test_exempt_semantics(self, semantic_type):
         assert is_deferral_exempt(_event(semantic_type))
@@ -90,15 +95,28 @@ class TestIsDeferralExempt:
         assert is_deferral_exempt(event)
         assert not is_case_bootstrap(event)
 
-    def test_the_two_sets_are_disjoint(self):
-        assert not CASE_BOOTSTRAP_SEMANTICS & CASE_PRECEDING_SEMANTICS
+    def test_the_exemption_sets_are_disjoint(self):
+        """Each exempt semantic sits in one set, so only a bootstrap replays."""
+        sets = (
+            CASE_BOOTSTRAP_SEMANTICS,
+            CASE_PRECEDING_SEMANTICS,
+            SELF_HOLDING_SEMANTICS,
+        )
+        assert sum(len(s) for s in sets) == len(frozenset().union(*sets))
+
+    @pytest.mark.spec("SYNC-15-004")
+    def test_a_ledger_add_is_exempt_but_bootstraps_nothing(self):
+        """The replica holds a pre-seed ``Add`` itself; it seeds no case."""
+        event = _event(MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER)
+        assert is_deferral_exempt(event)
+        assert not is_case_bootstrap(event)
 
     @pytest.mark.parametrize(
         "semantic_type",
         [
             MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
             MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-            MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+            MessageSemantics.ADD_NOTE_TO_CASE,
         ],
     )
     def test_activities_presupposing_the_case_are_not_exempt(

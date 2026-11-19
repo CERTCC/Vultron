@@ -389,7 +389,9 @@ class TestVocabCaseStatusExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, case_actor.id_)
         self.assertEqual(activity.to, [finder.id_])
-        self.assertEqual(activity.target, case.id_)
+        # The case's status history, with the case in context (ADR-0204).
+        self.assertEqual(activity.target, f"{case.id_}/statuses")
+        self.assertEqual(activity.context, case.id_)
         self.assertEqual(activity.object_, status)
 
 

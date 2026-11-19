@@ -78,7 +78,7 @@ def test_send_reject_log_entry_node_sends_reject(bridge, case_actor):
 
     assert result.status == Status.FAILURE
     sync_port.send_reject_log_entry.assert_called_once()
-    # The Reject answers the Announce that carried the entry (RF-08-004).
+    # The Reject answers the Add that carried the entry (RF-08-004).
     sent = sync_port.send_reject_log_entry.call_args.kwargs
     assert sent["in_reply_to"] == event.activity_id
 

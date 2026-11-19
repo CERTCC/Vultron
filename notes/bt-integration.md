@@ -241,7 +241,7 @@ Two shapes look like a second tree and are not:
 - **A CASE_MANAGER clock decision** (an expiry) is a stage of the one tree,
   between the door guards and the precondition guards (CLP-10-025).
 - **A drained out-of-order entry** is another delivery: replay the held
-  `Announce` that carried it through the receiving actor's inbox, never run its
+  `Add` that carried it through the receiving actor's inbox, never run its
   tree inline or from a node — a bridge run nested in a node hides the inner
   tree's internal error (SYNC-14-009). `ReplayHeldSuccessorNode` does this
   through `InboxReplayPort`, passed to the bridge as the `inbox_replay` context
@@ -457,7 +457,7 @@ nothing is written before the last one admits the message (ADR-0214).
    beside the no-case one. Each declared path is judged by its own side of the
    sender rule — `at_case_manager`, `at_participant`, `outside_case` — so a
    widened declaration states that side in the rule too (`SenderRule.on_every_path`
-   for the stub Invite and the first `Announce`), or the path refuses every
+   for the stub Invite and the first `Add`), or the path refuses every
    sender (HP-01-036). Every declaration in the
    migrated areas, and the disposition each gives a non-manager receiver, is
    pinned in `test/core/behaviors/test_declared_received_paths.py`.
@@ -589,7 +589,7 @@ nothing is written before the last one admits the message (ADR-0214).
    (ADR-0154): it decides nothing, so handling nodes may read its key. A
    ledger activity's tree passes a
    `LedgerActivityContext` instead: its nodes read the case from the entry the
-   activity carries (`Announce` and `Reject` of a `CaseLedgerEntry`). Never
+   activity carries (`Add` and `Reject` of a `CaseLedgerEntry`). Never
    place a sender check after a write: a snapshot an activity carries is
    stored only once its sender is admitted (HP-01-006). Nor store it among the
    guards: a guard checks what the activity carries and writes nothing, and the

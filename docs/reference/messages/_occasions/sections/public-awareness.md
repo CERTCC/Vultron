@@ -7,14 +7,14 @@ Tells a participant that the case status now records that the public knows of th
 === "Details"
 
     - **When…** the CASE_MANAGER records that the public knows of the vulnerability
-    - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
+    - **Send:** `Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]`
     - **Send to:** a participant
     - **Sent by:** the CASE_MANAGER
     - **Distinguished by:** `pxaState` = `Pxa`
     - **Formal definition:** [Public Awareness (CP)](../../../formal_protocol/messages.md#cs-message-types)
     - **Mapping status:** [collapse](../../index.md#mapping-status)
 
-    Only the CASE_MANAGER sends a case status, as its record of the `pxaState` it adopted, and a receiver refuses one from any other sender. A participant reports public awareness, a public exploit or observed attacks in its own participant status instead.
+    Only the CASE_MANAGER sends a case status, as its record of the `pxaState` it adopted, added to the case's status history `<case>/statuses` (ADR-0204), and a receiver refuses one from any other sender. A participant reports public awareness, a public exploit or observed attacks in its own participant status instead.
 
 === "Example activity"
 

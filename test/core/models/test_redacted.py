@@ -13,22 +13,18 @@
 
 """The ``Redacted`` marker type carries only ``type`` and ``summary`` (MV-12).
 
-These rows hold the rule at the type (MV-12-003).  Where a received
-marker may stand is the parse edge's question, held by
-``test/wire/as2/test_redaction_marker.py``.
+These rows hold the rule at the type (MV-12-003), which is how a sender keeps
+the withheld value out of a marker (MV-12-005).  Where a received marker may
+stand, and what happens to its other keys, is the parse edge's question, held
+by ``test/wire/as2/test_redaction_marker.py``.
 """
 
-from typing import Any, ClassVar
+from typing import Any
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
-from vultron.core.models.case_preview import CasePreview
-from vultron.core.models.redacted import (
-    REDACTED_TYPE,
-    Redacted,
-    opens_to_redaction,
-)
+from vultron.core.models.redacted import REDACTED_TYPE, Redacted
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.vocab.objects.redacted import Redacted as WireRedacted
 
@@ -82,6 +78,7 @@ def test_a_marker_refuses_an_empty_summary() -> None:
     }
 
 
+@pytest.mark.spec("MV-12-005")
 @pytest.mark.spec("MV-12-003")
 @pytest.mark.parametrize(
     "extra",
@@ -95,11 +92,13 @@ def test_a_marker_refuses_an_empty_summary() -> None:
 def test_a_marker_carrying_the_withheld_value_is_refused(
     extra: dict[str, Any],
 ) -> None:
-    """A marker with any field but ``type`` and ``summary`` is refused.
+    """A sender cannot build a marker with any field but ``type`` and
+    ``summary`` (MV-12-005).
 
-    This holds the rule at the type only.  A receiver's refusal (MV-12-005)
-    is the parse edge's, which sets unknown keys aside before the type sees
-    them (MV-11-003), so it is held in ``test_redaction_marker.py``.
+    This holds the rule at the type, which every marker this codebase sends
+    is built from.  A received marker's other keys are set aside at the parse
+    edge before the type sees them (MV-11-003), held in
+    ``test_redaction_marker.py``.
     """
     with pytest.raises(ValidationError) as exc_info:
         Redacted.model_validate(
@@ -133,40 +132,3 @@ def test_the_wire_registry_resolves_redacted_to_the_core_marker() -> None:
     """The core class is the marker's only form (ARCH-25-003)."""
     assert WireRedacted is Redacted
     assert find_in_vocabulary("Redacted") is Redacted
-
-
-class _PreviewOpeningName(BaseModel):
-    """A stand-in preview type that opens its ``name`` to the marker."""
-
-    redactable_fields: ClassVar[frozenset[str]] = frozenset({"name"})
-    name: str | None = None
-    summary: str | None = None
-
-
-class _PreviewWithAMalformedDeclaration(BaseModel):
-    """A declaration that is not a frozenset of field names, a fault in the
-    type that ``opens_to_redaction`` raises on."""
-
-    redactable_fields: ClassVar[object] = ["name"]
-    name: str | None = None
-
-
-@pytest.mark.spec("MV-12-001")
-def test_a_preview_type_opens_only_the_fields_it_declares() -> None:
-    preview = _PreviewOpeningName()
-
-    assert opens_to_redaction(preview, "name")
-    assert not opens_to_redaction(preview, "summary")
-
-
-@pytest.mark.spec("MV-12-002")
-def test_the_case_preview_opens_no_field_yet() -> None:
-    """No field opens until #6372 makes every preview field redactable."""
-    assert not opens_to_redaction(CasePreview(summary="a case"), "name")
-
-
-def test_a_malformed_declaration_is_a_fault_in_the_type() -> None:
-    """A declaration that is not a frozenset of names is refused, not read
-    as opening nothing."""
-    with pytest.raises(TypeError, match="redactable_fields"):
-        opens_to_redaction(_PreviewWithAMalformedDeclaration(), "name")

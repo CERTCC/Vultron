@@ -19,7 +19,7 @@ The CASE_MANAGER's own notes — the RSH-06-004 RM-anomaly clarification, the
 CSB-18 diagnostic and the CM-16-016 reinforcing-suggestion note — are case
 content: the CASE_MANAGER attaches each to its case and commits it as an
 ``add_note_to_case`` entry, and the participant it is for learns of it from
-the ``Announce(CaseLedgerEntry)`` fan-out (SYNC-02-001, SYNC-02-003, CLP-10-001).  No
+the ``Add(CaseLedgerEntry)`` fan-out (SYNC-02-001, SYNC-02-003, CLP-10-001).  No
 direct ``Add(Note)`` goes to a participant, whose note handler refuses any
 ``Add(Note)`` it is not the CASE_MANAGER for (HP-01-005).
 
@@ -103,7 +103,7 @@ def _declare_rm(net: LedgerNetwork, member: str, rm: RM):
         net,
         add_status_to_participant_activity(
             status,
-            target=participant,
+            participant=participant,
             actor=member,
             to=[MANAGER],
             at=authored_at(),

@@ -21,7 +21,7 @@ adopted, which it alone sends, and only to a participant (RSH-04-001,
 RSH-04-005).  The factory's sender guard refuses it from any other sender
 and at the CASE_MANAGER, so this tree runs only at a participant replica.
 A replica writes no case state on receipt: it takes the CASE_MANAGER's
-status from the ``Announce(CaseLedgerEntry)`` fan-out (RSH-08-003,
+status from the ``Add(CaseLedgerEntry)`` fan-out (RSH-08-003,
 PCR-03-001).  The CASE_MANAGER's own status writes, including a
 participant's adopted P, X or A, are in ``add_participant_status_tree`` and
 the embargo trees (RSH-01-003, RSH-04-006).
@@ -82,8 +82,8 @@ def add_case_status_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddCaseStatusToCase workflow.
 
-    Handles receipt of an ``Add(CaseStatus)[target=VulnerabilityCase]`` activity at
-    a participant replica, from the case's CASE_MANAGER (RSH-04-005).  After
+    Handles receipt of an ``Add(CaseStatus, target=<case>/statuses)`` activity
+    (ADR-0204) at a participant replica, from the case's CASE_MANAGER (RSH-04-005).  After
     the factory's intake and guards, five precondition guards run in a
     Sequence:
 
@@ -99,7 +99,8 @@ def add_case_status_tree(
        otherwise; also FAILURE when the case or the status cannot be resolved
        (CLP-10-009, RSH-09-005).
 
-    An ``Add(CaseStatus)`` missing its status id or case id gets the
+    An ``Add(CaseStatus)`` missing its status id or case id, or whose target
+    is not the status history of its ``context`` case (ADR-0204), gets the
     incomplete-activity tree instead: its guard refuses the activity after
     the doors admit it and intake records it (CLP-10-018).
 
@@ -122,6 +123,14 @@ def add_case_status_tree(
         return create_incomplete_activity_received_tree(
             "AddCaseStatusToCaseBT",
             "Add(CaseStatus) is missing its status id or case id",
+        )
+    if not request.extends_its_case_history:
+        # The status joins the history of the case its context names, and
+        # no other (ADR-0204).
+        return create_incomplete_activity_received_tree(
+            "AddCaseStatusToCaseBT",
+            "Add(CaseStatus) target is not the status history of its"
+            f" context case '{case_id}' (ADR-0204)",
         )
     status_obj = request.status
     sender_actor_id = request.actor_id

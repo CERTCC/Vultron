@@ -145,7 +145,7 @@ class _ReadsTheBodyThenAnswers:
 class _DefersAndHolds:
     """A handler that holds the body for a replay, then defers.
 
-    The shape of the buffered ``Announce(CaseLedgerEntry)`` whose handler
+    The shape of the buffered ``Add(CaseLedgerEntry)`` whose handler
     finds a ledger gap after intake recorded the body (SYNC-14-001): the
     record is in holding *and* owes a replay when the outcome stage runs.
     """

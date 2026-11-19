@@ -98,11 +98,11 @@ class ReportHashMismatchNode(DataLayerActionWithPorts):
     """Log a replica's hash-mismatch fault at ERROR, with a self-check.
 
     *refused_entry* (``/refused_entry``) is the entry the fault's
-    ``inReplyTo`` ``Announce`` (``/announce_id``) carried; the peer
+    ``inReplyTo`` ``Add`` (``/announce_id``) carried; the peer
     (``/sender_id``, the fault's sender) is the replica that refused it.  The
     node re-checks this store's own copy of that entry
     (:func:`check_own_copy`) and logs one ERROR record naming the case, the
-    ``Announce``, the entry, the sender and the result, kept in
+    ``Add``, the entry, the sender and the result, kept in
     :attr:`own_copy`.
 
     Writes nothing, sends nothing and always returns SUCCESS once it has
@@ -140,7 +140,7 @@ class ReportHashMismatchNode(DataLayerActionWithPorts):
         )
         self.logger.error(
             "%s: peer '%s' refused ledger entry '%s' (log_index %d) of case"
-            " '%s', sent in Announce '%s', because its content does not"
+            " '%s', sent in Add '%s', because its content does not"
             " reproduce its hash (SYNC-03-007). Self-check: %s; %s. Nothing"
             " is replayed or re-seeded for it (SYNC-03-008, SYNC-03-010)",
             self.name,

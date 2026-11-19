@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Regression tests: Announce(CaseLedgerEntry) ingress routing without pre-store.
+"""Regression tests: Add(CaseLedgerEntry) ingress routing without pre-store.
 
 These tests pin the SYNC-13 boundary: message ingress MUST route an inbound
-``Announce(CaseLedgerEntry)`` to the log-entry semantic
-(``ANNOUNCE_CASE_LEDGER_ENTRY``) on first delivery *without* the adapter
+``Add(CaseLedgerEntry)`` to the log-entry semantic
+(``ADD_CASE_LEDGER_ENTRY_TO_LEDGER``) on first delivery *without* the adapter
 pre-storing the inline ``CaseLedgerEntry`` in the ledger/DataLayer
 (SYNC-13-002, SYNC-13-003, SYNC-13-004).
 
@@ -45,7 +45,7 @@ from vultron.adapters.inbox_staging import (
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import find_matching_semantics
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import add_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as CaseLedgerEntry,
 )
@@ -64,21 +64,21 @@ def dl() -> SqliteDataLayer:
 
 
 def _make_announce_body() -> dict:
-    """Build the wire body for an Announce(CaseLedgerEntry)."""
+    """Build the wire body for an Add(CaseLedgerEntry)."""
     entry = make(
         CaseLedgerEntry,
         id_=_ENTRY_ID,
         case_id=_CASE_ID,
         log_object_id=_INVITEE_ID,
         semantic_type="accept_invite_actor_to_case",
-        payload_snapshot={"actor": _INVITEE_ID},
+        payload_snapshot={"id": _INVITEE_ID, "actor": _INVITEE_ID},
         entry_hash="hash-1",
         prev_log_hash="hash-0",
         log_index=1,
         received_at=ACT_AT,
         published=ACT_AT,
     )
-    announce = announce_log_entry_activity(
+    announce = add_log_entry_activity(
         entry,
         id_="https://example.org/activities/announce-entry-1",
         actor="https://example.org/actors/case-actor",
@@ -93,7 +93,7 @@ def _make_announce_body() -> dict:
 def test_ingress_routes_ledger_entry_without_prestoring_entry(
     dl: SqliteDataLayer,
 ) -> None:
-    """parse+rehydrate routes to ANNOUNCE_CASE_LEDGER_ENTRY, entry not stored.
+    """parse+rehydrate routes to ADD_CASE_LEDGER_ENTRY_TO_LEDGER, entry not stored.
 
     SYNC-13-002/003/004: the adapter must not write the CaseLedgerEntry to the
     DataLayer, and routing must still resolve to the log-entry semantic using
@@ -123,8 +123,8 @@ def test_ingress_routes_ledger_entry_without_prestoring_entry(
     )
 
     semantics = find_matching_semantics(rehydrated)
-    assert semantics == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY, (
-        "Announce(CaseLedgerEntry) must route to the log-entry semantic on"
+    assert semantics == MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER, (
+        "Add(CaseLedgerEntry) must route to the log-entry semantic on"
         f" first delivery (SYNC-13-004); got {semantics}"
     )
 
@@ -135,13 +135,13 @@ def test_ingress_routes_ledger_entry_without_prestoring_entry(
 def test_replayed_ledger_entry_announce_routes_and_keeps_fields(
     dl: SqliteDataLayer,
 ) -> None:
-    """A deferred Announce(CaseLedgerEntry) replayed by ID keeps its fields.
+    """A deferred Add(CaseLedgerEntry) replayed by ID keeps its fields.
 
     #1472 AC-4: the replay path (StoredActivityIngressAdapter) rebuilds the
-    deferred Announce from the record holding it (DL-06-006).  The inline
+    deferred Add from the record holding it (DL-06-006).  The inline
     entry is not stored as its own record (SYNC-13-002), so the full typed
-    entry must survive inside the held Announce and route to
-    ANNOUNCE_CASE_LEDGER_ENTRY on replay, with its delivery's evidence.
+    entry must survive inside the held Add and route to
+    ADD_CASE_LEDGER_ENTRY_TO_LEDGER on replay, with its delivery's evidence.
     """
     body = _make_announce_body()
     staging = InlineObjectStaging(dl)
@@ -152,22 +152,22 @@ def test_replayed_ledger_entry_announce_routes_and_keeps_fields(
     # The inbox defers it, as DeferCheckNode does for an unknown case.
     assert staging.hold_for_replay(activity.id_, received_at=now_utc())
 
-    # The entry itself is not an independent record, nor is the Announce...
+    # The entry itself is not an independent record, nor is the Add...
     assert dl.read(_ENTRY_ID) is None
     assert dl.read(activity.id_) is None
 
-    # ...but replaying the held Announce reconstructs the typed entry.
+    # ...but replaying the held Add reconstructs the typed entry.
     replayed = StoredActivityIngressAdapter(dl=dl).parse(activity.id_)
     assert replayed is not None
     assert replayed.received_evidence == body
     replayed_object = getattr(replayed, "object_", None)
     assert isinstance(replayed_object, CaseLedgerEntry), (
-        "Replayed Announce must carry a typed CaseLedgerEntry;"
+        "Replayed Add must carry a typed CaseLedgerEntry;"
         f" got {type(replayed_object).__name__}"
     )
     assert replayed_object.case_id == _CASE_ID
     assert replayed_object.semantic_type == "accept_invite_actor_to_case"
     assert (
         find_matching_semantics(replayed)
-        == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
+        == MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER
     )

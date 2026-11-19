@@ -41,7 +41,7 @@ def trigger_log_commit(
 
     POSTs to ``/actors/{actor_id}/demo/sync-log-entry`` and returns the
     ``entry_hash`` from the response.  The entry is also fanned out to all
-    case participants via ``Announce(CaseLedgerEntry)`` activities queued in the
+    case participants via ``Add(CaseLedgerEntry)`` activities queued in the
     actor's outbox.
 
     Args:

@@ -15,7 +15,7 @@
 
 """Adapter implementing :class:`~vultron.core.ports.inbox_replay.InboxReplayPort`.
 
-Replays a held received activity, a held ``Announce(CaseLedgerEntry)``, through
+Replays a held received activity, a held ``Add(CaseLedgerEntry)``, through
 the receiving actor's own inbox as a delivery of its own (SYNC-14-009,
 ADR-0135).  The activity is already held as the body that arrived, on its one
 ``ReceivedActivityRecord`` keyed by the receiver, marked as owing a replay

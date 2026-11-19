@@ -285,7 +285,7 @@ class SyncLogEntryResult(TriggerResult):
 
     The demo-only verb that mints a canonical ``CaseLedgerEntry`` and fans it
     out.  ``emitting_actor_id`` names the case's CASE_MANAGER, as whom the
-    commit tree ran and whose outbox holds the ``Announce(CaseLedgerEntry)``
+    commit tree ran and whose outbox holds the ``Add(CaseLedgerEntry)``
     fan-out (CLP-09, BT-05-005); the router drains that outbox, exactly as it
     does for a delegated :class:`ActivityResult`.
     """

@@ -62,7 +62,7 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
 
     After successful activity queueing, records the ``Add(Note)`` in the
     actor's pending-assertion store under ``add_note_to_case``; the matching
-    ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-002, SYNC-11-003).
+    ``Add(CaseLedgerEntry)`` clears it (SYNC-11-002, SYNC-11-003).
     Unlike the add-object trigger, this one suppresses no repeat: every run
     mints a new note, so a second request is a second note, never a repeat
     of a pending assertion.

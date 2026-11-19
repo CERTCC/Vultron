@@ -187,7 +187,7 @@ dead on artifact download).
 
 After any phase that commits a new canonical ledger entry, poll until the replica
 acknowledges the sender's tail hash before writing the devlog, or the dump misses
-entries still in `Announce(CaseLedgerEntry)` fan-out (DEMO-DEVLOG-RACE,
+entries still in `Add(CaseLedgerEntry)` fan-out (DEMO-DEVLOG-RACE,
 [demo-ci-diagnostics](../../notes/demo-ci-diagnostics.md) § "Demo Devlog Race").
 
 ### BT Demo `main()` Must Be Callable With No Arguments

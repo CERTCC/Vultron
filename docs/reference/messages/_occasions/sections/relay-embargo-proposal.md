@@ -2,7 +2,7 @@
 
 ## Ask a participant about proposed embargo terms { #relay-embargo-proposal }
 
-Asks one participant to accept or reject proposed embargo terms, or a proposed revision. The CASE_MANAGER sends one to each participant other than the proposer, naming the proposer in `attributedTo`, and the participant's answer names this Invite.
+Asks one participant to accept or reject proposed embargo terms, or a proposed revision. The CASE_MANAGER sends one to each participant other than the proposer, naming the proposer in `attributedTo` and the proposer's Invite in `inReplyTo`, and the participant's answer names this Invite.
 
 === "Details"
 

@@ -167,7 +167,7 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   semantic extraction or in core. The route hands the background task the
   verified body, and `FastAPIIngressAdapter.parse` takes only a body, never a
   parsed activity, which carries no proof.
-- **A replica's check is the same stage** (SIG-04-002). An `Announce(CaseLedgerEntry)`
+- **A replica's check is the same stage** (SIG-04-002). An `Add(CaseLedgerEntry)`
   needs its `payloadSnapshot`'s proof too, verified by the key of the snapshot's own
   `actor`: the CASE_MANAGER's for a native entry, the author's for a relayed act. Either
   failure refuses the whole delivery, and a snapshot naming no actor is refused, since
