@@ -40,19 +40,11 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._base import (
     _create_and_seal,
+    _delegation,
     _to_wire,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _attribution(attributed_to: str | None) -> dict[str, str]:
-    """``attributed_to`` as a factory keyword, only when given (CM-24-002).
-
-    Absent, the factory keeps its default of no attribution, so an activity
-    the CASE_MANAGER decides on its own names nobody else.
-    """
-    return {} if attributed_to is None else {"attributed_to": attributed_to}
 
 
 def _accept_id(actor: str, proposal_id: str) -> str:
@@ -88,6 +80,7 @@ class _EmbargoMixin:
         *,
         at: datetime,
         invitee: str | None = None,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an
         ``Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]``.
@@ -96,8 +89,9 @@ class _EmbargoMixin:
         *invitee* for an Invite addressed to nobody, which is the
         CASE_MANAGER's own ledgered proposal (EP-09-010, ADR-0205).
 
-        ``attributed_to`` names the proposer of a relayed proposal (CM-24-002);
-        it is forwarded only when given so a participant's own proposal keeps
+        ``attributed_to`` names the proposer of a relayed proposal (CM-24-002)
+        and ``in_reply_to`` the request the relay carries out (CM-24-012);
+        each is forwarded only when given so a participant's own proposal keeps
         the factory's default of no attribution.  ``activity_id`` likewise:
         given, it is the Invite's id (EP-04-011); absent, the factory mints one.
         So are ``rsvp_deadline`` (the Invite's ``endTime``, CM-28-012) and the
@@ -109,6 +103,7 @@ class _EmbargoMixin:
             key: value
             for key, value in (
                 ("attributed_to", attributed_to),
+                ("in_reply_to", in_reply_to),
                 ("id_", activity_id),
                 ("rsvp_deadline", rsvp_deadline),
                 ("min_rsvp_window", min_rsvp_window),
@@ -375,6 +370,7 @@ class _EmbargoMixin:
         attributed_to: str | None = None,
         *,
         at: datetime,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Announce(EmbargoEvent)`` activity."""
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
@@ -383,7 +379,7 @@ class _EmbargoMixin:
             context=case_id,
             actor=actor,
             to=to,
-            **_attribution(attributed_to),
+            **_delegation(attributed_to, in_reply_to),
             at=at,
         )
         return _create_and_seal(self._dl, activity, "announce_embargo")
@@ -399,6 +395,7 @@ class _EmbargoMixin:
         to: list[str] | None = None,
         attributed_to: str | None = None,
         at: datetime,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(EmbargoEvent)`` ET activity (case in ``origin``).
 
@@ -415,7 +412,7 @@ class _EmbargoMixin:
             context=case_id,
             actor=actor,
             to=to,
-            **_attribution(attributed_to),
+            **_delegation(attributed_to, in_reply_to),
             at=at,
         )
         return _create_and_seal(self._dl, activity, "terminate_embargo")

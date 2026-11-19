@@ -355,6 +355,7 @@ class TestForwardRoleOfferToTargetNode:
 
     @pytest.mark.spec("CM-33-008")
     @pytest.mark.spec("CM-24-005")
+    @pytest.mark.spec("CM-24-012")
     def test_forward_names_the_recorded_offer_and_its_owner(self, bridge, dl):
         result = run_tree(bridge, tree=_forward_node(), actor_id=ACTOR_ID)
 

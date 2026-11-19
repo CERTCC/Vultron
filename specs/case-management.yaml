@@ -8044,16 +8044,28 @@ groups:
     statement: >-
       When a delegated Activity is emitted by the CASE_MANAGER, the
       `attributed_to` field MUST be set to the requesting participant's actor
-      ID so that receivers can recover the originating identity.
+      ID so that receivers can recover the originating identity. It MUST be set
+      only when the requesting actor is an actor other than the Activity's
+      `actor`; an actor that asks for its own act does it directly, with no
+      `attributed_to`.
     rationale: >-
-      `attributed_to` is the AS2-standard field for recording who delegated an
-      action.  Without it, the intent of the message cannot be attributed to the
-      correct participant, and audit trails are incomplete.
-    verification: Integration tests in `test/demo/` confirm that a delegated Activity carries
-      the requesting participant's actor ID in the `attributed_to` field.
+      AS2 defines `attributedTo` only as the entities an object is attributed
+      to, and it says nothing of delegation. Vultron uses it to name the actor
+      that asked for the act, so a receiver can recover the originating
+      identity, and the audit trail credits the right participant. An act the
+      `actor` asked for itself has no one else to credit (ADR-0199).
+    verification: >-
+      `test_attributed_to_is_the_requesting_actor` and
+      `test_an_asker_that_is_the_doer_gets_neither_field` in
+      `test/core/behaviors/test_delegated_authorship.py` assert the helper sets
+      `attributed_to` exactly when the asker differs, and
+      `test/architecture/test_delegated_act_names_request.py` asserts no
+      emit credits another actor without naming the request (CM-24-012).
     relationships:
     - rel_type: extends
       spec_id: CM-24-001
+    adr:
+    - ADR-0199
     stories:
     - story_2022_089
     - story_2022_034
@@ -8172,21 +8184,31 @@ groups:
     kind: project
     statement: >-
       The shared delegated-authorship helper (CM-24-005) MUST set `actor` to the actor
-      doing what was asked, and `attributed_to` to the actor that asked. The doer is the
-      CASE_MANAGER executing the gated tree. The asker is the trigger's requesting
-      actor,
-      or the sender of the activity the received tree acts on.
+      doing what was asked, `attributed_to` to the actor that asked, and `in_reply_to`
+      to the request the doer received. The doer is the CASE_MANAGER executing the
+      gated tree. The asker is the trigger's requesting actor, or the sender of the
+      activity the received tree acts on, and the request is that activity. The
+      helper MUST set neither `attributed_to` nor `in_reply_to` when the asker is the
+      doer, and MUST raise when the asker differs and no request is given.
     rationale: >-
-      Neither value needs a calculation, because the emit point knows the doer and the
-      requester. The CASE_MANAGER is the `actor` that receivers authenticate
-      (CM-24-001), and `attributed_to` recovers who asked (CM-24-002).
+      None of the values needs a calculation, because the emit point knows the doer,
+      the requester and the request. The CASE_MANAGER is the `actor` that receivers
+      authenticate (CM-24-001), `attributed_to` recovers who asked (CM-24-002), and
+      `in_reply_to` names what the act answers (VOC `inReplyTo`). A distinct asker
+      reaches the CASE_MANAGER only by message (ADR-0109), so a delegated act with no
+      request to name is a programming error (ADR-0199).
     verification: >-
-      `test_actor_is_the_doing_actor` and `test_attributed_to_is_the_requesting_actor`
-      in `test/core/behaviors/test_delegated_authorship.py` assert the helper's two
-      values.
+      `test_actor_is_the_doing_actor`, `test_attributed_to_is_the_requesting_actor`,
+      `test_an_asker_that_is_the_doer_gets_neither_field` and
+      `test_a_distinct_asker_with_no_request_is_refused` in
+      `test/core/behaviors/test_delegated_authorship.py` assert the helper's values,
+      and `test/architecture/test_delegated_act_names_request.py` asserts every
+      delegated emit passes the request on.
     relationships:
     - rel_type: extends
       spec_id: CM-24-005
+    adr:
+    - ADR-0199
   - id: CM-24-013
     priority: MUST
     kind: project

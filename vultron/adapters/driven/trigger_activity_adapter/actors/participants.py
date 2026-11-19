@@ -52,6 +52,7 @@ from .._base import (
     _addressing,
     _already_sealed,
     _create_and_seal,
+    _delegation,
     _to_wire,
 )
 from ._helpers import (
@@ -317,6 +318,7 @@ class _ParticipantsMixin:
         attributed_to: str | None = None,
         *,
         at: datetime,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(CaseParticipant)[target=VulnerabilityCase]``.
 
@@ -331,7 +333,7 @@ class _ParticipantsMixin:
             target=case_id,
             actor=actor,
             to=to,
-            attributed_to=attributed_to,
+            **_delegation(attributed_to, in_reply_to),
             at=at,
         )
         return _create_and_seal(self._dl, activity, "add_participant_to_case")
@@ -341,10 +343,11 @@ class _ParticipantsMixin:
         participant_id: str,
         case_id: str,
         actor: str,
-        attributed_to: str,
+        attributed_to: str | None,
         to: list[str],
         *,
         at: datetime,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(CaseParticipant)[target=VulnerabilityCase]``.
 
@@ -360,8 +363,8 @@ class _ParticipantsMixin:
             participant=participant,
             target=case_id,
             actor=actor,
-            attributed_to=attributed_to,
             to=to,
+            **_delegation(attributed_to, in_reply_to),
             at=at,
         )
         return _create_and_seal(

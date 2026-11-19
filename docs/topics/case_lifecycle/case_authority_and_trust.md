@@ -155,7 +155,9 @@ An invitation to join the case is the main example ([PCR-08-007](../../reference
 The Case Owner asks, and the CASE_MANAGER sends.
 
 A message sent this way names the CASE_MANAGER as its `actor` and the participant who asked as its `attributedTo` ([CM-24-001](../../reference/vultron-spec/requirements/case-management.md#cm-24-001), [CM-24-002](../../reference/vultron-spec/requirements/case-management.md#cm-24-002)).
-A receiver then knows both who sent the message and who wanted it sent.
+Its `inReplyTo` names the request the CASE_MANAGER received ([CM-24-012](../../reference/vultron-spec/requirements/case-management.md#cm-24-012)).
+A receiver then knows who sent the message, who wanted it sent, and which request it carries out.
+A CASE_MANAGER that sends a message for itself sets neither field.
 
 A node sends only as the actors it hosts ([ADR-0109](../../adr/0109-a-container-emits-only-as-actors-it-hosts.md)).
 A Case Owner whose node does not host the CASE_MANAGER does not build the invitation itself.
@@ -287,7 +289,7 @@ sequenceDiagram
     participant M as CASE_MANAGER
     participant J as Invitee
     O->>M: Request to invite the actor
-    M->>J: Invite (actor = CASE_MANAGER, attributedTo = Case Owner)
+    M->>J: Invite (actor = CASE_MANAGER, attributedTo = Case Owner, inReplyTo = the request)
     Note over J: Records the CASE_MANAGER the Invite names
     J->>M: Accept(Invite)
     M->>J: Announce(VulnerabilityCase)

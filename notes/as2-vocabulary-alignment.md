@@ -284,9 +284,9 @@ which this object is considered a response".
 **Today.** `Remove(EmbargoEvent)` alone uses `origin`
 (`vultron/wire/as2/factories/embargo/lifecycle.py`); `Offer(CaseParticipant)` sets
 `origin` in `vultron/core/behaviors/case/nodes/suggest_actor/emit.py`; `offerId` /
-`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`. CM-24-002's
-rationale calls `attributedTo` "the AS2-standard field for recording who delegated
-an action"; AS2 says only "entities to which this object is attributed".
+`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`. The
+delegated-emit bullet is built (#6464): the helper returns `attributedTo` and
+`inReplyTo` together, and an architecture test holds every emit to it.
 
 **Term-check owner.** #6419 owns `offerId`/`offerActorId` in the #6253 term-check
 ratchet, so the entry keeps an open owner. Planning this section adopts #6419

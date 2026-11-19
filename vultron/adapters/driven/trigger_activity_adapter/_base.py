@@ -378,6 +378,25 @@ def _addressing(
     return extra
 
 
+def _delegation(
+    attributed_to: str | None, in_reply_to: str | None = None
+) -> dict[str, str]:
+    """``attributed_to`` and ``in_reply_to`` as factory keywords, each only
+    when given (CM-24-002, CM-24-012).
+
+    Absent, the factory keeps its default of no attribution, so an activity
+    the CASE_MANAGER decides on its own names nobody else.
+    """
+    return {
+        key: value
+        for key, value in (
+            ("attributed_to", attributed_to),
+            ("in_reply_to", in_reply_to),
+        )
+        if value is not None
+    }
+
+
 def _already_sealed(
     dl: CaseOutboxPersistence, activity_id: str | None
 ) -> tuple[str, str] | None:

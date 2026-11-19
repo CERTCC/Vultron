@@ -307,8 +307,9 @@ groups:
     semantics: offer_case_ownership_transfer
     status: none
     description: 'Offers the case to the actor named by the target, on the Case Owner''s behalf:
-      `attributedTo` names the owner. This is the one offer of the transfer, the one the new
-      owner accepts or rejects. It carries the proposal''s `endTime`, if any.'
+      `attributedTo` names the owner and `inReplyTo` the owner''s proposal. This is the one
+      offer of the transfer, the one the new owner accepts or rejects. It carries the proposal''s
+      `endTime`, if any.'
     seen_in: []
     example: offer_case_ownership_transfer
   - anchor: accept-case-ownership-transfer
@@ -559,7 +560,8 @@ groups:
     status: direct
     description: Tells one participant that the embargo has ended, with immediate effect.
       The CASE_MANAGER sends one to each participant other than itself, naming the Case Owner
-      in `attributedTo` when the Case Owner asked for the termination.
+      in `attributedTo` and the Case Owner's request in `inReplyTo` when the Case Owner asked
+      for the termination.
     notes: The wire form is the Embargo Termination (ET) a Case Owner sends; only its sender
       and addressee differ.
     seen_in:
@@ -643,7 +645,8 @@ groups:
     status: collapse
     description: Asks one participant to accept or reject proposed embargo terms, or a proposed
       revision. The CASE_MANAGER sends one to each participant other than the proposer, naming
-      the proposer in `attributedTo`, and the participant's answer names this Invite.
+      the proposer in `attributedTo` and the proposer's Invite in `inReplyTo`, and the participant's
+      answer names this Invite.
     notes: The wire form is the Embargo Proposal (EP) or Embargo Revision Proposal (EV) a
       participant sends; only its sender and addressee differ.
     seen_in:

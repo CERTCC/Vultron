@@ -719,6 +719,9 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/case/received_run/runner.py::run_received_tree::request": 6582,
         "vultron/core/behaviors/delegated_authorship.py::delegated_authorship::doing_actor_id": 6582,
         "vultron/core/behaviors/delegated_authorship.py::delegated_authorship::requesting_actor_id": 6582,
+        # #6464 AC-1: the helper takes the request it carries out, beside the
+        #   two identities it already took; #6582 decides all three together
+        "vultron/core/behaviors/delegated_authorship.py::delegated_authorship::request_id": 6582,
         "vultron/core/behaviors/exemption_registry.py::require_registered::spec_id": 6582,
         "vultron/core/behaviors/log_entry.py::require_log_entry::activity": 6582,
         "vultron/core/behaviors/sender/send_tree.py::sender_side_bt::case_id": 6582,
@@ -867,7 +870,6 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/case/nodes/embargo_revision.py::creation_revision_parties::report_id": 6585,
         "vultron/core/behaviors/case/nodes/invite_actor_emit.py::build_stub_invite::activity_id": 6585,
         "vultron/core/behaviors/case/nodes/invite_actor_emit.py::build_stub_invite::actor_id": 6585,
-        "vultron/core/behaviors/case/nodes/invite_actor_emit.py::build_stub_invite::attributed_to": 6585,
         "vultron/core/behaviors/case/nodes/invite_actor_emit.py::build_stub_invite::case_id": 6585,
         "vultron/core/behaviors/case/nodes/invite_actor_emit.py::build_stub_invite::in_reply_to": 6585,
         "vultron/core/behaviors/case/nodes/invite_actor_emit.py::build_stub_invite::invitee_id": 6585,

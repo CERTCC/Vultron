@@ -70,8 +70,11 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
     authorship helper: the CASE_MANAGER forwards, on the Case Owner's behalf
     (CM-24-005).  The forward is addressed to the target only and carries
     ``in_reply_to`` set to the recorded Offer's id (the entry's
-    ``log_object_id``), so an answer naming the forward resolves to the Offer
-    it stands for (CM-33-017).
+    ``log_object_id``): the request the forward carries out (CM-24-012), and
+    the id an answer naming the forward resolves to the Offer it stands for
+    by (CM-33-017).  It is set even when the Case Owner holds the
+    CASE_MANAGER role, which the helper credits to no one, because the
+    answer is resolved through it.
 
     The forward's id derives from the recorded Offer
     (:func:`~vultron.core.participants.role_offer.role_offer_forward_id`), so
@@ -112,7 +115,9 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         authorship = delegated_authorship(
-            doing_actor_id=self.actor_id, requesting_actor_id=self.owner_id
+            doing_actor_id=self.actor_id,
+            requesting_actor_id=self.owner_id,
+            request_id=self.offer_id,
         )
         return self.trigger_activity_factory.offer_case_participant_role(
             case_id=self.case_id,

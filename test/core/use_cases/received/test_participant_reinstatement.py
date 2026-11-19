@@ -228,6 +228,7 @@ def _announce_to_replica(
 @pytest.mark.spec("CM-31-011")
 @pytest.mark.spec("CM-24-001")
 @pytest.mark.spec("CM-24-002")
+@pytest.mark.spec("CM-24-012")
 def test_reinstatement_is_one_entry_and_a_delegated_notice(
     case: _RemovalCase,
 ) -> None:
@@ -244,6 +245,8 @@ def test_reinstatement_is_one_entry_and_a_delegated_notice(
     (notice,) = case.activities_to("Add", VENDOR)
     assert _as_id(notice.actor) == MANAGER
     assert notice.attributed_to == OWNER
+    # It names the owner's Add it carries out (CM-24-012).
+    assert _as_id(notice.in_reply_to) == _ADD_ACTIVITY_ID
     assert [_as_id(t) for t in notice.to] == [VENDOR]
     assert _as_id(notice.object_) == _participant_id(VENDOR)
     assert notice.id_ not in {e.log_object_id for e in case.ledger()}

@@ -18,7 +18,8 @@
 The CASE_MANAGER receives every embargo proposal (PCR-08-001), moves the
 canonical case through ``EmbargoLifecycle`` and commits it, then relays one
 ``Invite(EmbargoEvent)`` per participant except the proposer, as the AS2
-``actor`` with the proposer in ``attributedTo`` (EP-09-002, CM-24), committing
+``actor`` with the proposer in ``attributedTo`` and the proposal in
+``inReplyTo`` (EP-09-002, CM-24), committing
 each emission in this tree once it is queued (ADR-0109, ADR-0119).  After
 each commit the invitee's PEC ``INVITE`` on its row for the embargo, where
 CM-18-003 allows it (EP-09-004), is committed as the CASE_MANAGER's own
@@ -174,7 +175,8 @@ class RelayEmbargoInviteToEachNode(
 
     For each recipient the collect node named: build the Invite through the
     trigger-activity factory as the executing CASE_MANAGER with the proposer
-    in ``attributedTo`` (CM-24-001, CM-24-002) and the manager's RSVP
+    in ``attributedTo`` and the request it answers in ``inReplyTo``
+    (CM-24-001, CM-24-002, CM-24-012) and the manager's RSVP
     deadline as its ``endTime`` (CM-28-012, from ``actor_config``'s windows),
     queue it, commit the sealed blob as the canonical entry (VM-08-003) once
     it is queued (ADR-0119), then commit PEC ``INVITE`` on the invitee's row
@@ -328,9 +330,13 @@ class RelayEmbargoInviteToEachNode(
                 f" '{self._embargo_id}' on case '{self._case_id}': {exc}"
             ) from exc
         proposer_id = self._attributed_to()
+        # The relay carries out the request it answers: the proposer's Invite
+        # on the received path (CM-24-012).
         authorship = (
             delegated_authorship(
-                doing_actor_id=self.actor_id, requesting_actor_id=proposer_id
+                doing_actor_id=self.actor_id,
+                requesting_actor_id=proposer_id,
+                request_id=self._answers,
             )
             if proposer_id
             else None
@@ -341,6 +347,7 @@ class RelayEmbargoInviteToEachNode(
             actor=authorship.actor if authorship else self.actor_id,
             to=[recipient_id],
             attributed_to=authorship.attributed_to if authorship else None,
+            in_reply_to=authorship.in_reply_to if authorship else None,
             activity_id=self._activity_id_for(recipient_id),
             rsvp_deadline=stamp.rsvp_deadline,
             min_rsvp_window=stamp.min_rsvp_window,

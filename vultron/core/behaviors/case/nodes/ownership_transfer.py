@@ -144,9 +144,10 @@ class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
     The one ``Offer(VulnerabilityCase)`` of the transfer (ADR-0148,
     CM-21-028): the CASE_MANAGER builds it from what it validated in the
     owner's proposal — the case, the transferee as ``target`` and ``to``,
-    and the deadline as ``end_time`` (CM-21-041) — with ``actor`` itself and
-    ``attributedTo`` the owner, from the shared delegated-authorship helper
-    (CM-24-001, CM-24-002, CM-24-005).  Nothing else of the inner Offer is
+    and the deadline as ``end_time`` (CM-21-041) — with ``actor`` itself,
+    ``attributedTo`` the owner and ``inReplyTo`` the proposal, from the
+    shared delegated-authorship helper (CM-24-001, CM-24-002, CM-24-005,
+    CM-24-012).  Nothing else of the inner Offer is
     copied: its id is
     :func:`~vultron.core.participants.ownership_offer.ownership_offer_id`,
     derived from the proposal, so a redelivery rebuilds the same Offer and
@@ -216,6 +217,7 @@ class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
         authorship = delegated_authorship(
             doing_actor_id=self.actor_id,
             requesting_actor_id=self.owner_id,
+            request_id=self.proposal_id,
         )
         return self.trigger_activity_factory.offer_case_ownership_transfer(
             case_id=self.case_id,
@@ -223,6 +225,7 @@ class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
             actor=authorship.actor,
             to=[self.transferee_id],
             attributed_to=authorship.attributed_to,
+            in_reply_to=authorship.in_reply_to,
             end_time=self.end_time,
             id_=ownership_offer_id(
                 self.actor_id, self.case_id, self.proposal_id, self.owner_id

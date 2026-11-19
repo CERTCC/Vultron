@@ -79,6 +79,8 @@ OTHER_A = "https://example.org/actors/relay-a"
 OTHER_B = "https://example.org/actors/relay-b"
 ACTIVE_ID = f"{CASE_ID}/embargo_events/active"
 OTHER_PROPOSAL_ID = f"{CASE_ID}/embargo_events/other-proposal"
+#: The proposer's Invite the relay carries out (CM-24-012).
+PROPOSAL_INVITE_ID = "https://example.org/activities/relay-proposal"
 
 
 def _participant(
@@ -468,7 +470,7 @@ class TestRelayEmbargoInviteToEachNode:
         scenario: BTTestScenario,
         recipients: list[str],
         actor_config: ActorConfig | None = None,
-        answers: str | None = None,
+        answers: str | None = PROPOSAL_INVITE_ID,
     ) -> BTExecutionResult:
         return scenario.run(
             RelayEmbargoInviteToEachNode(
@@ -574,6 +576,7 @@ class TestRelayEmbargoInviteToEachNode:
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
     @pytest.mark.spec("CM-24-005")
+    @pytest.mark.spec("CM-24-012")
     def test_one_invite_per_recipient_as_the_manager_attributed_to_the_proposer(
         self, bt_scenario: BTTestScenario
     ) -> None:
@@ -590,6 +593,8 @@ class TestRelayEmbargoInviteToEachNode:
         )
         assert {a.actor for a in invites} == {MANAGER}
         assert {a.attributed_to for a in invites} == {PROPOSER}
+        # Each names the proposer's Invite it carries out (CM-24-012).
+        assert {a.in_reply_to for a in invites} == {PROPOSAL_INVITE_ID}
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("EP-09-002")
@@ -794,7 +799,9 @@ class TestRelayEmbargoInviteToEachNode:
         factory.propose_embargo.side_effect = RuntimeError("factory down")
         result = bt_scenario.run(
             RelayEmbargoInviteToEachNode(
-                case_id=CASE_ID, embargo_id=EMBARGO_ID
+                case_id=CASE_ID,
+                embargo_id=EMBARGO_ID,
+                answers=PROPOSAL_INVITE_ID,
             ),
             embargo_invite_recipients=[OTHER_A],
             embargo_proposer_id=PROPOSER,

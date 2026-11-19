@@ -218,7 +218,8 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
     ``Remove(EmbargoEvent)`` for a termination, ``Announce(EmbargoEvent)``
     for a shorter revision.  ``actor`` is the CASE_MANAGER; when the change
     was requested by another actor (the Case Owner), that actor is
-    ``attributedTo`` (CM-24-001, CM-24-002).
+    ``attributedTo`` and its request, the received activity on the
+    blackboard, is ``inReplyTo`` (CM-24-001, CM-24-002, CM-24-012).
 
     The notice is not committed to the ledger.  It carries the embargo and,
     for a termination, the what and the why the register records
@@ -235,6 +236,7 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
     INPUT_PORTS: dict[str, PortInformation] = {
         **_EmitSingleActivityBase.INPUT_PORTS,
         **act_key_ports(CASE_ID),
+        "activity": PortInformation(data_type=object, required=False),
     }
 
     def __init__(
@@ -246,14 +248,18 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
         super().__init__(name=name or self.__class__.__name__)
         self._snapshot = capture.snapshot
         self._requested_by = requested_by
+        self._request: object | None = None
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return act_key_remappings(CASE_ID)
+        return {**act_key_remappings(CASE_ID), "activity": "/activity"}
 
     def initialise(self) -> None:
         super().initialise()
         self.case_id: str = act_value(self, CASE_ID, str)
+        # The received request the change carries out, when another actor
+        # asked for it (CM-24-012).
+        self._request = self._try_get_input("activity")
 
     def _send(
         self,
@@ -264,11 +270,14 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
         assert self.trigger_activity_factory is not None
         actor = cast(str, self.actor_id)
         requested = self._requested_by
+        request_id = getattr(self._request, "activity_id", None)
         authorship = (
             delegated_authorship(
-                doing_actor_id=actor, requesting_actor_id=requested
+                doing_actor_id=actor,
+                requesting_actor_id=requested,
+                request_id=request_id if isinstance(request_id, str) else None,
             )
-            if requested is not None and requested != actor
+            if requested is not None
             else None
         )
         factory = self.trigger_activity_factory
@@ -279,6 +288,7 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
                 actor=actor,
                 to=[recipient],
                 attributed_to=authorship.attributed_to if authorship else None,
+                in_reply_to=authorship.in_reply_to if authorship else None,
                 at=self._require_act_instant(),
             )
         elif termination is None:
@@ -296,6 +306,7 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
                 cause=termination.cause,
                 to=[recipient],
                 attributed_to=authorship.attributed_to if authorship else None,
+                in_reply_to=authorship.in_reply_to if authorship else None,
                 at=self._require_act_instant(),
             )
         self._emit_through_seam(activity_id, blob)
