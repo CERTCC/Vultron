@@ -180,7 +180,7 @@ def _defer(dl: SqliteDataLayer, body: dict[str, Any]) -> None:
     assert staging.hold_for_replay(artifact.id_, received_at=now_utc())
 
 
-def _announce_entry_body() -> dict[str, Any]:
+def _add_entry_body() -> dict[str, Any]:
     """An ``Add(CaseLedgerEntry)``, signed, as a CASE_MANAGER sends it."""
     entry = make(
         CaseLedgerEntry,
@@ -198,7 +198,7 @@ def _announce_entry_body() -> dict[str, Any]:
     return signed_body(
         add_log_entry_activity(
             entry,
-            id_="https://example.org/activities/announce-entry-1",
+            id_="https://example.org/activities/add-entry-1",
             actor=CASE_ACTOR,
             to=[ACTOR],
             at=authored_at(),
@@ -496,12 +496,12 @@ def test_the_same_body_under_a_refused_id_is_routed_on_its_own(
 
 @pytest.mark.spec("IE-10-002")
 @pytest.mark.spec("SYNC-12-003")
-def test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place(
+def test_a_repeat_of_an_archived_ledger_add_is_hydrated_in_place(
     dl: SqliteDataLayer,
 ):
     """The same ``Add(CaseLedgerEntry)`` body still takes the in-place
     path, so the SYNC-12-003 already-stored gate answers it (SYNC-13-004)."""
-    body = _announce_entry_body()
+    body = _add_entry_body()
     archive_received(dl, parse_activity(copy.deepcopy(body)))
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(copy.deepcopy(body))
@@ -516,12 +516,12 @@ def test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place(
 
 @pytest.mark.spec("IE-10-002")
 @pytest.mark.spec("IE-10-003", "IE-10-004", "IE-10-005")
-def test_a_different_body_under_an_archived_ledger_announce_id_is_refused(
+def test_a_different_body_under_an_archived_ledger_add_id_is_refused(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):
     """The in-place path gets the same comparison: a rewritten entry under
-    a held ``Announce`` id is refused, not hydrated (IE-10-002)."""
-    _, body = _archive_sealed(dl, _announce_entry_body())
+    a held ``Add`` id is refused, not hydrated (IE-10-002)."""
+    _, body = _archive_sealed(dl, _add_entry_body())
 
     def rewrite(entry: dict[str, Any]) -> None:
         entry["object"]["payload_snapshot"] = {"actor": "rewritten"}
@@ -533,12 +533,12 @@ def test_a_different_body_under_an_archived_ledger_announce_id_is_refused(
 
 @pytest.mark.spec("IE-10-002")
 @pytest.mark.spec("IE-10-003", "IE-10-004", "IE-10-005")
-def test_a_different_body_under_a_held_ledger_announce_id_is_refused(
+def test_a_different_body_under_a_held_ledger_add_id_is_refused(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):
     """A held ``Add(CaseLedgerEntry)`` is compared with the body held
     for its replay (SYNC-14-001, IO-03-004)."""
-    body = _announce_entry_body()
+    body = _add_entry_body()
     _defer(dl, body)
 
     def rewrite(entry: dict[str, Any]) -> None:
@@ -627,7 +627,7 @@ def test_in_place_hydration_carries_the_evidence(
         return fresh
 
     monkeypatch.setattr(dl, "hydrate", _fresh_copy)
-    body = _announce_entry_body()
+    body = _add_entry_body()
     received = copy.deepcopy(body)
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(body)

@@ -20,7 +20,9 @@ inbound activity:
 2. *Is this activity the one that bootstraps that case locally?* —
    :func:`is_case_bootstrap`
 3. *Is it processed on arrival even though that case is not held locally?* —
-   :func:`is_deferral_exempt`
+   :func:`is_deferral_exempt`: a bootstrap, an activity that precedes its case
+   (:data:`CASE_PRECEDING_SEMANTICS`), or a ledger ``Add`` the replica holds
+   itself (:data:`SELF_HOLDING_SEMANTICS`)
 
 Both the core behavior-tree inbox pipeline
 (``vultron.core.behaviors.inbox.nodes``) and the FastAPI inbox
@@ -94,9 +96,9 @@ def is_deferral_exempt(event: VultronEvent) -> bool:
     True for a bootstrap (:data:`CASE_BOOTSTRAP_SEMANTICS`), which would
     deadlock if deferred, for an activity that precedes its case
     (:data:`CASE_PRECEDING_SEMANTICS`), and for a ledger ``Add`` the replica
-    holds itself (:data:`SELF_HOLDING_SEMANTICS`).  Every deferral gate asks this; only
-    :func:`is_case_bootstrap` decides whether a processed activity triggers
-    the replay of what was deferred.
+    holds itself (:data:`SELF_HOLDING_SEMANTICS`).  Every deferral gate asks
+    this; only :func:`is_case_bootstrap` decides whether a processed
+    activity triggers the replay of what was deferred.
     """
     return (
         is_case_bootstrap(event)

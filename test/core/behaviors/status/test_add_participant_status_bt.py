@@ -2923,7 +2923,7 @@ class TestReceiveVendorPathNotices:
 
     The receiver records the sender's new state, its own state is unchanged,
     and no CK message is queued: the only outbound activities are the
-    ``Announce`` fan-out of the committed entries.
+    ``Add`` fan-out of the committed entries.
     """
 
     @pytest.mark.spec("CSB-01-001")

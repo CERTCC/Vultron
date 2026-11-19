@@ -3120,14 +3120,14 @@ groups:
     statement: >-
       CS ordering invariants (ephemeral-state guard, history-prefix validity,
       CP-before-ET ordering) MUST be evaluated at drain time — that is,
-      against the causal-order replay of the held Announces (ADR-0037,
+      against the causal-order replay of the held Adds (ADR-0037,
       SYNC-14-009) — not at the time of original out-of-order receipt.
     rationale: >-
       An out-of-order `Add(CaseLedgerEntry)` carrying a CS update is
       held by `BufferOutOfOrderEntryNode` before any domain effects are
       applied; the CS state machine is not touched at hold time.
-      When the gap fills, the drain replays each held Announce through the
-      full announce receive BT in log_index order (ADR-0037, CLP-14-001),
+      When the gap fills, the drain replays each held Add through the
+      full add-log-entry receive BT in log_index order (ADR-0037, CLP-14-001),
       so CS guards see the entries in correct causal sequence. Evaluating
       guards at original receipt would produce false violations whenever the
       predecessor CS entry has not yet arrived.

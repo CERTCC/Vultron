@@ -67,7 +67,7 @@ def send_verified_log_entry(
     to: list[str],
     at: datetime,
 ) -> bool:
-    """Queue ``Announce(entry)`` to *to* once *entry*'s hash verifies.
+    """Queue ``Add(entry)`` to *to* once *entry*'s hash verifies.
 
     Returns what ``SyncActivityPort.send_add_log_entry`` returns:
     ``True`` when a row was queued, ``False`` when the same ``Add`` was

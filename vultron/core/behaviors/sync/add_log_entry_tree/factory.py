@@ -46,8 +46,8 @@ from vultron.core.behaviors.sync.nodes.case_copy_effect import (
 from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
     EmitLedgerEntryFaultNode,
 )
-from vultron.core.behaviors.sync.nodes.own_announce import (
-    AnnouncedEntryIsNotOwnEchoNode,
+from vultron.core.behaviors.sync.nodes.own_add import (
+    AddedEntryIsNotOwnEchoNode,
 )
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH,
@@ -55,10 +55,10 @@ from vultron.core.models.fault_classes import (
 
 #: The branch the tree runs at the case's CASE_MANAGER: past the sender
 #: guard, an announcement it admits is the CASE_MANAGER's own, echoed back.
-AT_CASE_MANAGER = "ConfirmOwnEchoedAnnounce"
+AT_CASE_MANAGER = "ConfirmOwnEchoedAdd"
 
 #: The branch the tree runs at every other receiver it declares.
-OFF_CASE_MANAGER = "ProcessAnnouncedEntry"
+OFF_CASE_MANAGER = "ProcessAddedEntry"
 
 
 def create_add_log_entry_tree(
@@ -198,7 +198,7 @@ def create_add_log_entry_tree(
         # An Add this store sent, at a store holding no replica of the
         # case, is an anomaly rather than the pre-genesis window
         # (SYNC-15-001, ADR-0087).
-        AnnouncedEntryIsNotOwnEchoNode(name="AnnouncedEntryIsNotOwnEcho"),
+        AddedEntryIsNotOwnEchoNode(name="AddedEntryIsNotOwnEcho"),
         # An entry that fails its own hash is refused before it can be
         # buffered, applied or stored, and before the already-stored
         # shortcut could skip it unlogged (SYNC-03-006).  The refusal is
@@ -221,7 +221,7 @@ def create_add_log_entry_tree(
         # received, is replayed through this actor's inbox as its own
         # delivery; its tree replays the next one (SYNC-14-009, ADR-0135).
         ReplayHeldSuccessorNode(name="ReplayHeldSuccessor"),
-        body_name="ProcessAnnouncedEntryBody",
+        body_name="ProcessAddedEntryBody",
     )
     # The replication envelope is never itself a canonical entry (CLP-10-004),
     # so there is no commit stage (``case_id=None``); intake records the

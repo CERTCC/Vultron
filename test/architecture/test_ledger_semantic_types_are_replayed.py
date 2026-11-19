@@ -26,7 +26,7 @@ The committed set is derived from code (``_ledger_commit_inventory``), and each
 member is classified here exactly once:
 
 * :data:`REPLAYED` — matched by exactly one effect-slot condition of the
-  announce tree, evaluated against a real entry rather than by slot name;
+  add-log-entry tree, evaluated against a real entry rather than by slot name;
 * :data:`NO_REPLICA_EFFECT` — the entry changes no state a replica holds, with
   the reason;
 
@@ -133,7 +133,7 @@ NO_REPLICA_EFFECT: dict[str, str] = {
     MS.ANNOUNCE_VULNERABILITY_CASE.value: (
         "the demo-only sync-log-entry checkpoint (TRIG-10-004): it carries"
         " the case as the CASE_MANAGER holds it and changes nothing a replica"
-        " holds; a replica is seeded by the Announce it receives, never by"
+        " holds; a replica is seeded by the Add it receives, never by"
         " the entry (SYNC-15-002)"
     ),
     "create_case": (

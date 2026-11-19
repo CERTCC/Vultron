@@ -814,7 +814,7 @@ class TestApplyEmbargoAnswers:
 
 
 # ---------------------------------------------------------------------------
-# The announce tree reaches every relay node (EP-09-007, RSH-08-004)
+# The add-log-entry tree reaches every relay node (EP-09-007, RSH-08-004)
 # ---------------------------------------------------------------------------
 
 

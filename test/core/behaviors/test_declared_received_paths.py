@@ -401,7 +401,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # --- note (#5785) ----------------------------------------------------
     # A directed type: the trigger side resolves the CASE_MANAGER and
     # addresses the one activity to it (PCR-08-001), and no one relays it, so
-    # a note reaches a replica only as the entry's Announce fan-out
+    # a note reaches a replica only as the entry's Add fan-out
     # (SYNC-02-001, SYNC-02-003).  The manager path alone (#6394).
     # Remove(Note) is addressed the same way; its tree then refuses every
     # one at the CASE_MANAGER (CM-30-003, #6430).

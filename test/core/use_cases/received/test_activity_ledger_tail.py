@@ -184,7 +184,7 @@ def test_a_participant_case_activity_carries_its_ledger_position():
     body = _add_note_body("https://example.org/notes/tail-1b", net=net)
 
     assert "ledgerPosition" in body
-    # An entry already states its own position, so its Announce carries none.
+    # An entry already states its own position, so its Add carries none.
     [entry_announce, *_] = [
         activity
         for activity in net.queued(MANAGER, to=OWNER, type_=BROADCAST)

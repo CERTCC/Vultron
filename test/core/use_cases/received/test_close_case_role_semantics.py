@@ -20,7 +20,7 @@ Covers CM-23-002 (owner Leave) and CM-23-003 (non-owner Leave) across:
 1. The Case Actor's direct receive path (``create_close_case_received_tree``),
    which commits ``close_case`` and then one status entry per RM step it
    writes for each closing actor (CM-23-022, CM-23-002, CM-23-033).
-2. The replica path: the announce tree applies those status entries, and the
+2. The replica path: the add-log-entry tree applies those status entries, and the
    ``close_case`` entry alone changes no RM state (CM-23-024, CM-23-023).
 """
 
@@ -1154,7 +1154,7 @@ class TestOwnerCloseSettlesPendingInvites:
 
     @pytest.mark.spec("CM-23-014")
     def test_a_replica_applies_the_settled_expiry(self):
-        """The settle entry replays on a replica through the announce tree (AC-2)."""
+        """A replica replays the settle entry via the add-log-entry tree (AC-2)."""
         manager = _make_full_dl()
         embargo_id = _seed_pending_invite(manager)
         _close(manager, OWNER_ID, "https://example.org/activities/leave-owner")
@@ -1599,7 +1599,7 @@ class TestPostCloseWriteBoundary:
 
 
 # ---------------------------------------------------------------------------
-# Replica path: the announce tree applies the closure step entries
+# Replica path: the add-log-entry tree applies the closure step entries
 # ---------------------------------------------------------------------------
 
 
@@ -1668,12 +1668,12 @@ def _replica_of(manager: SqliteDataLayer, actor_id: str = VENDOR_ID):
 
 
 def _replay(manager: SqliteDataLayer, replica: SqliteDataLayer) -> None:
-    """Announce every entry of *manager*'s ledger to *replica*, in order."""
+    """Deliver every entry of *manager*'s ledger to *replica* as an Add, in order."""
     _deliver(replica, _case_ledger(manager))
 
 
 def _deliver(replica: SqliteDataLayer, entries) -> None:
-    """Announce each of *entries* to *replica*, in order."""
+    """Deliver each of *entries* to *replica* as an Add, in order."""
     for entry in entries:
         result = run_tree(
             BTBridge(

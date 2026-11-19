@@ -138,9 +138,9 @@ def test_replayed_ledger_entry_announce_routes_and_keeps_fields(
     """A deferred Add(CaseLedgerEntry) replayed by ID keeps its fields.
 
     #1472 AC-4: the replay path (StoredActivityIngressAdapter) rebuilds the
-    deferred Announce from the record holding it (DL-06-006).  The inline
+    deferred Add from the record holding it (DL-06-006).  The inline
     entry is not stored as its own record (SYNC-13-002), so the full typed
-    entry must survive inside the held Announce and route to
+    entry must survive inside the held Add and route to
     ADD_CASE_LEDGER_ENTRY_TO_LEDGER on replay, with its delivery's evidence.
     """
     body = _make_announce_body()
@@ -152,17 +152,17 @@ def test_replayed_ledger_entry_announce_routes_and_keeps_fields(
     # The inbox defers it, as DeferCheckNode does for an unknown case.
     assert staging.hold_for_replay(activity.id_, received_at=now_utc())
 
-    # The entry itself is not an independent record, nor is the Announce...
+    # The entry itself is not an independent record, nor is the Add...
     assert dl.read(_ENTRY_ID) is None
     assert dl.read(activity.id_) is None
 
-    # ...but replaying the held Announce reconstructs the typed entry.
+    # ...but replaying the held Add reconstructs the typed entry.
     replayed = StoredActivityIngressAdapter(dl=dl).parse(activity.id_)
     assert replayed is not None
     assert replayed.received_evidence == body
     replayed_object = getattr(replayed, "object_", None)
     assert isinstance(replayed_object, CaseLedgerEntry), (
-        "Replayed Announce must carry a typed CaseLedgerEntry;"
+        "Replayed Add must carry a typed CaseLedgerEntry;"
         f" got {type(replayed_object).__name__}"
     )
     assert replayed_object.case_id == _CASE_ID

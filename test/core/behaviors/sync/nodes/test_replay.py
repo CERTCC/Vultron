@@ -534,7 +534,7 @@ def _adapter(datalayer):
 
 
 def _queued_announces(datalayer) -> list[tuple[str, list[str]]]:
-    """``(entry id, recipients)`` for every Announce row in the outbox, in order."""
+    """``(entry id, recipients)`` for every ledger Add row in the outbox, in order."""
     rows = []
     for activity_id in datalayer.outbox_list():
         activity = datalayer.read(activity_id)

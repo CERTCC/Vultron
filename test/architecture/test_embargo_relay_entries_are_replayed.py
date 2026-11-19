@@ -25,7 +25,7 @@ stored and ignored, so the replica's state silently stops following the case
   replayed or outside the revision relay, so a new one cannot arrive
   unclassified;
 * each replayed entry shape is matched by exactly one effect-slot condition
-  of the announce tree, evaluated against a real entry rather than by name;
+  of the add-log-entry tree, evaluated against a real entry rather than by name;
 * each entry outside the relay is matched by none, so the issue that adds its
   replay is told to move it here.
 

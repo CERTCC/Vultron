@@ -714,7 +714,7 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     """The add-note trigger sends one Add(Note) that names the case as its
     target and carries the note inline: the CASE_MANAGER commits exactly one
     ``add_note_to_case`` entry, every other participant's replica attaches
-    the note from it and holds the Note object, the entry's Announce clears
+    the note from it and holds the Note object, the entry's Add clears
     the author's pending assertion, and a redelivered Add commits nothing
     more (#4706 AC-3)."""
     net = LedgerNetwork(
@@ -768,7 +768,7 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     assert [_as_id(n) for n in net.case(OWNER).notes].count(note_id) == 1
     assert net.stores[OWNER].read(note_id) is not None
 
-    # The author already holds the note; the entry's Announce only clears
+    # The author already holds the note; the entry's Add only clears
     # its pending assertion and attaches nothing twice.
     assert "add_note_to_case" in _replay(net, BYSTANDER)
     assert not pending.is_suppressed(
@@ -820,7 +820,7 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
     sender: str, make_object: Any, semantic_type: str
 ):
     """The add-object trigger's pending assertion is keyed the way the
-    CASE_MANAGER commits the Add, so the commit's Announce clears it and the
+    CASE_MANAGER commits the Add, so the commit's ledger Add clears it and the
     same object may be added again (#4041, #4761)."""
     net = _owned(
         LedgerNetwork(

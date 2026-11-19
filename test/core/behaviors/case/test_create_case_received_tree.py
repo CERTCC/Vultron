@@ -786,7 +786,7 @@ def _hold_pre_genesis_entries(
     """Hold *count* of the CASE_MANAGER's entries at the owner, pre-genesis.
 
     They are the fan-out that reached the owner before the case's Create
-    (SYNC-15-004); returns the held Announces' ids in chain order.
+    (SYNC-15-004); returns the held Adds' ids in chain order.
     """
     prev = case.genesis_hash
     announce_ids: list[str] = []
@@ -820,7 +820,7 @@ def test_report_receiver_drains_the_held_entries_and_introduces():
 
     The CASE_MANAGER's fan-out may reach the owner before its Create.  The
     seed anchors the genesis hash, so the tree replays the held genesis
-    entry's Announce as a delivery of its own, then queues the
+    entry's Add as a delivery of its own, then queues the
     introduction (#5521).
     """
     case = _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),))
@@ -832,7 +832,7 @@ def test_report_receiver_drains_the_held_entries_and_introduces():
 
     assert status == Status.SUCCESS
     assert len(_introductions(owner_dl)) == 1
-    # Only the genesis entry's Announce: its own delivery replays the next.
+    # Only the genesis entry's Add: its own delivery replays the next.
     assert replay.replayed == [held[0]]
     assert held_depth(owner_dl, _CASE_ID) == 1
 

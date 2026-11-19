@@ -23,7 +23,7 @@ continue to work without modification.
 Submodules:
 - ``conditions``: Idempotency guard and sender verification condition nodes
 - ``receive``: Log entry delivery and validation action nodes
-- ``replay_held``: Replay the held Announce of a ledger successor (SYNC-14-009)
+- ``replay_held``: Replay the held Add of a ledger successor (SYNC-14-009)
 - ``chain``: Chain reconstruction and log entry creation action nodes
 - ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
 - ``replay``: Reject- and Read-driven replay action nodes for replication

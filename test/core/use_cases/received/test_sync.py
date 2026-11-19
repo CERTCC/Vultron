@@ -423,7 +423,7 @@ class TestAddLedgerEntryReceivedUseCase:
 def _announce_event(
     entry: CaseLedgerEntry, actor: str = ACTOR_URI, to: str = RECEIVER_URI
 ) -> AddLogEntryReceivedEvent:
-    """The received ``Announce`` of *entry* from *actor*, as delivered."""
+    """The received ``Add`` of *entry* from *actor*, as delivered."""
     event = ledger_announce_event(entry, actor=actor, to=to)
     return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
@@ -454,7 +454,7 @@ class TestOutOfOrderAnnounceBuffering:
         sync_port: SyncActivityPort,
         replay: RecordingInboxReplay,
     ) -> None:
-        """Deliver *entry*, then each held Announce its tree replays."""
+        """Deliver *entry*, then each held Add its tree replays."""
 
         def run(event: AddLogEntryReceivedEvent) -> None:
             run_in_act(
@@ -480,7 +480,7 @@ class TestOutOfOrderAnnounceBuffering:
     def test_forward_gap_holds_the_received_announce(
         self, dl, case_with_genesis
     ):
-        """A forward-gap entry is held as the ``Announce`` that arrived, its
+        """A forward-gap entry is held as the ``Add`` that arrived, its
         body as intake recorded it, and no ledger entry is stored."""
         _, e1 = self._chain(case_with_genesis, 2)
         event = _announce_event(e1)
@@ -813,7 +813,7 @@ class TestHeldAnnounceBound:
     def test_a_second_announce_of_a_held_entry_is_not_held_again(
         self, dl, case_with_genesis
     ):
-        """A redelivered entry under another Announce id leaves the first
+        """A redelivered entry under another Add id leaves the first
         Announce held, alone."""
         entry = _make_entry(CASE_URI, 4, "4" * 64)
         first, second = _announce_event(entry), _announce_event(entry)
@@ -929,13 +929,13 @@ class TestPreGenesisAnnounceBuffering:
 
     @pytest.mark.spec("SYNC-15-001")
     def test_own_echo_for_missing_case_is_refused_at_error(self, dl, caplog):
-        """The CASE_MANAGER's own echoed Announce still needs its case.
+        """The CASE_MANAGER's own echoed Add still needs its case.
 
-        Its sender is the receiving actor, and the actor that announces an
+        Its sender is the receiving actor, and the actor that adds an
         entry holds the case's canonical ledger, so a case it does not hold
         is a Regime 1 anomaly (ADR-0087, #5513).  The path stage reads the
-        absent case as the no-case path, which for a peer's Announce is the
-        self-healing pre-genesis window; ``AnnouncedEntryIsNotOwnEchoNode``
+        absent case as the no-case path, which for a peer's Add is the
+        self-healing pre-genesis window; ``AddedEntryIsNotOwnEchoNode``
         is what keeps this delivery out of it, reporting the anomaly at ERROR
         and refusing it rather than letting the store buffer its own entry
         and ask itself for the case.
@@ -958,7 +958,7 @@ class TestPreGenesisAnnounceBuffering:
             for r in caplog.records
             if r.levelno >= logging.ERROR
         ]
-        assert any("AnnouncedEntryIsNotOwnEcho:" in m for m in errors), errors
+        assert any("AddedEntryIsNotOwnEcho:" in m for m in errors), errors
         # The entry is neither stored nor held, and nothing is asked for.
         assert dl.read(entry.id_) is None
         assert held_depth(dl, CASE_URI) == 0
@@ -1244,7 +1244,7 @@ class TestUnaddressedAnnounceActsOnNothing:
         unaddressed, the door refuses it before either happens."""
         genesis = _make_entry(CASE_URI, 0, case_with_genesis.genesis_hash)
         successor = _make_entry(CASE_URI, 1, genesis.entry_hash)
-        # The successor's Announce waits for the genesis entry the copy
+        # The successor's Add waits for the genesis entry the copy
         # announces, so an admitted copy would replay it.
         hold_received(dl, _announce_event(successor))
         pending = PendingAssertionStore()

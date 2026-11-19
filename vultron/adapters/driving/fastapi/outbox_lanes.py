@@ -17,7 +17,7 @@
 
 An outbox is one FIFO of activity ids, but the order that matters to a
 recipient is the order of the rows addressed to *it*: a ledger fan-out is one
-``Announce`` per participant, and a replica that receives entry ``N+1`` before
+``Add`` per participant, and a replica that receives entry ``N+1`` before
 entry ``N`` buffers a forward gap and sends a ``Reject`` (SYNC-14-002), which
 the CASE_MANAGER answers by replaying the whole suffix into the same queue
 (#3602, #3033, #2898).

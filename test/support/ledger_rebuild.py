@@ -102,7 +102,7 @@ def run_use_case(
     """Run the use case for an extracted *event* against *dl*.
 
     It is composed with the ports it accepts, as the inbox composes it, minus
-    the ones named in *without*.  Then delivers each held ``Announce`` the
+    the ones named in *without*.  Then delivers each held ``Add`` the
     run replayed through the receiver's own inbox (SYNC-14-009), oldest
     first, as the inbox loop does after a delivery.  Each run first queues
     the held activities it made due, as the inbox's dispatch does

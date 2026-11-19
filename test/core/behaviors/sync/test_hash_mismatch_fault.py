@@ -170,7 +170,7 @@ def test_a_hash_refusal_queues_a_fault_to_the_case_manager_only(
     """The replica refuses the entry and tells the CASE_MANAGER, and no one else.
 
     The fault names the refused ``Announce`` by reference, its id derives
-    from that ``Announce`` and the class, and the entry is neither stored nor
+    from that ``Add`` and the class, and the entry is neither stored nor
     held.  The refusal is still logged at ERROR.
     """
     dl = _replica()
@@ -255,7 +255,7 @@ def _manager(
 
     With *receiver_is_manager* false, the store's actor holds only a
     participant's role, and another actor manages the case.  Returns the
-    store, the entry and the ``Announce``'s id.
+    store, the entry and the ``Add``'s id.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     case = make(
@@ -420,7 +420,7 @@ def test_hash_mismatch_fault_from_an_active_participant_is_logged_at_error(
     expected: OwnCopyCheck,
     says: str,
 ) -> None:
-    """One ERROR record names the case, the ``Announce``, the entry, the
+    """One ERROR record names the case, the ``Add``, the entry, the
     sender and what the self-check of the CASE_MANAGER's own copy found."""
     dl, entry, announce_id = _manager()
     if damage is not None:

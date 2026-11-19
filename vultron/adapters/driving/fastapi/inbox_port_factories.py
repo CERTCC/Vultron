@@ -296,7 +296,7 @@ _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
 
 # ADD_CASE_LEDGER_ENTRY_TO_LEDGER commits a replica entry, and ANNOUNCE_VULNERABILITY_CASE
 # and CREATE_CASE seed the case (anchoring its genesis hash); any of them can
-# make a held Add(CaseLedgerEntry) appliable.  That Announce, as it was
+# make a held Add(CaseLedgerEntry) appliable.  That Add, as it was
 # received, is replayed through the receiving actor's own inbox as a delivery of its own,
 # through the InboxReplayPort (SYNC-14-009, SYNC-15-005, ADR-0135).  See
 # _inbox_replay_port_factory.

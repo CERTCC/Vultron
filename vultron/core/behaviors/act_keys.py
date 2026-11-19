@@ -171,8 +171,9 @@ PROPOSAL_ID = _act_key(
 ANNOUNCE_ID = _act_key(
     "announce_id",
     str,
-    "The id of the Announce activity the act answers or names, such as the"
-    " Add(CaseLedgerEntry) a replica's processing fault refers to.",
+    "The id of the activity that carried a ledger entry the act answers or"
+    " names, such as the Add(CaseLedgerEntry) a replica's processing fault"
+    " refers to.",
 )
 PARTICIPANT_ID = _act_key(
     "participant_id",

@@ -220,9 +220,9 @@ def _hash_mismatch_tree(
 ) -> py_trees.behaviour.Behaviour:
     """The hash-mismatch tree, or the intake-only one for a fault that names
     no ``Add(CaseLedgerEntry)`` this actor sent (ADR-0032: the tree
-    receives the entry and its ``Announce`` id, never ``None``)."""
+    receives the entry and its ``Add`` id, never ``None``)."""
     announce_id = fault.failed_activity_id
-    # The entry is read from the Announce announce_id names, so the second
+    # The entry is read from the Add announce_id names, so the second
     # test only narrows the event's optional field for the type checker.
     if refused_entry is None or announce_id is None:
         return create_intake_only_received_tree("HashMismatchFaultReceivedBT")

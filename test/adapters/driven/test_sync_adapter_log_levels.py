@@ -69,7 +69,7 @@ def _queued_records(caplog) -> list[logging.LogRecord]:
     ]
 
 
-def test_queued_announce_line_is_debug(dl, entry, caplog):
+def test_queued_add_line_is_debug(dl, entry, caplog):
     """The per-recipient Announce queue line is emitted at DEBUG."""
     adapter = SyncActivityAdapter(dl)
 
@@ -82,7 +82,7 @@ def test_queued_announce_line_is_debug(dl, entry, caplog):
         )
 
     records = _queued_records(caplog)
-    assert records, "Expected the queued-Announce log entry"
+    assert records, "Expected the queued-Add log entry"
     assert all(r.levelno == logging.DEBUG for r in records)
 
 

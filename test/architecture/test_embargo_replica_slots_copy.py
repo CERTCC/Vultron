@@ -132,7 +132,7 @@ _SLOTS = [
 
 #: Names whose use marks a slot as writing the register or a consent row:
 #: the one apply function and the model writes behind it, and every
-#: lifecycle name.  A slot of the announce tree that reaches one must be in
+#: lifecycle name.  A slot of the add-log-entry tree that reaches one must be in
 #: :data:`_SLOTS`.
 _WRITER_NAMES = _LIFECYCLE_NAMES | {
     "apply_embargo_change",
@@ -247,16 +247,16 @@ def _writes_embargo_state(cls: type) -> bool:
 
 @pytest.mark.spec("CM-23-044")
 def test_every_replica_embargo_slot_is_checked() -> None:
-    """A new embargo slot in the announce tree joins the ratchet."""
+    """A new embargo slot in the add-log-entry tree joins the ratchet."""
     embargo_slots = {
         c for c in _tree_slot_classes() if _writes_embargo_state(c)
     }
 
-    assert embargo_slots, "the announce tree runs no embargo slot"
+    assert embargo_slots, "the add-log-entry tree runs no embargo slot"
     missing = sorted(c.__name__ for c in embargo_slots - set(_SLOTS))
     assert not missing, f"add {missing} to _SLOTS"
     absent = sorted(c.__name__ for c in set(_SLOTS) - _tree_slot_classes())
-    assert not absent, f"{absent} no longer run in the announce tree"
+    assert not absent, f"{absent} no longer run in the add-log-entry tree"
 
 
 def test_the_check_sees_a_lifecycle_node() -> None:

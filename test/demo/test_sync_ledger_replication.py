@@ -258,7 +258,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     payload = response.json()
 
     entry_id = payload["log_entry_id"]
-    # `peer_dl` above, not the app's default-slug `dl`: the Announce was delivered
+    # `peer_dl` above, not the app's default-slug `dl`: the Add was delivered
     # to `peer_actor_id`, so that is the replica that received the entry.
     peer_entry = peer_dl.read(entry_id)
     assert peer_entry is not None, (
@@ -564,7 +564,7 @@ def test_sync_duplicate_delivery_idempotency(
 def test_lost_last_entry_is_recovered_by_a_position_statement(
     two_app_setup,
 ) -> None:
-    """A dropped last Announce is recovered by the participant's own Read.
+    """A dropped last Add is recovered by the participant's own Read.
 
     The CASE_MANAGER holds three entries; the peer's replica received only
     the first two, and nothing further is committed, so no later entry
@@ -624,7 +624,7 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
     )
     for entry in (entry0, entry1, entry2):
         case_actor_dl.save(entry)
-    # The peer's replica: the Announce of entry2 was lost (SYNC-16-005).
+    # The peer's replica: the Add of entry2 was lost (SYNC-16-005).
     peer_dl.save(
         case.model_copy(
             update={

@@ -231,14 +231,14 @@ def _writes_participant_state(cls: type) -> bool:
 
 @pytest.mark.spec("CM-23-044")
 def test_every_replica_participant_slot_is_checked() -> None:
-    """A new participant-writing slot in the announce tree joins the ratchet."""
+    """A new participant-writing slot in the add-log-entry tree joins the ratchet."""
     slots = {c for c in _tree_slot_classes() if _writes_participant_state(c)}
 
-    assert slots, "the announce tree runs no participant slot"
+    assert slots, "the add-log-entry tree runs no participant slot"
     missing = sorted(c.__name__ for c in slots - set(_SLOTS))
     assert not missing, f"add {missing} to _SLOTS"
     absent = sorted(c.__name__ for c in set(_SLOTS) - _tree_slot_classes())
-    assert not absent, f"{absent} no longer run in the announce tree"
+    assert not absent, f"{absent} no longer run in the add-log-entry tree"
 
 
 def test_the_check_sees_a_minted_status() -> None:

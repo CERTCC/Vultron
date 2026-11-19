@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""A replica's Announce of the ownership-transfer Offer entry writes nothing.
+"""A replica's Add of the ownership-transfer Offer entry writes nothing.
 
 The CASE_MANAGER makes the one ownership-transfer Offer and ledgers it
 (ADR-0148).  The transferee answers that Offer from its intake archive, the
@@ -144,7 +144,7 @@ def test_offer_entry_persists_and_writes_nothing_else(
     (stored,) = datalayer.list_objects("CaseLedgerEntry")
     assert getattr(stored, "log_object_id", None) == offer_id
     # ... and nothing is written for the Offer, under its id or any other:
-    # the only other new row is intake's archive of the Announce itself
+    # the only other new row is intake's archive of the Add itself
     # (CLP-10-017).
     assert datalayer.read(offer_id) is None
     after = datalayer.count_all()

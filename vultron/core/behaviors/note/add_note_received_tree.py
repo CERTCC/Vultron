@@ -63,7 +63,7 @@ def create_add_note_to_case_received_tree(
     Only the CaseActor (actor holding ``CVDRole.CASE_MANAGER``) commits a
     canonical ``CaseLedgerEntry`` for the ``Add(Note)[target=VulnerabilityCase]`` and
     attaches the
-    note to the local case replica; the entry's ``Announce`` fan-out (via
+    note to the local case replica; the entry's ``Add`` fan-out (via
     ``sync_port``) notifies all participants.  Non-CaseActors MUST NOT update
     their case replica directly from ``Add(Note)[target=VulnerabilityCase]`` messages — they
     receive the note attachment notification exclusively via
@@ -134,7 +134,7 @@ def create_add_note_to_case_received_tree(
         # An active participant asks the CASE_MANAGER alone to attach the
         # note (PCR-08-001), and no one relays the Add: RSH-08-003 keeps
         # every write at the CASE_MANAGER, so the note reaches a replica as
-        # the entry's Announce fan-out (SYNC-02-001, SYNC-02-003).  The tree
+        # the entry's Add fan-out (SYNC-02-001, SYNC-02-003).  The tree
         # declares the manager path alone, so the path stage refuses a copy
         # at any other receiver (HP-01-005, HP-01-038, HP-01-039).
         paths={ReceivedPath.CASE_MANAGER},

@@ -54,7 +54,7 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 def ledger_announce_event(
     entry: CaseLedgerEntry, *, actor: str, to: str
 ) -> AddLogEntryReceivedEvent:
-    """The received ``Announce`` of *entry* from *actor* to *to*, delivered.
+    """The received ``Add`` of *entry* from *actor* to *to*, delivered.
 
     It carries its body as received evidence, as the inbox hands it on, and
     names *to* as the receiving actor.

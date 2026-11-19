@@ -656,7 +656,7 @@ def test_dead_letter_ledger_entry_id_absent_for_non_ledger_activity(
     activity_id = "urn:uuid:create-report-0"
 
     queue = _make_queue(activity_id)
-    # A non-Announce activity has no CaseLedgerEntry object
+    # A non-Add activity has no CaseLedgerEntry object
     non_ledger_sealed = SealedOutboundBody(
         id_=sealed_body_id(activity_id),
         activity_id=activity_id,

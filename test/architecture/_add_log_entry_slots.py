@@ -54,7 +54,7 @@ CASE_ID = "https://example.org/cases/replay-ratchet"
 
 
 def effect_slot_conditions() -> list[py_trees.behaviour.Behaviour]:
-    """The positive event conditions of the announce tree's effect slots.
+    """The positive event conditions of the add-log-entry tree's effect slots.
 
     Found by position, not by class: each slot is
     ``Selector(Sequence(IsX, ApplyX), Inverter(IsX))`` under

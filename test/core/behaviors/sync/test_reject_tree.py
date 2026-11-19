@@ -535,7 +535,7 @@ def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
     Regression guard for the reject/replay amplification loop: a late-joining
     participant that cannot anchor its hash chain re-Rejects each replayed
     entry, and each Reject previously re-replayed the *entire* ledger.  With a
-    25-entry ledger this produced thousands of Announce activities, starving
+    25-entry ledger this produced thousands of Add activities, starving
     the container until unrelated DataLayer reads timed out.
 
     The first Reject at a given hash SHOULD replay; subsequent Rejects at the

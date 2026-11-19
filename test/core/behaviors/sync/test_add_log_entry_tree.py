@@ -179,7 +179,7 @@ def _make_event(
     actor_id: str,
     to: list[str] | None = None,
 ) -> AddLogEntryReceivedEvent:
-    """Build the received Announce, addressed to the replica that receives it.
+    """Build the received Add, addressed to the replica that receives it.
 
     The fan-out names each participant in ``to`` (SYNC-09-002); the tree's
     addressee door refuses a copy that names nobody it executes as (HP-01-005).
@@ -384,7 +384,7 @@ def _seed_case_manager(datalayer, case_obj) -> None:
     Authority is the role (ADR-0088), resolved by resolve_case_manager_id, not a
     Service object — so VerifySenderIsCaseActorNode resolves the CaseActor from
     the participant's ``attributed_to`` (``CASE_ACTOR_ACTOR_ID``), the id the
-    legitimate announces are sent from.
+    legitimate Adds are sent from.
     """
     manager = make(
         CaseParticipant,
@@ -2455,7 +2455,7 @@ def _deliver_early_entry(
 
     A fresh bridge on the same store stands in for a restart: whatever the
     limit remembers must be in the store (SYNC-15-021).  Returns the id of
-    the delivered ``Announce``.
+    the delivered ``Add``.
     """
     py_trees.blackboard.Blackboard.storage.clear()
     event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
@@ -2516,7 +2516,7 @@ def test_early_entries_within_the_interval_send_one_genesis_reject(
 def test_a_genesis_reject_names_the_announce_that_prompted_it(
     datalayer, monkeypatch
 ):
-    """The genesis Reject answers the early entry's ``Announce``."""
+    """The genesis Reject answers the early entry's ``Add``."""
     (entry,) = _early_entries(1)
     _set_clock(monkeypatch, _GENESIS_WAIT_START)
     announce_id = _deliver_early_entry(datalayer, entry)

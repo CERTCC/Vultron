@@ -105,7 +105,7 @@ def add_case_ledger_entry() -> Scenario:
 
 @applied(MessageSemantics.REJECT_CASE_LEDGER_ENTRY)
 def reject_case_ledger_entry() -> Scenario:
-    """A replica that lost the announces rejects entry 1: replayed after 0."""
+    """A replica that lost the Adds rejects entry 1: replayed after 0."""
     net = _engaged("reject-ledger-entry")
     first, second, *_ = _entries(net)
     net.lose(MANAGER, to=BYSTANDER)

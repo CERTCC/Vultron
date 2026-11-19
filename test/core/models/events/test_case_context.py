@@ -75,7 +75,7 @@ class TestIsCaseBootstrap:
 
 
 class TestIsDeferralExempt:
-    """Processed without the case: the bootstraps and the stub Invite."""
+    """Processed without the case: the bootstraps, the stub Invite, the ledger Add."""
 
     @pytest.mark.parametrize(
         "semantic_type",
@@ -95,8 +95,14 @@ class TestIsDeferralExempt:
         assert is_deferral_exempt(event)
         assert not is_case_bootstrap(event)
 
-    def test_the_two_sets_are_disjoint(self):
-        assert not CASE_BOOTSTRAP_SEMANTICS & CASE_PRECEDING_SEMANTICS
+    def test_the_exemption_sets_are_disjoint(self):
+        """Each exempt semantic sits in one set, so only a bootstrap replays."""
+        sets = (
+            CASE_BOOTSTRAP_SEMANTICS,
+            CASE_PRECEDING_SEMANTICS,
+            SELF_HOLDING_SEMANTICS,
+        )
+        assert sum(len(s) for s in sets) == len(frozenset().union(*sets))
 
     @pytest.mark.spec("SYNC-15-004")
     def test_a_ledger_add_is_exempt_but_bootstraps_nothing(self):
