@@ -261,8 +261,9 @@ def vulnerability_item_from_claims(
 ) -> VulnerabilityItem:
     """The vulnerability item *vul* becomes, field for field (CSAF-03-008).
 
-    Its ``cve``, ``ids``, ``title`` and ``notes`` are copied as claimed, and
-    no identifier is interpreted (CM-05-008); each of its references becomes
+    Its ``cve``, ``ids`` and ``notes`` are copied as claimed, its ``title``
+    becomes the item's AS2 ``name`` (CM-05-018), and no identifier is
+    interpreted (CM-05-008); each of its references becomes
     a case reference held inline on the item.  The item and its references
     are stamped *published*, the instant of the act that creates them
     (ADR-0176).
@@ -282,7 +283,7 @@ def vulnerability_item_from_claims(
             VulnerabilityItemId(system_name=i.system_name, text=i.text)
             for i in vul.ids
         ],
-        title=vul.title,
+        name=vul.title,
         notes=[
             VulnerabilityItemNote(
                 category=note.category,

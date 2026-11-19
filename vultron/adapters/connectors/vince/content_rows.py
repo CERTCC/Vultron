@@ -74,7 +74,7 @@ def _item(
     returned untranslated, and the item kept without it."""
     data: dict[str, object] = {
         "id": t.ids.minted(f"vul:{vul.name}"),
-        "title": vul.name,
+        "name": vul.name,
         "ids": [{"systemName": VINCE_ID_SYSTEM, "text": vul.name}],
         "notes": (
             [{"category": "description", "text": vul.description}]

@@ -602,10 +602,9 @@ data-integrity v2 and Multikey v1. CID v1 is pinned but not cited, so the
 profile's `assertionMethod` has no term until #6418 cites it. Each field the check
 refuses today is an entry in its owner's ratchet in
 `test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
-resolves to the marked one's meaning until its owner renames it: the item `title`
-takes the note's (#6413), and the policy's and the item's `notes` take the case's
-list of Note ids (#6410, #6416). The check walks computed fields too, so the case's
-derived `activeParticipants` is marked.
+resolves to the marked one's meaning until its owner renames it: the policy's and
+the item's `notes` take the case's list of Note ids (#6410, #6416). The check walks
+computed fields too, so the case's derived `activeParticipants` is marked.
 
 **Field review.** Each row names the Task that fixes it. A row is a ratchet entry
 only when a rule refuses the field. `inbox`, the note's `audience` and
@@ -619,7 +618,6 @@ acceptance criteria track them.
 | `notes` (`EmbargoPolicy`) | AS2 duplicate | `content` | #6410 |
 | `inbox` (`EmbargoPolicy`) | AS2 name, actor-only domain | dropped | #6410 |
 | `caseId` (`CaseLedgerEntry`) | AS2 duplicate | `context` | #6411 |
-| `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
 | `participantCaseName` (`CaseParticipant`) | dead; duplicates `name` | deleted | #6415 |
 | `caseActivity` (`VulnerabilityCase`) | dead | deleted | #6415 |
 | `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
@@ -628,8 +626,8 @@ acceptance criteria track them.
 | `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
-Every other field is a Vultron term. `title` is a clash only until #6413 renames the
-item's. `state`, `status` and `kind` are each used once on the wire, and
+Every other field is a Vultron term, and the item's `title` is now its AS2 `name`
+(#6413). `state`, `status` and `kind` are each used once on the wire, and
 `caseStatus` is one meaning in two shapes (an object or a link), so none of them is
 a clash. `caseActivity` is dead, but it is marked a Vultron term,
 so no rule refuses it, and #6415 deletes it without a ratchet entry.

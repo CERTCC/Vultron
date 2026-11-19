@@ -532,7 +532,7 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_item() -> None:
     assert [(i.system_name, i.text) for i in first.ids] == [
         ("Example tracker", "EX-17")
     ]
-    assert first.title == "Widget overflow"
+    assert first.name == "Widget overflow"
     [note] = first.notes
     assert (note.category, note.text, note.title) == (
         NoteCategory.DESCRIPTION,
@@ -550,7 +550,7 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_item() -> None:
     assert [(i.system_name, i.text) for i in second.ids] == [
         ("VU#", "VU#123456")
     ]
-    assert second.title == "Widget crash"
+    assert second.name == "Widget crash"
     # One act, one instant: no clock is read below its edge (ADR-0176).
     assert {first.published, second.published, first_ref.published} == {
         case.published

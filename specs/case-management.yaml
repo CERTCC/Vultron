@@ -1066,8 +1066,9 @@ groups:
       a CSAF 2.1 vulnerability entry's `cve`, `ids`, `title` (as the item's `name`),
       `notes` and `references` round-trip through it.
       `test/wire/as2/vocab/test_vulnerability_item.py::test_a_csaf_entrys_title_is_the_items_name`
-      requires the item to declare no `title` and to hold it as `name`; it is a strict
-      `xfail` until #6413 moves the title.
+      requires the item to declare no `title` and to hold it as `name`, and
+      `::test_an_item_with_a_title_key_is_refused` checks that an item with a `title`
+      key is refused.
     adr:
     - ADR-0187
     - ADR-0194
