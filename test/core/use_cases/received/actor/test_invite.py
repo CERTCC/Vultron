@@ -933,7 +933,7 @@ class TestInviteActorUseCases:
         )
 
         # Seed the inert participant record the reject will close (CM-11-018).
-        # CreateInertInviteeParticipantNode would create this at invite-send
+        # The CASE_MANAGER would create this at invite-send
         # time; we seed it directly for the received-side test.
         inert_participant_id = f"{case_id}/participants/coordinator"
         inert_status = make(

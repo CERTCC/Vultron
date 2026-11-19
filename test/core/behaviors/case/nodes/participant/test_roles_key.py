@@ -18,11 +18,13 @@
 import pytest
 
 from vultron.core.behaviors.case.nodes.actor import (
-    EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
 from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
+)
+from vultron.core.behaviors.case.nodes.suggest_actor import (
+    EmitOfferCaseParticipantToOwnerNode,
 )
 
 
@@ -37,17 +39,20 @@ def test_key_is_namespaced_by_the_last_path_segment(recommendation_id, key):
     assert suggested_roles_key(recommendation_id) == key
 
 
-def test_the_writer_and_the_invite_reader_agree_on_the_key():
+def test_the_writer_and_the_offer_reader_agree_on_the_key():
     offer_id = "https://example.org/activities/offer-2"
     writer = EvaluateDefaultRolesNode(
         suggested_actor_id="https://example.org/actors/v",
         case_id="https://example.org/cases/c",
         recommendation_id=offer_id,
     )
-    reader = EmitInviteActorToCaseNode(
-        invitee_id="https://example.org/actors/v",
-        case_id="https://example.org/cases/c",
+    reader = EmitOfferCaseParticipantToOwnerNode(
         recommendation_id=offer_id,
+        recommender_id="https://example.org/actors/r",
+        recommended_id="https://example.org/actors/v",
+        case_id="https://example.org/cases/c",
     )
     assert writer._roles_key == suggested_roles_key(offer_id)
-    assert reader._roles_key == f"/{suggested_roles_key(offer_id)}"
+    assert reader.bound_port_remappings()["suggested_roles"] == (
+        f"/{suggested_roles_key(offer_id)}"
+    )

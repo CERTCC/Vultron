@@ -503,7 +503,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
     def test_executes_without_error(self):
         # CM-11-019: use _event_with_stored_offer so the DL has the offer's
-        # roles and CreateInertInviteeParticipantNode can resolve them.
+        # roles and the seating node can resolve them.
         dl, _ = _seed_dl_for_case_actor()
         event = self._event_with_stored_offer(dl)
         result = run_in_act(
@@ -794,7 +794,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         # Seed the recommendation as OfferActorToCaseReceivedUseCase would.
         _record_recommendation(dl)
 
-        # CM-11-019: store the offer with roles so CreateInertInviteeParticipantNode
+        # CM-11-019: store the offer with roles so the seating node
         # can resolve them and the use case is APPLIED.
         event = self._event_with_stored_offer(dl)
         result = run_in_act(
@@ -1570,12 +1570,12 @@ class TestAcceptOfferCaseParticipantRolesThreading:
     """AC-1/AC-2 (ISSUE-1406): roles threading through suggest-actor received path.
 
     AC-1: Full round-trip — Accept(Offer(CaseParticipant[roles])) →
-          EmitInviteActorToCaseNode (roles=None, no blackboard key) →
+          EmitRecordedInviteNode (the recorded Offer's roles) →
           stub Invite stored with roles=None → Accept(Invite) →
           CaseParticipant.case_roles == [].
 
-    AC-2: Confirm that EmitInviteActorToCaseNode with no ``suggested_roles``
-          blackboard key passes roles=None to invite_actor_to_case(), verifying
+    AC-2: Confirm that the stub Invite with no recorded roles passes
+          roles=None to invite_actor_to_case(), verifying
           no silent default substitution (ADR-0032 BT-HELPER-01).
     """
 

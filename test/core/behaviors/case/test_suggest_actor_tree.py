@@ -46,7 +46,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
-    EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
 from vultron.core.behaviors.case.nodes.addressee import (
@@ -56,17 +55,16 @@ from vultron.core.behaviors.case.nodes.invite_actor_emit import (
     INVITE_ID_KIND,
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
-    CreateInertInviteeParticipantNode,
     validated_invitee_roles,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
 from vultron.core.behaviors.case.nodes.owner_invite import (
+    EmitOwnerDecidedStubInviteNode,
+    InviteeAwaitsReplyNode,
     RecommenderIsNotCaseOwnerNode,
-)
-from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
-    ReinviteAwaitingNode,
+    SeatOwnerInvitedInviteeNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     AcceptedInviteeIsNotRemovedNode,
@@ -132,7 +130,7 @@ _MANAGER = "https://example.org/actors/case-manager"
 
 
 def _invite_id_as_manager(
-    node: EmitInviteActorToCaseNode | EmitRecordedInviteNode,
+    node: EmitRecordedInviteNode,
 ) -> str | None:
     """The id *node* gives its Invite when the CASE_MANAGER runs it."""
     node.actor_id = _MANAGER
@@ -306,8 +304,8 @@ class TestEvaluateDefaultRolesNode:
 
         The default _compute_roles() applies the protocol default (VENDOR) so
         the suggest-actor path works without explicit roles from the recommender.
-        CM-11-019 (no-roles Invite refused) is enforced downstream by
-        CreateInertInviteeParticipantNode, not here.
+        CM-11-019 (no-roles Invite refused) is the Case Owner's Invite's
+        rule, judged by its own guards, not here.
         """
         node = EvaluateDefaultRolesNode(
             suggested_actor_id=_RECOMMENDED,
@@ -325,36 +323,6 @@ class TestEvaluateDefaultRolesNode:
         raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
         assert raw == [CVDRole.VENDOR], (
             f"Expected VENDOR default at '{expected_key}', got {raw!r}"
-        )
-
-    @pytest.mark.spec("CM-11-050")
-    @pytest.mark.spec("CM-11-019")
-    def test_require_explicit_roles_fails_when_no_roles_given(self):
-        """CM-11-019: require_explicit_roles=True → FAILURE when no roles.
-
-        The owner-direct invite path sets require_explicit_roles=True so the
-        Case Owner must supply roles explicitly; no VENDOR default is applied.
-        """
-        node = EvaluateDefaultRolesNode(
-            suggested_actor_id=_RECOMMENDED,
-            case_id=_CASE_ID,
-            recommendation_id=_REC_ID,
-            require_explicit_roles=True,
-        )
-        node.setup()
-        node.initialise()
-        result = node.update()
-        assert result == Status.FAILURE
-        assert node.feedback_message, "feedback_message must be set on FAILURE"
-        assert "inviter must give" in node.feedback_message, (
-            f"Expected CM-11-019 message, got: {node.feedback_message!r}"
-        )
-        expected_key = (
-            f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
-        )
-        raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
-        assert raw is None, (
-            f"Blackboard key must not be written when FAILURE, got {raw!r}"
         )
 
 
@@ -515,44 +483,33 @@ class TestEmitOfferCaseParticipantToOwnerNodeEmptyRoles:
         factory.offer_actor_to_case.assert_not_called()
 
 
-class TestEmitInviteActorToCaseNodeEmptyRoles:
-    """Unit tests for the empty-roles guard in EmitInviteActorToCaseNode (CM-17-003)."""
+class TestStubInviteEmitEmptyRoles:
+    """The empty-roles guard of the stub Invite emit (CM-17-003, CM-11-048)."""
 
     _CASE_ID_INVITE = "https://example.org/cases/case-invite-1"
     _INVITEE_ID = "https://example.org/actors/invitee"
-    _RECOMMENDATION_ID = "https://example.org/activities/offer-invite-1"
 
     def _node(self):
         dl = MagicMock()
         factory = MagicMock()
-        node = EmitInviteActorToCaseNode(
-            invitee_id=self._INVITEE_ID,
-            case_id=self._CASE_ID_INVITE,
-            recommendation_id=self._RECOMMENDATION_ID,
-        )
+        node = EmitOwnerDecidedStubInviteNode([], credits_sender=False)
         writer = py_trees.blackboard.Client(
             name="test-invite-empty-roles-writer"
         )
-        writer.register_key(
-            key="datalayer", access=py_trees.common.Access.WRITE
-        )
-        writer.register_key(
-            key="actor_id", access=py_trees.common.Access.WRITE
-        )
-        writer.register_key(
-            key="trigger_activity_factory",
-            access=py_trees.common.Access.WRITE,
-        )
+        for key in (
+            "datalayer",
+            "actor_id",
+            "trigger_activity_factory",
+            "/case_id",
+            "/invitee_id",
+        ):
+            writer.register_key(key=key, access=py_trees.common.Access.WRITE)
         writer.datalayer = dl
         writer.actor_id = _ACTOR_ID
         writer.trigger_activity_factory = factory
+        writer.set("/case_id", self._CASE_ID_INVITE)
+        writer.set("/invitee_id", self._INVITEE_ID)
         node.setup()
-        # An empty list where EvaluateDefaultRolesNode writes the roles for
-        # this recommendation. Must be written before initialise() so the
-        # ports cache sees the value.
-        py_trees.blackboard.Blackboard.storage[
-            "/suggested_roles_offer-invite-1"
-        ] = []
         node.initialise()
         return node, factory
 
@@ -1197,7 +1154,7 @@ class TestDuplicateDetectionTreeStructure:
         for arm in arms:
             types = [type(n) for n in arm.iterate()]
             assert EmitAcceptActorRecommendationNode in types
-            assert EmitInviteActorToCaseNode not in types
+            assert EmitOwnerDecidedStubInviteNode not in types
 
     @pytest.mark.spec("CM-17-007")
     def test_the_tree_sends_no_stub_invite(self):
@@ -1207,9 +1164,9 @@ class TestDuplicateDetectionTreeStructure:
         recommendation is always a suggestion the Owner decides.
         """
         types = {type(n) for n in self.all_nodes}
-        assert EmitInviteActorToCaseNode not in types
-        assert CreateInertInviteeParticipantNode not in types
-        assert ReinviteAwaitingNode not in types
+        assert EmitOwnerDecidedStubInviteNode not in types
+        assert SeatOwnerInvitedInviteeNode not in types
+        assert InviteeAwaitsReplyNode not in types
 
     @pytest.mark.spec("CM-17-007")
     def test_the_owner_guard_runs_before_the_commit_and_every_arm(self):

@@ -214,7 +214,7 @@ def rm_invite_to_case_activity(
             ``context`` defaults to the case URI.
         roles: Optional list of intended CVD role strings for the invitee
             (CM-17-003).  When provided the Invite carries the intended
-            participant roles so ``CreateInertInviteeParticipantNode``
+            participant roles so the seating node
             can set them on the new inert ``CaseParticipant``.
         embargo_obj: The fetched ``EmbargoEvent`` for the case, used when
             *case* has an embargo in force (EM ``ACTIVE`` or ``REVISE``) to

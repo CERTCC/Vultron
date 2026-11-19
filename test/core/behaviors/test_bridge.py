@@ -1110,7 +1110,7 @@ class EmitThroughPort(py_trees.behaviour.Behaviour):
 
     Creates the activity through the port (as
     ``TriggerActivityAdapter.invite_actor_to_case`` does) and queues its id
-    through the blackboard store (as ``EmitInviteActorToCaseNode.update`` does).
+    through the blackboard store (as a stub Invite emit node does).
     Fails when the store that holds the outbox entry cannot read the activity —
     exactly the state the outbox handler reports as "not found in DataLayer for
     actor ...; skipping delivery".

@@ -2748,10 +2748,11 @@ groups:
     note: >-
       The default role list for a suggested actor is a separate flow (CM-16-003).
     verification: >-
-      `test_validated_invitee_roles_never_defaults` and
-      `test_require_explicit_roles_fails_when_no_roles_given` in
-      `test/core/behaviors/case/test_suggest_actor_tree.py` find no VENDOR default
-      when no roles are given.
+      `test_validated_invitee_roles_never_defaults` in
+      `test/core/behaviors/case/test_suggest_actor_tree.py` and
+      `test_no_roles_is_refused_not_defaulted` in
+      `test/core/use_cases/triggers/test_actor_triggers.py` find no VENDOR
+      default when no roles are given.
     relationships:
     - rel_type: extends
       spec_id: CM-11-019
@@ -3999,7 +4000,7 @@ groups:
     kind: project
     statement: >-
       The `Invite` activity MUST embed the intended `case_roles: list[CVDRole]` for the
-      invitee so that `EmitInviteActorToCaseNode` can include them in the wire activity.
+      invitee so that the stub Invite emit node can include them in the wire activity.
     rationale: >-
       The CASE_MANAGER cannot route messages for a participant with no roles, or give it
       the correct access (CM-11-019). The participant record that the stub Invite
@@ -4093,7 +4094,7 @@ groups:
       same id, and the receiver drops it (ID-02-001). The commit records the Invite one
       time.
     verification: >-
-      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
+      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestStubInviteQueuesBeforeCommitting`
       asserts the emit node appends to the outbox before it commits;
       `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce` asserts a
       retry queues and commits the Invite once.
@@ -4112,7 +4113,7 @@ groups:
       A copy addressed to the CASE_MANAGER would loop back to its own inbox, where a
       received-side path could record the same Invite a second time (ADR-0109).
     verification: >-
-      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
+      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestStubInviteQueuesBeforeCommitting`
       asserts the emitted Invite sets no `cc`.
     relationships:
     - rel_type: extends

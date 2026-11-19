@@ -18,9 +18,6 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from vultron.primitives import NonEmptyString
-from vultron.wire.as2.vocab.activities.case.invite import (
-    _RmInviteToCaseActivity,
-)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
@@ -61,20 +58,6 @@ class WireActivityResult(WireTriggerResult):
     """
 
     activity: as_TransitiveActivity  # type: ignore[assignment]
-
-
-class WireCaseInviteResult(WireTriggerResult):
-    """Trigger response whose emitted activity is a case Invite (ADR-0199).
-
-    The ``invite-actor-to-case`` trigger returns the Case Owner's own
-    ``Invite(<case preview>)[target=<invitee>]``, or the stub Invite when the
-    Owner is the CASE_MANAGER.  Its ``object`` is the case's typed reference
-    carrying a preview, which only the case-Invite class reads (CM-11-013),
-    so the generic :class:`as_TransitiveActivity` of
-    :class:`WireActivityResult` cannot hold it.
-    """
-
-    activity: _RmInviteToCaseActivity  # type: ignore[assignment]
 
 
 class WireSyncLogEntryResult(WireTriggerResult):

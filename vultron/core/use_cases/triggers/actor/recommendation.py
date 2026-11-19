@@ -25,6 +25,7 @@ from typing import ClassVar, cast
 
 import py_trees.behaviour
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import CASE_ID, INVITEE_ID
 from vultron.core.behaviors.call_out.bundles.actor_resolution import (
@@ -39,6 +40,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.admission import (
     not_invitable_refusal,
+    removed_participant_refusal,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.participants.role_predicate import has_role
@@ -218,10 +220,35 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
     Refused before anything is queued (TRIG-03, RSH-09): an Invite from an
     actor that is not the Case Owner, one with no
     roles (CM-11-019, CM-11-050), and one whose invitee is the Owner, the
-    CASE_MANAGER, or a participant that has joined or is at ``RM.CLOSED``
-    (CM-11-043, ADR-0085).  The CASE_MANAGER refuses the same Invite for
+    CASE_MANAGER, or a participant that was removed (CM-31-013), has joined
+    or is at ``RM.CLOSED`` (CM-11-043, ADR-0085).  The CASE_MANAGER refuses the same Invite for
     the same reasons, for an Invite that arrives from elsewhere.
     """
+
+    def __init__(
+        self,
+        dl: object,
+        request: object,
+        trigger_activity: object = None,
+        call_out: ActorResolutionCallOutBundle = ACTOR_RESOLUTION_DETERMINISTIC,
+        wire_render_port: WireRenderPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        actor_config: ActorConfig | None = None,
+        *,
+        clock: ClockPort,
+    ) -> None:
+        super().__init__(
+            dl,
+            request,
+            trigger_activity,
+            call_out,
+            wire_render_port,
+            sync_port,
+            clock=clock,
+        )
+        # The RSVP window of the stub Invite an Owner that is the
+        # CASE_MANAGER sends itself (CM-11-014, CM-28-012).
+        self._actor_config = actor_config
 
     def _prepare(self) -> None:
         request = cast(InviteActorToCaseTriggerRequest, self._request)
@@ -244,8 +271,9 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
             VultronValidationError: The requester is not the Case Owner, or
                 the Invite names no role, or names the Owner or the case's
                 CASE_MANAGER as the invitee.
-            VultronInvalidStateTransitionError: The invitee has joined the
-                case or is at ``RM.CLOSED``, which has no rejoin.
+            VultronInvalidStateTransitionError: The invitee was removed
+                (CM-31-013), has joined the case, or is at ``RM.CLOSED``,
+                which has no rejoin.
         """
         invitee_id = self._recommended_id
         case_id = self._case.id_
@@ -269,7 +297,9 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
                 f"'{invitee_id}' is the Case Owner or the CASE_MANAGER of"
                 f" case '{case_id}' and is sent no stub Invite (CM-17-015)"
             )
-        refusal = not_invitable_refusal(self._dl, self._case, invitee_id)
+        refusal = removed_participant_refusal(
+            self._dl, self._case, invitee_id, case_id
+        ) or not_invitable_refusal(self._dl, self._case, invitee_id)
         if refusal is not None:
             raise VultronInvalidStateTransitionError(refusal)
 
@@ -278,7 +308,9 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
         if self._is_case_manager:
             return with_act_keys(
                 case_manager_invite_actor_trigger_bt(
-                    roles=roles, captured=self._captured
+                    roles=roles,
+                    actor_config=self._actor_config,
+                    captured=self._captured,
                 ),
                 {CASE_ID: self._case.id_, INVITEE_ID: self._recommended_id},
             )

@@ -13,10 +13,10 @@
 """Every CASE_MANAGER commit made through the inbox is fanned out (#4113).
 
 The inbox dispatcher builds each received use case with the ports its port
-factory returns.  ``OFFER_ACTOR_TO_CASE`` got no ``SyncActivityPort``, so the
-receipt commit (``offer_actor_to_case``) and the owner-direct ``Invite`` it
-commits (``invite_actor_to_case``) were persisted but never announced to the
-participants (SYNC-02-003).  Replicas learned of them only through
+factory returns.  ``OFFER_ACTOR_TO_CASE`` once got no ``SyncActivityPort``, so
+the receipt commit and the stub ``Invite`` the CASE_MANAGER commits for the
+Case Owner's direct invite (now ``INVITE_ACTOR_TO_CASE``, ADR-0199) were
+persisted but never announced to the participants (SYNC-02-003).  Replicas learned of them only through
 ``Reject(CaseLedgerEntry)`` catch-up, which made the ``rcv-reject`` demo's
 ledger-coverage gate time out.
 

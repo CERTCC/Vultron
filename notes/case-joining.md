@@ -176,7 +176,7 @@ from its role (CLP-09).
 - **No roles means refuse, never default to VENDOR (CM-11-048, CM-11-050).** The
   trigger refuses an Owner's Invite with none, the CASE_MANAGER refuses one that
   arrives (`OwnerInviteRolesAreGrantableNode`), and
-  `CreateInertInviteeParticipantNode` enforces the same rule.
+  the seating node (`_SeatInertInviteeBase`) enforces the same rule.
 - **The Owner's Invite is the decision; the stub Invite is the ask (ADR-0199).** The
   Case Owner sends its own `Invite(<case preview>)[target=<invitee>]` to the
   CASE_MANAGER only (CM-17-007). Both share one wire shape, so the received tree tells

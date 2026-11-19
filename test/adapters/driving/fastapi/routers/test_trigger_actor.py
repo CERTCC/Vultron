@@ -1000,7 +1000,7 @@ def test_suggest_actor_to_case_drains_the_emitting_actors_outbox(
 def test_invite_actor_to_case_drains_the_owners_outbox(
     client_triggers_invite, actor, case_for_invite, other_actor, drained
 ):
-    """The owner's Offer is queued in the owner's outbox, so that is drained.
+    """The owner's Invite is queued in the owner's outbox, so that is drained.
 
     Before ADR-0109 the Invite was queued as the CaseActor and its outbox was
     drained (#2484); the owner now emits nothing as the CaseActor.

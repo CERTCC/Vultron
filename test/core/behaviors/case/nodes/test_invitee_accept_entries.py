@@ -35,16 +35,20 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import activate
 from test.support.objects import make
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import INVITEE_ID as INVITEE_ID_KEY
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     AdvanceInviteeVFToVendorAwareNode,
-    CreateInertInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_participant_persist import (
     ActivateInviteeParticipantNode,
     CommitInviteeAcceptEntriesNode,
+)
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    SeatOwnerInvitedInviteeNode,
 )
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
@@ -81,10 +85,9 @@ def _scenario(roles: list[CVDRole], embargo: bool) -> BTTestScenario:
     )
     s.assert_success(
         s.run(
-            CreateInertInviteeParticipantNode(
-                invitee_id=INVITEE_ID,
-                case_id=CASE_ID,
-                roles=[r.value for r in roles],
+            with_act_keys(
+                SeatOwnerInvitedInviteeNode(roles=[r.value for r in roles]),
+                {INVITEE_ID_KEY: INVITEE_ID},
             ),
             case_id=CASE_ID,
         )

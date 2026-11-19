@@ -25,9 +25,9 @@ from test.support.future_dates import FAR_FUTURE
 from test.support.objects import authored_at, make
 from vultron.demo.actor_session import (
     ActorSession,
-    WireCaseInviteResult,
     WireNoteResult,
     WireSyncLogEntryResult,
+    WireTriggerResult,
 )
 from vultron.demo.utils import DataLayerClient
 from vultron.enums.roles import CVDRole
@@ -143,7 +143,7 @@ def test_verb_posts_expected_behavior_body_and_prefix():
     assert kwargs["actor_id"] == _ACTOR_ID
 
 
-def test_invite_actor_to_case_returns_typed_activity_result():
+def test_invite_actor_to_case_returns_the_owners_invite():
     """The Owner's Invite comes back as the case-Invite class (ADR-0199)."""
     import json
     from pathlib import Path
@@ -162,9 +162,8 @@ def test_invite_actor_to_case_returns_typed_activity_result():
             invitee_id="http://v2:7999/api/v2/actors/v2",
             roles=[CVDRole.VENDOR],
         )
-    assert isinstance(result, WireCaseInviteResult)
-    assert result.activity.id_ == owner_invite["id"]
-    assert result.activity.roles == ["coordinator"]
+    assert isinstance(result, WireTriggerResult)
+    assert result.activity == owner_invite
     # roles serialize to their string values in the posted body.
     assert post.call_args.kwargs["body"]["roles"] == ["vendor"]
 

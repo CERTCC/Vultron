@@ -40,6 +40,7 @@ from datetime import datetime
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.case.nodes.invite_received import (
     FixInviteTrustAnchorNode,
@@ -93,6 +94,7 @@ def suggest_actor_to_case_trigger_bt(
 
 def case_manager_invite_actor_trigger_bt(
     roles: list[str],
+    actor_config: ActorConfig | None = None,
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the direct-invite BT of a Case Owner that is the CASE_MANAGER.
@@ -108,6 +110,8 @@ def case_manager_invite_actor_trigger_bt(
 
     Args:
         roles: The roles the Owner named; never empty (CM-11-019).
+        actor_config: The Owner's configuration; its RSVP window sets the
+            stub Invite's reply deadline (CM-11-014, CM-28-012).
         captured: Optional dict; ``captured["activity"]`` is set to the
             stub Invite sent.
     """
@@ -115,7 +119,10 @@ def case_manager_invite_actor_trigger_bt(
         name="CaseManagerInviteActorToCaseTriggerBT",
         children=[
             owner_decided_stub_invite(
-                roles, credits_sender=False, captured=captured
+                roles,
+                credits_sender=False,
+                actor_config=actor_config,
+                captured=captured,
             )
         ],
     )

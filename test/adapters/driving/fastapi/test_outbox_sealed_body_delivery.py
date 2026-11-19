@@ -43,8 +43,12 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, INVITEE_ID
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.actor import EmitInviteActorToCaseNode
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    EmitOwnerDecidedStubInviteNode,
+)
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -248,7 +252,10 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ),
-        tree=EmitInviteActorToCaseNode(case_id=case_id, invitee_id=_INVITEE),
+        tree=with_act_keys(
+            EmitOwnerDecidedStubInviteNode(["vendor"], credits_sender=False),
+            {CASE_ID: case_id, INVITEE_ID: _INVITEE},
+        ),
         actor_id=_ACTOR,
     )
     assert result.status.name == "SUCCESS", result.feedback_message

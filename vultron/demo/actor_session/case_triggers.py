@@ -19,7 +19,6 @@ from typing import Any, cast
 from vultron.demo.actor_session.binding import SessionBinding
 from vultron.demo.actor_session.results import (
     WireActivityResult,
-    WireCaseInviteResult,
     WireTriggerResult,
 )
 from vultron.enums.roles import CVDRole
@@ -132,25 +131,22 @@ class CaseTriggers(SessionBinding):
 
     def invite_actor_to_case(
         self, *, invitee_id: str, roles: list[CVDRole] | None = None
-    ) -> WireCaseInviteResult:
+    ) -> WireTriggerResult:
         """Send the CASE_MANAGER this Case Owner's Invite (invite-actor-to-case).
 
-        The result is the owner's own Invite to the CASE_MANAGER, not the
-        stub Invite: the CASE_MANAGER makes that from it (CM-17-007,
-        ADR-0199), so a caller finds it on the invitee's side with
-        :func:`~vultron.demo.helpers.polling.find_case_invite_for_actor`.
+        The result's ``activity`` is the owner's own Invite to the
+        CASE_MANAGER, not the stub Invite: the CASE_MANAGER makes that from it
+        (CM-17-007, ADR-0199), so a caller finds it on the invitee's side with
+        :func:`~vultron.demo.helpers.polling.find_case_invite_for_actor`.  It
+        stays the wire ``dict``: its ``object`` is the case's previewed
+        reference, which only the case-Invite wire class reads (CM-11-013).
         """
         body: dict[str, Any] = {
             "case_id": self._require_case_id(),
             "invitee_id": invitee_id,
             **self._roles_body(roles),
         }
-        return cast(
-            WireCaseInviteResult,
-            self._post(
-                "invite-actor-to-case", body, result_cls=WireCaseInviteResult
-            ),
-        )
+        return self._post("invite-actor-to-case", body)
 
     def suggest_actor_to_case(
         self, *, suggested_actor_id: str, roles: list[CVDRole] | None = None

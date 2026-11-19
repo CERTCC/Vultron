@@ -406,7 +406,7 @@ def _run_late_joiner_sequence(
 
     # Resolve the CaseActor before the invite trigger so we can set
     # stub_summary on the case in the CASE_MANAGER's store.  The BT-created
-    # case has no stub_summary; EmitInviteActorToCaseNode requires it
+    # case has no stub_summary; the stub Invite requires it
     # (CM-17-010, MV-10-001, #4165).
     case_actor_id = _find_case_actor_id(
         owner_iso.store_for(owner_actor_id), case_id

@@ -767,7 +767,7 @@ class TestOwnersInviteAtCaseManager:
 
     _OWNER_ID = "https://example.org/actors/case-owner"
     _INVITEE_ID = "https://example.org/actors/invitee"
-    _CASE_ID = "https://example.org/cases/owner-direct-invite-case"
+    _CASE_ID = "https://example.org/cases/owner-invite-case"
 
     def _setup_dl(self, seed_case_manager, with_active_embargo=False):
         from test.support.future_dates import FAR_FUTURE

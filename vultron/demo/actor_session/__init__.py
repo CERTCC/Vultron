@@ -35,7 +35,6 @@ it MUST NOT be imported anywhere except :mod:`.binding` and
 
 from vultron.demo.actor_session.results import (
     WireActivityResult,
-    WireCaseInviteResult,
     WireNoteResult,
     WireSyncLogEntryResult,
     WireTriggerResult,
@@ -45,7 +44,6 @@ from vultron.demo.actor_session.session import ActorSession
 __all__ = [
     "ActorSession",
     "WireActivityResult",
-    "WireCaseInviteResult",
     "WireNoteResult",
     "WireSyncLogEntryResult",
     "WireTriggerResult",

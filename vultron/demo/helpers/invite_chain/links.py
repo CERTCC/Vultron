@@ -64,7 +64,7 @@ DEMO_STUB_SUMMARY = "Vulnerability report — details shared after acceptance."
 
 @dataclass(frozen=True)
 class CaseInviter:
-    """The participant who asks the CASE_MANAGER to invite the invitee."""
+    """The Case Owner that sends the CASE_MANAGER its Invite of the invitee."""
 
     name: str
     client: DataLayerClient
@@ -123,7 +123,7 @@ def _trigger_invite(
     case: as_VulnerabilityCase,
 ) -> None:
     """Have *inviter* send the CASE_MANAGER its own Invite of *invitee*."""
-    invite_offer = (
+    owner_invite = (
         ActorSession(client=inviter.client, actor=inviter.actor)
         .with_case(case)
         .quiet()
@@ -133,7 +133,7 @@ def _trigger_invite(
         "%s sent the CASE_MANAGER its Invite of %s: %s",
         inviter.name,
         invitee_name,
-        invite_offer.id_,
+        (owner_invite or {}).get("id"),
     )
 
 

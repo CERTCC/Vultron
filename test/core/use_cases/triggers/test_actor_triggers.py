@@ -25,7 +25,7 @@ are normalised to full URIs before use.
 import json
 import logging
 from collections.abc import Sequence
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, cast
 from unittest.mock import MagicMock
 
@@ -385,7 +385,7 @@ class _OwnerDirectInvite:
 
 
 class TestSvcInviteActorToCaseUseCase:
-    """The owner-direct invite trigger (CM-17-007, CM-24-010, ADR-0109)."""
+    """The Case Owner's invite trigger (CM-17-007, CM-24-010, ADR-0199)."""
 
     @pytest.mark.spec("CM-17-017")
     @pytest.mark.spec("CM-17-007")
@@ -505,6 +505,28 @@ class TestSvcInviteActorToCaseUseCase:
 
         with pytest.raises(
             VultronInvalidStateTransitionError, match="has already joined"
+        ):
+            harness.trigger()
+
+        assert harness.owner_dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-31-013")
+    def test_invite_of_a_removed_participant_is_refused_before_it_is_sent(
+        self,
+    ):
+        """Also for an Owner that is the CASE_MANAGER, which asks no one."""
+        harness = _OwnerDirectInvite()
+        _seat(
+            harness.owner_dl,
+            harness.case.id_,
+            harness.invitee.id_,
+            [CVDRole.VENDOR],
+            joined=False,
+            removal_activity="https://example.org/activities/remove-1",
+        )
+
+        with pytest.raises(
+            VultronInvalidStateTransitionError, match="CM-31-013"
         ):
             harness.trigger()
 
@@ -730,6 +752,7 @@ def _seat(
     roles: list[CVDRole],
     *,
     joined: bool,
+    removal_activity: str | None = None,
 ) -> str:
     """Put *actor_id* on *case_id*'s roster in *dl*; return the record id."""
     record = make(
@@ -738,6 +761,7 @@ def _seat(
         context=case_id,
         case_roles=roles,
         joined=joined,
+        removal_activity=removal_activity,
     )
     dl.create(record)
     case = cast(Any, dl.read(case_id))
@@ -935,6 +959,30 @@ class TestCaseManagerJudgesTheOwnersInvite:
             reason="has already joined",
         )
 
+    @pytest.mark.spec("CM-31-013")
+    def test_an_invite_of_a_removed_participant_is_refused(self, make_payload):
+        """Only the Owner's Add(CaseParticipant) reinstates it (CM-31-011)."""
+        harness = _OwnerDirectInvite()
+        _seat(
+            harness.manager_dl,
+            harness.case.id_,
+            harness.invitee.id_,
+            [CVDRole.VENDOR],
+            joined=False,
+            removal_activity="https://example.org/activities/remove-1",
+        )
+        invite_id = harness.owner_invite(roles=["vendor"])
+
+        result = harness.deliver_to_manager(invite_id, make_payload)
+
+        self._assert_refused(
+            harness,
+            result,
+            invite_id,
+            asserter=harness.owner.id_,
+            reason="CM-31-013",
+        )
+
     @pytest.mark.spec("CM-20-008")
     def test_an_invite_offering_an_authority_role_is_refused(
         self, make_payload
@@ -1034,7 +1082,9 @@ class TestOwnerHoldingTheCaseManagerRoleInvitesDirectly:
     """An Owner that is the CASE_MANAGER sends the stub Invite itself (AC-4)."""
 
     @staticmethod
-    def _invite(roles: list[CVDRole]) -> tuple[Any, SqliteDataLayer, Any, Any]:
+    def _invite(
+        roles: list[CVDRole], actor_config: Any = None
+    ) -> tuple[Any, SqliteDataLayer, Any, Any]:
         owner, dl = _make_actor_dl("OwnerManager")
         invitee, _ = _make_actor_dl("Invitee")
         dl.create(invitee)
@@ -1044,7 +1094,7 @@ class TestOwnerHoldingTheCaseManagerRoleInvitesDirectly:
         dl.save(record)
         return (
             TestOwnerHoldingTheCaseManagerRoleInvitesDirectly._run(
-                dl, owner, invitee, case.id_, roles
+                dl, owner, invitee, case.id_, roles, actor_config
             ),
             dl,
             owner,
@@ -1052,7 +1102,9 @@ class TestOwnerHoldingTheCaseManagerRoleInvitesDirectly:
         )
 
     @staticmethod
-    def _run(dl, owner, invitee, case_id: str, roles) -> Any:
+    def _run(
+        dl, owner, invitee, case_id: str, roles, actor_config=None
+    ) -> Any:
         result = run_in_act(
             SvcInviteActorToCaseUseCase(
                 dl,
@@ -1065,10 +1117,29 @@ class TestOwnerHoldingTheCaseManagerRoleInvitesDirectly:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                actor_config=actor_config,
                 clock=SystemClock(),
             )
         )
         return activity_of(result)
+
+    @pytest.mark.spec("CM-11-014", "CM-28-012")
+    def test_the_stub_takes_the_owners_configured_rsvp_window(self):
+        from vultron.config.actor import ActorConfig
+
+        window = timedelta(days=2)
+        config = ActorConfig(
+            min_rsvp_window=timedelta(hours=1), default_rsvp_window=window
+        )
+
+        activity, _dl, _owner, _invitee = self._invite(
+            [CVDRole.VENDOR], actor_config=config
+        )
+
+        published = datetime.fromisoformat(activity["published"])
+        assert (
+            datetime.fromisoformat(activity["endTime"]) - published == window
+        )
 
     @pytest.mark.spec("CM-11-015", "CM-11-042")
     def test_a_reinvite_replaces_the_stub_on_the_same_record(self):
@@ -1111,7 +1182,7 @@ class TestOwnerHoldingTheCaseManagerRoleInvitesDirectly:
 class TestInviteRolesAndEmbargoEnrichment:
     """Roles and embargo enrichment on the CASE_MANAGER's Invite (CM-17-002/003).
 
-    The owner's Offer carries the roles; the CASE_MANAGER's Invite carries them
+    The owner's Invite carries the roles; the CASE_MANAGER's stub carries them
     on, and enriches its case stub from the CASE_MANAGER's own replica.
     """
 
@@ -1234,7 +1305,7 @@ class TestInviteRolesAndEmbargoEnrichment:
 class TestRolesThreadingIntegration:
     """The full roles-threading round trip (CM-17-003/004, Issue-1405).
 
-    The owner's request roles → the owner's Offer → the CASE_MANAGER's Invite →
+    The owner's request roles → the owner's Invite → the CASE_MANAGER's stub →
     Accept(Invite) on the CASE_MANAGER → CaseParticipant.case_roles.
     """
 
@@ -1250,7 +1321,7 @@ class TestRolesThreadingIntegration:
         py_trees.blackboard.Blackboard.disable_activity_stream()
 
     def _run_round_trip(self, roles, make_payload):
-        """Run the owner-direct invite, then Accept(Invite); return the
+        """Run the owner's invite, then Accept(Invite); return the
         CaseParticipant the CASE_MANAGER created."""
 
         from vultron.core.use_cases.received.actor.invite import (
@@ -1326,7 +1397,7 @@ class TestInviteRetrySendsOnce:
 
     ADR-0119 records a sent act after it reaches the outbox, in the same act,
     so a send whose commit failed leaves nothing queued (OX-03-002).  The
-    CASE_MANAGER derives the Invite's id from the owner's Offer, so the retry
+    CASE_MANAGER derives the stub's id from the owner's Invite, so the retry
     rebuilds the same Invite, and the outbox queues it once.
     """
 

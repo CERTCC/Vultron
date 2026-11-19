@@ -16,18 +16,19 @@
 """``invite-actor-to-case`` when the case's CaseActor is on another container.
 
 A container emits only as actors it hosts (ADR-0109).  So the Case Owner's
-``invite-actor-to-case`` trigger does not emit the Invite itself: it sends the
-owner's own ``Offer(Actor)[target=VulnerabilityCase]`` with the requested roles to the case's
-CASE_MANAGER, and the CASE_MANAGER's recommend-actor tree emits the Invite from
-its own store and commits it there (CM-17-007, CM-17-006).  The Invite carries
-no ``cc:`` copy, because the CASE_MANAGER does not mail itself.
+``invite-actor-to-case`` trigger does not emit the stub Invite itself: it sends
+the owner's own ``Invite(<case preview>)[target=<invitee>]`` with the requested
+roles to the case's CASE_MANAGER, which commits it and emits its own stub
+Invite from its own store, committed there too (CM-17-007, CM-17-018,
+CM-17-006, ADR-0199).  The stub Invite carries no ``cc:`` copy, because the
+CASE_MANAGER does not mail itself.
 
 This module runs that flow on three containers: the owner on one, the CaseActor
 on a second, the invitee on a third.  The CaseActor is on a different container
 from the owner, as a case handoff leaves it (CP-09-004).  Only that layout
 shows what the flow must hold:
 
-* the owner's ``202`` names the owner's Offer, emitted as the owner;
+* the owner's ``202`` names the owner's Invite, emitted as the owner;
 * the Invite is emitted as the CaseActor and committed in the CaseActor's own
   ledger, with the case stub's embargo terms (CM-17-002) and the offered roles,
   and with no ``cc``;
@@ -136,7 +137,7 @@ def topology(request):
 
     Deliberately does *not* patch ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL``: the
     replica is seeded directly with a remote CASE_MANAGER, which is the state a
-    handoff leaves behind, and the owner's trigger addresses its Offer to the
+    handoff leaves behind, and the owner's trigger addresses its Invite to the
     roster's CASE_MANAGER rather than to configuration.
 
     Yields:
@@ -204,9 +205,8 @@ def _seed_case(
     This is the post-handoff shape: the participant wearing
     ``CVDRole.CASE_MANAGER`` is attributed to a CaseActor on a container the
     owner's node does not host (CP-09-004).  The owner holds
-    ``CVDRole.CASE_OWNER``, which is what makes the CASE_MANAGER treat the
-    owner's Offer as a direct invite rather than a recommendation to forward
-    (CM-17-007).
+    ``CVDRole.CASE_OWNER``, which is what makes the CASE_MANAGER admit the
+    owner's Invite as its decision (CM-17-007, CM-17-025).
 
     The case is seeded **under an active embargo**, and that is load-bearing
     rather than incidental colour.  ``_project_case_to_preview`` enriches the
@@ -425,8 +425,8 @@ class TestBootstrapInvariant:
 class TestOwnerInviteThroughARemoteCaseActor:
     """The owner asks; the CaseActor on another container invites (ADR-0109)."""
 
-    def test_the_owners_trigger_sends_the_owners_own_offer(self, topology):
-        """The owner's ``202`` means its Offer was queued, not an Invite sent.
+    def test_the_owners_trigger_sends_the_owners_own_invite(self, topology):
+        """The owner's ``202`` means its Invite was queued, not the stub sent.
 
         A container emits only as actors it hosts, so the trigger answered on
         the owner's container emits as the owner and addresses the CASE_MANAGER
@@ -439,7 +439,7 @@ class TestOwnerInviteThroughARemoteCaseActor:
 
         assert result.get("emitting_actor_id") == topology.owner_actor_id
         activity = result.get("activity") or {}
-        assert activity.get("type") == "Offer"
+        assert activity.get("type") == "Invite"
         assert activity.get("actor") == topology.owner_actor_id
         assert activity.get("to") == [topology.ca_actor_id]
         assert "cc" not in activity
@@ -521,7 +521,7 @@ class TestOwnerInviteThroughARemoteCaseActor:
         """The owner is not the Invite's emitter, so it commits nothing.
 
         Every ledger entry the owner's store holds for the case must be a copy
-        of one the CaseActor committed: the owner neither commits its Offer nor
+        of one the CaseActor committed: the owner neither commits its Invite nor
         writes a correlation marker for an Invite it did not send.
         """
         case_id = "urn:uuid:remote-ca-owner-ledger"
