@@ -31,9 +31,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.http_object_fetch import REQUESTER_HEADER
+from vultron.adapters.driving.fastapi.case_reference import find_case
 from vultron.adapters.driving.fastapi.deps import get_actor_dl, node_base_url
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.services.dereference import case_object_for_participant
@@ -113,7 +113,5 @@ def _case_id(dl: DataLayer, case_key: str) -> str:
     it not found.  An ambiguous surrogate key resolves to nothing
     (``find_case_by_short_id``), and so is not found either.
     """
-    if isinstance(dl.read(case_key), VulnerabilityCase):
-        return case_key
-    found = dl.find_case_by_short_id(case_key)
-    return found.id_ if isinstance(found, VulnerabilityCase) else case_key
+    case = find_case(case_key, dl)
+    return case_key if case is None else case.id_

@@ -151,9 +151,9 @@ If you are both the Case Owner and the CASE_MANAGER, send it to your own inbox.
 
 !!! warning "Name the case in `target`, not `origin`"
 
-    `origin` looks like the right field for a removal, but the receiver does not read it.
-    Dispatch discriminates on `target`.
-    A `Remove` that names the case only in `origin` matches no pattern, and the participant is never removed (#3438).
+    `origin` looks like the right field for a removal, but the participant `Remove` does not use it yet.
+    Its pattern discriminates on `target`.
+    A `Remove(CaseParticipant)` that names the case only in `origin` matches no pattern, and the participant is never removed (#3438).
 
 Removal withdraws the participant's entitlement to case content.
 It does not take the participant off the roster: its record, its status history and its [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md) stay, and the record carries a removal fact.

@@ -258,7 +258,7 @@ That claim becomes canonical case state only if the CASE_MANAGER adopts it ([§1
 These messages carry narrative and actor suggestions.
 Together they realize the formal General Inquiry (`GI`), which spans two exchanges:
 
-- the note lifecycle, `Add(Note)[target=VulnerabilityCase]` and `Remove(Note)[target=VulnerabilityCase]`;
+- the note lifecycle, `Add(Note)[target=VulnerabilityCase]` and `Remove(Note)[origin=VulnerabilityCase]`;
 - the actor-suggestion exchange, in which a participant suggests an actor, the CASE_MANAGER presents the suggestion to the Case Owner, and the CASE_MANAGER tells the recommender the Case Owner's decision.
 
 {% include-markdown "../messages/_occasions/lookup-general.md" %}

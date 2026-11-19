@@ -314,7 +314,7 @@ def _remove_note(net: LedgerNetwork, sender: str) -> Scenario:
             as_Remove,
             actor=sender,
             object_=_note(net, BYSTANDER, "first"),
-            target=net.case_id,
+            origin=net.case_id,
             to=[MANAGER],
         ),
     )

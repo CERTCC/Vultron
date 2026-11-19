@@ -439,12 +439,12 @@ _CASES = [
     (
         RemoveNoteFromCaseReceivedEvent,
         MessageSemantics.REMOVE_NOTE_FROM_CASE,
-        {"object_": _note, "target": _case},
+        {"object_": _note, "origin": _case},
         [
             ("note_id", "object_id"),
             ("note", "object_"),
-            ("case_id", "target_id"),
-            ("case", "target"),
+            ("case_id", "origin_id"),
+            ("case", "origin"),
         ],
     ),
     # ── status.py ─────────────────────────────────────────────────────────────

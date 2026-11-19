@@ -32,6 +32,7 @@ from vultron.wire.as2.factories import (
     update_case_activity,
 )
 from vultron.wire.as2.factories.sync import announce_log_entry_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Remove
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
@@ -83,6 +84,23 @@ def test_the_case_comes_first_from_context_then_target() -> None:
     assert list(ledger_position_case_ids(_note())) == [
         _CASE,
         f"{_CASE}/notes/1",
+    ]
+
+
+@pytest.mark.spec("SYNC-18-001")
+def test_a_remove_names_its_case_in_origin() -> None:
+    """A ``Remove`` takes its object from the case in ``origin``, so a note
+    with no ``context`` of its own is still stamped against that case."""
+    remove = make(
+        as_Remove,
+        actor=_ACTOR,
+        object_=make(as_Note, id_="https://example.org/notes/n", content="n"),
+        origin=_CASE,
+    )
+
+    assert list(ledger_position_case_ids(remove)) == [
+        _CASE,
+        "https://example.org/notes/n",
     ]
 
 

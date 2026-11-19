@@ -298,7 +298,7 @@
     },
     {
       "semanticType": "remove_note_from_case",
-      "wire": "Remove(Note)[target=VulnerabilityCase]",
+      "wire": "Remove(Note)[origin=VulnerabilityCase]",
       "phrase": "{actor} removed a note from the case"
     },
     {

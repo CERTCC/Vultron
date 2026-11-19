@@ -26,11 +26,12 @@ recording runs on the same harness the tests trust.
 import functools
 import logging
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+import anyio
 import anyio.to_thread
 import httpx2 as httpx
 from fastapi import FastAPI, Path as FastAPIPath
@@ -147,6 +148,27 @@ def node_db_url(base_url: str) -> str:
 _KNOWN_FICTIONAL_HOSTS: frozenset[str] = frozenset({"vultron.example"})
 
 
+async def _call_off_loop(call: Callable[[], httpx.Response]) -> httpx.Response:
+    """Run one blocking ``TestClient`` call off the loop, on a thread of its own.
+
+    Off the loop because the target app may be the caller's own, served on
+    this very loop (co-hosted actors share one ``TestClient`` and its loop): a
+    blocking call made on it would wait on itself.
+
+    On a thread of its own, never one borrowed from the loop's shared AnyIO
+    pool.  A ``TestClient`` call returns only once the target app's background
+    tasks have finished, and those deliver onward with this same hop, so the
+    thread is held for the rest of the chain.  A chain deeper than the shared
+    pool can therefore run it dry: each borrowed thread waits on a hop that
+    needs one more, the loop stops for good, and its ``TestClient`` can never
+    close (#6190).  A limiter of one token per call gives every hop a thread
+    and leaves the shared pool to the apps' own sync routes.
+    """
+    return await anyio.to_thread.run_sync(
+        call, limiter=anyio.CapacityLimiter(1)
+    )
+
+
 class InProcessRouter:
     """Cross-app delivery adapter for isolated multi-actor test setups.
 
@@ -166,9 +188,11 @@ class InProcessRouter:
        ``emit()`` runs inside a FastAPI ``BackgroundTask`` on the *sending*
        app's ``TestClient`` portal event loop.  The target ``TestClient.post``
        call is blocking and drives the target app on its own portal thread, so
-       it is dispatched via :func:`anyio.to_thread.run_sync` to avoid blocking
-       (and, for CaseActor ``cc:``-to-self loopback delivery where sender and
-       target share one portal, deadlocking) the calling event loop.
+       it runs off the calling event loop on a thread of its own
+       (:func:`_call_off_loop`): a delivery between co-hosted actors, which
+       share one ``TestClient`` and its loop, would otherwise wait on its own
+       loop, and a chain of hops on threads from the loop's shared pool can
+       run that pool dry (#6190).
     """
 
     def __init__(self) -> None:
@@ -246,16 +270,13 @@ class InProcessRouter:
                 continue
             inbox_path = parsed.path
             try:
-                # TestClient.post is blocking and drives the target app on its
-                # own portal thread; run it off the calling event loop so a
-                # loopback delivery (sender == target) cannot deadlock.
                 post = functools.partial(
                     client.post,
                     inbox_path,
                     content=json_body,
                     headers={"Content-Type": "application/json"},
                 )
-                response = await anyio.to_thread.run_sync(post)
+                response = await _call_off_loop(post)
                 response.raise_for_status()
                 logger.info(
                     "InProcessRouter: delivered to %s (HTTP %s)",
@@ -304,9 +325,7 @@ class InProcessObjectFetcher:
                 "Accept": AS2_CONTENT_TYPE,
             },
         )
-        # Off the calling loop, as ``InProcessRouter.emit`` posts: the
-        # target app may be the caller's own.
-        response = await anyio.to_thread.run_sync(get)
+        response = await _call_off_loop(get)
         if response.status_code >= 400:
             return ObjectFetchResult(
                 None, f"GET {url} answered HTTP {response.status_code}", 1

@@ -104,7 +104,7 @@
 | the CASE_MANAGER tells a recommender that the actor it suggested will be invited | `Accept(Offer(Actor)[target=VulnerabilityCase])` | a participant | the CASE_MANAGER | — | [Accept actor recommendation](../general.md#accept-actor-recommendation) |
 | the CASE_MANAGER tells a recommender that the Case Owner declined the actor it suggested | `Reject(Offer(Actor)[target=VulnerabilityCase])` | a participant | the CASE_MANAGER | — | [Reject actor recommendation](../general.md#reject-actor-recommendation) |
 | a Participant posts a note to the case | `Add(Note)[target=VulnerabilityCase]` | the CASE_MANAGER | an active participant | — | [Add note to case](../general.md#add-note-to-case) |
-| a note's author or the Case Owner withdraws a note from the case | `Remove(Note)[target=VulnerabilityCase]` | the CASE_MANAGER | the Case Owner or the note's author | — | [Remove note from case](../general.md#remove-note-from-case) |
+| a note's author or the Case Owner withdraws a note from the case | `Remove(Note)[origin=VulnerabilityCase]` | the CASE_MANAGER | the Case Owner or the note's author | — | [Remove note from case](../general.md#remove-note-from-case) |
 
 ## Faults and acknowledgments
 
