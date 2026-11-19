@@ -26,6 +26,7 @@ from fastapi import (
     status,
 )
 
+from vultron.adapters.driving.fastapi.case_reference import require_case_id
 from vultron.adapters.driving.fastapi.deps import (
     get_trigger_dispatcher,
     get_trigger_dl,
@@ -143,12 +144,14 @@ def demo_notify_fix_ready(
     # ValidateTriggerTransitionsNode, and the response is the last hop's
     # status.  No hop is on the actor's record until the CASE_MANAGER records
     # it (RSH-08-003), so each later hop is validated as following the one
-    # before.
+    # before.  The ladder is read for the case's full id, so the case is
+    # resolved here, before ``run_trigger`` would (ADR-0032).
     with domain_error_translation():
+        case_id = require_case_id(actor_dl, body.case_id)
         steps = vf_steps_to(
             outbox_store(actor_dl),
             actor_id=actor_id,
-            case_id=body.case_id,
+            case_id=case_id,
             target=CS_vf.VF,
         )
     if not steps:
@@ -161,7 +164,7 @@ def demo_notify_fix_ready(
         result = run_trigger(
             AddParticipantStatusTriggerRequest(
                 actor_id=actor_id,
-                case_id=body.case_id,
+                case_id=case_id,
                 vf_state=step,
                 follows_status_id=follows,
             ),

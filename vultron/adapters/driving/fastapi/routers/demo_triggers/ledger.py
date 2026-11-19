@@ -29,6 +29,7 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from vultron.adapters.driving.fastapi.case_reference import find_case
 from vultron.adapters.driving.fastapi.deps import (
     get_ledger_stream_shutdown,
     get_trigger_dl,
@@ -41,7 +42,6 @@ from vultron.adapters.driving.fastapi.ledger_stream import (
     stream_case_ledger,
 )
 from vultron.config import get_config
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.datalayer import DataLayer
 
@@ -49,10 +49,8 @@ router = APIRouter(prefix="/actors", tags=["Demo Triggers"])
 
 
 def _resolve_case_id(case_key: str, dl: DataLayer) -> str:
-    case_obj = dl.read(case_key)
-    if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
-        case_obj = dl.find_case_by_short_id(case_key)
-    if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
+    case_obj = find_case(dl, case_key)
+    if case_obj is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Case not found.",

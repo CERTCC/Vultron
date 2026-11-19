@@ -30,6 +30,12 @@ of the shared path, so they are asserted here once per registry row
 - **Flush after dispatch (TRIG-07-001, TRIG-01-004).**  Exactly one outbox
   flush per trigger run is queued for the addressed actor's store, after the
   dispatcher has returned, and the response is ``202`` (TRIG-01-002).
+- **Full case id (ADR-0032, BT-25-007).**  A case-scoped request reaches the
+  dispatcher naming a stored case by its full id, whether the client sent the
+  full id or the short id, and a reference to no stored case is refused before
+  the dispatcher with the structured 404 a trigger raises for an unknown case.
+  The canned dispatcher refuses any case-scoped request that does not name a
+  stored case's full id, so every contract test below also checks this.
 
 The dispatcher here is a hand-written ``TriggerDispatcher`` that returns a
 canned instance of the row's result type with every optional key ``None`` —
@@ -56,6 +62,7 @@ from fastapi.testclient import TestClient
 from test.adapters.driving.fastapi.test_trigger_registry_routes import (
     trigger_routes,
 )
+from test.support.objects import make
 from test.support.trigger_routes import (
     build_prototype_app,
 )
@@ -68,6 +75,7 @@ from vultron.adapters.driving.fastapi.deps import (
     get_trigger_dl,
     outbox_store,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     ActivityResult,
     CaseResult,
@@ -81,16 +89,24 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.states.cs import CS_vf
+from vultron.core.use_cases.triggers._helpers import resolve_case
+from vultron.core.use_cases.triggers.request_bodies import CaseTriggerRequest
 from vultron.core.use_cases.triggers.requests import (
     AddOnBehalfStatusTriggerRequest,
     ResultT_co,
     TriggerRequest,
     result_type_of,
 )
+from vultron.errors import VultronNotFoundError
 from vultron.trigger_registry import TriggerEntry, entries
 
 _ACTOR = "urn:uuid:3833a9b0-0000-4000-8000-000000000001"
 _CASE = "https://example.org/cases/c1"
+#: A case a client names by its short id (surrogate key, the id's last
+#: segment).  A trigger body's ``case_id`` is a ``UriString``, so only a short
+#: id with a scheme-like prefix gets past the body; a bare ``c1`` is a 422.
+_SHORT_NAMED_CASE = "https://example.org/cases/VU:42"
+_CASE_SHORT_ID = "VU:42"
 _OTHER = "https://example.org/actors/other"
 _FUTURE = (datetime.now(UTC) + timedelta(days=30)).isoformat()
 
@@ -203,9 +219,15 @@ _RESULT_TYPES = sorted(_CANNED, key=lambda t: t.__name__)
 
 
 class _CannedDispatcher:
-    """A ``TriggerDispatcher`` that records each call and answers canned."""
+    """A ``TriggerDispatcher`` that records each call and answers canned.
 
-    def __init__(self) -> None:
+    It stands in for the trigger use case, so it also holds the edge to its
+    promise: a case-scoped request it receives names a case *store* holds, by
+    that case's full id (the ``/case_id`` seed, BT-25-007).
+    """
+
+    def __init__(self, store: SqliteDataLayer) -> None:
+        self._store = store
         self.calls: list[
             tuple[TriggerRequest[Any], CaseOutboxPersistence]
         ] = []
@@ -215,6 +237,10 @@ class _CannedDispatcher:
         request: TriggerRequest[ResultT_co],
         dl: CaseOutboxPersistence,
     ) -> ResultT_co:
+        if isinstance(request, CaseTriggerRequest):
+            held = self._store.read(request.case_id)
+            assert isinstance(held, VulnerabilityCase), request.case_id
+            assert held.id_ == request.case_id
         self.calls.append((request, dl))
         result = _CANNED[result_type_of(type(request))]
         # The canned instance *is* the bound type: ``_CANNED`` is keyed by it.
@@ -243,17 +269,19 @@ def route_paths(app: FastAPI) -> dict[tuple[Any, str], str]:
 
 @pytest.fixture
 def store():
+    """The addressed actor's store, holding the case every body names."""
     reset_datalayer(_ACTOR)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
     dl.clear_all()
+    _store_case(dl, _CASE)
     yield dl
     dl.close()
     reset_datalayer(_ACTOR)
 
 
 @pytest.fixture
-def dispatcher() -> _CannedDispatcher:
-    return _CannedDispatcher()
+def dispatcher(store: SqliteDataLayer) -> _CannedDispatcher:
+    return _CannedDispatcher(store)
 
 
 @pytest.fixture
@@ -272,9 +300,31 @@ def flush():
         yield mocked
 
 
-def _post(client: TestClient, route_paths, row: TriggerEntry):
+def _post(
+    client: TestClient,
+    route_paths,
+    row: TriggerEntry,
+    case_id: str | None = None,
+):
+    """POST the row's minimal body, naming *case_id* in place of ``_CASE``."""
     path = route_paths[(row.exposure, row.verb)].replace("{actor_id}", _ACTOR)
-    return client.post(path, json=_BODIES[row.verb])
+    body = _BODIES[row.verb]
+    if case_id is not None:
+        body = {k: case_id if v == _CASE else v for k, v in body.items()}
+    return client.post(path, json=body)
+
+
+def _store_case(store: SqliteDataLayer, case_id: str) -> None:
+    store.create(
+        make(VulnerabilityCase, id_=case_id, name="Case", attributed_to=_ACTOR)
+    )
+
+
+def _case_rows() -> list[TriggerEntry]:
+    """The rows whose request names a case (``CaseTriggerRequest``)."""
+    return [
+        r for r in _rows() if issubclass(r.request_model, CaseTriggerRequest)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -394,7 +444,6 @@ def test_nothing_is_flushed_when_the_dispatcher_raises(
     app, route_paths, store, flush: AsyncMock, row: TriggerEntry
 ) -> None:
     """A trigger that raised flushes nothing; the error is the structured 404."""
-    from vultron.errors import VultronNotFoundError
 
     class _Raising:
         def trigger(self, request, dl):
@@ -425,7 +474,6 @@ def test_two_run_route_flushes_nothing_when_its_second_run_raises(
     the route scheduled one flush after both hops.  This pins that the two-call
     body did not change the failure path.
     """
-    from vultron.errors import VultronNotFoundError
 
     class _SecondCallRaises:
         def __init__(self) -> None:
@@ -450,12 +498,104 @@ def test_two_run_route_flushes_nothing_when_its_second_run_raises(
     flush.assert_not_awaited()
 
 
+# ---------------------------------------------------------------------------
+# The case reference: resolved to the full id at the edge (ADR-0032)
+# ---------------------------------------------------------------------------
+
+
+def test_every_router_family_has_a_case_scoped_row() -> None:
+    """The case rows below reach every router that builds a case request."""
+    modules = {r.request_model.__module__ for r in _case_rows()}
+    assert {
+        "vultron.core.use_cases.triggers.requests.case",
+        "vultron.core.use_cases.triggers.requests.embargo",
+        "vultron.core.use_cases.triggers.requests.actor",
+    } <= modules
+    exposures = {r.exposure for r in _case_rows()}
+    assert len(exposures) > 1, exposures
+
+
+@pytest.mark.spec("BT-25-007")
+@pytest.mark.parametrize("row", _case_rows(), ids=_ids)
+def test_a_short_case_id_reaches_the_dispatcher_as_the_full_id(
+    client, route_paths, flush, dispatcher: _CannedDispatcher, store, row
+) -> None:
+    """A client's short case id is the case's full id in the core request."""
+    _store_case(store, _SHORT_NAMED_CASE)
+    resp = _post(client, route_paths, row, case_id=_CASE_SHORT_ID)
+    assert resp.status_code == 202, resp.text
+    assert len(dispatcher.calls) == _RUNS_PER_VERB.get(row.verb, 1)
+    for request, _ in dispatcher.calls:
+        assert isinstance(request, CaseTriggerRequest)
+        assert request.case_id == _SHORT_NAMED_CASE
+
+
+@pytest.mark.parametrize("row", _case_rows(), ids=_ids)
+def test_a_full_case_id_reaches_the_dispatcher_unchanged(
+    client, route_paths, flush, dispatcher: _CannedDispatcher, row
+) -> None:
+    """The edge passes the very request on when it already names the full id."""
+    _post(client, route_paths, row)
+    for request, _ in dispatcher.calls:
+        assert isinstance(request, CaseTriggerRequest)
+        assert request.case_id == _CASE
+
+
+@pytest.mark.parametrize("row", _case_rows(), ids=_ids)
+def test_an_unknown_case_is_refused_before_the_dispatcher(
+    client,
+    route_paths,
+    flush: AsyncMock,
+    dispatcher: _CannedDispatcher,
+    store,
+    row,
+) -> None:
+    """A reference to no stored case gets the trigger's not-found error.
+
+    The body is the one the trigger use case raises for an unknown case
+    (``resolve_case``), so moving the refusal to the edge does not change
+    what the client gets: ``404`` with ``VultronNotFoundError``'s message for
+    the reference as sent.
+    """
+    unknown = "https://example.org/cases/unknown"
+    with pytest.raises(VultronNotFoundError) as raised:
+        resolve_case(unknown, store)
+    resp = _post(client, route_paths, row, case_id=unknown)
+    assert resp.status_code == 404, resp.text
+    assert resp.json() == {
+        "detail": {
+            "status": 404,
+            "error": "NotFound",
+            "message": str(raised.value),
+            "activity_id": None,
+        }
+    }
+    assert str(raised.value) == f"VulnerabilityCase '{unknown}' not found."
+    assert dispatcher.calls == []
+    flush.assert_not_awaited()
+
+
+@pytest.mark.parametrize("row", _case_rows(), ids=_ids)
+def test_an_ambiguous_short_case_id_is_refused_as_unknown(
+    client, route_paths, flush, dispatcher: _CannedDispatcher, store, row
+) -> None:
+    """A short id two stored cases share names no case, so it is refused."""
+    _store_case(store, _SHORT_NAMED_CASE)
+    _store_case(store, "https://other.example/cases/VU:42")
+    resp = _post(client, route_paths, row, case_id=_CASE_SHORT_ID)
+    assert resp.status_code == 404, resp.text
+    assert resp.json()["detail"]["message"] == (
+        f"VulnerabilityCase '{_CASE_SHORT_ID}' not found."
+    )
+    assert dispatcher.calls == []
+
+
 def test_canned_dispatcher_conforms_to_the_port(store) -> None:
     """The stub is a ``TriggerDispatcher``: the annotated assignment is the
     static check (mypy, pyright), and a call through the port-typed name
     returns the request's bound result, so the contract tests above exercise
     the same seam the real dispatcher fills."""
-    dispatcher: TriggerDispatcher = _CannedDispatcher()
+    dispatcher: TriggerDispatcher = _CannedDispatcher(store)
     result = dispatcher.trigger(
         AddOnBehalfStatusTriggerRequest(
             actor_id=_ACTOR,

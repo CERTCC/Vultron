@@ -28,6 +28,7 @@ from fastapi import (
 )
 
 from vultron.adapters.driven import actor_hosts
+from vultron.adapters.driving.fastapi.case_reference import find_case
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
 )
@@ -36,7 +37,6 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     published_profile,
 )
 from vultron.adapters.utils import full_object_id, strip_id_prefix
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.query.action_rules import (
@@ -96,10 +96,8 @@ def get_action_rules(
     try:
         canonical = actor_hosts.canonical_actor_uri(actor_id)
         actor_obj = dl.read(canonical) or dl.read(full_object_id(actor_id))
-        case_obj = dl.read(case_id)
-        if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
-            case_obj = dl.find_case_by_short_id(case_id)
-        if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
+        case_obj = find_case(dl, case_id)
+        if case_obj is None:
             raise VultronNotFoundError("VulnerabilityCase", case_id)  # noqa: TRY301  # ruff-baseline #3353
         canonical_actor_id = canonical
         if actor_obj is not None and hasattr(actor_obj, "id_"):
