@@ -57,7 +57,7 @@ For each case field the profile names the operations the protocol permits and th
 | `attributed_to` | The Case Owner, always |
 | `name`, `published`, `updated` | The case's values |
 | `case_statuses` | The current status alone, whole, so its EM and PXA states are the case's ([CM-17-013](vultron-spec/requirements/case-management.md#cm-17-013)) |
-| `embargo_register` | The entry in force alone, with the embargo whole; left out when no embargo is in force ([CM-17-002](vultron-spec/requirements/case-management.md#cm-17-002), [CM-17-011](vultron-spec/requirements/case-management.md#cm-17-011)) |
+| `embargo_register` | The entry in force alone, with the embargo whole; left out when no embargo is in force ([CM-17-002](vultron-spec/requirements/case-management.md#cm-17-002), [CM-17-011](specs/project.md#cm-17-011)) |
 | `vulnerability_items` | Each item cut to its `ids`; an item the case holds only by URI is marked `Redacted` |
 | `content`, `case_participants`, `vulnerability_reports`, `notes`, `case_references`, `parent_cases`, `child_cases`, `sibling_cases`, and every other AS2 property | A `Redacted` marker when the case holds a value; left out when it holds none ([MV-12-004](vultron-spec/requirements/messages.md#mv-12-004)) |
 
