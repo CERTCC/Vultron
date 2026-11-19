@@ -790,7 +790,7 @@ def test_a_vince_participant_never_reads_as_its_opaque_id():
     assert {row["Participant"] for row in rows} == {UNNAMED_ACTOR}
     assert all(str(row["Actor"]).startswith("urn:uuid:") for row in rows)
     columns = view.desiderata_rows(participants, analysis.actor_names)
-    assert len(columns) == 12
+    assert len(columns) == len(scope_desiderata())
     for row in columns:
         vendor_columns = [c for c in row if c not in ("Desideratum", "Events")]
         assert len(set(vendor_columns)) == len(vendor_columns)
