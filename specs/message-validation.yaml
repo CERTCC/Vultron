@@ -252,7 +252,8 @@ groups:
     statement: >-
       This rule covers an inline object whose `type` resolves to a known wire vocabulary
       class but fails validation against that class. A receiver MUST reject the
-      enclosing activity as malformed, not substitute a less specific type.
+      enclosing activity as malformed, not substitute a less specific type. Inside a
+      preview, the class is the loose form the field declares (MV-12-006).
     rationale: >-
       If the parser uses a weaker type in place of the correct one, it loses data
       silently: an `Accept(Invite(...))` with one corrupt inner field can parse as a
@@ -298,12 +299,13 @@ groups:
       and its content would be lost without a trace (#5715). With the `href` required,
       such an object is refused instead.
     verification: >-
-      Tests marked `MV-04-005` in `test/wire/as2/vocab/base/test_links.py`,
-      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` and
-      `test/wire/as2/test_parser_case_stub.py` confirm that a Link or Mention with no
-      `href` is refused, that an untyped `attributedTo` and an untyped stub
-      `caseStatus` that fail their object class are refused, and that a Link with an
-      `href` still parses.
+      Tests marked `MV-04-005` in `test/wire/as2/vocab/base/test_links.py` and
+      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` confirm that a Link or Mention with no `href` is refused, that an untyped
+      `attributedTo` that fails its object class is refused, and that a Link with an
+      `href` still parses. An untyped stub `caseStatus` is read in its field's loose
+      form and keeps its EM state
+      (`test/wire/as2/test_parser_case_stub.py::test_an_untyped_stub_status_is_read_as_a_status_keeping_its_em_state`,
+      MV-12-006).
     relationships:
     - rel_type: extends
       spec_id: MV-04-003
@@ -1244,6 +1246,8 @@ groups:
       spec_id: OID-01-013
     - rel_type: supersedes
       spec_id: CLP-15-011
+    - rel_type: supersedes
+      spec_id: MV-04-003
     adr:
     - ADR-0217
     stories:
