@@ -56,6 +56,7 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronUnhostedActorError,
 )
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 _ACTOR = "https://example.org/actors/cm"
 _CASE = "https://example.org/cases/c1"
@@ -111,8 +112,9 @@ class _RaisingDispatcher:
 
 @pytest.fixture
 def dl() -> SqliteDataLayer:
-    """The requester's store, holding the case :func:`_request` names."""
+    """The requester's store: the actor and case :func:`_request` names."""
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
+    store.create(make(as_Service, id_=_ACTOR, name="Case Manager"))
     store.create(
         make(VulnerabilityCase, id_=_CASE, name="Case", attributed_to=_ACTOR)
     )
@@ -157,6 +159,9 @@ def test_an_unknown_case_is_refused_before_dispatch(
         )
 
     assert raised.value.status_code == 404
+    assert cast(dict[str, Any], raised.value.detail)["message"] == (
+        "VulnerabilityCase 'https://example.org/cases/unknown' not found."
+    )
     assert dispatcher.queued_when_called is None, "the dispatcher ran"
     assert tasks.tasks == []
 

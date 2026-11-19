@@ -99,6 +99,7 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import VultronNotFoundError
 from vultron.trigger_registry import TriggerEntry, entries
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 _ACTOR = "urn:uuid:3833a9b0-0000-4000-8000-000000000001"
 _CASE = "https://example.org/cases/c1"
@@ -269,10 +270,11 @@ def route_paths(app: FastAPI) -> dict[tuple[Any, str], str]:
 
 @pytest.fixture
 def store():
-    """The addressed actor's store, holding the case every body names."""
+    """The addressed actor's store: the actor and the case every body names."""
     reset_datalayer(_ACTOR)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
     dl.clear_all()
+    dl.create(make(as_Service, id_=_ACTOR, name="Actor"))
     _store_case(dl, _CASE)
     yield dl
     dl.close()
@@ -535,7 +537,9 @@ def test_a_full_case_id_reaches_the_dispatcher_unchanged(
     client, route_paths, flush, dispatcher: _CannedDispatcher, row
 ) -> None:
     """The edge passes the very request on when it already names the full id."""
-    _post(client, route_paths, row)
+    resp = _post(client, route_paths, row)
+    assert resp.status_code == 202, resp.text
+    assert len(dispatcher.calls) == _RUNS_PER_VERB.get(row.verb, 1)
     for request, _ in dispatcher.calls:
         assert isinstance(request, CaseTriggerRequest)
         assert request.case_id == _CASE
@@ -571,6 +575,36 @@ def test_an_unknown_case_is_refused_before_the_dispatcher(
         }
     }
     assert str(raised.value) == f"VulnerabilityCase '{unknown}' not found."
+    assert dispatcher.calls == []
+    flush.assert_not_awaited()
+
+
+@pytest.mark.parametrize("row", _case_rows(), ids=_ids)
+def test_an_unknown_actor_is_refused_before_its_case(
+    app, route_paths, flush: AsyncMock, dispatcher: _CannedDispatcher, row
+) -> None:
+    """An unknown actor's store holds no case, so the actor is what is missing.
+
+    The trigger use case resolves its actor before its case, so the edge's
+    refusal names the actor too, not the case the empty store cannot hold.
+    """
+    stranger = "urn:uuid:3833a9b0-0000-4000-8000-0000000000ff"
+    reset_datalayer(stranger)
+    empty = SqliteDataLayer("sqlite:///:memory:", actor_id=stranger)
+    empty.clear_all()
+    app.dependency_overrides[get_trigger_dl] = lambda: empty
+    app.dependency_overrides[get_trigger_dispatcher] = lambda: dispatcher
+    try:
+        path = route_paths[(row.exposure, row.verb)].replace(
+            "{actor_id}", stranger
+        )
+        resp = TestClient(app).post(path, json=_BODIES[row.verb])
+    finally:
+        app.dependency_overrides = {}
+        empty.close()
+        reset_datalayer(stranger)
+    assert resp.status_code == 404, resp.text
+    assert resp.json()["detail"]["message"] == f"Actor '{stranger}' not found."
     assert dispatcher.calls == []
     flush.assert_not_awaited()
 

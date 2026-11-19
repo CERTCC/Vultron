@@ -77,14 +77,24 @@ def resolve_actor(actor_id: str, dl: CasePersistence):
     return actor
 
 
+def find_case(case_id: str, dl: CasePersistence) -> VulnerabilityCase | None:
+    """The case *case_id* names in *dl*, by full id or short id, or ``None``.
+
+    The full id is tried first, so a short id never shadows a stored case's
+    own id.  An ambiguous short id names no case (``find_case_by_short_id``).
+    """
+    case = dl.read_case(case_id)
+    if case is None:
+        case = dl.find_case_by_short_id(case_id)
+    return case
+
+
 def resolve_case(case_id: str, dl: CasePersistence) -> VulnerabilityCase:
     """Resolve a VulnerabilityCase by ID; raise domain error if absent."""
-    case_raw = dl.read_case(case_id)
-    if case_raw is None:
-        case_raw = dl.find_case_by_short_id(case_id)
-    if case_raw is None:
+    case = find_case(case_id, dl)
+    if case is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
-    return case_raw
+    return case
 
 
 def find_embargo_proposal_id(

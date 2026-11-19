@@ -35,6 +35,7 @@ from vultron.core.use_cases.triggers.requests import (
     EngageCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 _ACTOR = "https://example.org/actors/vendor"
@@ -47,6 +48,7 @@ def dl():
     reset_datalayer(_ACTOR)
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
     store.clear_all()
+    store.create(make(as_Service, id_=_ACTOR, name="Vendor"))
     store.create(
         make(VulnerabilityCase, id_=_CASE, name="Case", attributed_to=_ACTOR)
     )
@@ -88,10 +90,27 @@ def test_find_case_answers_nothing_for_an_ambiguous_short_id(dl) -> None:
     assert find_case(dl, _SHORT) is None
 
 
+def test_require_case_id_answers_the_full_id(dl) -> None:
+    assert require_case_id(dl, _SHORT, _ACTOR) == _CASE
+
+
 def test_require_case_id_names_the_reference_as_sent(dl) -> None:
     with pytest.raises(VultronNotFoundError) as raised:
-        require_case_id(dl, "VU:99")
+        require_case_id(dl, "VU:99", _ACTOR)
     assert str(raised.value) == "VulnerabilityCase 'VU:99' not found."
+
+
+def test_require_case_id_names_an_unknown_actor_first(dl) -> None:
+    """The trigger resolves its actor before its case, so the edge does."""
+    stranger = "https://example.org/actors/stranger"
+    with pytest.raises(VultronNotFoundError) as raised:
+        require_case_id(dl, "VU:99", stranger)
+    assert str(raised.value) == f"Actor '{stranger}' not found."
+
+
+def test_require_case_id_does_not_check_the_actor_of_a_held_case(dl) -> None:
+    """A held case is resolved whoever asks; the use case judges the actor."""
+    assert require_case_id(dl, _CASE, "https://example.org/actors/x") == _CASE
 
 
 def test_with_full_case_id_promotes_a_short_id(dl) -> None:

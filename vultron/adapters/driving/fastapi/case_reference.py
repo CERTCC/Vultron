@@ -24,41 +24,45 @@ core).  A trigger request's ``case_id`` seeds the tree's ``/case_id`` key
 ADR-0207), so the edge is the only place the short id can become the full id.
 """
 
-from typing import TypeVar
+from typing import Any, TypeVar, cast
 
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases.triggers import _helpers as trigger_helpers
 from vultron.core.use_cases.triggers.request_bodies import CaseTriggerRequest
+from vultron.core.use_cases.triggers.requests import TriggerRequest
 from vultron.errors import VultronNotFoundError
 
-RequestT = TypeVar("RequestT")
+RequestT = TypeVar("RequestT", bound=TriggerRequest[Any])
 
 
 def find_case(dl: DataLayer, case_ref: str) -> VulnerabilityCase | None:
-    """The case *case_ref* names in *dl*, by full id or short id.
+    """The case *case_ref* names in *dl*, by full id or short id, or ``None``.
 
-    The full id is tried first, so a short id never shadows a stored case's
-    own id.  ``None`` when *dl* holds no case of that id or short id, or
-    when the short id names more than one case (``find_case_by_short_id``
-    resolves an ambiguous key to nothing).
+    The lookup is the triggers' own (``find_case``), so the edge and the
+    core cannot disagree about which case a reference names.
     """
-    held = dl.read(case_ref)
-    if isinstance(held, VulnerabilityCase):
-        return held
-    found = dl.find_case_by_short_id(case_ref)
-    return found if isinstance(found, VulnerabilityCase) else None
+    # The route's store is typed as the narrow ``DataLayer`` port; the case
+    # read needs ``CasePersistence``, which every concrete store satisfies.
+    return trigger_helpers.find_case(case_ref, cast(CasePersistence, dl))
 
 
-def require_case_id(dl: DataLayer, case_ref: str) -> str:
+def require_case_id(dl: DataLayer, case_ref: str, actor_id: str) -> str:
     """The full id of the case *case_ref* names in *dl*.
 
+    A miss is refused with the error the trigger use case raises for it: an
+    unknown requesting actor first, as the trigger resolves its actor before
+    its case (an unknown actor's store holds no case at all), then the case.
+
     Raises:
-        VultronNotFoundError: *dl* holds no case *case_ref* names.  It names
-            the reference as the client sent it, which is the error a
-            trigger raised for an unknown case before the edge resolved it.
+        VultronNotFoundError: *actor_id* names no actor *dl* holds, or *dl*
+            holds no case *case_ref* names.  Each names the reference as the
+            client sent it.
     """
     case = find_case(dl, case_ref)
     if case is None:
+        trigger_helpers.resolve_actor(actor_id, cast(CasePersistence, dl))
         raise VultronNotFoundError("VulnerabilityCase", case_ref)
     return case.id_
 
@@ -70,12 +74,12 @@ def with_full_case_id(request: RequestT, dl: DataLayer) -> RequestT:
     with the case's full id, so the core never receives a short id.
 
     Raises:
-        VultronNotFoundError: *request* is case-scoped and *dl* holds no case
-            its ``case_id`` names (:func:`require_case_id`).
+        VultronNotFoundError: *request* is case-scoped and names a case, or
+            an actor, *dl* does not hold (:func:`require_case_id`).
     """
     if not isinstance(request, CaseTriggerRequest):
         return request
-    case_id = require_case_id(dl, request.case_id)
+    case_id = require_case_id(dl, request.case_id, request.actor_id)
     if case_id == request.case_id:
         return request
     return request.model_copy(update={"case_id": case_id})
