@@ -49,7 +49,11 @@ from test.support.sender_guard import (
 )
 from test.support.signatures import signature_of
 from vultron.core.behaviors import sender_entitlement
-from vultron.core.behaviors.act_key_scope import ActKeyScope
+from vultron.core.behaviors.act_key_scope import ActKeyScope, with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_KEY,
+    SENDER_ID as SENDER_KEY,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.leave_case_trigger_tree import (
     create_leave_case_trigger_tree,
@@ -68,7 +72,6 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.case_id_scope import (
     seeded_case_id,
     unscoped,
-    with_case_id,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.node_logger import fail_with_reason
@@ -175,7 +178,7 @@ def _owner_role_check(
     """
     assert isinstance(guard, py_trees.composites.Sequence)
     closure, role = guard.children
-    assert isinstance(closure, SenderClosureNotRecordedNode)
+    assert isinstance(unscoped(closure), SenderClosureNotRecordedNode)
     return role
 
 
@@ -568,9 +571,9 @@ def test_named_actor_picks_the_check_for_the_record_holding_its_request(
         ),
         NO_CASE_PATHS if case_id is None else IN_CASE_PATHS,
     )
-    assert type(guard) is check
-    assert isinstance(guard, SenderIsRequestAddresseeNode)
-    assert guard.guards_kind is Kind.NAMED_ACTOR
+    assert type(unscoped(guard)) is check
+    assert isinstance(unscoped(guard), SenderIsRequestAddresseeNode)
+    assert unscoped(guard).guards_kind is Kind.NAMED_ACTOR
 
 
 def test_named_actor_without_its_request_record_is_a_wiring_error() -> None:
@@ -791,8 +794,8 @@ def test_author_kind_admits_only_the_objects_author(
             authored_object=AuthoredNote(note_id=NOTE_ID),
         ),
     )
-    assert isinstance(guard, SenderIsNoteAuthorNode)
-    assert guard.guards_kind is Kind.AUTHOR
+    assert isinstance(unscoped(guard), SenderIsNoteAuthorNode)
+    assert unscoped(guard).guards_kind is Kind.AUTHOR
     result = _store_with_note(VENDOR).run(
         guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=sender)
     )
@@ -840,8 +843,8 @@ def _proposal_author_guard(sender: str) -> py_trees.behaviour.Behaviour:
         ),
         NO_CASE_PATHS,
     )
-    assert isinstance(guard, SenderIsProposalAuthorNode)
-    assert guard.guards_kind is Kind.AUTHOR
+    assert isinstance(unscoped(guard), SenderIsProposalAuthorNode)
+    assert unscoped(guard).guards_kind is Kind.AUTHOR
     return guard
 
 
@@ -925,9 +928,12 @@ class _FailingReads:
 def test_a_store_error_never_admits_the_proposal_sender() -> None:
     """A read error propagates: it fails the tree, which refuses, and the
     guard never answers ``SUCCESS`` because it could not tell."""
-    guard = _proposal_author_guard(STRANGER)
+    guard = unscoped(_proposal_author_guard(STRANGER))
     assert isinstance(guard, SenderIsProposalAuthorNode)
     guard.datalayer = _FailingReads()  # type: ignore[assignment]
+    # What ``initialise()`` reads from the keys the composer seeds.
+    guard.proposal_id = PROPOSAL_ID
+    guard.sender_actor_id = STRANGER
     with pytest.raises(RuntimeError, match="store unavailable"):
         guard.update()
 
@@ -1351,7 +1357,9 @@ def test_a_closed_owner_holding_another_kind_is_refused_naming_every_kind() -> (
 def test_the_case_owner_standing_read_still_asks_the_role_alone() -> None:
     """``SenderIsCaseOwnerNode`` is unchanged: the Leave, suggest-actor,
     status and embargo trees read it to pick an arm, closed owner or not."""
-    node = with_case_id(SenderIsCaseOwnerNode(sender_actor_id=OWNER), CASE_ID)
+    node = with_act_keys(
+        SenderIsCaseOwnerNode(), {CASE_KEY: CASE_ID, SENDER_KEY: OWNER}
+    )
     result = _close_owner(_store(MANAGER)).run(node)
     assert result.status == Status.SUCCESS
 

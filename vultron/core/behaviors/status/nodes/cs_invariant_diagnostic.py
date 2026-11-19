@@ -65,9 +65,10 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
     (or failed-teardown) EM value, allowing accurate post-hoc detection.
 
     No violation, no case context or an unresolvable case is a no-op
-    SUCCESS (lenient diagnostic, ADR-0087).  The note is best-effort: a
-    missing trigger-activity port or a refused commit is logged and the node
-    succeeds; an internal error propagates.
+    SUCCESS (lenient diagnostic, ADR-0087).  The case is read from
+    ``/case_id`` (BTND-01-008); a tree that names none leaves it unseeded.
+    The note is best-effort: a missing trigger-activity port or a refused
+    commit is logged and the node succeeds; an internal error propagates.
 
     Per CSB-18-002, CSB-18-003, CSB-18-004.
     """
@@ -75,16 +76,14 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
     _BEST_EFFORT = True
     _NOTE_KIND = "pxa-em-invariant"
 
-    def __init__(
-        self,
-        case_id: str | None,
-        name: str | None = None,
-    ):
+    def __init__(self, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id: str | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
         # No case context is a no-op (``_compose``), never a commit.
-        super().__init__(
-            case_id=case_id or "", name=name or self.__class__.__name__
-        )
-        self.case_id = case_id
+        self.case_id = self._case_id
 
     def _compose(self) -> CaseManagerNote | None:
         if not self.case_id:

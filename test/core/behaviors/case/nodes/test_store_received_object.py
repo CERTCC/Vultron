@@ -46,7 +46,6 @@ def _node(event, obj=None, id_key=None):
         id_key or event.object_id,
         obj if obj is not None else event.object_,
         "Note",
-        event.activity_id,
     )
 
 

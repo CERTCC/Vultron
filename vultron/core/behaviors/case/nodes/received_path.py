@@ -56,6 +56,12 @@ import py_trees
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.case.nodes.conditions import activity_case_id
 from vultron.core.behaviors.case.nodes.held_case import CaseNamedByReference
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
@@ -382,13 +388,24 @@ class ReplicaRefusalNode(DataLayerConditionWithPorts):
     included).  The runner reads it as the path stage's own refusal, with
     the reason whole (HP-01-039).
 
-    Args:
-        case_id: The case the message names.
+    The case the message names is read from ``/case_id`` (BTND-01-008).
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID)
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

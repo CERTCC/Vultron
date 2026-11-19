@@ -226,18 +226,25 @@ def test_a_node_ticked_without_its_key_seeded_raises_naming_the_key(
 
 
 @pytest.mark.spec("BTND-01-008")
-@pytest.mark.parametrize(
-    "base", [_SendEmbargoActivityBase, _CommitCaseManagerActivityBase]
-)
-def test_a_base_built_with_no_case_and_no_case_port_is_a_wiring_fault(
-    base: type,
-) -> None:
+def test_a_base_built_with_no_case_and_no_case_port_is_a_wiring_fault() -> (
+    None
+):
     """``case_id=None`` is only for a subclass that reads ``/case_id``."""
 
-    # A name of its own per base: py_trees registers port classes by name.
-    no_case_port = type(f"_NoCasePort{base.__name__}", (base,), {})
-    kwargs: dict[str, object] = {"case_id": None}
-    if base is _CommitCaseManagerActivityBase:
-        kwargs["semantic_type"] = "Remove"
+    # A name of its own: py_trees registers port classes by name.
+    no_case_port = type(
+        "_NoCasePortSendEmbargo", (_SendEmbargoActivityBase,), {}
+    )
     with pytest.raises(VultronWiringError, match="/case_id"):
-        no_case_port(**kwargs)
+        no_case_port(case_id=None)
+
+
+@pytest.mark.spec("BTND-01-008")
+def test_every_case_manager_commit_reads_its_case_from_the_key() -> None:
+    """The CASE_MANAGER-commit base takes no case: it declares ``/case_id``
+    for every subclass, so none can be built without a port to read."""
+    assert CASE_ID.name in _CommitCaseManagerActivityBase.INPUT_PORTS
+    assert (
+        _CommitCaseManagerActivityBase._domain_port_remappings()[CASE_ID.name]
+        == CASE_ID.path
+    )

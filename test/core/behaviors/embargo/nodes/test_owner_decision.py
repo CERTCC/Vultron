@@ -43,6 +43,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes import (
     ActivationAppliesNode,
     CommitAndApplyEmbargoActivationNode,
@@ -330,8 +331,11 @@ class TestCommitAndApplyEmbargoActivationNode:
         setup_blackboard(dl, actor_id=MANAGER)
         result_out: dict[str, object] = {}
 
-        node = CommitAndApplyEmbargoActivationNode(
-            case_id=case.id_, embargo_id=revision_id, result_out=result_out
+        node = with_case_id(
+            CommitAndApplyEmbargoActivationNode(
+                embargo_id=revision_id, result_out=result_out
+            ),
+            case.id_,
         )
 
         assert _tick(node) is Status.SUCCESS
@@ -357,8 +361,11 @@ class TestCommitAndApplyEmbargoActivationNode:
         setup_blackboard(dl, actor_id=MANAGER)
         result_out: dict[str, object] = {}
 
-        node = CommitAndApplyEmbargoActivationNode(
-            case_id=case.id_, embargo_id=active_id, result_out=result_out
+        node = with_case_id(
+            CommitAndApplyEmbargoActivationNode(
+                embargo_id=active_id, result_out=result_out
+            ),
+            case.id_,
         )
 
         assert _tick(node) is Status.FAILURE
@@ -376,8 +383,11 @@ class TestCommitAndApplyEmbargoActivationNode:
         )
         setup_blackboard(dl, actor_id=MANAGER)
 
-        node = CommitAndApplyEmbargoActivationNode(
-            case_id=case.id_, embargo_id=revision_id, result_out={}
+        node = with_case_id(
+            CommitAndApplyEmbargoActivationNode(
+                embargo_id=revision_id, result_out={}
+            ),
+            case.id_,
         )
 
         assert _tick(node) is Status.FAILURE
@@ -403,8 +413,11 @@ class TestCommitAndApplyEmbargoActivationNode:
         setup_blackboard(dl, actor_id=MANAGER)
         result_out: dict[str, object] = {}
 
-        node = CommitAndApplyEmbargoActivationNode(
-            case_id=case.id_, embargo_id=revision_id, result_out=result_out
+        node = with_case_id(
+            CommitAndApplyEmbargoActivationNode(
+                embargo_id=revision_id, result_out=result_out
+            ),
+            case.id_,
         )
 
         assert _tick(node) is Status.FAILURE
@@ -441,11 +454,13 @@ class TestActivationCommitFaults:
             "update",
             lambda self: Status.FAILURE,
         )
-        node = CommitAndApplyEmbargoActivationNode(
-            case_id=case.id_,
-            embargo_id=revision_id,
-            result_out={},
-            builder=lambda to: ("urn:accept", "{}"),
+        node = with_case_id(
+            CommitAndApplyEmbargoActivationNode(
+                embargo_id=revision_id,
+                result_out={},
+                builder=lambda to: ("urn:accept", "{}"),
+            ),
+            case.id_,
         )
 
         result = run_tree(_bridge(dl), tree=node, actor_id=dl.actor_id)
@@ -487,8 +502,11 @@ class TestActivationCommitFaults:
         monkeypatch.setattr(
             EmbargoLifecycle, "decide_activation", _with_a_carry_over
         )
-        node = CommitAndApplyEmbargoActivationNode(
-            case_id=case.id_, embargo_id=revision_id, result_out={}
+        node = with_case_id(
+            CommitAndApplyEmbargoActivationNode(
+                embargo_id=revision_id, result_out={}
+            ),
+            case.id_,
         )
 
         result = run_tree(_bridge(dl), tree=node, actor_id=dl.actor_id)

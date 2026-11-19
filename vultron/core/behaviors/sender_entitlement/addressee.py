@@ -23,7 +23,20 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    OFFER_ID,
+    REPORT_ID,
+    SENDER_ID,
+)
 from vultron.core.behaviors.sender_entitlement.base import (
     SenderEntitlementConditionNode,
 )
@@ -100,6 +113,11 @@ class SenderIsRequestAddresseeNode(SenderEntitlementConditionNode):
       ``FAILURE`` with that reason.
     - :class:`NothingToProtect`: ``SUCCESS``; a subclass returns it only
       where an unrecorded request has nothing to protect.
+
+    Its constructor still takes the sender for the ownership-transfer
+    checks alone, which #6466 moves; every other subclass derives from
+    :class:`_SenderKeyAddresseeNode`, which reads the sender from
+    ``/sender_id`` (BTND-01-008).
 
     Spec: HP-01-006, HP-01-009.
     """
@@ -180,7 +198,36 @@ class SenderIsRequestAddresseeNode(SenderEntitlementConditionNode):
         return Status.SUCCESS
 
 
-class SenderIsProposalAddresseeNode(SenderIsRequestAddresseeNode):
+class _SenderKeyAddresseeNode(SenderIsRequestAddresseeNode):
+    """An addressee check that reads the sender from ``/sender_id``.
+
+    The base's comparison and refusal, with the sender read from its key
+    when the node ticks rather than taken by the constructor (BTND-01-008).
+    A subclass reads any further per-act value it needs from its own key.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **SenderIsRequestAddresseeNode.INPUT_PORTS,
+        **act_key_ports(SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(SENDER_ID),
+        }
+
+    def __init__(self, name: str | None = None) -> None:
+        # No sender yet: it is read from ``/sender_id`` when the node ticks.
+        super().__init__(sender_actor_id="", name=name)
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.sender_actor_id = act_value(self, SENDER_ID, str)
+
+
+class SenderIsProposalAddresseeNode(_SenderKeyAddresseeNode):
     """Guard: sender must be the actor the CaseProposal was addressed to.
 
     The vendor records the addressee on its ``VultronReportCaseLink``
@@ -193,19 +240,28 @@ class SenderIsProposalAddresseeNode(SenderIsRequestAddresseeNode):
     - Any other sender: ``FAILURE``, so the tree ends ``REFUSED`` with the
       link unchanged.
 
+    The report is read from ``/report_id`` (BTND-01-008).
+
     Spec: CP-06-005, HP-01-006.
     """
 
     _spec = "CP-06-005"
 
-    def __init__(
-        self,
-        report_id: str,
-        sender_actor_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(sender_actor_id=sender_actor_id, name=name)
-        self.report_id = report_id
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_SenderKeyAddresseeNode.INPUT_PORTS,
+        **act_key_ports(REPORT_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(REPORT_ID),
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.report_id: str = act_value(self, REPORT_ID, str)
 
     def _recorded_request(self) -> RecordedRequest | NothingToProtect:
         assert self.datalayer is not None
@@ -224,7 +280,7 @@ class SenderIsProposalAddresseeNode(SenderIsRequestAddresseeNode):
         )
 
 
-class SenderIsExpectedCaseCreatorNode(SenderIsRequestAddresseeNode):
+class SenderIsExpectedCaseCreatorNode(_SenderKeyAddresseeNode):
     """Guard: the sender of a bootstrap ``Create(VulnerabilityCase)`` is the
     actor this store expects the case from.
 
@@ -240,19 +296,28 @@ class SenderIsExpectedCaseCreatorNode(SenderIsRequestAddresseeNode):
     Which of the two the sender is, and whether its case references the
     report, are the received tree's to decide after admission.
 
+    The case is read from ``/case_id`` (BTND-01-008).
+
     Spec: CBT-01-005, CBT-01-011, HP-01-006, HP-01-009.
     """
 
     _spec = "CBT-01-011"
 
-    def __init__(
-        self,
-        case_id: str,
-        sender_actor_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(sender_actor_id=sender_actor_id, name=name)
-        self.case_id = case_id
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_SenderKeyAddresseeNode.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(CASE_ID),
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
 
     def _recorded_request(self) -> RecordedRequest:
         assert self.datalayer is not None
@@ -265,7 +330,7 @@ class SenderIsExpectedCaseCreatorNode(SenderIsRequestAddresseeNode):
         )
 
 
-class SenderIsOfferAddresseeNode(SenderIsRequestAddresseeNode):
+class SenderIsOfferAddresseeNode(_SenderKeyAddresseeNode):
     """Guard: sender must be an actor the ``Offer(VulnerabilityReport)`` was
     addressed to.
 
@@ -278,27 +343,30 @@ class SenderIsOfferAddresseeNode(SenderIsRequestAddresseeNode):
     A store that holds no record of the Offer has nothing to establish the
     sender's standing against, so the sender is refused.
 
+    The Offer the acknowledgement names is read from ``/offer_id``; an
+    acknowledgement that names none leaves it unseeded, which refuses
+    (BTND-01-008).
+
     Spec: RMB-08-004, HP-01-006.
     """
 
     _spec = "RMB-08-004"
 
-    def __init__(
-        self,
-        offer_id: str | None,
-        sender_actor_id: str,
-        name: str | None = None,
-    ) -> None:
-        """Create the guard.
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_SenderKeyAddresseeNode.INPUT_PORTS,
+        **act_key_ports(OFFER_ID),
+    }
 
-        Args:
-            offer_id: The Offer the acknowledgement names (``None`` when it
-                names none, which refuses).
-            sender_actor_id: The acknowledgement's sender.
-            name: Optional node name.
-        """
-        super().__init__(sender_actor_id=sender_actor_id, name=name)
-        self.offer_id = offer_id
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(OFFER_ID),
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.offer_id: str | None = optional_act_value(self, OFFER_ID, str)
 
     def _recorded_request(self) -> RecordedRequest:
         assert self.datalayer is not None
