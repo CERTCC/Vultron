@@ -136,9 +136,9 @@ def _ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
 def _add_report_record(prev_hash: str) -> HashChainLedgerRecord:
     """add_report_to_case entry with the full report embedded in the snapshot.
 
-    Mirrors build_add_report_to_case_snapshot: type=Add, embedded object with
-    the VulnerabilityReport, offerId + offerActorId so the offer-record path is
-    reached and the report-backfill block (#2187) can execute.
+    Mirrors what ``record_report_added_to_case`` seals: type=Add, embedded
+    object with the VulnerabilityReport and inReplyTo naming the Offer (#6419),
+    so the report-backfill block (#2187) can execute.
     """
     return HashChainLedgerRecord(
         case_id=CASE_ID,
@@ -151,8 +151,7 @@ def _add_report_record(prev_hash: str) -> HashChainLedgerRecord:
             "published": "2026-01-01T00:00:00+00:00",
             "actor": NEW_OWNER_ACTOR_ID,
             "context": CASE_ID,
-            "offerId": OFFER_ID,
-            "offerActorId": REPORTER_ACTOR_ID,
+            "inReplyTo": OFFER_ID,
             "object": {
                 "id": REPORT_ID,
                 "type": "VulnerabilityReport",

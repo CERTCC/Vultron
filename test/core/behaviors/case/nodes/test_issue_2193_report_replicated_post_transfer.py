@@ -84,16 +84,16 @@ def new_owner_case_actor(dl):
 def _make_add_report_snapshot() -> dict:
     """Build a payload_snapshot for an add_report_to_case ledger entry.
 
-    Mirrors build_add_report_to_case_snapshot: type=Add, object={full report},
-    actor=original-case-actor, offerId, offerActorId=reporter.
+    Mirrors what ``record_report_added_to_case`` seals: type=Add,
+    object={full report}, actor=original-case-actor, inReplyTo=the Offer id
+    (#6419).
     """
     return {
         "type": "Add",
         "published": "2026-01-01T00:00:00+00:00",
         "actor": ORIGINAL_CASE_ACTOR_ID,
         "context": CASE_ID,
-        "offerId": OFFER_ID,
-        "offerActorId": REPORTER_ACTOR_ID,
+        "inReplyTo": OFFER_ID,
         "object": {
             "id": REPORT_ID,
             "type": "VulnerabilityReport",
