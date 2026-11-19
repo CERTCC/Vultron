@@ -281,7 +281,7 @@ groups:
       the `Create(CaseProposal)`: a proposer that reads the document first passes
       the date along unjudged, and the CASE_MANAGER reads no clock of another
       actor. A proposal can arrive well after the report did when its delivery is
-      retried, and a date that passed meanwhile is no embargo end. A case that
+      retried, and a date that passed meanwhile is judged as passed. A case that
       starts with P, X or A takes no embargo (EP-04-020), so no disclosure date
       is then taken as its end.
     verification: >-

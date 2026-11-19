@@ -14,8 +14,8 @@ description: >
   CaseProposal whose caseInputs the CASE_MANAGER applies, with the CASE_MANAGER's
   own reading of the document kept as the fallback; the CASE_MANAGER judges every
   embargo date when it builds the case, and records a passed one as an embargo
-  that was in force and has ended. Holds the requirement text the implementation adds to
-  specs/case-proposal.yaml and specs/embargo-policy.yaml (ADR-0184).
+  that was in force and has ended. Holds the requirement text the implementation
+  adds to specs/case-proposal.yaml and specs/embargo-policy.yaml (ADR-0184).
 related_specs:
   - specs/case-proposal.yaml
   - specs/csaf-report-content.yaml
@@ -49,8 +49,9 @@ is built yet.
   `vulnerabilities[].disclosure_date` as the document states it, and no P. Whether
   the date has passed is decided when the case is built, which can be well after
   the receiver's receipt when delivery retries.
-- **The earliest date is enough.** If it has passed at creation, the case is
-  public; if not, it is the Reporter's proposed end (CSAF-03-001 to CSAF-03-003).
+- **The earliest date is enough.** It is the Reporter's proposed end when the
+  Offer proposes none (CSAF-03-001). If it has passed at creation, the case is
+  also public (CSAF-03-003), and the end is one that has passed (below).
 - **The proposal's `caseInputs` is all or nothing.** Present, it speaks for every
   input and the CASE_MANAGER reads no document; absent, the CASE_MANAGER maps the
   Offer's document as before. Per-field fallback would refill a list the owner
@@ -131,3 +132,8 @@ In `specs/embargo-policy.yaml`, group EP-04 (#6725):
 - EP-04-020 is amended with them: when any of P, X or A is set at case creation,
   the CASE_MANAGER MUST NOT start the case with an embargo in force; it leaves the
   case at `EM.NONE`, or at `EM.EXITED` when EP-04-033 applies.
+
+Issue #6725 also amends two items in `specs/csaf-report-content.yaml`. The
+CSAF-03-001 note says a case that starts with P takes no disclosure date as its
+end, and CSAF-03-003 says such a case starts with no embargo. Under EP-04-033 a
+passed disclosure date is the Reporter's end, and the case starts at `EM.EXITED`.
