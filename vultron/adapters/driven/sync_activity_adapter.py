@@ -53,6 +53,7 @@ from vultron.core.models.case_ledger_entry import (
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import ResendOutcome
+from vultron.core.sync_helpers import ledger_tail_position
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
     add_log_entry_activity,
@@ -233,7 +234,6 @@ class SyncActivityAdapter:
         actor_id: str,
         to: list[str],
         *,
-        in_reply_to: str | None = None,
         at: datetime,
     ) -> None:
         """Build and queue a ``Read(<case>/ledger)`` position statement.
@@ -244,19 +244,80 @@ class SyncActivityAdapter:
         have grown since (SYNC-17-004).  A derived id would make the repeat a
         redelivery the CASE_MANAGER skips.
 
-        Spec: SYNC-17-001, SYNC-17-008, SYNC-16-027.
+        Spec: SYNC-17-001, SYNC-17-008.
         """
-        extra = {} if in_reply_to is None else {"in_reply_to": in_reply_to}
         read = read_ledger_position_activity(
-            case_id, ledger_position, actor=actor_id, to=to, at=at, **extra
+            case_id, ledger_position, actor=actor_id, to=to, at=at
         )
+        self._queue_read(actor_id, case_id, read)
+
+    def send_empty_chain_read(
+        self,
+        case_id: str,
+        copy_tail_hash: str,
+        actor_id: str,
+        to: list[str],
+        *,
+        in_reply_to: str,
+        at: datetime,
+    ) -> None:
+        """Build and queue the ``Read(<case>/ledger)`` at index -1 that answers a copy.
+
+        The ``Read`` answers one inbound activity, the
+        ``Announce(VulnerabilityCase)`` whose copy left the chain short, so
+        its id is derived from the case, the copy's position and the
+        recipients, as the ``Reject`` that answers a copy is (ID-04-004): a
+        repeat for the same copy builds no new activity and reuses the id,
+        while a request after a later copy is its own.  If that ``Read`` is
+        sealed but no longer pending, it is queued once more under the same
+        id and body, which the receiver deduplicates (ID-04-005).
+        *in_reply_to* does not key the id, so a repeat of the same copy under
+        another Announce sends the stored body, which names the first one.
+
+        Raises:
+            VultronNotFoundError: This store holds no *case_id* to read the
+                genesis hash from (``ledger_tail_position``).
+
+        Spec: SYNC-16-007, SYNC-16-027, RF-08-004.
+        """
+        read_id = derived_activity_id(
+            "empty-chain-read",
+            actor_id,
+            case_id,
+            copy_tail_hash,
+            *sorted(to),
+        )
+        if requeue_if_sealed(self._dl, read_id):
+            logger.info(
+                "sync adapter: empty-chain Read '%s' of '%s' was already"
+                " built; not building it again",
+                read_id,
+                case_ledger_id(case_id),
+            )
+            return
+        read = read_ledger_position_activity(
+            case_id,
+            ledger_tail_position(case_id, self._dl),
+            actor=actor_id,
+            to=to,
+            in_reply_to=in_reply_to,
+            id_=read_id,
+            at=at,
+        )
+        self._queue_read(actor_id, case_id, read)
+
+    def _queue_read(
+        self, actor_id: str, case_id: str, read: as_Activity
+    ) -> None:
+        """Store, seal and queue a ``Read(<case>/ledger)``, and log it."""
         self._save_seal_and_queue(actor_id, read)
+        position = read.ledger_position
         logger.info(
-            "sync adapter: queued Read '%s' of '%s' at log_index=%d to %s",
+            "sync adapter: queued Read '%s' of '%s' at log_index=%s to %s",
             read.id_,
             case_ledger_id(case_id),
-            ledger_position.log_index,
-            to,
+            None if position is None else position.log_index,
+            read.to,
         )
 
     def resend_sealed_activity(self, activity_id: str) -> ResendOutcome:

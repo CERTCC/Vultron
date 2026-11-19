@@ -42,14 +42,12 @@ from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.services.case_copy import (
     CaseCopyJudgement,
     CaseCopyVerdict,
     judge_case_copy,
 )
-from vultron.core.sync_helpers import ledger_tail_position
 from vultron.errors import VultronNotFoundError, VultronWiringError
 
 #: Blackboard key: whether the announced copy replaces a case this replica
@@ -192,16 +190,15 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
     (SYNC-16-023, SYNC-16-027, ADR-0204).
 
     A repeat of the same copy asks again while the chain is still short.
-    The ``Reject``'s id is derived from what it asks for, so that is the same
-    request queued once more, which the receiver deduplicates (ID-04-005),
-    never a new one.  A ``Read`` is a new statement each time, which the
-    CASE_MANAGER answers under its replay rate bound (SYNC-17-004).
+    Each request answers the copy, so its id is derived from what it asks
+    for: the ``Reject``'s from the chain's tail, the ``Read``'s from the
+    copy's position.  A repeat is the same request queued once more, which
+    the receiver deduplicates (ID-04-005), never a new one.
 
-    The ``Reject``'s ``inReplyTo``, like the ``Read``'s, names the
-    ``Announce(VulnerabilityCase)`` that carried the copy (RF-08-004).  That
-    id does not key the ``Reject``'s, so a stored body sent again for a
-    later copy still names the first copy: a true cause, and the replay it
-    asks for is the same.
+    Both name the ``Announce(VulnerabilityCase)`` that carried the copy in
+    ``inReplyTo`` (RF-08-004).  That id does not key theirs, so a stored
+    body sent again for a later Announce still names the first one: a true
+    cause, and the replay it asks for is the same.
 
     Raises:
         VultronWiringError: A ``Reject`` or ``Read`` is due and no
@@ -284,11 +281,9 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
         if chain_tail is None:
             # No entry to name: state the empty chain's position, which asks
             # for every entry (SYNC-16-027, ADR-0204).
-            self._sync_port.send_read_ledger(
+            self._sync_port.send_empty_chain_read(
                 case_id=self.case_id,
-                ledger_position=ledger_tail_position(
-                    self.case_id, cast(CasePersistence, self.datalayer)
-                ),
+                copy_tail_hash=position.entry_hash,
                 actor_id=self.actor_id,
                 to=to,
                 in_reply_to=self._request.activity_id,

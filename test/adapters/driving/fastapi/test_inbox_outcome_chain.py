@@ -54,6 +54,7 @@ from vultron.core.behaviors.inbox import (
 from vultron.core.dispatcher import DirectActivityDispatcher
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.factories import rm_create_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -121,7 +122,7 @@ def _dispatcher_for(verdict: HandlerResult) -> DirectActivityDispatcher:
 def _process(
     dl: SqliteDataLayer,
     body: dict[str, Any],
-    dispatcher: DirectActivityDispatcher,
+    dispatcher: ActivityDispatcher,
 ) -> InboxOutcome:
     """Run one payload through the real FastAPI adapters and the inbox BT."""
     return process_payload(

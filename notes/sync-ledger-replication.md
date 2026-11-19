@@ -460,8 +460,8 @@ same entry forever (ADR-0142).
   CASE_MANAGER stored when it sent it, so `announced_ledger_entry()` reads the
   entry, and with it the case and index, from there (SYNC-16-003).
 - **A `Reject(CaseLedgerEntry)` names the Add that prompted it.** Its
-  `object` is an entry or nothing, so `inReplyTo` is required and set by the
-  sender: the `Add(CaseLedgerEntry)` on a mismatch or a genesis wait, the
+  `object` is the entry, and `inReplyTo` is required and set by the sender: the
+  `Add(CaseLedgerEntry)` on a mismatch or a genesis wait, the
   `Announce(VulnerabilityCase)` after a copy ahead of the chain (RF-08-004).
   `inReplyTo` does not key the derived id, so a resent body names the first copy.
 - **One response per failure class.** `CreateProcessingFaultReceivedUseCase`
@@ -632,12 +632,17 @@ before a quiet period leaves the replica behind with no signal on either side.
 - **A fresh id per statement**, unlike a rebuildable send (SYNC-09-002): a repeat
   is a new observation the CASE_MANAGER must answer, and a derived id would be
   skipped as a redelivery (`SyncActivityAdapter.send_read_ledger`).
+- **The empty-chain `Read` answers a copy, so its id is derived** (SYNC-16-027,
+  ID-04-004): it keys on the case and the copy's position, not the `Announce`, so
+  a repeat of the same copy queues one `Read` and a later copy asks anew
+  (`SyncActivityAdapter.send_empty_chain_read`). A fresh id would queue one more
+  `Read` per copy and leave only the replay rate bound to stop them.
 - **A first seed states the copy's position** (SYNC-17-008): the chain stores no
   entry yet, so the `Read` states the seeded case's position
   (`stated_replica_position`), not a chain tail. A replacing copy sends none; its
-  gap goes by the SYNC-16-007 `Reject`. The send is the tree's last effect and a
-  redelivery replaces rather than seeds, so the restart statement, which also uses
-  `stated_replica_position`, is what recovers a failed one.
+  gap goes by the SYNC-16-007 `Reject`, or the empty-chain `Read` above. The send is
+  the tree's last effect and a redelivery replaces rather than seeds, so the restart
+  statement, which also uses `stated_replica_position`, is what recovers a failed one.
 - **The restart round waits for the startup inbox replay** (IE-06-006), so the
   stated tail includes every entry the queue held; a shutdown during that wait
   states nothing (`ledger_position_statements.py`).

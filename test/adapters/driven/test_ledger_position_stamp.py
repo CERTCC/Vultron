@@ -33,6 +33,7 @@ from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
 )
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -163,11 +164,9 @@ def test_a_read_at_the_empty_chain_states_index_minus_one(dl) -> None:
     dl.create(case)
     announce = "https://example.org/activities/prompting-announce"
 
-    SyncActivityAdapter(dl).send_read_ledger(
+    SyncActivityAdapter(dl).send_empty_chain_read(
         case_id=_CASE,
-        ledger_position=LedgerPosition(
-            log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash=case.genesis_hash
-        ),
+        copy_tail_hash="ef" * 32,
         actor_id=_ACTOR,
         to=["https://example.org/users/manager"],
         in_reply_to=announce,
@@ -188,6 +187,57 @@ def test_a_read_at_the_empty_chain_states_index_minus_one(dl) -> None:
         "logIndex": EMPTY_LEDGER_LOG_INDEX,
         "entryHash": case.genesis_hash,
     }
+
+
+@pytest.mark.spec("SYNC-16-027")
+def test_an_empty_chain_read_repeat_under_another_announce_names_the_first(
+    dl,
+) -> None:
+    """The ``Read`` answering a copy takes its id from the case and the
+    copy's position, not from the Announce: a repeat for the same copy under
+    another Announce queues the stored body, which names the first one, and
+    a later copy's request is its own (ID-04-004)."""
+    dl.create(make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR))
+    adapter = SyncActivityAdapter(dl)
+    first = "https://example.org/activities/first-announce"
+
+    def ask(copy_tail_hash: str, announce: str) -> None:
+        adapter.send_empty_chain_read(
+            case_id=_CASE,
+            copy_tail_hash=copy_tail_hash,
+            actor_id=_ACTOR,
+            to=["https://example.org/users/manager"],
+            in_reply_to=announce,
+            at=authored_at(),
+        )
+
+    ask("ef" * 32, first)
+    ask("ef" * 32, "https://example.org/activities/second-announce")
+
+    (read_id,) = dl.outbox_list()
+    body = read_sealed_body_dict(dl, read_id)
+    assert body is not None and body["inReplyTo"] == first
+
+    ask("cd" * 32, "https://example.org/activities/later-announce")
+
+    assert len(set(dl.outbox_list())) == 2
+
+
+@pytest.mark.spec("SYNC-16-027")
+def test_an_empty_chain_read_needs_the_case_it_names(dl) -> None:
+    """Its position is read from the stored case: a store that does not hold
+    it raises before it writes or queues anything (SYNC-18-001)."""
+    with pytest.raises(VultronValidationError):
+        SyncActivityAdapter(dl).send_empty_chain_read(
+            case_id=_CASE,
+            copy_tail_hash="ef" * 32,
+            actor_id=_ACTOR,
+            to=["https://example.org/users/manager"],
+            in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
+        )
+
+    assert dl.outbox_list() == []
 
 
 @pytest.mark.spec("SYNC-17-001")

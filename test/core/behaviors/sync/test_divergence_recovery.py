@@ -1026,23 +1026,38 @@ def test_the_case_managers_own_copy_is_skipped() -> None:
 
 
 @pytest.mark.spec("SYNC-16-027")
-def test_each_copy_ahead_of_an_empty_chain_states_its_position() -> None:
-    """A ``Read`` is a statement of its own, so each copy that leaves the
-    chain short sends a new one, which the CASE_MANAGER answers under its
-    replay rate bound (SYNC-17-004)."""
+def test_an_empty_chain_read_for_a_later_copy_is_its_own_activity() -> None:
+    """The ``Read`` answering a copy takes its id from the copy's position, so
+    a repeat of the same copy is the same request, queued once, while a
+    request after a later copy is not deduplicated as a repeat of the first
+    (ID-04-004)."""
     dl = _replica_holding("empty replica")
-    for name, position in (
-        ("first copy", LedgerPosition(log_index=3, entry_hash="ef" * 32)),
-        (
-            "first copy again",
+    _announce(
+        _at(
+            _owned_case("first copy"),
             LedgerPosition(log_index=3, entry_hash="ef" * 32),
         ),
-        ("later copy", LedgerPosition(log_index=5, entry_hash="cd" * 32)),
-    ):
-        _announce(_at(_owned_case(name), position), dl)
+        dl,
+    )
+    _announce(
+        _at(
+            _owned_case("first copy again"),
+            LedgerPosition(log_index=3, entry_hash="ef" * 32),
+        ),
+        dl,
+    )
+    assert len(dl.outbox_list()) == 1
+
+    _announce(
+        _at(
+            _owned_case("later copy"),
+            LedgerPosition(log_index=5, entry_hash="cd" * 32),
+        ),
+        dl,
+    )
 
     reads = dl.outbox_list()
-    assert len(set(reads)) == 3
+    assert len(set(reads)) == 2
     for read_id in reads:
         body = read_sealed_body_dict(dl, read_id)
         assert body is not None

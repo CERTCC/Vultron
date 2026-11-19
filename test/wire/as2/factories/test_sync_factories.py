@@ -40,6 +40,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Read,
     as_Reject,
 )
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_OrderedCollection,
+)
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -271,6 +274,7 @@ def test_read_ledger_position_reads_the_cases_ledger():
     )
 
     assert isinstance(read, as_Read)
+    assert isinstance(read.object_, as_OrderedCollection)
     assert read.object_.id_ == f"{_CASE_URI}/ledger"
     assert read.object_.type_ == "OrderedCollection"
     assert read.context == _CASE_URI
@@ -288,6 +292,7 @@ def test_read_ledger_position_states_the_empty_ledger():
         _CASE_URI, empty, actor=_ACTOR_URI, at=authored_at()
     )
 
+    assert isinstance(read.object_, as_OrderedCollection)
     assert read.object_.id_ == f"{_CASE_URI}/ledger"
     assert read.ledger_position == empty
 
@@ -319,6 +324,8 @@ def test_read_ledger_entry_is_the_read_of_its_position():
         at=authored_at(),
     )
 
+    assert isinstance(by_entry.object_, as_OrderedCollection)
+    assert isinstance(by_position.object_, as_OrderedCollection)
     assert by_entry.object_.id_ == f"{_CASE_URI}/ledger"
     assert by_entry.object_.id_ == by_position.object_.id_
     assert by_entry.ledger_position == by_position.ledger_position

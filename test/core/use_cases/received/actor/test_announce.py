@@ -1025,7 +1025,7 @@ class TestFirstSeedStatesLedgerPosition:
         read = reads[0]
         assert read.actor == _RECEIVER_ID
         assert read.to == [_CASE_ACTOR_ID]
-        assert read.object_.id_ == f"{_CASE_ID}/ledger"
+        assert _as_id(read.object_) == f"{_CASE_ID}/ledger"
         assert read.context == _CASE_ID
         assert read.ledger_position == _COPY_POSITION
 
@@ -1070,8 +1070,11 @@ class TestFirstSeedStatesLedgerPosition:
         reads = _queued_reads(dl)
         statements = [r for r in reads if r.in_reply_to is None]
         assert len(statements) == 1
-        # Each redelivery is a new statement of the empty chain, answered
-        # under the CASE_MANAGER's replay rate bound (SYNC-17-004).
+        # The backfill answers the copy, so its id is derived from it: a
+        # further redelivery of the same copy queues no second one
+        # (ID-04-004).
+        self._seed(dl, make_payload, case)
+        reads = _queued_reads(dl)
         (backfill,) = [r for r in reads if r.in_reply_to is not None]
         assert backfill.ledger_position is not None
         assert backfill.ledger_position.log_index == EMPTY_LEDGER_LOG_INDEX
