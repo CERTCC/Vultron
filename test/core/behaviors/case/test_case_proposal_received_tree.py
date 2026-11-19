@@ -79,6 +79,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.models.vulnerability_item import VulnerabilityItemId
 from vultron.core.states.em import EM
 from vultron.errors import (
     VultronActivityConstructionError,
@@ -115,8 +116,7 @@ def _vendor_profile(policy_duration: timedelta | None = None) -> CoreActor:
         id_=_VENDOR_URI,
         embargo_policy=make(
             EmbargoPolicy,
-            actor_id=_VENDOR_URI,
-            inbox=f"{_VENDOR_URI}/inbox",
+            attributed_to=_VENDOR_URI,
             preferred_duration=policy_duration,
         ),
     )
@@ -423,7 +423,9 @@ class TestEmitCreateVulnerabilityCaseNode:
         from vultron.core.models.vulnerability_item import VulnerabilityItem
 
         dl = self._dl()
-        item = make(VulnerabilityItem, cve="CVE-2026-0001")
+        item = make(
+            VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2026-0001")]
+        )
         ref = make(CaseReference, url={"href": "https://example.org/a"})
         dl.save(item)
         dl.save(ref)
@@ -440,7 +442,7 @@ class TestEmitCreateVulnerabilityCaseNode:
         carried = _queued_create(dl)["object"]
         [carried_item] = carried["vulnerabilityItems"]
         [carried_ref] = carried["caseReferences"]
-        assert (carried_item["id"], carried_item["cve"]) == (
+        assert (carried_item["id"], carried_item["ids"][0]["text"]) == (
             item.id_,
             "CVE-2026-0001",
         )
@@ -1707,8 +1709,7 @@ class TestADR0041EmbargoInit:
             id_=_VENDOR_URI,
             embargo_policy=make(
                 EmbargoPolicy,
-                actor_id=_VENDOR_URI,
-                inbox=f"{_VENDOR_URI}/inbox",
+                attributed_to=_VENDOR_URI,
                 preferred_duration=policy_duration,
             ),
         )
@@ -3881,8 +3882,7 @@ class TestEP04SenderProposalAtCaseCreation:
                 id_=_CASE_ACTOR_URI,
                 embargo_policy=make(
                     EmbargoPolicy,
-                    actor_id=_CASE_ACTOR_URI,
-                    inbox=f"{_CASE_ACTOR_URI}/inbox",
+                    attributed_to=_CASE_ACTOR_URI,
                     preferred_duration=timedelta(days=5),
                 ),
             )

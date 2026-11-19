@@ -15,10 +15,10 @@
 
 """Whole accept or reject of a received ParticipantStatus (RSH-09, ADR-0107).
 
-An inbound ``Add(ParticipantStatus)[target=CaseParticipant]`` states the sender's whole
-status.  The CASE_MANAGER records it exactly as received, or refuses all of it
-and tells the sender every reason; it never records a status nobody sent.  This
-replaced the per-dimension partial accept of RSH-05 (#3741).
+An inbound ``Add(ParticipantStatus, target=<participant>/statuses)`` states the
+sender's whole status. The CASE_MANAGER records it exactly as received, or
+refuses all of it and tells the sender every reason; it never records a status
+nobody sent. This replaced the per-dimension partial accept of RSH-05 (#3741).
 
 Per specs/received-status-handling.yaml RSH-09.
 """
@@ -261,7 +261,7 @@ def _run_tree(
     """
     activity = add_status_to_participant_activity(
         status=asserted,
-        target=make(
+        participant=make(
             as_CaseParticipant,
             id_=PARTICIPANT_ID,
             context=CASE_ID,
@@ -1067,7 +1067,9 @@ def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
                     "rmState": rm_state,
                     "vfState": vf_state,
                 },
-                "target": {"id": PARTICIPANT_ID},
+                # The participant's status history (ADR-0204).
+                "target": f"{PARTICIPANT_ID}/statuses",
+                "context": CASE_ID,
             },
             prev_log_hash=_ZERO_HASH,
             received_at=ACT_AT,

@@ -86,8 +86,9 @@ class TestPutEmbargoPolicy:
         assert resp.status_code == status.HTTP_201_CREATED
         body = resp.json()
         assert body["type"] == "EmbargoPolicy"
-        assert body["actorId"] == hosted_actor
-        assert body["inbox"] == f"{hosted_actor}/inbox"
+        assert body["attributedTo"] == hosted_actor
+        # AS2 defines ``inbox`` for actors only (EP-01-002, ADR-0194).
+        assert "inbox" not in body
         assert body["preferredDuration"] == "P30D"
 
         stored = _profile_policy(hosted_actor)
@@ -114,13 +115,13 @@ class TestPutEmbargoPolicy:
     ):
         first = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
         second = client_actors.put(
-            _PATH, json={"preferred_duration": "P45D", "notes": "revised"}
+            _PATH, json={"preferred_duration": "P45D", "content": "revised"}
         )
 
         assert first.status_code == status.HTTP_201_CREATED
         assert second.status_code == status.HTTP_200_OK
         assert second.json()["preferredDuration"] == "P45D"
-        assert second.json()["notes"] == "revised"
+        assert second.json()["content"] == "revised"
         stored = _profile_policy(hosted_actor)
         assert stored is not None
         assert stored.preferred_duration == timedelta(days=45)
@@ -150,8 +151,7 @@ class TestPutEmbargoPolicy:
         _store_for(hosted_actor).create(
             make(
                 EmbargoPolicy,
-                actor_id=hosted_actor,
-                inbox=f"{hosted_actor}/inbox",
+                attributed_to=hosted_actor,
                 preferred_duration=timedelta(days=7),
             )
         )
@@ -225,7 +225,7 @@ class TestPutEmbargoPolicy:
             {"preferred_duration": 42},  # not a duration string
             {"preferred_duration": "P30D", "minimum_duration": "P1Y"},
             {},  # preferred_duration is required (EP-01-002)
-            {"preferred_duration": "P30D", "notes": ""},  # CS-08
+            {"preferred_duration": "P30D", "content": ""},  # CS-08
         ],
         ids=["weeks", "month", "prose", "int", "min-year", "empty", "blank"],
     )
@@ -239,15 +239,20 @@ class TestPutEmbargoPolicy:
 
     @pytest.mark.spec("EP-01-005")
     @pytest.mark.spec("EP-02-005")
+    @pytest.mark.spec("EP-02-011")
+    @pytest.mark.parametrize(
+        "key", ["attributed_to", "attributedTo", "actor_id", "inbox"]
+    )
     def test_a_body_cannot_publish_in_another_actors_name(
-        self, client_actors, hosted_actor
+        self, client_actors, hosted_actor, key
     ):
-        """``actor_id`` and ``inbox`` come from the path actor, never the body."""
+        """``attributedTo`` comes from the path actor, never the body: no
+        spelling of the actor or its inbox is accepted in the body."""
         resp = client_actors.put(
             _PATH,
             json={
                 "preferred_duration": "P30D",
-                "actor_id": "https://elsewhere.test/actors/imposter",
+                key: "https://elsewhere.test/actors/imposter",
             },
         )
 
@@ -270,7 +275,7 @@ class TestGetEmbargoPolicy:
             "application/activity+json"
         )
         assert resp.json()["type"] == "EmbargoPolicy"
-        assert resp.json()["actorId"] == hosted_actor
+        assert resp.json()["attributedTo"] == hosted_actor
         assert resp.json()["preferredDuration"] == "P30D"
 
     @pytest.mark.spec("HTTP-03-005")
@@ -298,8 +303,7 @@ class TestGetEmbargoPolicy:
             store.create(
                 make(
                     EmbargoPolicy,
-                    actor_id=hosted_actor,
-                    inbox=f"{hosted_actor}/inbox",
+                    attributed_to=hosted_actor,
                     preferred_duration=timedelta(days=days),
                 )
             )
@@ -315,8 +319,7 @@ class TestGetEmbargoPolicy:
         _store_for(hosted_actor).create(
             make(
                 EmbargoPolicy,
-                actor_id="https://elsewhere.test/actors/other",
-                inbox="https://elsewhere.test/actors/other/inbox",
+                attributed_to="https://elsewhere.test/actors/other",
                 preferred_duration=timedelta(days=3),
             )
         )
@@ -360,8 +363,7 @@ def _rival_publish(store, profile: CoreActor, _n: int) -> None:
                 "embargo_policy": make(
                     EmbargoPolicy,
                     id_=EmbargoPolicy.build_id(profile.id_),
-                    actor_id=profile.id_,
-                    inbox=f"{profile.id_}/inbox",
+                    attributed_to=profile.id_,
                     preferred_duration=timedelta(days=10),
                 ),
             }

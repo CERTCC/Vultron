@@ -21,7 +21,6 @@ tracks:
   - "#6408"   # PR may not close a ratchet's open owner
   - "#6409"   # typed term for every Vultron field
   - "#6422"   # term check and owned ratchets
-  - "#6410"   # EmbargoPolicy attributedTo/content, no inbox
   - "#6411"   # ledger entry case in context
   - "#6413"   # vulnerability item title -> name
   - "#6415"   # dead participantCaseName, caseActivity
@@ -603,21 +602,18 @@ profile's `assertionMethod` has no term until #6418 cites it. Each field the che
 refuses today is an entry in its owner's ratchet in
 `test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
 resolves to the marked one's meaning until its owner renames it: the item `title`
-takes the note's (#6413), and the policy's and the item's `notes` take the case's
-list of Note ids (#6410, #6416). The check walks computed fields too, so the case's
+takes the note's (#6413), and the item's `notes` takes the case's list of Note
+ids (#6416). The check walks computed fields too, so the case's
 derived `activeParticipants` is marked.
 
 **Field review.** Each row names the Task that fixes it. A row is a ratchet entry
-only when a rule refuses the field. `inbox`, the note's `audience` and
-`roles`/`suggestedRoles` break no rule (the first two are AS2 terms, the last a
+only when a rule refuses the field. The note's `audience` and
+`roles`/`suggestedRoles` break no rule (the first is an AS2 term, the last a
 judgment no check can make), and `caseActivity` is marked, so their owners' own
 acceptance criteria track them.
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
-| `actorId` (`EmbargoPolicy`) | AS2 duplicate | `attributedTo` | #6410 |
-| `notes` (`EmbargoPolicy`) | AS2 duplicate | `content` | #6410 |
-| `inbox` (`EmbargoPolicy`) | AS2 name, actor-only domain | dropped | #6410 |
 | `caseId` (`CaseLedgerEntry`) | AS2 duplicate | `context` | #6411 |
 | `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
 | `participantCaseName` (`CaseParticipant`) | dead; duplicates `name` | deleted | #6415 |
@@ -681,8 +677,8 @@ lists the activities it caused.
 ledger, the case and the committed act. `vultron/wire/as2/ledger_reject_envelope.py`
 admits the objectless
 `Reject`. The `Read` pattern accepts a bare entry id only for the position statement
-(`vultron/wire/as2/extractor/_pattern.py`). `Add(ParticipantStatus)` names its case
-only through the nested status's `context`. Delivery receipts are an open question
+(`vultron/wire/as2/extractor/_pattern.py`). Both status `Add` forms name their history
+and case (#6486). Delivery receipts are an open question
 (`docs/topics/future_work/_oq-delivery-receipts.md`).
 
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1

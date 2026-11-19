@@ -14,7 +14,7 @@ This specification and the documentation write one as `Verb(Object)[field=Value]
 - **Object in parentheses.** The parentheses hold the type of the activity's `object`: `Offer(VulnerabilityReport)` is an `Offer` whose `object` is a `VulnerabilityReport`.
 - **Nesting.** When the object is itself an activity, the parentheses hold that activity in the same notation: `Accept(Offer(VulnerabilityReport))` is an `Accept` whose `object` is an `Offer` of a `VulnerabilityReport`.
 - **Bracketed fields.** Brackets after an activity name its other fields that tell [occasions](../glossary.md#messaging-and-protocol) apart, each as `field=Value`, with a comma between two of them.
-  The brackets qualify the activity they follow: in `Add(CaseStatus)[target=VulnerabilityCase]` the `target` is the `Add`'s, and in `Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])` the `context` is the `Invite`'s.
+  The brackets qualify the activity they follow: in `Add(Note)[target=VulnerabilityCase]` the `target` is the `Add`'s, and in `Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])` the `context` is the `Invite`'s.
   A value is the type the field holds, or a literal value such as a state name.
   Written without its brackets, as `Invite(EmbargoEvent)`, an activity names every occasion of that shape.
   A field that tells no occasions apart is described in the surrounding text, not in the notation.

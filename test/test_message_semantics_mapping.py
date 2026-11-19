@@ -96,7 +96,9 @@ def test_vfd_dimensions_ride_participant_status_not_case_status():
     pattern = _pattern(MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT)
     assert pattern.activity_ is TAtype.ADD
     assert pattern.object_ == "ParticipantStatus"
-    assert pattern.target_ == "CaseParticipant"
+    # The status history, with the case in context (ADR-0204).
+    assert pattern.target_ == "OrderedCollection"
+    assert pattern.context_ == "VulnerabilityCase"
 
     # V and F ride the VF dimension; D rides the D dimension. Both are
     # participant-scoped.  They used to be flat ``vf_state``/``d_state`` *fields*;
@@ -133,7 +135,9 @@ def test_pxa_dimensions_ride_case_status():
     pattern = _pattern(MessageSemantics.ADD_CASE_STATUS_TO_CASE)
     assert pattern.activity_ is TAtype.ADD
     assert pattern.object_ == "CaseStatus"
-    assert pattern.target_ == "VulnerabilityCase"
+    # The status history, with the case in context (ADR-0204).
+    assert pattern.target_ == "OrderedCollection"
+    assert pattern.context_ == "VulnerabilityCase"
     assert as_CaseStatus.model_fields["pxa"].serialization_alias == "pxaState"
 
 
@@ -146,7 +150,9 @@ def test_pxa_also_rides_a_participant_status_embedded_case_status():
     pattern = _pattern(MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT)
     assert pattern.activity_ is TAtype.ADD
     assert pattern.object_ == "ParticipantStatus"
-    assert pattern.target_ == "CaseParticipant"
+    # The status history, with the case in context (ADR-0204).
+    assert pattern.target_ == "OrderedCollection"
+    assert pattern.context_ == "VulnerabilityCase"
     assert (
         as_ParticipantStatus.model_fields["case_status"].serialization_alias
         == "caseStatus"

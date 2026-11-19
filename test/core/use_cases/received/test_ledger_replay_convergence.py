@@ -1007,7 +1007,7 @@ def test_case_status_writes_nothing_at_a_replica():
         pxa=PxaDimension(state=CS_pxa.Pxa),
     )
     activity = add_status_to_case_activity(
-        status, target=net.case_id, actor=MANAGER, to=[OWNER], at=authored_at()
+        status, case=net.case_id, actor=MANAGER, to=[OWNER], at=authored_at()
     )
     verdict = net.receive(OWNER, json.loads(dump_outbound_body(activity)))
 

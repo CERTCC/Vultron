@@ -184,15 +184,20 @@ class TestAddStatusToCaseActivity:
     )
 
     cls = _AddStatusToCaseActivity
+    # The case's status history and its case (ADR-0204), so a refusal is
+    # about ``object_`` alone.
+    fields = {"target": f"{_STR_URI}/statuses", "context": _STR_URI}
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.fields)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.fields)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, make(as_CaseStatus, context=_STR_URI))
+        _assert_accepts_inline(
+            self.cls, make(as_CaseStatus, context=_STR_URI), **self.fields
+        )
 
 
 class TestCreateCaseActivity:
@@ -584,15 +589,21 @@ class TestAddStatusToParticipantActivity:
     )
 
     cls = _AddStatusToParticipantActivity
+    # A participant's status history and its case (ADR-0204), so a refusal
+    # is about ``object_`` alone.
+    fields = {
+        "target": "https://example.org/cases/c1/participants/p1/statuses",
+        "context": "https://example.org/cases/c1",
+    }
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.fields)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.fields)
 
     def test_accepts_inline_participant_status(self):
-        _assert_accepts_inline(self.cls, _participant_status())
+        _assert_accepts_inline(self.cls, _participant_status(), **self.fields)
 
 
 class TestAddParticipantToCaseActivity:

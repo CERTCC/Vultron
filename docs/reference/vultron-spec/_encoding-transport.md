@@ -374,7 +374,7 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
 
     | Step | Sender | Send to | Wire activity | Shorthand |
     |---|---|---|---|---|
-    | 1 | Vendor | the CASE_MANAGER | `Add(ParticipantStatus)[target=CaseParticipant]`, with `vfState` `VF` | `CF` |
+    | 1 | Vendor | the CASE_MANAGER | `Add(ParticipantStatus, target=<participant>/statuses)`, with `vfState` `VF` | `CF` |
 
 === "Wire JSON"
 

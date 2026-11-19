@@ -1526,7 +1526,7 @@ class TestPostCloseWriteBoundary:
         )
         activity = add_status_to_participant_activity(
             status,
-            target=participant,
+            participant=participant,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
             context=make(

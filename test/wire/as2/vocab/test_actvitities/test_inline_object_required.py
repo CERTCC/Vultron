@@ -144,6 +144,13 @@ _NOTE = make(as_Note, name="Test Note")
 # class.
 _STATUS = make(as_CaseStatus, context=_CASE.id_)
 _PARTICIPANT_STATUS = make(as_ParticipantStatus, context=_CASE.id_)
+#: A status Add's history and case (ADR-0204), so a refusal is about
+#: ``object_`` alone.
+_CASE_STATUS_ADD = {"target": f"{_CASE.id_}/statuses", "context": _CASE.id_}
+_PARTICIPANT_STATUS_ADD = {
+    "target": f"{_CASE.id_}/participants/p1/statuses",
+    "context": _CASE.id_,
+}
 _EMBARGO = make(
     as_EmbargoEvent,
     name="Embargo Event",
@@ -485,10 +492,14 @@ class TestNoneObjectRejected(unittest.TestCase):
         self._assert_missing_rejected(_AddReportToCaseActivity)
 
     def test_add_status_to_case_rejects_none(self):
-        self._assert_none_rejected(_AddStatusToCaseActivity)
+        self._assert_none_rejected(
+            _AddStatusToCaseActivity, **_CASE_STATUS_ADD
+        )
 
     def test_add_status_to_case_rejects_missing(self):
-        self._assert_missing_rejected(_AddStatusToCaseActivity)
+        self._assert_missing_rejected(
+            _AddStatusToCaseActivity, **_CASE_STATUS_ADD
+        )
 
     def test_create_case_rejects_none(self):
         self._assert_none_rejected(_CreateCaseActivity)
@@ -643,10 +654,14 @@ class TestNoneObjectRejected(unittest.TestCase):
         self._assert_missing_rejected(_CreateParticipantActivity)
 
     def test_add_status_to_participant_rejects_none(self):
-        self._assert_none_rejected(_AddStatusToParticipantActivity)
+        self._assert_none_rejected(
+            _AddStatusToParticipantActivity, **_PARTICIPANT_STATUS_ADD
+        )
 
     def test_add_status_to_participant_rejects_missing(self):
-        self._assert_missing_rejected(_AddStatusToParticipantActivity)
+        self._assert_missing_rejected(
+            _AddStatusToParticipantActivity, **_PARTICIPANT_STATUS_ADD
+        )
 
     def test_add_participant_to_case_rejects_none(self):
         self._assert_none_rejected(_AddParticipantToCaseActivity)

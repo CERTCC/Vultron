@@ -194,7 +194,7 @@ The six case state shorthands ([§4.9 Case State Messages](layers.md#49-case-sta
 
 - A **participant** reporting its own VFD progress, or an observation about the world, sends `Add` of a **`ParticipantStatus`**.
   This is a claim.
-- The **CASE_MANAGER**, having adopted a claim, sends `Add` of a **`CaseStatus`** targeting the case.
+- The **CASE_MANAGER**, having adopted a claim, sends `Add` of a **`CaseStatus`** targeting the case's status history, `<case>/statuses`.
   This is the canonical write.
 
 A participant never sends `Add` of a `CaseStatus`, and a receiver refuses one from any sender other than the CASE_MANAGER.

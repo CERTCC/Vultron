@@ -103,7 +103,7 @@ def _declare_rm(net: LedgerNetwork, member: str, rm: RM):
         net,
         add_status_to_participant_activity(
             status,
-            target=participant,
+            participant=participant,
             actor=member,
             to=[MANAGER],
             at=authored_at(),

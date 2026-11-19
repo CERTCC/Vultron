@@ -35,6 +35,7 @@ Spec: CSB-17-001.  Decision: ADR-0060.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 
 from vultron.core.scoring.potential_actions import Actions
 from vultron.core.states.cs import CS
@@ -46,22 +47,18 @@ from vultron.core.states.cs_invariants import (
 
 
 @dataclass(frozen=True)
-class CSActionRule:
-    """One pattern over the compound case states, and its possible actions.
+class CSPattern:
+    """A six-position ``vfdpxa`` pattern over the compound case states.
 
-    A malformed pattern, or a rule with no action, is refused at
-    construction.
+    Each position holds its event's letter, upper-case when the event must
+    have occurred, lower-case when it must not have, or ``.`` for either.  A
+    malformed pattern is refused at construction.
 
     Fields:
-        pattern: The rule's ``vfdpxa`` pattern.  Each position holds its
-            event's letter, upper-case when the event must have occurred,
-            lower-case when it must not have, or ``.`` for either.
-        actions: The CVD actions a participant in a matching state could
-            take, in the order the rule lists them.
+        pattern: The pattern, such as ``"V..p.."``.
     """
 
     pattern: str
-    actions: tuple[Actions, ...]
 
     def __post_init__(self) -> None:
         if len(self.pattern) != len(CS_EVENTS) or any(
@@ -72,10 +69,6 @@ class CSActionRule:
                 "an action-rule pattern holds, for each event of"
                 f" {''.join(CS_EVENTS)} in turn, '.' or that event's letter"
                 f" in either case; got {self.pattern!r}"
-            )
-        if not self.actions:
-            raise ValueError(
-                f"the action rule {self.pattern!r} names no action"
             )
 
     @property
@@ -101,6 +94,49 @@ class CSActionRule:
         the :attr:`pending` ones."""
         happened = cs_happened_events(state)
         return self.occurred <= happened and not self.pending & happened
+
+
+@dataclass(frozen=True)
+class CSActionRule:
+    """One pattern over the compound case states, and its possible actions.
+
+    A malformed pattern (:class:`CSPattern`), or a rule with no action, is
+    refused at construction.
+
+    Fields:
+        pattern: The rule's ``vfdpxa`` pattern.
+        actions: The CVD actions a participant in a matching state could
+            take, in the order the rule lists them.
+    """
+
+    pattern: str
+    actions: tuple[Actions, ...]
+
+    def __post_init__(self) -> None:
+        _ = self._cs_pattern  # building the pattern checks it
+        if not self.actions:
+            raise ValueError(
+                f"the action rule {self.pattern!r} names no action"
+            )
+
+    @cached_property
+    def _cs_pattern(self) -> CSPattern:
+        return CSPattern(self.pattern)
+
+    @property
+    def occurred(self) -> frozenset[CSEvent]:
+        """The events a matching state has had."""
+        return self._cs_pattern.occurred
+
+    @property
+    def pending(self) -> frozenset[CSEvent]:
+        """The events a matching state has not yet had."""
+        return self._cs_pattern.pending
+
+    def matches(self, state: CS) -> bool:
+        """Whether *state* matches the rule's pattern
+        (:meth:`CSPattern.matches`)."""
+        return self._cs_pattern.matches(state)
 
 
 def _rule(pattern: str, *actions: Actions) -> CSActionRule:

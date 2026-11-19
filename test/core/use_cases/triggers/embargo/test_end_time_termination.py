@@ -196,7 +196,7 @@ class _World:
         self.dl.create(status)
         activity = add_status_to_participant_activity(
             status,
-            target=self.finder_participant,
+            participant=self.finder_participant,
             actor=sender_id,
             context=self.case_id,
             to=[self.manager.id_],

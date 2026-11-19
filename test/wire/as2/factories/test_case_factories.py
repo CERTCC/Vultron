@@ -213,26 +213,54 @@ def test_add_report_to_case_invalid_raises():
 @pytest.mark.spec("AF-01-002")
 def test_add_status_to_case_returns_add(sample_status):
     result = add_status_to_case_activity(
-        status=sample_status, actor=_ACTOR_URI, at=authored_at()
+        status=sample_status,
+        case=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert isinstance(result, as_Add)
 
 
 def test_add_status_to_case_object_is_status(sample_status):
     result = add_status_to_case_activity(
-        status=sample_status, actor=_ACTOR_URI, at=authored_at()
+        status=sample_status,
+        case=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.object_ == sample_status
 
 
-def test_add_status_to_case_target_is_set(sample_status):
+@pytest.mark.spec("VAM-08-002")
+def test_add_status_to_case_targets_its_status_history(sample_status):
+    """ADR-0204: the target is <case>/statuses, the context the case."""
     result = add_status_to_case_activity(
         status=sample_status,
-        target=_CASE_URI,
+        case=_CASE_URI,
         actor=_ACTOR_URI,
         at=authored_at(),
     )
-    assert result.target == _CASE_URI
+    assert result.target == f"{_CASE_URI}/statuses"
+    assert result.context == _CASE_URI
+
+
+def test_add_status_to_case_refuses_another_cases_context(sample_status):
+    """The case's status joins its own case's history, not another's."""
+    with pytest.raises(VultronActivityConstructionError):
+        add_status_to_case_activity(
+            status=sample_status,
+            case=_CASE_URI,
+            context="https://example.org/cases/other",
+            actor=_ACTOR_URI,
+            at=authored_at(),
+        )
+
+
+def test_add_status_to_case_without_a_case_raises(sample_status):
+    with pytest.raises(VultronActivityConstructionError):
+        add_status_to_case_activity(
+            status=sample_status, case="", actor=_ACTOR_URI, at=authored_at()
+        )
 
 
 @pytest.mark.spec("AF-04-001")
@@ -240,6 +268,7 @@ def test_add_status_to_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         add_status_to_case_activity(
             status="not-a-status",  # type: ignore[arg-type]
+            case=_CASE_URI,
             at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None

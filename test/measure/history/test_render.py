@@ -126,7 +126,18 @@ def test_an_object_with_no_display_name_shows_the_fallback_not_its_uri():
     assert not _OPAQUE.search(row.actor + row.object + row.activity)
 
 
-def test_a_participant_id_is_labelled_by_the_actor_it_stands_for():
+@pytest.mark.parametrize(
+    "target",
+    [
+        f"{VENDOR}#participant/statuses",
+        # A typed reference to the history is accepted at parse too.
+        {"id": f"{VENDOR}#participant/statuses", "type": "OrderedCollection"},
+    ],
+    ids=["bare-history", "typed-history"],
+)
+def test_a_participant_id_is_labelled_by_the_actor_it_stands_for(target):
+    """A status history is labelled by its owner, the participant, whose
+    label is the actor it stands for (ADR-0204)."""
     seat = {
         "payloadSnapshot": {
             "type": "Create",
@@ -139,7 +150,7 @@ def test_a_participant_id_is_labelled_by_the_actor_it_stands_for():
             "type": "Add",
             "actor": CM,
             "object": {"type": "ParticipantStatus"},
-            "target": f"{VENDOR}#participant",
+            "target": target,
         }
     }
     names = label_names({"f": [seat, update]})

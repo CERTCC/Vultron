@@ -374,7 +374,7 @@ def test_a_rerun_of_a_refused_rm_regression_records_no_second_note():
                         attributed_to=BYSTANDER,
                         rm=RmDimension(state=RM.VALID),
                     ),
-                    target=participant,
+                    participant=participant,
                     actor=BYSTANDER,
                     to=[MANAGER],
                     at=authored_at(),
@@ -917,7 +917,7 @@ def test_a_participants_case_status_gets_no_notice_and_no_fault():
     )
     activity = add_status_to_case_activity(
         status,
-        target=net.case_id,
+        case=net.case_id,
         actor=BYSTANDER,
         to=[MANAGER],
         at=authored_at(),

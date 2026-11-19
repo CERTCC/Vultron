@@ -25,8 +25,7 @@
       "type": "EmbargoPolicy",
       "published": "2026-06-01T19:12:00.000000+00:00",
       "updated": "2026-06-01T19:12:00.000000+00:00",
-      "actorId": "https://vultron.example/organizations/vendorco",
-      "inbox": "https://vultron.example/organizations/vendorco/inbox",
+      "attributedTo": "https://vultron.example/organizations/vendorco",
       "preferredDuration": "P45D"
     }
   },
@@ -62,6 +61,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z3gD5cZufbL118Z8AwGwqUa1QHQ6AnVBCoRLkS7o6LnPSrC5WeHy4KW8dAWqUKzbk8aSfDWnJ7WSHRgC1HsRvosqc"
+    "proofValue": "z2AzAbbUC8fvmD3cn6jVMZpzGBrPyYKAfBAWSLe8PEzTzx3rjKPYAPsRwkcxNAd6KQ4onzWJDeRX3i44tRU5u8Jzf"
   }
 }

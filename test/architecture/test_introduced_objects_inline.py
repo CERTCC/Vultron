@@ -174,13 +174,13 @@ INTRODUCES: dict[
     ),
     "add_status_to_case_activity": (
         lambda o: add_status_to_case_activity(
-            o, target=_CASE, actor=_ACTOR, at=authored_at()
+            o, case=_CASE, actor=_ACTOR, at=authored_at()
         ),
         _example_object("add_status_to_case"),
     ),
     "add_status_to_participant_activity": (
         lambda o: add_status_to_participant_activity(
-            o, target=_PARTICIPANT, actor=_ACTOR, at=authored_at()
+            o, participant=_PARTICIPANT, actor=_ACTOR, at=authored_at()
         ),
         _example_object("add_status_to_participant"),
     ),

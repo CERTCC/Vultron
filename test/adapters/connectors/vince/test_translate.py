@@ -41,6 +41,7 @@ from test.adapters.connectors.vince._support import (
     actors_by_name,
     crosswalk_caveats,
     crosswalk_rows,
+    cve_of,
     projected,
     reads,
     records,
@@ -185,8 +186,11 @@ def test_every_vul_and_post_with_a_counterpart_is_translated(stem):
     assert [item["title"] for item in items] == [
         v["name"] for v in raw["vuls"]
     ]
-    assert [item.get("cve") for item in items] == [
-        v["cve"] for v in raw["vuls"]
+    # A VINCE cve is the item's ``CVE`` ids entry (CM-05-018).
+    assert [cve_of(item) for item in items] == [v["cve"] for v in raw["vuls"]]
+    # The CVE entry, when there is one, comes before the VINCE id.
+    assert [[i["systemName"] for i in item["ids"]] for item in items] == [
+        ["CVE", "VINCE"] if v["cve"] else ["VINCE"] for v in raw["vuls"]
     ]
     orgs = set(actors_by_name(reading))
     assert [note["content"] for note in records(reading, "Note")] == [
@@ -219,6 +223,34 @@ def test_each_entry_credits_the_participant_who_acted():
         e for e in reading.ledger if e.semantic_type == "create_case"
     ]
     assert genesis.payload_snapshot["actor"] == cert
+
+
+@pytest.mark.spec("VAM-08-004")
+@pytest.mark.spec("VAM-08-002")
+@pytest.mark.parametrize("stem", [ACTIVE, INACTIVE])
+def test_each_status_is_added_to_its_named_history(stem):
+    """ADR-0204: a participant status joins <participant>/statuses and a
+    case status <case>/statuses, each with context the case."""
+    reading = translate(stem)
+    statuses = [
+        e
+        for e in reading.ledger
+        if e.semantic_type
+        in {"add_participant_status_to_participant", "add_case_status_to_case"}
+    ]
+    assert statuses
+    for entry in statuses:
+        snapshot = entry.payload_snapshot
+        assert snapshot["context"] == entry.case_id
+        if entry.semantic_type == "add_case_status_to_case":
+            assert snapshot["target"] == f"{entry.case_id}/statuses"
+        else:
+            assert str(snapshot["target"]).endswith("/statuses")
+            assert snapshot["target"] != f"{entry.case_id}/statuses"
+    if stem == INACTIVE:
+        assert any(
+            e.semantic_type == "add_case_status_to_case" for e in statuses
+        )
 
 
 # -- VINCE-EM-03: the embargo ends at due_date, by the time of reading -----

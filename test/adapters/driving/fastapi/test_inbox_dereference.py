@@ -436,8 +436,7 @@ def test_a_proposers_profile_is_handed_to_the_proposal_and_never_stored():
                     {
                         "type": "EmbargoPolicy",
                         "published": _PUBLISHED,
-                        "actorId": _REPLICA,
-                        "inbox": f"{_REPLICA}/inbox",
+                        "attributedTo": _REPLICA,
                         "preferredDuration": "P45D",
                     },
                 ),

@@ -19,6 +19,8 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 
 from datetime import datetime
 
+from vultron.core.models.status_history import status_history_id
+from vultron.wire.as2.context_agreement import case_uri_of
 from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
@@ -92,25 +94,31 @@ def add_report_to_case_activity(
 
 def add_status_to_case_activity(
     status: as_CaseStatus,
-    target: as_VulnerabilityCaseRef | None = None,
+    case: as_VulnerabilityCaseRef,
     *,
     at: datetime,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(CaseStatus)[target=VulnerabilityCase].
+    """Build an Add(CaseStatus, target=<case>/statuses).
+
+    The ``target`` is the case's status history, an ordered collection whose
+    newest item is the case's current status, and ``context`` is the case
+    (ADR-0204).
 
     Args:
         status: The ``as_CaseStatus`` to add.
-        target: The ``as_VulnerabilityCase`` (or its URI) to which the
-            status is being added.
+        case: The ``as_VulnerabilityCase`` (or its URI) whose status history
+            the status joins.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
     Returns:
-        An ``as_Add`` whose ``object_`` is the status.
+        An ``as_Add`` whose ``object_`` is the status and whose ``target`` is
+        ``<case>/statuses``.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If *case* names no case, or
+            Pydantic validation fails.
     """
     return build_activity(
         "add_status_to_case_activity",
@@ -118,9 +126,10 @@ def add_status_to_case_activity(
         at,
         lambda: {
             "object_": status,
-            "target": case_target_ref(target),
-            **kwargs,
+            "target": status_history_id(case_uri_of(case) or ""),
+            **with_case_context(kwargs, case),
         },
+        also=(ValueError,),
     )
 
 
