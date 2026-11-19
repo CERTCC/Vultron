@@ -70,7 +70,7 @@ class _StubQueuePort:
 
 
 def _make_event(
-    semantic_type=MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
+    semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
     activity: VultronActivity | None = None,
 ):
     """Return a minimal VultronEvent stub for DeferCheckNode."""
@@ -98,7 +98,7 @@ def _enable_activity_stream():
 def _run_node(
     context_id: str,
     queue_port: _StubQueuePort | None,
-    semantic_type: MessageSemantics = MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
+    semantic_type: MessageSemantics = MessageSemantics.ADD_NOTE_TO_CASE,
     activity: VultronActivity | None = None,
 ) -> Status:
     """Set up the blackboard and tick DeferCheckNode once."""
@@ -240,13 +240,30 @@ class TestDeferCheckNodeStubInviteProcessedOnArrival:
         assert status == Status.SUCCESS
         assert queue.queued == [], "the stub Invite must not be deferred"
 
+    @pytest.mark.spec("SYNC-15-004")
+    def test_a_ledger_add_for_an_unknown_case_is_not_deferred(self):
+        """The replica holds a pre-seed ledger ``Add`` itself (SYNC-15-004).
+
+        The ``Add`` names its case in ``context`` (ADR-0204); deferring it here
+        would bypass the ledger's own holding area, which the seed replays.
+        """
+        queue = _StubQueuePort(case_known=False)
+        status = _run_node(
+            "https://example.org/cases/not-yet-known",
+            queue,
+            semantic_type=MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
+        )
+
+        assert status == Status.SUCCESS
+        assert queue.queued == [], "a ledger Add must not be deferred"
+
     @pytest.mark.spec("PCR-06-002", "PCR-06-005", "PCR-07-005")
     @pytest.mark.parametrize(
         "semantic_type",
         [
             MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
             MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-            MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
+            MessageSemantics.ADD_NOTE_TO_CASE,
         ],
     )
     def test_non_stub_activity_for_unknown_case_is_still_deferred(

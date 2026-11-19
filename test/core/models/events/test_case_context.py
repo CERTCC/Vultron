@@ -21,6 +21,7 @@ from test.support.objects import make
 from vultron.core.models.events import (
     CASE_BOOTSTRAP_SEMANTICS,
     CASE_PRECEDING_SEMANTICS,
+    SELF_HOLDING_SEMANTICS,
     MessageSemantics,
     VultronEvent,
     is_case_bootstrap,
@@ -78,7 +79,11 @@ class TestIsDeferralExempt:
 
     @pytest.mark.parametrize(
         "semantic_type",
-        sorted(CASE_BOOTSTRAP_SEMANTICS | CASE_PRECEDING_SEMANTICS),
+        sorted(
+            CASE_BOOTSTRAP_SEMANTICS
+            | CASE_PRECEDING_SEMANTICS
+            | SELF_HOLDING_SEMANTICS
+        ),
     )
     def test_exempt_semantics(self, semantic_type):
         assert is_deferral_exempt(_event(semantic_type))
@@ -93,12 +98,19 @@ class TestIsDeferralExempt:
     def test_the_two_sets_are_disjoint(self):
         assert not CASE_BOOTSTRAP_SEMANTICS & CASE_PRECEDING_SEMANTICS
 
+    @pytest.mark.spec("SYNC-15-004")
+    def test_a_ledger_add_is_exempt_but_bootstraps_nothing(self):
+        """The replica holds a pre-seed ``Add`` itself; it seeds no case."""
+        event = _event(MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER)
+        assert is_deferral_exempt(event)
+        assert not is_case_bootstrap(event)
+
     @pytest.mark.parametrize(
         "semantic_type",
         [
             MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
             MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-            MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
+            MessageSemantics.ADD_NOTE_TO_CASE,
         ],
     )
     def test_activities_presupposing_the_case_are_not_exempt(

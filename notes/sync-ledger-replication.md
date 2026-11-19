@@ -339,6 +339,10 @@ per-recipient lanes (ADR-0112, OX-01-004/005/006) makes this rare, and a replay
 does not re-queue an `Add` the outbox already holds for that peer
 (SYNC-15-012). The hold below is the backstop for loss, not the steady state.
 
+- **The inbox never defers a ledger `Add`.** The `Add` names its case in
+  `context` (ADR-0204), so the unknown-case gate would otherwise queue a
+  pre-seed entry instead of letting the tree hold it; `SELF_HOLDING_SEMANTICS`
+  in `core/models/events/case_context.py` exempts it (SYNC-15-004).
 - **Hold the Add, never the entry alone** (SYNC-14-010). The body intake
   archived is marked as owing a replay on its own `ReceivedActivityRecord`
   (IO-03-009); a `HeldLedgerAnnounce` row indexes it. This is the one hold that

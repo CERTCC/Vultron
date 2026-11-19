@@ -680,7 +680,8 @@ groups:
     verification: >-
       `test/core/behaviors/inbox/nodes/test_defer_check_node.py` asserts the deferral gate
       passes a stub Invite for an unknown case and still defers a full-case Invite, an
-      Accept of the stub Invite and a ledger-entry Add.
+      Accept of the stub Invite and a case-scoped Add(Note), and passes a ledger-entry
+      Add, which the replica holds itself (SYNC-15-004).
       `test/adapters/driving/fastapi/test_stub_invite_on_arrival.py` delivers the
       CASE_MANAGER's sealed stub Invite through the real inbox to an invitee holding no
       case and asserts it is processed and that it is answerable with no sender-keyed
