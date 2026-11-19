@@ -13,8 +13,8 @@ that admits any embedded object, such as a full case's ``tag``, holds no
 marker either: the parse edge refuses one there, naming its path.  Accepting
 the marker in a preview needs a preview field that admits the marker, so that
 row is a strict ``xfail`` until #6372 opens one.  The row refusing a marker
-that carries the withheld value is held for Concern #6641, which makes that
-the sender's rule.
+that carries the withheld value is held for #6372, which makes that the
+sender's rule (ADR-0217).
 """
 
 from typing import Any, ClassVar
@@ -195,7 +195,7 @@ def test_a_marker_in_a_case_preview_free_form_field_is_refused() -> None:
 
 class _PreviewOpeningNameAndTag(BaseModel):
     """A stand-in preview type that opens ``name`` and ``tag`` to the marker,
-    as a real preview type will once Concern #6641 decides its fields."""
+    as the loose case preview will once #6372 builds it (ADR-0217)."""
 
     redactable_fields: ClassVar[frozenset[str]] = frozenset({"name", "tag"})
     name: Redacted | str | None = None
@@ -306,8 +306,8 @@ def test_a_marker_in_a_case_preview_field_parses_as_the_marker() -> None:
     raises=VultronParseValidationError,
     reason=(
         "MV-12-003, MV-12-005: no preview field admits the marker yet, "
-        "so no marker parses. Concern #6641 moves the leaky-marker rule to "
-        "the sender; the receiver keeps MV-11-003's unknown-key handling."
+        "so no marker parses. #6372 moves the leaky-marker rule to the "
+        "sender; the receiver keeps MV-11-003's unknown-key handling."
     ),
 )
 @pytest.mark.spec("MV-12-005")
