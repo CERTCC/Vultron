@@ -72,6 +72,9 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     # Received only by a participant, which never commits (CLP-09-001).
     "create_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "announce_embargo_event_to_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
+    # The CASE_MANAGER's Announce of an act it admitted and ledgered; the
+    # receiver records it and takes the change from the entry (ADR-0199).
+    "announce_admitted_act": NotACaseEvent.SENT_BY_CASE_MANAGER,
     # The recommender's receipt of the CASE_MANAGER's answer, which the
     # CASE_MANAGER ledgered when it sent it (CM-16-006, CM-16-007, CM-16-010).
     "accept_actor_recommendation": NotACaseEvent.SENT_BY_CASE_MANAGER,

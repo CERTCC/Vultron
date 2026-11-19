@@ -29,7 +29,8 @@ This demo script showcases two participant management paths:
    coordinator is not added to the case
 
 A member is seated only by accepting its stub Invite (ADR-0114); the Case
-Owner's ``Add(<Actor>)`` only reinstates a removed one (CM-31-011).  Each demo starts from an initialized
+Owner's ``Add(<Actor>)`` only reinstates a removed one (CM-31-011).
+Each demo starts from an initialized
 case (report submitted and validated, case created through the
 ``create-case`` trigger, which seats the vendor as Case Owner and
 CASE_MANAGER) so that the invitation and participant management workflows can

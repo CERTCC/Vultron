@@ -155,6 +155,10 @@ NO_COMMIT_TREES: dict[_Site, str] = {
         "create_receive_report_case_tree",
     ): _BEFORE_ANY_CASE,
     (
+        f"{_C}/announce_admitted_act_received_tree.py",
+        "announce_admitted_act_received_tree",
+    ): _PARTICIPANT_SIDE,
+    (
         f"{_C}/refusal_notice_received_tree.py",
         "refusal_notice_received_tree",
     ): _PARTICIPANT_SIDE,
