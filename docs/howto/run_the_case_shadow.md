@@ -149,7 +149,9 @@ The scoreboard then shows the case as it stood just after that entry: its states
 A note above the scoreboard names the entry, and the case narrative still lists every entry.
 A point before a missing entry has a standing, even when the whole ledger shows the missing entry instead.
 Pick **Now** to see where the case stands at its last entry again.
-The tool keeps one pick at a time: another case shows where it stands now, and coming back to the first case shows its pick again, until you pick a point in another case or choose another source.
+The tool keeps one pick at a time.
+Another case shows where it stands now, and coming back to the first case shows its pick again.
+Picking a point in another case, or choosing another source, drops the pick.
 
 ---
 
