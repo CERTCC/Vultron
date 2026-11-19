@@ -1127,9 +1127,10 @@ def test_a_re_issue_credits_the_asker_and_names_the_stub_it_supersedes(
         raise _Built
 
     monkeypatch.setattr(stub_reissue, "build_stub_invite", _capture)
-    node = stub_reissue.ReissueStubInvitesNode(
-        case_id="https://example.org/cases/c"
-    )
+    node = stub_reissue.ReissueStubInvitesNode()
+    # The node reads its case from /case_id when it ticks (BTND-01-008);
+    # this test calls the build step directly, so it sets the case read.
+    node.case_id = "https://example.org/cases/c"
     node.actor_id = "https://example.org/actors/manager"
     node.trigger_activity_factory = object()  # type: ignore[assignment]
     node._require_act_instant = now_utc  # type: ignore[method-assign]
