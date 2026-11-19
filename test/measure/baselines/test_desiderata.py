@@ -34,6 +34,7 @@ from vultron.measure.baselines import (
     implications,
     implies,
     ordered_cs_events,
+    scope_desiderata,
 )
 from vultron.measure.baselines.desiderata import (
     _candidates,
@@ -177,6 +178,18 @@ def test_counting_once_keeps_the_first_of_each_equivalent_group():
     # The order given decides which one stands for its group.
     later_first = count_once(reversed(EXTENDED))
     assert r"$\evE \prec \evA$" in [d.notation for d in later_first]
+
+
+def test_a_vendors_scope_is_the_catalog_less_the_multi_party_and_repeats():
+    """The one list move advice, the case scores and the case shadow tool
+    read (#6669): the twelve, then the extended desiderata in page order,
+    with no multi-party one and each equivalent group under its first."""
+    scope = scope_desiderata()
+    assert scope[: len(ORIGINAL)] == ORIGINAL
+    assert scope == count_once(
+        d for d in (*ORIGINAL, *EXTENDED) if d.group is not Group.MULTI_PARTY
+    )
+    assert not [d for d in scope if d.group is Group.MULTI_PARTY]
 
 
 def test_a_stronger_frequency_never_exceeds_the_weaker():

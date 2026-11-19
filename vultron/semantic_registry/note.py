@@ -86,7 +86,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Remove note from case",
                 description=(
                     "Asks to remove the note from the case named by the "
-                    "target. This implementation does not support it: the "
+                    "origin. This implementation does not support it: the "
                     "case ledger is append-only and removing ledgered "
                     "content has no defined meaning yet, so every receiver "
                     "refuses it and the note stays in the case (CM-30-003)."

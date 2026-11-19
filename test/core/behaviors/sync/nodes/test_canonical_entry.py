@@ -520,7 +520,7 @@ def test_a_received_type_list_signs_as_the_type_it_names():
 @pytest.mark.spec("CLP-07-011")
 @pytest.mark.spec("VAM-07-003")
 def test_remove_note_snapshot_is_a_canonical_signature():
-    """``Remove(Note)[target=VulnerabilityCase]`` is accepted as a canonical payload."""
+    """``Remove(Note)[origin=VulnerabilityCase]`` is accepted as a canonical payload."""
     snapshot = {
         "type": "Remove",
         "actor": OWNER_ACTOR_ID,
@@ -529,7 +529,7 @@ def test_remove_note_snapshot_is_a_canonical_signature():
             "type": "Note",
             "id": "https://example.org/notes/note-prov",
         },
-        "target": CASE_ID,
+        "origin": CASE_ID,
         "context": CASE_ID,
     }
     _validate_canonical_entry(

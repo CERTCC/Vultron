@@ -98,7 +98,7 @@ class AddNoteToCaseReceivedUseCase:
 
 
 class RemoveNoteFromCaseReceivedUseCase:
-    """Refuse a received ``Remove(Note)[target=VulnerabilityCase]``.
+    """Refuse a received ``Remove(Note)[origin=VulnerabilityCase]``.
 
     Removing a note is not supported: the case ledger is append-only, and
     the protocol does not yet define what removing ledgered content means

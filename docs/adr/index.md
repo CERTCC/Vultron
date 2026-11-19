@@ -307,6 +307,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0208 Core Owns the AS2 Base Vocabulary](0208-core-owns-the-as2-base-vocabulary.md) — partially supersedes 0099-one-object-model-as2-is-a-serialization.md
 - [ADR-0216 Action Rules Span CS, RM, EM and PEC, and Authored Rules Are Compared With Rules Generated From Move Advice](0216-action-rules-span-cs-rm-em-and-pec-and-authored-rules-are-compared-with-rules-generated-from-move-advice.md) *(revision 2)*
 - [ADR-0217 A Case Preview Is Cut From the Case Field by Field, Inside an Envelope the Protocol Sets](0217-a-case-preview-is-cut-from-the-case-field-by-field-inside-an-envelope-the-protocol-sets.md)
+- [ADR-0218 Whether a Case Records Public Credit](0218-whether-a-case-records-public-credit.md)
+- [ADR-0219 A CSAF Projection Is a Case Preview Cut by Its Call Site's Profile, Then Rendered to CSAF](0219-a-csaf-projection-is-a-case-preview-cut-by-its-call-sites-profile-then-rendered-to-csaf.md)
 
 ## Rejected ADRs
 

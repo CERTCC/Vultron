@@ -44,6 +44,7 @@ from vultron.measure.baselines import (
     Event,
     EventKind,
     Group,
+    ModelName,
     WalkPrefix,
     expected_outcome,
     implications,
@@ -66,7 +67,7 @@ from vultron.measure.scoring import (
     UnscoredScope,
     WalkScore,
     exit_end,
-    scope_desiderata,
+    scope_parts,
     score_case,
     vendor_scope,
 )
@@ -164,7 +165,7 @@ def test_every_one_vendor_extended_desideratum_is_scored_once():
     """Each lands in one part, unless an equivalent one is listed before
     it: the embargo part keeps ``E ≺ P`` and ``Ex_own ≺ P``.  The
     multi-party desiderata are in neither part (ADR-0200)."""
-    scopes = scope_desiderata()
+    scopes = scope_parts()
     listed = [d for part in scopes for d in part]
     assert len(set(listed)) == len(listed)
     equivalent = {
@@ -185,6 +186,23 @@ def test_every_one_vendor_extended_desideratum_is_scored_once():
         r"$\evF_i \prec \evExOwn$",
     ]
     assert {d.group for d in scopes.end} == {Group.REPORT_HANDLING}
+
+
+def test_a_scope_desideratum_no_one_vendor_walk_holds_is_refused(monkeypatch):
+    """The parts are read from the shared scope list; one the one-vendor
+    walk cannot score would be dropped from the score but shown on the
+    page, so it is refused."""
+    from vultron.measure.scoring import extended as module
+
+    (pair,) = [d for d in EXTENDED if d.model is ModelName.TWO_VENDOR]
+    misfiled = pair._replace(group=Group.REPORT_HANDLING)
+    module.scope_parts.cache_clear()
+    monkeypatch.setattr(module, "scope_desiderata", lambda: (misfiled,))
+    try:
+        with pytest.raises(ValueError, match="another model"):
+            module.scope_parts()
+    finally:
+        module.scope_parts.cache_clear()
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +246,7 @@ def test_a_recorded_vendors_score_includes_its_report_handling_desiderata():
 )
 def test_every_recorded_vendor_is_scored_in_both_parts(path):
     (history,) = read_case_event_histories([path]).histories.values()
-    desiderata = scope_desiderata()
+    desiderata = scope_parts()
     for vendor in score_case(history).vendors:
         extended = _extended(vendor)
         assert [t.notation for t in extended.end.terms] == [
@@ -318,9 +336,7 @@ def test_an_open_scope_combines_its_chance_and_its_conditional_value():
     record = CaseRecord(history, case_state_sequences(history).sequences)
     (vendor,) = score_case(history).vendors
     end = _extended(vendor).end
-    (desideratum,) = [
-        d for d in scope_desiderata().end if r"\evVa_i" in d.notation
-    ]
+    (desideratum,) = [d for d in scope_parts().end if r"\evVa_i" in d.notation]
     prefix = WalkPrefix(
         record.state((record.path(_V1),)),
         (frozenset({Event(EventKind.V, 1)}),),

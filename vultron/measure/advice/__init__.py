@@ -53,7 +53,6 @@ from vultron.measure.advice.case import (
 )
 from vultron.measure.advice.shifts import (
     CHANCE_EVENTS,
-    SCOPE_GROUPS,
     ScopeParts,
     ScopeShift,
     chance_values,
@@ -62,6 +61,7 @@ from vultron.measure.advice.shifts import (
     outcome_shift,
     scope_shift,
 )
+from vultron.measure.baselines import SCOPE_GROUPS
 
 __all__ = [
     "BAND_COLOUR_MAPS",

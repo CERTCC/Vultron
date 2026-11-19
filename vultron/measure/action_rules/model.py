@@ -70,8 +70,7 @@ from vultron.core.states.rm import (
     rm_transition_trigger,
 )
 from vultron.enums.roles import CVDRole
-from vultron.measure.advice.shifts import scope_desiderata
-from vultron.measure.baselines import EXTENDED, ORIGINAL, Desideratum
+from vultron.measure.baselines import Desideratum, scope_desiderata
 from vultron.measure.standing.model import ActionName
 from vultron.measure.standing.moves import CS_TRIGGERS, CSName
 from vultron.primitives import NonEmptyString
@@ -228,13 +227,12 @@ def move_advice_desiderata() -> Mapping[str, Desideratum]:
     """The move-advice desiderata list, by plain name, in catalog order.
 
     The desiderata each vendor's scope sums
-    (:func:`~vultron.measure.advice.shifts.scope_desiderata`): ``E≺P``
+    (:func:`~vultron.measure.baselines.scope_desiderata`): ``E≺P``
     stands for the three ``E`` desiderata and ``ExOwn≺P`` for the three
     ``ExOwn`` ones.  Computed on first use, as that list is.
     """
-    listed = scope_desiderata()
     return MappingProxyType(
-        {desideratum_name(d): d for d in (*ORIGINAL, *EXTENDED) if d in listed}
+        {desideratum_name(d): d for d in scope_desiderata()}
     )
 
 

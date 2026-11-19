@@ -86,6 +86,7 @@ Trigger (actor-initiated action):
 HTTP POST /actors/{actor_id}/trigger/{verb}  (or /actors/{actor_id}/demo/{verb} for demo-only verbs)
   -> trigger router                `vultron/adapters/driving/fastapi/routers/trigger_*.py`, `demo_triggers.py`
   -> run_trigger()                 `vultron/adapters/driving/fastapi/trigger_runner.py`
+  -> with_full_case_id()           `vultron/adapters/driving/fastapi/case_reference.py` (short case id -> full id; unknown case -> 404)
   -> TriggerDispatcher port        `vultron/core/ports/trigger_dispatcher.py`
   -> RegistryTriggerDispatcher     `vultron/core/trigger_dispatcher.py` (row from `TRIGGER_REGISTRY`)
   -> Svc*UseCase.execute()         `vultron/core/use_cases/triggers/` (BT-backed via `SvcBTTriggerBase`)
