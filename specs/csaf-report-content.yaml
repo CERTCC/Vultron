@@ -138,7 +138,9 @@ groups:
       `Create(CaseProposal)` that carries the initial Offer (CP-01-008) is not
       another activity in this sense: the proposer and the CASE_MANAGER are two
       roles of the one coordinating function that received the report, so the
-      CSAF document on that Offer is still the initial report reaching it.
+      CSAF document on that Offer is still the initial report reaching it. The
+      proposer may read it first and state the case inputs on its proposal, and
+      the CASE_MANAGER reads the document only when the proposal states none.
     verification: >-
       `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_document_of_another_category_changes_no_case_data`
       and
@@ -266,28 +268,30 @@ groups:
     kind: protocol
     statement: >-
       A receiver that fills case inputs from a CSAF document (CSAF-02-001) MUST
-      take a `vulnerabilities[].disclosure_date` later than the time of receipt as
-      the end of the sender's proposed embargo, when the Offer carries no
-      `proposedEmbargo`.
+      take a `vulnerabilities[].disclosure_date` later than the time the case is
+      created as the end of the sender's proposed embargo, when the Offer carries
+      no `proposedEmbargo`.
     rationale: >-
       The CSAF 2.1 draft says that a future disclosure date indicates the intended
       date for disclosure, also called the embargo date, and the Vulnerability
       Report profile uses it to coordinate that date. It then competes with the
       receiver's own default as any proposed embargo does (EP-04-003).
     note: >-
-      In this codebase the time of receipt is the instant the CASE_MANAGER
-      receives the `Create(CaseProposal)` that carries the Offer: the report
-      receiver's own receipt time travels on no message, and the CASE_MANAGER
-      reads no clock of another actor. The two instants differ only by the
-      proposal's delivery. A case that starts with P, X or A takes no embargo
-      (EP-04-020), so no disclosure date is then taken as its end.
+      The CASE_MANAGER judges the date, at the instant it creates the case from
+      the `Create(CaseProposal)`: a proposer that reads the document first passes
+      the date along unjudged, and the CASE_MANAGER reads no clock of another
+      actor. A proposal can arrive well after the report did when its delivery is
+      retried, and a date that passed meanwhile is judged as passed. A case that
+      starts with P, X or A takes no embargo (EP-04-020), so no disclosure date
+      is then taken as its end.
     verification: >-
       `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_future_disclosure_date_proposes_the_embargo_end`
       attaches a
       document with a future `disclosure_date` to an Offer with no
       `proposedEmbargo`, and checks that the case's embargo ends on that date;
       `::test_the_reference_time_is_the_case_managers_receipt_of_the_proposal`
-      checks that the date is measured against the CASE_MANAGER's receipt.
+      checks that the date is measured against the instant the CASE_MANAGER
+      creates the case, which in this codebase is its receipt of the proposal.
     adr:
     - ADR-0184
     stories:
@@ -323,8 +327,8 @@ groups:
     kind: protocol
     statement: >-
       A receiver that fills case inputs from a CSAF document MUST take a
-      `disclosure_date` no later than the time of receipt, on any vulnerability, as
-      a statement that the vulnerability is public (P).
+      `disclosure_date` no later than the time the case is created, on any
+      vulnerability, as a statement that the vulnerability is public (P).
     rationale: >-
       The CSAF 2.1 draft defines a past disclosure date as the time the
       vulnerability was disclosed to the public. A case cannot hold an embargo for
@@ -333,7 +337,7 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_past_disclosure_date_states_the_vul_is_public`
       attaches a
-      document with a `disclosure_date` before the time of receipt, and checks that
+      document with a `disclosure_date` before the case is created, and checks that
       the case starts with P set and no embargo.
     adr:
     - ADR-0184
@@ -654,7 +658,8 @@ groups:
     statement: >-
       The submit-report trigger MUST fill a report name, a report summary or a
       `proposedEmbargo` that its request leaves unstated from the attached CSAF
-      document, by the mapping of CSAF-03.
+      document, by the mapping of CSAF-03 measured against the time it sends the
+      Offer.
     rationale: >-
       This is the sender's side of CSAF-02-004, so a receiver gets explicit
       Vultron fields and needs to read the CSAF document only for what they omit.
@@ -666,7 +671,9 @@ groups:
       values win, `::test_a_document_whose_title_reads_as_nothing_is_refused` that a
       report left with no name is refused, and
       `::test_a_document_that_sets_exploitation_proposes_no_embargo_end` that a
-      document setting P, X or A proposes no embargo end.
+      document setting P, X or A proposes no embargo end, and
+      `::test_a_past_disclosure_date_proposes_no_embargo_end` that a disclosure
+      date already passed when the Offer is sent proposes no embargo end.
 - id: CSAF-05
   title: Following the CSAF 2.1 Draft
   specs:
