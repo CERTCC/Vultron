@@ -3530,9 +3530,7 @@ groups:
       both.
     verification: >-
       Lookup-node tests run each received lookup against a store without the object
-      and assert a `REFUSED` verdict whose reason names it:
-      `test/core/behaviors/report/test_report_case_lookup.py::test_the_miss_is_refused_naming_the_report`
-      and `::test_a_report_with_no_case_is_refused_with_todays_reason`.
+      and assert a `REFUSED` verdict whose reason names it.
     relationships:
     - rel_type: refines
       spec_id: BT-25-009
