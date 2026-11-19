@@ -33,8 +33,6 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
     sorted_case_ledger_entries,
 )
 from vultron.core.behaviors.sync.nodes.replay_case import (
-    NAMED_CASE_PORTS,
-    NAMED_CASE_REMAPPINGS,
     CaseNamedReplayNode,
     scoped_keys,
 )
@@ -72,7 +70,6 @@ class FindCaseActorNode(CaseNamedReplayNode):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        **NAMED_CASE_PORTS,
         "activity": PortInformation(data_type=object, required=True),
     }
 
@@ -83,9 +80,8 @@ class FindCaseActorNode(CaseNamedReplayNode):
     }
 
     @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
+    def _replay_port_remappings(cls) -> dict[str, str]:
         return {
-            **NAMED_CASE_REMAPPINGS,
             "activity": "/activity",
             "case_actor_id": "/case_actor_id",
             "case_id": "/case_id",
@@ -142,7 +138,6 @@ class CollectAndSortCaseLedgerEntriesNode(CaseNamedReplayNode):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        **NAMED_CASE_PORTS,
         "activity": PortInformation(data_type=object, required=True),
     }
 
@@ -155,9 +150,8 @@ class CollectAndSortCaseLedgerEntriesNode(CaseNamedReplayNode):
     }
 
     @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
+    def _replay_port_remappings(cls) -> dict[str, str]:
         return {
-            **NAMED_CASE_REMAPPINGS,
             "activity": "/activity",
             "replay_case_id": "/replay_case_id",
             "replay_peer_id": "/replay_peer_id",

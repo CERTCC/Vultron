@@ -33,8 +33,6 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.errors import VultronError
 
 __all__ = [
-    "NAMED_CASE_PORTS",
-    "NAMED_CASE_REMAPPINGS",
     "CaseNamedReplayNode",
     "replay_case_id",
     "require_rejected_entry",
@@ -92,12 +90,12 @@ def scoped_keys(scope: str | None, *keys: str) -> dict[str, str]:
 #: publishes the case it resolves on an output port of that name.
 _NAMED_CASE_PORT = "named_case_id"
 
-#: The port every :class:`CaseNamedReplayNode` subclass adds to its
+#: The port :class:`CaseNamedReplayNode` adds to every subclass's
 #: ``INPUT_PORTS``, and its binding to ``/case_id`` (BTND-01-008).
-NAMED_CASE_PORTS: dict[str, PortInformation] = {
+_NAMED_CASE_PORTS: dict[str, PortInformation] = {
     _NAMED_CASE_PORT: PortInformation(data_type=object, required=False),
 }
-NAMED_CASE_REMAPPINGS: dict[str, str] = {_NAMED_CASE_PORT: CASE_ID.path}
+_NAMED_CASE_REMAPPINGS: dict[str, str] = {_NAMED_CASE_PORT: CASE_ID.path}
 
 
 class CaseNamedReplayNode(DataLayerActionWithPorts):
@@ -105,11 +103,40 @@ class CaseNamedReplayNode(DataLayerActionWithPorts):
     holds one (a seed or an earlier node's write), else the activity's
     ``replay_case_id`` (SYNC-17-004, SYNC-18-007).
 
-    A subclass adds :data:`NAMED_CASE_PORTS` to its ``INPUT_PORTS`` and
-    :data:`NAMED_CASE_REMAPPINGS` to its ``_domain_port_remappings()``.  A
-    tree that names the case seeds ``/case_id`` with
+    The base adds the case port to every subclass's ``INPUT_PORTS`` and binds
+    it to ``/case_id``, so no subclass can leave it out.  A subclass binds
+    its own ports in :meth:`_replay_port_remappings`; defining
+    ``_domain_port_remappings`` itself would drop the case binding, so it
+    raises ``TypeError`` at class creation.  A tree that names the case
+    seeds ``/case_id`` with
     :func:`~vultron.core.behaviors.act_key_scope.with_act_keys`.
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **_NAMED_CASE_PORTS,
+    }
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        # Runs before PortsMixin.__init_subclass__, so the added port is
+        # validated with the rest (as CaseIdInputPortMixin does).
+        if "_domain_port_remappings" in vars(cls):
+            raise TypeError(
+                f"{cls.__name__}: bind ports in _replay_port_remappings; a"
+                " CaseNamedReplayNode's _domain_port_remappings adds the"
+                " /case_id binding"
+            )
+        cls.INPUT_PORTS = {**cls.INPUT_PORTS, **_NAMED_CASE_PORTS}
+        super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {**_NAMED_CASE_REMAPPINGS, **cls._replay_port_remappings()}
+
+    @classmethod
+    def _replay_port_remappings(cls) -> dict[str, str]:
+        """The subclass's own port bindings, beside the case's."""
+        return {}
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)

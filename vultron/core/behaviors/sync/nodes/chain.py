@@ -39,8 +39,6 @@ from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
 from vultron.core.behaviors.sync.nodes.replay_case import (
-    NAMED_CASE_PORTS,
-    NAMED_CASE_REMAPPINGS,
     CaseNamedReplayNode,
 )
 from vultron.core.behaviors.sync.nodes.replay_guard import (
@@ -220,13 +218,12 @@ class UpdateReplicationStateNode(CaseNamedReplayNode):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        **NAMED_CASE_PORTS,
         "activity": PortInformation(data_type=object, required=True),
     }
 
     @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {**NAMED_CASE_REMAPPINGS, "activity": "/activity"}
+    def _replay_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
 
     def initialise(self) -> None:
         super().initialise()

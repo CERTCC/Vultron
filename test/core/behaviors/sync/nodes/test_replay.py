@@ -33,6 +33,7 @@ from vultron.core.behaviors.sync.nodes import (
     SendLogEntryToEachNode,
     SendMissingEntriesNode,
 )
+from vultron.core.behaviors.sync.nodes.replay_case import CaseNamedReplayNode
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     read_replication_state,
 )
@@ -661,3 +662,31 @@ def test_a_position_that_names_no_entry_replays_from_the_start(
     assert (
         py_trees.blackboard.Blackboard.storage.get("/replay_from_index") == -1
     )
+
+
+@pytest.mark.spec("BTND-01-008")
+def test_a_case_named_replay_subclass_gets_the_case_port_and_binding() -> None:
+    """The base adds the ``/case_id`` port, so no subclass can leave it out."""
+
+    class _Replay(CaseNamedReplayNode, register=False):
+        @classmethod
+        def _replay_port_remappings(cls) -> dict[str, str]:
+            return {"activity": "/activity"}
+
+    assert "named_case_id" in _Replay.INPUT_PORTS
+    assert _Replay._domain_port_remappings() == {
+        "named_case_id": act_keys.CASE_ID.path,
+        "activity": "/activity",
+    }
+
+
+@pytest.mark.spec("BTND-01-008")
+def test_a_case_named_replay_subclass_may_not_replace_the_case_binding() -> (
+    None
+):
+    with pytest.raises(TypeError, match="_replay_port_remappings"):
+
+        class _Replay(CaseNamedReplayNode, register=False):
+            @classmethod
+            def _domain_port_remappings(cls) -> dict[str, str]:
+                return {"activity": "/activity"}
