@@ -50,8 +50,7 @@ def _vendor_profile(duration: timedelta) -> VultronOrganization:
         id_=_VENDOR,
         embargo_policy=make(
             EmbargoPolicy,
-            actor_id=_VENDOR,
-            inbox=f"{_VENDOR}/inbox",
+            attributed_to=_VENDOR,
             preferred_duration=duration,
         ),
     )
@@ -84,7 +83,7 @@ class TestCreateCaseProposal:
         actor = json.loads(blob)["actor"]
         assert isinstance(actor, dict)
         assert actor["id"] == _VENDOR
-        assert actor["embargoPolicy"]["actorId"] == _VENDOR
+        assert actor["embargoPolicy"]["attributedTo"] == _VENDOR
         assert actor["embargoPolicy"]["preferredDuration"] == "P30D"
         assert len(list(dl.list_objects("CaseProposal"))) == 1
 

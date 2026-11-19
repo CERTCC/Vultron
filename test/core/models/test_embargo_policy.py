@@ -25,7 +25,6 @@ from vultron.core.models.embargo_policy import EmbargoPolicy, parse_duration
 from vultron.core.models.registry import CORE_VOCABULARY
 
 ACTOR_ID = "https://example.org/actors/vendor"
-INBOX = "https://example.org/actors/vendor/inbox"
 
 _P90D = timedelta(days=90)
 _P45D = timedelta(days=45)
@@ -41,8 +40,7 @@ class TestCoreEmbargoPolicyCreation:
     def test_type_literal(self):
         p = make(
             EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P90D,
         )
         assert p.type_ == "EmbargoPolicy"
@@ -50,69 +48,89 @@ class TestCoreEmbargoPolicyCreation:
     def test_required_fields(self):
         p = make(
             EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P90D,
             minimum_duration=_P45D,
             maximum_duration=_P180D,
-            notes="Prefer 90 days.",
+            content="Prefer 90 days.",
         )
-        assert p.actor_id == ACTOR_ID
-        assert p.inbox == INBOX
+        assert p.attributed_to == ACTOR_ID
         assert p.preferred_duration == _P90D
         assert p.minimum_duration == _P45D
         assert p.maximum_duration == _P180D
-        assert p.notes == "Prefer 90 days."
+        assert p.content == "Prefer 90 days."
 
     def test_optional_fields_default_to_none(self):
         p = make(
             EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P90D,
         )
         assert p.minimum_duration is None
         assert p.maximum_duration is None
-        assert p.notes is None
+        assert p.content is None
 
-    def test_missing_actor_id_raises(self):
+    def test_missing_attributed_to_raises(self):
         with pytest.raises(ValidationError):
-            make(EmbargoPolicy, inbox=INBOX, preferred_duration=_P90D)  # type: ignore[call-arg]
-
-    def test_missing_inbox_raises(self):
-        with pytest.raises(ValidationError):
-            make(EmbargoPolicy, actor_id=ACTOR_ID, preferred_duration=_P90D)  # type: ignore[call-arg]
+            make(EmbargoPolicy, preferred_duration=_P90D)  # type: ignore[call-arg]
 
     def test_missing_preferred_duration_raises(self):
         with pytest.raises(ValidationError):
-            make(EmbargoPolicy, actor_id=ACTOR_ID, inbox=INBOX)  # type: ignore[call-arg]
+            make(EmbargoPolicy, attributed_to=ACTOR_ID)  # type: ignore[call-arg]
 
-    def test_empty_actor_id_raises(self):
+    def test_empty_attributed_to_raises(self):
         with pytest.raises(ValidationError):
             make(
                 EmbargoPolicy,
-                actor_id="",
-                inbox=INBOX,
+                attributed_to="",
                 preferred_duration=_P90D,
             )
 
-    def test_empty_inbox_raises(self):
-        with pytest.raises(ValidationError):
-            make(
-                EmbargoPolicy,
-                actor_id=ACTOR_ID,
-                inbox="",
-                preferred_duration=_P90D,
+    @pytest.mark.spec("EP-01-002")
+    @pytest.mark.parametrize(
+        ("key", "value"),
+        [
+            ("inbox", f"{ACTOR_ID}/inbox"),
+            ("actor_id", ACTOR_ID),
+            ("actorId", ACTOR_ID),
+            ("notes", "Prefer 90 days."),
+        ],
+    )
+    def test_a_retired_key_is_refused(self, key, value):
+        """The old ``actorId``, ``notes`` and ``inbox`` keys match no field,
+        so ``extra="forbid"`` refuses them rather than dropping them
+        (ADR-0175, ADR-0194)."""
+        with pytest.raises(ValidationError, match=key):
+            EmbargoPolicy.model_validate(
+                with_times(
+                    EmbargoPolicy,
+                    {
+                        "attributed_to": ACTOR_ID,
+                        "preferred_duration": "P90D",
+                        key: value,
+                    },
+                )
             )
 
-    def test_empty_notes_raises(self):
+    def test_wire_spelling_is_attributed_to_and_content(self):
+        p = make(
+            EmbargoPolicy,
+            attributed_to=ACTOR_ID,
+            preferred_duration=_P90D,
+            content="Prefer 90 days.",
+        )
+        data = p.model_dump(by_alias=True, mode="json", exclude_none=True)
+        assert data["attributedTo"] == ACTOR_ID
+        assert data["content"] == "Prefer 90 days."
+        assert not {"actorId", "inbox", "notes"} & data.keys()
+
+    def test_empty_content_raises(self):
         with pytest.raises(ValidationError):
             make(
                 EmbargoPolicy,
-                actor_id=ACTOR_ID,
-                inbox=INBOX,
+                attributed_to=ACTOR_ID,
                 preferred_duration=_P90D,
-                notes="",
+                content="",
             )
 
 
@@ -124,8 +142,7 @@ class TestCoreEmbargoPolicyDurationParsing:
             with_times(
                 EmbargoPolicy,
                 {
-                    "actor_id": ACTOR_ID,
-                    "inbox": INBOX,
+                    "attributed_to": ACTOR_ID,
                     "preferred_duration": "P90D",
                 },
             )
@@ -135,8 +152,7 @@ class TestCoreEmbargoPolicyDurationParsing:
     def test_timedelta_accepted_directly(self):
         p = make(
             EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P90D,
         )
         assert p.preferred_duration == _P90D
@@ -147,8 +163,7 @@ class TestCoreEmbargoPolicyDurationParsing:
                 with_times(
                     EmbargoPolicy,
                     {
-                        "actor_id": ACTOR_ID,
-                        "inbox": INBOX,
+                        "attributed_to": ACTOR_ID,
                         "preferred_duration": "P2W",
                     },
                 )
@@ -160,8 +175,7 @@ class TestCoreEmbargoPolicyDurationParsing:
                 with_times(
                     EmbargoPolicy,
                     {
-                        "actor_id": ACTOR_ID,
-                        "inbox": INBOX,
+                        "attributed_to": ACTOR_ID,
                         "preferred_duration": "P1Y",
                     },
                 )
@@ -173,8 +187,7 @@ class TestCoreEmbargoPolicyDurationParsing:
                 with_times(
                     EmbargoPolicy,
                     {
-                        "actor_id": ACTOR_ID,
-                        "inbox": INBOX,
+                        "attributed_to": ACTOR_ID,
                         "preferred_duration": "not-a-duration",
                     },
                 )
@@ -193,8 +206,7 @@ class TestCoreEmbargoPolicyDurationParsing:
                 with_times(
                     EmbargoPolicy,
                     {
-                        "actor_id": ACTOR_ID,
-                        "inbox": INBOX,
+                        "attributed_to": ACTOR_ID,
                         "preferred_duration": "P999999999999999999999999D",
                     },
                 )
@@ -213,8 +225,7 @@ class TestCoreEmbargoPolicySerialization:
     def test_duration_serializes_to_iso8601(self):
         p = make(
             EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P90D,
             minimum_duration=_P45D,
             maximum_duration=_P180D,
@@ -230,8 +241,7 @@ class TestCoreEmbargoPolicySerialization:
         with hours, minutes or seconds."""
         p = make(
             EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P90D,
             minimum_duration=_P45D,
             maximum_duration=_P180D,
@@ -247,8 +257,7 @@ class TestCoreEmbargoPolicySerialization:
     def test_none_duration_serializes_to_null(self):
         p = make(
             EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P90D,
         )
         data = json.loads(p.model_dump_json())
@@ -258,8 +267,7 @@ class TestCoreEmbargoPolicySerialization:
     def test_json_roundtrip(self):
         p = make(
             EmbargoPolicy,
-            actor_id=ACTOR_ID,
-            inbox=INBOX,
+            attributed_to=ACTOR_ID,
             preferred_duration=_P90D,
             minimum_duration=_P45D,
         )
@@ -267,7 +275,7 @@ class TestCoreEmbargoPolicySerialization:
         p2 = EmbargoPolicy.model_validate(with_times(EmbargoPolicy, data))
         assert p2.preferred_duration == p.preferred_duration
         assert p2.minimum_duration == p.minimum_duration
-        assert p2.actor_id == p.actor_id
+        assert p2.attributed_to == p.attributed_to
 
 
 class TestCoreEmbargoPolicyCoreVocabulary:
@@ -307,15 +315,6 @@ class TestParseDuration:
             parse_duration(42)
 
 
-_RENAMED = "Tracked by #6410."
-
-
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=f"EP-01-002: the policy still names its actor in actor_id and "
-    f"carries an inbox. {_RENAMED}",
-)
 @pytest.mark.spec("EP-01-002")
 def test_a_policy_requires_attributed_to_and_carries_no_inbox() -> None:
     fields = EmbargoPolicy.model_fields
@@ -324,11 +323,6 @@ def test_a_policy_requires_attributed_to_and_carries_no_inbox() -> None:
     assert not {"actor_id", "inbox"} & fields.keys()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=f"EP-01-003: the policy's free text is still `notes`. {_RENAMED}",
-)
 @pytest.mark.spec("EP-01-003")
 def test_a_policys_free_text_is_its_content() -> None:
     fields = EmbargoPolicy.model_fields
@@ -336,16 +330,11 @@ def test_a_policys_free_text_is_its_content() -> None:
     assert "notes" not in fields
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=ValidationError,
-    reason=f"EP-01-005: a policy still requires actor_id and inbox. {_RENAMED}",
-)
 @pytest.mark.spec("EP-01-005")
 def test_a_policys_attributed_to_must_be_a_full_uri() -> None:
     policy = make(
         EmbargoPolicy, attributed_to=ACTOR_ID, preferred_duration=_P90D
     )
     assert policy.attributed_to == ACTOR_ID
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="must be a URI"):
         make(EmbargoPolicy, attributed_to="vendor", preferred_duration=_P90D)

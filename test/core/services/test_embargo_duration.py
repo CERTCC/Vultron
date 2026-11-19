@@ -41,8 +41,7 @@ PROTOCOL_DEFAULT = timedelta(hours=72)
 def _policy(days: int, actor_id: str = ACTOR_ID) -> EmbargoPolicy:
     return make(
         EmbargoPolicy,
-        actor_id=actor_id,
-        inbox=f"{actor_id}/inbox",
+        attributed_to=actor_id,
         preferred_duration=timedelta(days=days),
     )
 

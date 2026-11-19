@@ -85,8 +85,7 @@ def _make_instance(core_cls):
     if core_cls is EmbargoPolicy:
         return make(
             core_cls,
-            actor_id="urn:uuid:actor-fixture",
-            inbox="https://example.org/inbox",
+            attributed_to="urn:uuid:actor-fixture",
             preferred_duration=timedelta(days=90),
         )
     if core_cls is VulnerabilityItem:

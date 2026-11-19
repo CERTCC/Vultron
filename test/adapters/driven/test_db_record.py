@@ -363,7 +363,6 @@ def test_keep_inline_nested_types_matches_enum_union_exactly():
 _CASE_ID_2401 = "urn:uuid:case-2401-0000-0000-000000000000"
 _LOG_OBJ_ID_2401 = "urn:uuid:logobj-2401-0000-000000000000"
 _ACTOR_ID_2401 = "https://example.org/actors/finder-2401"
-_ACTOR_INBOX_2401 = "https://example.org/actors/finder-2401/inbox"
 
 
 def _make_wire_vulnerability_report():
@@ -434,8 +433,7 @@ def _make_wire_embargo_policy():
 
     return make(
         as_EmbargoPolicy,
-        actor_id=_ACTOR_ID_2401,
-        inbox=_ACTOR_INBOX_2401,
+        attributed_to=_ACTOR_ID_2401,
         preferred_duration=timedelta(days=90),
     )
 

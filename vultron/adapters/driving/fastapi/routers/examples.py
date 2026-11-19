@@ -57,8 +57,7 @@ _EXAMPLE_TIMES = authored_times(EXAMPLE_TIMESTAMP)
 def _embargo_policy(actor_id: str) -> as_EmbargoPolicy:
     """Build a minimal as_EmbargoPolicy for the given actor ID."""
     return as_EmbargoPolicy(
-        actor_id=actor_id,
-        inbox=f"{actor_id}/inbox",
+        attributed_to=actor_id,
         preferred_duration=_PREFERRED_DURATION,
         **_EXAMPLE_TIMES,
     )

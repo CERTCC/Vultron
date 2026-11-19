@@ -294,15 +294,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#6410](https://github.com/CERTCC/Vultron/issues/6410)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "EP-01-002",
-))
-```
-
 ### Tracked by [#6465](https://github.com/CERTCC/Vultron/issues/6465)
 
 ```python exec="true" idprefix=""
@@ -367,16 +358,6 @@ from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "MV-12-001",
     "MV-12-003",
-))
-```
-
-### Tracked by [#6410](https://github.com/CERTCC/Vultron/issues/6410)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "EP-01-003",
-    "EP-01-005",
 ))
 ```
 

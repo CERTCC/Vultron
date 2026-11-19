@@ -183,7 +183,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "url",
         "width",
         # Who an actor is, and the embargo terms it states.
-        "actorId",
         "embargoPolicy",
         "maximumDuration",
         "minimumDuration",
