@@ -44,6 +44,8 @@ Chosen option: "A per-field profile of operations, where the protocol sets what 
 
 A case preview has the case's fields, under the case's names, and every one of them is optional.
 Any field may hold a `Redacted` marker, and a nested object takes its own loose form: a vulnerability item with only its identifiers is a loose vulnerability item.
+A value the case derives from its fields is not a field: the preview carries the field it derives from, reduced.
+The embargo in force travels as the case's embargo register cut to its in-force entry, as the case's status history is cut to its current status.
 A preview keeps its own identity; the case reference that carries it names the case.
 
 ### Each field is cut by one of four operations

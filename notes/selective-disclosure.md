@@ -115,7 +115,6 @@ codebase's choice and is always a ✓ in its row.
 |---|---|---|---|---|---|---|
 | `summary` | ✓ | ✓ | – | – | substitute: `stub_summary` | invitee needs readable context (MV-10-001) |
 | `attributedTo` (Case Owner) | ✓ | ✓ (alias) | – | – | include | nobody joins a case without knowing who runs it |
-| `activeEmbargo`, embargo in force | ✓ | ✓ (its id) | – | – | include, whole (CM-17-011) | consent to the terms (CM-17-002) |
 | `caseStatuses` | ✓ | ✓ | ✓ / – in force | ✓ / – in force | substitute: `case_statuses[-1:]`, whole | EM state shown while in force (CM-17-013) |
 | `name` | ✓ | ✓ | ✓ | ✓ | include | |
 | `published`, `updated` | ✓ | ✓ | ✓ | ✓ | include | |
@@ -125,12 +124,18 @@ codebase's choice and is always a ✓ in its row.
 | `vulnerabilityReports`, `notes`, `caseReferences` | ✓ | ✓ | ✓ | ✓ | redact | |
 | parent, child and sibling cases | ✓ | ✓ | ✓ | ✓ | redact | |
 | any other AS2 property the case holds | ✓ | ✓ | ✓ | ✓ | redact | |
-| open embargo proposals, `pendingEmbargoProposalIndex` | – | – | – | ✓ | omit | relayed after joining (CM-17-014) |
-| `embargoRegister` | – | – | – | ✓ | omit | case bookkeeping |
+| `embargoRegister` | – | ✓ (must hold the in-force embargo, whole or by id, and no open proposal) | ✓ / – in force | ✓ / – in force | substitute: the in-force entry only, whole (CM-17-011) | consent to the in-force terms (CM-17-002); open proposals reach the invitee after joining (CM-17-014) |
+| `pendingEmbargoProposalIndex` | – | – | – | ✓ | omit | relayed after joining (CM-17-014) |
 | `genesisHash`, `ledgerPosition`, `actorParticipantIndex`, `caseActivity`, `stubSummary` | – | – | – | ✓ | omit | case bookkeeping, meaningless outside the case |
 
 The preview keeps its own minted `id` and its `type` `CasePreview`; the case
-reference carrying it names the case (ADR-0205). The CVE ID becomes an ordinary
+reference carrying it names the case (ADR-0205). The embargo in force travels
+as the case's own field, `embargoRegister`, reduced to its in-force entry, as
+`caseStatuses` is reduced to the current status; the case's derived
+`active_embargo` is not a field, so the preview does not carry it. Today a
+register entry wraps the embargo and its status; ADR-0202 makes it the embargo
+itself, and the reduction is the same either way. With no embargo in force our
+reduction is empty, so the field is omitted. The CVE ID becomes an ordinary
 `ids` entry (`systemName: "CVE"`) once the item's `cve` field goes (#6693).
 Our cut, with an embargo in force:
 
@@ -142,7 +147,7 @@ Our cut, with an embargo in force:
    "name": "Widget RCE",
    "published": "2026-08-03T00:00:00Z", "updated": "2026-11-01T00:00:00Z",
    "attributedTo": "https://example.org/actors/vendor",
-   "activeEmbargo": {"type": "EmbargoEvent", "…": "the whole embargo"},
+   "embargoRegister": [{"type": "EmbargoEvent", "…": "the in-force embargo, whole"}],
    "caseStatuses": [{"type": "CaseStatus", "…": "the current status, whole"}],
    "vulnerabilityItems": [{"type": "VulnerabilityItem",
      "ids": [{"systemName": "CVE", "text": "CVE-2026-1234"}]}],
@@ -161,14 +166,18 @@ Our cut, with an embargo in force:
   `VulnerabilityCase`, so `isinstance(case, CasePreview)` stays false for a full
   case. Omit-only fields are not declared: a received one is set aside as an
   unknown key (MV-11-003), the sender's fault, like a leaky marker.
-- **A drift test** pins every `CasePreview` field to a `VulnerabilityCase` field,
-  and every `VulnerabilityCase` field to the preview or the profile's omit-only
-  rows, so a new case field fails CI until it is classified.
+- **A drift test** (#6692) pins every `CasePreview` field to a `VulnerabilityCase`
+  field, and every `VulnerabilityCase` field to the preview or the profile's
+  omit-only rows, so a new case field fails CI until it is classified. It lands
+  with #6692, which gives the preview its final fields: until then #6372's loose
+  type also keeps today's `activeEmbargo` and `caseStatus`, which no case field
+  matches.
 - **`CasePreview.from_case(case, profile)`** (#6692) applies the profile
   mechanically and refuses a cut that breaks the envelope. A property-style test
   checks that the cut of every valid case is a valid preview. It replaces
-  `_project_case_to_preview`, and its `caseStatuses` replaces today's singular,
-  built-for-the-preview `caseStatus`.
+  `_project_case_to_preview`. Its `caseStatuses` replaces today's singular,
+  built-for-the-preview `caseStatus`, and its `embargoRegister` replaces
+  `activeEmbargo`.
 - **The receiver's envelope check** runs where the stub Invite is recognized,
   not in the type: a receiver knows an invitation preview by its position, and a
   later profile (a transfer offer's preview, say) may share the loose type.
@@ -209,6 +218,9 @@ Landed by #6692 (`case-management.yaml`, `message-validation.yaml`):
   (CM-17-014) and case bookkeeping; every other field is the sender's choice of
   include, substitute, redact or omit.
 - **CM-17-013**: the EM state travels in the preview's `caseStatuses`.
+- **CM-17-002, CM-17-011, CM-17-024**: the in-force embargo travels as the
+  preview's `embargoRegister`, reduced to that one entry, not as `activeEmbargo`.
+  CM-17-014 holds by the reduction: no open proposal is in it.
 - **CM-17-021** goes: this codebase shows the case name, and the envelope lets a
   sender substitute, redact or omit it.
 - **CM-17-022** goes: the envelope replaces "no other case content".
