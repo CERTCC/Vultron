@@ -33,7 +33,9 @@ A profile fixes one operation for each field, so the cut is mechanical.
 - The rule that withholds a value must not depend on the output format.
 - A projection is a deliberate act of publication: it selects what it says.
 - A reader must be able to tell which case snapshot a projection shows.
-- A projection must pass the CSAF 2.1 schema that this codebase pins.
+- A projection must pass the CSAF 2.1 schema that this codebase pins, and the CSAF mandatory test on its revision history.
+- The same inputs must give the same document.
+- A case records no public credit, so a projection takes its acknowledgments from its caller ([ADR-0218](0218-whether-a-case-records-public-credit.md)).
 - The case holds no product data ([ADR-0187](0187-a-cases-vulnerabilities-are-csaf-shaped-items-that-participants-offer-and-the-case-manager-admits.md)).
 
 ## Considered Options
@@ -72,11 +74,13 @@ The joined profile is a different profile, because a recipient of a coordination
 ### The cut includes the ledger
 
 A preview that is cut for rendering can carry case ledger entries.
+This extends the preview of ADR-0217, which holds only case fields: the ledger list is the one preview field that is not a case field.
 The profile applies the four operations to the ledger list as it applies them to other lists: it can keep only some entries.
 A preview can therefore hold an incomplete ledger.
+The profile also cuts the payload of each entry that it keeps, so an entry cannot carry a value that the profile withholds elsewhere.
 The invitation profile omits the ledger.
 
-The CSAF renderer makes `involvement` items only from the ledger entries that have a CSAF meaning.
+The CSAF renderer makes `document.involvement` actions only from the ledger entries that have a CSAF meaning, one action for each act.
 It derives each status value from the state at the ledger position of the preview.
 
 ### A redaction becomes an absence
@@ -85,13 +89,26 @@ CSAF has no redaction marker.
 The renderer leaves a redacted field out of the document, as it leaves out an omitted field.
 The document does not list what it leaves out, because a publication is not expected to state what it does not say.
 
-### The document states its ledger position
+### A projection is a pure function of its identity
 
-The document uses CSAF integer versioning.
-`document.tracking.version` is the log index of the preview's ledger position plus 1, so a later projection has a higher version.
-The revision history has one entry, with the same number.
-`document.tracking.id` comes from the case ID and the profile name, so the projections of one case with one profile share an identifier.
-A `document.references` entry names the case and the hash of the entry at that position.
+A projection keeps no revision counter.
+`document.tracking.id` comes from the case ID, a versioned profile name, the log index of the preview's ledger position, and a short digest of the acknowledgments when the caller supplies them.
+The profile version changes when a change to a profile or to the renderer changes the output.
+Every projection uses CSAF integer versioning with `document.tracking.version` `1`, and its revision history has one entry, numbered `1`.
+Every date in the document is the commit time of the ledger entry at the preview's position, and no date comes from a clock.
+One identifier therefore always gives the same document, and to make it again is to issue the same version again, not to make a revision.
+A `document.references` entry of category `self` names the case and the hash of the entry at that position.
+
+These versioning rules were rejected:
+
+- A version from the log index fails the CSAF mandatory test on the revision history, because the history must start at 0 or 1 with no gap.
+- A fixed identifier with version `1` gives one identifier and version to documents with different content.
+- A full revision history from the ledger works only for a profile that carries the ledger.
+
+### Acknowledgments come from the caller
+
+A projection takes its acknowledgments from its caller, as ADR-0218 requires.
+When the caller supplies none, the call site supplies the participants that hold the `REPORTER` role, from the case, as ADR-0218 permits.
 
 ### The document is CSAF Base until the case holds products
 
@@ -103,16 +120,18 @@ A projection does not copy a product tree from a document that a reporter attach
 
 - Good, because the profile alone decides what leaves the case, so a new output format cannot show a value that the profile withholds.
 - Good, because each call site produces the same cut every time, without a judgment for each document.
-- Good, because a reader can find the case snapshot from the version and the reference.
+- Good, because a reader can find the case snapshot from the identifier and the reference.
+- Good, because the same inputs always give the same document.
 - Bad, because a CSAF reader cannot tell a withheld value from a value that the case does not hold.
 - Bad, because a CSAF Base document does not meet the expectations of a reader who wants a Vulnerability Report or a Security Advisory.
-- Bad, because the projector does not remember its earlier documents, so the revision history lists only the current version.
+- Bad, because a CSAF reader does not see successive projections of a case as revisions of one document; the reader groups them by the case reference.
 
 ## Validation
 
 A test confirms that a projection from each call site passes the pinned CSAF 2.1 schema.
 A test confirms that a value that the profile withholds appears nowhere in the document.
-A test confirms that a later ledger position gives a higher `document.tracking.version`.
+A test confirms that the same inputs give an identical document.
+A test confirms that a different log index, profile version or caller acknowledgments give a different `document.tracking.id`.
 
 ## Pros and Cons of the Options
 
