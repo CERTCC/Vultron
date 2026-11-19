@@ -215,7 +215,7 @@ def profile_of_record(actor_record: dict[str, object]) -> dict[str, Any]:
     # Controlled Identifiers v1 defines ``assertionMethod``.  A
     # JSON-LD-expanding verifier keeps the key only with both.  Appended to
     # the dumped context, so whatever default it has stays first.
-    context: Any = profile.get("@context")
+    context = profile.get("@context")
     for key_context in signing.PROFILE_KEY_CONTEXTS:
         context = signing.with_context(context, key_context)
     profile["@context"] = context

@@ -27,7 +27,6 @@ tracks:
   - "#6415"   # dead participantCaseName, caseActivity
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
-  - "#6418"   # profile cites Controlled Identifiers context
   - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
@@ -624,7 +623,6 @@ acceptance criteria track them.
 | `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
 | `participantCaseName` (`CaseParticipant`) | dead; duplicates `name` | deleted | #6415 |
 | `caseActivity` (`VulnerabilityCase`) | dead | deleted | #6415 |
-| `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
 | `roles` (`as_Invite`), `suggestedRoles` (`as_Offer`) | two names, one meaning | one name | #6417 |
 | `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
