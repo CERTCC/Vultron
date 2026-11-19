@@ -43,6 +43,12 @@ import py_trees
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -144,11 +150,15 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
     a position at it needs no further read, and only one behind it is looked
     up (:func:`~vultron.core.sync_helpers.holds_ledger_position`).
 
+    *case_id* and *sender_id* are read from ``/case_id`` and ``/sender_id``
+    (BTND-01-008).
+
     Spec: SYNC-18-004, SYNC-18-005, SYNC-18-007.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, SENDER_ID),
         "activity": PortInformation(data_type=object, required=True),
     }
 
@@ -161,19 +171,13 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
+            **act_key_remappings(CASE_ID, SENDER_ID),
             "activity": "/activity",
             "ledger_position_standing": "/ledger_position_standing",
         }
 
-    def __init__(
-        self,
-        case_id: str,
-        sender_id: str,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.sender_id = sender_id
         self.standing: PositionStanding = PositionStanding.NONE
         """The standing the last run found (for inspection)."""
 
@@ -249,6 +253,8 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
+        self.case_id = act_value(self, CASE_ID, str)
+        self.sender_id = act_value(self, SENDER_ID, str)
         dl = cast(CasePersistence, self.datalayer)
         position = self._stated_position()
         self.standing = PositionStanding.NONE
@@ -352,25 +358,30 @@ class PeerActiveParticipantNode(
     node declares it (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`,
     SYNC-17-002).  With ``active=False`` it only picks a branch, so it
     declares nothing.
+
+    *case_id* and *sender_id* are read from ``/case_id`` and ``/sender_id``
+    (BTND-01-008).
     """
 
-    def __init__(
-        self,
-        case_id: str,
-        sender_id: str,
-        *,
-        active: bool,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, SENDER_ID)
+
+    def __init__(self, *, active: bool, name: str | None = None) -> None:
         label = "Active" if active else "NotActive"
         super().__init__(name=name or f"Peer{label}Participant")
-        self.case_id = case_id
-        self.sender_id = sender_id
         self.active = active
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
+        self.case_id = act_value(self, CASE_ID, str)
+        self.sender_id = act_value(self, SENDER_ID, str)
         try:
             withheld = peer_is_withheld(
                 cast(CasePersistence, self.datalayer),

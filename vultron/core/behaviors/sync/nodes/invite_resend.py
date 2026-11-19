@@ -49,6 +49,12 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from vultron.config.app import get_config
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -295,25 +301,29 @@ class ResendOwedInvitesNode(DataLayerActionWithPorts):
 
     ``resent`` lists the Invite ids queued in the last run, for inspection.
 
+    *case_id* and *sender_id* are read from ``/case_id`` and ``/sender_id``
+    (BTND-01-008).
+
     Spec: SYNC-20-001 to SYNC-20-005, SYNC-20-007.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, SENDER_ID),
         "activity": PortInformation(data_type=object, required=True),
         "sync_port": PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity", "sync_port": "/sync_port"}
+        return {
+            **act_key_remappings(CASE_ID, SENDER_ID),
+            "activity": "/activity",
+            "sync_port": "/sync_port",
+        }
 
-    def __init__(
-        self, case_id: str, sender_id: str, name: str | None = None
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.sender_id = sender_id
         self.resent: list[str] = []
         self._sync_port: SyncActivityPort | None = None
 
@@ -345,6 +355,8 @@ class ResendOwedInvitesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
+        self.case_id = act_value(self, CASE_ID, str)
+        self.sender_id = act_value(self, SENDER_ID, str)
         dl = cast(CasePersistence, self.datalayer)
         case, failure = self._require_case(self.case_id)
         if failure is not None:

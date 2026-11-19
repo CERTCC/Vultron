@@ -122,6 +122,7 @@ def test_activate_embargo_backfill_is_the_factory_gate() -> None:
     # the signatories bound before the write, run the ACTIVATE through the
     # lifecycle, send the CM-31-009 notices, backfill what the activation
     # admitted, then re-issue stale stub Invites (CM-11-016).
+    # A seeded node sits one level below its seeding scope.
     assert [type(unscoped(n)) for n in gate.gated_branch.children] == [
         CaptureActiveEmbargoNode,
         CommitAndApplyEmbargoActivationNode,

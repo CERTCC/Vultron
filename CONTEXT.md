@@ -293,6 +293,16 @@ facts, each with a reason; and the facts the source can never observe, which a c
 reads as unknown, never as false (ADR-0197).
 *Avoid*: translated case, seeded case
 
+**Case narrative**:
+Who did what in a case, when, and which states it changed: one line per case ledger
+entry, in ledger order, read from the ledger and never written by hand. A line names the
+time the activity claims (and the commit stamp only where it differs), the actor by
+display name, the semantic type's registry phrase, the object, and every state change
+the entry caused in each state machine the ledger records. Each line is tied to its
+entry's log index, so a reader can point at one point of the case's history.
+*Avoid*: case story, case timeline (a demo story is written by hand; a narrative is not),
+case log (the case ledger is the log the narrative reads)
+
 **VINCE gateway**:
 A component in front of VINCE that speaks Vultron wire activities, such as
 `Offer(VulnerabilityReport)`, on one side and the VINCE API on the other, so VINCE takes
@@ -371,6 +381,47 @@ A harm-free or trade-off move in layer 1: no open move dominates it.
 A mark on a coordinator's harm-free or trade-off move that none of the coordinator's
 other open moves dominates, shown inside its band.
 *Avoid*: your best move, your strongest move
+
+**Action rule**:
+A pattern over one vendor's position (its RM, CS and PEC states and the case's EM
+state), the CVD role that takes an action there, the action, and the desiderata the
+action serves. It names a possibility, not a duty.
+*Avoid*: potential action, policy, heuristic
+
+**Authored action rule**:
+An action rule a person writes: the claim that its action serves the desiderata it
+names.
+*Avoid*: manual rule, hand rule
+
+**Generated action rule**:
+An action rule read off move advice: the positions of one vendor in which a move gets
+the same band for that vendor, grouped into one or more patterns. It is the evidence,
+rebuilt by a command and not edited by hand.
+*Avoid*: computed rule, learned rule
+
+**Rule disagreement**:
+A position at which an authored action rule claims a move serves the vendor and the
+move's band for that vendor is unhelpful: the band its deciding part (the vendor's end
+part, or its embargo part when the end part is zero) gives in that vendor's scope
+alone. It marks a wrong rule or a chance-model blind spot, and it is shown, not
+resolved.
+*Avoid*: conflict, rule error
+
+**Misplaced rule**:
+A position at which an authored action rule names a move that the state machines do
+not allow there, or that the rule's role may not make. It marks an authoring error.
+*Avoid*: invalid rule, broken rule
+
+**Unclaimed move**:
+A move that is harm-free for a vendor at a position where no authored action rule
+names it: advice the authored rules miss.
+*Avoid*: missing rule, orphan move
+
+**Unscored rule**:
+An authored action rule whose action is allowed but has no band, such as a CVD action
+that changes no state, or a move that move advice does not score. It is shown with no
+number, never as an agreement.
+*Avoid*: unrated rule
 
 ---
 

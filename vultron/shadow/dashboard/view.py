@@ -26,16 +26,21 @@ A state reads as an icon and a short label, so the page reads at a glance
 order, each move shaded by its layer and marked as the advice marks it, and
 each vendor's harm on its own.  No column combines the vendors' numbers into
 one score, and nothing here reorders a move (SHD-03-002).
+
+The case narrative reads one row per ledger entry
+(:func:`narrative_rows`), each with its state changes in words, and a
+case-state flag the source cannot observe shown as unknown (CRD-02-005).
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from fractions import Fraction
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from vultron.core.models._helpers import format_timestamp
 from vultron.core.models.case_reading import CaseReading
 from vultron.core.states.cs import (
     AttackObservation,
@@ -53,13 +58,27 @@ from vultron.measure.advice import (
     ColourMap,
 )
 from vultron.measure.advice.case import AllowedMove
-from vultron.measure.history import PxaName
-from vultron.measure.ledger import friendly_actor_name
+from vultron.measure.history import (
+    NarrativeLine,
+    PxaName,
+    StateChange,
+    StateMachine,
+)
+from vultron.measure.ledger import (
+    MISSING_SLOT,
+    UNNAMED_ACTOR,
+    display_label,
+)
 from vultron.measure.standing import (
     DesideratumStanding,
     DesideratumStatus,
     ParticipantStanding,
     StandingGap,
+)
+from vultron.shadow.dashboard.case_state import (
+    PXA_NOTATION,
+    unknown_events,
+    vfd_badge,
 )
 
 #: A row of a table the page shows, column name to cell: text, or a number
@@ -115,6 +134,16 @@ UNOBSERVABLE_NOTE = (
 )
 
 
+def actor_label(actor: str, names: Mapping[str, str]) -> str:
+    """*actor* by its display name, never a bare URI or UUID (DRPT-03-009).
+
+    An actor no payload names reads by the last segment of its URI, and one
+    whose id is opaque, as an outside system's ``urn:uuid:`` id is, reads
+    as :data:`~vultron.measure.ledger.UNNAMED_ACTOR`.
+    """
+    return display_label(actor, "Actor", names) or UNNAMED_ACTOR
+
+
 def desideratum_label(desideratum: DesideratumStanding) -> str:
     """The desideratum in words: ``Fix Ready before Public Awareness``."""
     return (
@@ -128,10 +157,16 @@ def desideratum_code(desideratum: DesideratumStanding) -> str:
     return f"{desideratum.before.value} ≺ {desideratum.after.value}"
 
 
-def public_badges(pxa: PxaName) -> tuple[str, str, str]:
-    """The case's public state as three badges: public, exploit, attacks."""
+def public_badges(
+    pxa: PxaName, unobservable: Collection[CSEvent] = ()
+) -> tuple[str, str, str]:
+    """The case's public state as three badges: public, exploit, attacks.
+
+    An event the source cannot observe, and the reading does not show as
+    happened, reads as unknown (CRD-02-005).
+    """
     state = pxa.value
-    return (
+    known = (
         "📢 Public aware"
         if state.public_awareness is PublicAwareness.PUBLIC_AWARE
         else "🤫 Not public",
@@ -142,6 +177,12 @@ def public_badges(pxa: PxaName) -> tuple[str, str, str]:
         if state.attack_observation is AttackObservation.ATTACKS_OBSERVED
         else "🛡️ No attacks observed",
     )
+    unknown = unknown_events(pxa.name, PXA_NOTATION, unobservable)
+    public, exploit, attacks = (
+        f"❔ {EVENT_LABELS[event]} unknown" if event in unknown else badge
+        for event, badge in zip(PXA_NOTATION, known, strict=True)
+    )
+    return public, exploit, attacks
 
 
 def _tally(desiderata: Sequence[DesideratumStanding]) -> str:
@@ -158,16 +199,16 @@ def _tally(desiderata: Sequence[DesideratumStanding]) -> str:
 def participant_rows(
     participants: Sequence[ParticipantStanding], names: Mapping[str, str]
 ) -> list[Row]:
-    """One row per participant: roles, report state, case state, tally."""
+    """One row per participant: roles, report state, fix path, tally."""
     rows: list[Row] = []
     for p in participants:
         rows.append(
             {
-                "Participant": friendly_actor_name(p.participant, names),
+                "Participant": actor_label(p.participant, names),
                 "Roles": ", ".join(p.roles) or "—",
                 "Joined": "✔️ joined" if p.joined else "✉️ invited",
                 "Report": RM_BADGES[p.rm],
-                "Case state": p.case_state.name
+                "Fix path": vfd_badge(p.case_state, p.case.unobservable)
                 if p.case_state is not None
                 else "—",
                 "Desiderata": _tally(p.desiderata) if p.desiderata else "—",
@@ -189,7 +230,7 @@ def _vendor_columns(
     that a fixed column already uses, takes the vendor's actor id as well,
     so no vendor's column overwrites another's.
     """
-    labels = [friendly_actor_name(p.participant, names) for p in scored]
+    labels = [actor_label(p.participant, names) for p in scored]
     taken = Counter(labels) + Counter(_DESIDERATA_COLUMNS)
     return [
         label if taken[label] == 1 else f"{label} ({p.participant})"
@@ -236,7 +277,7 @@ def _move_cells(move: AllowedMove, names: Mapping[str, str]) -> Row:
     """Who makes *move*, in which machine, and from which state to which."""
     machine, label = _move_label(move)
     return {
-        "Who": friendly_actor_name(move.participant, names),
+        "Who": actor_label(move.participant, names),
         "Machine": machine,
         "Move": label,
         "From → to": f"{move.source.name} → {move.destination.name}",
@@ -262,6 +303,12 @@ TOP_MARK = "⭐ top"
 
 #: The mark on a coordinator's move none of its other moves dominates.
 LEADING_MARK = "👉 leading among yours"
+
+#: The label at the layer-1 end of a shaded band's legend (SHD-03-003).
+LEGEND_BETTER = "better (layer 1) ◀"
+
+#: The label at the deepest end of a shaded band's legend (SHD-03-003).
+LEGEND_DOMINATED = "▶ dominated (deeper layers)"
 
 #: Nine evenly spaced stops of each colour map, dark end first, as
 #: matplotlib draws them, so the page shades without matplotlib.
@@ -370,7 +417,7 @@ def harm_text(move: AdvisedMove, names: Mapping[str, str]) -> str:
     """Each negative part of *move*'s shift, by vendor, with its size."""
     return (
         "; ".join(
-            f"{friendly_actor_name(h.vendor, names)}: {h.part} {_size(h.size)}"
+            f"{actor_label(h.vendor, names)}: {h.part} {_size(h.size)}"
             for h in move.harms
         )
         or "none"
@@ -387,6 +434,9 @@ class BandView(BaseModel):
         rows: One row per move, in the advice's order.
         shades: Each row's shade, in row order: one per row in the
             harm-free and trade-off bands, none in the unhelpful band.
+        legend: The band's legend, one shade per layer from layer 1 to
+            the deepest, each the shade its layer's rows take
+            (SHD-03-003); none in the unhelpful band.
         empty: What the page says when *rows* is empty.
     """
 
@@ -397,6 +447,7 @@ class BandView(BaseModel):
     collapsed: bool
     rows: tuple[Row, ...]
     shades: tuple[Shade, ...] = ()
+    legend: tuple[Shade, ...] = ()
     empty: str
 
     @property
@@ -414,6 +465,26 @@ class BandView(BaseModel):
             raise ValueError(
                 f"{len(self.shades)} shades for {len(self.rows)} rows"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _a_legend_holding_every_row_shade(self) -> BandView:
+        """A shaded band has a legend that holds each of its rows' shades;
+        the unhelpful band has none."""
+        problems: list[str] = []
+        if not self.shaded:
+            if self.legend:
+                problems.append("the unhelpful band has no legend")
+        else:
+            if not self.legend:
+                problems.append("a shaded band has a legend")
+            problems.extend(
+                f"row {i}'s shade {s.background} is not on the legend"
+                for i, s in enumerate(self.shades)
+                if s not in self.legend
+            )
+        if problems:
+            raise ValueError("; ".join(problems))
         return self
 
 
@@ -444,29 +515,50 @@ def _advised_row(
     return row
 
 
+def band_legend_shades(
+    colour_map: ColourMap, deepest: int
+) -> tuple[Shade, ...]:
+    """Each layer's shade in *colour_map*, from layer 1 (better, the dark
+    end) to *deepest* (dominated, the light end): one legend cell per
+    layer, each the shade :func:`shade` gives that layer's rows.
+
+    Raises:
+        ValueError: *deepest* is below 1.
+    """
+    if deepest < 1:
+        raise ValueError(f"the deepest layer {deepest} is below 1")
+    return tuple(
+        shade(colour_map, layer, deepest) for layer in range(1, deepest + 1)
+    )
+
+
 def band_views(advice: CaseAdvice, names: Mapping[str, str]) -> list[BandView]:
     """Each band of *advice*, in its order: harm-free, trade-off, unhelpful.
 
     A harm-free or trade-off move is shaded by its layer in its band's
     colour map, with a mark when it is top or leading among yours; an
-    unhelpful move has neither.  Nothing here orders or scores a move: the
-    moves keep the advice's order (SHD-03-002).
+    unhelpful move has neither.  Each shaded band carries its legend, and
+    its rows' shades are read from it (SHD-03-003).  Nothing here orders or
+    scores a move: the moves keep the advice's order (SHD-03-002).
     """
     deepest = _deepest(advice)
     views = []
     for band in advice.bands:
-        colour_map = band.colour_map
+        legend = (
+            ()
+            if band.colour_map is None
+            else band_legend_shades(band.colour_map, deepest)
+        )
         views.append(
             BandView(
                 band=band.band,
                 title=BAND_TITLES[band.band],
                 collapsed=band.collapsed,
                 rows=tuple(_advised_row(m, band, names) for m in band.moves),
-                shades=()
-                if colour_map is None
-                else tuple(
-                    shade(colour_map, _layer(m), deepest) for m in band.moves
-                ),
+                shades=tuple(legend[_layer(m) - 1] for m in band.moves)
+                if legend
+                else (),
+                legend=legend,
                 empty=BAND_EMPTY[band.band],
             )
         )
@@ -494,8 +586,104 @@ def gap_lines(gap: StandingGap) -> list[str]:
         for entry in gap.unreadable_entries
     )
     if gap.register_problem is not None:
-        lines.append(f"Embargo register: {gap.register_problem}")
+        # Already worded as an embargo register problem (derive_em).
+        lines.append(gap.register_problem)
     return lines
+
+
+#: The case-state event each letter of a ``vfd`` or ``pxa`` spelling
+#: stands for, by its lower-case letter.
+_CS_LETTERS: Mapping[str, CSEvent] = {
+    event.value.lower(): event for event in CSEvent
+}
+
+#: What the page shows for a case-state flag its source cannot observe.
+UNKNOWN_FLAG = "?"
+
+
+def cs_spelling(state: str, unobservable: frozenset[CSEvent]) -> str:
+    """A ``vfd`` or ``pxa`` spelling, each flag the source cannot observe
+    shown as ``?``.
+
+    A lower-case letter says its event has not happened, which a source
+    that never records the event cannot say (CRD-02-005).
+    """
+    return "".join(
+        UNKNOWN_FLAG
+        if letter.islower() and _CS_LETTERS.get(letter) in unobservable
+        else letter
+        for letter in state
+    )
+
+
+def _state_label(
+    machine: StateMachine, state: str, unobservable: frozenset[CSEvent]
+) -> str:
+    if machine is StateMachine.RM:
+        return RM_BADGES[RM[state]]
+    if machine is StateMachine.EM:
+        return EM_BADGES[EM[state]]
+    return cs_spelling(state, unobservable)
+
+
+def change_text(
+    change: StateChange,
+    names: Mapping[str, str],
+    unobservable: frozenset[CSEvent] = frozenset(),
+) -> str:
+    """One state change in words: ``Vendor RM: 📥 Received → ☑️ Valid``.
+
+    The participant reads by its display name, never a bare URI or UUID
+    (DRPT-03-009).
+    """
+    who = (
+        f"{actor_label(change.participant, names)} "
+        if change.participant is not None
+        else ""
+    )
+    before, after = (
+        _state_label(change.machine, state, unobservable)
+        for state in (change.before, change.after)
+    )
+    return f"{who}{change.machine}: {before} → {after}"
+
+
+def narrative_rows(
+    lines: Sequence[NarrativeLine],
+    names: Mapping[str, str],
+    unobservable: frozenset[CSEvent] = frozenset(),
+) -> list[Row]:
+    """One row per line of the case narrative, in log-index order.
+
+    The time is the one the entry's activity claims; the commit stamp shows
+    only where it differs, each in its own column, so neither stands in for
+    the other (CEH-03-008).  The ``#`` column is the entry's log index.
+    A line that could not read its entry in full says why, in a notes column
+    the table has only when some line needs it.
+    """
+    noted = any(line.notes for line in lines)
+    rows: list[Row] = []
+    for line in lines:
+        row: Row = {
+            "#": line.log_index,
+            "Time": format_timestamp(line.claimed_at)
+            if line.claimed_at is not None
+            else MISSING_SLOT,
+            "Committed": format_timestamp(line.committed_at)
+            if line.committed_at is not None and line.commit_differs
+            else "",
+            "Actor": line.actor or MISSING_SLOT,
+            "Activity": line.phrase,
+            "Object": line.object or MISSING_SLOT,
+            "State changes": "; ".join(
+                change_text(change, names, unobservable)
+                for change in line.changes
+            ),
+        }
+        if noted:
+            row["Notes"] = "; ".join(line.notes)
+        rows.append(row)
+    return rows
 
 
 def untranslated_rows(reading: CaseReading) -> list[Row]:
@@ -546,7 +734,10 @@ __all__ = [
     "COLOUR_STOPS",
     "DESIDERATUM_BADGES",
     "LEADING_MARK",
+    "LEGEND_BETTER",
+    "LEGEND_DOMINATED",
     "TOP_MARK",
+    "UNKNOWN_FLAG",
     "BandView",
     "Shade",
     "EM_BADGES",
@@ -554,13 +745,18 @@ __all__ = [
     "NOT_TRANSLATED_NOTE",
     "RM_BADGES",
     "UNOBSERVABLE_NOTE",
+    "actor_label",
     "Row",
+    "band_legend_shades",
     "desiderata_rows",
     "desideratum_code",
     "desideratum_label",
     "gap_lines",
     "inference_rows",
     "band_views",
+    "change_text",
+    "cs_spelling",
+    "narrative_rows",
     "harm_text",
     "shade",
     "unbanded_rows",

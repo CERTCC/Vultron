@@ -147,6 +147,29 @@ def test_a_participant_id_is_labelled_by_the_actor_it_stands_for():
     assert row.object == "participant status → Vendor"
 
 
+@pytest.mark.spec("DRPT-03-004")
+def test_each_phrase_slot_reads_what_the_activity_names_in_it():
+    """``{target}`` is the invitee, not the case it is invited to."""
+    invite = {
+        "payloadSnapshot": {
+            "type": "Invite",
+            "actor": CM,
+            "object": {"id": CASE, "type": "VulnerabilityCase"},
+            "target": {"id": VENDOR, "type": "Organization", "name": "Acme"},
+        }
+    }
+    event = CaseEvent(
+        kind=EventKind.JOINED,
+        participant=VENDOR,
+        semantic_type=MessageSemantics.INVITE_ACTOR_TO_CASE,
+        log_index=3,
+        committed_at=AT,
+    )
+    row = event_row(event, invite, label_names({"f": [invite]}), CASE)
+    assert row.object == "case → Acme"
+    assert row.activity == "Case Manager invited Acme to the case"
+
+
 def test_a_case_event_belongs_to_the_case_and_an_unknown_entry_reads_a_dash():
     event = CaseEvent(
         kind=EventKind.EMBARGO_START,

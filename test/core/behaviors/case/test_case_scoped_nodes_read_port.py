@@ -155,6 +155,6 @@ def test_refusal_stage_names_the_seeded_node_it_refuses():
 def test_an_unseeded_sequence_classifier_is_a_wiring_fault():
     """The stage builder always seeds the port; a node it did not seed
     names the missing seed rather than judging a number on no case."""
-    node = ClassifySequenceNumberNode(sender_id=SENDER)
+    node = ClassifySequenceNumberNode()
     with pytest.raises(VultronWiringError, match="/case_id"):
         _ = node.case_id

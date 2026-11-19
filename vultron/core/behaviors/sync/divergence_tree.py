@@ -24,6 +24,8 @@ from datetime import datetime
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, REFUSED_ENTRY, SENDER_ID
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_intake_only_received_tree,
 )
@@ -101,13 +103,17 @@ def create_case_diverged_fault_tree(
             sender_id=sender_id, case_id=case_id
         ),
         manager_effects=[
-            ReportRepeatDivergenceNode(
-                case_id=case_id,
-                peer_id=sender_id,
-                refused_entry=refused_entry,
-                fault_published=fault_published,
+            with_act_keys(
+                ReportRepeatDivergenceNode(fault_published=fault_published),
+                {
+                    CASE_ID: case_id,
+                    SENDER_ID: sender_id,
+                    REFUSED_ENTRY: refused_entry,
+                },
             ),
-            ReseedPeerNode(case_id=case_id, peer_id=sender_id),
+            with_act_keys(
+                ReseedPeerNode(), {CASE_ID: case_id, SENDER_ID: sender_id}
+            ),
         ],
         manager_case_id=case_id,
         manager_gate_name=RESEED_GATE_NAME,

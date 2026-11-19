@@ -35,6 +35,12 @@ from typing import cast
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -59,21 +65,23 @@ class BackfillAdmittedParticipantsNode(DataLayerActionWithPorts):
 
     A backfill held back at an entry whose hash does not verify returns
     ``FAILURE`` (SYNC-03-009, BT-14-001).
+
+    The case is read from ``/case_id`` (BTND-01-008).
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
         self._sync_port: SyncActivityPort | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
         "sync_port": PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"sync_port": "/sync_port"}
+        return {**act_key_remappings(CASE_ID), "sync_port": "/sync_port"}
 
     def initialise(self) -> None:
         super().initialise()
@@ -90,14 +98,15 @@ class BackfillAdmittedParticipantsNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case_obj, failure = self._require_case(self.case_id)
+        case_id = act_value(self, CASE_ID, str)
+        case_obj, failure = self._require_case(case_id)
         if failure is not None:
             return failure
 
         if self._sync_port is None:
             raise VultronWiringError(
                 f"{self.name}: sync_port must be injected to backfill the"
-                f" peers admitted on case '{self.case_id}' (SYNC-02-003)"
+                f" peers admitted on case '{case_id}' (SYNC-02-003)"
             )
 
         try:

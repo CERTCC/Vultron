@@ -37,6 +37,8 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
 )
 from test.support.act_runner import run_tree
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
@@ -488,10 +490,12 @@ class TestFactoryChecks:
                     name="D",
                     condition=_Counted("C"),
                     effects=(
-                        CreateLogEntryNode(
-                            case_id=_CASE,
-                            object_id=_CASE,
-                            semantic_type="probe",
+                        with_act_keys(
+                            CreateLogEntryNode(semantic_type="probe"),
+                            {
+                                act_keys.CASE_ID: _CASE,
+                                act_keys.OBJECT_ID: _CASE,
+                            },
                         ),
                     ),
                 )

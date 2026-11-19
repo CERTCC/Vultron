@@ -17,15 +17,20 @@
 
 :func:`render` asks the analyst for a case, reads it through the one
 :class:`~vultron.core.ports.case_reader.CaseReader` it is given, and shows
-the case's level 1 standing as a scoreboard, with its open moves in the
-bands of the case's move advice (ADR-0200).  Beside the analysis it always
+the case's level 1 standing as a scoreboard, each state on a small map of
+its state machine (#6674), with its open moves in the bands of the case's
+move advice (ADR-0200), and the case narrative: one line per ledger entry,
+naming who did what, when, and which states it changed.  Beside the
+analysis it always
 shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
 A reader that can follow a case
 (:class:`~vultron.shadow.readers.following.CaseFollower`), the live Vultron
 case reader, is followed instead of read once: the page shows the case's new
-standing after each ledger entry arrives (#6531).  The last accepted reading
+standing after each ledger entry arrives (#6531), and its narrative gains a
+line for it, keeping every line before it, since each reading holds every
+entry the node has sent (SHD-04-003).  The last accepted reading
 is kept in session state.  A reading the reader refuses shows its error
 above that reading, and a follow that ends marks it as no longer live; the
 reading stays on the page either way (SHD-04-005).
@@ -54,8 +59,9 @@ from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import VultronError
 from vultron.logging_correlation import correlation_context
 from vultron.measure.advice import CaseAdvice, case_advice
+from vultron.measure.standing import ParticipantStanding
 from vultron.shadow.analysis import CaseAnalysis, analyse
-from vultron.shadow.dashboard import view
+from vultron.shadow.dashboard import minimap, view
 from vultron.shadow.log_content import CaseLog, case_log_context
 from vultron.shadow.readers.following import CaseFollower
 
@@ -73,8 +79,8 @@ LAST_READING_KEY = "last_accepted_reading"
 
 #: What the page says of a followed case while it is live, and once not.
 LIVE_NOTE = (
-    "Live: the page follows the case and shows its new standing as each"
-    " ledger entry arrives."
+    "Live: the page follows the case and shows its new standing, and a new"
+    " narrative line, as each ledger entry arrives."
 )
 NOT_LIVE_NOTE = (
     "No longer live: the case's stream has ended. The page shows the case's"
@@ -88,6 +94,14 @@ RECONNECTING_NOTE = (
 NO_ENTRY_NOTE = (
     "No longer live: the case's stream ended before it sent any ledger"
     " entry, so there is no standing to show."
+)
+
+#: What the case narrative's table holds.
+NARRATIVE_NOTE = (
+    "Who did what, when, and which states it changed: one line per ledger"
+    " entry, in ledger order, read from the ledger. The time is the one the"
+    " actor's activity claims; the Case Manager's commit stamp shows only"
+    " where it differs. A state shown as ? is one the source never records."
 )
 
 #: The session-state key counting the follow's heartbeats.
@@ -149,9 +163,16 @@ def _show_standing(analysis: CaseAnalysis) -> None:
     columns = st.columns(4)
     columns[0].metric("Embargo", view.EM_BADGES[standing.case.em])
     for column, badge in zip(
-        columns[1:], view.public_badges(standing.case.pxa), strict=True
+        columns[1:],
+        view.public_badges(standing.case.pxa, standing.case.unobservable),
+        strict=True,
     ):
         column.metric("Public state", badge)
+    for column, case_map in zip(
+        st.columns(2), minimap.case_minimaps(standing.case), strict=True
+    ):
+        with column:
+            _show_minimap(case_map)
     if not standing.end_confirmed:
         st.caption(
             "The ledger does not prove its last entry is the case's last:"
@@ -159,12 +180,60 @@ def _show_standing(analysis: CaseAnalysis) -> None:
         )
     st.subheader("Participants")
     _table(view.participant_rows(standing.participants, names), "None.")
+    _show_participant_minimaps(standing.participants, names)
     st.subheader("Desiderata")
     _table(
         view.desiderata_rows(standing.participants, names),
         "No vendor has a case-state history to score yet.",
     )
     _show_advice(case_advice(standing), names)
+
+
+def _show_minimap(state_map: minimap.Minimap) -> None:
+    """One state on its machine's map, with the state in words below."""
+    st.markdown(f"**{state_map.title}**")
+    st.graphviz_chart(
+        state_map.dot, alt=f"{state_map.title}: {state_map.caption}"
+    )
+    st.caption(state_map.caption)
+
+
+def _show_participant_minimaps(
+    participants: Sequence[ParticipantStanding], names: Mapping[str, str]
+) -> None:
+    """Each participant's RM and VFD maps, one tab per participant."""
+    maps = minimap.participant_minimaps(participants, names)
+    if not maps:
+        return
+    for tab, participant in zip(
+        st.tabs([m.tab for m in maps]), maps, strict=True
+    ):
+        with tab:
+            rm_column, vfd_column = st.columns(2)
+            with rm_column:
+                _show_minimap(participant.rm)
+            with vfd_column:
+                if participant.vfd is None:
+                    st.caption(minimap.NO_FIX_PATH)
+                else:
+                    _show_minimap(participant.vfd)
+
+
+def _show_legend(band: view.BandView) -> None:
+    """*band*'s legend strip: one cell per layer, numbered and in its rows'
+    shades, from better to dominated (SHD-03-003)."""
+    cells = "".join(
+        f'<div style="{s.css}; flex: 1; text-align: center;">{layer}</div>'
+        for layer, s in enumerate(band.legend, start=1)
+    )
+    st.markdown(
+        '<div style="display: flex; align-items: center; margin: 0.5em 0;">'
+        f'<span style="margin-right: 0.5em;">{view.LEGEND_BETTER}</span>'
+        f'<div style="display: flex; flex: 1;">{cells}</div>'
+        f'<span style="margin-left: 0.5em;">{view.LEGEND_DOMINATED}</span>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _shaded_table(band: view.BandView) -> None:
@@ -181,6 +250,7 @@ def _show_band(band: view.BandView) -> None:
     if not band.rows:
         st.caption(band.empty)
     elif band.shaded:
+        _show_legend(band)
         _shaded_table(band)
     else:
         _table(band.rows, band.empty)
@@ -206,6 +276,22 @@ def _show_advice(advice: CaseAdvice, names: Mapping[str, str]) -> None:
     _table(
         view.unbanded_rows(advice, names),
         "None: every allowed move is in a band.",
+    )
+
+
+def _show_narrative(analysis: CaseAnalysis) -> None:
+    """The case narrative: one line per ledger entry, in ledger order."""
+    if not analysis.narrative:
+        return
+    st.subheader("Case narrative")
+    st.caption(NARRATIVE_NOTE)
+    _table(
+        view.narrative_rows(
+            analysis.narrative,
+            analysis.actor_names,
+            analysis.reading.unobservable_events,
+        ),
+        "None.",
     )
 
 
@@ -299,7 +385,9 @@ def _accept(case_log: CaseLog, case_id: str, reading: CaseReading) -> None:
 
 
 def _show_reading(reading: CaseReading) -> None:
-    _show_standing(analyse(reading))
+    analysis = analyse(reading)
+    _show_standing(analysis)
+    _show_narrative(analysis)
     _show_reader_report(reading)
 
 
@@ -374,6 +462,7 @@ __all__ = [
     "HEARTBEAT_KEY",
     "LAST_READING_KEY",
     "LIVE_NOTE",
+    "NARRATIVE_NOTE",
     "NOT_LIVE_NOTE",
     "NO_ENTRY_NOTE",
     "RECONNECTING_NOTE",

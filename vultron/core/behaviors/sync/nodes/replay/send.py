@@ -298,15 +298,15 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
 class ReplayMissingEntriesNode(py_trees.composites.Sequence):
     """Replay the entries after the sender's stated position (SYNC-03-002).
 
-    The case is *case_id* when given, else the activity's ``replay_case_id``;
-    *scope* is the blackboard scope of ``case_actor_id`` (:func:`scoped_keys`).
+    The case is ``/case_id`` when the caller seeds it, else the activity's
+    ``replay_case_id``; *scope* is the blackboard scope of ``case_actor_id``
+    (:func:`scoped_keys`).
     """
 
     def __init__(
         self,
         name: str | None = None,
         *,
-        case_id: str | None = None,
         scope: str | None = None,
     ) -> None:
         super().__init__(
@@ -314,7 +314,7 @@ class ReplayMissingEntriesNode(py_trees.composites.Sequence):
             memory=False,
             children=[
                 CollectAndSortCaseLedgerEntriesNode(
-                    name="CollectAndSortCaseLedgerEntries", case_id=case_id
+                    name="CollectAndSortCaseLedgerEntries"
                 ),
                 FindDivergenceIndexNode(name="FindDivergenceIndex"),
                 SendMissingEntriesNode(name="SendMissingEntries", scope=scope),

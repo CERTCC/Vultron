@@ -36,6 +36,8 @@ from test.support.ledger import chain_tail, ledger_entries
 from test.support.objects import authored_at, make, with_times
 from test.support.received import delivered_body
 from test.support.signing import resigned
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
 )
@@ -641,15 +643,18 @@ def test_the_report_node_keeps_the_error_for_a_fault_claiming_no_time(
     _report(net)
     (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
     _acknowledge(net, BYSTANDER, entry.entry_hash, _ACKNOWLEDGED_AT)
-    node = ReportRepeatDivergenceNode(
-        case_id=net.case_id,
-        peer_id=BYSTANDER,
-        refused_entry=entry,
-        fault_published=None,
+    node = ReportRepeatDivergenceNode(fault_published=None)
+    seeded = with_act_keys(
+        node,
+        {
+            act_keys.CASE_ID: net.case_id,
+            act_keys.SENDER_ID: BYSTANDER,
+            act_keys.REFUSED_ENTRY: entry,
+        },
     )
 
     with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
-        result = _run_reseed(net, node)
+        result = _run_reseed(net, seeded)
 
     assert result.status is Status.SUCCESS
     assert node.repeated and not node.stale
@@ -664,9 +669,12 @@ def test_the_reseed_node_sends_no_case_to_a_peer_not_active() -> None:
     from vultron.core.behaviors.sync.nodes.reseed import ReseedPeerNode
 
     net = LedgerNetwork("https://example.org/cases/reseed-node-withheld")
-    node = ReseedPeerNode(case_id=net.case_id, peer_id=_STRANGER)
+    node = ReseedPeerNode()
+    seeded = with_act_keys(
+        node, {act_keys.CASE_ID: net.case_id, act_keys.SENDER_ID: _STRANGER}
+    )
 
-    result = _run_reseed(net, node)
+    result = _run_reseed(net, seeded)
 
     assert result.status is Status.SUCCESS
     assert node.withheld and not node.reseeded
@@ -682,11 +690,16 @@ def test_the_reseed_node_fails_when_its_gate_is_undecidable() -> None:
     from vultron.core.behaviors.sync.nodes.reseed import ReseedPeerNode
 
     net = LedgerNetwork("https://example.org/cases/reseed-node-no-case")
-    node = ReseedPeerNode(
-        case_id="https://example.org/cases/unknown", peer_id=BYSTANDER
+    node = ReseedPeerNode()
+    seeded = with_act_keys(
+        node,
+        {
+            act_keys.CASE_ID: "https://example.org/cases/unknown",
+            act_keys.SENDER_ID: BYSTANDER,
+        },
     )
 
-    result = _run_reseed(net, node)
+    result = _run_reseed(net, seeded)
 
     assert result.status is Status.FAILURE
     assert not node.reseeded

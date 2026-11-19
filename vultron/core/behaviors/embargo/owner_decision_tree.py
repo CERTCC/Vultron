@@ -43,6 +43,7 @@ from vultron.core.behaviors.case.nodes.stub_reissue import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.embargo_clock_decisions import (
     embargo_clock_decisions,
 )
@@ -167,7 +168,7 @@ def activate_embargo_on_case_tree(
                 case_id=case_id, embargo_id=embargo_id, result_out={}
             ),
             notices,
-            BackfillAdmittedParticipantsNode(case_id=case_id),
+            with_case_id(BackfillAdmittedParticipantsNode(), case_id),
             # The owner's activation of a revision changes the active embargo
             # under any stub Invite still outstanding (CM-11-016).
             ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
