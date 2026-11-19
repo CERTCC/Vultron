@@ -59,7 +59,7 @@ tracks:
   - "#6293"   # idea: owner's removal and reinstatement requests name the Actor
   - "#6487"   # idea: the decider sends the act; owner embargo decisions are Updates
   - "#6625"   # owner embargo activation and rejection are its own Updates
-  - "#6626"   # idea: proposer's own Invite, announced (case invite, embargo relay)
+  - "#6626"   # idea: an Announce informs; the CASE_MANAGER makes the ask
 description: >
   Decisions from a review of the wire protocol against the full ActivityStreams 2.0
   vocabulary: which AS2 verbs and properties say a CVD sentence more naturally than
@@ -430,10 +430,10 @@ Issues: #6487, #6625. Record: ADR-0199 revision 2 (partially superseding ADR-018
   goes into force, so it sends the act itself, to the CASE_MANAGER, which admits it
   as the ledger entry or refuses it with a refusal notice. No `Offer`, no `Accept`.
 - **Activation is `Update(EmbargoEvent{id, status: ACTIVE})`**, for a first proposal
-  (EA) and a revision (EC) alike, with `inReplyTo` naming the proposal's
-  `Invite(EmbargoEvent)`. The proposal already put the embargo on the register
-  (ADR-0202), so `Add` to the case is no longer true. It replaces
-  `Add(EmbargoEvent)[target=VulnerabilityCase]`.
+  (EA) and a revision (EC) alike, with `inReplyTo` naming the proposer's own
+  `Invite(EmbargoEvent)`, not an Invite the CASE_MANAGER made from it (#6626).
+  The proposal already put the embargo on the register (ADR-0202), so `Add` to the
+  case is no longer true. It replaces `Add(EmbargoEvent)[target=VulnerabilityCase]`.
 - **Rejection is `Update(EmbargoEvent{id, status: REJECTED})`** (ER, EJ), with the
   same `inReplyTo`. It replaces `Reject(EmbargoEvent)[target=VulnerabilityCase]`,
   so a `Reject` from the Owner only ever means its own consent,
@@ -480,41 +480,80 @@ question), and `notes/participant-embargo-consent.md`.
 
 ---
 
-## The Owner Offers Ownership, and the CASE_MANAGER Announces It
+## An Announce Informs, and the CASE_MANAGER Makes the Ask
 
-Issues: #6487, #6466. Record: ADR-0199 revision 2 (partially superseding ADR-0148).
+Issues: #6626, #6466, #6464. Record: ADR-0199 revision 3.
 
 **Decision.**
 
-- The transferee decides whether to take the case, so the Owner offers it: its own
-  `Offer(VulnerabilityCase)` with the transferee as `target`, sent to the CASE_MANAGER.
-  The nested `Offer(Offer(VulnerabilityCase))` and the CASE_MANAGER's own transfer
-  Offer are retired.
-- The CASE_MANAGER refuses the Offer under ADR-0148's rules (Owner only, one open
-  Offer per case, the transferee an active participant other than the CASE_MANAGER
-  and the Owner; CM-21-014, CM-21-019, CM-21-021), or admits it as the ledger entry
-  and sends the transferee `Announce(<the Owner's Offer>)`. The `Announce`'s `actor`
-  is the CASE_MANAGER, so the transferee's trust check is unchanged.
-- The transferee answers the Owner's Offer by its id, to the CASE_MANAGER, which
-  admits the `Accept` only while the transferee is still active (CM-21-021). The
-  Owner withdraws with `Undo` of its own Offer (CM-21-015).
-- The open-Offer bookkeeping is keyed by the case (one open Offer per case), not by
-  the Owner's id. No replica builds a record of the Offer from the ledger: only the
-  transferee holds it, in its intake archive, so #4911 stays fixed.
+- **An `Announce` never asks.** It tells an actor outside the ledger fan-out about an
+  admitted act (a removal, a reinstatement, an embargo's end), and no one answers it
+  or the act it carries. An `Offer` or `Invite` is what expects an answer.
+- **The decider still sends its own act**, to the CASE_MANAGER, which admits it as a
+  ledger entry or refuses it (§ "The Owner Sends Its Removal or Reinstatement").
+- **When the act needs an answer, the CASE_MANAGER makes the ask**: its own `Offer`
+  or `Invite`, with the decider's `object` and `target`, `attributedTo` = the decider
+  and `inReplyTo` = the decider's act, sent to the answering actor and committed as
+  its own ledger entry once it is in the outbox. The answer names the CASE_MANAGER's
+  act and goes to the CASE_MANAGER. An Owner that holds the CASE_MANAGER role sends
+  the ask itself, with neither field.
+- **Slots.** Both verbs carry the thing offered in `object` and the actor it is
+  offered to in `target` (VOC Offer: "the target indicates the entity to which the
+  object is being offered"; VOC Invite, ADR-0205).
 
-**History.** ADR-0053 moved the Owner's direct Offer to the transferee through the
-CASE_MANAGER so the ledger records it. Its forward made two Offers per transfer, so
-ADR-0148 chose the nested Offer, rejecting a relay because the delivered `actor`
-would not be the sender and the CASE_MANAGER would keep its record under the Owner's
-id. The `Announce` answers the first; the second no longer applies, because the
-Offer is the Owner's own act.
+The three flows that need an answer:
 
-**Today.** `Offer(Offer(VulnerabilityCase))`, `notes/ownership-transfer.md`. #6466's
-first scope (an `Accept` to the Owner) is retired; #6466 now builds this section.
+- **Ownership transfer.** The Owner sends its own `Offer(VulnerabilityCase)`,
+  `target` = the transferee, to the CASE_MANAGER. It replaces the nested
+  `Offer(Offer(VulnerabilityCase))`. The CASE_MANAGER refuses it under ADR-0148's
+  rules (Owner only, one open Offer per case, the transferee an active participant
+  other than the CASE_MANAGER and the Owner; CM-21-014, CM-21-019, CM-21-021), or
+  ledgers it and makes its own Offer to the transferee under an id derived from the
+  Owner's, as it does today (CM-21-028, CM-21-029). The CASE_MANAGER's Offer is the
+  one that is answered, closed and expired. The Owner withdraws with `Undo` of its
+  own Offer, which the CASE_MANAGER resolves to the Offer it made (CM-21-037).
+  CM-21-044 (refuse every received `Offer(VulnerabilityCase)`) inverts: the Owner's
+  flat Offer is now the proposal.
+- **Case invitation, direct.** The Owner sends its own `Invite(<case preview>)`,
+  `target` = the invitee, carrying the roles, to the CASE_MANAGER. It replaces the
+  recommend-actor `Offer(Actor)[target=VulnerabilityCase]` the direct trigger sends
+  (CM-17-007), which was an `Offer` for a decision the Owner makes. The CASE_MANAGER
+  ledgers it and sends its own stub Invite (PCR-08-007, CM-17-006). Its received path
+  reads the Owner's Invite by its `target`, which names an actor other than the
+  CASE_MANAGER it is addressed to.
+- **Case invitation, suggested.** No change of shape. A participant's
+  `Offer(Actor)` is a suggestion the Owner decides, the Owner's `Accept` is its
+  decision, and the CASE_MANAGER's stub Invite sets `inReplyTo` to that `Accept`.
+- **Embargo proposal.** No change of shape (ADR-0113). The proposer's
+  `Invite(EmbargoEvent)` is ledgered, and each other participant gets the
+  CASE_MANAGER's own Invite, with its own RSVP deadline (CM-28-012), `attributedTo`
+  the proposer and `inReplyTo` the proposer's Invite. Joiners (EP-09-011) and resends
+  (SYNC-20) keep working because each ask is an act of its own. The creation-time
+  revision (EP-04-016) and the full-case Invite are the CASE_MANAGER's own decisions,
+  so they carry neither field.
 
-**Touches.** CM-21 (014 to 021, 028), CM-24-002, the ownership-transfer trigger,
-received trees, patterns and examples, `notes/ownership-transfer.md`, the glossary's
-**Case Ownership Transfer**, the ownership-transfer demo.
+**AS2 basis.** VOC Announce: "the actor is calling the target's attention the
+object" — a notice, not a request. "The CASE_MANAGER says the Owner invited you"
+reads as a report of an invitation, so a receiver would wait for the invitation
+itself.
+
+**History.** ADR-0199 revision 2 sent the transferee `Announce(<the Owner's
+Offer>)`, answered by the Owner's Offer's id; it was not built. ADR-0148 rejected
+relaying the Owner's Offer because the delivered `actor` would not be its sender and
+the CASE_MANAGER would keep its record under the Owner's id; the CASE_MANAGER's own
+Offer answers both.
+
+**Today.** `Offer(Offer(VulnerabilityCase))` and `notes/ownership-transfer.md`; the
+direct invite trigger is `vultron/core/use_cases/triggers/actor/recommendation.py`,
+and the Owner-recommender branch is
+`vultron/core/behaviors/case/suggest_actor_tree/recommend.py` (CM-17-018). The
+embargo relay is `vultron/core/behaviors/embargo/invite_received_tree.py`.
+`inReplyTo` on every delegated emit is #6464.
+
+**Touches.** CM-21 (014 to 021, 025 to 029, 036, 037, 044), CM-17 (007, 017, 018,
+019), PCR-08-007, CM-24-002, `notes/ownership-transfer.md`, `notes/case-joining.md`,
+the glossary's **Case Ownership Transfer**, the ownership-transfer and
+direct-invite demos, `docs/reference/messages/case_management.md`.
 
 ---
 
@@ -785,8 +824,8 @@ inquiries where no single act is proposed.
 
 The rule behind it is ADR-0199's: an `Offer` asks another actor to decide. The
 ownership transfer is the Owner's own `Offer(VulnerabilityCase)`, because the
-transferee decides (§ "The Owner Offers Ownership, and the CASE_MANAGER Announces
-It").
+transferee decides; the transferee answers the CASE_MANAGER's Offer made from it
+(§ "An Announce Informs, and the CASE_MANAGER Makes the Ask").
 
 **AS2 basis.** VOC Offer can propose an action ("Sally is offering to add a File to
 Folder A"); `Question` is intransitive, with `oneOf`/`anyOf`, answers as separate
