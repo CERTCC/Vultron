@@ -279,16 +279,19 @@ def _imports(path: Path) -> set[str]:
     return names
 
 
+def _imports_streamlit(path: Path) -> bool:
+    return any(
+        name == "streamlit" or name.startswith("streamlit.")
+        for name in _imports(path)
+    )
+
+
 @pytest.mark.spec("SHD-02-004")
 def test_no_module_outside_the_shadow_package_imports_streamlit():
     importers = sorted(
         str(path.relative_to(_REPO))
         for path in (_REPO / "vultron").rglob("*.py")
-        if not path.is_relative_to(_SHADOW)
-        and any(
-            name == "streamlit" or name.startswith("streamlit.")
-            for name in _imports(path)
-        )
+        if not path.is_relative_to(_SHADOW) and _imports_streamlit(path)
     )
     assert importers == []
 
@@ -301,15 +304,13 @@ def test_the_scan_sees_the_shadow_packages_own_streamlit_import():
 def test_no_view_module_imports_streamlit():
     """What the page shows is worked out with no Streamlit call, so it is
     tested without a browser; only the page lays it out."""
-    view_modules = sorted((_SHADOW / "dashboard" / "view").glob("*.py"))
+    view = _SHADOW / "dashboard" / "view"
+    view_modules = sorted(view.rglob("*.py"))
     assert view_modules
     importers = [
-        path.name
+        str(path.relative_to(view))
         for path in view_modules
-        if any(
-            name == "streamlit" or name.startswith("streamlit.")
-            for name in _imports(path)
-        )
+        if _imports_streamlit(path)
     ]
     assert importers == []
 
