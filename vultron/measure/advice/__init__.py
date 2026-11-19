@@ -16,8 +16,10 @@
 :mod:`.shifts` reads each vendor's outcome shift from the walk of ADR-0182;
 :mod:`.bands` puts the moves in bands and layers and marks them; and
 :mod:`.case` reads a case's standing record into the typed
-:class:`CaseAdvice` the case shadow tool shows (ADR-0190).  The advice ranks no
-move by one case score.
+:class:`CaseAdvice` the case shadow tool shows (ADR-0190); and
+:mod:`.hindsight` grades the step a ledger entry took by the advice open
+before it, as its hindsight mark (#6672).  The advice ranks no move by one
+case score.
 """
 
 from vultron.measure.advice.bands import (
@@ -50,6 +52,11 @@ from vultron.measure.advice.case import (
     VendorShift,
     case_advice,
 )
+from vultron.measure.advice.hindsight import (
+    HindsightMark,
+    NarrativeMark,
+    hindsight_mark,
+)
 from vultron.measure.advice.shifts import (
     CHANCE_EVENTS,
     SCOPE_GROUPS,
@@ -79,7 +86,9 @@ __all__ = [
     "CaseAdvice",
     "ColourMap",
     "Harm",
+    "HindsightMark",
     "MoveAdvice",
+    "NarrativeMark",
     "Part",
     "ScopeParts",
     "ScopeShift",
@@ -93,6 +102,7 @@ __all__ = [
     "deciding_parts",
     "dominates",
     "harms",
+    "hindsight_mark",
     "layers",
     "move_shifts",
     "open_moves",

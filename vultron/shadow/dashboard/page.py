@@ -20,8 +20,9 @@
 the case's level 1 standing as a scoreboard, each state on a small map of
 its state machine (#6674), with its open moves in the bands of the case's
 move advice (ADR-0200), and the case narrative: one line per ledger entry,
-naming who did what, when, and which states it changed.  Beside the
-analysis it always
+naming who did what, when, and which states it changed, each line with its
+hindsight mark: the step it took, graded against the move advice open just
+before it (#6672).  Beside the analysis it always
 shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
@@ -64,8 +65,10 @@ from collections.abc import Mapping, Sequence
 import pandas as pd
 import streamlit as st
 
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_reading import CaseReading
 from vultron.core.ports.case_reader import CaseReader
+from vultron.core.states.cs_invariants import CSEvent
 from vultron.errors import VultronError
 from vultron.logging_correlation import correlation_context
 from vultron.measure.advice import CaseAdvice, case_advice
@@ -73,6 +76,8 @@ from vultron.measure.standing import ParticipantStanding
 from vultron.shadow.analysis import (
     CaseAnalysis,
     analyse,
+    ledger_advice,
+    narrative_marks,
     point_analysis,
 )
 from vultron.shadow.dashboard import minimap, view
@@ -124,6 +129,18 @@ NARRATIVE_NOTE = (
     " actor's activity claims; the Case Manager's commit stamp shows only"
     " where it differs. A state shown as ? is one the source never records."
 )
+
+#: How the narrative's hindsight marks read (#6672).
+HINDSIGHT_NOTE = (
+    "Hindsight grades each step against the move advice open just before"
+    " it: ⭐ best, 👍 good, ⚠️ sub-optimal, ➖ neutral, 👎 bad. 🎲 is an"
+    " event no participant chooses and 💬 an act that is not a move; neither"
+    " is graded. A best, good or sub-optimal mark takes its layer's shade on"
+    " its band's legend."
+)
+
+#: What the page says while it grades the narrative's steps.
+GRADING_NOTE = "Grading each step against the move advice open before it…"
 
 #: The session-state key counting the follow's heartbeats.
 HEARTBEAT_KEY = "follow_heartbeats"
@@ -313,20 +330,47 @@ def _show_advice(advice: CaseAdvice, names: Mapping[str, str]) -> None:
     )
 
 
+# A case's first entries are the same in every longer reading of it, so a
+# rerun, a followed case's next reading and another session's reading of the
+# same case work out only the prefixes not seen yet.  The bound keeps
+# a long follow from holding the advice of every prefix it graded.
+@st.cache_data(max_entries=512, show_spinner=False)
+def _advice_of(
+    entries: tuple[CaseLedgerEntry, ...], unobservable: frozenset[CSEvent]
+) -> CaseAdvice | None:
+    """The move advice at the last of *entries*, kept for the next draw."""
+    return ledger_advice(entries, unobservable)
+
+
 def _show_narrative(analysis: CaseAnalysis) -> None:
-    """The case narrative: one line per ledger entry, in ledger order."""
+    """The case narrative: one line per ledger entry, in ledger order, each
+    with its hindsight mark in its band's shade."""
     if not analysis.narrative:
         return
     st.subheader("Case narrative")
     st.caption(NARRATIVE_NOTE)
-    _table(
-        view.narrative_rows(
-            analysis.narrative,
-            analysis.actor_names,
-            analysis.reading.unobservable_events,
-        ),
-        "None.",
+    st.caption(HINDSIGHT_NOTE)
+    with st.spinner(GRADING_NOTE):
+        marks = narrative_marks(analysis.reading, _advice_of)
+    rows = view.narrative_rows(
+        analysis.narrative,
+        analysis.actor_names,
+        analysis.reading.unobservable_events,
+        marks,
     )
+    styles = [
+        "" if shade is None else shade.css for shade in view.mark_shades(marks)
+    ]
+    # Only the mark's cell takes its band's shade.
+    styler = pd.DataFrame(rows).style.apply(
+        lambda column: (
+            styles
+            if column.name == view.HINDSIGHT_COLUMN
+            else [""] * len(styles)
+        ),
+        axis=0,
+    )
+    st.dataframe(styler, hide_index=True, width="stretch")
 
 
 def _show_reader_report(reading: CaseReading) -> None:
@@ -554,7 +598,9 @@ def _follow(follower: CaseFollower, case_id: str, case_log: CaseLog) -> None:
 __all__ = [
     "CASE_KEY",
     "END_UNCONFIRMED_NOTE",
+    "GRADING_NOTE",
     "HEARTBEAT_KEY",
+    "HINDSIGHT_NOTE",
     "LAST_READING_KEY",
     "LIVE_NOTE",
     "NARRATIVE_NOTE",

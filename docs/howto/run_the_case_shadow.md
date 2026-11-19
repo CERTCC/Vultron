@@ -146,6 +146,16 @@ Below the scoreboard, **Case narrative** tells who did what, when, and which sta
 The tool reads each line from the ledger; nobody writes it by hand.
 
 - **#** is the entry's log index.
+- **Hindsight** grades the step the entry took against the move advice that was open just before it.
+  ⭐ **best** is a layer-1 move of the first band, harm-free then trade-off, that holds any move, so a trade-off move is best when no harm-free move was open.
+  👍 **good** is any other harm-free move, and ⚠️ **sub-optimal** any other trade-off move.
+  ➖ **neutral** is an unhelpful move that changes no Vendor's values, or a move that keeps every state, such as a second embargo proposal.
+  👎 **bad** is an unhelpful move that leaves a Vendor below the chance value.
+  Two marks grade nothing: 🎲 is an event no participant chooses, such as an exploit made public, and 💬 is an act that is not a move, such as a note, or a participant's answer to an embargo invitation.
+  Making the vul public is a participant's move, so the entry that first makes the case public is graded like any other move.
+  The icons differ in shape, so you can read them without color; a best, good or sub-optimal mark also takes the shade its layer has on its band's legend.
+- **Hindsight note** names the move the mark graded, and says why a line is not graded.
+  A sub-optimal move that a harm-free move beats says that a harm-free move did as well.
 - **Time** is the time the actor's activity claims, and **Committed** shows the Case Manager's commit stamp only where it differs.
 - **Actor**, **Activity** and **Object** name who acted, the phrase for the entry's semantic type, and what the activity names.
 - **State changes** lists each state the entry moved: a participant's report state (RM) and its fix path and deployment (VFD), and the case's embargo state (EM) and public state (PXA).

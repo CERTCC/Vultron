@@ -29,7 +29,7 @@ from vultron.core.models.case_reading import (
     UntranslatedFact,
     UntranslatedReason as Reason,
 )
-from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.states.cs import CS, CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
@@ -40,6 +40,7 @@ from vultron.core.states.rm import RM
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.advice import (
+    BAND_COLOUR_MAPS,
     BAND_ORDER,
     CHANCE_EVENT,
     DOMINATED_BY_HARM_FREE,
@@ -48,12 +49,15 @@ from vultron.measure.advice import (
     BandAdvice,
     CaseAdvice,
     ColourMap,
+    HindsightMark,
+    NarrativeMark,
     Part,
     UnbandedMove,
     VendorHarm,
     VendorShift,
     case_advice,
 )
+from vultron.measure.advice.hindsight import DID_AS_WELL, NO_STATE_CHANGE
 from vultron.measure.history import (
     NarrativeLine,
     StateChange,
@@ -67,6 +71,7 @@ from vultron.measure.sequences import (
 )
 from vultron.measure.standing import (
     CaseStanding,
+    CSMove,
     DesideratumStatus,
     ParticipantStanding,
     RMMove,
@@ -872,3 +877,105 @@ def test_the_point_note_names_the_entry_and_how_many_entries_it_reads():
     assert "just after entry #1" in note
     assert "first 2 of 3 entries only" in note
     assert "first 3 of 3 entries only" in view.point_note(3, _POINTS)
+
+
+# -- hindsight marks on the narrative (#6672) ---------------------------
+
+_RM_ACCEPT = RMMove(
+    participant=VENDOR, source=RM.VALID, destination=RM.ACCEPTED
+)
+_PUBLISH = CSMove(
+    participant=VENDOR,
+    event=CSEvent.P,
+    source=CS.Vfdpxa,
+    destination=CS.VfdPxa,
+)
+
+
+def _marked(**fields) -> NarrativeMark:
+    return NarrativeMark(**{"log_index": 0, **fields})
+
+
+_SUB_OPTIMAL = _marked(
+    mark=HindsightMark.SUB_OPTIMAL,
+    move=_RM_ACCEPT,
+    band=Band.TRADE_OFF,
+    layer=2,
+    deepest_layer=3,
+    note=DID_AS_WELL,
+)
+
+
+def test_every_hindsight_mark_has_an_icon_of_its_own_shape():
+    """The icons differ in shape, so a mark reads without its shade."""
+    assert set(view.HINDSIGHT_ICONS) == set(HindsightMark)
+    assert len(set(view.HINDSIGHT_ICONS.values())) == len(HindsightMark)
+    assert view.HINDSIGHT_ICONS[HindsightMark.BEST] == "⭐"
+    assert view.HINDSIGHT_ICONS[HindsightMark.CHANCE] == "🎲"
+    assert view.HINDSIGHT_ICONS[HindsightMark.NOT_A_MOVE] == "💬"
+
+
+def test_a_marked_row_carries_its_mark_beside_its_log_index():
+    (row,) = view.narrative_rows([_line()], NAMES, marks=[_SUB_OPTIMAL])
+    assert list(row)[:2] == ["#", view.HINDSIGHT_COLUMN]
+    assert row[view.HINDSIGHT_COLUMN] == "⚠️ sub-optimal"
+
+
+def test_a_sub_optimal_line_a_harm_free_move_dominated_says_so():
+    """AC-3: the dominated-by-harm-free note shows on the ⚠️ line."""
+    (row,) = view.narrative_rows([_line()], NAMES, marks=[_SUB_OPTIMAL])
+    note = row[view.HINDSIGHT_NOTE_COLUMN]
+    assert note == f"RM Accept (Vendor): {DID_AS_WELL}"
+
+
+def test_a_case_wide_move_names_no_participant_in_its_note():
+    """A publication moves the case's state, whoever's move it is."""
+    mark = _marked(
+        mark=HindsightMark.BEST,
+        move=_PUBLISH,
+        band=Band.HARM_FREE,
+        layer=1,
+        deepest_layer=1,
+    )
+    assert view.mark_note(mark, NAMES) == "CS Public becomes aware"
+
+
+def test_a_line_that_is_not_graded_says_why():
+    mark = _marked(mark=HindsightMark.NOT_A_MOVE, note=NO_STATE_CHANGE)
+    (row,) = view.narrative_rows([_line()], NAMES, marks=[mark])
+    assert row[view.HINDSIGHT_COLUMN] == "💬 not a move"
+    assert row[view.HINDSIGHT_NOTE_COLUMN] == NO_STATE_CHANGE
+
+
+def test_rows_without_marks_have_no_hindsight_columns():
+    (row,) = view.narrative_rows([_line()], NAMES)
+    assert view.HINDSIGHT_COLUMN not in row
+    assert view.HINDSIGHT_NOTE_COLUMN not in row
+
+
+def test_marks_that_are_not_one_per_line_are_refused():
+    with pytest.raises(ValueError, match="one per narrative line"):
+        view.narrative_rows(
+            [_line(), _line(log_index=1)], NAMES, marks=[_SUB_OPTIMAL]
+        )
+
+
+def test_a_shaded_mark_takes_its_layers_shade_on_its_bands_legend():
+    """⭐, 👍 and ⚠️ take the shade their layer has on the legend of the
+    advice they were graded by; no other mark is shaded."""
+    best = _marked(
+        mark=HindsightMark.BEST,
+        move=_RM_ACCEPT,
+        band=Band.HARM_FREE,
+        layer=1,
+        deepest_layer=3,
+    )
+    bad = _marked(mark=HindsightMark.BAD, move=_RM_ACCEPT, band=Band.UNHELPFUL)
+    chance = _marked(mark=HindsightMark.CHANCE, note="by chance")
+    shades = view.mark_shades([best, _SUB_OPTIMAL, bad, chance])
+    assert shades == (
+        view.band_legend_shades(BAND_COLOUR_MAPS[Band.HARM_FREE], 3)[0],
+        view.band_legend_shades(BAND_COLOUR_MAPS[Band.TRADE_OFF], 3)[1],
+        None,
+        None,
+    )

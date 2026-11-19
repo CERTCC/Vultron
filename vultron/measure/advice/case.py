@@ -382,6 +382,14 @@ class CaseAdvice(BaseModel):
         """Every open move, band by band."""
         return tuple(m for b in self.bands for m in b.moves)
 
+    @property
+    def deepest_layer(self) -> int:
+        """The deepest layer of any harm-free or trade-off move, which every
+        shaded band's legend runs to; 1 when no move has a layer."""
+        return max(
+            (m.layer for m in self.moves if m.layer is not None), default=1
+        )
+
 
 @cache
 def _desiderata_by_notation() -> dict[str, Desideratum]:
