@@ -56,7 +56,10 @@ from vultron.core.models.participant_status import (
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItem,
+    VulnerabilityItemId,
+)
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.object_types import (
@@ -87,7 +90,7 @@ def _make_instance(core_cls):
             preferred_duration=timedelta(days=90),
         )
     if core_cls is VulnerabilityItem:
-        return make(core_cls, cve="CVE-2024-0001")
+        return make(core_cls, ids=[VulnerabilityItemId.cve("CVE-2024-0001")])
     if core_cls is VulnerabilityCase:
         return make(core_cls, attributed_to=CASE_OWNER_ID)
     return make(core_cls)

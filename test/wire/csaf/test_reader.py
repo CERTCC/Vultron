@@ -375,6 +375,12 @@ def test_a_schema_invalid_document_is_read_field_by_field() -> None:
             "$.vulnerabilities[0].cve",
         ),
         (
+            lambda d: _vul(d).update(
+                {"ids": [{"system_name": "CVE", "text": "CVE-26-1"}]}
+            ),
+            "$.vulnerabilities[0].ids[0].text",
+        ),
+        (
             lambda d: _vul(d).update({"ids": [{"text": "EX-17"}]}),
             "$.vulnerabilities[0].ids[0]",
         ),
@@ -410,6 +416,7 @@ def test_a_schema_invalid_document_is_read_field_by_field() -> None:
         "acknowledgment-naming-no-one",
         "tlp-not-object",
         "cve-not-a-cve-id",
+        "cve-id-entry-not-a-cve-id",
         "id-without-system-name",
         "id-text-not-string",
         "note-without-text",
@@ -457,11 +464,15 @@ def test_a_selection_other_than_ssvc_exploitation_is_not_read() -> None:
 
 
 @pytest.mark.spec("CM-05-008")
+@pytest.mark.spec("CM-05-008", "CM-05-019")
 def test_the_tracking_ids_are_read_as_written_each_once() -> None:
+    """Only a ``CVE`` entry's text is checked; any other system's is opaque."""
     data = vulnerability_report_document()
     _vul(data)["ids"] = [
         {"system_name": "Example tracker", "text": "EX-17"},
         {"system_name": "CVE", "text": "not a cve at all"},
+        {"system_name": "cve mirror", "text": "not a cve at all"},
+        {"system_name": "CVE", "text": "CVE-2026-0002"},
         {"system_name": "Example tracker", "text": "EX-17"},
     ]
 
@@ -469,7 +480,8 @@ def test_the_tracking_ids_are_read_as_written_each_once() -> None:
 
     assert [(i.system_name, i.text) for i in vul.ids] == [
         ("Example tracker", "EX-17"),
-        ("CVE", "not a cve at all"),
+        ("cve mirror", "not a cve at all"),
+        ("CVE", "CVE-2026-0002"),
     ]
 
 

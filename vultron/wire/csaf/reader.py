@@ -65,6 +65,7 @@ from vultron.core.models.report_claims import (
 )
 from vultron.core.models.vulnerability_item import (
     CVE_ID_PATTERN,
+    CVE_SYSTEM_NAME,
     NoteCategory,
 )
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
@@ -524,7 +525,8 @@ class _FieldReader:
         """The vulnerability's tracking IDs, each once, in document order.
 
         An entry needs both its ``system_name`` and its ``text``; one that
-        lacks either is skipped.  Neither value is parsed (CM-05-008).
+        lacks either is skipped.  Neither value is parsed (CM-05-008), but a
+        ``CVE`` entry whose text is not a CVE ID is skipped (CM-05-019).
         """
         ids: list[ClaimedVulnerabilityId] = []
         for here, item in self._items(vul, "ids", path):
@@ -534,6 +536,12 @@ class _FieldReader:
                 self._skip_missing(
                     here, item, ("system_name", "text"), "an id"
                 )
+                continue
+            if (
+                system_name == CVE_SYSTEM_NAME
+                and _CVE_ID.fullmatch(text) is None
+            ):
+                self._skip(f"{here}.text", "not a CVE ID (CM-05-019)")
                 continue
             ids.append(
                 ClaimedVulnerabilityId(system_name=system_name, text=text)

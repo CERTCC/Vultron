@@ -34,6 +34,7 @@ from vultron.adapters.driven.db_record.ref_fields import (
     _KEEP_INLINE_NESTED_TYPES,
     _inline_required_refs,
 )
+from vultron.core.models.vulnerability_item import VulnerabilityItemId
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronValidationError,
@@ -444,7 +445,9 @@ def _make_wire_vulnerability_item():
         as_VulnerabilityItem,
     )
 
-    return make(as_VulnerabilityItem, cve="CVE-2401-0001")
+    return make(
+        as_VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2401-0001")]
+    )
 
 
 @pytest.mark.parametrize(

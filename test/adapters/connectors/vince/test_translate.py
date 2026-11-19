@@ -41,6 +41,7 @@ from test.adapters.connectors.vince._support import (
     actors_by_name,
     crosswalk_caveats,
     crosswalk_rows,
+    cve_of,
     projected,
     reads,
     records,
@@ -185,9 +186,8 @@ def test_every_vul_and_post_with_a_counterpart_is_translated(stem):
     assert [item["title"] for item in items] == [
         v["name"] for v in raw["vuls"]
     ]
-    assert [item.get("cve") for item in items] == [
-        v["cve"] for v in raw["vuls"]
-    ]
+    # A VINCE cve is the item's ``CVE`` ids entry (CM-05-018).
+    assert [cve_of(item) for item in items] == [v["cve"] for v in raw["vuls"]]
     orgs = set(actors_by_name(reading))
     assert [note["content"] for note in records(reading, "Note")] == [
         post["content"]
