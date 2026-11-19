@@ -61,7 +61,7 @@ groups:
     statement: >-
       When the fields of a domain entity decide how a factory enriches the wire object,
       the factory MUST accept the complete domain object. An example is a case whose
-      embargo state decides whether `activeEmbargo` appears in
+      embargo state decides whether `embargoRegister` appears in
       the stub.
     rationale: >-
       The core class is its own wire form (ARCH-25-003, ADR-0211), and ARCH-22-001 lets

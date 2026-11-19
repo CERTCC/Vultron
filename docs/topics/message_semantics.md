@@ -117,7 +117,7 @@ sharing restricted content.
 ### The stub object pattern
 
 The protocol specification defines the stub the protocol uses, the **case stub**, in [§12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n).
-In the specification's words, it is "a minimal description of the case carrying enough for the invitee to decide, and no vulnerability detail."
+In the specification's words, it is "the case cut down for an invited actor: enough to decide whether to join, such as its summary, its Case Owner and the embargo in force, with the case's content withheld."
 The specification, not this page, says what that description contains.
 At the wire level a stub carries at least an `id` and a `type` ([MV-10-001](../reference/vultron-spec/requirements/messages.md#mv-10-001)).
 The case stub's `type` is `CasePreview`, so a recipient tells it from a full case by its type alone, and messages are routed and matched correctly.
