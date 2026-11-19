@@ -78,15 +78,11 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
 
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id: str | None = None
-
-    def initialise(self) -> None:
-        super().initialise()
-        # No case context is a no-op (``_compose``), never a commit.
-        self.case_id = self._case_id
 
     def _compose(self) -> CaseManagerNote | None:
-        if not self.case_id:
+        # No case context is a no-op, never a commit.
+        case_id = self._case_id
+        if not case_id:
             return None
 
         assert self.datalayer is not None
@@ -94,7 +90,7 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
         # Lenient diagnostic (ADR-0087): this node only *warns* on an invariant
         # violation and never fails the tree. An unresolvable case has nothing
         # to diagnose (conformance allowlist).
-        case = self.datalayer.read_case(self.case_id)
+        case = self.datalayer.read_case(case_id)
         if case is None:
             return None
 
@@ -115,11 +111,11 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
 
         logger.warning(
             "PxaEmInvariantDiagnosticNode: CSB-18 violation in case '%s': %s",
-            self.case_id,
+            case_id,
             violation,
         )
         return CaseManagerNote(
-            name=f"CSB-18 invariant violation in case {self.case_id}",
+            name=f"CSB-18 invariant violation in case {case_id}",
             content=violation,
         )
 

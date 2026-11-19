@@ -71,7 +71,6 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
     ):
         super().__init__(name=name)
         self.sender_actor_id = sender_actor_id
-        self.case_id: str | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_CommitCaseManagerNoteBase.INPUT_PORTS,
@@ -87,8 +86,6 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
 
     def initialise(self) -> None:
         super().initialise()
-        # No case context is a no-op (``_compose``), never a commit.
-        self.case_id = self._case_id
         try:
             self.rm_anomaly = self.get_input(BB_RM_ANOMALY)
         except NoDataAvailable, NotImplementedError:
@@ -96,7 +93,8 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
 
     def _compose(self) -> CaseManagerNote | None:
         anomaly = self.rm_anomaly
-        if not self.case_id or anomaly is None:
+        # No case context is a no-op, never a commit.
+        if not self._case_id or anomaly is None:
             return None
 
         anomaly_type = anomaly.get("anomaly_type", "unknown")

@@ -1369,8 +1369,8 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             recommended_id=_RECOMMENDED,
             offer_content=offer_content,
         )
-        # Resolved by ``update()`` before it composes the note.
-        node.case_id = _CASE_ID
+        # Set by ``initialise()`` and ``update()`` before ``_compose()`` runs.
+        node._case_id = _CASE_ID
         node._owner_id = self._OWNER_ID
         note = node._compose()
         assert note.in_reply_to == _REC_ID

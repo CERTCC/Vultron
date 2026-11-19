@@ -22,16 +22,16 @@ seed for a key it requires is a composition fault: the shared read
 error naming the key, rather than the node deciding anything without it.
 """
 
-from collections.abc import Callable, Iterator
-
-import py_trees
 import pytest
 
-from test.core.behaviors.embargo.nodes.conftest import setup_blackboard
-from test.support.act_runner import in_act
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from test.support.act_key_inputs import (
+    NodeBuild,
+    assert_unseeded_key_raises,
+    restored_act_keys,
+    unseeded_key_case_ids,
+    unseeded_key_cases,
+)
 from vultron.core.behaviors.act_keys import (
-    ACT_KEYS,
     CASE_ID,
     CASE_MANAGER_ID,
     CAUSE_ID,
@@ -102,12 +102,10 @@ from vultron.core.models.embargo_termination import (
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 
-_Build = Callable[[], py_trees.behaviour.Behaviour]
-
 #: Each moved node, built from configuration alone, and the act keys it
 #: cannot run without.  Its optional keys (``/terminated_at``, ``/embargo``,
 #: and ``/embargo_id`` on the timely guard) are not listed.
-_NODES: list[tuple[_Build, tuple[ActKey, ...]]] = [
+_NODES: list[tuple[NodeBuild, tuple[ActKey, ...]]] = [
     (lambda: EmbargoAlreadyEndedNode(result_out={}), (CASE_ID,)),
     (EmbargoEndTimePassedNode, (CASE_ID,)),
     (PersistEmbargoEventNode, (EMBARGO,)),
@@ -172,22 +170,7 @@ _NODES: list[tuple[_Build, tuple[ActKey, ...]]] = [
 
 #: Every (node, required act key) pair: each key is left unseeded once, with
 #: every other required key seeded.
-_CASES: list[tuple[_Build, ActKey, tuple[ActKey, ...]]] = [
-    (build, key, keys) for build, keys in _NODES for key in keys
-]
-
-
-@pytest.fixture
-def act_key_storage() -> Iterator[None]:
-    """Put every act key the test touches back as it was."""
-    storage = py_trees.blackboard.Blackboard.storage
-    saved = {
-        k.path: storage[k.path] for k in ACT_KEYS.values() if k.path in storage
-    }
-    yield
-    for key in ACT_KEYS.values():
-        storage.pop(key.path, None)
-    storage.update(saved)
+_CASES = unseeded_key_cases(_NODES)
 
 
 def test_every_listed_key_is_a_port_of_its_node() -> None:
@@ -197,32 +180,14 @@ def test_every_listed_key_is_a_port_of_its_node() -> None:
 
 
 @pytest.mark.spec("BTND-01-008")
-@pytest.mark.usefixtures("act_key_storage")
 @pytest.mark.parametrize(
-    ("build", "key", "keys"),
-    _CASES,
-    ids=[f"{type(b()).__name__}-{k.name}" for b, k, _ in _CASES],
+    ("build", "key", "keys"), _CASES, ids=unseeded_key_case_ids(_CASES)
 )
 def test_a_node_ticked_without_its_key_seeded_raises_naming_the_key(
-    build: _Build, key: ActKey, keys: tuple[ActKey, ...]
+    build: NodeBuild, key: ActKey, keys: tuple[ActKey, ...]
 ) -> None:
-    node = build()
-    storage = py_trees.blackboard.Blackboard.storage
-    for other in keys:
-        if other is not key:
-            storage[other.path] = "urn:uuid:stand-in"
-    storage.pop(key.path, None)
-    setup_blackboard(
-        SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://example.org/users/vendor",
-        )
-    )
-    tree = py_trees.trees.BehaviourTree(root=node)
-    tree.setup()
-
-    with in_act(), pytest.raises(VultronWiringError, match=key.path):
-        tree.tick()
+    with restored_act_keys():
+        assert_unseeded_key_raises(build, key, keys)
 
 
 @pytest.mark.spec("BTND-01-008")

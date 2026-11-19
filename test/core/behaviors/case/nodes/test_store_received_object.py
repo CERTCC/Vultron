@@ -116,3 +116,25 @@ def test_a_missing_object_warning_names_the_activity_on_the_blackboard(
         and event.activity_id in r.getMessage()
         for r in caplog.records
     )
+
+
+def test_a_missing_object_with_no_activity_on_the_blackboard_still_skips(
+    datalayer, actor_id, caplog
+):
+    """``/activity`` is an optional read: with no received event the warning
+    names no activity and the node still succeeds, as a node built with no
+    ``activity_id`` did before the port (BTND-01-008)."""
+    node = StoreReceivedObjectNode("Note", "urn:x:absent", None, "Note")
+
+    with caplog.at_level(logging.WARNING):
+        result = run_tree(
+            BTBridge(datalayer=datalayer), tree=node, actor_id=actor_id
+        )
+
+    assert result.status == Status.SUCCESS
+    assert node.outcome is not None
+    assert node.outcome.disposition is HandlerDisposition.SKIPPED
+    assert any(
+        "no Note object for event 'None'" in r.getMessage()
+        for r in caplog.records
+    )
