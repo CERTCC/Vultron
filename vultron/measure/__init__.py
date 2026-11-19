@@ -25,8 +25,8 @@ Layout (notes/case-event-history.md § "Reuse the One JSONL Walker"):
   and a case's per-vendor scores with their median and spread (ADR-0182).
 * :mod:`vultron.measure.standing` — where a case stands at its ledger's last
   entry: each participant's states, the desiderata each vendor's case has
-  met, broken, left open or cannot know, and the moves the state machines
-  allow from there (ADR-0190).
+  met, broken, left open, cannot know or cannot score, and the moves the
+  state machines allow from there (ADR-0190).
 
 A later layer that reads a ledger is a sibling subpackage that reads it
 through :mod:`vultron.measure.ledger`.

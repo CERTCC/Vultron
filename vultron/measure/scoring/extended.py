@@ -29,8 +29,8 @@ twelve's ``F ≺ P`` for each vendor, which the vendor's score already counts,
 and move advice does not use ``V_i ≺ F_j`` (ADR-0200, #6502).
 
 A part counts each group of equivalent desiderata once
-(:func:`scope_desiderata`, through
-:func:`~vultron.measure.baselines.desiderata.count_once`): an embargo
+(:func:`scope_parts`, through
+:func:`~vultron.measure.baselines.scope_desiderata`): an embargo
 starts, and ends on its own terms,
 only before all of ``P``, ``X`` and ``A``, so ``E ≺ P``, ``E ≺ X`` and
 ``E ≺ A`` are one desideratum, and so are the three ``Ex_own`` ones
@@ -60,7 +60,6 @@ from functools import cache
 from typing import NamedTuple
 
 from vultron.measure.baselines import (
-    EXTENDED,
     Desideratum,
     Event,
     Group,
@@ -70,12 +69,9 @@ from vultron.measure.baselines import (
     WalkPrefix,
     case_model,
     reachable_ends,
+    scope_desiderata,
 )
-from vultron.measure.baselines.desiderata import (
-    count_once,
-    joint_values,
-    weight,
-)
+from vultron.measure.baselines.desiderata import joint_values, weight
 from vultron.measure.baselines.values import CasePrefix
 from vultron.measure.scoring.model import (
     ExtendedScore,
@@ -97,20 +93,28 @@ class ScopeDesiderata(NamedTuple):
 
 
 @cache
-def scope_desiderata() -> ScopeDesiderata:
+def scope_parts() -> ScopeDesiderata:
     """The extended desiderata a vendor's scope scores, by part, each group
     of equivalent ones once.
 
-    Computed on first use: finding the equivalent pairs walks the model.
+    Read from :func:`~vultron.measure.baselines.scope_desiderata`, the one
+    list move advice and the case shadow tool read too, less the original
+    twelve, which the vendor's sequence score already counts.
+
+    Raises:
+        ValueError: An extended desideratum of the scope takes chance from a
+            model other than the one-vendor one, so its walk cannot score it.
     """
-    held = [
-        d
-        for d in EXTENDED
-        if d.model is ModelName.ONE_VENDOR and d.group is not Group.MULTI_PARTY
-    ]
+    held = [d for d in scope_desiderata() if d.group is not Group.ORIGINAL]
+    walked = [d.notation for d in held if d.model is not ModelName.ONE_VENDOR]
+    if walked:
+        raise ValueError(
+            "a vendor's scope scores its extended desiderata on the one-vendor"
+            f" walk, but {', '.join(walked)} takes chance from another model"
+        )
     return ScopeDesiderata(
-        end=count_once(d for d in held if d.group is not Group.EMBARGO),
-        embargo=count_once(d for d in held if d.group is Group.EMBARGO),
+        end=tuple(d for d in held if d.group is not Group.EMBARGO),
+        embargo=tuple(d for d in held if d.group is Group.EMBARGO),
     )
 
 
@@ -206,7 +210,7 @@ def vendor_scope(
         KeyError: *record* did not read *vendor*.
     """
     record.path(vendor)
-    desiderata = scope_desiderata()
+    desiderata = scope_parts()
     try:
         return ExtendedScore(
             end=_walk(record, vendor, desiderata.end),
