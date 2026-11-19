@@ -34,6 +34,7 @@ from vultron.wire.as2.factories.sync import (
     reject_log_entry_activity,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Read
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
@@ -142,6 +143,21 @@ def test_the_ledger_requests_take_no_number() -> None:
         assert is_ledger_request(request)
         assert list(sender_sequence_case_ids(request)) == []
     assert not is_ledger_request(_note())
+
+
+@pytest.mark.spec("SYNC-21-001")
+def test_a_read_of_anything_but_its_case_ledger_is_no_request() -> None:
+    """Only a ``Read`` of the ledger of a case it names asks about a ledger."""
+    other = make(
+        as_Read,
+        actor=_ACTOR,
+        object_=make(as_Note, content="not a ledger", context=_CASE),
+        context=_CASE,
+        ledger_position=_TAIL,
+    )
+
+    assert not is_ledger_request(other)
+    assert list(sender_sequence_case_ids(other)) != []
 
 
 @pytest.mark.spec("SYNC-21-001")

@@ -667,7 +667,8 @@ lists the activities it caused.
 **Today.** The ledger `Add` is built (#6484): `add_log_entry_activity` names the
 ledger, the case and the committed act. Every position statement is
 `Read(<case>/ledger)`, and no pattern accepts a bare object id or an objectless
-`Reject` (#6485). Both status `Add` forms name their history and case (#6486). Delivery receipts are an open question
+`Reject` (#6485). Both status `Add` forms name their history and case (#6486).
+Delivery receipts are an open question
 (`docs/topics/future_work/_oq-delivery-receipts.md`).
 
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1
