@@ -222,6 +222,7 @@ adr/0209-which-checks-run-locally-which-run-only-in-ci-and-when-to-merge-the-bas
 adr/0210-how-the-case-manager-accepts-a-reported-p-x-or-a-value.md
 adr/0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md
 adr/0214-how-a-received-message-is-checked-applied-and-kept.md
+adr/0216-action-rules-span-cs-rm-em-and-pec-and-authored-rules-are-compared-with-rules-generated-from-move-advice.md
 adr/0217-a-case-preview-is-cut-from-the-case-field-by-field-inside-an-envelope-the-protocol-sets.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
