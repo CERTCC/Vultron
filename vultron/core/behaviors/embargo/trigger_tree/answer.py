@@ -27,6 +27,7 @@ from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes import (
     EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
     AcceptEmbargoLifecycleNode,
@@ -89,11 +90,13 @@ def _answer_arms(
         case_id,
         [
             lifecycle_node.deciding(),
-            CommitEmbargoDecisionNode(
-                case_id=case_id,
-                semantic_type=semantic_type,
-                builder=activity_builder,
-                decision_from=result_out,
+            with_case_id(
+                CommitEmbargoDecisionNode(
+                    semantic_type=semantic_type,
+                    builder=activity_builder,
+                    decision_from=result_out,
+                ),
+                case_id,
             ),
         ],
         result_out,
@@ -290,11 +293,13 @@ def activate_embargo_trigger_bt(
             "ActivateEmbargo",
             case_id,
             [
-                CommitAndApplyEmbargoActivationNode(
-                    case_id=case_id,
-                    embargo_id=embargo_id,
-                    result_out=result_out,
-                    builder=activity_builder,
+                with_case_id(
+                    CommitAndApplyEmbargoActivationNode(
+                        embargo_id=embargo_id,
+                        result_out=result_out,
+                        builder=activity_builder,
+                    ),
+                    case_id,
                 )
             ],
             result_out,

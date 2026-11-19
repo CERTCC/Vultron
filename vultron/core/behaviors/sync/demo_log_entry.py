@@ -31,7 +31,7 @@ from vultron.core.behaviors.act_key_ports import (
     act_key_remappings,
     act_value,
 )
-from vultron.core.behaviors.act_keys import CASE_ID, OBJECT_ID
+from vultron.core.behaviors.act_keys import OBJECT_ID
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
@@ -57,28 +57,22 @@ class CommitDemoLogEntryNode(_CommitCaseManagerActivityBase):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_CommitCaseManagerActivityBase.INPUT_PORTS,
-        **act_key_ports(CASE_ID, OBJECT_ID),
+        **act_key_ports(OBJECT_ID),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             **super()._domain_port_remappings(),
-            **act_key_remappings(CASE_ID, OBJECT_ID),
+            **act_key_remappings(OBJECT_ID),
         }
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(
-            # The case is read from ``/case_id`` through
-            # :meth:`_act_case_id`; #6572 drops the base's parameter.
-            case_id=None,
             semantic_type=DEMO_LOG_ENTRY_SEMANTIC_TYPE,
             notify_participants=False,
             name=name,
         )
-
-    def _act_case_id(self) -> str:
-        return act_value(self, CASE_ID, str)
 
     def _ledger_object_id(self, activity_id: str) -> str:
         return act_value(self, OBJECT_ID, str)

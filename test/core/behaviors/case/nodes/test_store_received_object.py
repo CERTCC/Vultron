@@ -5,6 +5,8 @@ as already held, absent, or a bare reference, and intake archives the activity
 in every case.
 """
 
+import logging
+
 import pytest
 from py_trees.common import Status
 
@@ -46,7 +48,6 @@ def _node(event, obj=None, id_key=None):
         id_key or event.object_id,
         obj if obj is not None else event.object_,
         "Note",
-        event.activity_id,
     )
 
 
@@ -95,4 +96,45 @@ def test_a_missing_object_is_skipped_not_failed(datalayer, actor_id):
     assert (
         datalayer.read(ReceivedActivityRecord.build_id(activity.id_))
         is not None
+    )
+
+
+@pytest.mark.spec("BTND-01-008")
+def test_a_missing_object_warning_names_the_activity_on_the_blackboard(
+    datalayer, actor_id, caplog
+):
+    """The activity the warning names is the received event on
+    ``/activity``, not a constructor argument (BTND-01-008)."""
+    _, _, event = add_note_delivery(actor_id)
+    node = StoreReceivedObjectNode("Note", "urn:x:absent", None, "Note")
+
+    with caplog.at_level(logging.WARNING):
+        _run(datalayer, actor_id, event, node)
+
+    assert any(
+        "no Note object for event" in r.getMessage()
+        and event.activity_id in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_a_missing_object_with_no_activity_on_the_blackboard_still_skips(
+    datalayer, actor_id, caplog
+):
+    """``/activity`` is an optional read: with no received event the warning
+    names no activity and the node still succeeds, as a node built with no
+    ``activity_id`` did before the port (BTND-01-008)."""
+    node = StoreReceivedObjectNode("Note", "urn:x:absent", None, "Note")
+
+    with caplog.at_level(logging.WARNING):
+        result = run_tree(
+            BTBridge(datalayer=datalayer), tree=node, actor_id=actor_id
+        )
+
+    assert result.status == Status.SUCCESS
+    assert node.outcome is not None
+    assert node.outcome.disposition is HandlerDisposition.SKIPPED
+    assert any(
+        "no Note object for event 'None'" in r.getMessage()
+        for r in caplog.records
     )

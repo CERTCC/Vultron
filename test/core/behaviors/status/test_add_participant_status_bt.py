@@ -51,6 +51,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_KEY,
+    SENDER_ID as SENDER_KEY,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
@@ -58,7 +63,7 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     StatusAuthorizationCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail
-from vultron.core.behaviors.case_id_scope import with_case_id
+from vultron.core.behaviors.case_id_scope import unscoped, with_case_id
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
@@ -232,8 +237,9 @@ def populated_bridge(populated_dl):
 class TestSenderIsParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_known_sender_succeeds(self, populated_bridge):
-        node = with_case_id(
-            SenderIsParticipantNode(sender_actor_id=ACTOR_ID), CASE_ID
+        node = with_act_keys(
+            SenderIsParticipantNode(),
+            {CASE_KEY: CASE_ID, SENDER_KEY: ACTOR_ID},
         )
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
@@ -242,8 +248,9 @@ class TestSenderIsParticipantNode:
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_sender_fails(self, populated_bridge):
-        node = with_case_id(
-            SenderIsParticipantNode(sender_actor_id=OUTSIDER_ID), CASE_ID
+        node = with_act_keys(
+            SenderIsParticipantNode(),
+            {CASE_KEY: CASE_ID, SENDER_KEY: OUTSIDER_ID},
         )
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
@@ -252,9 +259,12 @@ class TestSenderIsParticipantNode:
 
     def test_missing_case_fails(self, bridge):
         """No case in DataLayer → FAILURE."""
-        node = with_case_id(
-            SenderIsParticipantNode(sender_actor_id=ACTOR_ID),
-            "https://example.org/cases/nonexistent",
+        node = with_act_keys(
+            SenderIsParticipantNode(),
+            {
+                CASE_KEY: "https://example.org/cases/nonexistent",
+                SENDER_KEY: ACTOR_ID,
+            },
         )
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
@@ -262,7 +272,7 @@ class TestSenderIsParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_fails(self, populated_bridge):
         """With no case to check the sender against, the guard fails."""
-        node = SenderIsParticipantNode(sender_actor_id=ACTOR_ID)
+        node = with_act_keys(SenderIsParticipantNode(), {SENDER_KEY: ACTOR_ID})
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
@@ -1393,9 +1403,8 @@ class TestSenderIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_case_owner_returns_success(self, populated_bridge):
         """CASE_OWNER sender → SUCCESS (gospel bypass)."""
-        node = SenderIsCaseOwnerNode(
-            sender_actor_id=ACTOR_ID,  # has CASE_OWNER role in fixture
-        )
+        # ACTOR_ID has the CASE_OWNER role in the fixture.
+        node = with_act_keys(SenderIsCaseOwnerNode(), {SENDER_KEY: ACTOR_ID})
         result = run_tree(
             populated_bridge,
             tree=node,
@@ -1408,8 +1417,9 @@ class TestSenderIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_non_owner_returns_failure(self, populated_bridge):
         """CASE_MANAGER sender (not CASE_OWNER) → FAILURE (proceeds to call-out)."""
-        node = SenderIsCaseOwnerNode(
-            sender_actor_id=CASE_MANAGER_ID,  # has CASE_MANAGER role, not CASE_OWNER
+        # CASE_MANAGER_ID has the CASE_MANAGER role, not CASE_OWNER.
+        node = with_act_keys(
+            SenderIsCaseOwnerNode(), {SENDER_KEY: CASE_MANAGER_ID}
         )
         result = run_tree(
             populated_bridge,
@@ -1422,11 +1432,9 @@ class TestSenderIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_actor_returns_failure(self, populated_bridge):
         """Actor not in actor_participant_index → FAILURE."""
-        node = with_case_id(
-            SenderIsCaseOwnerNode(
-                sender_actor_id=OUTSIDER_ID,
-            ),
-            CASE_ID,
+        node = with_act_keys(
+            SenderIsCaseOwnerNode(),
+            {CASE_KEY: CASE_ID, SENDER_KEY: OUTSIDER_ID},
         )
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
@@ -1436,11 +1444,12 @@ class TestSenderIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_returns_failure(self, bridge):
         """No case in DataLayer → FAILURE."""
-        node = with_case_id(
-            SenderIsCaseOwnerNode(
-                sender_actor_id=ACTOR_ID,
-            ),
-            "https://example.org/cases/nonexistent",
+        node = with_act_keys(
+            SenderIsCaseOwnerNode(),
+            {
+                CASE_KEY: "https://example.org/cases/nonexistent",
+                SENDER_KEY: ACTOR_ID,
+            },
         )
         result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
@@ -1448,7 +1457,7 @@ class TestSenderIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_returns_failure(self, bridge):
         """No case_id on the port → FAILURE."""
-        node = SenderIsCaseOwnerNode(sender_actor_id=ACTOR_ID)
+        node = with_act_keys(SenderIsCaseOwnerNode(), {SENDER_KEY: ACTOR_ID})
         result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
@@ -1781,9 +1790,8 @@ class TestEmitRMGapNoteNode:
     def test_no_anomaly_is_noop_success(self, populated_dl):
         """BB_RM_ANOMALY=None → SUCCESS with no outbox entry (happy path)."""
         bridge = self._bridge_with_factory(populated_dl)
-        node = EmitRMGapNoteNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
+        node = with_case_id(
+            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
         )
         result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
@@ -1796,9 +1804,8 @@ class TestEmitRMGapNoteNode:
     def test_gap_anomaly_records_note(self, populated_dl):
         """BB_RM_ANOMALY=gap → SUCCESS + one committed inline Add(Note)."""
         bridge = self._bridge_with_factory(populated_dl)
-        node = EmitRMGapNoteNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
+        node = with_case_id(
+            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
         )
         # Pre-populate anomaly flag as if CheckParticipantStatusAcceptableNode ran
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
@@ -1815,9 +1822,8 @@ class TestEmitRMGapNoteNode:
     def test_regression_anomaly_records_note(self, populated_dl):
         """BB_RM_ANOMALY=regression → SUCCESS + one committed inline Add(Note)."""
         bridge = self._bridge_with_factory(populated_dl)
-        node = EmitRMGapNoteNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
+        node = with_case_id(
+            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
         )
         self._set_anomaly("regression", RM.ACCEPTED, RM.RECEIVED)
 
@@ -1840,7 +1846,9 @@ class TestEmitRMGapNoteNode:
 
         refused = fail_commits(monkeypatch, commit_tree)
         bridge = self._bridge_with_factory(populated_dl)
-        node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=CASE_ID)
+        node = with_case_id(
+            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
+        )
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
 
         result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
@@ -1860,9 +1868,13 @@ class TestEmitRMGapNoteNode:
         exists, the attach failing is an internal error.
         """
         bridge = self._bridge_with_factory(populated_dl)
-        node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=CASE_ID)
+        node = with_case_id(
+            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
+        )
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
-        real_require_case = node._require_case
+        gap_note = unscoped(node)
+        assert isinstance(gap_note, EmitRMGapNoteNode)
+        real_require_case = gap_note._require_case
         calls: list[str] = []
 
         def _require_case_then_lose_it(case_id):
@@ -1871,7 +1883,9 @@ class TestEmitRMGapNoteNode:
                 return real_require_case(case_id)
             return None, Status.FAILURE
 
-        monkeypatch.setattr(node, "_require_case", _require_case_then_lose_it)
+        monkeypatch.setattr(
+            gap_note, "_require_case", _require_case_then_lose_it
+        )
 
         result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
 
@@ -1879,13 +1893,37 @@ class TestEmitRMGapNoteNode:
         assert result.internal_error is True
         assert "vanished after its" in result.feedback_message
 
+    @pytest.mark.spec("BTND-01-008")
+    def test_an_unseeded_note_reads_a_case_an_earlier_node_published(
+        self, populated_dl
+    ):
+        """A tree that names no case leaves ``/case_id`` unseeded, so the
+        note reads the case an earlier node of the run published."""
+        bridge = self._bridge_with_factory(populated_dl)
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+        tree = py_trees.composites.Sequence(
+            name="PublishThenNote",
+            memory=False,
+            children=[
+                py_trees.behaviours.SetBlackboardVariable(
+                    name="PublishCase",
+                    variable_name="/case_id",
+                    variable_value=CASE_ID,
+                    overwrite=True,
+                ),
+                EmitRMGapNoteNode(sender_actor_id=ACTOR_ID),
+            ],
+        )
+
+        result = run_tree(bridge, tree=tree, actor_id=CASE_MANAGER_ID)
+
+        assert result.status == Status.SUCCESS
+        assert_case_manager_note_recorded(populated_dl, CASE_ID)
+
     def test_no_case_id_is_noop_success(self, populated_dl):
         """case_id=None → SUCCESS with no outbox entry (no case context)."""
         bridge = self._bridge_with_factory(populated_dl)
-        node = EmitRMGapNoteNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=None,
-        )
+        node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID)
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
 
         result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
@@ -1895,9 +1933,8 @@ class TestEmitRMGapNoteNode:
 
     def test_no_factory_is_success_noop(self, populated_bridge):
         """No TriggerActivityPort → SUCCESS (degrades gracefully — SHOULD not MUST)."""
-        node = EmitRMGapNoteNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
+        node = with_case_id(
+            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID), CASE_ID
         )
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
         # populated_bridge has no trigger_activity_factory

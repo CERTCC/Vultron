@@ -20,6 +20,8 @@ CM-23-002), and the checks it is built from.
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_scope import unscoped, with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_check_context import (
@@ -33,7 +35,7 @@ from vultron.enums.roles import CVDRole
 
 def closed_sender_guard(
     case_id: str, sender_id: str, *, refusal_label: str | None = None
-) -> SenderClosureNotRecordedNode:
+) -> py_trees.behaviour.Behaviour:
     """The CM-23-018 check that the case does not record the sender's closure.
 
     Built here, beside the kinds' guards, so no handler names a sender node
@@ -45,11 +47,13 @@ def closed_sender_guard(
     handler reads it ``SKIPPED``.  The ``CASE_OWNER`` kind's guard composes
     it too, with no label, so a closed owner is refused for that guard's
     own reason (CM-23-018).
+
+    The check reads the case and the sender from ``/case_id`` and
+    ``/sender_id``, seeded here (BTND-01-008).
     """
-    return SenderClosureNotRecordedNode(
-        case_id=case_id,
-        sender_actor_id=sender_id,
-        refusal_label=refusal_label,
+    return with_act_keys(
+        SenderClosureNotRecordedNode(refusal_label=refusal_label),
+        {CASE_ID: case_id, SENDER_ID: sender_id},
     )
 
 
@@ -82,7 +86,7 @@ def closed_sender_door(
             memory=False,
             children=[guard, case_owner_guard(case_id, check.sender_id)],
         )
-    setattr(door, _CLOSED_SENDER_MARK, guard)
+    setattr(door, _CLOSED_SENDER_MARK, unscoped(guard))
     return door
 
 
