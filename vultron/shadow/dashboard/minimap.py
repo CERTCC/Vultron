@@ -50,7 +50,6 @@ from vultron.core.states.cs import (
 from vultron.core.states.cs_invariants import CSEvent, cs_dimensions
 from vultron.core.states.em import EM, EM_Trigger, em_transition_rows
 from vultron.core.states.rm import RM, rm_transition_rows
-from vultron.measure.ledger import friendly_actor_name
 from vultron.measure.standing import CaseStanding, ParticipantStanding
 from vultron.shadow.dashboard import view
 from vultron.shadow.dashboard.case_state import (
@@ -348,11 +347,13 @@ def participant_minimaps(
 ) -> list[ParticipantMinimaps]:
     """Each participant's RM and VFD maps, in the participants' order.
 
-    A participant is labelled by its short name; a name two participants
+    A participant is labelled as the page's tables label it, by
+    :func:`~vultron.shadow.dashboard.view.actor_label`, so an unnamed one
+    never reads by its opaque id (DRPT-03-009).  A label two participants
     share takes the participant's actor id as well, so no tab reads as
     another's.
     """
-    labels = [friendly_actor_name(p.participant, names) for p in participants]
+    labels = [view.actor_label(p.participant, names) for p in participants]
     counts = Counter(labels)
     return [
         ParticipantMinimaps(

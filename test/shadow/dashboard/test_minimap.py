@@ -30,6 +30,7 @@ from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM, EM_TRANSITIONS
 from vultron.core.states.rm import RM, rm_transition_rows
 from vultron.demo.recordings.layout import RECORDINGS_DIR
+from vultron.measure.ledger import UNNAMED_ACTOR
 from vultron.measure.sequences import (
     UnprojectableParticipant,
     UnprojectableReason,
@@ -285,6 +286,15 @@ def test_two_participants_with_one_name_are_told_apart_by_actor():
     )
     assert first.label == f"Vendor ({VENDOR})"
     assert second.label == f"Vendor ({OTHER_VENDOR})"
+
+
+@pytest.mark.spec("DRPT-03-009")
+def test_a_participant_with_an_opaque_id_has_a_tab_named_as_unnamed():
+    """A tab reads as the page's tables do: a ``urn:uuid:`` participant no
+    payload names is an unnamed actor, never its mangled id (#6685)."""
+    opaque = "urn:uuid:1e7a421f-b727-4c1d-9a3e-0f6b2c9d8e71"
+    (maps,) = minimap.participant_minimaps([_unscored(opaque)], {})
+    assert maps.label == view.actor_label(opaque, {}) == UNNAMED_ACTOR
 
 
 def test_a_recorded_vendor_has_its_fix_path_on_its_map():
