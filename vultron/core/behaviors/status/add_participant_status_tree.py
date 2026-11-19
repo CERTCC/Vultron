@@ -336,8 +336,8 @@ def add_participant_status_tree(
         # PCR-03-001, HP-01-038).
         paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
-        # The sender is the participant the target record names, or the
-        # CASE_MANAGER or Case Owner (RSH-08-007).
+        # The sender is the participant whose status history the target
+        # names, or the CASE_MANAGER or Case Owner (RSH-08-007).
         sender_context=SenderCheckContext(
             sender_id=actor_id,
             case_id=tree_case_id,

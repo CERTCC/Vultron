@@ -20,6 +20,7 @@ history and the case from ``context``, with no shim for the old forms.
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.semantic_registry import extract_event, find_matching_semantics
@@ -93,3 +94,52 @@ def test_a_participant_status_to_a_record_reads_no_participant():
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
     )
     assert event.participant_id is None
+
+
+_HISTORY = f"{_PARTICIPANT}/statuses"
+
+
+@pytest.mark.parametrize(
+    "target,context,reason",
+    [
+        (_PARTICIPANT, _CASE, "must be a status history"),
+        (_HISTORY, None, "must name its one case"),
+        (
+            _HISTORY,
+            [_CASE, "https://vultron.example/cases/2"],
+            "must name its one case",
+        ),
+    ],
+)
+def test_a_participant_status_add_refuses_a_bad_shape(target, context, reason):
+    from pydantic import ValidationError
+
+    from vultron.wire.as2.vocab.activities.case_participant import (
+        _AddStatusToParticipantActivity,
+    )
+
+    with pytest.raises(ValidationError, match=reason):
+        make(
+            _AddStatusToParticipantActivity,
+            actor=_PARTICIPANT,
+            object_=add_status_to_participant().object_,
+            target=target,
+            context=context,
+        )
+
+
+def test_a_case_status_add_refuses_another_cases_history():
+    from pydantic import ValidationError
+
+    from vultron.wire.as2.vocab.activities.case.content import (
+        _AddStatusToCaseActivity,
+    )
+
+    with pytest.raises(ValidationError, match="extends its case's history"):
+        make(
+            _AddStatusToCaseActivity,
+            actor=_PARTICIPANT,
+            object_=add_status_to_case().object_,
+            target="https://vultron.example/cases/2/statuses",
+            context=_CASE,
+        )

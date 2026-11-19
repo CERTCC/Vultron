@@ -68,9 +68,19 @@ def status_history_owner(history_id: str) -> str:
     return history_id[: -len(STATUS_HISTORY_SUFFIX)]
 
 
+def status_history_owner_or_none(ref: object) -> str | None:
+    """The owner of *ref* when it is a status history id, else ``None``.
+
+    For a reader of a received ``target``, which may name no history at
+    all: the caller decides what an absent owner means.
+    """
+    return status_history_owner(ref) if is_status_history_id(ref) else None
+
+
 __all__ = [
     "STATUS_HISTORY_SUFFIX",
     "is_status_history_id",
+    "status_history_owner_or_none",
     "status_history_id",
     "status_history_owner",
 ]

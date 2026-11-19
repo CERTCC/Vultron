@@ -136,11 +136,11 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     Delegates DEMOMA-07-003 steps to the ``AddParticipantStatusBT``
     behavior tree:
-    1. Verify the sender: at the CASE_MANAGER, the participant the target
-       record names, or the CASE_MANAGER or Case Owner asserting on its
+    1. Verify the sender: at the CASE_MANAGER, the participant whose status
+       history the target names, or the CASE_MANAGER or Case Owner asserting on its
        behalf (RSH-08-014); at a participant replica, the CASE_MANAGER
        alone (PCR-03-001).
-    2. Append the ParticipantStatus to the CaseParticipant record.
+    2. Append the ParticipantStatus to that participant's status history.
     3. If the new status signals public awareness (CS.P) and the sender
        holds the CASE_OWNER role, initiate embargo teardown.
     4. If all participant RM states are CLOSED and this actor is the
@@ -155,8 +155,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         specs/behavior-tree-integration.yaml BT-06-001.
     """
 
-    # Participant status is self-declared: the participant the target record
-    # names sends it, or the CASE_MANAGER or Case Owner asserts an on-behalf
+    # Participant status is self-declared: the participant whose status
+    # history the target names sends it, or the CASE_MANAGER or Case Owner asserts an on-behalf
     # v→V or d→D for it, whose shape the tree checks (RSH-08-014,
     # PRM-06-003/004).  It is sent to the CASE_MANAGER alone: a replica
     # takes participant status from the ledger, never from an Add

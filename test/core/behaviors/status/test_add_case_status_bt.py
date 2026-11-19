@@ -1157,35 +1157,43 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         assert any("missing" in m.lower() for m in warn_msgs)
 
     @pytest.mark.spec("VAM-08-002")
+    @pytest.mark.parametrize(
+        "target",
+        [
+            "https://example.org/cases/another/statuses",
+            # The pre-ADR-0204 form: the case itself, not its history.
+            CASE_ID,
+        ],
+    )
     def test_a_case_status_added_to_another_history_is_refused(
-        self, make_payload
+        self, make_payload, target
     ):
         """ADR-0204: the status joins its context case's own history.
 
-        An ``Add(CaseStatus)`` whose ``target`` is any other history is
-        refused by the incomplete-activity tree, and the case keeps its
-        statuses.
+        A delivered ``Add(CaseStatus)`` that names its case in ``context``
+        but whose ``target`` is another history, or the case record itself,
+        still matches the pattern (its target is lenient), and the
+        incomplete-activity tree refuses it; the case keeps its statuses.
         """
-        from unittest.mock import PropertyMock, patch
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Add,
+        )
 
         status_obj = make(as_CaseStatus, id_=STATUS_ID, context=CASE_ID)
         dl = _replica_with_status(status_obj)
         before = _status_ids(dl)
-        event = make_payload(_from_manager(status_obj), at=dl)
+        delivered = as_Add.model_validate(
+            _from_manager(status_obj).model_dump(by_alias=True)
+            | {"target": target}
+        )
+        event = make_payload(delivered, at=dl)
         assert event.case_id == CASE_ID
-        assert event.history_owner_id == CASE_ID
 
-        with patch.object(
-            type(event),
-            "history_owner_id",
-            new_callable=PropertyMock,
-            return_value="https://example.org/cases/another",
-        ):
-            result = run_in_act(
-                AddCaseStatusToCaseReceivedUseCase(
-                    dl, event, wire_render_port=As2WireRenderAdapter()
-                )
+        result = run_in_act(
+            AddCaseStatusToCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
             )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "not the status history of its context case" in (

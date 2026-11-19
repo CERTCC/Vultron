@@ -166,9 +166,9 @@ Read against the formal message set, the split carries no information: a reader 
 Read against the wire vocabulary, the split is a real distinction that the protocol's dispatch depends on.
 
 The two forms are separate messages with separate handlers.
-`Add(Note)` and `Add(CaseStatus)` are recognized by their `target` naming the case.
+`Add(Note)` is recognized by its `target` naming the case, and `Add(CaseStatus)` by its `target` naming the case's status history, `<case>/statuses`, with the case in `context` ([ADR-0204](../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md)).
 The state change of a status — applying the new `pxaState` to the case — hangs off the `Add`, because that is the activity that asserts the attachment (MSM-03-004 through MSM-03-006).
-An activity that tries to be both, such as an `Add(CaseStatus)` that names the case in `context` and has no `target`, matches no pattern.
+An activity that tries to be both, such as an `Add(Note)` that names the case in `context` and has no `target`, matches no pattern.
 It does not collapse two messages into one; it dispatches as unrecognized, and the state change never happens.
 
 So the conclusion is narrower than "either verb will do".
@@ -202,11 +202,11 @@ A single `Add(ParticipantStatus, target=<participant>/statuses)` carrying the ne
 title: The same update as one Add carrying an inline status
 ---
 flowchart LR
-    a["Add(ParticipantStatus)"] -->|target| b[participant]
+    a["Add(ParticipantStatus)"] -->|target| b["participant/statuses"]
 ```
 
 What shrank is the number of activities, not the verb.
-The attachment is still an `Add` with the participant as its `target`, which is what a Vultron peer's dispatch recognizes.
+The attachment is still an `Add` with the participant's status history as its `target`, which is what a Vultron peer's dispatch recognizes.
 
 The same reasoning applies at case creation.
 A case can be created with its report, its known participants, and its notes already inline in the initial case object, so no `Add` is needed for any of them.

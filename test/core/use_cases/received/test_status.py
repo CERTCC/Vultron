@@ -982,13 +982,14 @@ class TestStatusUseCases:
 
     @pytest.mark.spec("HP-08-013")
     @pytest.mark.spec("HP-01-039")
-    def test_add_participant_status_carried_by_reference_is_refused_at_the_path_stage(
+    def test_add_participant_status_carried_by_reference_is_refused_before_the_commit(
         self, make_payload
     ):
-        """A status carried by reference names no case, so the tree is built
-        with none and its path stage refuses the no-case path before
-        anything is committed: the status does not say it is the target's
-        case (HP-08-013, HP-01-039)."""
+        """The tree is built on the Add's ``context`` (ADR-0204), but a status
+        carried by reference that the receiver does not hold names no case,
+        so the carried-object guard refuses it before anything is committed:
+        the status does not say it is the target's case (HP-08-007,
+        HP-08-013)."""
         from unittest.mock import PropertyMock, patch
 
         dl = SqliteDataLayer(
@@ -1044,9 +1045,8 @@ class TestStatusUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
-        assert "holds no replica of the case this activity names" in (
-            result.reason
-        ), result.reason
+        assert "names no case" in result.reason, result.reason
+        assert "HP-08-007" in result.reason, result.reason
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         stored = cast(as_CaseParticipant, dl.read(participant.id_))
         assert status_id not in [
@@ -1117,9 +1117,71 @@ class TestStatusUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason == (
-            "Add(ParticipantStatus) is missing its status id or participant id"
+            "Add(ParticipantStatus) is missing its status id or a"
+            " participant status history target (ADR-0204)"
         )
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+
+    @pytest.mark.spec("VAM-08-004")
+    def test_add_participant_status_to_the_record_itself_is_refused(
+        self, make_payload
+    ):
+        """ADR-0204: the pre-history form, a status added to the participant
+        record rather than to its status history, names no participant
+        history, so the incomplete-activity tree refuses it even when it
+        names its case in ``context``; nothing is committed or appended."""
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Add,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        sender = "https://example.org/users/vendor"
+        case = make(
+            as_VulnerabilityCase,
+            id_="https://example.org/cases/case_ps_record_target",
+            name="Case",
+            attributed_to=dl.actor_id,
+        )
+        seed_store_owner_as_case_manager(dl, case)
+        participant = seed_case_participant(dl, case, sender)
+        dl.create(case)
+        status_id = f"{participant.id_}/statuses/old-form"
+        built = add_status_to_participant_activity(
+            make(as_ParticipantStatus, id_=status_id, context=case.id_),
+            participant=participant.id_,
+            actor=sender,
+            to=[dl.actor_id],
+            at=authored_at(),
+        )
+        old_form = as_Add.model_validate(
+            built.model_dump(by_alias=True) | {"target": participant.id_}
+        )
+        event = make_payload(old_form, receiving_actor_id=dl.actor_id, at=dl)
+        assert event.participant_id is None
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = run_in_act(
+            AddParticipantStatusToParticipantReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == (
+            "Add(ParticipantStatus) is missing its status id or a"
+            " participant status history target (ADR-0204)"
+        )
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+        stored = cast(as_CaseParticipant, dl.read(participant.id_))
+        assert status_id not in [
+            getattr(s, "id_", s) for s in stored.participant_statuses
+        ]
 
     @pytest.mark.spec("HP-08-008")
     def test_add_participant_status_to_a_record_naming_no_case_is_refused(
@@ -1303,7 +1365,8 @@ class TestStatusUseCases:
         guard = find_node(tree, ActivityIncompleteNode)
         assert guard is not None
         assert guard.reason == (
-            "Add(ParticipantStatus) is missing its status id or participant id"
+            "Add(ParticipantStatus) is missing its status id or a"
+            " participant status history target (ADR-0204)"
         )
 
 

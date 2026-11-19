@@ -448,29 +448,64 @@ _CASES = [
         ],
     ),
     # ── status.py ─────────────────────────────────────────────────────────────
+    # A status Add names its case in context and its history in target
+    # (ADR-0204); the history's owner is tested below.
     (
         AddCaseStatusToCaseReceivedEvent,
         MessageSemantics.ADD_CASE_STATUS_TO_CASE,
-        {"object_": _case_status, "target": _case},
+        {"object_": _case_status, "context": _case},
         [
             ("status_id", "object_id"),
             ("status", "object_"),
-            ("case_id", "target_id"),
-            ("case", "target"),
+            ("case_id", "context_id"),
         ],
     ),
     (
         AddParticipantStatusToParticipantReceivedEvent,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
-        {"object_": _participant_status, "target": _participant},
+        {"object_": _participant_status, "context": _case},
         [
             ("status_id", "object_id"),
             ("status", "object_"),
-            ("participant_id", "target_id"),
-            ("participant", "target"),
+            ("case_id", "context_id"),
         ],
     ),
 ]
+
+
+@pytest.mark.spec("VAM-08-004")
+def test_a_participant_status_names_the_owner_of_its_history():
+    """ADR-0204: the participant is the owner of the target history."""
+    history = make(CoreObject, id_=f"{_participant.id_}/statuses")
+    event = _mk(
+        AddParticipantStatusToParticipantReceivedEvent,
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+        object_=_participant_status,
+        target=history,
+        context=_case,
+    )
+    assert event.participant_id == _participant.id_
+    record = _mk(
+        AddParticipantStatusToParticipantReceivedEvent,
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+        object_=_participant_status,
+        target=_participant,
+        context=_case,
+    )
+    assert record.participant_id is None
+
+
+@pytest.mark.spec("VAM-08-002")
+def test_a_case_status_names_the_owner_of_its_history():
+    history = make(CoreObject, id_=f"{_case.id_}/statuses")
+    event = _mk(
+        AddCaseStatusToCaseReceivedEvent,
+        MessageSemantics.ADD_CASE_STATUS_TO_CASE,
+        object_=_case_status,
+        target=history,
+        context=_case,
+    )
+    assert event.history_owner_id == event.case_id == _case.id_
 
 
 @pytest.mark.parametrize(

@@ -11,10 +11,7 @@ from vultron.core.models.events.base import (
     LedgerPositionedEvent,
     MessageSemantics,
 )
-from vultron.core.models.status_history import (
-    is_status_history_id,
-    status_history_owner,
-)
+from vultron.core.models.status_history import status_history_owner_or_none
 
 if TYPE_CHECKING:
     from vultron.core.models.case_status import CaseStatus
@@ -22,13 +19,6 @@ if TYPE_CHECKING:
 else:
     CaseStatus = object
     ParticipantStatus = object
-
-
-def _history_owner(history_id: str | None) -> str | None:
-    """The record whose status history *history_id* names, if it is one."""
-    if history_id is None or not is_status_history_id(history_id):
-        return None
-    return status_history_owner(history_id)
 
 
 class AddCaseStatusToCaseReceivedEvent(LedgerPositionedEvent):
@@ -58,7 +48,7 @@ class AddCaseStatusToCaseReceivedEvent(LedgerPositionedEvent):
         A well-formed ``Add(CaseStatus)`` names the history of its own
         ``context`` case, so this equals :attr:`case_id`.
         """
-        return _history_owner(self.target_id)
+        return status_history_owner_or_none(self.target_id)
 
 
 class AddParticipantStatusToParticipantReceivedEvent(LedgerPositionedEvent):
@@ -80,7 +70,7 @@ class AddParticipantStatusToParticipantReceivedEvent(LedgerPositionedEvent):
     def participant_id(self) -> str | None:
         """The participant whose status history ``target`` names, or ``None``
         when ``target`` names no status history (ADR-0204)."""
-        return _history_owner(self.target_id)
+        return status_history_owner_or_none(self.target_id)
 
     @property
     def case_id(self) -> str | None:

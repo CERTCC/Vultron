@@ -173,14 +173,29 @@ def test_add_status_to_participant_names_a_whole_participants_history(
 def test_add_status_to_participant_keeps_an_explicit_context(
     sample_participant_status,
 ):
+    """An explicit ``context`` wins over the status's own; the parse edge,
+    not the factory, refuses one that disagrees (HP-08-015)."""
+    explicit = "https://example.org/cases/explicit"
     result = add_status_to_participant_activity(
         status=sample_participant_status,
         participant=_PARTICIPANT_URI,
         actor=_ACTOR_URI,
-        context=_CASE_URI,
+        context=explicit,
         at=authored_at(),
     )
-    assert result.context == _CASE_URI
+    assert result.context == explicit
+
+
+def test_add_status_to_participant_defaults_context_to_the_statuss_case(
+    sample_participant_status,
+):
+    result = add_status_to_participant_activity(
+        status=sample_participant_status,
+        participant=_PARTICIPANT_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
+    )
+    assert result.context == sample_participant_status.context
 
 
 def test_add_status_to_participant_without_a_participant_raises(

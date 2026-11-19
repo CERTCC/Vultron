@@ -89,7 +89,7 @@ Read it field by field.
 | `to` | The recipient inboxes | A report is offered to each recipient separately; case traffic goes to the CASE_MANAGER |
 
 Whether the case sits in `target` or `context` is not a matter of style.
-A receiver tells activities apart by these fields, so an `Add(CaseStatus)` that names its case in `context` instead of `target` is not recognized as a status update.
+A receiver tells activities apart by these fields, so an `Add(Note)` that names its case in `context` instead of `target` is not recognized as a note.
 Each guide states which field its activities use, and [Message Types](../../reference/messages/index.md) records the discriminator for every activity.
 
 ## The Vultron vocabulary

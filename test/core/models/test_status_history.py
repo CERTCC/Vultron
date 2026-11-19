@@ -55,3 +55,15 @@ def test_a_history_needs_an_owner():
 def test_an_id_that_is_no_history_has_no_owner():
     with pytest.raises(ValueError):
         status_history_owner(_PARTICIPANT)
+
+
+def test_a_target_naming_no_history_has_no_owner():
+    from vultron.core.models.status_history import (
+        status_history_owner_or_none,
+    )
+
+    assert status_history_owner_or_none(f"{_PARTICIPANT}/statuses") == (
+        _PARTICIPANT
+    )
+    assert status_history_owner_or_none(_PARTICIPANT) is None
+    assert status_history_owner_or_none(None) is None

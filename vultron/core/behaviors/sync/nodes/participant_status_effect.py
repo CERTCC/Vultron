@@ -56,10 +56,7 @@ from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.status_history import (
-    is_status_history_id,
-    status_history_owner,
-)
+from vultron.core.models.status_history import status_history_owner_or_none
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -130,11 +127,8 @@ class ApplyParticipantStatusFromLedgerNode(
         status_id = _extract_id_from_field(status_data)
         # The target is the participant's status history (ADR-0204), so the
         # participant is its owner.
-        history_id = _extract_id_from_field(target_data)
-        participant_id = (
-            status_history_owner(history_id)
-            if is_status_history_id(history_id)
-            else None
+        participant_id = status_history_owner_or_none(
+            _extract_id_from_field(target_data)
         )
 
         if not status_id or not participant_id:

@@ -1289,8 +1289,8 @@ groups:
     kind: protocol
     statement: >-
       Participant status is self-declared. The CASE_MANAGER MUST refuse, before the
-      commit, a received `Add(ParticipantStatus)` whose target participant record is not
-      the sender's own, whichever dimensions it carries. A record is the sender's own
+      commit, a received `Add(ParticipantStatus)` that targets the status history of a
+      participant record that is not the sender's own, whichever dimensions it carries. A record is the sender's own
       when its `attributedTo` is the sender. The dimensions are RM, VF, D and the P, X
       and A of its case status. The only exceptions are the on-behalf assertions of
       RSH-08-014.
