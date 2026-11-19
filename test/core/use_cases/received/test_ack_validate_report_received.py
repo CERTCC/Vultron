@@ -734,17 +734,14 @@ class TestValidateReportReceivedGuardedCommit:
             f" (CLP-10-003); found: {entries}"
         )
 
-    def test_calls_commit_bt_when_receiving_actor_is_case_actor(
-        self, monkeypatch
-    ):
+    def test_calls_commit_bt_when_receiving_actor_is_case_actor(self):
         """Guarded commit BT runs when receiving_actor_id == case_actor_id (CLP-09-001).
 
-        When all pre-flight guards pass — receiving_actor_id is set and a case
-        is linked to the report with the receiving actor holding CASE_MANAGER
-        role — the guarded commit BT MUST execute, resulting in a persisted
-        CaseLedgerEntry.
+        When a case is linked to the report and the receiving actor holds the
+        CASE_MANAGER role, the tree's lookup finds that case and the path
+        stage admits the receiver on the manager path, so the tree judges the
+        act against that case (BT-25-009).
         """
-        import vultron.core.behaviors.report.received_report_trees.validate as rrt_module
         from vultron.core.models.report_case_link import VultronReportCaseLink
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
@@ -796,38 +793,16 @@ class TestValidateReportReceivedGuardedCommit:
             receiving_actor_id=self.CASE_ACTOR_ID
         )
 
-        # Track calls to create_receive_activity_tree in
-        # received_report_trees.validate (where it is called in the ADR-0022 pattern).
-        original_create = rrt_module.create_receive_activity_tree
-        commit_tree_calls: list[str | None] = []
-
-        def tracking_create(
-            name: str,
-            case_id: str | None = None,
-            precondition_guards: list | None = None,
-            **kwargs,
-        ):
-            commit_tree_calls.append(case_id)
-            return original_create(
-                name=name,
-                case_id=case_id,
-                precondition_guards=precondition_guards or [],
-                **kwargs,
-            )
-
-        monkeypatch.setattr(
-            rrt_module,
-            "create_receive_activity_tree",
-            tracking_create,
-        )
-
+        # The tree finds the case with its own lookup (BT-25-009), so the
+        # commit is read from the store the run wrote, not from a build-time
+        # argument.
         from vultron.adapters.driven.sync_activity_adapter import (
             SyncActivityAdapter,
         )
 
         # The commit tree refuses to mint without a sync port, and that
         # wiring fault now reaches the handler as an internal error (#4113).
-        run_in_act(
+        result = run_in_act(
             ValidateReportReceivedUseCase(
                 dl,
                 event,
@@ -835,12 +810,8 @@ class TestValidateReportReceivedGuardedCommit:
                 sync_port=SyncActivityAdapter(dl),
             )
         )
-
-        assert commit_tree_calls, (
-            "Expected create_receive_activity_tree to be "
-            "called when receiving_actor_id == case_actor_id (CLP-09-001)"
-        )
-        assert commit_tree_calls[0] == CASE_ID, (
-            f"Expected guarded commit called for case {CASE_ID!r}, "
-            f"got {commit_tree_calls[0]!r}"
-        )
+        # The lookup found the case and the receiver is its CASE_MANAGER, so
+        # the run reaches the sender guard, which judges the sender against
+        # that case: this fixture's sender is not a participant of it.
+        assert result.reason is not None
+        assert f"is not a participant of case '{CASE_ID}'" in result.reason

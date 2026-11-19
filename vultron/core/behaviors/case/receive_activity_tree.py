@@ -785,6 +785,7 @@ def create_receive_activity_tree(
         refusal_notice_exemption=refusal_notice_exemption,
         one_act_exemption=one_act_exemption,
         nested=nested,
+        input_stages=lookup,
     )
     # The lookup is the one source of ``/case_id`` in its tree (BT-25-011):
     # the runner checks it before the first tick.

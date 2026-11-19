@@ -62,11 +62,10 @@ CASE_FOUND_NODE_NAME = "RequireCaseForReport"
 NO_REPORT_ID = "no report_id — no case to resolve"
 
 
-def no_case_for_report(report_id: str) -> str:
-    """Why *report_id* has no case: this store holds none for it (#2255)."""
-    return (
-        f"no VulnerabilityCase for report '{report_id}' in this actor's store"
-    )
+def no_case_for_report(report: str) -> str:
+    """Why the report *report* names has no case: this store holds none
+    for it (#2255)."""
+    return f"no VulnerabilityCase for report '{report}' in this actor's store"
 
 
 class CaseResolving:
@@ -203,8 +202,8 @@ class FindCaseForReport(RequireCaseForReport):
         if case is None:
             # A miss is an answer, not a refusal: the declaration decides it.
             self.logger.debug(
-                "%s: no case in this store for report '%s'; the tree's"
-                " declaration decides the delivery",
+                "%s: no case found for report '%s' in this store; the"
+                " tree's declaration decides the delivery",
                 self.name,
                 self._report_id,
             )

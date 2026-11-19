@@ -153,7 +153,8 @@ def test_the_answer_follows_the_door_guards() -> None:
                 continue
             placed += 1
             index = names.index(LEDGER_POSITION_GATE_NAME)
-            doors = len(received.door_guards)
+            # A lookup ahead of the doors is no door (BT-25-009).
+            doors = len(received.door_guards) + len(received.input_stages)
             if index != doors + 1 or not isinstance(
                 received.children[index - 1], IntakeReceivedActivityNode
             ):
