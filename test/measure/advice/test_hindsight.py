@@ -51,6 +51,7 @@ from vultron.measure.advice.case import AllowedMove, UnbandedMove
 from vultron.measure.advice.hindsight import (
     ADVICE_GAP,
     DID_AS_WELL,
+    FORCED_BY_EXPLOIT,
     NO_ADVICE,
     NO_ADVISED_MOVE,
     NO_STATE_CHANGE,
@@ -303,6 +304,25 @@ def test_making_the_vul_public_is_graded_as_the_move_it_is():
     mark = _mark(_PUBLIC, advice, actor=_OWNER)
     assert mark.mark is HindsightMark.BEST
     assert mark.move == _PUBLISH
+
+
+@pytest.mark.parametrize(
+    ("before", "after"),
+    [(CS_pxa.pXa, CS_pxa.PXa), (CS_pxa.pXA, CS_pxa.PXA)],
+    ids=["after an exploit", "after an exploit and attacks"],
+)
+def test_public_awareness_a_public_exploit_forced_is_chance(before, after):
+    """X forces P: the public is aware the vul exists, and no participant
+    chose it, even where the advice lists a public-awareness move."""
+
+    def no_advice_wanted() -> CaseAdvice:
+        raise AssertionError("a forced event reads no advice")
+
+    mark = hindsight_mark(
+        3, _state(pxa=before), _state(pxa=after), no_advice_wanted
+    )
+    assert (mark.mark, mark.note) == (HindsightMark.CHANCE, FORCED_BY_EXPLOIT)
+    assert mark.move is None
 
 
 def test_a_step_that_changes_no_state_is_not_a_move_and_reads_no_advice():

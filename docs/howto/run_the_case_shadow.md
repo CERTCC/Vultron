@@ -153,6 +153,8 @@ The tool reads each line from the ledger; nobody writes it by hand.
   👎 **bad** is an unhelpful move that leaves a Vendor below the chance value.
   Two marks grade nothing: 🎲 is an event no participant chooses, such as an exploit made public, and 💬 is an act that is not a move, such as a note, or a participant's answer to an embargo invitation.
   Making the vul public is a participant's move, so the entry that first makes the case public is graded like any other move.
+  When an exploit was already public, the public's awareness follows from it, so that entry is 🎲.
+  The ledger does not record whether the public learned of the vul from a participant's publication or from a leak, so a leak with no public exploit before it is graded as a publication.
   The icons differ in shape, so you can read them without color; a best, good or sub-optimal mark also takes the shade its layer has on its band's legend.
 - **Hindsight note** names the move the mark graded, and says why a line is not graded.
   A sub-optimal move that a harm-free move beats says that a harm-free move did as well.

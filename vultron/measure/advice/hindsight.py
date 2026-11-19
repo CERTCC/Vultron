@@ -26,7 +26,8 @@ that makes the same change, and grades that move by its band and layer:
 * **bad**: unhelpful with some vendor's part negative.
 
 Two marks grade nothing.  **Chance** marks an event no participant chooses:
-an exploit made public or attacks observed (X, A).  **Not a move** marks
+an exploit made public or attacks observed (X, A), and the public becoming
+aware of a vul whose exploit was already public, which X forces.  **Not a move** marks
 every other entry: one that changes no state the advice weighs, such as a
 note or a consent answer (PEC moves are not advised yet), one whose change no
 advised move makes, one whose move has no band, and an entry with no advice
@@ -34,8 +35,13 @@ before it.
 
 Publication is a participant's move (:data:`~.shifts.CHANCE_EVENTS`), and
 only the first publication makes the case public, so an entry that makes the
-case public is graded as the advice's public-awareness move.  A later
-publication changes no state and grades nothing.
+case public, with no public exploit before it, is graded as the advice's
+public-awareness move.  A later publication changes no state and grades
+nothing.  The case public state P means the public is aware the vul exists,
+not that anyone published: a public exploit forces it, and so may a leak.
+The ledger records only that the case became public, never whether a
+participant published, so a P that no public exploit forced is graded as the
+publication move even when a leak caused it.
 
 An entry is one step, so it gets one mark.  When it changes several machines,
 the first machine in this order decides: the public state, a fix path, the
@@ -54,7 +60,11 @@ from enum import IntEnum, StrEnum
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.core.models.embargo_register import em_triggers_of
-from vultron.core.states.cs import AttackObservation, ExploitPublication
+from vultron.core.states.cs import (
+    AttackObservation,
+    ExploitPublication,
+    PublicAwareness,
+)
 from vultron.core.states.cs_invariants import (
     CS_EVENT_TO_PXA_TRIGGER,
     CSEvent,
@@ -132,6 +142,12 @@ NO_ADVISED_MOVE = (
     "No move the advice before this entry lists makes its change."
 )
 """Why an entry whose change no single advised move makes grades nothing."""
+
+FORCED_BY_EXPLOIT = (
+    "The exploit was already public, which makes the public aware of the"
+    " vul: no participant chose this."
+)
+"""Why public awareness that follows a public exploit grades nothing."""
 
 UNLISTED_CHANCE = "No participant chooses this event."
 """Why an X or A change the advice lists no move for grades nothing."""
@@ -394,6 +410,18 @@ def taken_move(
     )
 
 
+def _forced_by_exploit(before: ReachedState, after: ReachedState) -> bool:
+    """Whether the entry made the public aware of a vul whose exploit was
+    already public: a public exploit forces public awareness next, so no
+    participant chose it, whoever's entry records it."""
+    was, now = before.pxa.value, after.pxa.value
+    return (
+        was.exploit_publication is ExploitPublication.EXPLOIT_PUBLIC
+        and was.public_awareness is PublicAwareness.PUBLIC_UNAWARE
+        and now.public_awareness is PublicAwareness.PUBLIC_AWARE
+    )
+
+
 def _chance(before: ReachedState, after: ReachedState) -> bool:
     """Whether the entry made an exploit public or attacks observed: the
     events no participant chooses (:data:`~.shifts.CHANCE_EVENTS`)."""
@@ -483,6 +511,8 @@ def hindsight_mark(
     machine = _first_changed(before, after)
     if machine is None:
         return not_graded(HindsightMark.NOT_A_MOVE, NO_STATE_CHANGE)
+    if machine is _Machine.PUBLIC and _forced_by_exploit(before, after):
+        return not_graded(HindsightMark.CHANCE, FORCED_BY_EXPLOIT)
     advice = advice_before()
     if advice is None:
         return not_graded(HindsightMark.NOT_A_MOVE, NO_ADVICE)
@@ -503,6 +533,7 @@ def hindsight_mark(
 __all__ = [
     "ADVICE_GAP",
     "DID_AS_WELL",
+    "FORCED_BY_EXPLOIT",
     "GRADED",
     "NO_ADVICE",
     "NO_ADVISED_MOVE",
