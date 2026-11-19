@@ -393,7 +393,12 @@ def _desiderata_by_notation() -> dict[str, Desideratum]:
     return found
 
 
-def _desideratum(notation: str) -> Desideratum:
+def desideratum_by_notation(notation: str) -> Desideratum:
+    """The desideratum the Measuring CVD pages print as *notation*.
+
+    Raises:
+        ValueError: No desideratum prints as *notation*.
+    """
     try:
         return _desiderata_by_notation()[notation]
     except KeyError:
@@ -421,13 +426,16 @@ def _shift(scored: ScoredMove, numbers: Mapping[str, int]) -> ScopeShift:
             raise ValueError(
                 f"{exc.args[0]} is not a vendor of the case"
             ) from None
-        key = VendorDesideratum(_desideratum(change.notation), vendor, other)
+        key = VendorDesideratum(
+            desideratum_by_notation(change.notation), vendor, other
+        )
         readings[key] = change.change
     return scope_shift(readings, len(numbers))
 
 
-def _unbanded_reason(scored: ScoredMove) -> str | None:
-    """Why *scored* is not an open move; ``None`` for an open move."""
+def unbanded_reason(scored: ScoredMove) -> str | None:
+    """Why *scored* is not an open move, so it has no band; ``None`` for an
+    open move."""
     if scored.advice:
         return KEEPS_EVERY_STATE
     if scored.unscored is not None:
@@ -498,7 +506,7 @@ def case_advice(record: StandingRecord) -> CaseAdvice:
     unbanded: list[UnbandedMove] = []
     open_moves: list[ScoredMove] = []
     for scored in record.moves:
-        reason = _unbanded_reason(scored)
+        reason = unbanded_reason(scored)
         if reason is None:
             open_moves.append(scored)
         else:

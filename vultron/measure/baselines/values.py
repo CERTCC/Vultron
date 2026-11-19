@@ -48,9 +48,10 @@ The solved tables are kept for the life of the process, so repeated lookups
 cost little.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from fractions import Fraction
-from functools import cache
+from functools import cache, lru_cache
+from types import MappingProxyType
 from typing import NamedTuple
 
 from vultron.core.states.cs import CS
@@ -190,9 +191,15 @@ def _reading(key: VendorDesideratum, prefix: CasePrefix) -> ChanceReading:
     )
 
 
-def _readings(prefix: CasePrefix) -> dict[VendorDesideratum, ChanceReading]:
+@lru_cache(maxsize=1024)
+def _readings(prefix: CasePrefix) -> Mapping[VendorDesideratum, ChanceReading]:
+    """Each vendor's reading of each desideratum from *prefix*.
+
+    Kept for the most recent prefixes: a move's advice reads the prefix
+    before the move once for each move from it (:func:`outcome_change`).
+    """
     keys = vendor_desiderata(len(prefix.state.vendors))
-    return {key: _reading(key, prefix) for key in keys}
+    return MappingProxyType({key: _reading(key, prefix) for key in keys})
 
 
 def desiderata_values(prefix: CasePrefix) -> Values:
