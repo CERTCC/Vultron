@@ -7,11 +7,11 @@ type: implementation
 
 Bugfix for #6756. PR: https://github.com/CERTCC/Vultron/pull/6764
 
-ADR-0158 was last updated on 2026-10-23, so by 2026-11-20 it was past day 28,
+ADR-0158 was last updated on 2026-10-23, so on 2026-11-20 it reached day 28,
 which puts it in lifecycle epoch 3 (MS-14-007). Its status stayed at
-`accepted-provisional`, so the scheduled ADR Status Drift report flagged it.
-The cause was elapsed time, not a code defect: a status moves forward only by
-a commit (MS-14-022).
+`accepted-provisional`, so the scheduled ADR Status Drift check reported it
+(MS-14-022). The cause was elapsed time, not a code defect: the clock moves an
+ADR's epoch, but only a commit changes its status.
 
 Outcome:
 
