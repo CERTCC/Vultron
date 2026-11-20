@@ -48,8 +48,9 @@ class EmbargoRegisterEntry(ValidatedAssignmentMixin, BaseModel):
     when a sender carried it, so a recipient can read the terms of the
     embargo in force without a dereference (AKM-02-004, DL-08-001).
     ``replaces`` names the embargo an activated revision replaced.
-    ``termination`` is how a ``TERMINATED`` entry ended — the what and, when
-    recorded, the why (ADR-0122) — and is set on that status only.  Entries
+    ``termination`` is how a ``TERMINATED`` entry ended — its cause, when
+    recorded, ``END_TIME_REACHED`` included (ADR-0122, ADR-0203) — and is
+    set on that status only.  Entries
     are frozen: they change only by :func:`apply_register_step`.
     """
 
@@ -89,8 +90,8 @@ class EmbargoRegisterEntry(ValidatedAssignmentMixin, BaseModel):
         default=None,
         json_schema_extra=vultron_property(
             (
-                "How a terminated embargo ended: an object that gives the "
-                "reason and, when recorded, its cause"
+                "How a terminated embargo ended: an object that gives its "
+                "cause when recorded, END_TIME_REACHED included"
             ),
             PropertyValueKind.PLAIN,
         ),
@@ -138,7 +139,7 @@ class RegisterChange(ValidatedAssignmentMixin, BaseModel):
     embargo: EmbargoEvent | None = None
     #: ``TERMINATE`` only, and required there: how the embargo ended, stored
     #: on the ``TERMINATED`` entry.  A replica that learned the termination
-    #: from a ``Remove`` knows only its what (ADR-0122, #4294).
+    #: from a ``Remove`` knows only the cause it carries (ADR-0122, #4294).
     termination: EmbargoTermination | None = None
 
     @model_validator(mode="after")

@@ -55,7 +55,6 @@ from vultron.core.models.pending_assertion import (
     record_pending_assertion,
     suppressed_repeat_reason,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 
 
@@ -152,13 +151,11 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
 
     def __init__(
         self,
-        reason: TerminationReason,
         name: str | None = None,
         *,
         cause: TerminationCause | ChosenTermination | None = None,
     ) -> None:
         super().__init__(name=name)
-        self._reason = reason
         self._cause = cause
         self._resolved_cause: TerminationCause | None = None
 
@@ -213,7 +210,6 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
             embargo_id=embargo_id,
             case_id=self._case_id,
             actor=actor_id,
-            reason=self._reason,
             cause=self._resolved_cause,
             to=[case_manager_id],
             at=self._require_act_instant(),
@@ -243,7 +239,6 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
 
 def ask_case_manager_to_terminate_once(
     case_id: str | None,
-    reason: TerminationReason,
     cause: TerminationCause | ChosenTermination | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """The cascades' ask: queue ``Remove(EmbargoEvent)`` unless already asked.
@@ -254,9 +249,9 @@ def ask_case_manager_to_terminate_once(
     or suppress a repeat, so this subtree does both (EP-09-018, SYNC-11-002):
     SUCCESS without sending when the ask is still pending, else the send
     node's result, whose FAILURE still fails the tree (BT-14-001).  The ask
-    carries *reason*, the termination's what (ADR-0122), and *cause*, its
-    why, when given (EMB-13-005); a :class:`ChosenTermination` is read when
-    the ask is sent (EMB-14-001).
+    carries *cause*, why the embargo ended, ``END_TIME_REACHED`` included,
+    or none for an early end (EMB-13-005, ADR-0203); a
+    :class:`ChosenTermination` is read when the ask is sent (EMB-14-001).
 
     The pending-ask check judges the ask's age against the act's instant,
     read from the tree run when it ticks (SYNC-11-005, ADR-0176).
@@ -267,7 +262,7 @@ def ask_case_manager_to_terminate_once(
         children=[
             with_case_id(TeardownAskPendingNode(), case_id),
             with_case_id(
-                SendTerminateEmbargoActivityNode(reason=reason, cause=cause),
+                SendTerminateEmbargoActivityNode(cause=cause),
                 case_id,
             ),
         ],

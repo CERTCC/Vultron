@@ -45,8 +45,8 @@ inboxes.
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.core.models.embargo_termination import OtherCause
 from vultron.core.states.em import is_em_embargo_active
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.demo import wall_clock
 from vultron.demo.helpers.embargo import case_minted_at, make_embargo_event
 from vultron.demo.helpers.runner import run_exchange_demos
@@ -166,7 +166,8 @@ def demo_activate_then_terminate(
                 embargo,
                 actor=vendor.id_,
                 origin=case.id_,
-                reason=TerminationReason.EARLY,
+                # The summary gives the account of an OTHER cause.
+                cause=OtherCause(),
                 # The vendor is addressed too: its own outbox delivers to the
                 # recipients named, and this demo's receiver is the vendor.
                 to=[f"{case.id_}/participants", vendor.id_],

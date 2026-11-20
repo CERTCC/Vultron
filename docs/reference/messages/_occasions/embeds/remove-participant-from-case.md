@@ -1,14 +1,14 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-!!! info "Remove case participant from case"
+!!! info "Remove participant from case"
 
-    Asks the CASE_MANAGER to remove the participant record named by the object. The removed Participant receives a direct notice.
+    The Case Owner's own removal of the actor named by the object, from the case named by the origin. The CASE_MANAGER records it as the ledger entry and announces it to the removed actor.
 
     - **When…** the Case Owner removes a Participant from active participation
-    - **Send:** `Remove(CaseParticipant)[target=VulnerabilityCase]`
+    - **Send:** `Remove(Actor)[origin=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the Case Owner
-    - **Reference:** [Remove case participant from case](../../case_management.md#remove-case-participant-from-case)
+    - **Reference:** [Remove participant from case](../../case_management.md#remove-participant-from-case)
 
     ??? example "Example activity"
 

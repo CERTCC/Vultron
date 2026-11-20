@@ -49,7 +49,6 @@ from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
-    TerminationReason,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -144,7 +143,6 @@ class _GateScenario:
             self.embargo,
             origin=CASE_ID,
             actor=MANAGER_ID,
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
         run_in_act(

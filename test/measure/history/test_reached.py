@@ -239,7 +239,6 @@ def test_a_termination_exits_and_cancels_every_open_proposal():
         "Remove",
         OWNER,
         embargo(),
-        content="EARLY",
     )
     reached = _reached(ledger)
     assert reached.embargo_register == {
@@ -257,7 +256,6 @@ def test_a_carried_register_never_reopens_a_final_entry():
         "Remove",
         OWNER,
         embargo(),
-        content="EARLY",
     )
     ledger.add(
         "announce_vulnerability_case",
@@ -352,7 +350,6 @@ def test_a_termination_of_an_unrecorded_embargo_records_it_ended():
         "Remove",
         OWNER,
         embargo(EMBARGO_2),
-        content="EARLY",
     )
     assert _reached(ledger).embargo_register == {EMBARGO_2: _S.TERMINATED}
 

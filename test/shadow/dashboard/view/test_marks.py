@@ -15,6 +15,7 @@
 
 import pytest
 
+from test.shadow.dashboard.view._support import NAMES, VENDOR, narrative_line
 from vultron.core.states.cs import CS
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.rm import RM
@@ -25,20 +26,9 @@ from vultron.measure.advice import (
     NarrativeMark,
 )
 from vultron.measure.advice.hindsight import DID_AS_WELL, NO_STATE_CHANGE
-from vultron.measure.history import NarrativeLine
 from vultron.measure.standing import CSMove, RMMove
 from vultron.shadow.dashboard import view
 from vultron.shadow.dashboard.view import marks
-
-VENDOR = "https://vendor.example/actors/vendor"
-NAMES = {VENDOR: "Vendor"}
-
-
-def _line(**fields) -> NarrativeLine:
-    return NarrativeLine(
-        **{"log_index": 0, "phrase": "Vendor did a thing", **fields}
-    )
-
 
 _RM_ACCEPT = RMMove(
     participant=VENDOR, source=RM.VALID, destination=RM.ACCEPTED
@@ -75,14 +65,18 @@ def test_every_hindsight_mark_has_an_icon_of_its_own_shape():
 
 
 def test_a_marked_row_carries_its_mark_beside_its_log_index():
-    (row,) = marks.marked_narrative_rows([_line()], NAMES, [_SUB_OPTIMAL])
+    (row,) = marks.marked_narrative_rows(
+        [narrative_line()], NAMES, [_SUB_OPTIMAL]
+    )
     assert list(row)[:2] == ["#", marks.HINDSIGHT_COLUMN]
     assert row[marks.HINDSIGHT_COLUMN] == "⚠️ sub-optimal"
 
 
 def test_a_sub_optimal_line_a_harm_free_move_dominated_says_so():
     """AC-3: the dominated-by-harm-free note shows on the ⚠️ line."""
-    (row,) = marks.marked_narrative_rows([_line()], NAMES, [_SUB_OPTIMAL])
+    (row,) = marks.marked_narrative_rows(
+        [narrative_line()], NAMES, [_SUB_OPTIMAL]
+    )
     note = row[marks.HINDSIGHT_NOTE_COLUMN]
     assert note == f"RM Accept (Vendor): {DID_AS_WELL}"
 
@@ -101,15 +95,15 @@ def test_a_case_wide_move_names_no_participant_in_its_note():
 
 def test_a_line_that_is_not_graded_says_why():
     mark = _marked(mark=HindsightMark.NOT_A_MOVE, note=NO_STATE_CHANGE)
-    (row,) = marks.marked_narrative_rows([_line()], NAMES, [mark])
+    (row,) = marks.marked_narrative_rows([narrative_line()], NAMES, [mark])
     assert row[marks.HINDSIGHT_COLUMN] == "💬 not a move"
     assert row[marks.HINDSIGHT_NOTE_COLUMN] == NO_STATE_CHANGE
 
 
 def test_a_marked_row_keeps_every_narrative_column_in_order():
     mark = _marked(mark=HindsightMark.NOT_A_MOVE, note=NO_STATE_CHANGE)
-    (plain,) = view.narrative_rows([_line()], NAMES)
-    (row,) = marks.marked_narrative_rows([_line()], NAMES, [mark])
+    (plain,) = view.narrative_rows([narrative_line()], NAMES)
+    (row,) = marks.marked_narrative_rows([narrative_line()], NAMES, [mark])
     assert [c for c in row if not c.startswith("Hindsight")] == list(plain)
     assert list(row)[-1] == marks.HINDSIGHT_NOTE_COLUMN
 
@@ -117,7 +111,9 @@ def test_a_marked_row_keeps_every_narrative_column_in_order():
 def test_marks_that_are_not_one_per_line_are_refused():
     with pytest.raises(ValueError, match="one per narrative line"):
         marks.marked_narrative_rows(
-            [_line(), _line(log_index=1)], NAMES, [_SUB_OPTIMAL]
+            [narrative_line(), narrative_line(log_index=1)],
+            NAMES,
+            [_SUB_OPTIMAL],
         )
 
 

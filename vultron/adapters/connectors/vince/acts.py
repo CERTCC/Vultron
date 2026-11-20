@@ -47,6 +47,7 @@ from vultron.core.models.case_reading import (
     Inference,
     UntranslatedFact,
 )
+from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
 
@@ -69,8 +70,8 @@ class Act:
     Attributes:
         rules: The inferred crosswalk rows behind the act, each listed as an
             inference of its entry (CRD-02-002).
-        content: The activity's ``content``, such as the termination
-            reason a ``Remove(EmbargoEvent)`` carries (EMB-13-004).
+        termination_cause: The ``terminationCause`` a
+            ``Remove(EmbargoEvent)`` carries (EMB-13-005).
     """
 
     at: datetime
@@ -82,7 +83,7 @@ class Act:
     label: str
     rules: list[str] = field(default_factory=list)
     target: str | None = None
-    content: str | None = None
+    termination_cause: TerminationCause | None = None
 
 
 @dataclass
@@ -140,7 +141,7 @@ def _entry(ids: CaseIds, index: int, act: Act) -> CaseLedgerEntry:
         actor=act.actor,
         object_=act.object_,
         target=act.target,
-        content=act.content,
+        termination_cause=act.termination_cause,
         context=ids.case_id,
         published=act.at,
         updated=act.at,

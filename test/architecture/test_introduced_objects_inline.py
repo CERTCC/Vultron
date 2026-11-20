@@ -60,7 +60,6 @@ from vultron.wire.as2.factories import (
     add_case_reference_to_case_activity,
     add_log_entry_activity,
     add_note_to_case_activity,
-    add_participant_to_case_activity,
     add_report_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
@@ -183,12 +182,6 @@ INTRODUCES: dict[
             o, participant=_PARTICIPANT, actor=_ACTOR, at=authored_at()
         ),
         _example_object("add_status_to_participant"),
-    ),
-    "add_participant_to_case_activity": (
-        lambda o: add_participant_to_case_activity(
-            o, target=_CASE, actor=_ACTOR, at=authored_at()
-        ),
-        _example_object("add_vendor_participant_to_case"),
     ),
     # First delivery of the object to its receiver, though not a Create/Add.
     "rm_submit_report_activity": (
@@ -341,7 +334,11 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "offer_case_ownership_transfer_activity": _NAMES_CASE,
     # The inner Offer it nests names the held case (ADR-0148, ADR-0165).
     "propose_case_ownership_transfer_activity": _NAMES_CASE,
-    "remove_participant_from_case_activity": _held("participant"),
+    "remove_participant_activity": _ACTOR_REF,
+    "reinstate_participant_activity": _ACTOR_REF,
+    # The admitted act it carries is one the receiver's CASE_MANAGER admitted
+    # and the entry carries; it introduces nothing (ADR-0199).
+    "announce_admitted_act_activity": _answers("admitted"),
     "remove_embargo_from_case_activity": _held("embargo"),
     "withdraw_from_embargo_activity": _held("embargo"),
     "activate_embargo_activity": _held("embargo"),

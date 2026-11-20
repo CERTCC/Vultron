@@ -26,7 +26,6 @@ from datetime import datetime
 import pytest
 
 from vultron.core.states.cs_invariants import CSEvent
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.demo.recordings.layout import RECORDINGS_DIR, recording_path
 from vultron.measure.history import (
     CaseEventHistory,
@@ -198,7 +197,7 @@ def test_a_recording_yields_the_events_its_narrative_requires(scenario):
     # Every scenario ends with the embargo ended early, the vul public, and
     # every joined participant's report closed.
     (exit_,) = history.of_kind(EventKind.EMBARGO_EXIT)
-    assert exit_.exit_reason is TerminationReason.EARLY
+    assert not exit_.ended_at_end_time
     assert exit_.exit_cause is not None
     assert exit_.exit_cause["kind"] == narrative.exit_cause
     (public,) = history.of_kind(CSEvent.P)

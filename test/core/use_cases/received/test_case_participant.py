@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for case participant use-case classes."""
+"""Tests for the Case Owner's removal and reinstatement use cases."""
 
 from typing import cast
 
@@ -30,22 +30,23 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.case_participant import (
-    AddCaseParticipantToCaseReceivedUseCase,
-    RemoveCaseParticipantFromCaseReceivedUseCase,
+    ReinstateParticipantInCaseReceivedUseCase,
+    RemoveParticipantFromCaseReceivedUseCase,
+)
+from vultron.wire.as2.factories import (
+    reinstate_participant_activity,
+    remove_participant_activity,
 )
 
 
 class TestCaseParticipantUseCases:
-    """Tests for add/remove case participant use cases."""
+    """Tests for the remove and reinstate participant use cases."""
 
     @pytest.mark.spec("CM-31-001")
     def test_remove_case_participant_from_case(self, make_payload):
-        """Inverted from the deletion pin: the record stays, the fact is set.
-
-        Removal withdraws entitlement, not membership (ADR-0116).
-        """
+        """The record stays, the fact is set (ADR-0116)."""
         dl, case_id, participant = _removal_store()
-        event = make_payload(_owner_removes(participant, case_id), at=dl)
+        event = make_payload(_owner_removes(_COORDINATOR, case_id), at=dl)
 
         result = _remove(dl, event)
 
@@ -58,83 +59,43 @@ class TestCaseParticipantUseCases:
         assert record.removal_activity == event.activity_id
 
     @pytest.mark.spec("CM-31-004")
-    def test_remove_case_participant_not_on_the_case_is_refused(
+    def test_removal_naming_an_actor_not_on_the_case_is_refused(
         self, make_payload
     ):
         """A removal naming no participant of the case is refused, not skipped.
 
-        It used to be an idempotent no-op; CM-31-004 makes it a refusal.  The
-        tree still ran, so intake archived the delivery (CLP-10-017).
+        The tree still ran, so intake archived the delivery (CLP-10-017).
         """
         dl, case_id, _ = _removal_store()
-        stranger = make(
-            CaseParticipant,
-            id_=f"{case_id}/participants/stranger",
-            attributed_to="https://example.org/users/stranger",
-            context=case_id,
-        )
-        dl.create(stranger)
-        event = make_payload(_owner_removes(stranger, case_id), at=dl)
+        event = make_payload(_owner_removes(_STRANGER, case_id), at=dl)
 
         result = _remove(dl, event)
 
         assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "is not a participant" in result.reason
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
-    @pytest.mark.spec("CM-31-011")
-    def test_add_does_not_seat_a_participant_off_the_roster(
+    @pytest.mark.spec("CM-31-036")
+    def test_reinstatement_does_not_seat_an_actor_off_the_roster(
         self, make_payload
     ):
-        """Inverted from the seat-on-Add pin: ``Add`` only reinstates.
+        """A reinstatement only reinstates (ADR-0116).
 
-        A stored record that is not on the case's roster names no
-        participant, so the Case Owner's ``Add`` is refused and the roster
-        is unchanged (CM-31-036, ADR-0116); joining is accepting a stub
-        Invite (ADR-0114).
+        An actor with no record on the case names no participant, so the Case
+        Owner's ``Add(<Actor>)`` is refused and the roster is unchanged;
+        joining is accepting a stub Invite (ADR-0114).
         """
         dl, case_id, _ = _removal_store()
-        newcomer = make(
-            CaseParticipant,
-            id_=f"{case_id}/participants/newcomer",
-            attributed_to="https://example.org/users/newcomer",
-            context=case_id,
-        )
-        dl.create(newcomer)
         before = cast(VulnerabilityCase, dl.read(case_id)).case_participants
+        event = make_payload(_owner_reinstates(_STRANGER, case_id), at=dl)
 
-        result = _move(
-            AddCaseParticipantToCaseReceivedUseCase,
-            dl,
-            make_payload(_owner_adds(newcomer, case_id), at=dl),
-        )
+        result = _move(ReinstateParticipantInCaseReceivedUseCase, dl, event)
 
         assert result.disposition == HandlerDisposition.REFUSED
         case = cast(VulnerabilityCase, dl.read(case_id))
         assert case.case_participants == before
-        assert "https://example.org/users/newcomer" not in (
-            case.actor_participant_index
-        )
-
-    @pytest.mark.spec("HP-01-003")
-    def test_add_unknown_participant_is_refused(self, make_payload):
-        """A participant the receiver has no record of cannot be reinstated.
-
-        A rejection of the message, reported as REFUSED (#2255).
-        """
-        dl, case_id, _ = _removal_store()
-        unknown = make(
-            CaseParticipant,
-            id_=f"{case_id}/participants/unknown",
-            attributed_to="https://example.org/users/unknown",
-            context=case_id,
-        )  # deliberately not stored
-        event = make_payload(_owner_adds(unknown, case_id), at=dl)
-
-        result = _move(AddCaseParticipantToCaseReceivedUseCase, dl, event)
-
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None
-        assert "is not a participant" in result.reason
+        assert _STRANGER not in case.actor_participant_index
         # A refused delivery is still recorded by intake, for the outcome
         # stage to stub (CLP-10-017, CLP-10-018).
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
@@ -143,37 +104,16 @@ class TestCaseParticipantUseCases:
     def test_remove_participant_from_unknown_case_is_refused(
         self, make_payload
     ):
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Remove,
-        )
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        case_id = "https://example.org/cases/no-such-case"
-        participant = make(
-            as_CaseParticipant,
-            id_=f"{case_id}/participants/coord",
-            attributed_to="https://example.org/users/coordinator",
-            context=case_id,
-        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
         event = make_payload(
-            make(
-                as_Remove,
-                actor="https://example.org/users/owner",
-                object_=participant,
-                target=case_id,
-                to=[_MANAGER],
+            _owner_removes(
+                _COORDINATOR, "https://example.org/cases/no-such-case"
             ),
             at=dl,
         )
 
         result = run_in_act(
-            RemoveCaseParticipantFromCaseReceivedUseCase(dl, event)
+            RemoveParticipantFromCaseReceivedUseCase(dl, event)
         )
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -184,55 +124,44 @@ class TestCaseParticipantUseCases:
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.parametrize(
-        "use_case, activity_name",
+        "use_case, build",
         [
-            (AddCaseParticipantToCaseReceivedUseCase, "as_Add"),
-            (RemoveCaseParticipantFromCaseReceivedUseCase, "as_Remove"),
+            (
+                ReinstateParticipantInCaseReceivedUseCase,
+                reinstate_participant_activity,
+            ),
+            (
+                RemoveParticipantFromCaseReceivedUseCase,
+                remove_participant_activity,
+            ),
         ],
     )
-    def test_membership_change_without_ids_is_refused(
-        self, use_case, activity_name, make_payload
+    def test_move_naming_no_actor_is_refused(
+        self, use_case, build, make_payload
     ):
-        from vultron.wire.as2.vocab.base.objects.activities import transitive
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
         event = make_payload(
-            make(
-                getattr(transitive, activity_name),
-                actor="https://example.org/users/owner",
-                object_=make(
-                    as_CaseParticipant,
-                    id_="https://example.org/cases/c/participants/p",
-                    attributed_to="https://example.org/users/coordinator",
-                    context="https://example.org/cases/c",
-                ),
-                target="https://example.org/cases/c",
+            build(
+                _COORDINATOR,
+                "https://example.org/cases/c",
+                actor=_OWNER,
+                to=[_MANAGER],
+                at=authored_at(),
             ),
             at=dl,
-        ).model_copy(update={"object_": None, "object_id": None})
-        assert event.participant_id is None
+        ).model_copy(update={"object_": None})
+        assert event.participant_actor_id is None
 
         result = run_in_act(use_case(dl, event))
 
         assert result.disposition == HandlerDisposition.REFUSED
-        # The refusal came before the real tree could be built, at a door of
-        # the tree that replaced it, so intake recorded nothing; the outcome
-        # stage leaves its receipt stub (CLP-10-018).
-        assert (
-            dl.read(ReceivedActivityRecord.build_id(event.activity_id)) is None
-        )
+        assert "missing the actor it names" in (result.reason or "")
 
     @pytest.mark.spec("CM-19-002")
     def test_remove_case_participant_keeps_index(self, make_payload):
-        """Inverted from the index-clearing pin: the index entry stays."""
+        """The index entry stays: removal withdraws entitlement only."""
         dl, case_id, participant = _removal_store()
-        event = make_payload(_owner_removes(participant, case_id), at=dl)
+        event = make_payload(_owner_removes(_COORDINATOR, case_id), at=dl)
 
         _remove(dl, event)
 
@@ -243,6 +172,7 @@ class TestCaseParticipantUseCases:
 _MANAGER = "https://test.example/api/v2/actors/test-actor"
 _OWNER = "https://example.org/users/owner"
 _COORDINATOR = "https://example.org/users/coordinator"
+_STRANGER = "https://example.org/users/stranger"
 
 
 def _removal_store() -> tuple[SqliteDataLayer, str, CaseParticipant]:
@@ -268,34 +198,20 @@ def _removal_store() -> tuple[SqliteDataLayer, str, CaseParticipant]:
     return dl, case.id_, participant
 
 
-def _owner_removes(participant: CaseParticipant, case_id: str):
-    from vultron.wire.as2.factories import (
-        remove_participant_from_case_activity,
-    )
-
-    return remove_participant_from_case_activity(
-        participant,
-        target=case_id,
-        actor=_OWNER,
-        to=[_MANAGER],
-        at=authored_at(),
+def _owner_removes(actor_id: str, case_id: str):
+    return remove_participant_activity(
+        actor_id, case_id, actor=_OWNER, to=[_MANAGER], at=authored_at()
     )
 
 
-def _owner_adds(participant: CaseParticipant, case_id: str):
-    from vultron.wire.as2.factories import add_participant_to_case_activity
-
-    return add_participant_to_case_activity(
-        participant,
-        target=case_id,
-        actor=_OWNER,
-        to=[_MANAGER],
-        at=authored_at(),
+def _owner_reinstates(actor_id: str, case_id: str):
+    return reinstate_participant_activity(
+        actor_id, case_id, actor=_OWNER, to=[_MANAGER], at=authored_at()
     )
 
 
 def _remove(dl: SqliteDataLayer, event):
-    return _move(RemoveCaseParticipantFromCaseReceivedUseCase, dl, event)
+    return _move(RemoveParticipantFromCaseReceivedUseCase, dl, event)
 
 
 def _move(use_case, dl: SqliteDataLayer, event):

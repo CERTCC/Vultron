@@ -71,7 +71,6 @@ from vultron.core.models.vulnerability_item import (
     VulnerabilityItemId,
 )
 from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -637,7 +636,6 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     ),
     "withdraw_from_embargo": lambda w: w.adapter.withdraw_from_embargo(
@@ -754,22 +752,27 @@ RECIPES: dict[str, Recipe] = {
             at=authored_at(),
         )
     ),
-    "add_participant_to_case": lambda w: w.adapter.add_participant_to_case(
-        participant_id=str(w.participant.id_),
+    "remove_participant": lambda w: w.adapter.remove_participant(
+        removed_id=_PEER,
+        case_id=w.case_id,
+        actor=_ACTOR,
+        to=[_CASE_ACTOR],
+        at=authored_at(),
+    ),
+    "reinstate_participant": lambda w: w.adapter.reinstate_participant(
+        reinstated_id=_PEER,
+        case_id=w.case_id,
+        actor=_ACTOR,
+        to=[_CASE_ACTOR],
+        at=authored_at(),
+    ),
+    "announce_admitted_act": lambda w: w.adapter.announce_admitted_act(
+        admitted_act_id=w.recommendation_id(),
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
+        id_="urn:uuid:4a3b2c1d-0000-5000-8000-00000000a0a0",
         at=authored_at(),
-    ),
-    "remove_participant_from_case": lambda w: (
-        w.adapter.remove_participant_from_case(
-            participant_id=str(w.participant.id_),
-            case_id=w.case_id,
-            actor=_ACTOR,
-            attributed_to=_PEER,
-            to=[_PEER],
-            at=authored_at(),
-        )
     ),
     "add_participant_status_to_participant": lambda w: w.adapter_as(
         _PEER

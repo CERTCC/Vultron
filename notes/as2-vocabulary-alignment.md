@@ -23,8 +23,6 @@ tracks:
   - "#6422"   # term check and owned ratchets
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
-  - "#6418"   # profile cites Controlled Identifiers context
-  - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
   - "#6481"   # embargo stores its status; register is a list (slice of #6246)
   - "#6482"   # embargo end is Update; owner's early end its own (#6246)
@@ -278,8 +276,7 @@ and `ActivityPattern.origin_` matches it as `target_` matches `target` (#6463);
 **Touches.** CM-16-004, CM-24-002, CM-24-012, the delegated-authorship
 helper `vultron/core/behaviors/delegated_authorship.py`. The Owner's
 `Remove(<Actor>, origin=<case>)` (§ "The Owner Sends Its Removal or
-Reinstatement") matches on `origin_`; `notes/case-joining.md` shows
-today's `Remove(CaseParticipant)[target=…]`.
+Reinstatement") matches on `origin_`.
 
 ---
 
@@ -303,33 +300,27 @@ Issues: #6293, #6487. Record: ADR-0199 revision 2.
   act>)`. It replaces the separate unledgered notice (CM-31-006, CM-31-026). A
   replica still applies the change only from the entry (CM-31-007, CM-31-029), so the
   notice and the entry's fan-out apply it once.
-- An Owner that is also the CASE_MANAGER sends the same act and admits it under the
-  same rules, without posting to its own inbox.
+- An Owner that is also the CASE_MANAGER sends the same act to itself: ordinary
+  outbox delivery brings it to its own inbox, whose received tree admits it under
+  the same rules (OX-12-001).
 
 **AS2 basis.** An activity states what its sender did. The Owner's removal is its
 decision, which it makes, so the bare act is true of it; the CASE_MANAGER's ledger
 entry is its admission of the act (CLP-02-012), as for a participant's consent. VOC
 Announce can carry an activity.
 
-**Today.** The Owner sends `Remove(CaseParticipant)[target=VulnerabilityCase]` and
-`Add(CaseParticipant)[target=VulnerabilityCase]`, carrying the whole record; the
-CASE_MANAGER ledgers the received act as its entry (CM-31-005, CM-31-025) and sends a
-second, unledgered `Remove` (CM-31-006). Revision 1 of ADR-0199 had the Owner offer
-the act and the CASE_MANAGER accept and make it (#6465 as first filed); revision 2
-reversed that before it was built.
-
-**Touches.** CM-31 (004, 005, 006, 011, 022, 024, 025, 026, 029, 036), CM-24-002,
-VAM-04, the add and remove participant received trees and their trigger,
-the semantic registry, `vultron/wire/as2/vocab/examples/participant.py`,
-`docs/reference/messages/case_management.md`, the occasion lookups
-(`docs/reference/messages/_occasions/lookup.md`, `lookup-case_management.md`,
-`embeds/add-case-participant-to-case.md`),
-`docs/reference/vultron-spec/_participant-lifecycle.md`,
-`docs/reference/case_model_fields.md` (`removal_activity`), `notes/case-joining.md`
-(the removal table), `notes/ownership-transfer.md`,
-`notes/demo-ci-scenario-coverage.md`, the manage-participants demo. Frees
-`Add(CaseParticipant)` for the CASE_MANAGER's own record-keeping
-(§ "The CASE_MANAGER Adds a New Participant Record to the Case").
+**Today.** Built (#6465). The `remove-participant` and `reinstate-participant`
+triggers send the Owner's act (`REMOVE_PARTICIPANT_FROM_CASE`,
+`REINSTATE_PARTICIPANT_IN_CASE`, VAM-06-006, VAM-06-007); the received trees declare
+the manager path alone and read the actor from `/participant_actor_id`. The one
+`Announce(<admitted act>)` emit is `EmitAnnounceAdmittedActNode`
+(`vultron/core/behaviors/case/nodes/announce_admitted_act.py`), with the factory
+`announce_admitted_act_activity` and the received `ANNOUNCE_ADMITTED_ACT`
+(VAM-06-008), which a replica records and applies nothing from; the ADR-0203 end of
+an embargo (#6483) reuses it by overriding its recipients and, for an act it did
+not receive, `_admitted_act_id`. `Add(CaseParticipant)` is unrecognized until the
+CASE_MANAGER's seating entry takes it (§ "The CASE_MANAGER Adds a New Participant
+Record to the Case").
 
 ---
 
@@ -379,17 +370,14 @@ schema.org; it has no "concluded" status or structured cause. VOC Announce can c
 an activity ("Sally announced that she had arrived at work"). VOC `summary`: "a
 natural language summarization of the object".
 
-**Today.** `Remove(EmbargoEvent)[origin=case]` with the reason enum in `content`
-(`vultron/wire/as2/vocab/activities/embargo.py`) and the cause in the Vultron
-`terminationCause` (`vultron/core/models/embargo_termination.py`). The status,
+**Today.** `Remove(EmbargoEvent)[origin=case]` with the cause, `END_TIME_REACHED`
+included, in the Vultron `terminationCause`
+(`vultron/wire/as2/vocab/activities/embargo.py`,
+`vultron/core/models/embargo_termination.py`); `content` carries no what. The status,
 `replaces` and termination are on the register entry
 (`vultron/core/models/embargo_register/entry.py`), not the embargo. The Owner's
 `Remove` is ledgered as received (EMB-13-003, EMB-13-013). Teardown:
 `vultron/core/behaviors/embargo/nodes/teardown.py`; EMB-19.
-
-**Term-check owner.** #6421 owns the termination `reason` enum in the #6253 term-check
-ratchet, so the entry keeps an open owner. Planning this section adopts #6421
-for that field rather than filing a second Task.
 
 **Touches.** EMB-07, EMB-13 (003, 004, 005, 009 to 014), EMB-19, CM-31-009,
 CM-31-030, CM-31-031, CM-31-042, EP-08-004, ADR-0116 and ADR-0122 (partially
@@ -587,8 +575,10 @@ check (`vultron/metadata/wire_context/terms.py`, run by `uv run wire-context
 --check` and the unit suite) refuses a field with no term, a Vultron property named
 like a pinned external term, and two disagreeing declarations of one name. An
 external term counts only when a context in `CITED_CONTEXTS` defines it: AS2,
-data-integrity v2 and Multikey v1. CID v1 is pinned but not cited, so the
-profile's `assertionMethod` has no term until #6418 cites it. Each field the check
+data-integrity v2, Multikey v1 and CID v1. The actor profile cites Multikey v1 and
+CID v1 after its own contexts (`PROFILE_KEY_CONTEXTS` in
+`vultron/wire/as2/signing.py`), so `Multikey` and `assertionMethod` resolve in a
+JSON-LD processor. Each field the check
 refuses today is an entry in its owner's ratchet in
 `test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
 resolves to the marked one's meaning until its owner renames it: the item's `notes`
@@ -603,9 +593,7 @@ Invite carry the roles they propose in one field, `roles`, declared on
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
-| `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
-| termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
 Every other field is a Vultron term. `state`, `status` and `kind` are each used once
 on the wire, and `caseStatus` is declared once, on a participant status, so none of
@@ -885,8 +873,8 @@ scenario pages and `docs/topics/scenarios/_engagement_status_entry.md`),
 strict-xfail probes that hold the amended specs
 (`test/architecture/test_participant_seating_add_planned.py` and
 `test_the_stub_invite_adds_the_participant_record_to_the_case` in
-`test/core/use_cases/received/test_stub_invite_replay.py`). Builds after #6465,
-which retires the Case Owner's `Add(CaseParticipant)` request.
+`test/core/use_cases/received/test_stub_invite_replay.py`). The Case Owner's
+`Add(CaseParticipant)` request is retired (#6465), so the name is free.
 
 ---
 

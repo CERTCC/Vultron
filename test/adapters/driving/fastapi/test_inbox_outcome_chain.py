@@ -177,7 +177,6 @@ def test_remove_embargo_naming_no_case_is_refused_at_extraction(dl):
     handler runs (ARCH-10-001, ADR-0032).
     """
     from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
-    from vultron.core.states.embargo_register import TerminationReason
     from vultron.wire.as2.factories import remove_embargo_from_case_activity
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -188,7 +187,6 @@ def test_remove_embargo_naming_no_case_is_refused_at_extraction(dl):
             context="https://example.org/cases/c-chain-remove",
             end_time=days_from_now(45),
         ),
-        reason=TerminationReason.EARLY,
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
         at=authored_at(),

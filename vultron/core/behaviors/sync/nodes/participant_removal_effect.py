@@ -22,13 +22,15 @@
 :class:`ApplyReinstateCaseParticipantFromLedgerNode` form the
 ``ReinstateCaseParticipantEffects`` slot (CM-31-007, CM-31-011, RSH-08-004).
 
-The CASE_MANAGER commits the Case Owner's received ``Remove(CaseParticipant)``
-as the removal's one ledger entry (CM-31-005), and its received
-``Add(CaseParticipant)`` as the reinstatement's.  A replica applies each here,
-writing the same fact the CASE_MANAGER wrote — :meth:`CaseParticipant.record_removal`
-records the id of that ``Remove`` activity, :meth:`CaseParticipant.clear_removal`
-clears it.  A replica never applies either from the CASE_MANAGER's direct
-notice (RSH-08-003); the received tree stores that notice and writes nothing.
+The CASE_MANAGER commits the Case Owner's received ``Remove(<Actor>,
+origin=<case>)`` as the removal's one ledger entry (CM-31-005), and its
+received ``Add(<Actor>, target=<case>)`` as the reinstatement's (CM-31-044,
+ADR-0199).  A replica applies each here, writing the same fact the
+CASE_MANAGER wrote — :meth:`CaseParticipant.record_removal` records the id of
+that ``Remove`` activity, :meth:`CaseParticipant.clear_removal` clears it.  A
+replica never applies either from the CASE_MANAGER's ``Announce`` of the act
+(CM-31-029, CM-31-045, RSH-08-003); the received tree records that
+``Announce`` and writes nothing.
 
 The removed participant's own replica is among the removal entry's
 recipients (its fan-out is selected before the fact is set), so it applies the
@@ -49,26 +51,23 @@ from vultron.core.behaviors.sync.nodes._helpers import (
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _ActivityEventNode,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.wire_keys import wire_key
 from vultron.core.predicates.addressing import snapshot_actor_id
+from vultron.core.services.embargo_lifecycle.pec import find_actor_participant
 from vultron.errors import VultronNotFoundError
 
-#: Ledger ``semantic_type`` of the Case Owner's removal request, as the guarded
+#: Ledger ``semantic_type`` of the Case Owner's removal, as the guarded
 #: commit derives it from the received activity's semantics.
 REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE = (
-    MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE.value
+    MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE.value
 )
 
-#: Ledger ``semantic_type`` of the Case Owner's reinstatement request.
+#: Ledger ``semantic_type`` of the Case Owner's reinstatement.
 REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE = (
-    MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE.value
+    MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE.value
 )
-
-_ATTRIBUTED_TO = wire_key("attributed_to")
 
 
 class IsRemoveCaseParticipantEventNode(_ActivityEventNode):
@@ -90,16 +89,12 @@ class IsRemoveCaseParticipantEventNode(_ActivityEventNode):
 class _ParticipantMoveLedgerEffectNode(_LedgerEffectNode):
     """Shared frame of the replica's removal and reinstatement apply nodes.
 
-    Resolves the named participant in the replica's own roster — by the
-    actor the snapshot's ``object`` is attributed to, through
-    ``actor_participant_index`` (CM-19-003), falling back to the record id
-    the snapshot names when that id is on the replica's roster — and hands
-    the record to :meth:`_apply`.  Resolving by actor first is safe because
-    the CASE_MANAGER refused any move whose inline ``attributedTo`` disagrees
-    with the record it judged (CM-31-004, CM-31-011), and a replica's own
-    record id may differ from the CASE_MANAGER's.  The record stays on the
-    roster (CM-31-015) and its embargo consent rows are untouched
-    (CM-31-008).
+    Resolves the named participant in the replica's own roster by the actor
+    the snapshot's ``object`` names, through ``actor_participant_index``
+    (CM-19-003): the Case Owner's act names the actor, not the record, and a
+    replica's own record id may differ from the CASE_MANAGER's.  The record
+    stays on the roster (CM-31-015) and its embargo consent rows are
+    untouched (CM-31-008).
 
     Lenient on missing data, as the other apply nodes are: a replica that
     holds no copy of the case or of the participant, or a snapshot with no
@@ -125,8 +120,8 @@ class _ParticipantMoveLedgerEffectNode(_LedgerEffectNode):
         activity_id = (
             _extract_id_from_field(snapshot.get("id")) or entry.log_object_id
         )
-        participant_data = snapshot.get("object")
-        if not case_id or not activity_id or not participant_data:
+        actor_id = snapshot_actor_id(snapshot.get("object"))
+        if not case_id or not activity_id or not actor_id:
             self.logger.debug(
                 "%s: payload_snapshot missing the participant, the activity"
                 " id or the case id — skipping %s apply (non-fatal)",
@@ -140,7 +135,7 @@ class _ParticipantMoveLedgerEffectNode(_LedgerEffectNode):
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
         try:
-            record = self._replica_record(case, participant_data)
+            record = self._replica_record(case, actor_id)
         except VultronNotFoundError:
             self.logger.info(
                 "%s: replica of case '%s' holds no record for the participant"
@@ -172,40 +167,28 @@ class _ParticipantMoveLedgerEffectNode(_LedgerEffectNode):
         return Status.SUCCESS
 
     def _replica_record(
-        self, case: VulnerabilityCase, participant_data: object
+        self, case: VulnerabilityCase, actor_id: str
     ) -> CaseParticipant:
-        """The replica's own record for the participant the snapshot names.
+        """The replica's own record for the actor the snapshot names.
 
         Raises:
             VultronNotFoundError: The replica holds no such record.
         """
         assert self.datalayer is not None
-        candidates: list[str] = []
-        if isinstance(participant_data, dict):
-            # Normalised: the snapshot keeps the sender's spelling
-            # (OID-01-008).
-            actor_id = snapshot_actor_id(participant_data.get(_ATTRIBUTED_TO))
-            if actor_id and actor_id in case.actor_participant_index:
-                candidates.append(case.actor_participant_index[actor_id])
-        snapshot_id = _extract_id_from_field(participant_data)
-        if snapshot_id and snapshot_id in [
-            _as_id(p) for p in case.case_participants
-        ]:
-            candidates.append(snapshot_id)
-        for participant_id in candidates:
-            record = self.datalayer.read(participant_id)
-            if isinstance(record, CaseParticipant):
-                return record
-        raise VultronNotFoundError(
-            "CaseParticipant",
-            f"no record of the {self._MOVE} participant on case '{case.id_}'",
-        )
+        found = find_actor_participant(self.datalayer, case, actor_id)
+        if found is None:
+            raise VultronNotFoundError(
+                "CaseParticipant",
+                f"no record of the {self._MOVE} actor '{actor_id}' on case"
+                f" '{case.id_}'",
+            )
+        return found[1]
 
 
 class ApplyRemoveCaseParticipantFromLedgerNode(
     _ParticipantMoveLedgerEffectNode
 ):
-    """Apply a ``remove_case_participant_from_case`` entry to the local replica.
+    """Apply a ``remove_participant_from_case`` entry to the local replica.
 
     Records the removal fact from the snapshot's activity id through
     :meth:`CaseParticipant.record_removal` (CM-31-007).  Idempotent: a
@@ -221,9 +204,8 @@ class ApplyRemoveCaseParticipantFromLedgerNode(
 class IsReinstateCaseParticipantEventNode(_ActivityEventNode):
     """Precondition: SUCCESS when this log entry IS a participant reinstatement.
 
-    Precondition of the ``ReinstateCaseParticipantEffects`` slot.  The Case
-    Owner's ``Add(CaseParticipant)`` is reinstatement only (CM-31-011), so
-    every entry of this type is one.
+    Precondition of the ``ReinstateCaseParticipantEffects`` slot: an entry
+    carrying the Case Owner's ``Add(<Actor>, target=<case>)`` (CM-31-011).
 
     Per BTND-08-001, BTND-08-002, SYNC-12-001, RSH-08-004, CM-31-011.
     """
@@ -238,7 +220,7 @@ class IsReinstateCaseParticipantEventNode(_ActivityEventNode):
 class ApplyReinstateCaseParticipantFromLedgerNode(
     _ParticipantMoveLedgerEffectNode
 ):
-    """Apply an ``add_case_participant_to_case`` entry to the local replica.
+    """Apply a ``reinstate_participant_in_case`` entry to the local replica.
 
     Clears the removal fact through :meth:`CaseParticipant.clear_removal`,
     as the CASE_MANAGER did (CM-31-034).  Idempotent: a participant that is

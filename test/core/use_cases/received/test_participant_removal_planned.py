@@ -29,14 +29,14 @@ second joined vendor.
   or owner; a repeat removal is skipped.
 - CM-31-005, CM-31-024, CM-31-025 — one ledger entry, under a canonical
   signature.
-- CM-31-006, CM-31-027 — a direct notice to the removed participant, and the
-  removal entry's fan-out reaches it.
+- CM-31-006, CM-31-027 — the CASE_MANAGER's ``Announce`` of the Owner's act to
+  the removed participant, and the removal entry's fan-out reaches it.
 - CM-31-007 — replicas apply the removal from its ledger entry.
 - CM-31-008 — removal leaves embargo consent untouched.
 - CM-31-009 — a removed signatory is told when the embargo is terminated.
 - CM-31-010, CM-31-032 — a paused replica applies the CASE_MANAGER's
   embargo-ending notice and ignores one from a non-manager.
-- CM-31-011, CM-31-036 — ``Add(CaseParticipant)`` reinstates, and only
+- CM-31-011, CM-31-036 — the Owner's ``Add(<Actor>)`` reinstates, and only
   reinstates.
 - CM-31-012 — no ``Add(CaseParticipant)`` after a stub-Invite acceptance.
 - CM-31-013 — a removed participant is not sent an embargo Invite.
@@ -80,7 +80,6 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -93,9 +92,9 @@ from vultron.core.use_cases.received.sync import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
+    reinstate_participant_activity,
     remove_embargo_from_case_activity,
-    remove_participant_from_case_activity,
+    remove_participant_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,
@@ -159,9 +158,9 @@ class _RemovalCase:
 
     def remove(self, actor_id: str, *, by: str = OWNER) -> HandlerResult:
         return self.route(
-            remove_participant_from_case_activity(
-                self.participant(actor_id),
-                target=CASE_ID,
+            remove_participant_activity(
+                actor_id,
+                CASE_ID,
                 actor=by,
                 to=[MANAGER],
                 at=authored_at(),
@@ -390,17 +389,10 @@ def test_removal_is_refused_unless_the_owner_removes_a_removable_participant(
     removal_case, sender: str, removed: str
 ) -> None:
     """Only the Case Owner may remove, and never the manager or the owner."""
-    removed_record = (
-        removal_case.dl.read(f"{CASE_ID}/participants/case-manager")
-        if removed == MANAGER
-        else removal_case.participant(removed)
-    )
-    assert isinstance(removed_record, CaseParticipant)
-
     result = removal_case.route(
-        remove_participant_from_case_activity(
-            removed_record,
-            target=CASE_ID,
+        remove_participant_activity(
+            removed,
+            CASE_ID,
             actor=sender,
             to=[MANAGER],
             at=authored_at(),
@@ -414,15 +406,14 @@ def test_removal_is_refused_unless_the_owner_removes_a_removable_participant(
 def test_removal_naming_no_participant_of_the_case_is_refused(
     removal_case,
 ) -> None:
-    """A ``Remove`` naming a record not on this case's roster is refused."""
-    stranger = _record(STRANGER, [CVDRole.VENDOR])
-    removal_case.dl.create(stranger)
+    """A ``Remove`` naming an actor with no record on the case is refused."""
+    removal_case.dl.create(_record(STRANGER, [CVDRole.VENDOR]))
     before = removal_case.read_case().case_participants
 
     result = removal_case.route(
-        remove_participant_from_case_activity(
-            stranger,
-            target=CASE_ID,
+        remove_participant_activity(
+            STRANGER,
+            CASE_ID,
             actor=OWNER,
             to=[MANAGER],
             at=authored_at(),
@@ -452,7 +443,7 @@ def test_only_the_owners_removal_records_a_removal_fact() -> None:
     """The CASE_MANAGER never removes a participant on its own initiative.
 
     The removal fact is written only where the Case Owner's received
-    ``Remove(CaseParticipant)``, or its ledger entry on a replica, is applied;
+    ``Remove(<Actor>)``, or its ledger entry on a replica, is applied;
     no trigger or other tree calls ``CaseParticipant.record_removal``.
     """
     root = Path(vultron.__file__).parent
@@ -479,7 +470,7 @@ def test_removal_is_one_canonical_ledger_entry_by_the_owner(
         _CANONICAL_PAYLOAD_SIGNATURES,
     )
 
-    assert ("Remove", "CaseParticipant") in _CANONICAL_PAYLOAD_SIGNATURES
+    assert ("Remove", "Actor") in _CANONICAL_PAYLOAD_SIGNATURES
     before = len(removal_case.ledger())
 
     removal_case.remove(VENDOR)
@@ -490,15 +481,18 @@ def test_removal_is_one_canonical_ledger_entry_by_the_owner(
 
 
 @pytest.mark.spec("CM-31-006")
-def test_removed_participant_is_sent_a_direct_remove_naming_it(
+def test_removed_participant_is_announced_the_owners_remove(
     removal_case,
 ) -> None:
-    """The manager tells the removed party, crediting the Case Owner."""
+    """The manager tells the removed party with ``Announce(<the Owner's
+    Remove>)``, its own act (ADR-0199)."""
     removal_case.remove(VENDOR)
 
-    notices = removal_case.activities_to("Remove", VENDOR)
-    assert len(notices) == 1
-    assert getattr(notices[0], "attributed_to", None) == OWNER
+    (removal_entry,) = removal_case.ledger()
+    (announce,) = removal_case.activities_to("Announce", VENDOR)
+    assert _as_id(announce.object_) == removal_entry.log_object_id
+    assert getattr(announce, "attributed_to", None) is None
+    assert removal_case.activities_to("Remove", VENDOR) == []
 
 
 @pytest.mark.spec("CM-31-027")
@@ -567,7 +561,6 @@ def test_removed_signatory_is_sent_the_termination(removal_case) -> None:
             origin=CASE_ID,
             actor=OWNER,
             to=[MANAGER],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
     )
@@ -599,7 +592,6 @@ def _paused_replica_receives_ending_notice(
             origin=CASE_ID,
             actor=sender,
             to=[VENDOR],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         ),
         receiving_actor_id=VENDOR,
@@ -634,14 +626,13 @@ def test_paused_replica_ignores_an_ending_notice_from_a_non_manager() -> None:
 
 @pytest.mark.spec("CM-31-011")
 def test_owner_add_reinstates_a_removed_participant(removal_case) -> None:
-    """``Add(CaseParticipant)`` from the owner reverses a removal."""
+    """The owner's ``Add(<Actor>)`` reverses a removal."""
     removal_case.remove(VENDOR)
-    participant = removal_case.participant(VENDOR)
 
     result = removal_case.route(
-        add_participant_to_case_activity(
-            participant,
-            target=CASE_ID,
+        reinstate_participant_activity(
+            VENDOR,
+            CASE_ID,
             actor=OWNER,
             to=[MANAGER],
             at=authored_at(),
@@ -658,9 +649,9 @@ def test_add_naming_a_participant_that_is_not_removed_is_refused(
 ) -> None:
     """``Add`` only reinstates; it is not a way to seat a member."""
     result = removal_case.route(
-        add_participant_to_case_activity(
-            removal_case.participant(OTHER),
-            target=CASE_ID,
+        reinstate_participant_activity(
+            OTHER,
+            CASE_ID,
             actor=OWNER,
             to=[MANAGER],
             at=authored_at(),

@@ -24,7 +24,6 @@ from datetime import datetime, timedelta
 from typing import Protocol
 
 from vultron.core.models.embargo_termination import TerminationCause
-from vultron.core.states.embargo_register import TerminationReason
 
 
 class TriggerEmbargoPort(Protocol):
@@ -243,7 +242,6 @@ class TriggerEmbargoPort(Protocol):
         case_id: str,
         actor: str,
         *,
-        reason: TerminationReason,
         cause: TerminationCause | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
@@ -253,10 +251,11 @@ class TriggerEmbargoPort(Protocol):
         """Create and persist a ``Remove(EmbargoEvent)`` ET activity.
 
         Corresponds to the ET (Embargo Termination) protocol message.
-        *reason* is the termination's what, carried as ``content``
-        (ADR-0122); *cause* is its why, carried as ``terminationCause``
-        when given (EMB-13-005).  The CASE_MANAGER passes the cause it
-        records on its own ``TERMINATED`` entry.
+        *cause* is why the embargo ended, ``END_TIME_REACHED`` included,
+        carried as ``terminationCause`` (EMB-13-005, ADR-0203), or ``None``
+        for an early end that names none.  The
+        CASE_MANAGER passes the cause it records on its own ``TERMINATED``
+        entry.
         *attributed_to*, when given, names the actor whose request the
         CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
         to a bound signatory the ledger no longer reaches, and *in_reply_to*

@@ -70,6 +70,7 @@ __all__ = [
     "OBJECT_ID",
     "OFFER_ID",
     "OWNER_PROFILE",
+    "PARTICIPANT_ACTOR_ID",
     "PARTICIPANT_ID",
     "PROPOSAL_ID",
     "REFUSED_ACTIVITY_ID",
@@ -227,6 +228,13 @@ INVITEE_ID = _act_key(
     "invitee_id",
     str,
     "The id of the actor an invitation names as its invitee.",
+)
+PARTICIPANT_ACTOR_ID = _act_key(
+    "participant_actor_id",
+    str,
+    "The id of the actor whose participant record the act names, such as"
+    " the actor a Case Owner's removal or reinstatement names; the record is"
+    " read from the case's ``actor_participant_index`` (CM-19-003).",
 )
 CASE_ACTOR_ID = _act_key(
     "case_actor_id",
