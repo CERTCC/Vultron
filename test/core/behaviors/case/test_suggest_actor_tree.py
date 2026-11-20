@@ -53,8 +53,10 @@ from vultron.core.behaviors.case.nodes.addressee import (
 )
 from vultron.core.behaviors.case.nodes.invite_actor_emit import (
     INVITE_ID_KIND,
+    _StubInviteEmitBase,
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
+    _SeatInertInviteeBase,
     validated_invitee_roles,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
@@ -64,7 +66,6 @@ from vultron.core.behaviors.case.nodes.owner_invite import (
     EmitOwnerDecidedStubInviteNode,
     InviteeAwaitsReplyNode,
     RecommenderIsNotCaseOwnerNode,
-    SeatOwnerInvitedInviteeNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     AcceptedInviteeIsNotRemovedNode,
@@ -525,7 +526,7 @@ class TestStubInviteEmitEmptyRoles:
         node, _ = self._node()
         result = node.update()
         assert result == Status.FAILURE
-        assert node.feedback_message, "feedback_message must be set on FAILURE"
+        assert "is empty" in node.feedback_message, node.feedback_message
 
     def test_factory_not_called_when_roles_empty(self):
         """factory.invite_actor_to_case must not be called with empty roles."""
@@ -1163,10 +1164,20 @@ class TestDuplicateDetectionTreeStructure:
         The Case Owner's decision is its own Invite (ADR-0199), so a
         recommendation is always a suggestion the Owner decides.
         """
-        types = {type(n) for n in self.all_nodes}
-        assert EmitOwnerDecidedStubInviteNode not in types
-        assert SeatOwnerInvitedInviteeNode not in types
-        assert InviteeAwaitsReplyNode not in types
+        # Any stub-Invite emitter or inert-invitee seat, not only the
+        # Owner-decided ones, would put an Invite back on this tree.
+        assert not [
+            n
+            for n in self.all_nodes
+            if isinstance(
+                n,
+                (
+                    _StubInviteEmitBase,
+                    _SeatInertInviteeBase,
+                    InviteeAwaitsReplyNode,
+                ),
+            )
+        ]
 
     @pytest.mark.spec("CM-17-007")
     def test_the_owner_guard_runs_before_the_commit_and_every_arm(self):

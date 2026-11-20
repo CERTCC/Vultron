@@ -51,6 +51,7 @@ from typing import cast
 import py_trees
 from py_trees.common import Status
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.act_key_ports import (
     act_key_ports,
     act_key_remappings,
@@ -206,6 +207,7 @@ def end_embargo_at_end_time_bt(
     case_id: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """The one idempotent end-time termination path (ADR-0122).
 
@@ -227,6 +229,7 @@ def end_embargo_at_end_time_bt(
                 result_out=result_out,
                 termination=EmbargoTermination.end_time_reached(),
                 activity_builder=activity_builder,
+                actor_config=actor_config,
             ),
         ],
     )

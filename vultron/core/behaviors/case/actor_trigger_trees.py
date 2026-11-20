@@ -102,7 +102,7 @@ def case_manager_invite_actor_trigger_bt(
     The Owner's decision needs no message to itself: it sends the stub
     Invite straight to the invitee, as its own act with neither
     ``attributedTo`` nor ``inReplyTo`` (CM-24-021), through the same
-    :func:`~vultron.core.behaviors.case.nodes.owner_invite.owner_decided_stub_invite`
+    :func:`~vultron.core.behaviors.case.nodes.owner_invite_stub.owner_decided_stub_invite`
     the CASE_MANAGER runs on another Owner's Invite.  The Invite, its ledger
     entry and the inert participant's are one act (CLP-07-015, ADR-0146).
     The caller seeds ``/case_id`` and ``/invitee_id`` with the values it

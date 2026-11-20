@@ -33,6 +33,7 @@ Each test asserts observable behaviour.  See ``notes/case-joining.md``.
 """
 
 import json
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -63,6 +64,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.config.actor import ActorConfig
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -587,6 +589,55 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
     assert result.disposition is HandlerDisposition.REFUSED
     assert result.reason is not None
     assert any(r.id_ in result.reason for r in replacements), result.reason
+
+
+@pytest.mark.spec("CM-11-016", "CM-11-014", "CM-28-012")
+def test_a_reissued_stub_invite_takes_the_managers_configured_rsvp_window(
+    actor_store,
+) -> None:
+    """The embargo trigger hands the CASE_MANAGER's ``ActorConfig`` down.
+
+    The replacement stub Invite a termination re-issues carries the
+    configured reply window, not the ``ActorConfig`` default.
+    """
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
+    dl.create(invitee)
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    original_id = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)["id"]
+    window = timedelta(days=2)
+    assert window != ActorConfig().default_rsvp_window
+
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+            actor_config=ActorConfig(
+                min_rsvp_window=timedelta(hours=1), default_rsvp_window=window
+            ),
+        )
+    )
+
+    (replacement,) = [
+        invite
+        for invite in _invites_to(dl, invitee.id_)
+        if invite.id_ != original_id
+        and getattr(invite.object_, "type_", None) == "VulnerabilityCase"
+        and invite.end_time is not None
+        and original_id
+        in invite.model_dump_json(by_alias=True, exclude={"id_"})
+    ]
+    assert replacement.published is not None
+    assert replacement.end_time is not None
+    assert replacement.end_time - replacement.published == window
 
 
 def _accept_stub_invite(

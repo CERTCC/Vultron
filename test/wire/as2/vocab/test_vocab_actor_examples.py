@@ -92,8 +92,12 @@ class TestOwnerInviteActorToCase(unittest.TestCase):
         self.assertEqual(self.activity.to, _CASE_ACTOR.id_)
 
     def test_names_the_case_and_the_invitee(self):
-        self.assertEqual(self.activity.object_.id_, case().id_)
-        self.assertEqual(self.activity.target.id_, _COORDINATOR.id_)
+        invited_to = self.activity.object_
+        invitee = self.activity.target
+        assert invited_to is not None and not isinstance(invited_to, str)
+        assert invitee is not None and not isinstance(invitee, str)
+        self.assertEqual(invited_to.id_, case().id_)
+        self.assertEqual(invitee.id_, _COORDINATOR.id_)
 
     def test_carries_the_offered_roles(self):
         self.assertEqual(self.activity.roles, ["coordinator"])

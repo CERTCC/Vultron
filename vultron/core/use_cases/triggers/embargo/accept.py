@@ -134,6 +134,7 @@ class SvcAcceptEmbargoUseCase(SvcEmbargoTriggerBase):
             embargo_id=self._embargo_id,
             result_out=self._result_out,
             activity_builder=_build_activity,
+            actor_config=self._actor_config,
         )
 
     def _log_lifecycle_result(self) -> None:

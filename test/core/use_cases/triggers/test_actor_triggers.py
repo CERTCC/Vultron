@@ -871,7 +871,9 @@ class TestCaseManagerJudgesTheOwnersInvite:
             )
         )
 
-        assert accept.object_.id_ == stub.id_
+        accepted = accept.object_
+        assert accepted is not None and not isinstance(accepted, str)
+        assert accepted.id_ == stub.id_
         assert result.disposition.value == "applied", result
 
     @pytest.mark.spec("CM-17-007", "HP-01-006")
@@ -885,7 +887,10 @@ class TestCaseManagerJudgesTheOwnersInvite:
         other_dl.create(harness.manager)
         for obj_id in (
             harness.case.id_,
-            *harness.case.case_participants,
+            *(
+                p if isinstance(p, str) else p.id_
+                for p in harness.case.case_participants
+            ),
         ):
             other_dl.create(cast(Any, harness.owner_dl.read(obj_id)))
         for dl in (harness.manager_dl, other_dl):

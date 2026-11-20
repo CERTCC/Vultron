@@ -144,7 +144,7 @@ def test_verb_posts_expected_behavior_body_and_prefix():
 
 
 def test_invite_actor_to_case_returns_the_owners_invite():
-    """The Owner's Invite comes back as the case-Invite class (ADR-0199)."""
+    """The Owner's Invite comes back as its wire dict (ADR-0199)."""
     import json
     from pathlib import Path
 

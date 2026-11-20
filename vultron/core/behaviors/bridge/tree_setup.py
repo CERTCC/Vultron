@@ -114,7 +114,7 @@ class _BridgeSetup:
         what persists an outbound activity.  Leaving it alone splits a single
         emit across two stores: ``TriggerActivityAdapter.invite_actor_to_case``
         creates the ``Invite`` in the *requesting* actor's store while
-        A stub Invite emit node appends its id to the *executing* actor's
+        a stub Invite emit node appends its id to the *executing* actor's
         outbox.  Nothing raises; the outbox handler simply reports the activity
         "not found in DataLayer for actor …", skips delivery, and the invitee is
         never told it was invited (ISSUE-2548).

@@ -23,7 +23,7 @@ Read-only conditions for the CASE_MANAGER's received trees:
   not guarded: declining to join does not depend on the terms (CM-11-016).
 
 The re-invite check is
-:class:`~vultron.core.behaviors.case.nodes.owner_invite.InviteeAwaitsReplyNode`,
+:class:`~vultron.core.behaviors.case.nodes.owner_invite_stub.InviteeAwaitsReplyNode`,
 and the refusal of a joined or closed invitee is
 :class:`~vultron.core.behaviors.case.nodes.owner_invite.InviteeIsInvitableNode`
 (CM-11-015, CM-11-043).

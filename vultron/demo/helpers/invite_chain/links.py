@@ -129,11 +129,16 @@ def _trigger_invite(
         .quiet()
         .invite_actor_to_case(invitee_id=invitee.id_, roles=[inviter.role])
     ).activity
+    if owner_invite is None:
+        raise AssertionError(
+            f"{inviter.name}'s invite-actor-to-case trigger returned no"
+            f" Invite of {invitee_name}"
+        )
     logger.info(
         "%s sent the CASE_MANAGER its Invite of %s: %s",
         inviter.name,
         invitee_name,
-        (owner_invite or {}).get("id"),
+        owner_invite["id"],
     )
 
 

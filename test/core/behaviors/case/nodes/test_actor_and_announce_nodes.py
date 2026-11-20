@@ -1259,6 +1259,7 @@ class TestStubInviteRefusesAnUnheldCase:
         )
 
         assert result.status == Status.FAILURE
+        assert AC3_CASE_ID in result.feedback_message, result.feedback_message
         factory.invite_actor_to_case.assert_not_called()
         assert dl.outbox_list() == []
 

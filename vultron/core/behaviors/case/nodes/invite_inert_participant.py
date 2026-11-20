@@ -116,7 +116,7 @@ class _SeatInertInviteeBase(DataLayerActionWithPorts, StateWriteCapable):
 
     A subclass names the invitee (:meth:`_invitee`) and its roles
     (:meth:`_resolve_roles`): the roles the Case Owner's Invite named
-    (:class:`~vultron.core.behaviors.case.nodes.owner_invite.SeatOwnerInvitedInviteeNode`),
+    (:class:`~vultron.core.behaviors.case.nodes.owner_invite_stub.SeatOwnerInvitedInviteeNode`),
     or those of the recorded Offer the Case Owner accepted.
     """
 

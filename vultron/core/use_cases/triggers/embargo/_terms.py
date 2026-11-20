@@ -99,4 +99,5 @@ class SvcOfferEmbargoTermsBase(SvcEmbargoTriggerBase):
             embargo=self._embargo,
             result_out=self._result_out,
             activity_builder=_build_activity,
+            actor_config=self._actor_config,
         )

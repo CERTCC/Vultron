@@ -21,6 +21,7 @@ The CASE_MANAGER's own proposal takes the shape of one it receives
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import EMBARGO
 from vultron.core.behaviors.case_id_scope import with_case_id
@@ -62,6 +63,7 @@ def _propose_arms(
     embargo: EmbargoEvent,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> list[py_trees.behaviour.Behaviour]:
     """Manager: adjudicate and relay its own terms; otherwise: ask.
 
@@ -122,6 +124,9 @@ def _propose_arms(
                 # back with the proposal itself: the arm is one act
                 # (ADR-0146).
                 answers=embargo.id_,
+                # Each relayed Invite's reply deadline comes from the
+                # CASE_MANAGER's own RSVP window (CM-28-012).
+                actor_config=actor_config,
             ),
             IndexOwnEmbargoProposalNode(
                 case_id=case_id,
@@ -147,6 +152,7 @@ def propose_embargo_trigger_bt(
     embargo: EmbargoEvent,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for proposing an embargo (EP-09-008).
 
@@ -168,6 +174,7 @@ def propose_embargo_trigger_bt(
                 embargo,
                 result_out,
                 activity_builder,
+                actor_config,
             ),
         ],
     )
@@ -180,6 +187,7 @@ def propose_embargo_revision_trigger_bt(
     embargo: EmbargoEvent,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for proposing an embargo revision.
 
@@ -202,6 +210,7 @@ def propose_embargo_revision_trigger_bt(
                 embargo,
                 result_out,
                 activity_builder,
+                actor_config,
             ),
         ],
     )

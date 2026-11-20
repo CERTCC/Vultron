@@ -53,6 +53,9 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=(*_COMMON, "TRIG-03-003"),
+        # The CASE_MANAGER relays its own proposal with its own RSVP
+        # window (CM-28-012).
+        takes_actor_config=True,
     ),
     TriggerEntry(
         verb="accept-embargo",
@@ -62,6 +65,9 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=_COMMON,
+        # The CASE_MANAGER re-issues stub Invites when the embargo under
+        # them changes, with its own RSVP window (CM-11-014, CM-11-016).
+        takes_actor_config=True,
     ),
     TriggerEntry(
         verb="reject-embargo",
@@ -71,6 +77,9 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=_COMMON,
+        # The CASE_MANAGER re-issues stub Invites when the embargo under
+        # them changes, with its own RSVP window (CM-11-014, CM-11-016).
+        takes_actor_config=True,
     ),
     TriggerEntry(
         verb="propose-embargo-revision",
@@ -80,6 +89,9 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=(*_COMMON, "TRIG-03-003"),
+        # The CASE_MANAGER relays its own proposal with its own RSVP
+        # window (CM-28-012).
+        takes_actor_config=True,
     ),
     TriggerEntry(
         verb="terminate-embargo",
@@ -89,6 +101,9 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=_COMMON,
+        # The CASE_MANAGER re-issues stub Invites when the embargo under
+        # them changes, with its own RSVP window (CM-11-014, CM-11-016).
+        takes_actor_config=True,
     ),
     TriggerEntry(
         verb="withdraw-embargo",
@@ -98,5 +113,8 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=(*_COMMON, "EP-09-013"),
+        # The CASE_MANAGER re-issues stub Invites when the embargo under
+        # them changes, with its own RSVP window (CM-11-014, CM-11-016).
+        takes_actor_config=True,
     ),
 ]

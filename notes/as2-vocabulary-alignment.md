@@ -537,7 +537,8 @@ direct invite is built (#6697): the trigger in
 `vultron/core/use_cases/triggers/actor/recommendation.py` sends the Owner's Invite,
 the CASE_MANAGER's tree is `invite_actor_to_case_received_tree.py` with its nodes in
 `vultron/core/behaviors/case/nodes/owner_invite.py` (CM-17-018, CM-17-025), and the
-Owner-recommender branch is retired (CM-17-026). The embargo relay is `vultron/core/behaviors/embargo/invite_received_tree.py`.
+Owner-recommender branch is retired (CM-17-026). The embargo relay is
+`vultron/core/behaviors/embargo/invite_received_tree.py`.
 `inReplyTo` on every delegated emit is #6464.
 
 **Touches.** CM-21 (014 to 021, 025 to 029, 036, 037, 044), CM-17 (007, 017, 018,
