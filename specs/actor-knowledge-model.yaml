@@ -530,9 +530,9 @@ groups:
       participant, status, report, vulnerability item, case reference or note it lists, or
       an object whose `context` is the case other than a ledger entry, since no route
       serves the ledger (SYNC-02-006). The `{case}` segment is the case's id, or its
-      surrogate key when the id carries slashes. The surrogate key is the last segment of the
-      id, and one that matches more than one case names none. The requester is the
-      actor the request names in its `X-Vultron-Actor` header.
+      surrogate key when the id carries slashes. The surrogate key is the last
+      segment of the id, and one that matches more than one case names none. The
+      requester is the actor the request names in its `X-Vultron-Actor` header.
     rationale: >-
       A replica dereferences a case object from the actor that holds the canonical case
       (ADR-0107), and only an active participant is entitled to case content
