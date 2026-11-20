@@ -149,7 +149,8 @@ class CasePreview(PreviewObject):
              "attributedTo": "https://example.org/actors/vendor",
              "caseStatuses": [{"type": "CaseStatus", "...": "..."}],
              "vulnerabilityItems": [{"type": "VulnerabilityItem",
-                 "ids": [{"systemName": "CVE", "text": "CVE-2026-1234"}]}],
+                 "ids": [{"systemName": "CVE",
+                          "identifier": "CVE-2026-1234"}]}],
              "caseParticipants": {"type": "Redacted"}}}
     """
 

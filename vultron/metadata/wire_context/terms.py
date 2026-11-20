@@ -57,8 +57,8 @@ Loose readings, and whether each can miss or invent a violation:
   reported, and the first is named in each message.
 - **An unmarked field that reuses a cited term with another meaning
   passes** (misses): the check sees that the term exists, not what the field
-  means by it.  ``VulnerabilityItemNote.audience`` sends CSAF free text under
-  AS2's ``audience``; #6416's acceptance criteria track it, not a ratchet.
+  means by it.  A review of each such field against the term's definition
+  is the only guard (``notes/as2-vocabulary-alignment.md``).
 
 A VM-10-012 violation is never a ratchet entry: the generator refuses it too,
 so :func:`load_ratchets` refuses an entry for it.

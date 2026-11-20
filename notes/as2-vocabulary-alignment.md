@@ -21,7 +21,6 @@ tracks:
   - "#6408"   # PR may not close a ratchet's open owner
   - "#6409"   # typed term for every Vultron field
   - "#6422"   # term check and owned ratchets
-  - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
   - "#6418"   # profile cites Controlled Identifiers context
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
@@ -587,20 +586,20 @@ data-integrity v2 and Multikey v1. CID v1 is pinned but not cited, so the
 profile's `assertionMethod` has no term until #6418 cites it. Each field the check
 refuses today is an entry in its owner's ratchet in
 `test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
-resolves to the marked one's meaning until its owner renames it: the item's `notes`
-takes the case's list of Note ids (#6416). The check walks computed fields too, so
-the case's derived `activeParticipants` is marked.
+resolves to the marked one's meaning, so the check reports it as having no term.
+The check walks computed fields too, so the case's derived `activeParticipants` is
+marked.
 
 **Field review.** Each row names the Task that fixes it. A row is a ratchet entry
-only when a rule refuses the field. The note's `audience` breaks no rule (it is
-an AS2 term), so its owner's own acceptance criteria track it. An Offer and an
-Invite carry the roles they propose in one field, `roles`, declared on
+only when a rule refuses the field. A field that reuses an AS2 term with another
+meaning breaks no rule, so only this review finds it: CSAF's free-text note
+`audience` travels as `intendedAudience`, not AS2 `audience` (CM-05-018). An Offer
+and an Invite carry the roles they propose in one field, `roles`, declared on
 `as_Offer` and inherited by `as_Invite` (#6417).
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
 | `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
-| `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
 Every other field is a Vultron term. `state`, `status` and `kind` are each used once

@@ -76,13 +76,13 @@ def _item(
     """*vul* as a vulnerability item; its CVE id, if any, is an ``ids``
     entry with system ``CVE`` before its VINCE id (CM-05-018).  A CVE id the
     item refuses is returned untranslated, and the item kept without it."""
-    vince_id = {"systemName": VINCE_ID_SYSTEM, "text": vul.name}
+    vince_id = {"systemName": VINCE_ID_SYSTEM, "identifier": vul.name}
     data: dict[str, object] = {
         "id": t.ids.minted(f"vul:{vul.name}"),
         "name": vul.name,
         "ids": [vince_id],
-        "notes": (
-            [{"category": "description", "text": vul.description}]
+        "vulNotes": (
+            [{"category": "description", "content": vul.description}]
             if vul.description
             else []
         ),
@@ -92,7 +92,7 @@ def _item(
     }
     if vul.cve is None:
         return VulnerabilityItem.model_validate(data)
-    cve_id = {"systemName": CVE_SYSTEM_NAME, "text": vul.cve}
+    cve_id = {"systemName": CVE_SYSTEM_NAME, "identifier": vul.cve}
     try:
         return VulnerabilityItem.model_validate(
             {**data, "ids": [cve_id, vince_id]}

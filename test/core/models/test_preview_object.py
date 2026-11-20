@@ -147,7 +147,7 @@ def test_a_loose_form_is_not_its_full_class() -> None:
 
 def test_a_nested_object_takes_its_own_loose_form() -> None:
     item: Any = loose_form(VulnerabilityItem).model_validate(
-        {"ids": [{"systemName": "CVE", "text": "CVE-2026-1234"}]}
+        {"ids": [{"systemName": "CVE", "identifier": "CVE-2026-1234"}]}
     )
 
     (shown,) = item.ids

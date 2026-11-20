@@ -74,7 +74,9 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `expectedSenderSequence` | plain | On a refusal notice for an activity's senderSequence: the positive integer the CASE_MANAGER expects next from that sender, so the sender numbers its next activity for the case no lower |
 | `failureClass` | iri | The URI of the class of failure that stopped a received activity from being processed |
 | `genesisHash` | plain | The hash that starts a case's ledger chain, computed from its owner; the first ledger entry's prevLogHash |
-| `ids` | set | The identifiers other systems give a vulnerability, each an object with a systemName and a text |
+| `identifier` | plain | The identifier a system gives a vulnerability, as opaque text in the namespace of that system |
+| `ids` | set | The identifiers other systems give a vulnerability, each an object with a systemName and an identifier |
+| `intendedAudience` | plain | Free text that says who a vulnerability note is intended for, such as executives or system administrators |
 | `joined` | plain | Whether a participant has joined its case: it was seated when the case was created, or it accepted its case invitation |
 | `kind` | plain | The kind of an embargo's early-termination cause: THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
 | `ledgerPosition` | plain | The last entry of a case's ledger that a case file, or the sender of an activity about the case, holds: an object whose logIndex and entryHash name that entry, or logIndex -1 with the case's genesis hash when it holds none |
@@ -111,10 +113,10 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `term` | plain | The cluster term in which the CASE_MANAGER committed a case ledger entry; absent on a single-node deployment |
 | `termination` | plain | How a terminated embargo ended: an object that gives the reason and, when recorded, its cause |
 | `terminationCause` | plain | Why an embargo ended early, on the Remove that terminates it: an object whose kind is THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
-| `title` | plain | The title of a vulnerability note |
 | `trackingId` | plain | A participant's own tracking identifier for a case, such as its internal ticket number |
 | `vendors` | set of iri | The ids of the vendors whose readiness to fix made the quorum that ended an embargo |
 | `vfState` | plain | A vendor participant's vendor-awareness and fix-readiness (V, F) dimensions of the Case State (CS), as one state name |
+| `vulNotes` | list | The text notes about a vulnerability, each an object in the note shape of CSAF 2.1, in the order the author gave them |
 | `vulnerabilityItems` | set of iri | The vulnerabilities a case covers, each a VulnerabilityItem or its id |
 | `vulnerabilityReports` | set of iri | The vulnerability reports of a case, each a VulnerabilityReport or its id |
 

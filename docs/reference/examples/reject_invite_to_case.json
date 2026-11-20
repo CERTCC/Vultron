@@ -63,7 +63,7 @@
             "ids": [
               {
                 "systemName": "CVE",
-                "text": "CVE-2026-0001"
+                "identifier": "CVE-2026-0001"
               }
             ]
           }
@@ -110,6 +110,6 @@
     "verificationMethod": "https://vultron.example/organizations/coordinator#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4PTZ5hAviW5gjmrEJarmGYf1SRHRT2hQ2FDhonuEY8jBMnR339Z6cm7RDeR2qrJvDtMW5esNFha26ti8Li1yXzqq"
+    "proofValue": "z24A9USVEnbSrLT7pW9yJ6ay3X21ULAPA7tc5Rew8BVUCm43gLS4AoTQcytncqLc4GcsLPfQfqMaLjGHDptfkycH8"
   }
 }
