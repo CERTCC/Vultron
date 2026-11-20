@@ -181,6 +181,10 @@ from vultron.core.behaviors.sync.nodes.receive import (
     PersistReceivedLogEntryNode,
     SendRejectLogEntryNode,
 )
+from vultron.core.behaviors.sync.nodes.refused_entry import (
+    FindRefusedLedgerEntry,
+    RefusedLedgerEntryFound,
+)
 from vultron.core.behaviors.sync.nodes.replay import (
     CollectAndSortCaseLedgerEntriesNode,
     FindCaseActorNode,
@@ -291,6 +295,9 @@ __all__ = [
     # reseed (SYNC-16)
     "ReportRepeatDivergenceNode",
     "ReseedPeerNode",
+    # refused_entry (BT-25-009, BT-25-010)
+    "FindRefusedLedgerEntry",
+    "RefusedLedgerEntryFound",
     "FindCaseActorNode",
     "CollectAndSortCaseLedgerEntriesNode",
     "FindDivergenceIndexNode",

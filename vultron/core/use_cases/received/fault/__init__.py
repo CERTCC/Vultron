@@ -32,7 +32,6 @@ from vultron.core.use_cases.received.fault.responses import (
     ARCHIVE_ONLY,
     FaultResponse,
     FaultTreeBuilder,
-    FaultVerdictReader,
 )
 
 __all__ = [
@@ -40,6 +39,5 @@ __all__ = [
     "CreateProcessingFaultReceivedUseCase",
     "FaultResponse",
     "FaultTreeBuilder",
-    "FaultVerdictReader",
     "RefusalNoticeReceivedUseCase",
 ]

@@ -683,6 +683,33 @@ def test_the_reseed_node_sends_no_case_to_a_peer_not_active() -> None:
 
 
 @pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("HP-01-003")
+def test_a_reseed_that_refuses_a_withheld_peer_declares_the_refusal() -> None:
+    """With ``refuses_withheld_peer`` (the fault tree's re-seed) a peer that
+    is not active fails the node with a declared refusal naming the case,
+    so the verdict is the node's, never a reader's (ADR-0195)."""
+    from py_trees.common import Status
+
+    from vultron.core.behaviors.sync.nodes.reseed import ReseedPeerNode
+
+    net = LedgerNetwork("https://example.org/cases/reseed-node-refuses")
+    node = ReseedPeerNode(refuses_withheld_peer=True)
+    seeded = with_act_keys(
+        node, {act_keys.CASE_ID: net.case_id, act_keys.SENDER_ID: _STRANGER}
+    )
+
+    result = _run_reseed(net, seeded)
+
+    assert result.status is Status.FAILURE
+    assert node.withheld and not node.reseeded
+    assert node.declared_refusal == (
+        f"the sender is not an active participant of case '{net.case_id}';"
+        " no case copy sent (CM-10-004)"
+    )
+    assert _seeds(net, _STRANGER) == []
+
+
+@pytest.mark.spec("CM-10-004")
 def test_the_reseed_node_fails_when_its_gate_is_undecidable() -> None:
     """A case this store does not hold cannot be judged, so nothing is sent."""
     from py_trees.common import Status

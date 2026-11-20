@@ -57,6 +57,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
+from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     cooldown_elapsed,
@@ -191,7 +192,7 @@ def announced_ledger_entry(
     return entry
 
 
-class ReseedPeerNode(_EmitSingleActivityBase):
+class ReseedPeerNode(DeclaredRefusalMixin, _EmitSingleActivityBase):
     """Send the peer ``Announce(VulnerabilityCase)`` of its case, rate-bounded.
 
     The case is ``/case_id`` and the peer is ``/sender_id``, the sender of
@@ -199,7 +200,8 @@ class ReseedPeerNode(_EmitSingleActivityBase):
 
     Returns SUCCESS whether or not it sends, and says which it was:
     ``withheld`` when the peer is not an active participant, so it is sent
-    no case content (CM-10-004); ``rate_limited`` when the peer was
+    no case content (CM-10-004), unless *refuses_withheld_peer* makes that a
+    declared refusal (below); ``rate_limited`` when the peer was
     re-seeded within the cooldown (SYNC-16-004); ``reseeded`` when this run
     queued a copy.  The copy, its outbox entry and the record of its ledger
     position (:func:`record_reseed`) are written in one transaction, so a
@@ -210,6 +212,13 @@ class ReseedPeerNode(_EmitSingleActivityBase):
     actor's own fault, never the peer's, so it raises
     :class:`~vultron.errors.VultronBTInternalError` with nothing written
     (BT-14-001).
+
+    A tree whose re-seed is the whole answer to the sender's request (the
+    case-diverged fault, SYNC-16-003) passes *refuses_withheld_peer*: a
+    withheld peer then fails the node with a declared refusal naming the
+    case (CM-10-004), so the verdict is the node's, never a reader's
+    (ADR-0195).  A re-seed that is one part of a larger answer (the stale
+    ledger-position answer) leaves it off and keeps ``withheld`` a success.
 
     Authored as the executing actor; it belongs inside a CASE_MANAGER gate
     (BT-17-008).
@@ -229,8 +238,15 @@ class ReseedPeerNode(_EmitSingleActivityBase):
             **act_key_remappings(CASE_ID, SENDER_ID),
         }
 
-    def __init__(self, name: str | None = None) -> None:
+    def __init__(
+        self,
+        name: str | None = None,
+        *,
+        refuses_withheld_peer: bool = False,
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        self.refuses_withheld_peer = refuses_withheld_peer
+        """Whether a withheld peer is a declared refusal, not a success."""
         self.reseeded = False
         """True when the last run queued the case copy."""
         self.withheld = False
@@ -263,6 +279,11 @@ class ReseedPeerNode(_EmitSingleActivityBase):
                 self.peer_id,
                 self.case_id,
             )
+            if self.refuses_withheld_peer:
+                return self._refuse(
+                    f"the sender is not an active participant of case"
+                    f" '{self.case_id}'; no case copy sent (CM-10-004)"
+                )
             return Status.SUCCESS
         if not should_reseed(
             datalayer, case_id=self.case_id, peer_id=self.peer_id, at=at

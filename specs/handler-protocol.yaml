@@ -1057,6 +1057,59 @@ groups:
       spec_id: HP-01-038
     adr:
     - ADR-0153
+  - id: HP-01-044
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A received use case MUST only build its one tree and hand it, with the
+      store, to the received-tree runner. No code under
+      `vultron/core/use_cases/received/` may call the DataLayer, pass it to any
+      callable other than the runner, `super().__init__`, or a function or class
+      defined under that package, or reach `BTBridge`.
+    rationale: >-
+      A value the store holds is found by a lookup node in the tree (BT-25-009), so
+      the tree's shape is the same for every act and the lookup's miss is a node's
+      declared refusal (BT-25-010). A store read in the use case would pick the
+      tree's shape from data and decide a verdict no node declared. The runner is
+      the one place a received run reaches the store and the bridge (ADR-0195).
+    verification: >-
+      `test/architecture/test_received_use_cases_reach_no_store.py::test_no_received_use_case_reaches_the_store_or_the_bridge`
+      scans every module under `vultron/core/use_cases/received/` and fails on a
+      DataLayer call or attribute read, the store passed to any other callable or
+      aliased, and any reference to `BTBridge`; its detector self-tests pin each
+      case on synthetic sources.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-25-009
+    adr:
+    - ADR-0195
+  - id: HP-01-045
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A received use case's refusal MUST come from a door or a node's declared
+      refusal in its tree, never from a reader of the finished run, except a
+      listed reading of a run that has no failing node to declare it.
+    rationale: >-
+      A refusal names its condition and the requirement it cites, and the node
+      that tested the condition is the one that knows both (HP-01-005). A reader
+      that refuses after the run restates a node's condition from outside the
+      tree, where it can drift from what the node checked. The listed readings
+      refuse a run that succeeded, such as a decline arm that records the decline,
+      so no node failed to declare it.
+    verification: >-
+      `test/architecture/test_received_readers_return_no_refusal.py::test_received_readers_return_only_the_listed_refusals`
+      holds every reader refusal under `vultron/core/use_cases/received/` and in
+      the shared readers to an exact list, each with its reason, and
+      `test/architecture/test_received_use_cases_reach_no_store.py` keeps the store
+      out of the use case, so no verdict rests on a fact the tree did not record.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-003
+    - rel_type: depends_on
+      spec_id: HP-01-044
+    adr:
+    - ADR-0195
   - id: HP-01-032
     priority: MUST
     kind: architecture

@@ -285,9 +285,18 @@ leaves subtrees no walk can reach.
   (BT-25-009, BT-25-011). Pass `case_lookup` to `create_receive_activity_tree`
   with `case_id=None`: the factory builds every case-scoped stage (commit,
   CASE_MANAGER gates, ledger position, sender sequence, clock decisions,
-  refusal notice) to read `/case_id`, declares it published by the lookup,
-  and refuses a lookup beside a build-time case. Reason: one shape whatever
-  case the act is about, and no store read in the use case (ADR-0195).
+  refusal notice) to read `/case_id`, declares every key the lookup
+  publishes, and refuses a lookup beside a build-time case. A tree that
+  ledgers nothing (the ledger faults' `FindRefusedLedgerEntry`, SYNC-16-002)
+  passes `commits_lookup_case=False`, so the case only gates and guards, as a
+  build-time `manager_case_id` does. Reason: one shape whatever case the act
+  is about, and no store read in the use case (ADR-0195).
+- **A received use case only builds and runs its tree** (HP-01-044), and its
+  refusals come from doors and node declarations, never a reader (HP-01-045).
+  Reason: a store read or a reader refusal in the use case decides what no
+  node declared (ADR-0195). Pinned by
+  `test/architecture/test_received_use_cases_reach_no_store.py` and
+  `test_received_readers_return_no_refusal.py`.
 - **Declare a key only once the composed tree has one source for it**
   (BT-25-011). The check counts every publisher in the tree, scopes included.
   So a case trigger cannot declare `/case_id` seeded while the clock-decision
