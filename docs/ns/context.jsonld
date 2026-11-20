@@ -103,6 +103,10 @@
       "intendedAudience": "vultron:intendedAudience",
       "joined": "vultron:joined",
       "kind": "vultron:kind",
+      "ledgerEntries": {
+        "@id": "vultron:ledgerEntries",
+        "@container": "@list"
+      },
       "ledgerPosition": "vultron:ledgerPosition",
       "logIndex": "vultron:logIndex",
       "logObjectId": {

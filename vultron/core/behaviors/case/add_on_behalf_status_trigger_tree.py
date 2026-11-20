@@ -105,7 +105,7 @@ def add_on_behalf_status_trigger_bt(
         CheckOnBehalfTargetIsParticipantNode(
             case_id=case_id,
             target_actor_id=target_actor_id,
-            required_roles=on_behalf_required_roles(vf_state, d_state),
+            on_behalf_roles=on_behalf_required_roles(vf_state, d_state),
         ),
     ]
 

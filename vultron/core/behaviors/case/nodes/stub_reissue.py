@@ -204,7 +204,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
             actor_id=self.actor_id,
             case_id=self.case_id,
             invitee_id=stale.invitee_id,
-            roles=list(stale.roles) or None,
+            offered_roles=list(stale.roles) or None,
             # The replacement is made for whoever asked for the Invite it
             # replaces, and carries out what that Invite carried out: the
             # request, or the Invite before it in the thread.  On the wire it

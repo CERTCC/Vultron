@@ -98,7 +98,7 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
     def __init__(
         self,
         case_id: str,
-        role: CVDRole,
+        offered_role: CVDRole,
         target_actor_id: str,
         offer_id: str,
         owner_id: str,
@@ -106,7 +106,7 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
     ) -> None:
         super().__init__(name=name)
         self.case_id = case_id
-        self.role = role
+        self.role = offered_role
         self.target_actor_id = target_actor_id
         self.offer_id = offer_id
         self.owner_id = owner_id
@@ -380,13 +380,13 @@ class GrantCaseParticipantRoleNode(DataLayerAction, StateWriteCapable):
     def __init__(
         self,
         case_id: str,
-        role: CVDRole,
+        granted_role: CVDRole,
         target_actor_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
-        self.role = role
+        self.role = granted_role
         self.target_actor_id = target_actor_id
 
     def update(self) -> Status:

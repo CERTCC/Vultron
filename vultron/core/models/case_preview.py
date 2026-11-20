@@ -35,6 +35,7 @@ holds the preview, so a consumer reads the case from the reference's ``id``
 and what the invitee decides on from the preview.
 """
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from pydantic import Field, ValidationInfo, model_validator
@@ -43,8 +44,11 @@ from vultron.core.models._helpers import INBOUND_CONTEXT_KEY, new_object_id
 from vultron.core.models.base import (
     CoreObject,
     NonEmptyString,
+    PropertyValueKind,
+    vultron_property,
 )
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_preview_envelope import (
     invitation_preview_faults,
@@ -59,8 +63,10 @@ from vultron.core.models.case_preview_profile import (
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.preview_object import (
     PreviewObject,
+    PreviewValue,
     loose_form,
 )
 from vultron.core.models.redacted import Redactable
@@ -71,17 +77,25 @@ from vultron.errors import VultronActivityConstructionError
 # The loose forms the preview's fields hold.  A type checker reads each as the
 # loose base it derives from; at run time each is the derived form.
 if TYPE_CHECKING:
+    # A projection profile names the acts it keeps by their semantics, whose
+    # module reads this one, so the class is named here for checking only.
+    from vultron.core.models.case_projection_profile import ProjectionProfile
+
+    CaseLedgerEntryPreview = PreviewObject
     CaseParticipantPreview = PreviewObject
     CaseReferencePreview = PreviewObject
     CaseStatusPreview = PreviewObject
     EmbargoEventPreview = PreviewObject
+    LedgerPositionPreview = PreviewValue
     VulnerabilityItemPreview = PreviewObject
     VulnerabilityReportPreview = PreviewObject
 else:
+    CaseLedgerEntryPreview = loose_form(CaseLedgerEntry)
     CaseParticipantPreview = loose_form(CaseParticipant)
     CaseReferencePreview = loose_form(CaseReference)
     CaseStatusPreview = loose_form(CaseStatus)
     EmbargoEventPreview = loose_form(EmbargoEvent)
+    LedgerPositionPreview = loose_form(LedgerPosition)
     VulnerabilityItemPreview = loose_form(VulnerabilityItem)
     VulnerabilityReportPreview = loose_form(VulnerabilityReport)
 
@@ -94,6 +108,15 @@ def _case_property(name: str) -> Any:
 
 #: The case's id lists, as a preview shows them.
 _RedactableIds = Redactable[list[Redactable[NonEmptyString]]]
+
+#: The Vultron property ``ledgerEntries``: the one preview field that is not
+#: a case field (ADR-0219).
+LEDGER_ENTRIES_PROPERTY = vultron_property(
+    "The case ledger entries a case preview cut for a projection keeps, in "
+    "log order, each cut by the same profile; a preview may hold an "
+    "incomplete ledger",
+    PropertyValueKind.LIST,
+)
 
 
 class CasePreview(PreviewObject):
@@ -118,10 +141,17 @@ class CasePreview(PreviewObject):
     Every other field is the case's field of the same name, optional, and it
     may hold a ``Redacted`` marker (MV-12-001): the sender withholds a value
     it holds (MV-12-004).  An object nested in one is held in its loose form.
-    The case bookkeeping a preview never carries (the ledger position and
-    genesis hash, the participant and pending-proposal indexes, the case
-    activity list and the owner's ``stubSummary``) is not declared, so a
-    received one is set aside as an unknown key (MV-11-003).
+    The case bookkeeping a preview never carries (the genesis hash, the
+    participant and pending-proposal indexes, the case activity list and the
+    owner's ``stubSummary``) is not declared, so a received one is set aside
+    as an unknown key (MV-11-003).
+
+    A preview cut for a projection (:meth:`for_projection`, ADR-0219) also
+    shows the case's ``ledgerPosition``, the snapshot it is a cut of, and
+    may carry ``ledgerEntries``, the ledger entries its profile keeps: the
+    one preview field that is not a case field.  An invitation preview
+    carries neither (CM-17-025), and :func:`invitation_preview_faults` names
+    one that does.
 
     A sender cuts it from the case by a profile (:meth:`from_case`).  An
     invitation preview shows the Case Owner (``attributedTo``) and, while an
@@ -213,6 +243,12 @@ class CasePreview(PreviewObject):
     sibling_cases: _RedactableIds | None = Field(
         default=None, json_schema_extra=_case_property("sibling_cases")
     )
+    ledger_position: Redactable[LedgerPositionPreview] | None = Field(
+        default=None, json_schema_extra=_case_property("ledger_position")
+    )
+    ledger_entries: (
+        Redactable[list[Redactable[CaseLedgerEntryPreview]]] | None
+    ) = Field(default=None, json_schema_extra=LEDGER_ENTRIES_PROPERTY)
 
     @model_validator(mode="before")
     @classmethod
@@ -270,6 +306,31 @@ class CasePreview(PreviewObject):
             )
         return preview
 
+    @classmethod
+    def for_projection(
+        cls,
+        case: VulnerabilityCase,
+        ledger: Sequence[CaseLedgerEntry],
+        profile: ProjectionProfile,
+    ) -> CasePreview:
+        """Cut *case* and its *ledger* by a projection *profile* (ADR-0219).
+
+        Each case field takes its row's chosen operation, as
+        :meth:`from_case` cuts it, and the ledger list holds the entries the
+        profile keeps (:meth:`~vultron.core.models.case_projection_profile.
+        ProjectionProfile.cut_ledger`).  The invitation envelope does not
+        apply: the preview is rendered, never carried by a stub Invite.
+
+        Raises:
+            VultronActivityConstructionError: When a substitution cannot be
+                made, such as a current status the case holds only by id.
+        """
+        data = cut_case(case, profile.fields)
+        entries = profile.cut_ledger(ledger)
+        if entries is not None:
+            data["ledger_entries"] = entries
+        return cls.model_validate(data)
+
 
 class PreviewedCaseReference(CoreObject):
     """A case named by typed reference, carrying the case's preview.
@@ -323,6 +384,7 @@ def previewed_case_id(obj: object) -> str | None:
 
 
 __all__ = [
+    "LEDGER_ENTRIES_PROPERTY",
     "CasePreview",
     "PreviewedCaseReference",
     "case_preview_of",

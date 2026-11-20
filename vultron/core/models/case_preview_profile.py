@@ -49,6 +49,7 @@ from pydantic import BaseModel
 from vultron.core.models._helpers import new_object_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.preview_object import to_loose
 from vultron.core.models.redacted import Redacted
 from vultron.errors import VultronActivityConstructionError
@@ -170,26 +171,35 @@ def _preview_id(_case: VulnerabilityCase) -> object:
     return new_object_id()
 
 
-def _preview_type(_case: VulnerabilityCase) -> object:
+def preview_type(_case: VulnerabilityCase) -> object:
     """The preview's own type, the case's defined preview (MV-10-012)."""
     return "CasePreview"
 
 
-def _current_status(case: VulnerabilityCase) -> object:
-    """The case's statuses reduced to the current one, whole (CM-17-013).
+def held_current_status(case: VulnerabilityCase) -> CaseStatus:
+    """The case's current status, held as an object (CM-17-013).
 
     Raises:
         VultronActivityConstructionError: When the case holds no status
             object to show, only ids.
     """
     try:
-        current = case.current_status
+        return case.current_status
     except ValueError as exc:
         raise VultronActivityConstructionError(
             f"case {case.id_!r} holds no case status to show its current one"
             " (CM-17-013)"
         ) from exc
-    return [to_loose(current)]
+
+
+def current_status(case: VulnerabilityCase) -> object:
+    """The case's statuses reduced to the current one, whole (CM-17-013).
+
+    Raises:
+        VultronActivityConstructionError: When the case holds no status
+            object to show, only ids.
+    """
+    return [to_loose(held_current_status(case))]
 
 
 def _in_force_embargo(case: VulnerabilityCase) -> object:
@@ -270,7 +280,7 @@ _NAMED_ROWS: dict[str, PreviewFieldRule] = {
     "type_": PreviewFieldRule(
         permitted=frozenset({_OP.SUBSTITUTE}),
         chosen=_OP.SUBSTITUTE,
-        substitution=_preview_type,
+        substitution=preview_type,
         reason="the preview's type is CasePreview (MV-10-012)",
     ),
     # The JSON-LD context is not content.
@@ -287,7 +297,7 @@ _NAMED_ROWS: dict[str, PreviewFieldRule] = {
         reason="nobody joins a case without knowing who runs it",
     ),
     "case_statuses": _shown_in_force(
-        _current_status,
+        current_status,
         "the invitee needs the EM state while an embargo is in force"
         " (CM-17-013)",
     ),
@@ -426,5 +436,8 @@ __all__ = [
     "PreviewFieldRule",
     "PreviewOperation",
     "Substitution",
+    "current_status",
     "cut_case",
+    "held_current_status",
+    "preview_type",
 ]

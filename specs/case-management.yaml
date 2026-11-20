@@ -4496,9 +4496,17 @@ groups:
     verification: >-
       `test_the_cut_leaves_out_the_case_bookkeeping` in
       `test/core/models/test_case_preview_profile.py` confirms the cut carries
-      none of them, and `test_every_omit_only_field_is_absent_from_the_preview`
-      there confirms the preview type declares none, so a received one is set
-      aside (MV-11-003).
+      none of them. `test_every_omit_only_field_is_absent_from_the_preview`
+      there confirms the preview type declares none of them but the ledger
+      position, so a received genesis hash, index or stub summary is set aside
+      (MV-11-003). The type declares the ledger position and the ledger list
+      for a projection (ADR-0219), so
+      `test_a_preview_carrying_ledger_bookkeeping_is_refused` in
+      `test/wire/as2/test_invitation_preview_envelope.py` confirms that a stub
+      Invite whose preview carries either is refused, and
+      `test_the_invitation_cut_carries_no_ledger_or_position` in
+      `test/core/models/test_case_projection_profile.py` confirms the cut
+      carries neither.
     relationships:
     - rel_type: refines
       spec_id: CM-17-010

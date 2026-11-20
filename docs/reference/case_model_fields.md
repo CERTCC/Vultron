@@ -44,7 +44,9 @@ Defined in `vultron/core/models/case/vulnerability_case.py`.
 Defined in `vultron/core/models/case_preview.py`.
 The case's preview is what a stub Invite shows an invitee that is not yet entitled to the case.
 Its fields are the case's fields under the same names, each optional, and any of them may hold a `Redacted` marker.
-It declares none of the case's bookkeeping: `actor_participant_index`, `pending_embargo_proposal_index`, `genesis_hash`, `ledger_position` and `stub_summary` ([CM-17-025](vultron-spec/requirements/case-management.md#cm-17-025)).
+It declares none of the case's bookkeeping `actor_participant_index`, `pending_embargo_proposal_index`, `genesis_hash` and `stub_summary` ([CM-17-025](vultron-spec/requirements/case-management.md#cm-17-025)).
+It declares two fields only a projection fills: the case's `ledger_position`, and `ledger_entries`, the one field that is not a case field ([ADR-0219](../adr/0219-a-csaf-projection-is-a-case-preview-cut-by-its-call-sites-profile-then-rendered-to-csaf.md)).
+A stub Invite's preview that carries either is refused ([CM-17-025](vultron-spec/requirements/case-management.md#cm-17-025)).
 
 `CasePreview.from_case` cuts a preview from a case by the profile in `vultron/core/models/case_preview_profile.py`.
 For each case field the profile names the operations the protocol permits and the one the reference implementation applies ([CM-17-010](vultron-spec/requirements/case-management.md#cm-17-010)):
@@ -59,6 +61,18 @@ For each case field the profile names the operations the protocol permits and th
 | `embargo_register` | The embargo in force alone, whole and with its status; left out when no embargo is in force ([CM-17-002](vultron-spec/requirements/case-management.md#cm-17-002), [CM-17-011](specs/project.md#cm-17-011)) |
 | `vulnerability_items` | Each item cut to its `ids`; an item the case holds only by URI is marked `Redacted` |
 | `content`, `case_participants`, `vulnerability_reports`, `notes`, `case_references`, `parent_cases`, `child_cases`, `sibling_cases`, and every other AS2 property | A `Redacted` marker when the case holds a value; left out when it holds none ([MV-12-004](vultron-spec/requirements/messages.md#mv-12-004)) |
+
+`CasePreview.for_projection` cuts a preview for a projection by one of the two profiles in `vultron/core/models/case_projection_profile.py`.
+`ProjectionCut.of` in `vultron/core/models/case_projection.py` pairs that preview with the profile, whose name and Traffic Light Protocol (TLP) label the document takes:
+
+| Field | Public profile (`public-v1`, `CLEAR`) | Joined profile (`joined-v1`, `AMBER+STRICT`) |
+|---|---|---|
+| `id_` | The case's identifier | The case's identifier |
+| `name`, `summary`, `published`, `updated`, `vulnerability_items`, `case_references`, `ledger_position` | The case's values | The case's values |
+| `case_statuses` | The current status alone, cut to its PXA state: no EM state and no author | The current status alone, whole |
+| `content`, `notes`, `vulnerability_reports`, `attributed_to`, `embargo_register`, `case_participants` | Left out | The case's values |
+| `ledger_entries` | Left out | The entries whose act has a CSAF meaning, each cut to its coordinates and the actor, recipients, time and reply target of its activity, as ids |
+| The other bookkeeping, related cases, `stub_summary` and every other AS2 property | Left out | Left out |
 
 ## `CaseParticipant`
 

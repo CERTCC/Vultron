@@ -43,11 +43,11 @@ from py_trees.common import Access, Status
 from pydantic import ValidationError
 
 from test.support.call_out import (
+    CALL_OUT_ACTOR_ID as ACTOR_ID,
     FixedAnswerBackend,
     answering,
     tick_call_out,
 )
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out import bundles as core_bundles
 from vultron.core.behaviors.call_out.answer import (
@@ -67,8 +67,6 @@ from vultron.core.behaviors.call_out.guard import (
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.errors import VultronError
-
-ACTOR_ID = "https://example.org/actors/test-actor"
 
 _CONTRACT = CallOutContract(
     outputs={"probe_verdict": str, "probe_score": int},
@@ -109,13 +107,6 @@ def _clean_blackboard():
     py_trees.blackboard.Blackboard.clear()
     yield
     py_trees.blackboard.Blackboard.clear()
-
-
-@pytest.fixture
-def bridge() -> BTBridge:
-    return BTBridge(
-        datalayer=SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
-    )
 
 
 # ---------------------------------------------------------------------------

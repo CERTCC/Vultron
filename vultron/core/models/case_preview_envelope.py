@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 
 from vultron.core.models.preview_object import PreviewObject
 from vultron.core.models.redacted import Redacted
+from vultron.core.models.wire_keys import wire_key
 from vultron.core.states.em import EM, is_em_embargo_active
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
 
@@ -100,7 +101,9 @@ def invitation_preview_faults(preview: CasePreview) -> list[str]:
     EM state of its current status (CM-17-002,
     CM-17-013).  The embargo is in force when the current status's EM state
     is ``ACTIVE`` or ``REVISE``, or when the register shows an ``ACTIVE``
-    embargo.  The register carries no open proposal (CM-17-014).
+    embargo.  The register carries no open proposal (CM-17-014), and the
+    preview carries no ledger position or ledger entry (CM-17-025): the two
+    preview fields only a projection fills (ADR-0219).
 
     Each fault names its position under the preview, so a receiver can name
     where it is (MV-10-007).  The type already refuses a marked
@@ -129,6 +132,15 @@ def invitation_preview_faults(preview: CasePreview) -> list[str]:
             faults.append(
                 f"carries an open embargo proposal at"
                 f" 'embargoRegister[{index}]' (CM-17-014)"
+            )
+    for field, value in (
+        ("ledger_position", preview.ledger_position),
+        ("ledger_entries", preview.ledger_entries),
+    ):
+        if value is not None:
+            key = wire_key(field)
+            faults.append(
+                f"carries the case's bookkeeping at {key!r} (CM-17-025)"
             )
     return faults
 

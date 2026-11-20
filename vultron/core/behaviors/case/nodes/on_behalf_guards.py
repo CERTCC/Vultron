@@ -149,7 +149,7 @@ class CheckOnBehalfTargetIsParticipantNode(_OnBehalfGuardNode):
 
     - the target is not in ``case.actor_participant_index`` (PRM-06-006), or
     - the target's participant does not hold every role in
-      ``required_roles`` — ``VENDOR`` for ``v→V`` (PRM-06-003),
+      ``on_behalf_roles`` — ``VENDOR`` for ``v→V`` (PRM-06-003),
       ``DEPLOYER`` for ``d→D`` (PRM-06-004).  Every missing role is named
       (EH-07-001).
 
@@ -160,10 +160,10 @@ class CheckOnBehalfTargetIsParticipantNode(_OnBehalfGuardNode):
         self,
         case_id: str,
         target_actor_id: str,
-        required_roles: list[CVDRole],
+        on_behalf_roles: list[CVDRole],
         name: str | None = None,
     ) -> None:
-        if not required_roles:
+        if not on_behalf_roles:
             raise ValueError(
                 "CheckOnBehalfTargetIsParticipantNode needs at least one"
                 " required role; an empty list would pass every target"
@@ -171,7 +171,7 @@ class CheckOnBehalfTargetIsParticipantNode(_OnBehalfGuardNode):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._target_actor_id = target_actor_id
-        self._required_roles = required_roles
+        self._required_roles = on_behalf_roles
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

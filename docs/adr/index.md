@@ -296,6 +296,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0211 One Set of Classes for the Domain Model, with AS2 as Its Wire Format](0211-one-set-of-classes-for-the-domain-model-with-as2-as-its-wire-format.md) *(provisional)* — supersedes 0099-one-object-model-as2-is-a-serialization.md; partially supersedes 0063-wire-rendering-port-for-core-objects.md, 0074-wire-activity-artifact-immutability.md
 - [ADR-0214 How a Received Message Is Checked, Applied and Kept](0214-how-a-received-message-is-checked-applied-and-kept.md) *(provisional)* — supersedes 0111-intake-is-the-first-received-side-stage.md, 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md, 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 - [ADR-0217 A Case Preview Is Cut From the Case Field by Field, Inside an Envelope the Protocol Sets](0217-a-case-preview-is-cut-from-the-case-field-by-field-inside-an-envelope-the-protocol-sets.md) *(provisional)*
+- [ADR-0218 Whether a Case Records Public Credit](0218-whether-a-case-records-public-credit.md) *(provisional)*
+- [ADR-0219 A CSAF Projection Is a Case Preview Cut by Its Call Site's Profile, Then Rendered to CSAF](0219-a-csaf-projection-is-a-case-preview-cut-by-its-call-sites-profile-then-rendered-to-csaf.md) *(provisional)*
 
 ## Proposed ADRs
 
@@ -307,8 +309,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0201 An EmbargoEvent Is a Vultron Extension Type and a Subtype of Event](0201-an-embargoevent-is-a-vultron-extension-type-and-a-subtype-of-event.md)
 - [ADR-0208 Core Owns the AS2 Base Vocabulary](0208-core-owns-the-as2-base-vocabulary.md) — partially supersedes 0099-one-object-model-as2-is-a-serialization.md
 - [ADR-0216 Action Rules Span CS, RM, EM and PEC, and Authored Rules Are Compared With Rules Generated From Move Advice](0216-action-rules-span-cs-rm-em-and-pec-and-authored-rules-are-compared-with-rules-generated-from-move-advice.md) *(revision 2)*
-- [ADR-0218 Whether a Case Records Public Credit](0218-whether-a-case-records-public-credit.md)
-- [ADR-0219 A CSAF Projection Is a Case Preview Cut by Its Call Site's Profile, Then Rendered to CSAF](0219-a-csaf-projection-is-a-case-preview-cut-by-its-call-sites-profile-then-rendered-to-csaf.md)
 - [ADR-0220 Affected Products Live on the Vendor's Participant Record as Authored Status Claims, and Fix Readiness Stays Binary](0220-affected-products-live-on-the-vendors-participant-record-as-authored-status-claims-and-fix-readiness-stays-binary.md)
 
 ## Rejected ADRs

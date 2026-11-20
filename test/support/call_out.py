@@ -26,6 +26,7 @@ only by the seam, so a test injects one of these instead of a raw
 - :func:`acting` builds an Actuator factory whose backend gives a fixed
   answer and records every request it is called with; :data:`acts` and
   :data:`declines_to_act` are its common cases.
+- :data:`CALL_OUT_ACTOR_ID` is the actor the call-out tests run a tree as.
 """
 
 from __future__ import annotations
@@ -53,6 +54,9 @@ from vultron.core.behaviors.call_out.guard import (
     SynchronousCallOut,
     unwrap_call_out,
 )
+
+CALL_OUT_ACTOR_ID = "https://example.org/actors/test-actor"
+"""The actor the call-out tests run a tree as, and own the store of."""
 
 
 class refused_class:

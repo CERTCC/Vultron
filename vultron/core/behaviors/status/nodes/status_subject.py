@@ -219,7 +219,7 @@ class CheckOnBehalfStatusShapeNode(DataLayerConditionWithPorts):
     Two more conditions keep the guard closed:
 
     - the status must assert the dimensions the target's roles were derived
-      from when the tree was built (*expected_roles*), so the role check never
+      from when the tree was built (*on_behalf_roles*), so the role check never
       judges a different status than this one; a status carried by reference
       has no expected roles and is refused;
     - the case's participant index must list *participant_id* for the actor
@@ -237,7 +237,7 @@ class CheckOnBehalfStatusShapeNode(DataLayerConditionWithPorts):
         participant_id: str,
         sender_id: str,
         status_id: str,
-        expected_roles: list[CVDRole] | None,
+        on_behalf_roles: list[CVDRole] | None,
         status_obj_fallback: PersistableModel | None = None,
         name: str | None = None,
     ) -> None:
@@ -247,7 +247,7 @@ class CheckOnBehalfStatusShapeNode(DataLayerConditionWithPorts):
         self._sender_id = sender_id
         self._target_actor_id = ""
         self._status_id = status_id
-        self._expected_roles = expected_roles
+        self._expected_roles = on_behalf_roles
         self._status_obj_fallback = status_obj_fallback
 
     def _violations(self, case: VulnerabilityCase) -> list[str]:
@@ -330,13 +330,13 @@ class CheckOnBehalfRecordTargetIsParticipantNode(
         case_id: str,
         participant_id: str,
         sender_id: str,
-        required_roles: list[CVDRole],
+        on_behalf_roles: list[CVDRole],
         name: str | None = None,
     ) -> None:
         super().__init__(
             case_id=case_id,
             target_actor_id="",
-            required_roles=required_roles,
+            on_behalf_roles=on_behalf_roles,
             name=name or self.__class__.__name__,
         )
         self._participant_id = participant_id
@@ -388,7 +388,7 @@ def on_behalf_status_guard(
             participant_id=participant_id,
             sender_id=sender_id,
             status_id=status_id,
-            expected_roles=roles,
+            on_behalf_roles=roles,
             status_obj_fallback=status_obj,
         )
     ]
@@ -398,7 +398,7 @@ def on_behalf_status_guard(
                 case_id=case_id,
                 participant_id=participant_id,
                 sender_id=sender_id,
-                required_roles=roles,
+                on_behalf_roles=roles,
             )
         )
     return py_trees.composites.Sequence(
