@@ -446,8 +446,8 @@ def test_an_early_request_records_its_cause_or_other(
     cause: TerminationCause | None,
     recorded: TerminationCause,
 ) -> None:
-    """The requested cause reaches the Remove and the TERMINATED entry; an
-    EARLY request naming none is recorded as OTHER."""
+    """The requested cause reaches the Remove and the TERMINATED entry;
+    a request naming none is recorded as OTHER."""
     owner, owner_dl = owner_actor_and_dl
     finder = _persist_actor(owner_dl, "Finder Co")
     case, _, _ = _build_active_embargo_case(owner_dl, owner.id_, finder.id_)

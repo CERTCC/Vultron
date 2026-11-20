@@ -277,4 +277,5 @@ def test_given_threat_signals_are_checked_when_built(signals) -> None:
 
 
 def test_a_threat_request_is_an_early_termination_on_the_wire() -> None:
-    assert not ThreatSignalTermination().is_end_time_reached
+    resolved = ThreatSignalTermination().resolve(CS_pxa.Pxa)
+    assert not resolved.is_end_time_reached

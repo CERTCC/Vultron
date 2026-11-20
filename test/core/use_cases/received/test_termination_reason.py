@@ -120,7 +120,9 @@ def test_parse_edge_reads_no_termination_reason_from_content(
     event = make_payload(stale)
 
     assert event.termination_cause is None
-    assert not event.termination.is_end_time_reached
+    assert not EmbargoTermination(
+        cause=event.termination_cause
+    ).is_end_time_reached
 
 
 @pytest.mark.spec("CS-08-001")
@@ -168,7 +170,10 @@ def test_parse_edge_promotes_the_end_time_cause_onto_the_event(
     event = make_payload(activity)
 
     assert event.termination_cause == cause
-    assert event.termination.is_end_time_reached is at_end_time
+    assert (
+        EmbargoTermination(cause=event.termination_cause).is_end_time_reached
+        is at_end_time
+    )
     assert activity.summary  # human-readable; the protocol ignores it
     assert activity.content is None
 

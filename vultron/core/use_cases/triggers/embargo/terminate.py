@@ -40,7 +40,9 @@ from vultron.core.behaviors.embargo.end_time_tree import (
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
+    EndTimeReachedCause,
     OtherCause,
+    TerminationCause,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.services.embargo_lifecycle import (
@@ -94,9 +96,9 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         # names, OTHER when it names none (EMB-14-001).  The Remove carries
         # it, and the CASE_MANAGER records it on its TERMINATED entry
         # (EMB-13-005).
-        self._termination = EmbargoTermination(
-            cause=request.cause or OtherCause()
-        )
+        requested = request.cause or OtherCause()
+        self._cause: TerminationCause = requested
+        self._termination = EmbargoTermination(cause=requested)
 
         # Once the end time has passed, the embargo ends with
         # END_TIME_REACHED whatever was asked (EMB-13-003): this trigger runs
@@ -111,11 +113,10 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
                 " cause %s",
                 self._actor_id,
                 self._case.id_,
-                self._termination.cause.kind
-                if self._termination.cause is not None
-                else "none",
+                requested.kind,
             )
-            self._termination = EmbargoTermination.end_time_reached()
+            self._cause = EndTimeReachedCause()
+            self._termination = EmbargoTermination(cause=self._cause)
 
         # An end-time request before the end time is refused on every actor,
         # so a participant never asks the CASE_MANAGER for one (ADR-0122).
@@ -178,9 +179,7 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
             self._actor_id,
             self._embargo_id,
             self._case.id_,
-            self._termination.cause.kind
-            if self._termination.cause is not None
-            else "early, no cause",
+            self._cause.kind,
             lr.em_before,
             lr.em_after,
         )

@@ -329,11 +329,6 @@ class ThreatSignalTermination(ValidatedAssignmentMixin, BaseModel):
         return self
 
     @property
-    def is_end_time_reached(self) -> bool:
-        """A threat signal ends an embargo early, never at its end time."""
-        return False
-
-    @property
     def participant_cause(self) -> None:
         """A participant's ask names no threat-signal cause (EMB-13-005).
 

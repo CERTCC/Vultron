@@ -71,11 +71,6 @@ class ChosenTermination:
     def __init__(self) -> None:
         self._termination: EmbargoTermination | None = None
 
-    @property
-    def is_end_time_reached(self) -> bool:
-        """A voluntary termination ends the embargo early."""
-        return False
-
     def choose(self, cause: TerminationCause) -> None:
         """Record *cause* as the termination's why."""
         self._termination = EmbargoTermination(cause=cause)

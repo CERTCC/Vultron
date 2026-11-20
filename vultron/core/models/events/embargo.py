@@ -9,7 +9,6 @@ from pydantic import field_validator
 from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.embargo_termination import (
-    EmbargoTermination,
     TerminationCause,
 )
 from vultron.core.models.events.base import (
@@ -121,11 +120,6 @@ class RemoveEmbargoEventFromCaseReceivedEvent(LedgerPositionedEvent):
     )
     termination_cause: TerminationCause | None = None
     required_slots: ClassVar[tuple[str, ...]] = ("embargo_id", "case_id")
-
-    @property
-    def termination(self) -> EmbargoTermination:
-        """The termination this ``Remove`` tells its receiver."""
-        return EmbargoTermination(cause=self.termination_cause)
 
     @property
     def embargo_id(self) -> str:

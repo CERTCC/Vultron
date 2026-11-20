@@ -256,7 +256,9 @@ def test_parse_edge_promotes_an_end_time_cause_onto_the_event() -> None:
     event = _extract(parse_activity(signed_body(body)))
 
     assert event.termination_cause == EndTimeReachedCause()
-    assert event.termination.is_end_time_reached
+    assert EmbargoTermination(
+        cause=event.termination_cause
+    ).is_end_time_reached
 
 
 @pytest.mark.spec("EMB-13-005")
@@ -277,7 +279,7 @@ def test_the_event_declares_no_separate_termination_reason() -> None:
         ),
         origin=named_case(CASE),
     )
-    assert event.termination == EmbargoTermination.end_time_reached()
+    assert event.termination_cause == EndTimeReachedCause()
 
 
 @pytest.mark.spec("EMB-13-005")

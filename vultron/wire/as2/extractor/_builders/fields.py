@@ -12,12 +12,10 @@ from vultron.core.models.case_preview import (
     CasePreview,
     PreviewedCaseReference,
 )
-from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.wire.as2.errors import (
     VultronParseMissingPublishedError,
 )
 from vultron.wire.as2.typed_reference import is_previewed_reference
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 
 def _get_id(field: object) -> str | None:
@@ -65,20 +63,6 @@ def _get_type(field: object) -> str | None:
         return None
     t = getattr(field, "type_", None)
     return str(t) if t is not None else None
-
-
-def termination_of(activity: as_Activity) -> EmbargoTermination:
-    """Parse the termination a ``Remove(EmbargoEvent)`` carries.
-
-    The termination is its cause, ``END_TIME_REACHED`` included, carried as
-    ``terminationCause`` (EMB-13-005, ADR-0203); the wire model has already
-    validated it against the cause kinds at the parse edge (EMB-13-012), so
-    core receives a valid termination (ADR-0032).  A ``Remove`` naming no
-    cause is an early termination whose sender named none.
-    """
-    return EmbargoTermination(
-        cause=getattr(activity, "termination_cause", None)
-    )
 
 
 def _to_domain_obj(as_obj: object) -> CoreObject | None:

@@ -588,7 +588,7 @@ def test_a_threat_termination_records_its_signals_and_runs_the_cascade() -> (
     )
 
     assert result.status == Status.SUCCESS, result.feedback_message
-    # The wire carries the what (EARLY); the entry records the why too.
+    # The wire and the entry both carry the THREAT_SIGNAL cause.
     _assert_full_cascade(
         world, EmbargoTermination.threat([ThreatSignal.P, ThreatSignal.X])
     )
@@ -597,8 +597,8 @@ def test_a_threat_termination_records_its_signals_and_runs_the_cascade() -> (
 @pytest.mark.spec("EMB-13-004")
 @pytest.mark.spec("RSH-03-001")
 def test_a_threat_status_records_the_signals_it_carries() -> None:
-    """The cascade a received threat status starts records ``EARLY`` on the
-    wire and ``THREAT_SIGNAL`` with the status's signals on the entry."""
+    """The cascade a received threat status starts records ``THREAT_SIGNAL``
+    with the status's signals, on the wire and on the entry."""
     world = _World(end_time=days_from_now(10))
     status = make(
         as_CaseStatus,
