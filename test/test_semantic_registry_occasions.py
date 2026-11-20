@@ -707,13 +707,16 @@ def test_entry_does_not_compare_occasions_with_different_addressees():
 
 @pytest.mark.spec("MSM-08-011")
 def test_registry_same_addressee_siblings_are_distinguished():
-    """The four occasions #4821 found undistinguished now declare one."""
+    """The occasions #4821 found undistinguished declare one.
+
+    The Case Owner's invitation moved to its own Invite (ADR-0199), so the
+    suggestion keeps the standing that told it from that occasion.
+    """
     declared = {
         o.anchor: o.distinguisher
         for e in SEMANTIC_REGISTRY
         for o in e.occasions
     }
-    assert declared["request-invite-actor-to-case"] == _owner(True)
     assert declared["suggest-actor-to-case"] == _owner(False)
     assert declared["announce-embargo"] == _register(
         EmbargoRegisterStatus.ACTIVE

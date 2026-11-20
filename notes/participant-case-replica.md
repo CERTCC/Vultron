@@ -86,7 +86,7 @@ passes (#3274). Do not reintroduce the retired `Service`-hosting scan
 ## Late Joiners: Cascade from `Accept(Invite(VulnerabilityCase preview)[target=Actor])`
 
 The invitee's record already exists, inert, from when the stub Invite was sent
-(`CreateInertInviteeParticipantNode`, CM-11-006). On the stub Accept the
+(`_SeatInertInviteeBase`, CM-11-006). On the stub Accept the
 accept-invite tree activates that record (RM stays RECEIVED, CM-11-001), sends
 `Announce(VulnerabilityCase)` and the ledger replay (CM-11-008), then the
 full-case Invite queued after the last replayed entry (CM-11-010). This cascade

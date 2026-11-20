@@ -61,10 +61,10 @@ from vultron.wire.as2.vocab.examples.actor import (
     accept_actor_recommendation,
     accept_case_participant_offer,
     offer_case_participant,
+    owner_invite_actor_to_case,
     recommend_actor,
     reject_actor_recommendation,
     reject_case_participant_offer,
-    request_invite_actor_to_case,
 )
 from vultron.wire.as2.vocab.examples.case import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.case import (
@@ -233,7 +233,7 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     (recommend_actor, None),
     (accept_actor_recommendation, None),
     (reject_actor_recommendation, None),
-    (request_invite_actor_to_case, None),
+    (owner_invite_actor_to_case, None),
     (offer_case_participant, None),
     (accept_case_participant_offer, None),
     (reject_case_participant_offer, None),

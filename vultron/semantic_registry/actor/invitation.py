@@ -87,6 +87,22 @@ ENTRIES: list[SemanticEntry] = [
                 example="invite_to_case",
                 howto=HowToGuide.INVITE_ACTOR,
             ),
+            Occasion(
+                when="the Case Owner decides to invite an actor to the case",
+                anchor="owner-invite-actor-to-case",
+                addressee=AddresseeSide.CASE_MANAGER,
+                heading="Case Owner invites an actor",
+                description=(
+                    "The Case Owner's own decision, sent to the CASE_MANAGER "
+                    "only: the case preview as the object, the invitee as the "
+                    "target, and the roles it offers. The CASE_MANAGER records "
+                    "it and sends its own Stub Invite to the invitee, crediting "
+                    "the Case Owner in `attributedTo` and naming this Invite in "
+                    "`inReplyTo`; the invitee answers that Stub Invite."
+                ),
+                example="owner_invite_actor_to_case",
+                howto=HowToGuide.INVITE_ACTOR,
+            ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
     ),

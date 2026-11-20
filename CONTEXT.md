@@ -303,6 +303,18 @@ entry's log index, so a reader can point at one point of the case's history.
 *Avoid*: case story, case timeline (a demo story is written by hand; a narrative is not),
 case log (the case ledger is the log the narrative reads)
 
+**Hindsight mark**:
+How good the step a case narrative line's entry took was, judged by the move advice
+open just before that entry: best (layer 1 of the first band, harm-free then
+trade-off, that holds any move), good (harm-free, not best), sub-optimal (trade-off,
+not best), neutral (unhelpful with every shift zero, or a move that keeps every state)
+or bad (unhelpful with some vendor's shift negative). Two marks grade nothing: chance,
+an event no participant chooses, such as a public exploit; and not a move, an act the
+advice weighs no move for, such as a note or a consent answer. The vul becoming public
+is chance, since the ledger cannot tell a publication from a leak, except after an
+embargo that ended on its own terms, when it is graded as a participant's publication.
+*Avoid*: rating, score, verdict (a mark grades one step, never the case)
+
 **VINCE gateway**:
 A component in front of VINCE that speaks Vultron wire activities, such as
 `Offer(VulnerabilityReport)`, on one side and the VINCE API on the other, so VINCE takes

@@ -63,7 +63,7 @@ def vendor_rejects_invite(state: StoryState) -> None:
 
     The Vendor sends ``Reject(Invite(VulnerabilityCase preview)[target=Actor])`` and the
     CaseActor records a ``reject_invite_actor_to_case`` entry.  At invite-send
-    time ``CreateInertInviteeParticipantNode`` already seated the Vendor as an
+    time the CASE_MANAGER already seated the Vendor as an
     inert participant (``joined=False``, RM ``RECEIVED``; ADR-0114,
     CM-11-006); after the Reject, CM-11-007 moves that record to RM
     ``CLOSED``.  The Vendor is in the index and was never active, and no case
@@ -99,7 +99,7 @@ def vendor_rejects_invite(state: StoryState) -> None:
         # Read from the CASE_MANAGER's own store: a replica stores the record
         # the CASE_MANAGER's create_case_participant entry carries (ADR-0114),
         # but this scenario checks the record
-        # CreateInertInviteeParticipantNode wrote.
+        # the CASE_MANAGER wrote at invite-send time.
         with demo_check(
             f"{VENDOR_LABEL} in actor_participant_index after invite "
             "(inert record, CM-11-006)"

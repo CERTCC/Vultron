@@ -69,7 +69,6 @@ KNOWN_NODE_FEEDBACK_WARNINGS: frozenset[str] = frozenset(
         "vultron/core/behaviors/case/nodes/proposal_emits.py::EmitCreateVulnerabilityCaseNode.update",
         "vultron/core/behaviors/case/nodes/replica_bootstrap.py::CheckInlineParticipantsNode.update",
         "vultron/core/behaviors/case/nodes/replica_bootstrap.py::CheckReportReferenceNode.update",
-        "vultron/core/behaviors/case/nodes/stub_invite_lifetime.py::ReinviteNotToClosedParticipantNode.update",
         "vultron/core/behaviors/case/nodes/update.py::BroadcastCaseUpdateNode.update",
         "vultron/core/behaviors/case/nodes/vfd_role_guards.py::CheckDeployerRoleNode.update",
         "vultron/core/behaviors/case/nodes/vfd_role_guards.py::CheckNotSoleObserverVfdNode.update",

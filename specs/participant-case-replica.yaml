@@ -904,11 +904,15 @@ groups:
       A receiver records the Invite's `actor` as its trust anchor (PCR-03-008), and it
       later accepts the case copy only from that actor. If the Case Owner were the
       `actor`, the invitee would anchor its trust on the wrong actor and answer the
-      wrong actor.
+      wrong actor. The Case Owner sends its decision as its own Invite to the
+      CASE_MANAGER alone, and the CASE_MANAGER makes the stub Invite the invitee
+      answers from it (CM-17-007, ADR-0199).
     verification: >-
       `test/demo/test_remote_case_actor_invite.py::TestOwnerInviteThroughARemoteCaseActor`
-      confirms the Case Owner's trigger sends its own request and the CASE_MANAGER, on
-      another container, is the `actor` of the `Invite`, not the Case Owner.
+      confirms the Case Owner's trigger sends its own Invite and the CASE_MANAGER, on
+      another container, is the `actor` of the stub `Invite`, not the Case Owner.
+    adr:
+    - ADR-0199
     stories:
     - story_2022_053
     - story_2022_052

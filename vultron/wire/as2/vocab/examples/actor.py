@@ -19,9 +19,11 @@ from vultron.wire.as2.factories import (
     recommend_actor_activity,
     reject_actor_recommendation_activity,
     reject_case_participant_offer_activity,
+    rm_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Invite,
     as_Offer,
     as_Reject,
 )
@@ -53,20 +55,27 @@ def recommend_actor() -> as_Offer:
     return _activity
 
 
-def request_invite_actor_to_case() -> as_Offer:
-    """The Case Owner asks the CASE_MANAGER to invite an actor (CM-17-007).
+def owner_invite_actor_to_case() -> as_Invite:
+    """The Case Owner's own Invite of an actor, to the CASE_MANAGER (CM-17-007).
 
-    The vendor, as Case Owner, sends its own ``Offer(Actor)`` to the
-    CASE_MANAGER with the roles it offers in ``roles``.  The wire
-    form is a participant's suggestion; the CASE_MANAGER answers it with the
-    stub Invite because the sender holds the Case Owner role.
+    The vendor, as Case Owner, decides to invite the coordinator and sends
+    the CASE_MANAGER its own ``Invite(<case preview>)[target=<invitee>]``
+    with the roles it offers.  It has the stub Invite's wire shape; the
+    CASE_MANAGER tells it apart by its ``target``, which names an actor other
+    than the CASE_MANAGER it is addressed to, and sends its own stub Invite
+    from it (ADR-0199).
     """
-    _case = case()
-    return recommend_actor_activity(
+    _case = case(
+        stub_summary=(
+            "A memory-corruption vulnerability in widget"
+            " — details shared after acceptance."
+        )
+    )
+    return rm_invite_to_case_activity(
         _COORDINATOR,
+        id_=f"{_case.id_}/owner-invitation/1",
         actor=vendor().id_,
-        context=_case.id_,
-        target=_case.id_,
+        case=_case,
         to=case_actor().id_,
         roles=[CVDRole.COORDINATOR.value],
         at=EXAMPLE_TIMESTAMP,

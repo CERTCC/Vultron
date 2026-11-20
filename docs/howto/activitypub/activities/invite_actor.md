@@ -27,7 +27,7 @@ You finish with the actor either seated as a participant or recorded as having d
 ## The exchange
 
 The sequence diagram below shows both outcomes.
-The Case Owner asks the CASE_MANAGER for the invitation with one `Offer`.
+The Case Owner sends its decision to the CASE_MANAGER as its own `Invite`.
 Every later message is between the CASE_MANAGER and the invited actor.
 
 ```mermaid
@@ -39,8 +39,9 @@ sequenceDiagram
     participant CA as CASE_MANAGER
     actor A as Actor
     activate O
-    O ->> CA: Offer(Actor)[target=VulnerabilityCase]
+    O ->> CA: Invite(VulnerabilityCase preview)[target=Actor]
     activate CA
+    note over CA: Records the Case Owner's Invite
     CA ->>+ A: Invite(VulnerabilityCase preview)[target=Actor]
     note over CA: Records inert CaseParticipant (RM Received)
     note over A: Consider invitation
@@ -61,22 +62,25 @@ sequenceDiagram
 ## Send the invitation
 
 1. Trigger the invitation as Case Owner.
-   Your container sends your own `Offer(Actor)` to the CASE_MANAGER (CM-17-007).
-   The `Offer` has the invited actor as its `object` and the case as its `target`.
-   It lists the roles you offer in `roles`, the field the Invite uses too.
-   With no roles given, the CASE_MANAGER assigns a non-empty default role list (CM-16-003).
-   A stub Invite always names at least one role, and the CASE_MANAGER refuses to send one with none (CM-11-019, CM-11-048).
-   Do not offer `CASE_MANAGER` or `CASE_OWNER`: the CASE_MANAGER refuses the `Offer` and sends no Invite (CM-20-008).
+   Your container sends your own `Invite(VulnerabilityCase preview)[target=Actor]` to the CASE_MANAGER only (CM-17-007).
+   The `Invite` has your case preview as its `object` and the invited actor as its `target`.
+   It lists the roles you offer in `roles`.
+   Name at least one role: the CASE_MANAGER assigns no default and refuses an `Invite` with none (CM-11-019, CM-11-050).
+   Do not offer `CASE_MANAGER` or `CASE_OWNER`: the CASE_MANAGER refuses the `Invite` (CM-20-008).
    Ownership moves by transfer, and the CASE_MANAGER role moves by delegation.
+   The CASE_MANAGER also refuses an `Invite` that names itself or you, or an actor that has joined, closed or been removed (CM-17-026).
+   Each refusal comes back as a refusal notice.
+   Do not send `Offer(Actor)` for your own decision: the CASE_MANAGER refuses it (CM-17-027).
 
-    {% include-markdown "../../../reference/messages/_occasions/embeds/request-invite-actor-to-case.md" %}
+    {% include-markdown "../../../reference/messages/_occasions/embeds/owner-invite-actor-to-case.md" %}
 
-2. The CASE_MANAGER commits and sends `Invite(VulnerabilityCase preview)[target=Actor]` to the actor's inbox.
+2. The CASE_MANAGER records your `Invite` and sends its own `Invite(VulnerabilityCase preview)[target=Actor]` to the actor's inbox (CM-17-018).
    The `Invite` names the invited actor in its `target`.
    Its `object` is a reference to the case that carries the case stub as its `preview`, not the case itself (CM-11-013, CM-17-001).
-   The CASE_MANAGER is the ActivityStreams `actor`, your identity is in `attributedTo`, and your request is in `inReplyTo` (PCR-08-007, PCR-08-019, PCR-08-008).
-   The trigger's `202` response means only that your `Offer` was queued.
-   Watch for the `Invite` on the CASE_MANAGER's ledger, not in the response.
+   The CASE_MANAGER is the ActivityStreams `actor`, your identity is in `attributedTo`, and your `Invite` is in `inReplyTo` (PCR-08-007, PCR-08-019, CM-24-020).
+   The trigger's `202` response means only that your `Invite` was queued.
+   Watch for the CASE_MANAGER's `Invite` on its ledger, not in the response.
+   If you hold the CASE_MANAGER role yourself, your container sends the stub `Invite` straight to the actor, with neither `attributedTo` nor `inReplyTo` (CM-17-017).
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/invite-actor-to-case.md" %}
 

@@ -23,12 +23,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-import pandas as pd
 import streamlit as st
 
 from vultron.measure.advice import CaseAdvice
 from vultron.shadow.dashboard import view
-from vultron.shadow.dashboard.page.common import _table
+from vultron.shadow.dashboard.page.common import _styled_table, _table
 
 
 def _show_legend(band: view.BandView) -> None:
@@ -50,12 +49,7 @@ def _show_legend(band: view.BandView) -> None:
 
 def _shaded_table(band: view.BandView) -> None:
     """*band*'s moves, each row filled with its shade."""
-    styles = [s.css for s in band.shades]
-    # Each column takes the rows' styles in row order.
-    styler = pd.DataFrame(list(band.rows)).style.apply(
-        lambda _column: styles, axis=0
-    )
-    st.dataframe(styler, hide_index=True, width="stretch")
+    _styled_table(band.rows, band.shades)
 
 
 def _show_band(band: view.BandView) -> None:

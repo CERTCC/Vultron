@@ -406,7 +406,7 @@ def _run_late_joiner_sequence(
 
     # Resolve the CaseActor before the invite trigger so we can set
     # stub_summary on the case in the CASE_MANAGER's store.  The BT-created
-    # case has no stub_summary; EmitInviteActorToCaseNode requires it
+    # case has no stub_summary; the stub Invite requires it
     # (CM-17-010, MV-10-001, #4165).
     case_actor_id = _find_case_actor_id(
         owner_iso.store_for(owner_actor_id), case_id
@@ -416,20 +416,24 @@ def _run_late_joiner_sequence(
         f"DataLayer.  The CaseProposal round-trip may not have completed "
         f"during create_receive_report_case_tree."
     )
-    ca_dl = owner_iso.store_for(case_actor_id)
-    ca_case = ca_dl.read(case_id)
-    assert ca_case is not None, (
-        f"case {case_id!r} not readable from the CaseActor's own store"
-    )
-    ca_dl.save(
-        ca_case.model_copy(
-            update={
-                "stub_summary": (
-                    "PCR-07-007 test case — details shared after acceptance."
-                )
-            }
+    # The owner's own Invite carries its preview of the case too, so its
+    # copy is seeded as well (CM-17-007, ADR-0199).
+    for holder in (case_actor_id, owner_actor_id):
+        holder_dl = owner_iso.store_for(holder)
+        held_case = holder_dl.read(case_id)
+        assert held_case is not None, (
+            f"case {case_id!r} not readable from {holder!r}'s own store"
         )
-    )
+        holder_dl.save(
+            held_case.model_copy(
+                update={
+                    "stub_summary": (
+                        "PCR-07-007 test case — details shared after"
+                        " acceptance."
+                    )
+                }
+            )
+        )
 
     # Step 3: owner triggers invite-actor-to-case (CM-11-019: roles required)
     resp = owner_tc.post(

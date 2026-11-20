@@ -25,12 +25,7 @@ supersedes there instead (CM-11-044), which itself named the request.
 from datetime import datetime
 from typing import cast
 
-from py_trees.ports import NoDataAvailable, PortInformation
-
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes.participant.roles import (
-    suggested_roles_key,
-)
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     current_preview_embargo_end,
     recorded_stub_invites,
@@ -48,7 +43,6 @@ from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.enums.roles import serialize_roles
 from vultron.errors import VultronNotFoundError
 
 #: Kind label of a stub Invite's derived id (see ``derived_activity_id``).
@@ -157,7 +151,7 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
     """Create stub Invite(<case>)[target=<invitee>], queue it in this actor's
     outbox, and commit it.
 
-    The shared build of :class:`EmitInviteActorToCaseNode`.  A subclass names
+    The shared build of every stub Invite emit node.  A subclass names
     the invitee (:meth:`_invitee`), the roles the Invite offers
     (:meth:`_read_suggested_roles`) and the request it answers
     (:meth:`_answered_request`): fixed at construction, or read from the
@@ -287,118 +281,7 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
         )
 
 
-class EmitInviteActorToCaseNode(_StubInviteEmitBase):
-    """Create stub Invite(<case>)[target=<invitee>], queue it in this actor's
-    outbox, and commit it.
-
-    Runs only in a CASE_MANAGER-gated received tree, so ``self.actor_id`` is
-    the CASE_MANAGER and the store is its own (BT-05-006, CM-24-009).  The
-    Invite is addressed ``to=[invitee_id]`` and to no one else: the
-    CASE_MANAGER never addresses a copy to itself (CLP-10-032, ADR-0109).
-    Build → outbox append → commit is the order: the entry records an Invite
-    already sent (ADR-0119), and the in-tree commit is the only ledger entry
-    the Invite ever gets (CM-17-006).  An optional ``attributed_to`` carries
-    the participant who asked for the invitation (PCR-08-007).
-
-    ``answers`` names the request this Invite answers — the
-    ``Offer(Actor)[target=VulnerabilityCase]`` that asked for it.  Given, the Invite's
-    id is derived from the
-    CASE_MANAGER and that request, so a retry of the tree for the same request
-    rebuilds the same Invite, and the outbox, finding it already pending,
-    does not queue it twice (OX-06-002, ID-04-004, ADR-0119).  Absent, the
-    factory mints a fresh id.
-
-    Roles are resolved via ``_read_suggested_roles()``, which uses two paths:
-
-    1. **Injected roles** (``roles`` constructor parameter): used when the
-       node is instantiated from a stored ``Offer(CaseParticipant)`` in the
-       DataLayer (ISSUE-1745, CM-16-018).  The stored Offer is the trusted
-       source because the received ``Accept`` is untrusted.
-    2. **Evaluator output** (``recommendation_id`` constructor parameter):
-       the roles :class:`EvaluateDefaultRolesNode` wrote earlier in the same
-       tree under its namespaced key ``suggested_roles_{id_segment}``
-       (BTND-03-004, CM-16-003, CM-17-007).
-
-    Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
-    ``case`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
-    and factory project it to the case's preview, the case stub — embedding
-    the full embargo in force (EM ``ACTIVE`` or ``REVISE``, CM-17-011) —
-    without violating the core→wire import boundary (ARCH-01-001, CM-17-002).
-    """
-
-    def __init__(
-        self,
-        invitee_id: str,
-        case_id: str,
-        attributed_to: str | None = None,
-        captured: dict | None = None,
-        roles: list[str] | None = None,
-        recommendation_id: str | None = None,
-        name: str | None = None,
-        *,
-        in_reply_to: str | None = None,
-        replaces_previous_stub: bool = False,
-        actor_config: ActorConfig | None = None,
-        answers: str | None = None,
-    ) -> None:
-        super().__init__(
-            case_id=case_id,
-            attributed_to=attributed_to,
-            captured=captured,
-            name=name,
-            in_reply_to=in_reply_to,
-            replaces_previous_stub=replaces_previous_stub,
-            actor_config=actor_config,
-        )
-        self.invitee_id = invitee_id
-        self._answers = answers
-        self._injected_roles = roles
-        self._roles_key = (
-            f"/{suggested_roles_key(recommendation_id)}"
-            if recommendation_id is not None
-            else None
-        )
-        self._suggested_roles_bb = None
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **_EmitSingleActivityBase.INPUT_PORTS,
-        "suggested_roles": PortInformation(data_type=list, required=False),
-    }
-
-    def _instance_port_remappings(self) -> dict[str, str]:
-        if self._roles_key is None:
-            return {}
-        return {"suggested_roles": self._roles_key}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._suggested_roles_bb = None
-        if self._roles_key is None:
-            return
-        try:
-            self._suggested_roles_bb = self.get_input("suggested_roles")
-        except NoDataAvailable, NotImplementedError:
-            pass
-
-    def _invitee(self) -> str:
-        return self.invitee_id
-
-    def _answered_request(self) -> str | None:
-        return self._answers
-
-    def _read_suggested_roles(self) -> list[str] | None:
-        # Use injected roles (from stored Offer via DataLayer) when available
-        # (ISSUE-1745: blackboard is empty in a separate BT execution).
-        if self._injected_roles is not None:
-            return self._injected_roles if self._injected_roles else None
-        roles = self._suggested_roles_bb
-        if isinstance(roles, list):
-            return serialize_roles(roles)
-        return None
-
-
 __all__ = [
-    "EmitInviteActorToCaseNode",
     "INVITE_SEMANTIC_TYPE",
     "build_stub_invite",
     "commit_stub_invite",

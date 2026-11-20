@@ -46,7 +46,6 @@ Import each composite from the ``*_tree.py`` module that defines it.
 """
 
 from vultron.core.behaviors.case.nodes.actor import (
-    EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
 from vultron.core.behaviors.case.nodes.case_lookup import (
@@ -87,7 +86,6 @@ from vultron.core.behaviors.case.nodes.intake import (
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     AdvanceInviteeVFToVendorAwareNode,
-    CreateInertInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
     BackfillCanonicalLedgerToInviteeNode,
@@ -201,7 +199,6 @@ __all__ = [
     "activity_names_proposal",
     "find_activity_for_proposal",
     # actor (leaf nodes)
-    "EmitInviteActorToCaseNode",
     "EmitAcceptCaseInviteNode",
     "EvaluateDefaultRolesNode",
     "ProposeReportCaseToActorNode",
@@ -278,7 +275,6 @@ __all__ = [
     # invite_inert_participant (leaf nodes — ADR-0114)
     "AdvanceInviteeVFToVendorAwareNode",
     "ApplyInviteRejectToParticipantNode",
-    "CreateInertInviteeParticipantNode",
     # invite_participant (leaf nodes)
     "CheckInviteeNotAlreadyParticipantNode",
     "InviteeHasParticipantRecordNode",

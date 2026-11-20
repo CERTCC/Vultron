@@ -22,12 +22,19 @@ import logging
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, INVITEE_ID, SENDER_ID
 from vultron.core.behaviors.case.nodes.invite_received import (
     LogInviteReceivedNode,
     RecordInviteTrustAnchorNode,
 )
 from vultron.core.behaviors.case.nodes.invite_reject_participant import (
     ApplyInviteRejectToParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    case_manager_admits_owner_invite_guard,
+    owner_decided_stub_invite,
 )
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import (
@@ -125,29 +132,47 @@ def create_invite_actor_to_case_received_tree(
     invitee_id: str,
     inviter_id: str,
     invite_id: str,
+    roles: list[str] | None = None,
+    actor_config: ActorConfig | None = None,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for ``Invite(VulnerabilityCase preview)[target=Actor]`` — one
-    tree
-    for every receiver.
+    tree for every receiver.
 
-    The CASE_MANAGER emits the Invite from its own store and commits it in
-    the emitting tree; it never receives its own Invite (CM-17-006,
-    ADR-0109).  The receiver is therefore the invitee, which holds only the
-    Invite's case stub (MV-10-004)::
+    The Case Owner's decision to invite and the CASE_MANAGER's stub Invite
+    share one wire shape: ``object`` the case preview, ``target`` the
+    invitee (ADR-0199, ADR-0205).  The path the receiver is on tells them
+    apart (HP-01-038):
+
+    - **At the CASE_MANAGER**, the Invite is the Case Owner's own, sent to it
+      and naming another actor in ``target`` (CM-17-007).  The CASE_MANAGER
+      refuses it with the refusal notice when the sender is not the Case
+      Owner, the ``target`` is the CASE_MANAGER or the Owner, the invitee is
+      removed, joined or at ``RM.CLOSED``, or the roles are empty or name an
+      authority role (:func:`case_manager_admits_owner_invite_guard`).
+      Otherwise it commits the Owner's Invite as one ledger entry and sends
+      its own stub Invite, ``attributedTo`` the Owner and ``inReplyTo`` the
+      Owner's Invite (CM-24-002, CM-24-020, PCR-08-007), which it commits
+      once it is in the outbox (CM-17-006).  A re-invite of an invitee that
+      has not answered names the stub it supersedes instead (CM-11-044).
+    - **Elsewhere**, the receiver is the invitee, holding only the Invite's
+      case stub (MV-10-004), and the sender must be the case's CASE_MANAGER
+      (PCR-03-001)::
 
         InviteActorToCaseReceivedBT (Sequence)
-        ├── Intake                       # stores the Invite idempotently
-        ├── CaseOpenToExternalWrites     # post-close boundary (CM-23-013)
         ├── ActivityAddressedToReceiver  # addressee door guard (HP-01-005)
+        ├── ActivityNotSeenBeforeNode    # seen-before door (ADR-0154)
         ├── ReceivedPathNode             # no case yet, a replica, or manager
+        ├── CaseOpenToExternalWrites     # post-close boundary (CM-23-013)
         ├── <sender guard>               # composed from the declared rule
-        ├── ClockDecisions               # CASE_MANAGER only — skips here
+        ├── Intake                       # stores the Invite idempotently
+        ├── OwnerInviteAdmissible        # CASE_MANAGER only
         ├── GuardedCommitCaseLedgerEntryBT   # CASE_MANAGER only — skips here
-        └── InviteeRecordsInvite         # not the CASE_MANAGER
-            ├── LogInviteReceivedNode        # SL-04-006
-            └── RecordInviteTrustAnchorNode  # PCR-03-004
+        ├── InviteeRecordsInvite         # not the CASE_MANAGER
+        │   ├── LogInviteReceivedNode        # SL-04-006
+        │   └── RecordInviteTrustAnchorNode  # PCR-03-004
+        └── OwnerDecidedStubInvite       # CASE_MANAGER only
 
     The path stage declares the no-case branch the invitee takes, so the
     Invite is admitted at a receiver that holds no replica rather than
@@ -157,39 +182,57 @@ def create_invite_actor_to_case_received_tree(
     case is announced.
 
     The factory composes the sender guard from the use case's declared rule
-    (HP-01-008): the sender must be the case's CASE_MANAGER, which alone
-    issues the Invite (CM-17-006, PCR-03-001).  An invitee holding only the
-    case's preview has no CASE_MANAGER to compare against, so the guard passes there
-    (the bootstrap window) and the trust-anchor rules of PCR-03-004 decide
-    what the Invite may record.
+    (HP-01-008).  An invitee holding only the case's preview has no
+    CASE_MANAGER to compare against, so the guard passes there (the
+    bootstrap window) and the trust-anchor rules of PCR-03-004 decide what
+    the Invite may record.
 
     Args:
         case_id: ID of the case the Invite's ``object`` names (ADR-0205).
         invitee_id: The invited actor (the Invite's ``target``).
-        inviter_id: The Invite's sender, recorded as the case's expected
-            CASE_MANAGER.
+        inviter_id: The Invite's sender: the Case Owner at the CASE_MANAGER,
+            the case's expected CASE_MANAGER at the invitee.
         invite_id: The Invite's id, recorded so the invitee's Accept of it
-            can fix the anchor (PCR-03-004).
+            can fix the anchor (PCR-03-004); at the CASE_MANAGER, the request
+            its stub Invite carries out.
+        roles: The roles the Invite offers the invitee (CM-17-003).
+        actor_config: The receiving CASE_MANAGER's configuration; its RSVP
+            windows set the stub Invite's reply deadline (CM-11-014).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
     Returns:
         Root ``InviteActorToCaseReceivedBT`` Sequence node.
     """
+    # The keys the CASE_MANAGER's nodes read for the Owner's Invite
+    # (BTND-01-008).
+    owner_keys = {
+        CASE_ID: case_id,
+        INVITEE_ID: invitee_id,
+        SENDER_ID: inviter_id,
+    }
     return create_receive_activity_tree(
         name="InviteActorToCaseReceivedBT",
         case_id=case_id,
-        precondition_guards=[],
+        precondition_guards=[
+            # The CASE_MANAGER's adjudication of the Owner's decision; an
+            # invitee judges nothing here (HP-01-038).
+            OnPaths.at_case_manager(
+                "OwnerInviteAdmissibleAtCaseManager",
+                with_act_keys(
+                    case_manager_admits_owner_invite_guard(roles), owner_keys
+                ),
+            )
+        ],
         # The stub Invite precedes its case (MV-10-004), so the invitee is
         # on the no-case path and this is the type that declares that
         # branch and takes it (HP-01-041): the inbox's defer check
         # exempts the stub Invite rather than holding it for a case that
         # only the answer brings.  An invitee that already holds a replica
-        # takes the participant path, and the CASE_MANAGER's own
-        # self-addressed copy of the Invite it sent takes the manager path
-        # (ADR-0109), where intake records it and the gate below keeps the
-        # invitee-only effects off it.  All three are handled, so the stage
-        # refuses none of them and only chooses which arms run.
+        # takes the participant path, and the Case Owner's own Invite takes
+        # the manager path at the CASE_MANAGER it is addressed to
+        # (CM-17-007).  All three are handled, so the stage refuses none of
+        # them and only chooses which arms run.
         paths={
             ReceivedPath.NO_CASE,
             ReceivedPath.PARTICIPANT_REPLICA,
@@ -201,10 +244,10 @@ def create_invite_actor_to_case_received_tree(
         ),
         replica_effects=[
             # The invitee's own record of the Invite, on every declared
-            # path but the manager's: the CASE_MANAGER issued this Invite,
-            # so it anchors no trust in it (HP-01-038, PCR-03-004).  The
-            # branch reads the path the stage resolved rather than asking
-            # the roster again (HP-01-036).
+            # path but the manager's: the CASE_MANAGER is never invited by
+            # an Invite it receives, so it anchors no trust in it
+            # (HP-01-038, PCR-03-004).  The branch reads the path the stage
+            # resolved rather than asking the roster again (HP-01-036).
             OnPaths.off_case_manager(
                 "InviteeRecordsInvite",
                 LogInviteReceivedNode(
@@ -220,5 +263,19 @@ def create_invite_actor_to_case_received_tree(
                 ),
             ),
         ],
+        manager_effects=[
+            with_act_keys(
+                owner_decided_stub_invite(
+                    list(roles or []),
+                    credits_sender=True,
+                    actor_config=actor_config,
+                ),
+                owner_keys,
+            )
+        ],
+        manager_case_id=case_id,
+        manager_gate_name="OwnerInviteIfCaseManager",
+        manager_body_name="OwnerInviteEffects",
+        manager_case_may_be_absent=True,
         case_may_be_absent=True,
     )
