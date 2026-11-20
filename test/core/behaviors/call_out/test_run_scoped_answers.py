@@ -26,8 +26,10 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
-from test.support.call_out import FixedAnswerBackend
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from test.support.call_out import (
+    CALL_OUT_ACTOR_ID as ACTOR_ID,
+    FixedAnswerBackend,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.answer import (
     CallOutAnswer,
@@ -37,8 +39,6 @@ from vultron.core.behaviors.call_out.guard import (
     SynchronousCallOut,
     call_out_written_keys,
 )
-
-ACTOR_ID = "https://example.org/actors/test-actor"
 
 _CONTRACT = CallOutContract(
     outputs={"probe_verdict": str},
@@ -110,13 +110,6 @@ def _peek_only() -> tuple[py_trees.behaviour.Behaviour, _Peek]:
         ],
     )
     return tree, peek
-
-
-@pytest.fixture
-def bridge() -> BTBridge:
-    return BTBridge(
-        datalayer=SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
-    )
 
 
 def _storage_keys() -> set[str]:

@@ -1434,12 +1434,15 @@ groups:
       published key that is neither restored nor exempt; the probes there show that
       they can fail. The tree scan reads each node's own blackboard clients too,
       and `test_every_key_a_call_out_contract_writes_is_restored` there builds one
-      seam per capability declaration and asserts the bridge restores exactly
-      that contract's keys;
+      seam per capability declaration and asserts `call_out_written_keys`
+      returns exactly that contract's keys;
       `test_a_call_out_whose_written_keys_are_not_restored_fails_the_check` and
-      `test_a_backend_writing_its_own_key_fails_the_check` are its probes, and
+      `test_a_backend_writing_its_own_key_fails_the_check` are its probes.
       `test_the_bridge_restores_every_seams_written_keys` fails if
-      `execute_with_setup` stops restoring the seams' keys.
+      `execute_with_setup` stops adding those keys to its restore set before the
+      snapshot, and
+      `test_a_bridge_that_does_not_restore_the_seams_keys_fails_the_check` is
+      its probe.
       `test_one_runs_answer_is_not_visible_to_the_next_run` in
       `test/core/behaviors/call_out/test_run_scoped_answers.py` runs a call-out's
       answer through the bridge and shows the next run does not see it.

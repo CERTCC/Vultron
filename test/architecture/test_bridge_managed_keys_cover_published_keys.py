@@ -496,11 +496,48 @@ def test_the_bridge_restores_every_seams_written_keys() -> None:
     )
 
 
+_BRIDGE_SHAPES = {
+    "restores": (
+        "managed_keys += [*call_out_written_keys(tree)]\n"
+        "snapshot_keys(storage, managed_keys)"
+    ),
+    "no extension": (
+        "managed_keys += ['activity']\nsnapshot_keys(storage, managed_keys)"
+    ),
+    "another tree": (
+        "managed_keys += [*call_out_written_keys(activity)]\n"
+        "snapshot_keys(storage, managed_keys)"
+    ),
+    "after the snapshot": (
+        "snapshot_keys(storage, managed_keys)\n"
+        "managed_keys += [*call_out_written_keys(tree)]"
+    ),
+}
+
+
+@pytest.mark.spec("BT-17-020")
+@pytest.mark.parametrize("shape", list(_BRIDGE_SHAPES))
+def test_a_bridge_that_does_not_restore_the_seams_keys_fails_the_check(
+    shape: str,
+) -> None:
+    """The AST check passes only the shape that snapshots the seams' keys."""
+    module = ast.parse(
+        "def execute_with_setup(tree, activity, storage, managed_keys):\n"
+        + "".join(
+            f"    {line}\n" for line in _BRIDGE_SHAPES[shape].split("\n")
+        )
+    )
+    fn = module.body[0]
+    assert isinstance(fn, ast.FunctionDef)
+    assert _restores_call_out_keys(fn) is (shape == "restores")
+
+
 @pytest.mark.spec("BT-17-020")
 def test_every_key_a_call_out_contract_writes_is_restored() -> None:
-    """Every declared contract, built or not: the keys the bridge restores
-    for a tree holding its seam are exactly the contract's outputs and
-    refusal ports, and the seam's client writes no other key."""
+    """Every declared contract, built or not: ``call_out_written_keys``
+    returns exactly the contract's outputs and refusal ports for a tree
+    holding its seam, and the seam's client writes no other key.  That the
+    bridge restores those keys is the AST check's half."""
     trees = _call_out_contract_trees()
     for tree, declaration in zip(
         trees, capability_declarations(), strict=True
