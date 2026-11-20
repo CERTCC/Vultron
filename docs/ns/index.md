@@ -79,6 +79,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `intendedAudience` | plain | Free text that says who a vulnerability note is intended for, such as executives or system administrators |
 | `joined` | plain | Whether a participant has joined its case: it was seated when the case was created, or it accepted its case invitation |
 | `kind` | plain | The kind of an embargo's termination cause: END_TIME_REACHED, THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
+| `ledgerEntries` | list | The case ledger entries a case preview cut for a projection keeps, in log order, each cut by the same profile; a preview may hold an incomplete ledger |
 | `ledgerPosition` | plain | The last entry of a case's ledger that a case file, or the sender of an activity about the case, holds: an object whose logIndex and entryHash name that entry, or logIndex -1 with the case's genesis hash when it holds none |
 | `logIndex` | plain | The position of an entry in its case's ledger, counting from 0; -1 in a ledger position that names no entry |
 | `logObjectId` | iri | The id of the activity or object a case ledger entry records |

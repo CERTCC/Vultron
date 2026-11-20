@@ -1,8 +1,8 @@
 ---
-status: proposed
+status: accepted-provisional
 date: 2026-11-19
 created: 2026-11-19
-updated: 2026-11-19
+updated: 2026-11-20
 revision: 1
 deciders: Allen D. Householder
 consulted: Claude Opus 5.5

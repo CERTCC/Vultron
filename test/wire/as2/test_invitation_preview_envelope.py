@@ -126,6 +126,29 @@ def test_a_preview_without_its_summary_is_refused(summary: object) -> None:
         _parse(body)
 
 
+@pytest.mark.spec("CM-17-025")
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("ledgerPosition", {"logIndex": 0, "entryHash": "ab" * 32}),
+        ("ledgerEntries", [{"type": "Redacted"}]),
+    ],
+)
+def test_a_preview_carrying_ledger_bookkeeping_is_refused(
+    key: str, value: object
+) -> None:
+    """The two preview fields only a projection fills (ADR-0219) are refused
+    in a stub Invite's preview, not set aside as unknown keys."""
+    body = _invite_json(_case())
+    body["object"]["preview"][key] = value
+
+    with pytest.raises(VultronParseValidationError) as exc:
+        _parse(body)
+
+    assert f"bookkeeping at {key!r}" in str(exc.value)
+    assert "CM-17-025" in str(exc.value)
+
+
 def _without_register(preview: dict[str, Any]) -> None:
     del preview["embargoRegister"]
 

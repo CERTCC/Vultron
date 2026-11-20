@@ -171,12 +171,12 @@ def _preview_id(_case: VulnerabilityCase) -> object:
     return new_object_id()
 
 
-def _preview_type(_case: VulnerabilityCase) -> object:
+def preview_type(_case: VulnerabilityCase) -> object:
     """The preview's own type, the case's defined preview (MV-10-012)."""
     return "CasePreview"
 
 
-def _current_status(case: VulnerabilityCase) -> object:
+def current_status(case: VulnerabilityCase) -> object:
     """The case's statuses reduced to the current one, whole (CM-17-013).
 
     Raises:
@@ -278,7 +278,7 @@ _NAMED_ROWS: dict[str, PreviewFieldRule] = {
     "type_": PreviewFieldRule(
         permitted=frozenset({_OP.SUBSTITUTE}),
         chosen=_OP.SUBSTITUTE,
-        substitution=_preview_type,
+        substitution=preview_type,
         reason="the preview's type is CasePreview (MV-10-012)",
     ),
     # The JSON-LD context is not content.
@@ -295,7 +295,7 @@ _NAMED_ROWS: dict[str, PreviewFieldRule] = {
         reason="nobody joins a case without knowing who runs it",
     ),
     "case_statuses": _shown_in_force(
-        _current_status,
+        current_status,
         "the invitee needs the EM state while an embargo is in force"
         " (CM-17-013)",
     ),
@@ -434,5 +434,7 @@ __all__ = [
     "PreviewFieldRule",
     "PreviewOperation",
     "Substitution",
+    "current_status",
     "cut_case",
+    "preview_type",
 ]

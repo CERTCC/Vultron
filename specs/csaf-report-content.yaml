@@ -6,8 +6,8 @@ description: >-
   recognized, the one occasion on which a receiver may read it as the sender's
   statement (the initial Offer of a report), how its fields map onto the inputs of
   the case created from that report, and how this codebase checks documents
-  against a CSAF 2.1 draft that is still changing. Producing a CSAF document from a
-  case (a projection) is out of scope (#5134).
+  against a CSAF 2.1 draft that is still changing, and how a participant renders
+  a CSAF document from a cut of its case (a projection, ADR-0219).
 scope:
 - prototype
 - production
@@ -791,3 +791,211 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CSAF-05-005
+- id: CSAF-06
+  title: Projecting a CSAF Document
+  specs:
+  - id: CSAF-06-001
+    priority: MUST
+    kind: project
+    statement: >-
+      A CSAF projection MUST be rendered only from a case preview cut by the
+      profile of its call site and the inputs its call site passes; the renderer
+      MUST NOT read the case or its ledger.
+    rationale: >-
+      The profile alone decides what may leave the case, for every output format.
+      A renderer that reads the case can show a value that the profile withheld.
+    adr:
+    - ADR-0219
+    lint_suppress: [compound_statement]
+    verification: >-
+      `test/wire/csaf/test_projection.py::test_the_renderer_needs_no_case_only_a_preview_and_inputs`
+      renders a preview built by hand, with no case behind it, from the preview
+      and the inputs alone, and
+      `::test_a_preview_with_no_identity_is_refused` checks that a preview that
+      shows no ledger position is refused rather than completed from elsewhere.
+  - id: CSAF-06-002
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A CSAF projection MUST NOT contain a value that its profile redacts or
+      omits.
+    rationale: >-
+      A projection takes case information out of the protocol, to a reader who
+      may not be entitled to all of it. A redaction renders as an absence, with
+      no note that lists what is left out.
+    adr:
+    - ADR-0219
+    verification: >-
+      `test/wire/csaf/test_projection.py::test_a_value_the_public_profile_omits_appears_nowhere`
+      renders a case holding a distinct value in each field the public profile
+      omits and checks that each appears in the joined document and nowhere in
+      the public one; `::test_a_value_only_a_ledger_payload_holds_appears_nowhere`
+      and `::test_the_case_bookkeeping_appears_nowhere` check the same of a
+      ledger payload's object and of the case bookkeeping, and
+      `::test_a_redacted_field_renders_as_an_absence_with_no_note` checks that a
+      marked field leaves no trace.
+      `test/core/models/test_case_projection_profile.py::test_the_public_cut_shows_none_of_the_joined_only_values`
+      checks the cut itself.
+  - id: CSAF-06-003
+    priority: MUST
+    kind: project
+    statement: >-
+      Every projection profile MUST name one operation for every case field.
+    rationale: >-
+      A new case field must be classified before a projection can be cut, so it
+      cannot leave the case by default.
+    adr:
+    - ADR-0219
+    - ADR-0217
+    verification: >-
+      `test/core/models/test_case_projection_profile.py::test_each_profile_names_every_case_field`
+      compares each profile's rows with the case's fields,
+      `::test_a_profile_with_an_unclassified_case_field_is_refused` checks that a
+      profile missing a row cannot be built, and
+      `::test_each_profile_chooses_as_the_table_lists` checks each row's
+      operation.
+  - id: CSAF-06-004
+    priority: MUST
+    kind: project
+    statement: >-
+      A CSAF projection MUST be of category `csaf_base` and MUST pass the pinned
+      CSAF 2.1 schema.
+    rationale: >-
+      The case holds no products (ADR-0187), and the Vulnerability Report and
+      Security Advisory profiles require a product tree and product status.
+    adr:
+    - ADR-0219
+    lint_suppress: [compound_statement]
+    verification: >-
+      `test/wire/csaf/test_projection.py::test_each_profiles_projection_passes_the_pinned_schema`
+      validates a projection cut by each profile against the pinned local copy of
+      the CSAF 2.1 schema and checks its category;
+      `::test_the_schema_check_is_not_vacuous` checks that the same validator
+      refuses an invalid document.
+    relationships:
+    - rel_type: refines
+      spec_id: CSAF-05-001
+  - id: CSAF-06-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The `document.tracking.id` of a CSAF projection MUST be derived from the
+      case ID, the versioned profile name, the log index of the preview's ledger
+      position and, when the caller supplies acknowledgments, a digest of that
+      input.
+    rationale: >-
+      A projection keeps no revision counter, so its identity is its inputs. The
+      same inputs then give the same document, and a reader can find the case
+      snapshot from the identifier.
+    adr:
+    - ADR-0219
+    verification: >-
+      `test/wire/csaf/test_projection.py::test_the_same_inputs_give_an_identical_document`
+      renders the same inputs twice and compares the documents;
+      `::test_a_different_log_index_profile_or_credit_gives_another_id` checks
+      that a different log index, profile version or caller credit gives a
+      different identifier, and
+      `::test_the_default_credit_adds_no_digest_but_caller_credit_does` checks
+      that only a caller's credit adds a digest.
+  - id: CSAF-06-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The `document.tracking.version` of a CSAF projection MUST be `1`, and its
+      revision history MUST hold one entry numbered `1`.
+    rationale: >-
+      Regenerating a projection issues the same version again. A version taken
+      from the log index fails CSAF mandatory test 6.1.21, because the history
+      must start at 0 or 1 with no gap.
+    adr:
+    - ADR-0219
+    lint_suppress: [compound_statement]
+    verification: >-
+      `test/wire/csaf/test_projection.py::test_every_projection_is_version_one_with_one_revision`
+      checks the version and the revision history of a projection cut by each
+      profile.
+  - id: CSAF-06-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Every date in the `document.tracking` of a CSAF projection MUST be the
+      commit time of the ledger entry at the preview's position.
+    rationale: >-
+      A clock read would give one identifier two documents (ADR-0176).
+    adr:
+    - ADR-0219
+    - ADR-0176
+    verification: >-
+      `test/wire/csaf/test_projection.py::test_every_document_date_is_the_positions_commit_time`
+      collects every tracking date of a projection cut by each profile and checks
+      that each is the commit time its call site passed, and
+      `::test_a_later_commit_time_moves_every_document_date` checks that a later
+      commit time moves them.
+  - id: CSAF-06-008
+    priority: MUST
+    kind: project
+    statement: >-
+      A CSAF projection MUST carry a `document.references` entry of category
+      `self` that names the case ID and the entry hash of its ledger position.
+    rationale: >-
+      A reader cannot see successive projections of a case as revisions of one
+      document, so it groups them by this reference.
+    adr:
+    - ADR-0219
+    verification: >-
+      `test/wire/csaf/test_projection.py::test_a_self_reference_names_the_case_and_the_entry_hash`
+      checks the `self` reference of a projection cut by each profile.
+  - id: CSAF-06-009
+    priority: MUST
+    kind: project
+    statement: >-
+      A CSAF projection MUST take its acknowledgments from its caller, or from
+      the participants that hold the `REPORTER` role when the caller supplies
+      none.
+    rationale: >-
+      A case records no public credit, so a projection needs an input from
+      outside the case; the `REPORTER` default is an implementation choice that
+      ADR-0218 permits.
+    adr:
+    - ADR-0219
+    - ADR-0218
+    verification: >-
+      `test/wire/csaf/test_projection.py::test_the_document_credits_the_caller_over_the_default`,
+      `::test_with_no_caller_credit_the_document_credits_the_default` and
+      `::test_a_caller_that_credits_no_one_gives_no_acknowledgments` render each
+      case;
+      `test/core/models/test_case_projection_profile.py::test_the_default_credit_is_the_reporter_participants`
+      checks that the default names the `REPORTER` participants and no one else.
+  - id: CSAF-06-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The status of each `document.involvement` action of a CSAF projection MUST
+      be `completed` for a ledger fact, and MUST NOT be `attempted` or
+      `planned`.
+    rationale: >-
+      A ledger entry records a completed act. A failed delivery is a fact about
+      the outbox, not about the case, and Vultron records no intentions.
+    adr:
+    - ADR-0219
+    lint_suppress: [compound_statement]
+    verification: >-
+      `test/wire/csaf/test_projection.py::test_each_act_with_a_csaf_meaning_is_one_completed_action`
+      renders a joined projection of a ledger holding acts with and without a
+      CSAF meaning and checks each action's category and status, and
+      `::test_the_public_projection_has_no_involvement` checks that the public
+      profile, which omits the ledger, gives no involvement.
+  - id: CSAF-06-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The TLP label of a CSAF projection MUST be `CLEAR` for the public profile
+      and `AMBER+STRICT` for the joined profile.
+    rationale: >-
+      The label belongs to the document and follows what its profile lets leave
+      the case: the public facts, or what a joined participant sees.
+    adr:
+    - ADR-0219
+    verification: >-
+      `test/wire/csaf/test_projection.py::test_the_tlp_label_is_fixed_by_the_profile`
+      checks the label of a projection cut by each profile.

@@ -247,12 +247,25 @@ def test_the_profile_names_the_known_bookkeeping_as_omit_only() -> None:
     } == OMIT_ONLY
 
 
+#: The one preview field that is not a case field: the ledger list a
+#: preview cut for a projection carries (ADR-0219).
+NON_CASE_FIELDS = {"ledger_entries"}
+#: The case bookkeeping an invitation omits and a projection shows: the
+#: snapshot it is a cut of (ADR-0219).  The preview declares it, and an
+#: invitation preview that carries it is faulted (CM-17-025).
+PROJECTION_BOOKKEEPING = {"ledger_position"}
+
+
 @pytest.mark.spec("MV-12-001")
 def test_every_preview_field_is_a_case_field() -> None:
-    """The preview carries no field of its own: the embargo in force travels
-    as the case's ``embargoRegister`` and the status as its ``caseStatuses``,
-    so no ``activeEmbargo`` or ``caseStatus`` remains (ADR-0217)."""
-    assert set(CasePreview.model_fields) <= set(VulnerabilityCase.model_fields)
+    """The preview carries no field of its own but the ledger list: the
+    embargo in force travels as the case's ``embargoRegister`` and the
+    status as its ``caseStatuses``, so no ``activeEmbargo`` or
+    ``caseStatus`` remains (ADR-0217, ADR-0219)."""
+    assert set(CasePreview.model_fields) - NON_CASE_FIELDS <= set(
+        VulnerabilityCase.model_fields
+    )
+    assert set(CasePreview.model_fields) >= NON_CASE_FIELDS
     assert not {"active_embargo", "case_status"} & set(
         CasePreview.model_fields
     )
@@ -262,12 +275,15 @@ def test_every_preview_field_is_a_case_field() -> None:
 def test_every_case_field_is_a_preview_field_or_an_omit_only_row() -> None:
     """A case field is shown in the preview's field of the same name, or it
     is a profile row that permits only omit, which the preview does not
-    declare, so a received one is set aside (MV-11-003).  A new case field
-    fails here until it is classified."""
+    declare, so a received one is set aside (MV-11-003), unless a projection
+    shows it.  A new case field fails here until it is classified."""
     case_fields = set(VulnerabilityCase.model_fields)
+    hidden = OMIT_ONLY - PROJECTION_BOOKKEEPING
 
-    assert case_fields - OMIT_ONLY == set(CasePreview.model_fields)
-    assert case_fields >= OMIT_ONLY
+    assert case_fields - hidden == (
+        set(CasePreview.model_fields) - NON_CASE_FIELDS
+    )
+    assert case_fields >= OMIT_ONLY >= PROJECTION_BOOKKEEPING
 
 
 #: The case fields of the preview a marker may not stand in: the preview's
@@ -278,7 +294,11 @@ _NOT_WITHHELD = {"id_", "type_", "summary", "context_"}
 @pytest.mark.spec("MV-12-001")
 @pytest.mark.parametrize(
     "field",
-    sorted(set(VulnerabilityCase.model_fields) - OMIT_ONLY - _NOT_WITHHELD),
+    sorted(
+        (set(VulnerabilityCase.model_fields) - OMIT_ONLY - _NOT_WITHHELD)
+        | PROJECTION_BOOKKEEPING
+        | NON_CASE_FIELDS
+    ),
 )
 def test_every_case_field_of_the_preview_holds_a_marker(field: str) -> None:
     preview = CasePreview.model_validate(

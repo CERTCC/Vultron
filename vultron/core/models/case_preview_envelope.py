@@ -99,7 +99,9 @@ def invitation_preview_faults(preview: CasePreview) -> list[str]:
     is not a marker, and the EM state of its current status (CM-17-002,
     CM-17-013).  The embargo is in force when the current status's EM state
     is ``ACTIVE`` or ``REVISE``, or when the register shows an ``ACTIVE``
-    entry.  The register carries no open proposal (CM-17-014).
+    entry.  The register carries no open proposal (CM-17-014), and the
+    preview carries no ledger position or ledger entry (CM-17-025): the two
+    preview fields only a projection fills (ADR-0219).
 
     Each fault names its position under the preview, so a receiver can name
     where it is (MV-10-007).  The type already refuses a marked
@@ -128,6 +130,14 @@ def invitation_preview_faults(preview: CasePreview) -> list[str]:
             faults.append(
                 f"carries an open embargo proposal at"
                 f" 'embargoRegister[{index}]' (CM-17-014)"
+            )
+    for key, value in (
+        ("ledgerPosition", preview.ledger_position),
+        ("ledgerEntries", preview.ledger_entries),
+    ):
+        if value is not None:
+            faults.append(
+                f"carries the case's bookkeeping at {key!r} (CM-17-025)"
             )
     return faults
 
