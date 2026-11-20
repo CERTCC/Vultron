@@ -30,7 +30,6 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
-from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 
 
 class ObjectForm(StrEnum):
@@ -294,12 +293,6 @@ def _match_activity_field(
         pattern_field == AOtype.ACTOR
         and kind is not None
         and is_of_kind(kind, as_Actor)
-    ):
-        return True
-    if (
-        pattern_field == AOtype.EVENT
-        and kind is not None
-        and is_of_kind(kind, as_Event)
     ):
         return True
     return bool(pattern_field == getattr(activity_field, "type_", None))

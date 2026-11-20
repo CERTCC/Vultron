@@ -108,7 +108,7 @@ def _wire(activity) -> dict[str, Any]:
 def test_factory_carries_the_proposal_under_its_wire_name() -> None:
     offer = _offer()
     body = _wire(offer)
-    assert body["proposedEmbargo"]["type"] == "EmbargoEvent"
+    assert body["proposedEmbargo"]["type"] == ["EmbargoEvent", "Event"]
     assert body["proposedEmbargo"]["context"] == _report().id_
     assert (
         body["proposedEmbargo"]["endTime"]
@@ -242,9 +242,10 @@ def test_case_proposal_embeds_the_offer_and_round_trips_through_the_parser():
     )
     body = _wire(activity)
     assert body["object"]["inReplyTo"]["type"] == "Offer"
-    assert body["object"]["inReplyTo"]["proposedEmbargo"]["type"] == (
-        "EmbargoEvent"
-    )
+    assert body["object"]["inReplyTo"]["proposedEmbargo"]["type"] == [
+        "EmbargoEvent",
+        "Event",
+    ]
 
     parsed = parse_activity(body)
     proposal = getattr(parsed, "object_", None)
