@@ -219,8 +219,8 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
     force changes nothing: SUCCESS, nothing written.  An entry whose
     ``terminationCause`` is malformed (EMB-13-012), that names no
     embargo, or that claims ``END_TIME_REACHED`` before the embargo's end
-    time (its ``published`` time, ADR-0122), is refused: FAILURE, which keeps the
-    entry from being persisted (SYNC-12-001).  A step the apply function
+    time (its ``published`` time, ADR-0122), is refused: FAILURE, which
+    keeps the entry from being persisted (SYNC-12-001).  A step the apply function
     refuses is held for gap handling, as the frame does for every copied
     entry.
     """

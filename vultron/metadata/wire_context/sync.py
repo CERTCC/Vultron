@@ -387,8 +387,8 @@ def wire_field_classes() -> list[type[BaseModel]]:
 
     Starts from :func:`_wire_object_classes` and follows each field's
     annotation into the models it holds, so the fields of an
-    ``EmbargoTermination``, a ``LedgerPosition`` or an embargo termination's
-    cause count (VM-10-007), however deep.  An excluded field is not
+    ``EmbargoEvent`` in a case's register, a ``LedgerPosition`` or an
+    embargo termination's cause count (VM-10-007), however deep.  An excluded field is not
     followed, since nothing under it is sent, and a model that serializes as
     one value is left out (:func:`_serializes_its_fields`).  Ordered by
     qualified name so the walk, and any error it raises, is deterministic.

@@ -30,7 +30,6 @@ from vultron.core.models.embargo_apply import RegisterStep, RegisterStepKind
 from vultron.core.models.embargo_consent_move import (
     assert_owner_has_not_declined,
 )
-from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationRequest,
@@ -50,14 +49,6 @@ from vultron.errors import VultronInvalidStateTransitionError
 logger = logging.getLogger(__name__)
 
 
-def embargo_in_force(case: VulnerabilityCase) -> EmbargoEvent | None:
-    """The embargo in force on *case*, or ``None`` when there is none.
-
-    Read from the register, which holds each embargo whole (ADR-0202).
-    """
-    return case.active_embargo
-
-
 def termination_timing_violations(
     case: VulnerabilityCase,
     termination: EmbargoTermination,
@@ -68,13 +59,13 @@ def termination_timing_violations(
     An ``END_TIME_REACHED`` termination claimed before the embargo's end
     time is refused (EMB-13-008); see
     :func:`~vultron.core.models.embargo_termination.end_time_violations`.
-    The embargo is read by :func:`embargo_in_force`.  No embargo in force, or
-    an early termination, has nothing to check.
-
+    The embargo in force is the register's (``case.active_embargo``,
+    ADR-0202).  No embargo in force, or an early termination, has nothing to
+    check.
     """
     if not termination.is_end_time_reached:
         return []
-    embargo = embargo_in_force(case)
+    embargo = case.active_embargo
     if embargo is None:
         return []
     return end_time_violations(termination, end_time=embargo.end_time, at=at)
@@ -83,11 +74,11 @@ def termination_timing_violations(
 def embargo_end_time_passed(case: VulnerabilityCase, at: datetime) -> bool:
     """Whether *case*'s embargo in force has reached its end time at *at*.
 
-    ``False`` when no embargo is in force.  The embargo is read by
-    :func:`embargo_in_force`; the rule is
+    ``False`` when no embargo is in force.  The embargo is the register's
+    (``case.active_embargo``); the rule is
     :func:`~vultron.core.models.embargo_termination.has_reached_end_time`.
     """
-    embargo = embargo_in_force(case)
+    embargo = case.active_embargo
     return embargo is not None and has_reached_end_time(embargo.end_time, at)
 
 

@@ -73,7 +73,7 @@ The `kind` of the cause is one of these values:
 - `OTHER`
 
 Every cause except `END_TIME_REACHED` means that the embargo ended early.
-A termination with no cause also means that the embargo ended early.
+A termination with no cause also means that the embargo ended early, and the ended embargo records the cause `OTHER` for it.
 The termination message carries the cause as `terminationCause`.
 
 ```python exec="true" idprefix=""

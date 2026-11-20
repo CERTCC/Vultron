@@ -63,6 +63,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.services.carried_embargo import (
     carried_entry_embargo,
+    create_held_embargo,
     entry_embargo,
 )
 from vultron.errors import VultronError, VultronNotFoundError
@@ -132,8 +133,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
             return False
         if embargo is None:
             return True
-        # A held record is the embargo's terms (ADR-0202).
-        self.datalayer.create(embargo.with_register_state())
+        create_held_embargo(self.datalayer, embargo)
         self.logger.debug(
             "%s: stored embargo '%s' from the canonical entry",
             self.name,
@@ -236,8 +236,7 @@ def _store_carried_embargo(
 ) -> None:
     """Store *embargo* unless this store already holds it."""
     if datalayer.read(embargo.id_) is None:
-        # A held record is the embargo's terms (ADR-0202).
-        datalayer.create(embargo.with_register_state())
+        create_held_embargo(datalayer, embargo)
 
 
 class _CopiedEmbargoEntryNode(ApplyEmbargoChangeFromLedgerNode):

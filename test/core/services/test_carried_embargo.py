@@ -25,13 +25,20 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.behaviors.embargo.nodes.relay_effect import (
+    _store_carried_embargo,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.carried_embargo import (
     carried_entry_embargo,
+    create_held_embargo,
     entry_embargo,
     store_carried_embargo,
+)
+from vultron.core.services.embargo_lifecycle.creation import (
+    persist_creation_time_embargo,
 )
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
@@ -110,6 +117,48 @@ def test_the_held_record_is_the_embargos_terms_without_register_state(
     store_carried_embargo(case, dl)
 
     assert dl.read(embargo.id_) == active.with_register_state()
+
+
+def _active_copy() -> EmbargoEvent:
+    """An embargo as the register holds it: ``ACTIVE``."""
+    active = _embargo().with_register_state(EmbargoRegisterStatus.ACTIVE)
+    assert active.status is EmbargoRegisterStatus.ACTIVE
+    return active
+
+
+def test_a_held_record_is_created_without_register_state(
+    dl: SqliteDataLayer,
+) -> None:
+    """The one writer of a held record strips the register state, so a
+    register copy carried by a ledger entry never lands in the store
+    (ADR-0202)."""
+    active = _active_copy()
+
+    create_held_embargo(dl, active)
+
+    assert dl.read(active.id_) == active.with_register_state()
+
+
+def test_the_creation_time_embargo_is_held_without_register_state(
+    dl: SqliteDataLayer,
+) -> None:
+    """``persist_creation_time_embargo`` holds the terms only (ADR-0202)."""
+    active = _active_copy()
+
+    persist_creation_time_embargo(dl, active, _CASE)
+
+    assert dl.read(active.id_) == active.with_register_state()
+
+
+def test_a_relayed_embargo_is_held_without_register_state(
+    dl: SqliteDataLayer,
+) -> None:
+    """A replica copying a ledger entry holds the terms only (ADR-0202)."""
+    active = _active_copy()
+
+    _store_carried_embargo(dl, active)
+
+    assert dl.read(active.id_) == active.with_register_state()
 
 
 @pytest.mark.spec("EMB-18-003")

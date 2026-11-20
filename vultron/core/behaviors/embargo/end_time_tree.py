@@ -71,7 +71,6 @@ from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     has_reached_end_time,
 )
-from vultron.core.services.embargo_lifecycle import embargo_in_force
 from vultron.core.states.em import EM
 from vultron.errors import BtNodePreconditionError
 
@@ -169,7 +168,7 @@ class EmbargoEndTimePassedNode(DataLayerConditionWithPorts):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure
-        embargo = embargo_in_force(case)
+        embargo = case.active_embargo
         if embargo is None:
             self.feedback_message = (
                 f"No embargo in force on case '{self.case_id}'"

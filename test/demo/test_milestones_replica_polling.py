@@ -87,7 +87,16 @@ def _receiver_case_payload() -> dict:
                 "pxa": {"state": "pxa"},
             }
         ],
-        "embargoRegister": [{"id": "urn:uuid:embargo-1", "status": "ACTIVE"}],
+        "embargoRegister": [
+            {
+                "type": "EmbargoEvent",
+                "id": "urn:uuid:embargo-1",
+                "context": _CASE_ID,
+                "published": CASE_PUBLISHED.isoformat(),
+                "endTime": "2099-01-01T00:00:00+00:00",
+                "status": "ACTIVE",
+            }
+        ],
     }
 
 

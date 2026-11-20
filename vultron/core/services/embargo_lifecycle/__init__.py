@@ -65,7 +65,6 @@ Scaffold (#746); full operations (#747)
 from vultron.core.services.embargo_lifecycle.activation import (
     decide_termination,
     embargo_end_time_passed,
-    embargo_in_force,
     termination_timing_violations,
 )
 from vultron.core.services.embargo_lifecycle.activation_decision import (
@@ -98,6 +97,5 @@ __all__ = [
     "TransitionMode",
     "decide_termination",
     "embargo_end_time_passed",
-    "embargo_in_force",
     "termination_timing_violations",
 ]

@@ -27,7 +27,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
-from test.support.embargo_register import terminate
+from test.support.embargo_register import retime, terminate
 from test.support.ledger import consent_row_updates
 from test.support.objects import authored_at
 from test.support.owner_decision import owner_decision_body
@@ -1166,21 +1166,12 @@ def test_an_accept_of_an_active_embargo_past_its_end_time_is_refused():
     dl_mgr = net.stores[MANAGER]
     case = net.case(MANAGER)
     assert case.active_embargo_id == revision_id
-    stored = dl_mgr.read(revision_id)
-    assert stored is not None
-    ended = stored.model_copy(
-        update={"end_time": datetime.now(tz=UTC) - timedelta(hours=1)}
+    retime(
+        dl_mgr,
+        case.id_,
+        revision_id,
+        datetime.now(tz=UTC) - timedelta(hours=1),
     )
-    dl_mgr.save(ended)
-    case.embargo_register = [
-        (
-            embargo.model_copy(update={"end_time": ended.end_time})
-            if embargo.id_ == revision_id
-            else embargo
-        )
-        for embargo in case.embargo_register
-    ]
-    dl_mgr.save(case)
 
     verdict = net.receive(MANAGER, body)
 

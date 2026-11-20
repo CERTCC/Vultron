@@ -257,7 +257,10 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
         self._embargo = embargo
 
     def _proposed_embargo(self) -> EmbargoEvent:
-        """The proposed embargo: *embargo*, or the stored one.
+        """The proposed embargo: *embargo*, or the stored one, read once.
+
+        The register step and the transition both carry it, so the stored
+        record is read on the first call and kept for the second.
 
         Raises:
             VultronNotFoundError: no embargo to carry; the proposal is refused.
@@ -268,6 +271,7 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
         stored = self.datalayer.read(self._embargo_id)
         if not isinstance(stored, EmbargoEvent):
             raise VultronNotFoundError("EmbargoEvent", self._embargo_id)
+        self._embargo = stored
         return stored
 
     def _register_step(self) -> RegisterStep:

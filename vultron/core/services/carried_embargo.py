@@ -86,6 +86,22 @@ def _named_embargo(case_obj: object) -> EmbargoEvent | None:
     return case_obj.active_embargo
 
 
+def create_held_embargo(
+    store: CasePersistence | DataLayer, embargo: EmbargoEvent
+) -> None:
+    """Create *embargo*'s held record: its terms, with no register state.
+
+    The register's copy carries the embargo's ``status``, ``replaces`` and
+    ``termination``; the held record never does, so every store holds the
+    same record for one embargo (ADR-0202).
+
+    Raises:
+        VultronAlreadyExistsError: *store* already holds a record under
+            *embargo*'s id.
+    """
+    store.create(embargo.with_register_state())
+
+
 def hold_embargo_for_case(
     store: CasePersistence | DataLayer,
     case: VulnerabilityCase,
@@ -107,9 +123,7 @@ def hold_embargo_for_case(
     record, held = _vet_embargo_for_case(store, case, embargo)
     if held:
         return record
-    # The held record is the embargo's terms; its state lives on the
-    # register's copy (ADR-0202), so every store holds the same record.
-    store.save(record.with_register_state())
+    create_held_embargo(store, record)
     return _held_embargo(store, _case_subjects(case), case.id_, record.id_)
 
 
@@ -311,6 +325,7 @@ def carried_entry_embargo(
 
 __all__ = [
     "carried_entry_embargo",
+    "create_held_embargo",
     "embargo_for_case",
     "entry_embargo",
     "hold_embargo_for_case",

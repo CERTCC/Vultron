@@ -37,6 +37,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import proposal_changes
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.carried_embargo import create_held_embargo
 from vultron.core.services.embargo_lifecycle.pec import (
     owner_declined_embargo,
 )
@@ -82,8 +83,7 @@ def persist_creation_time_embargo(
             *case_id* with the same ``end_time``.
     """
     try:
-        # A held record is the embargo's terms (ADR-0202).
-        persistence.create(embargo.with_register_state())
+        create_held_embargo(persistence, embargo)
     except VultronAlreadyExistsError:
         stored = persistence.read(embargo.id_)
         if (
