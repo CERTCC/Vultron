@@ -19,7 +19,7 @@ the roles under one name with one definition (VM-10-012, #6417).
 """
 
 import json
-from typing import Any, cast
+from collections.abc import Callable
 
 import pytest
 
@@ -85,7 +85,7 @@ _BUILDERS = pytest.mark.parametrize(
 
 
 @pytest.mark.spec("VM-10-012")
-def test_offer_declares_the_one_roles_field_and_invite_inherits_it():
+def test_offer_declares_the_one_roles_field_and_invite_inherits_it() -> None:
     assert "roles" in as_Offer.model_fields
     assert "suggested_roles" not in as_Offer.model_fields
     assert "suggested_roles" not in as_Invite.model_fields
@@ -98,7 +98,7 @@ def test_offer_declares_the_one_roles_field_and_invite_inherits_it():
 
 
 @pytest.mark.spec("VM-10-012")
-def test_core_activity_has_no_second_roles_field():
+def test_core_activity_has_no_second_roles_field() -> None:
     assert "roles" in VultronActivity.model_fields
     assert "suggested_roles" not in VultronActivity.model_fields
 
@@ -106,7 +106,9 @@ def test_core_activity_has_no_second_roles_field():
 @pytest.mark.spec("VM-10-012")
 @pytest.mark.spec("CM-17-003")
 @_BUILDERS
-def test_wire_form_carries_the_roles_as_roles(build):
+def test_wire_form_carries_the_roles_as_roles(
+    build: Callable[[], as_Offer],
+) -> None:
     body = json.loads(build().to_json())
 
     assert body["roles"] == _ROLES
@@ -116,20 +118,26 @@ def test_wire_form_carries_the_roles_as_roles(build):
 @pytest.mark.spec("CM-16-003")
 @pytest.mark.spec("CM-17-003")
 @_BUILDERS
-def test_roles_arrive_through_the_parse_edge_and_extraction(build):
+def test_roles_arrive_through_the_parse_edge_and_extraction(
+    build: Callable[[], as_Offer],
+) -> None:
     """A received activity's roles reach the core activity a use case reads."""
     received = parse_activity(json.loads(build().to_json()))
+    assert isinstance(received, as_Offer)
     assert received.roles == _ROLES
 
-    event = cast(Any, extract_stamped(received))
+    event = extract_stamped(received)
+    assert event.activity is not None
     assert event.activity.roles == _ROLES
 
 
 @pytest.mark.spec("CM-16-003")
 @pytest.mark.spec("CM-17-003")
 @_BUILDERS
-def test_roles_survive_the_data_layer_round_trip(build):
+def test_roles_survive_the_data_layer_round_trip(
+    build: Callable[[], as_Offer],
+) -> None:
     """A stored Offer or Invite reads back with its roles (#1990)."""
-    back = record_to_object(object_to_record(cast(Any, build())))
+    back = record_to_object(object_to_record(build()))
 
     assert getattr(back, "roles", None) == _ROLES

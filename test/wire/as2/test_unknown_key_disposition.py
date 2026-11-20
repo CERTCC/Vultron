@@ -41,6 +41,7 @@ from vultron.wire.as2.errors import (
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
@@ -489,7 +490,9 @@ def test_an_offers_former_suggested_roles_key_is_set_aside_and_reported(
         **{key: ["vendor"]},
     )
     _assert_set_aside_and_reported(body, key, "", caplog)
-    assert getattr(parse_activity(body), "roles", None) is None
+    activity = parse_activity(body)
+    assert isinstance(activity, as_Offer)
+    assert activity.roles is None
 
 
 @pytest.mark.spec("MV-11-003", "CM-05-018")

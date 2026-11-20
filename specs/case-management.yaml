@@ -3998,7 +3998,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `Invite` activity MUST embed the intended `case_roles: list[CVDRole]` for the
+      The `Invite` activity MUST embed the intended `roles: list[CVDRole]` for the
       invitee so that `EmitInviteActorToCaseNode` can include them in the wire activity.
     rationale: >-
       The CASE_MANAGER cannot route messages for a participant with no roles, or give it
@@ -4007,7 +4007,7 @@ groups:
       roles that the Case Owner intended. These roles can come from a direct trigger
       request or from the suggest-actor round-trip.
     verification: Integration tests in `test/demo/` confirm that the `Invite` activity emitted
-      for a new participant embeds a non-empty `case_roles` list for the invitee.
+      for a new participant embeds a non-empty `roles` list for the invitee.
     relationships:
     - rel_type: extends
       spec_id: CM-17-001
