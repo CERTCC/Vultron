@@ -128,7 +128,7 @@ But the Participant that leaves is no longer involved in the case.
 
     No participant reports whether it is still engaged in a case.
     Each replica derives who is sent case content from the participant record and the case, described in [Case Model](../../case_lifecycle/case_model.md).
-    A participant is sent case content when it has joined, it is not removed, it is a signatory of the active embargo when one is in force, and it is not at RM `CLOSED`.
+    A participant is sent case content when it has joined, it is not removed, it is a signatory of the active embargo when one is in force, and it is not at Report Management (RM) `CLOSED`.
     Three narrower audiences fall outside that set.
     Consent Invites reach participants that are not yet sent case content.
     The ledger entries that record a participant's own closure reach that participant.
