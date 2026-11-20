@@ -2,12 +2,12 @@
 
 ## Withdraw case ownership transfer { #withdraw-case-ownership-transfer }
 
-Withdraws the proposal, and with it the CASE_MANAGER's offer, before the offer is answered. The current Case Owner keeps the case.
+Withdraws the Case Owner's own Offer, and with it the CASE_MANAGER's offer, before the offer is answered. The current Case Owner keeps the case.
 
 === "Details"
 
-    - **When…** the Case Owner withdraws its proposal while the offer of case ownership is open
-    - **Send:** `Undo(Offer(Offer(VulnerabilityCase)))`
+    - **When…** the Case Owner withdraws its offer while the CASE_MANAGER's offer of case ownership is open
+    - **Send:** `Undo(Offer(VulnerabilityCase))`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the Case Owner
     - **Mapping status:** [none](../../index.md#mapping-status)

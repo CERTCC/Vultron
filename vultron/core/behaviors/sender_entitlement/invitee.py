@@ -37,9 +37,9 @@ from vultron.core.behaviors.act_keys import (
 from vultron.core.behaviors.sender_entitlement.addressee import (
     NoStandingError,
     RecordedRequest,
+    SenderIsRequestAddresseeNode,
     _case_and_manager,
     _refuse_if_closed,
-    _SenderKeyAddresseeNode,
 )
 from vultron.core.behaviors.sender_entitlement.base import (
     SenderEntitlementConditionNode,
@@ -200,7 +200,7 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         )
 
 
-class SenderIsRoleOfferTargetNode(_SenderKeyAddresseeNode):
+class SenderIsRoleOfferTargetNode(SenderIsRequestAddresseeNode):
     """Guard: sender is the target of the role Offer its answer names.
 
     The target is the addressee of the request, so the kind is
@@ -232,7 +232,7 @@ class SenderIsRoleOfferTargetNode(_SenderKeyAddresseeNode):
     _spec = "CM-33-005"
 
     INPUT_PORTS: dict[str, PortInformation] = {
-        **_SenderKeyAddresseeNode.INPUT_PORTS,
+        **SenderIsRequestAddresseeNode.INPUT_PORTS,
         **act_key_ports(CASE_ID, OFFER_ID),
     }
 

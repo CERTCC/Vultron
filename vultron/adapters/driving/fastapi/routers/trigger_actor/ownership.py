@@ -52,12 +52,12 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
     status_code=status.HTTP_202_ACCEPTED,
     summary="Offer case ownership to another actor.",
     description=(
-        "Emits the requesting Case Owner's proposal, an "
-        "Offer(Offer(VulnerabilityCase)), to the case's CASE_MANAGER, which "
-        "offers the case to the specified transferee on the owner's behalf.  "
-        "The case must exist in the actor's DataLayer.  The transferee must "
-        "also be known.  The returned activity is the proposal, which the "
-        "withdraw trigger names (TRIG-11-001)."
+        "Emits the requesting Case Owner's own Offer(VulnerabilityCase), "
+        "target the transferee, to the case's CASE_MANAGER, which makes its "
+        "own Offer to the transferee on the owner's behalf.  The case must "
+        "exist in the actor's DataLayer.  The transferee must also be known.  "
+        "The returned activity is the Owner's Offer, which the withdraw "
+        "trigger names (TRIG-11-001)."
     ),
     operation_id="actors_trigger_offer_case_ownership_transfer",
     response_model=ActivityResult,
@@ -168,11 +168,11 @@ def trigger_reject_case_ownership_transfer(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Withdraw an open case ownership transfer offer.",
     description=(
-        "Emits an Undo of the Case Owner's own ownership-transfer proposal "
+        "Emits an Undo of the Case Owner's own ownership-transfer Offer "
         "to the case's CASE_MANAGER, which withdraws the offer it made from "
         "it, and ledgers and broadcasts the withdrawal, if the offer is "
-        "still open.  offer_id names the proposal, which must already exist "
-        "in the actor's DataLayer (TRIG-11-006, CM-21-015)."
+        "still open.  offer_id names the Owner's Offer, which must already "
+        "exist in the actor's DataLayer (TRIG-11-006, CM-21-015)."
     ),
     operation_id="actors_trigger_withdraw_case_ownership_transfer",
     response_model=ActivityResult,

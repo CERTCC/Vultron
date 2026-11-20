@@ -12,14 +12,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Factories for case ownership transfer: Offer, proposal, replies and withdrawal.
+"""Factories for case ownership transfer: Offer, replies and withdrawal.
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.factories._actor import carried_actor
@@ -31,7 +31,6 @@ from vultron.wire.as2.factories.case._named import _named_case
 from vultron.wire.as2.vocab.activities.case.ownership import (
     _AcceptCaseOwnershipTransferActivity,
     _OfferCaseOwnershipTransferActivity,
-    _ProposeCaseOwnershipTransferActivity,
     _RejectCaseOwnershipTransferActivity,
     _UndoCaseOwnershipTransferActivity,
 )
@@ -63,11 +62,13 @@ def offer_case_ownership_transfer_activity(
     at: datetime,
     **kwargs,
 ) -> as_Offer:
-    """Build an Offer(VulnerabilityCase) to the transferee — ownership transfer.
+    """Build an Offer(VulnerabilityCase) of case ownership, ``target`` the transferee.
 
-    The case travels as its typed reference, never a copy (ADR-0165): the
-    CASE_MANAGER this Offer's proposal goes to and the active participant
-    it is made to both hold the case (CM-21-021).  Its ``type`` is what
+    One shape, two senders (ADR-0199): the Case Owner's own Offer, sent to
+    the CASE_MANAGER, and the Offer the CASE_MANAGER makes from it, sent to
+    the transferee (CM-21-028).  The case travels as its typed reference,
+    never a copy (ADR-0165): the CASE_MANAGER and the active participant the
+    case is offered to both hold it (CM-21-021).  Its ``type`` is what
     tells this activity from a ``SUBMIT_REPORT`` Offer during semantic
     pattern matching, so it is never a bare string ID.
 
@@ -96,62 +97,6 @@ def offer_case_ownership_transfer_activity(
         lambda: {
             "object_": _named_case(case),
             "target": _carried_target(target),
-            **kwargs,
-        },
-    )
-
-
-def propose_case_ownership_transfer_activity(
-    case: as_VulnerabilityCase | str,
-    target: as_ActorRef | CoreActor,
-    end_time: datetime | None = None,
-    *,
-    at: datetime,
-    **kwargs,
-) -> as_Offer:
-    """Build Offer(Offer(VulnerabilityCase)), the owner's proposal; context is the case.
-
-    The Case Owner sends it to the CASE_MANAGER, which makes the one
-    ``Offer(VulnerabilityCase)`` the transferee answers (ADR-0148,
-    CM-21-028).  The inner Offer carries what the owner decides: the case,
-    by typed reference, as its object (ADR-0165), the transferee as its
-    ``target`` and, when given, the deadline to answer as its ``end_time``
-    (CM-21-016).  It is built with
-    :func:`offer_case_ownership_transfer_activity`, so it has the shape of
-    the Offer the CASE_MANAGER will make; the proposal's ``context`` names
-    the case by its URI.
-
-    Args:
-        case: The case whose ownership is proposed, as the owner holds it
-            or by its URI.  Only its id travels.
-        target: The actor (or actor URI) the owner proposes as the new owner.
-        end_time: Optional deadline to answer the Offer, carried on the
-            inner Offer.
-        **kwargs: Optional AS2 fields for the proposal itself (e.g.
-            ``actor``, ``to``, ``content``).
-
-    Returns:
-        An ``as_Offer`` whose ``object_`` is the inner ownership-transfer
-        Offer and whose ``context`` is the case URI.
-
-    Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
-    """
-    inner_kwargs: dict[str, Any] = {}
-    if end_time is not None:
-        inner_kwargs["end_time"] = end_time
-    if (actor := kwargs.get("actor")) is not None:
-        inner_kwargs["actor"] = actor
-    inner = offer_case_ownership_transfer_activity(
-        case, target=target, **inner_kwargs, at=at
-    )
-    return build_activity(
-        "propose_case_ownership_transfer_activity",
-        _ProposeCaseOwnershipTransferActivity,
-        at,
-        lambda: {
-            "object_": cast(_OfferCaseOwnershipTransferActivity, inner),
-            "context": _named_case(case).id_,
             **kwargs,
         },
     )
@@ -259,28 +204,29 @@ def reject_case_ownership_transfer_activity(
 
 
 def undo_case_ownership_transfer_activity(
-    proposal: as_Offer,
+    offer: as_Offer,
     *,
     at: datetime,
     **kwargs,
 ) -> as_Undo:
-    """Build an Undo(_ProposeCaseOwnershipTransferActivity): a withdrawal.
+    """Build an Undo(_OfferCaseOwnershipTransferActivity): a withdrawal.
 
-    The Case Owner withdraws its own proposal while the Offer the
-    CASE_MANAGER made from it is open, addressing the Undo to the
-    CASE_MANAGER (CM-21-015, ADR-0148).  The ``proposal`` MUST be a
-    ``_ProposeCaseOwnershipTransferActivity`` (i.e., the value returned by
-    :func:`propose_case_ownership_transfer_activity`), or the proposal as
-    the owner's store hands it back.  Anything else fails Pydantic validation and raises
-    :exc:`VultronActivityConstructionError`.
+    The Case Owner withdraws its own Offer while the Offer the CASE_MANAGER
+    made from it is open, addressing the Undo to the CASE_MANAGER
+    (CM-21-015, ADR-0199).  The ``offer`` MUST be an
+    ``_OfferCaseOwnershipTransferActivity`` (i.e., the value returned by
+    :func:`offer_case_ownership_transfer_activity`), or the Offer as the
+    owner's store hands it back.  Anything else fails Pydantic validation
+    and raises :exc:`VultronActivityConstructionError`.
 
     Args:
-        proposal: The ``_ProposeCaseOwnershipTransferActivity`` withdrawn.
+        offer: The Owner's own ``_OfferCaseOwnershipTransferActivity``
+            withdrawn.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
     Returns:
-        An ``as_Undo`` whose ``object_`` is the proposal.
+        An ``as_Undo`` whose ``object_`` is the Owner's Offer.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
@@ -291,9 +237,7 @@ def undo_case_ownership_transfer_activity(
         _UndoCaseOwnershipTransferActivity,
         at,
         lambda: {
-            "object_": as_answered(
-                _ProposeCaseOwnershipTransferActivity, proposal
-            ),
+            "object_": as_answered(_OfferCaseOwnershipTransferActivity, offer),
             **kwargs,
         },
     )

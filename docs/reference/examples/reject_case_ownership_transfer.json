@@ -5,18 +5,19 @@
     "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Reject",
-  "id": "urn:uuid:23c22b67-59af-4d58-8797-d9472b84f0dd",
+  "id": "urn:uuid:91c72b7a-27be-4358-8dc4-49012c41be7c",
   "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
-  "inReplyTo": "urn:uuid:91c72b7a-27be-4358-8dc4-49012c41be7c",
+  "inReplyTo": "urn:uuid:663cc1e5-45b1-4db4-a521-4bcfab4384fb",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're declining your offer to transfer ownership of case VendorCo Case #20260601 to us.",
   "actor": "https://vultron.example/organizations/coordinator",
   "object": {
     "type": "Offer",
-    "id": "urn:uuid:91c72b7a-27be-4358-8dc4-49012c41be7c",
+    "id": "urn:uuid:663cc1e5-45b1-4db4-a521-4bcfab4384fb",
     "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
-    "inReplyTo": "urn:uuid:663cc1e5-45b1-4db4-a521-4bcfab4384fb",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "inReplyTo": "urn:uuid:f40a28b0-42df-4530-8be5-4dd155a7f2b0",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "content": "We're offering to transfer ownership of case VendorCo Case #20260601 to you.",
@@ -45,6 +46,6 @@
     "verificationMethod": "https://vultron.example/organizations/coordinator#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z3q3eckZswrX2n5ih2FZy6GghahDKb1LyaeKMg6xB69PEdgVCbiizgTqVB9e15wMo1HDfKCeDgZ8dFKRJo7qk7VcE"
+    "proofValue": "z2FnYL189mZpNToCsaWfBXxoNBtb9DZFjKRdrc4U1sXw88Ca6aU3W7XwVBYNEnBGAQySCnGBBERcUmfZRkihbRLk1"
   }
 }

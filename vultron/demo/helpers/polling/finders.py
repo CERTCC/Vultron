@@ -184,17 +184,17 @@ def _is_ownership_transfer_offer_for(
 ) -> bool:
     """True if *obj_data* is the CaseActor's ownership Offer to *transferee_id*.
 
-    The CaseActor makes the one Offer of a transfer from the owner's proposal
-    and sends it to the transferee (CM-21-028, ADR-0148).  That Offer has::
+    The CaseActor makes its own Offer from the owner's and sends it to the
+    transferee (CM-21-028, ADR-0199).  That Offer has::
 
         type   = "Offer"
         target = transferee_id      # the actor being offered ownership,
                                     # inline Actor or its id (DL-08-003)
         object = case_id            # the VulnerabilityCase being transferred
 
-    The Vendor's proposal, ``Offer(Offer(VulnerabilityCase))`` addressed to
-    the CaseActor, has no ``target`` and an Offer as its object, so it does
-    NOT match this discriminator.
+    The Vendor's own Offer has the same shape, but it is addressed to the
+    CaseActor alone, so the transferee never receives it and its store holds
+    no received record of it to match.
     """
     offer = received_activity_or_none(obj_data)
     if offer is None or offer.get("type") != "Offer":
@@ -215,13 +215,13 @@ def find_ownership_transfer_offer_for_actor(
 ) -> str:
     """Poll until the CaseActor's Offer(VulnerabilityCase) for *transferee_id* arrives.
 
-    In the ownership-transfer flow (ADR-0053, ADR-0148), Vendor1's proposal,
-    ``Offer(Offer(VulnerabilityCase))``, is addressed to the CaseActor
-    (``to=[case_actor_id]``).  ``ProposeCaseOwnershipTransferReceivedUseCase``
-    then makes the one Offer of the transfer, under an id the CaseActor
+    In the ownership-transfer flow (ADR-0053, ADR-0199), Vendor1's own
+    ``Offer(VulnerabilityCase)`` is addressed to the CaseActor
+    (``to=[case_actor_id]``).  ``OfferCaseOwnershipTransferReceivedUseCase``
+    then makes the CaseActor's own Offer from it, under an id the CaseActor
     derives, and delivers it to the transferee's inbox.  Polling for the
-    proposal's ID with ``wait_for_object_stored`` will never succeed on the
-    transferee's container because the proposal is only held by the vendor
+    vendor's Offer's ID with ``wait_for_object_stored`` will never succeed on
+    the transferee's container because that Offer is only held by the vendor
     and the CaseActor.
 
     This helper scans *client*'s DataLayer for any

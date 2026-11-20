@@ -87,19 +87,10 @@ def _named_case_only(
     """The object an act that names its case is read with (ADR-0165).
 
     For one of :data:`_ACTS_NAMING_THEIR_CASE` the case is its typed
-    reference.  The owner's proposal nests the Offer it asks for, whose case
-    is reduced the same way.  Any other object is returned unchanged.
+    reference.  Any other object is returned unchanged.
     """
     if semantics in _ACTS_NAMING_THEIR_CASE:
         return _as_case_reference(obj)
-    if (
-        semantics is MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER
-        and isinstance(obj, as_Activity)
-    ):
-        inner = getattr(obj, "object_", None)
-        reduced = _as_case_reference(inner)
-        if reduced is not inner:
-            return obj.model_copy(update={"object_": reduced})
     return obj
 
 
@@ -229,7 +220,7 @@ def extract_intent(
         extra_kwargs["rsvp_deadline"] = _effective_rsvp_deadline(
             activity, actor_id, obj, min_rsvp_window, default_rsvp_window
         )
-    extra_kwargs.update(_deadline_kwargs(activity, obj, event_class))
+    extra_kwargs.update(_deadline_kwargs(activity, event_class))
     if carries_terms:
         extra_kwargs["proposed_embargo"] = proposed_embargo
 

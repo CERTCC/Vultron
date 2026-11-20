@@ -48,9 +48,9 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
+from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.factories.case import (
     offer_case_ownership_transfer_activity,
-    propose_case_ownership_transfer_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -85,7 +85,7 @@ def _seed_case(dl: Any, owner_id: str, case_manager_id: str):
 
 def _proposal(case_id: str, name: str, owner_id: str, to: list[str] | None):
     """The owner's proposal, as the offer trigger builds it (ADR-0148)."""
-    return propose_case_ownership_transfer_activity(
+    return offer_case_ownership_transfer_activity(
         as_VulnerabilityCase.model_validate(
             with_times(
                 as_VulnerabilityCase,
@@ -103,7 +103,7 @@ def _owners_offer(
     dl: Any, case, case_manager_id: str, owner_id: str, transferee_id: str
 ):
     """The proposal as the offer trigger stored it in the owner's store."""
-    proposal = propose_case_ownership_transfer_activity(
+    proposal = offer_case_ownership_transfer_activity(
         as_VulnerabilityCase.model_validate(
             with_times(
                 as_VulnerabilityCase,
@@ -174,8 +174,9 @@ def test_withdrawal_is_addressed_to_the_case_manager(owner_world):
     assert (withdrawn["id"] if isinstance(withdrawn, dict) else withdrawn) == (
         offer.id_
     )
-    # The proposal is what the owner withdraws (ADR-0148).
-    assert withdrawn["object"]["type"] == "Offer"
+    # The owner withdraws its own Offer of the case (ADR-0199).
+    assert withdrawn["type"] == "Offer"
+    assert withdrawn["object"]["type"] == "VulnerabilityCase"
 
 
 @pytest.mark.spec("TRIG-11-006")
@@ -206,13 +207,14 @@ def test_raises_when_actor_not_found(owner_world):
 
 
 def test_raises_when_proposal_names_no_case():
-    """A held proposal with no ``context`` yields no case id."""
+    """A held Owner's Offer with no ``object`` yields no case id."""
     actor_id = "https://example.org/actors/owner-nocase"
     actor = MagicMock()
     actor.id_ = actor_id
     offer = MagicMock()
-    offer.context = None
-    offer.object_ = {"type": "Offer"}
+    offer.type_ = "Offer"
+    offer.actor = actor_id
+    offer.object_ = None
     dl = MagicMock()
     dl.read.side_effect = lambda id_: actor if id_ == actor_id else offer
 
@@ -222,25 +224,30 @@ def test_raises_when_proposal_names_no_case():
 
 @pytest.mark.spec("TRIG-11-006")
 @pytest.mark.parametrize(
-    "inner",
+    "offer_type",
     [
-        pytest.param(SimpleNamespace(type_="Offer"), id="core-str-type"),
-        pytest.param({"type": "Offer"}, id="dict-type"),
-        pytest.param({"type_": "Offer"}, id="dict-type_"),
+        pytest.param("Offer", id="core-str-type"),
+        pytest.param(TAtype.OFFER, id="wire-enum-type"),
     ],
 )
-def test_a_proposal_is_recognised_whatever_form_its_inner_offer_takes(inner):
-    """The inner Offer's type is read from a wire StrEnum, a core ``str`` or
-    a dict under either key: none of them is refused as not-a-proposal."""
+def test_the_owners_offer_is_recognised_whatever_form_its_type_takes(
+    offer_type,
+):
+    """The Owner's Offer's type is read from a wire StrEnum or a core
+    ``str``: neither is refused as not-an-Offer."""
     case_id = "https://example.org/cases/held-forms"
-    proposal = SimpleNamespace(object_=inner, context=case_id)
+    owner_id = "https://example.org/actors/owner-forms"
+    own_offer = SimpleNamespace(
+        type_=offer_type, actor=owner_id, object_=case_id
+    )
     dl = MagicMock()
-    dl.read.return_value = proposal
+    dl.read.return_value = own_offer
     use_case = SvcWithdrawCaseOwnershipTransferUseCase.__new__(
         SvcWithdrawCaseOwnershipTransferUseCase
     )
     use_case._dl = dl
-    # The proposal is one the owner sent, so nothing loads it as received.
+    use_case._actor_id = owner_id
+    # The Offer is one the owner sent, so nothing loads it as received.
     cast(Any, use_case)._trigger_activity = SimpleNamespace(
         load_received_activity=lambda _activity_id: None
     )
@@ -251,9 +258,9 @@ def test_a_proposal_is_recognised_whatever_form_its_inner_offer_takes(inner):
 @pytest.mark.spec("TRIG-11-006")
 @pytest.mark.spec("CM-21-015")
 def test_naming_the_offer_rather_than_the_proposal_is_refused(owner_world):
-    """``offer_id`` names the owner's proposal, never an Offer of the case:
-    a held ``Offer(VulnerabilityCase)`` is refused before anything is sent,
-    with an error that says what to name (ADR-0148)."""
+    """``offer_id`` names the owner's own Offer, never the CASE_MANAGER's
+    Offer made from it: an Offer another actor sent is refused before
+    anything is sent, with an error that says what to name (ADR-0199)."""
     dl, owner, case_manager, case, _ = owner_world
     offer = offer_case_ownership_transfer_activity(
         case=as_VulnerabilityCase.model_validate(
@@ -273,7 +280,7 @@ def test_naming_the_offer_rather_than_the_proposal_is_refused(owner_world):
     )
     dl.create(offer)
 
-    with pytest.raises(VultronNotFoundError, match="proposal"):
+    with pytest.raises(VultronNotFoundError, match="this actor sent"):
         _execute(dl, owner.id_, offer.id_)
     assert dl.outbox_list() == []
 

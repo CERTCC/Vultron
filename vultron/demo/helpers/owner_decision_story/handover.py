@@ -82,11 +82,11 @@ def the_owner_hands_the_case_over(
 ) -> None:
     """*owner* offers case ownership to *new_owner*, which accepts.
 
-    TRIG-11-001 then TRIG-11-002: the owner's proposal,
-    ``Offer(Offer(VulnerabilityCase))``, is addressed to the CaseActor, which
-    makes the one Offer of the transfer under an id of its own and sends it to
-    *new_owner* (CM-21-028, ADR-0148) — so polling for the proposal's id would
-    never match.  The delivery gate and the accept nest inside the offer step,
+    TRIG-11-001 then TRIG-11-002: the owner's own
+    ``Offer(VulnerabilityCase)`` is addressed to the CaseActor, which makes
+    its own Offer from it under an id it derives and sends that to
+    *new_owner* (CM-21-028, ADR-0199) — so polling for the owner's Offer's
+    id would never match.  The delivery gate and the accept nest inside the offer step,
     so a failed trigger or lookup skips them instead of accepting an offer
     that was never made (ADR-0058, EDF-06-005, #3038).
 

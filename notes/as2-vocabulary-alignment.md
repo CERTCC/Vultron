@@ -522,7 +522,9 @@ relaying the Owner's Offer because the delivered `actor` would not be its sender
 the CASE_MANAGER would keep its record under the Owner's id; the CASE_MANAGER's own
 Offer answers both.
 
-**Today.** `Offer(Offer(VulnerabilityCase))` and `notes/ownership-transfer.md`; the
+**Today.** The ownership transfer is built (#6466): the Owner's flat Offer and the
+CASE_MANAGER's share one pattern and one received tree, split by path
+(`ownership_transfer_tree/proposal.py`, `notes/ownership-transfer.md`); the
 direct invite is built (#6697): the trigger in
 `vultron/core/use_cases/triggers/actor/recommendation.py` sends the Owner's Invite,
 the CASE_MANAGER's tree is `invite_actor_to_case_received_tree.py` with its nodes in

@@ -1085,11 +1085,11 @@ class TestAnswerReceivedOwnershipOffer:
     @pytest.mark.spec("CM-21-015")
     @pytest.mark.spec("CM-21-036")
     @pytest.mark.parametrize("store_owner", [_OWNER])
-    def test_the_owner_withdraws_the_proposal_it_sent(self, adapter, dl):
-        """The owner's own proposal is held under its own id, and read there;
-        the Undo names the proposal (ADR-0148)."""
+    def test_the_owner_withdraws_the_offer_it_sent(self, adapter, dl):
+        """The owner's own Offer is held under its own id, and read there;
+        the Undo names it (ADR-0199)."""
         case = _make_case(dl)
-        proposal_id, _ = adapter.propose_case_ownership_transfer(
+        own_offer_id, _ = adapter.offer_case_ownership_transfer(
             case_id=case.id_,
             transferee_id=_INVITEE,
             actor=_OWNER,
@@ -1098,24 +1098,26 @@ class TestAnswerReceivedOwnershipOffer:
         )
 
         _, blob = adapter.withdraw_case_ownership_transfer(
-            offer_id=proposal_id, actor=_OWNER, to=[_ACTOR], at=authored_at()
+            offer_id=own_offer_id, actor=_OWNER, to=[_ACTOR], at=authored_at()
         )
 
         body = json.loads(blob)
         assert body["type"] == "Undo"
-        assert body["object"]["id"] == proposal_id
-        assert body["object"]["object"]["type"] == "Offer"
+        assert body["object"]["id"] == own_offer_id
+        assert body["object"]["object"]["type"] == "VulnerabilityCase"
         assert body["to"] == [_ACTOR]
 
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-21-016")
     @pytest.mark.spec("CM-21-025")
     @pytest.mark.parametrize("store_owner", [_OWNER])
-    def test_the_proposal_nests_the_offer_it_asks_for(self, adapter, dl):
+    def test_the_owners_offer_names_the_case_and_the_transferee(
+        self, adapter, dl
+    ):
         case = _make_case(dl)
         deadline = FAR_FUTURE  # far-future; tests date round-trip, not a specific value
 
-        _, blob = adapter.propose_case_ownership_transfer(
+        _, blob = adapter.offer_case_ownership_transfer(
             case_id=case.id_,
             transferee_id=_INVITEE,
             actor=_OWNER,
@@ -1128,11 +1130,10 @@ class TestAnswerReceivedOwnershipOffer:
         assert body["type"] == "Offer"
         assert body["context"] == case.id_
         assert body["to"] == [_ACTOR]
-        inner = body["object"]
-        assert inner["type"] == "Offer"
-        assert inner["object"]["id"] == case.id_
-        assert inner["target"]["id"] == _INVITEE
-        assert inner["endTime"].startswith(deadline.isoformat()[:10])
+        assert body["object"]["id"] == case.id_
+        assert body["target"]["id"] == _INVITEE
+        assert body["endTime"].startswith(deadline.isoformat()[:10])
+        assert "attributedTo" not in body and "inReplyTo" not in body
 
     @pytest.mark.spec("CM-21-005")
     def test_the_offer_built_under_a_derived_id_is_built_once(

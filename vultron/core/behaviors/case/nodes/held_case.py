@@ -14,9 +14,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The acts that name their case and carry none of it (AKM-03-004, ADR-0165).
 
-``Join``, ``Ignore`` and ``Leave`` of a case and the owner's
-ownership-transfer proposal, ``Offer(Offer(VulnerabilityCase))``, name their
-case by reference: the receiver reads every detail from the case it holds.
+``Join``, ``Ignore`` and ``Leave`` of a case and an ownership-transfer
+``Offer(VulnerabilityCase)`` name their case by reference: the receiver reads every detail from the case it holds.
 A case it does not hold leaves it nothing to act on, so the act is refused,
 naming the activity and the case (AKM-03-006).
 
@@ -43,4 +42,4 @@ class CaseNamedByReference(Enum):
     JOIN = "Join"
     IGNORE = "Ignore"
     LEAVE = "Leave"
-    OWNERSHIP_TRANSFER_PROPOSAL = "Offer(Offer)"
+    OWNERSHIP_TRANSFER_OFFER = "Offer(VulnerabilityCase)"

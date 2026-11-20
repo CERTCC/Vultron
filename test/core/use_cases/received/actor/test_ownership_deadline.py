@@ -187,7 +187,7 @@ class TestAnExpiredOfferIsClosed:
         assert second is HandlerDisposition.APPLIED
         assert _semantic_types(dl) == [
             *before,
-            "propose_case_ownership_transfer",
+            "offer_case_ownership_transfer",
             "offer_case_ownership_transfer",
         ]
         assert trigger_activity.offer_case_ownership_transfer.call_count == 2

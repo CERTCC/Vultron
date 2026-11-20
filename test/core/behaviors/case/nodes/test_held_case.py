@@ -247,19 +247,19 @@ def _stage_act(
         (
             lambda: create_propose_ownership_transfer_tree(
                 case_id=CASE_ID,
-                proposed_case_id=CASE_ID,
                 transferee_id=SENDER_ID,
                 proposal_id=ACTIVITY_ID,
                 answer_deadline=None,
                 sender_rule=SenderRule(
-                    at_case_manager=any_of(SenderEntitlementKind.CASE_OWNER)
+                    at_case_manager=any_of(SenderEntitlementKind.CASE_OWNER),
+                    at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
                 ),
                 sender_id=SENDER_ID,
             ),
-            CaseNamedByReference.OWNERSHIP_TRANSFER_PROPOSAL,
+            CaseNamedByReference.OWNERSHIP_TRANSFER_OFFER,
         ),
     ],
-    ids=["Join", "Ignore", "Leave", "Offer(Offer)"],
+    ids=["Join", "Ignore", "Leave", "Offer(VulnerabilityCase)"],
 )
 def test_every_act_naming_its_case_declares_it(build, act) -> None:
     """Each AKM-03-004 act's path stage carries the act."""

@@ -324,19 +324,19 @@ def offer_case_ownership_transfer_trigger_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the offer-case-ownership-transfer workflow.
 
-    Emits the Case Owner's proposal, ``Offer(Offer(VulnerabilityCase))``, to
-    the case's CASE_MANAGER (CM-21-005, TRIG-11-001).  The CASE_MANAGER's
-    received tree makes the one ``Offer(VulnerabilityCase)`` the transferee
-    answers; no trigger tree emits as the CASE_MANAGER (CM-24-010,
-    ADR-0109, ADR-0148).
+    Emits the Case Owner's own ``Offer(VulnerabilityCase)``, ``target`` the
+    transferee, to the case's CASE_MANAGER only (CM-21-005, TRIG-11-001).
+    The CASE_MANAGER's received tree makes its own Offer from it, which the
+    transferee answers; no trigger tree emits as the CASE_MANAGER
+    (CM-24-010, ADR-0109, ADR-0199).
 
     Args:
         case_id: ID of the VulnerabilityCase whose ownership is being offered.
         transferee_id: Actor URI of the intended new owner.
         content: Optional human-readable message included in the offer.
         captured: Optional dict; ``captured["activity"]`` is set on success.
-        end_time: Optional deadline to answer the Offer, set as the inner
-            Offer's ``end_time`` (TRIG-11-007, CM-21-016).
+        end_time: Optional deadline to answer the Offer, set as its
+            ``end_time`` (TRIG-11-007, CM-21-016).
 
     Returns:
         Sequence containing a single EmitProposeCaseOwnershipTransferNode.
@@ -452,14 +452,14 @@ def withdraw_case_ownership_transfer_trigger_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the withdraw-case-ownership-transfer workflow.
 
-    Emits ``Undo(Offer(Offer(VulnerabilityCase)))`` from the Case Owner,
-    addressed to the case's CASE_MANAGER (TRIG-11-006, CM-21-015): the owner
-    withdraws its own proposal, and the CASE_MANAGER the Offer it made from
-    it (ADR-0148).
+    Emits ``Undo(Offer(VulnerabilityCase))`` from the Case Owner, addressed
+    to the case's CASE_MANAGER (TRIG-11-006, CM-21-015): the owner withdraws
+    its own Offer, and the CASE_MANAGER the Offer it made from it
+    (CM-21-037, ADR-0199).
 
     Args:
-        offer_id: ID of the ``_ProposeCaseOwnershipTransferActivity``
-            withdrawn, the owner's own proposal.
+        offer_id: ID of the owner's own ``_OfferCaseOwnershipTransferActivity``
+            withdrawn.
         case_id: ID of the VulnerabilityCase; used to resolve the
             CASE_MANAGER.
         captured: Optional dict; ``captured["activity"]`` is set on success.

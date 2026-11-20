@@ -2,9 +2,9 @@
 
 !!! info "Offer case ownership transfer"
 
-    Offers the case to the actor named by the target, on the Case Owner's behalf: `attributedTo` names the owner and `inReplyTo` the owner's proposal. This is the one offer of the transfer, the one the new owner accepts or rejects. It carries the proposal's `endTime`, if any.
+    Offers the case to the actor named by the target, on the Case Owner's behalf: `attributedTo` names the owner and `inReplyTo` the owner's own Offer. This is the offer the new owner accepts or rejects. It carries the owner's `endTime`, if any.
 
-    - **When…** the CASE_MANAGER offers the case to the actor the Case Owner proposed
+    - **When…** the CASE_MANAGER offers the case to the actor the Case Owner named
     - **Send:** `Offer(VulnerabilityCase)`
     - **Send to:** a participant
     - **Sent by:** the CASE_MANAGER

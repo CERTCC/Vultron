@@ -5,42 +5,34 @@
     "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Undo",
-  "id": "urn:uuid:69d18287-3a13-4005-9304-d7f1ed3a673a",
-  "name": "https://vultron.example/organizations/vendorco Undo https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
+  "id": "urn:uuid:cec214fd-07ea-49e7-abb0-26e4d8e60e1d",
+  "name": "https://vultron.example/organizations/vendorco Undo https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
-  "content": "We're withdrawing our proposal to transfer ownership of case VendorCo Case #20260601.",
+  "content": "We're withdrawing our offer to transfer ownership of case VendorCo Case #20260601.",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
   ],
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
     "type": "Offer",
-    "id": "urn:uuid:cec214fd-07ea-49e7-abb0-26e4d8e60e1d",
-    "name": "https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
+    "id": "urn:uuid:72cee889-f890-4611-a267-f431d39b07a0",
+    "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
     "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
-    "content": "Please offer ownership of case VendorCo Case #20260601 to the coordinator.",
+    "content": "We're offering ownership of case VendorCo Case #20260601 to the coordinator.",
     "to": [
       "https://vultron.example/case-actors/vendorco-case-actor"
     ],
     "actor": "https://vultron.example/organizations/vendorco",
+    "target": {
+      "type": "Actor",
+      "id": "https://vultron.example/organizations/coordinator"
+    },
     "object": {
-      "type": "Offer",
-      "id": "urn:uuid:72cee889-f890-4611-a267-f431d39b07a0",
-      "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
-      "published": "2026-06-01T19:12:00.000000+00:00",
-      "updated": "2026-06-01T19:12:00.000000+00:00",
-      "actor": "https://vultron.example/organizations/vendorco",
-      "target": {
-        "type": "Actor",
-        "id": "https://vultron.example/organizations/coordinator"
-      },
-      "object": {
-        "type": "VulnerabilityCase",
-        "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
-      }
+      "type": "VulnerabilityCase",
+      "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
     }
   },
   "proof": {
@@ -54,6 +46,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4F9wrw1N5gff7N5e7dq1yjTHD2NhrPuzbjJTZyhapKRxXjbaxS4bsGAPWuDpKtswyaLzhBZoiGWTetKFZ87eo18"
+    "proofValue": "z51nRZM9W3c449NCzZtsfd3fCiVEHbiKbFGFcP6mzmmr1UmC27xYadPThn5bHaUQCAhaaBwKDeCNMVretQKHVbRMD"
   }
 }

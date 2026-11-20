@@ -134,19 +134,17 @@ def _answer_deadline(activity: object) -> datetime | None:
 
 
 def _deadline_kwargs(
-    activity: as_Activity, obj: object, event_class: type[VultronEvent]
+    activity: as_Activity, event_class: type[VultronEvent]
 ) -> dict[str, datetime | None]:
-    """The ownership-transfer answer deadlines the event carries, in UTC.
+    """The ownership-transfer answer deadline the event carries, in UTC.
 
-    An Offer carries its own as ``answer_deadline``; the owner's proposal
-    carries it on the inner Offer it asks the CASE_MANAGER to make, as
-    ``proposed_answer_deadline`` (ADR-0148, CM-21-016).
+    An ownership-transfer Offer carries it as its own ``end_time``, read as
+    ``answer_deadline``: the Owner's Offer names the deadline the
+    CASE_MANAGER copies onto the Offer it makes (CM-21-016, CM-21-041).
     """
     kwargs: dict[str, datetime | None] = {}
     if "answer_deadline" in event_class.model_fields:
         kwargs["answer_deadline"] = _answer_deadline(activity)
-    if "proposed_answer_deadline" in event_class.model_fields:
-        kwargs["proposed_answer_deadline"] = _answer_deadline(obj)
     return kwargs
 
 

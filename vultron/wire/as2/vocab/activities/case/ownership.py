@@ -12,13 +12,12 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Case ownership transfer activities: Offer, propose, reply and withdraw."""
+"""Case ownership transfer activities: Offer, reply and withdraw."""
 
 from typing import ClassVar
 
 from pydantic import Field
 
-from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.activities.base import RepliesToObject
 from vultron.wire.as2.vocab.activities.case.named_case import NamedCase
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -31,13 +30,15 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_ActorRef,
     as_CarriedActor,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 
 class _OfferCaseOwnershipTransferActivity(as_Offer):
     """The actor is offering to transfer ownership of the case to another actor.
+
+    One wire shape, two senders (ADR-0199): the Case Owner's own Offer, sent
+    to the CASE_MANAGER, and the Offer the CASE_MANAGER makes from it, sent
+    to the transferee with ``attributedTo`` the Owner and ``inReplyTo`` the
+    Owner's Offer (CM-21-028).  The receiver's path tells them apart.
 
     The case travels as its typed reference, an inline object with only its
     ``id`` and ``type`` (ADR-0165): every receiver of an ownership-transfer
@@ -68,36 +69,6 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"target"})
 
 
-class _ProposeCaseOwnershipTransferActivity(as_Offer):
-    """The Case Owner proposes an ownership transfer to the CASE_MANAGER.
-
-    Wire format: ``Offer(Offer(VulnerabilityCase))``, its ``context`` the case
-    (ADR-0148).  The inner Offer is the template of the one Offer the
-    CASE_MANAGER makes to the transferee: its object is the case, its
-    ``target`` the transferee and its ``endTime`` the deadline to answer.
-    The proposal's shape, an Offer of an Offer, is what tells it apart from
-    the CASE_MANAGER's ``Offer(VulnerabilityCase)``, so neither pattern needs
-    a sender check (ADR-0039).
-
-    object_: _OfferCaseOwnershipTransferActivity (inline, required)
-    context: as_VulnerabilityCase or str URI (required): the case the
-        proposal is about, which the inner Offer's object must name
-
-    Declares ``object_`` in :attr:`inline_required_refs`: the inner Offer is
-    minted inline and never stored on its own, so its id resolves to nothing
-    (DL-08-001).
-    """
-
-    object_: _OfferCaseOwnershipTransferActivity = Field(
-        ..., validation_alias="object", serialization_alias="object"
-    )
-    context: as_VulnerabilityCase | NonEmptyString = Field(
-        ..., validation_alias="context", serialization_alias="context"
-    )
-
-    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
-
-
 class _AcceptCaseOwnershipTransferActivity(RepliesToObject, as_Accept):
     """The actor is accepting an offer to transfer ownership of the case.
 
@@ -123,17 +94,17 @@ class _RejectCaseOwnershipTransferActivity(RepliesToObject, as_Reject):
 
 
 class _UndoCaseOwnershipTransferActivity(as_Undo):
-    """The Case Owner is withdrawing its ownership-transfer proposal.
+    """The Case Owner is withdrawing its own ownership-transfer Offer.
 
-    Sent by the Case Owner that made the proposal, addressed to the
+    Sent by the Case Owner that made the Offer, addressed to the
     CASE_MANAGER, which withdraws the Offer it made from it (CM-21-015,
-    ADR-0148).
+    ADR-0199).
 
-    - object_: the _ProposeCaseOwnershipTransferActivity being withdrawn
-      (inline typed object required — bare string IDs are rejected at
-      construction time)
+    - object_: the Owner's own _OfferCaseOwnershipTransferActivity being
+      withdrawn (inline typed object required — bare string IDs are
+      rejected at construction time)
     """
 
-    object_: _ProposeCaseOwnershipTransferActivity = Field(
+    object_: _OfferCaseOwnershipTransferActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )

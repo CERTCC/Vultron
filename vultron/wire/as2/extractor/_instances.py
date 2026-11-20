@@ -356,7 +356,14 @@ RejectCaseParticipantRolePattern = ActivityPattern(
 # ---------------------------------------------------------------------------
 
 OfferCaseOwnershipTransferActivityPattern = ActivityPattern(
-    activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_CASE
+    description=(
+        "Offer(VulnerabilityCase), target the transferee — the Case Owner's "
+        "own Offer, sent to the CASE_MANAGER, and the Offer the CASE_MANAGER "
+        "makes from it, sent to the transferee, share this shape; the "
+        "receiver's path tells them apart (ADR-0199, CM-21-028)."
+    ),
+    activity_=TAtype.OFFER,
+    object_=VOtype.VULNERABILITY_CASE,
 )
 AcceptCaseOwnershipTransferActivityPattern = ActivityPattern(
     activity_=TAtype.ACCEPT, object_=OfferCaseOwnershipTransferActivityPattern
@@ -364,25 +371,14 @@ AcceptCaseOwnershipTransferActivityPattern = ActivityPattern(
 RejectCaseOwnershipTransferActivityPattern = ActivityPattern(
     activity_=TAtype.REJECT, object_=OfferCaseOwnershipTransferActivityPattern
 )
-ProposeCaseOwnershipTransferActivityPattern = ActivityPattern(
-    description=(
-        "Offer(Offer(VulnerabilityCase)) — the Case Owner proposes an "
-        "ownership transfer to the CASE_MANAGER, which makes the one "
-        "Offer(VulnerabilityCase) the transferee answers (ADR-0148, "
-        "CM-21-005).  Told apart from that Offer by its shape: its object "
-        "is an Offer, not a case."
-    ),
-    activity_=TAtype.OFFER,
-    object_=OfferCaseOwnershipTransferActivityPattern,
-)
 UndoCaseOwnershipTransferActivityPattern = ActivityPattern(
     description=(
-        "Undo(Offer(Offer(VulnerabilityCase))) — the Case Owner withdraws "
-        "its ownership-transfer proposal, and with it the Offer the "
-        "CASE_MANAGER made from it (CM-21-015, ADR-0148)."
+        "Undo(Offer(VulnerabilityCase)) — the Case Owner withdraws its own "
+        "ownership-transfer Offer, and with it the Offer the CASE_MANAGER "
+        "made from it (CM-21-015, CM-21-037, ADR-0199)."
     ),
     activity_=TAtype.UNDO,
-    object_=ProposeCaseOwnershipTransferActivityPattern,
+    object_=OfferCaseOwnershipTransferActivityPattern,
 )
 
 # ---------------------------------------------------------------------------

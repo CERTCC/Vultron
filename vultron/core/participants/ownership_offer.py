@@ -12,19 +12,22 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The recorded ownership-transfer Offer a reply names (CM-21-011, CM-21-013).
 
-A transfer has one ``Offer(VulnerabilityCase)``: the one the CASE_MANAGER
-makes from the Case Owner's proposal, ``Offer(Offer(VulnerabilityCase))``,
-under an id it derives from that proposal (:func:`ownership_offer_id`), with
-the owner in ``attributedTo`` (ADR-0148, CM-21-028).  The CASE_MANAGER
-commits an ``offer_case_ownership_transfer`` entry for it once it is queued,
-and that Offer is the one the transferee holds, answers, and the one that is
-closed and expired.  "Recorded" means ledgered, and whether the Offer is
+A transfer has two ``Offer(VulnerabilityCase)`` activities of one shape
+(ADR-0199): the Case Owner's own, its proposal, sent to the CASE_MANAGER, and
+the one the CASE_MANAGER makes from it, under an id it derives from the
+Owner's (:func:`ownership_offer_id`), with the owner in ``attributedTo`` and
+the Owner's Offer in ``inReplyTo`` (CM-21-028).  The CASE_MANAGER ledgers
+both as ``offer_case_ownership_transfer`` entries; its own, committed once it
+is queued, is the one the transferee holds and answers, and the one that is
+closed and expired.  Every reader here reads only the CASE_MANAGER's Offers,
+told from the Owner's by the entry's ``actor`` (:func:`_offer_entries`), so
+an answer naming the Owner's Offer names nothing that can be accepted.  "Recorded" means ledgered, and whether the Offer is
 still open is read from the same ledger and the ``end_time`` the ledgered
 Offer carries (CM-21-014, CM-21-017, CLP-11-001).
 
 A reply names it directly: the transferee's ``Accept`` or ``Reject`` by its
-id, and the owner's ``Undo`` of its proposal through the id derived from the
-proposal (CM-21-015).  No back-link is followed.
+id, and the owner's ``Undo`` of its own Offer through the id derived from
+that Offer (CM-21-015, CM-21-037).  No back-link is followed.
 
 :func:`recorded_ownership_offer` returns that Offer and its protocol pair;
 the sender-entitlement guards read the transferee, the offerer and the open
@@ -158,11 +161,27 @@ class RecordedOwnershipOffer:
 
 
 def _offer_entries(dl: CasePersistence, case_id: str) -> list[CaseLedgerEntry]:
-    """The case's ``offer_case_ownership_transfer`` entries, oldest first."""
+    """The case's CASE_MANAGER-made ownership-transfer Offers, oldest first.
+
+    The ``offer_case_ownership_transfer`` entries whose ``actor`` is the
+    case's CASE_MANAGER.  The Case Owner's own Offer is ledgered under the
+    same semantic type (ADR-0199), but it is the proposal, never the Offer
+    that is answered, closed or expired (CM-21-029), so it is left out.  A
+    case this store does not hold, or one that names no CASE_MANAGER, has
+    none.
+    """
+    case = dl.read_case(case_id)
+    manager_id = (
+        resolve_case_manager_id(case, dl) if case is not None else None
+    )
+    if manager_id is None:
+        return []
     return [
         entry
         for entry in recorded_entries_for_case(case_id=case_id, dl=dl)
         if entry.semantic_type == OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE
+        and (actor_id := _entry_actor(entry)) is not None
+        and same_actor_id(actor_id, manager_id)
     ]
 
 
@@ -198,14 +217,14 @@ OWNERSHIP_OFFER_ID_KIND = "offer-case-ownership-transfer"
 def ownership_offer_id(
     manager_id: str, case_id: str, proposal_id: str, proposer_id: str
 ) -> str:
-    """The id of the Offer *manager_id* makes from *proposer_id*'s proposal.
+    """The id of the Offer *manager_id* makes from *proposer_id*'s own Offer.
 
-    Derived, never taken from the proposal: the CASE_MANAGER keys nothing it
-    emits or stores by an id another party chose, the inner Offer's id
-    included (ADR-0148, DL-06-006).  A redelivery of the proposal rebuilds
+    Derived, never taken from the Owner's Offer: the CASE_MANAGER keys
+    nothing it emits or stores by an id another party chose (ADR-0148,
+    DL-06-006).  A redelivery of the proposal rebuilds
     the same Offer, which the outbox queues once (OX-06-002), and the
-    owner's withdrawal of the proposal names that Offer through the same
-    derivation (CM-21-015).  The proposer is part of the derivation, so a
+    owner's withdrawal of its Offer names that Offer through the same
+    derivation (CM-21-015, CM-21-037).  The proposer is part of the derivation, so a
     proposal id another sender reuses names a different Offer; both actor
     ids are normalised first, so every caller derives one id whatever
     spelling it read them in (OID-01-006).

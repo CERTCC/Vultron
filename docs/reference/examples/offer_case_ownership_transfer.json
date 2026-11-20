@@ -5,9 +5,10 @@
     "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Offer",
-  "id": "urn:uuid:4da5f431-774b-432b-8a7a-3d5e17956f01",
+  "id": "urn:uuid:1b0b761d-4f9d-4077-8774-5967d0aefbdd",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
-  "inReplyTo": "urn:uuid:1b0b761d-4f9d-4077-8774-5967d0aefbdd",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "inReplyTo": "urn:uuid:872ceec7-0265-4ade-9a9c-b14b5b4fe4bc",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're offering to transfer ownership of case VendorCo Case #20260601 to you.",
@@ -35,6 +36,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2tt9SLAmPYKBqpxi44DgNiEAbCNrDHKem3JQjKv11dUzCds6hMSGkk2HHjucMhP6jjBtbmsPgFmKHTPSma3PJJAS"
+    "proofValue": "z4RxtzQfdXBB8pNq3gbrWpbZYaGAhAE2Yi3tKhTHPeBibJmSYBaA8WsvB94uLSnJfDyEFeBHF9bWHkgDwcjYs6yXQ"
   }
 }

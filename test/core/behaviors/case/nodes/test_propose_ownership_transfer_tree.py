@@ -45,15 +45,16 @@ from vultron.core.behaviors.case.ownership_transfer_tree import (
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
-    ProposeCaseOwnershipTransferReceivedEvent,
+    OfferCaseOwnershipTransferReceivedEvent,
 )
 from vultron.core.participants.ownership_offer import ownership_offer_id
 from vultron.core.use_cases.received.actor.ownership import (
-    ProposeCaseOwnershipTransferReceivedUseCase,
+    OfferCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
@@ -64,7 +65,7 @@ VENDOR_ID = "https://example.org/actors/vendor-make"
 TRANSFEREE_ID = "https://example.org/actors/transferee-make"
 PROPOSAL_ID = "https://example.org/activities/proposal-make"
 #: The rule the received use case declares; the vendor is the Case Owner.
-_SENDER_RULE = ProposeCaseOwnershipTransferReceivedUseCase.sender_entitlement
+_SENDER_RULE = OfferCaseOwnershipTransferReceivedUseCase.sender_entitlement
 
 
 def _seed_case(
@@ -115,20 +116,12 @@ def _offers(bt_scenario: BTTestScenario) -> list[str]:
     ]
 
 
-def _proposal_event() -> ProposeCaseOwnershipTransferReceivedEvent:
-    """The received proposal as a handler places it on the blackboard.
+def _proposal_event() -> OfferCaseOwnershipTransferReceivedEvent:
+    """The Owner's received Offer as a handler places it on the blackboard.
 
     A real event: intake reads it first (CLP-10-017), and the commit
     boundary refuses an activity with no ``published`` (CLP-07-011).
     """
-    inner = make(
-        VultronActivity,
-        id_="https://example.org/activities/inner-make",
-        type_="Offer",
-        actor=VENDOR_ID,
-        object_=CASE_ID,
-        target=TRANSFEREE_ID,
-    )
     activity = make(
         VultronActivity,
         id_=PROPOSAL_ID,
@@ -137,10 +130,12 @@ def _proposal_event() -> ProposeCaseOwnershipTransferReceivedEvent:
         to=[CASE_ACTOR_ID],
         context=CASE_ID,
         published=now_utc(),
-        object_=inner,
+        # The case by typed reference (ADR-0165).
+        object_=make(CoreObject, id_=CASE_ID, type_="VulnerabilityCase"),
+        target=TRANSFEREE_ID,
     )
     return with_evidence(
-        ProposeCaseOwnershipTransferReceivedEvent(
+        OfferCaseOwnershipTransferReceivedEvent(
             ledger_position=TEST_SENDER_POSITION,
             activity_id=PROPOSAL_ID,
             actor_id=VENDOR_ID,
@@ -152,7 +147,6 @@ def _proposal_event() -> ProposeCaseOwnershipTransferReceivedEvent:
 def _tree(transferee_id: str | None = TRANSFEREE_ID, sender=VENDOR_ID):
     return create_propose_ownership_transfer_tree(
         case_id=CASE_ID,
-        proposed_case_id=CASE_ID,
         transferee_id=transferee_id,
         proposal_id=PROPOSAL_ID,
         sender_rule=_SENDER_RULE,
@@ -190,15 +184,21 @@ def test_the_case_manager_makes_one_offer_and_ledgers_it(
     offer = bt_scenario.dl.read(made_id)
     assert offer is not None
     assert getattr(offer, "attributed_to", None) == VENDOR_ID
-    entries = {
-        entry.semantic_type: entry
-        for entry in bt_scenario.dl.list_objects("CaseLedgerEntry")
-        if isinstance(entry, CaseLedgerEntry)
-    }
-    assert entries["offer_case_ownership_transfer"].log_object_id == made_id
-    assert (
-        entries["propose_case_ownership_transfer"].log_object_id == PROPOSAL_ID
+    entries = sorted(
+        (
+            entry
+            for entry in bt_scenario.dl.list_objects("CaseLedgerEntry")
+            if isinstance(entry, CaseLedgerEntry)
+        ),
+        key=lambda entry: entry.log_index,
     )
+    # The Owner's Offer, then the CASE_MANAGER's made from it (ADR-0199).
+    assert [
+        (entry.semantic_type, entry.log_object_id) for entry in entries
+    ] == [
+        ("offer_case_ownership_transfer", PROPOSAL_ID),
+        ("offer_case_ownership_transfer", made_id),
+    ]
 
 
 @pytest.mark.spec("CM-21-021")
@@ -296,7 +296,6 @@ def test_the_admissibility_guard_fails_on_a_case_this_store_lacks(
     than admit it; nothing is offered."""
     guard = OwnershipProposalAdmissibleNode(
         case_id=CASE_ID,
-        proposed_case_id=CASE_ID,
         transferee_id=TRANSFEREE_ID,
         proposer_id=VENDOR_ID,
     )

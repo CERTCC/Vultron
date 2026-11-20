@@ -34,27 +34,27 @@ If they went directly between the two parties, no ledger entry would be written,
 
 ```text
 Owner sends trigger: offer-case-ownership-transfer
-  → Owner sends Offer(Offer(VulnerabilityCase))    ← the proposal
-      inner target: transferee
+  → Owner sends Offer(VulnerabilityCase)           ← the proposal
+      target:       transferee
       context:      case_id
       actor:        owner_id          (the owner's own activity)
       to:           [case_actor_id]   ← MUST route through Case Actor (CM-21-005)
 
-Case Actor inbox receives the proposal:
+Case Actor inbox receives the owner's Offer:
   0. Checks the sender holds CASE_OWNER
      (anyone else: refused, nothing written).        ← CM-21-019
   1. Checks no offer for the case is open,           ← CM-21-014
-     and the inner Offer names this case and a
-     transferee it can address                       ← CM-21-026
+     and the target is a transferee it can address   ← CM-21-026
      that is an active participant.                  ← CM-21-021
-  2. Commits CaseLedgerEntry (the proposal).
-  3. Makes the offer and queues it to the transferee:
+  2. Commits CaseLedgerEntry (the owner's Offer).
+  3. Makes its own offer and queues it to the transferee:
        Offer(VulnerabilityCase)
        target:        transferee
-       id:            derived from the proposal
+       id:            derived from the owner's Offer
        actor:         case_actor_id   (delegated-message contract)
        attributed_to: owner_id
-  4. Commits CaseLedgerEntry (the offer).
+       in_reply_to:   the owner's Offer
+  4. Commits CaseLedgerEntry (its own offer).
   5. Add(CaseLedgerEntry) → all participants.   ← all parties learn the offer
 ```
 
@@ -184,7 +184,7 @@ A closed offer cannot be answered again: an `Accept` after a `Reject`, or a `Rej
 
 ```text
 Owner sends trigger: withdraw-case-ownership-transfer
-  → Undo(proposal), that is Undo(Offer(Offer(VulnerabilityCase)))
+  → Undo(proposal), that is Undo(Offer(VulnerabilityCase))
       to: [case_actor_id]     ← MUST route through Case Actor (CM-21-015)
 
 Case Actor inbox receives Undo:
@@ -209,7 +209,7 @@ Ownership stays where it was, and the owner may propose the case again at once.
 ```text
 Owner sends trigger: offer-case-ownership-transfer
   with end_time (optional)                              ← TRIG-11-007
-  → Offer(Offer(VulnerabilityCase)), inner endTime: deadline
+  → the owner's Offer(VulnerabilityCase), endTime: deadline
   → the Case Actor's Offer(VulnerabilityCase), endTime: deadline
 
 Case Actor inbox receives an Accept, Reject or Undo of the offer,

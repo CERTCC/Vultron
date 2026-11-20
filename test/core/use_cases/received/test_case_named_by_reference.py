@@ -42,7 +42,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.wire.as2.factories import (
-    propose_case_ownership_transfer_activity,
+    offer_case_ownership_transfer_activity,
     rm_close_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
@@ -82,7 +82,7 @@ def _leave(case: str) -> as_Activity:
 
 
 def _propose(case: str) -> as_Activity:
-    return propose_case_ownership_transfer_activity(
+    return offer_case_ownership_transfer_activity(
         case, target=BYSTANDER, actor=OWNER, to=[MANAGER], at=authored_at()
     )
 
@@ -92,10 +92,10 @@ _ACTS: dict[str, tuple[Callable[[str], as_Activity], str, tuple[str, ...]]] = {
     "Join": (_join, "engage_case", ("object",)),
     "Ignore": (_ignore, "defer_case", ("object",)),
     "Leave": (_leave, "close_case", ("object",)),
-    "Offer(Offer)": (
+    "Offer(VulnerabilityCase)": (
         _propose,
-        "propose_case_ownership_transfer",
-        ("object", "object"),
+        "offer_case_ownership_transfer",
+        ("object",),
     ),
 }
 
@@ -163,12 +163,17 @@ def _participant_ids(dl: Any) -> set[str]:
 
 
 def _entry_snapshot(
-    net: LedgerNetwork, holder: str, semantic_type: str
+    net: LedgerNetwork, holder: str, semantic_type: str, activity_id: str
 ) -> dict[str, Any]:
+    """The snapshot of the entry that records *activity_id* itself.
+
+    The act's own entry, by its id: the CASE_MANAGER's Offer made from an
+    Owner's Offer is ledgered under the same semantic type (ADR-0199).
+    """
     (entry,) = [
         e
         for e in ledger_entries(net.stores[holder], CASE_ID)
-        if e.semantic_type == semantic_type
+        if e.semantic_type == semantic_type and e.log_object_id == activity_id
     ]
     return entry.payload_snapshot
 
@@ -190,7 +195,7 @@ def test_the_ledgered_act_carries_only_the_case_reference(act):
     verdict = _deliver(net, body)
 
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
-    snapshot = _entry_snapshot(net, MANAGER, semantic_type)
+    snapshot = _entry_snapshot(net, MANAGER, semantic_type, body["id"])
     assert _without_context(_slot(snapshot, path)) == _REFERENCE
     replica = net.stores[BYSTANDER]
     before = _participant_ids(replica)

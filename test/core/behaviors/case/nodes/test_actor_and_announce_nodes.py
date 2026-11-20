@@ -1366,18 +1366,49 @@ class TestEmitOwnershipTransferNodes:
         assert "attributedTo" not in activity
         # Queued in the owner's own outbox, not the CASE_MANAGER's.
         assert activity["id"] in dl.outbox_list()
-        # The inner Offer names the transferee as its target, carried inline
-        # as an Actor, never a bare id (DL-08-003).
-        inner = activity.get("object")
-        assert isinstance(inner, dict) and inner.get("type") == "Offer"
-        target = inner.get("target")
+        # The Owner's own Offer of the case names the transferee as its
+        # target, carried inline as an Actor, never a bare id (DL-08-003,
+        # ADR-0199).
+        assert activity.get("type") == "Offer"
+        assert activity.get("object", {}).get("type") == "VulnerabilityCase"
+        assert activity.get("to") == [_OT_CASE_ACTOR_ID]
+        target = activity.get("target")
         assert isinstance(target, dict), (
-            f"the inner Offer must carry the transferee inline; got {target!r}"
+            f"the Owner's Offer must carry the transferee inline; got {target!r}"
         )
         assert target.get("id") == _OT_TRANSFEREE_ID, (
-            f"the inner Offer must name the transferee ({_OT_TRANSFEREE_ID}); "
-            f"got target={target!r}"
+            f"the Owner's Offer must name the transferee ({_OT_TRANSFEREE_ID});"
+            f" got target={target!r}"
         )
+
+    @pytest.mark.spec("CM-21-005")
+    @pytest.mark.spec("PCR-08-011")
+    def test_emit_offer_with_no_case_manager_sends_nothing(self, store_for):
+        """The Owner's Offer has the transferee's shape, so a case with no
+        CASE_MANAGER to address fails the emit rather than reach the
+        transferee directly (CM-24-014)."""
+        dl = store_for(_OT_OWNER_ID)
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes.ownership_transfer import (
+            EmitProposeCaseOwnershipTransferNode,
+        )
+
+        node = EmitProposeCaseOwnershipTransferNode(
+            case_id=_OT_CASE_ID, transferee_id=_OT_TRANSFEREE_ID
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        result = run_tree(bridge, tree=node, actor_id=_OT_OWNER_ID)
+
+        assert result.status == Status.FAILURE
+        assert "CASE_MANAGER" in node.feedback_message
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("CM-21-006")
     def test_emit_accept_to_is_case_actor_id(self, store_for):

@@ -1,13 +1,13 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-## Propose case ownership transfer { #propose-case-ownership-transfer }
+## Case Owner offers case ownership { #propose-case-ownership-transfer }
 
-Asks the CASE_MANAGER to offer the case to another participant, for example from a Reporter to a Coordinator. The CASE_MANAGER offers the case only to an active participant, so the Case Owner invites any other actor first. The inner Offer names the case, the new owner as its target and, optionally, an `endTime` after which the CASE_MANAGER refuses an answer: the offer is then closed, with nothing recorded or sent. The CASE_MANAGER makes the offer itself.
+The Case Owner's own Offer, sent to the CASE_MANAGER only: the case as the object and the new owner as the target, for example from a Reporter to a Coordinator. The CASE_MANAGER offers the case only to an active participant, so the Case Owner invites any other actor first. An optional `endTime` is the deadline to answer: after it the CASE_MANAGER refuses an answer, and the offer is closed with nothing recorded or sent. The CASE_MANAGER records this Offer and makes its own Offer to the new owner, which answers that one.
 
 === "Details"
 
-    - **When…** the Case Owner proposes to transfer ownership of the case to another participant
-    - **Send:** `Offer(Offer(VulnerabilityCase))`
+    - **When…** the Case Owner offers ownership of the case to another participant
+    - **Send:** `Offer(VulnerabilityCase)`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the Case Owner
     - **Mapping status:** [none](../../index.md#mapping-status)

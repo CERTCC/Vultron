@@ -3,13 +3,13 @@ title: Ownership Transfer Protocol — Routing and Cascade Model
 status: active
 kind: guidance
 description: >
-  Rules for the ownership-transfer routing model (ADR-0053, partially superseded
-  by ADR-0148, proposed): the owner proposes Offer(Offer(VulnerabilityCase)) to the
-  CASE_MANAGER, which makes the one Offer the transferee answers, and every step
-  routes through the CASE_MANAGER so every participant receives the
+  Rules for the ownership-transfer routing model (ADR-0053, ADR-0148, ADR-0199):
+  the owner sends its own Offer(VulnerabilityCase) to the CASE_MANAGER, which
+  ledgers it and makes its own Offer, the one the transferee answers, and every
+  step routes through the CASE_MANAGER so every participant receives the
   CaseLedgerEntry broadcast; what each component must preserve, including that
   the transferee answers only the Offer it received and must be an active
-  participant (ADR-0148 revision 2); and the demo preconditions.
+  participant; and the demo preconditions.
 related_specs:
   - specs/actor-knowledge-model.yaml
   - specs/case-management.yaml
@@ -36,12 +36,13 @@ relevant_packages:
 
 # Ownership Transfer Protocol — Routing and Cascade Model
 
-Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053, partially superseded by
-ADR-0148 (proposed), whose revision 2 narrows the transferee check to an active
-participant, entitled to case content and holding the case, which the Offer names
-by typed reference (ADR-0165). The participant-facing
-description is `docs/topics/case_lifecycle/ownership_transfer.md`. An Offer can
-also close without an answer, by the owner's withdrawal or its binding deadline
+Requirements: CM-21, CM-24, TRIG-11. Decisions: ADR-0053, partially superseded by
+ADR-0148, which narrows the transferee check to an active participant, entitled to
+case content and holding the case, which the Offer names by typed reference
+(ADR-0165); ADR-0199 makes the owner's proposal its own
+`Offer(VulnerabilityCase)`. The participant-facing description is
+`docs/topics/case_lifecycle/ownership_transfer.md`. An Offer can also close without
+an answer, by the owner's withdrawal or its binding deadline
 (CM-21-015 to CM-21-017). Every closing entry's `semantic_type` is in
 `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, which every "is it open?" reader uses,
 so a new way to close an Offer needs no other change to close it. A
@@ -54,32 +55,41 @@ participant's `Reject` is a case event, ledgered like its `Accept` (CLP-02-016;
 
 Every step flows through the CASE_MANAGER, so every participant receives the
 `Add(CaseLedgerEntry)` for it, the commit's `Add` to the case's ledger
-(ADR-0204). The owner proposes; the CASE_MANAGER makes the
-one Offer of the transfer (ADR-0148).
+(ADR-0204). The owner offers the case with its own Offer; the CASE_MANAGER makes
+the Offer the transferee answers (ADR-0148, ADR-0199).
+
+- **One shape, two senders.** The Owner's Offer and the CASE_MANAGER's are both
+  `Offer(VulnerabilityCase)` with the transferee as `target`, one semantic type and
+  one received tree; the receiver's path tells them apart (HP-01-038). Both are
+  ledgered as `offer_case_ownership_transfer`, so every reader of "the Offer"
+  (`ownership_offer.py`) keeps only entries whose `actor` is the CASE_MANAGER:
+  an answer naming the Owner's Offer names nothing that can be accepted.
 
 ### Proposal and Offer flow
 
 ```text
 Case Owner calls trigger: offer-case-ownership-transfer
   → SvcOfferCaseOwnershipTransferUseCase._prepare() sets:
-      self._actor_id = owner_id               ← the owner sends its own proposal
+      self._actor_id = owner_id               ← the owner sends its own Offer
   → EmitProposeCaseOwnershipTransferNode
-      constructs: Offer(Offer(VulnerabilityCase)), context=case_id,
-                  inner target=Actor(transferee), inner end_time?
-      addressed:  to=[case_actor_id]         ← MUST (CM-21-005)
+      constructs: Offer(VulnerabilityCase), target=Actor(transferee),
+                  context=case_id, end_time?
+      addressed:  to=[case_actor_id] only    ← MUST (CM-21-005); no CASE_MANAGER
+                                               fails the emit, never the transferee
       queued in:  the owner's own outbox     ← CM-24-010, ADR-0109
 
-CASE_MANAGER inbox receives the proposal
-  → ProposeCaseOwnershipTransferReceivedUseCase:
-      sender guard: the Case Owner           ← CM-21-019
+CASE_MANAGER inbox receives the Owner's Offer (manager path)
+  → OfferCaseOwnershipTransferReceivedUseCase:
+      sender guard: the Case Owner           ← CM-21-019 (no notice, CLP-05-006)
       clock decision: expire an overdue Offer ← CM-21-017
-      guards: no open Offer; inner Offer names this case and a transferee
-              that is neither the CASE_MANAGER nor the proposer, and is an
-              active participant (CM-21-021, ADR-0148)
-      1. Commits CaseLedgerEntry (propose_case_ownership_transfer).
+      guards (refusal notice): no open Offer; a transferee that is neither the
+              CASE_MANAGER nor the Owner, and is an active participant
+              (CM-21-014, CM-21-021, CM-21-026)
+      1. Commits CaseLedgerEntry (offer_case_ownership_transfer, the Owner's).
       2. MakeOwnershipTransferOfferNode (CASE_MANAGER gate):
-         Offer(VulnerabilityCase) id=ownership_offer_id(cm, case, proposal, owner),
-         actor=case_actor_id, attributed_to=owner, to=[transferee];
+         Offer(VulnerabilityCase) id=ownership_offer_id(cm, case, owner_offer, owner),
+         actor=case_actor_id, attributed_to=owner, in_reply_to=owner_offer,
+         to=[transferee];
          build → outbox → commit offer_case_ownership_transfer, one transaction.
       3. Add(CaseLedgerEntry) → all participants, for each entry.
 ```
@@ -147,15 +157,15 @@ before the Offer's state is read (#4437).
 - **Either answer closes the Offer for the other.** The Accept and the Reject share
   `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so an Accept after a Reject (or the
   reverse) is refused as "already answered".
-- **Only the Case Owner's proposal is made into an Offer** (CM-21-019): the
-  sender guard runs before anything is written, so a stranger's proposal
-  leaves no entry and no Offer. A
-  redelivery is recognised by the Offer derived from the proposal, whose
+- **Only the Case Owner's Offer is made into the CASE_MANAGER's** (CM-21-019): the
+  sender guard runs before anything is written, so a stranger's Offer leaves no
+  entry and no Offer, and gets no refusal notice (CLP-05-006). A
+  redelivery is recognised by the Offer derived from the Owner's, whose
   `attributedTo` must be the sender, not by the role: the sender may have handed
   ownership on since (`SenderIsOfferingCaseOwnerNode`, HP-01-014).
-- **No sender is admitted for `Offer(VulnerabilityCase)` at the CASE_MANAGER**: it
-  makes that Offer itself; a participant takes it from the CASE_MANAGER alone
-  (CM-21-019, PCR-03-001).
+- **At the CASE_MANAGER every `Offer(VulnerabilityCase)` is a proposal**, judged by
+  the Owner-only sender rule; a participant takes the Offer from the CASE_MANAGER
+  alone (CM-21-044, CM-21-019, PCR-03-001).
 
 ### The Accepting Actor's Replica Updates via the CASE_MANAGER's Announce
 
@@ -180,29 +190,30 @@ actor's `case.attributed_to` changes on its own replica (`test/ci/invariants/`).
   executes a tree as the CASE_MANAGER (CM-24-011, ADR-0109). The bridge raises for
   an executing actor this container does not host (BT-05-005).
 - A case always has a CASE_MANAGER (CM-02-014): when none resolves, fail; never send
-  to the transferee directly (CM-24-014).
-- The proposal carries `context=case_id`, which the commit boundary checks
-  (a `payloadSnapshot.context` that is present must name the entry's case) and
-  against which the inner Offer's object is checked. The trigger returns the
-  proposal; the owner names it to withdraw (TRIG-11-006).
+  to the transferee directly (CM-24-014). The emit node raises rather than let the
+  port's default address the Owner's Offer to its `target`.
+- The Owner's Offer carries `context=case_id`, which the commit boundary checks
+  (a `payloadSnapshot.context` that is present must name the entry's case). The
+  trigger returns the Owner's Offer; the owner names it to withdraw (TRIG-11-006),
+  and the withdraw trigger refuses an Offer this actor did not send.
 - **The transferee travels and is stored inline**, as an `Actor` object, never a
-  bare id (DL-08-003): the ledger snapshot of the proposal and of the Offer carry it
-  inline (CLP-07-006), so the CASE_MANAGER needs no actor-profile write. The factory
+  bare id (DL-08-003): the ledger snapshot of both Offers carries it inline
+  (CLP-07-006), so the CASE_MANAGER needs no actor-profile write. The factory
   wraps a bare id (#4843).
 
 ### `MakeOwnershipTransferOfferNode`
 
-- Builds the Offer from the validated fields only; the inner Offer's id, `actor`
-  and `to` are ignored (ADR-0148). Its id is `ownership_offer_id()`, derived from the
-  proposal and its proposer, so a redelivery rebuilds the same Offer (OX-06-002) and
-  another sender reusing the proposal id names another Offer.
+- Builds the Offer from the validated fields only; the Owner's Offer's id, `actor`
+  and `to` are not copied (CM-21-027). Its id is `ownership_offer_id()`, derived from
+  the Owner's Offer and its sender, so a redelivery rebuilds the same Offer
+  (OX-06-002) and another sender reusing the id names another Offer.
 - Build, queue and commit run in one `transaction()`: a failed commit takes the
   queued Offer back out, so no transferee holds an Offer the ledger does not
   record (CLP-07-015, SYNC-09-002).
 - Faults are not caught; they escape to `BTBridge` as an internal error, never a
-  refusal of the owner (ARCH-15-001). `NoOpenOwnershipOfferNode` treats a proposal
-  as a redelivery only when its Offer is ledgered, so a redelivery after a fault
-  makes it.
+  refusal of the owner (ARCH-15-001). `NoOpenOwnershipOfferNode` treats an Owner's
+  Offer as a redelivery only when the Offer made from it is ledgered, so a
+  redelivery after a fault makes it.
 
 ### `EmitAcceptCaseOwnershipTransferNode`
 
@@ -211,7 +222,9 @@ address the Accept to the offerer.
 
 ### `OfferCaseOwnershipTransferReceivedUseCase`
 
-Runs at the transferee: intake keeps the CASE_MANAGER's Offer only as its
+One use case and one tree (`create_propose_ownership_transfer_tree`) for both paths.
+The manager path is the proposal flow above. On the participant-replica path, at the
+transferee, intake keeps the CASE_MANAGER's Offer only as its
 `ReceivedActivityRecord`, never under the id its sender chose (DL-06-006), and the
 sender guard admits the CASE_MANAGER alone. Nothing is committed there.
 
@@ -219,9 +232,9 @@ sender guard admits the CASE_MANAGER alone. Nothing is committed there.
   with `read_received_activity` and the adapter with `read_received_as_received`
   (the reply embeds the archived body verbatim), so an actor that never received
   the Offer gets a not-found, whatever is stored under the Offer's id (DL-06-006).
-  The `offer_case_ownership_transfer` entry has no replay effect: the transferee
-  holds the Offer, the owner its proposal, and a bystander never answers
-  (ADR-0148). Do not add a ledger-derived record of the Offer.
+  Neither `offer_case_ownership_transfer` entry has a replay effect: the transferee
+  holds the CASE_MANAGER's Offer, the owner its own, and a bystander never answers
+  (ADR-0148). Do not add a ledger-derived record of either (#4911).
 
 - **At the transferee, take the offerer from `attributed_to`, not `actor_id`**
   (#3012): the Offer is delegated, so its `actor` is the CASE_MANAGER. Honour
@@ -276,21 +289,20 @@ CASE_MANAGER inbox receives Reject
   `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, or until the `end_time` the ledgered
   Offer carries passes; nothing records the expiry (CM-21-017, CM-21-043, CLP-11-001,
   ADR-0152).
-- **One open Offer per case (CM-21-014).** The CASE_MANAGER refuses a new proposal
-  while an Offer is open; once closed, the owner may propose again to anyone, the
-  decliner included. The check is `NoOpenOwnershipOfferNode`
-  (`core/behaviors/case/nodes/ownership_offer_guard.py`, reading
-  `open_ownership_offer()`) in `case_manager_admits_ownership_proposal_guard`,
-  which needs no gate: the proposal's tree declares the manager path alone, so
-  the path stage refuses every other receiver (HP-01-038). A proposal whose
-  derived Offer the
-  ledger already records is a redelivery: the guard sets `is_redelivery`, which
-  it reports as a repeat, and the received-tree runner reports `SKIPPED`
-  (HP-01-014, ADR-0195).
-- **Withdrawal is an `Undo` of the proposal (CM-21-036, CM-21-037).** The
-  CASE_MANAGER derives the Offer id from the proposal id and its own id, so the
-  owner needs nothing it learned from the ledger; the ledgered Undo is a reply that
-  closes the Offer.
+- **One open Offer per case (CM-21-014).** The CASE_MANAGER refuses a new Owner's
+  Offer while its own Offer is open, with a refusal notice; once closed, the owner
+  may offer again to anyone, the decliner included. The check is
+  `NoOpenOwnershipOfferNode` (`core/behaviors/case/nodes/ownership_offer_guard.py`,
+  reading `open_ownership_offer()`) in `case_manager_admits_ownership_proposal_guard`,
+  which the tree runs in an `OnPaths.at_case_manager` branch: the transferee's path
+  judges nothing (HP-01-038). An Owner's Offer whose derived Offer the ledger
+  already records is a redelivery: the guard sets `is_redelivery`, which it reports
+  as a repeat, and the received-tree runner reports `SKIPPED` (HP-01-014,
+  ADR-0195).
+- **Withdrawal is an `Undo` of the Owner's own Offer (CM-21-036, CM-21-037).** The
+  CASE_MANAGER derives its Offer's id from the Owner's Offer id and its own id, so
+  the owner needs nothing it learned from the ledger; the ledgered Undo is a reply
+  that closes the Offer.
 
 ---
 
@@ -308,10 +320,10 @@ CASE_MANAGER inbox receives Reject
   silently narrowed to one scenario when `rccv-handoff` was composed (#5535).
   The shared fragment is `owner_decision_story.the_owner_hands_the_case_over`,
   whose witness is a `Part` the caller names and defaults to the Reporter.
-- **Accept the CASE_MANAGER's Offer, not the proposal.** The CASE_MANAGER makes the
+- **Accept the CASE_MANAGER's Offer, not the Owner's.** The CASE_MANAGER makes its
   Offer under an id it derives (CM-21-028, EDF-06-004); find it on the transferee
   with `find_ownership_transfer_offer_for_actor` and use that id in the accept
-  trigger. Withdraw by the proposal id the offer trigger returned.
+  trigger. Withdraw by the Owner's Offer id the offer trigger returned.
 - **The exchange demo needs a CASE_MANAGER-owned case.** `setup_initialized_case`
   leaves no CASE_MANAGER participant; use
   `vultron.demo.helpers.workflow.setup_canonical_case`.

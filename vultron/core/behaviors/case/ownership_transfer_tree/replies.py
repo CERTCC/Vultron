@@ -82,7 +82,7 @@ def _reply_stages(
     context = SenderCheckContext(
         sender_id=sender_id,
         case_id=case_id,
-        request=OwnershipOfferRequest(offer_id=offer_id, reply_id=reply_id),
+        request=OwnershipOfferRequest(offer_id=offer_id),
     )
     guards: list[py_trees.behaviour.Behaviour] = [
         case_manager_ownership_offer_open_guard(

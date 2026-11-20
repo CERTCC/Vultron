@@ -49,11 +49,11 @@ def await_ownership_transfer_offer(
 ) -> str:
     """Gate on the CaseActor's ownership-transfer Offer; return its id.
 
-    The owner addresses its proposal, ``Offer(Offer(VulnerabilityCase))``, to
-    the CaseActor, which makes the one ``Offer(VulnerabilityCase)`` of the
-    transfer under an id of its own and sends it to the transferee (CM-21-028,
-    ADR-0148).  The consequent therefore has a new identity: polling the
-    transferee's store for the proposal's id never matches (EDF-06-004, issue
+    The owner addresses its own ``Offer(VulnerabilityCase)`` to the
+    CaseActor alone, which makes its own Offer from it under an id it derives
+    and sends that to the transferee (CM-21-028, ADR-0199).  The consequent
+    therefore has a new identity: polling the transferee's store for the
+    owner's Offer's id never matches (EDF-06-004, issue
     #2178).  This helper discovers the CaseActor's Offer by its properties
     instead.  The transferee answers it through its accept or reject trigger,
     which takes that Offer's id (TRIG-11-002, TRIG-11-005).

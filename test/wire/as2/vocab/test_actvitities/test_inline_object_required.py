@@ -49,7 +49,6 @@ from vultron.wire.as2.vocab.activities.case.invite import (
 from vultron.wire.as2.vocab.activities.case.ownership import (
     _AcceptCaseOwnershipTransferActivity,
     _OfferCaseOwnershipTransferActivity,
-    _ProposeCaseOwnershipTransferActivity,
     _RejectCaseOwnershipTransferActivity,
     _UndoCaseOwnershipTransferActivity,
 )
@@ -202,12 +201,6 @@ _RECOMMEND = make(
 _OFFER_TRANSFER = make(
     _OfferCaseOwnershipTransferActivity, actor=_ACTOR, object_=_CASE
 )
-_PROPOSE_TRANSFER = make(
-    _ProposeCaseOwnershipTransferActivity,
-    actor=_ACTOR,
-    object_=_OFFER_TRANSFER,
-    context=_CASE.id_,
-)
 _GENERIC_TRANSITIVE_CLASSES = (
     as_TransitiveActivity,
     as_Like,
@@ -271,15 +264,6 @@ class TestBareStringObjectRejected(unittest.TestCase):
 
     def test_undo_case_ownership_transfer_rejects_string(self):
         self._assert_string_rejected(_UndoCaseOwnershipTransferActivity)
-
-    def test_propose_case_ownership_transfer_rejects_string(self):
-        with pytest.raises(ValidationError):
-            make(
-                _ProposeCaseOwnershipTransferActivity,
-                actor=_ACTOR.id_,
-                object_=cast(Any, "urn:uuid:fake-id-1234"),
-                context=_CASE.id_,
-            )
 
     def test_rm_accept_invite_rejects_string(self):
         self._assert_string_rejected(_RmAcceptInviteToCaseActivity)
@@ -352,14 +336,9 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
         obj = make(
             _UndoCaseOwnershipTransferActivity,
             actor=_ACTOR.id_,
-            object_=_PROPOSE_TRANSFER,
+            object_=_OFFER_TRANSFER,
         )
-        assert isinstance(obj.object_, _ProposeCaseOwnershipTransferActivity)
-
-    def test_propose_case_ownership_transfer_accepts_typed(self):
-        assert isinstance(
-            _PROPOSE_TRANSFER.object_, _OfferCaseOwnershipTransferActivity
-        )
+        assert isinstance(obj.object_, _OfferCaseOwnershipTransferActivity)
 
     def test_rm_accept_invite_accepts_typed(self):
         obj = make(

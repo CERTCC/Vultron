@@ -68,7 +68,7 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
     RejectOfferCaseParticipantReceivedUseCase,
 )
 from vultron.core.use_cases.received.actor.ownership import (
-    ProposeCaseOwnershipTransferReceivedUseCase,
+    OfferCaseOwnershipTransferReceivedUseCase,
     UndoCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.core.use_cases.received.case.lifecycle import (
@@ -114,7 +114,7 @@ def _ownership_withdrawal(sender: str) -> SenderCheckContext:
     return SenderCheckContext(
         sender_id=sender,
         case_id=CASE_ID,
-        request=OwnershipOfferRequest(offer_id=OFFER_ID, reply_id=UNDO_ID),
+        request=OwnershipOfferRequest(offer_id=OFFER_ID),
         case_manager_required=True,
     )
 
@@ -140,7 +140,7 @@ CASE_OWNER_USE_CASES: dict[str, tuple[type, ContextFor, bool]] = {
     ),
     "remove-note": (RemoveNoteFromCaseReceivedUseCase, _note, True),
     "propose-ownership": (
-        ProposeCaseOwnershipTransferReceivedUseCase,
+        OfferCaseOwnershipTransferReceivedUseCase,
         _new_ownership_proposal,
         True,
     ),

@@ -169,7 +169,8 @@ The suggested-actor path adds one round-trip, because the Case Owner's decision 
 
 The Case Owner can transfer ownership to another participant through an
 `Offer(VulnerabilityCase)` / `Accept` handshake routed through the CASE_MANAGER.
-The Case Owner proposes the transfer to the CASE_MANAGER as `Offer(Offer(VulnerabilityCase))`, and the CASE_MANAGER makes the one `Offer(VulnerabilityCase)` the receiving actor answers.
+The Case Owner sends its own `Offer(VulnerabilityCase)`, naming the receiving actor as `target`, to the CASE_MANAGER only.
+The CASE_MANAGER records it and makes its own `Offer(VulnerabilityCase)` from it, which the receiving actor answers.
 The receiving actor is one already entitled to the case's content and holding the case, which the Offer names by reference: an active participant.
 An owner that means to transfer a case to any other actor invites that actor first.
 

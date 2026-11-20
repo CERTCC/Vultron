@@ -22,18 +22,14 @@ from typing import Any, cast
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
-from test.support.received import received_event
-from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.participants.ownership_offer import ownership_offer_id
-from vultron.core.services.received_activity import held_received_record
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
-    propose_case_ownership_transfer_activity,
+    offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     undo_case_ownership_transfer_activity,
 )
-from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -51,14 +47,14 @@ def _network(name: str) -> LedgerNetwork:
 
 
 def _proposal(net: LedgerNetwork) -> Any:
-    """OWNER's proposal to transfer the case to BYSTANDER."""
+    """OWNER's own Offer to transfer the case to BYSTANDER."""
     case = make(
         as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=net.case_id,
         name="Rerun sweep",
     )
-    return propose_case_ownership_transfer_activity(
+    return offer_case_ownership_transfer_activity(
         case,
         target=make(as_Service, id_=BYSTANDER, name="Transferee"),
         actor=OWNER,
@@ -81,14 +77,20 @@ def _offered(name: str) -> tuple[LedgerNetwork, Any, Any]:
     return net, proposal, offer
 
 
-@applied(MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER)
+@applied(MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER)
 def propose_ownership_transfer() -> Scenario:
-    """The owner's proposal: the CASE_MANAGER commits it and makes the Offer."""
+    """The owner's own Offer: the CASE_MANAGER commits it and makes its own.
+
+    The one applied run of the semantic: the CASE_MANAGER's path, which
+    commits and emits, is the one a re-run from holding must not repeat.
+    The transferee's path records the Offer and nothing else
+    (ADR-0199).
+    """
     net = _network("propose")
     return deliver(net, _proposal(net))
 
 
-@refused(MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER)
+@refused(MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER)
 def propose_ownership_transfer_while_one_is_open() -> Scenario:
     """A second proposal while the first Offer is unanswered: refused."""
     net, _, _ = _offered("propose-refused")
@@ -98,7 +100,7 @@ def propose_ownership_transfer_while_one_is_open() -> Scenario:
         id_=net.case_id,
         name="Rerun sweep",
     )
-    second = propose_case_ownership_transfer_activity(
+    second = offer_case_ownership_transfer_activity(
         case,
         target=make(as_Service, id_=BYSTANDER, name="Transferee"),
         actor=OWNER,
@@ -107,39 +109,6 @@ def propose_ownership_transfer_while_one_is_open() -> Scenario:
         at=authored_at(),
     )
     return deliver(net, second)
-
-
-def _offer_recorded(offer_id: str):
-    """The transferee's intake recorded the Offer, the copy it answers.
-
-    The tree commits nothing: the CASE_MANAGER ledgered the Offer when it
-    made it (CM-21-013), so the record is the tree's only effect.
-    """
-
-    def _check(dl: Any) -> str | None:
-        if held_received_record(dl, offer_id) is None:
-            return f"the transferee holds no record of the Offer '{offer_id}'"
-        return None
-
-    return _check
-
-
-@applied(MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER)
-def offer_ownership_transfer() -> Scenario:
-    """The CASE_MANAGER's Offer, delivered to the transferee's replica."""
-    net, _, offer = _offered("offer")
-    body = read_sealed_body_dict(net.stores[MANAGER], offer.id_)
-    assert body is not None, "the Offer was never sealed"
-    event = received_event(
-        parse_activity(cast(dict[str, Any], body)),
-        as_sent=True,
-        receiving_actor_id=BYSTANDER,
-    )
-    return Scenario(
-        dl=net.stores[BYSTANDER],
-        event=event,
-        reached=_offer_recorded(offer.id_),
-    )
 
 
 @applied(MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER)

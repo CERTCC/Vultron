@@ -105,7 +105,7 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
 )
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
-    ProposeCaseOwnershipTransferReceivedUseCase,
+    OfferCaseOwnershipTransferReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.core.use_cases.received.case.lifecycle import (
@@ -139,7 +139,7 @@ from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
-    propose_case_ownership_transfer_activity,
+    offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     reject_case_participant_offer_activity,
     remove_embargo_from_case_activity,
@@ -220,7 +220,7 @@ def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
     seed_case_owner_participant(cm_store, owned_case, _OWNER_ID)
     seed_case_participant(cm_store, owned_case, _TRANSFEREE_ID)
     cm_store.create(owned_case)
-    proposal = propose_case_ownership_transfer_activity(
+    proposal = offer_case_ownership_transfer_activity(
         owned_case,
         target=make(as_Actor, id_=_TRANSFEREE_ID),
         actor=_OWNER_ID,
@@ -229,7 +229,7 @@ def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
         at=authored_at(),
     )
     recorded = run_in_act(
-        ProposeCaseOwnershipTransferReceivedUseCase(
+        OfferCaseOwnershipTransferReceivedUseCase(
             cm_store,
             make_payload(
                 proposal, receiving_actor_id=_CASE_MANAGER_ID, at=cm_store

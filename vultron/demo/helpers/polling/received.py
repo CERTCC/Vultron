@@ -133,8 +133,8 @@ def wait_for_object_stored(
         **Only valid when the recipient stores the same object ID.**  When the
         receiving actor creates a *new* derived object in response (the
         propose-then-execute pattern — e.g.
-        ``ProposeCaseOwnershipTransferReceivedUseCase`` making the Offer from
-        the owner's proposal), the original *obj_id* will never
+        ``OfferCaseOwnershipTransferReceivedUseCase`` making the CaseActor's
+        Offer from the owner's), the original *obj_id* will never
         appear in the recipient's DataLayer.  Use
         :func:`find_ownership_transfer_offer_for_actor` or a similar semantic
         scan in those cases.  See EDF-06-004 and issue #2178.

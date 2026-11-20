@@ -1387,18 +1387,18 @@ def _otc_make_offer(dl, proposal, case_manager_id: str) -> Any:
     )
     from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     from vultron.core.models.events.actor import (
-        ProposeCaseOwnershipTransferReceivedEvent,
+        OfferCaseOwnershipTransferReceivedEvent,
     )
     from vultron.core.models.use_case_result import HandlerDisposition
     from vultron.core.participants.ownership_offer import ownership_offer_id
     from vultron.core.use_cases.received.actor.ownership import (
-        ProposeCaseOwnershipTransferReceivedUseCase,
+        OfferCaseOwnershipTransferReceivedUseCase,
     )
 
     event = received_event(proposal, receiving_actor_id=case_manager_id)
-    assert isinstance(event, ProposeCaseOwnershipTransferReceivedEvent)
+    assert isinstance(event, OfferCaseOwnershipTransferReceivedEvent)
     result = run_in_act(
-        ProposeCaseOwnershipTransferReceivedUseCase(
+        OfferCaseOwnershipTransferReceivedUseCase(
             dl,
             event,
             trigger_activity=TriggerActivityAdapter(dl),
@@ -1441,7 +1441,7 @@ def _otc_ownership_transferred(
     )
     from vultron.wire.as2.factories.case import (
         accept_case_ownership_transfer_activity,
-        propose_case_ownership_transfer_activity,
+        offer_case_ownership_transfer_activity,
     )
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
@@ -1580,7 +1580,7 @@ def _otc_ownership_transferred(
                         },
                     )
                 )
-                proposal = propose_case_ownership_transfer_activity(
+                proposal = offer_case_ownership_transfer_activity(
                     case_wire,
                     # Inline, as the inbox rehydrates it: the ledger
                     # commit refuses a bare-id target (CLP-07).

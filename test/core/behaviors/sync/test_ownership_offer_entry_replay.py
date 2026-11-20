@@ -13,13 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""A replica's Add of the ownership-transfer Offer entry writes nothing.
+"""A replica's Add of an ownership-transfer Offer entry writes nothing.
 
-The CASE_MANAGER makes the one ownership-transfer Offer and ledgers it
-(ADR-0148).  The transferee answers that Offer from its intake archive, the
-owner holds its own proposal, and a bystander never answers, so no replica
-keeps a record of the Offer: the ``offer_case_ownership_transfer`` entry has
-no effect to apply.  The entry itself is still persisted (SYNC-12-001), and
+The CASE_MANAGER ledgers the Case Owner's own Offer, then the Offer it makes
+from it (ADR-0199).  The transferee answers the CASE_MANAGER's Offer from its
+intake archive, the owner holds its own, and a bystander never answers, so no
+replica keeps a record of either: an ``offer_case_ownership_transfer`` entry
+has no effect to apply.  The entry itself is still persisted (SYNC-12-001), and
 nothing is written under the Offer's id, an id its sender chose (DL-06-006).
 """
 
@@ -90,14 +90,19 @@ def case_replica(datalayer) -> as_VulnerabilityCase:
 
 
 def _offer_entry(
-    offer_id: str, case_manager_id: str, prev_hash: str
+    offer_id: str, case_manager_id: str, prev_hash: str, *, owners: bool
 ) -> HashChainLedgerRecord:
-    """The CASE_MANAGER's ``offer_case_ownership_transfer`` entry.
+    """An ``offer_case_ownership_transfer`` entry.
 
-    The Offer is the CASE_MANAGER's own, made on the owner's behalf
-    (ADR-0148): its ``actor`` is the CASE_MANAGER, its ``attributedTo`` the
-    owner.
+    With *owners*, the Case Owner's own Offer, its ``actor`` the owner;
+    otherwise the CASE_MANAGER's, made on the owner's behalf: its ``actor``
+    is the CASE_MANAGER, its ``attributedTo`` the owner (ADR-0199).
     """
+    authorship = (
+        {"actor": OWNER_ID}
+        if owners
+        else {"actor": case_manager_id, "attributedTo": OWNER_ID}
+    )
     return HashChainLedgerRecord(
         case_id=CASE_ID,
         log_index=0,
@@ -106,8 +111,7 @@ def _offer_entry(
         payload_snapshot={
             "type": "Offer",
             "id": offer_id,
-            "actor": case_manager_id,
-            "attributedTo": OWNER_ID,
+            **authorship,
             "context": CASE_ID,
             "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
             "target": {"id": TRANSFEREE_ID, "type": "Actor"},
@@ -119,12 +123,19 @@ def _offer_entry(
 
 @pytest.mark.spec("SYNC-12-001")
 @pytest.mark.spec("DL-06-006")
+@pytest.mark.parametrize("owners", [False, True], ids=["managers", "owners"])
 def test_offer_entry_persists_and_writes_nothing_else(
-    datalayer, case_actor, case_replica
+    datalayer, case_actor, case_replica, owners
 ):
+    """A bystander's replica holds no record of either Offer (#4911)."""
     offer_id = f"urn:uuid:{uuid.uuid4()}"
     entry = _to_persistable_entry(
-        _offer_entry(offer_id, case_actor.id_, case_replica.genesis_hash)
+        _offer_entry(
+            offer_id,
+            case_actor.id_,
+            case_replica.genesis_hash,
+            owners=owners,
+        )
     )
     event = _make_event(entry, actor_id=case_actor.id_, to=[REPLICA_ID])
     before = datalayer.count_all()

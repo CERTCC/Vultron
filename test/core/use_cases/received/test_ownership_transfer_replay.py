@@ -40,7 +40,7 @@ from vultron.core.participants.ownership_offer import ownership_offer_id
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
-    propose_case_ownership_transfer_activity,
+    offer_case_ownership_transfer_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -68,7 +68,7 @@ def _transferred(case_id: str) -> LedgerNetwork:
         id_=case_id,
         name="Ownership replay",
     )
-    proposal = propose_case_ownership_transfer_activity(
+    proposal = offer_case_ownership_transfer_activity(
         case,
         target=make(as_Service, id_=BYSTANDER, name="Transferee"),
         actor=OWNER,

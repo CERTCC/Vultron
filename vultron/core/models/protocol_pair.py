@@ -83,14 +83,16 @@ INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
 
 
 #: Ledger ``semantic_type`` of a recorded ownership-transfer
-#: ``Offer(VulnerabilityCase)`` — the request side of the pair below.
+#: ``Offer(VulnerabilityCase)``: the Case Owner's own and the one the
+#: CASE_MANAGER makes from it (ADR-0199).  Only the CASE_MANAGER's Offer is
+#: the request side of the pair below; readers tell it by its ``actor``.
 OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
     MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER.value
 )
 
-#: Ledger ``semantic_type`` of the owner's withdrawal of its ownership-transfer
-#: proposal, ``Undo(Offer(Offer(VulnerabilityCase)))``, which closes the Offer
-#: the CASE_MANAGER made from it (CM-21-015, ADR-0148).
+#: Ledger ``semantic_type`` of the owner's withdrawal of its own
+#: ownership-transfer Offer, ``Undo(Offer(VulnerabilityCase))``, which closes
+#: the Offer the CASE_MANAGER made from it (CM-21-015, ADR-0199).
 UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
     MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER.value
 )

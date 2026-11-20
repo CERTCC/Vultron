@@ -29,7 +29,6 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.wire.as2.factories.case import (
     accept_case_ownership_transfer_activity,
     offer_case_ownership_transfer_activity,
-    propose_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     undo_case_ownership_transfer_activity,
 )
@@ -55,39 +54,6 @@ class _OwnershipMixin:
 
     _dl: CaseOutboxPersistence
 
-    def propose_case_ownership_transfer(
-        self,
-        case_id: str,
-        transferee_id: str,
-        actor: str,
-        content: str | None = None,
-        to: list[str] | None = None,
-        end_time: datetime | None = None,
-        *,
-        at: datetime,
-    ) -> tuple[str, str]:
-        """Create and persist the owner's ``Offer(Offer(VulnerabilityCase))``.
-
-        The proposal goes from ``actor`` to the CASE_MANAGER (*to*), which
-        makes the inner Offer itself (ADR-0148, TRIG-11-001).  The inner
-        Offer names the case by typed reference (ADR-0165), so its shape is
-        the Offer the CASE_MANAGER will make, the transferee as its
-        ``target`` and, when given, *end_time* as its deadline (CM-21-016).
-        """
-        extra: dict[str, Any] = {"actor": actor, "to": to}
-        if content is not None:
-            extra["content"] = content
-        activity = propose_case_ownership_transfer_activity(
-            case_id,
-            target=_held_actor(self._dl, transferee_id),
-            end_time=end_time,
-            **extra,
-            at=at,
-        )
-        return _create_and_seal(
-            self._dl, activity, "propose_case_ownership_transfer"
-        )
-
     def offer_case_ownership_transfer(
         self,
         case_id: str,
@@ -104,8 +70,9 @@ class _OwnershipMixin:
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
-        The CASE_MANAGER's Offer to ``transferee_id``, made from the owner's
-        proposal (ADR-0148, CM-21-028).  The case travels as its typed
+        The Case Owner's own Offer, sent *to* the CASE_MANAGER, or the
+        CASE_MANAGER's Offer to ``transferee_id`` made from it (ADR-0199,
+        CM-21-028).  The case travels as its typed
         reference (ADR-0165): the transferee is an active participant that
         holds it (CM-21-021), and the reference's ``type`` tells this from a
         ``SUBMIT_REPORT`` offer.  *end_time*, when given, is the Offer's
@@ -184,18 +151,18 @@ class _OwnershipMixin:
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist the owner's ``Undo`` of its own proposal.
+        """Create and persist the owner's ``Undo`` of its own Offer.
 
-        *offer_id* names the ``Offer(Offer(VulnerabilityCase))`` this actor
-        sent, held under its own id (TRIG-11-006, CM-21-015, ADR-0148).  The
-        Undo goes to *to*, the CASE_MANAGER; there is no fallback, since the
-        proposal's ``actor`` is this actor itself.
+        *offer_id* names the ``Offer(VulnerabilityCase)`` this actor sent,
+        held under its own id (TRIG-11-006, CM-21-015, ADR-0199).  The Undo
+        goes to *to*, the CASE_MANAGER; there is no fallback, since the
+        Offer's ``actor`` is this actor itself.
         """
-        proposal = read_held_as_received(
-            self._dl, offer_id, "Offer(Offer(VulnerabilityCase))"
+        own_offer = read_held_as_received(
+            self._dl, offer_id, "Offer(VulnerabilityCase)"
         )
         activity = undo_case_ownership_transfer_activity(
-            proposal=cast(as_Offer, proposal), actor=actor, to=to, at=at
+            offer=cast(as_Offer, own_offer), actor=actor, to=to, at=at
         )
         return _create_and_seal(
             self._dl, activity, "withdraw_case_ownership_transfer"

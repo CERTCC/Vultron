@@ -47,7 +47,6 @@ from vultron.wire.as2.factories.case.invite import (
 from vultron.wire.as2.factories.case.ownership import (
     accept_case_ownership_transfer_activity,
     offer_case_ownership_transfer_activity,
-    propose_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     undo_case_ownership_transfer_activity,
 )
@@ -81,7 +80,6 @@ __all__ = [
     "create_case_proposal_activity",
     "offer_case_ownership_transfer_activity",
     "offer_case_participant_role_activity",
-    "propose_case_ownership_transfer_activity",
     "reject_case_ownership_transfer_activity",
     "reject_case_participant_role_activity",
     "reject_case_proposal_activity",
