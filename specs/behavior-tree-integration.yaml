@@ -1419,8 +1419,8 @@ groups:
     statement: >-
       Every absolute key a tree node publishes MUST be restored when its run ends,
       unless an exemption records why no later run can read it. A node publishes
-      a key through an output port, as an act-key scope, or by writing it through
-      its own blackboard client, as a call-out seam writes its answer. The
+      a key through an output port, as an act-key scope, or through its own
+      blackboard client, as a call-out seam does. The
       tree's runner restores the key, or the publisher does. The runner is
       `BTBridge.execute_with_setup`, or the inbox pipeline for its own nodes.
     rationale: >-
