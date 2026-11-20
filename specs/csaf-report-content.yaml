@@ -806,7 +806,9 @@ groups:
       A renderer that reads the case can show a value that the profile withheld.
     adr:
     - ADR-0219
-    lint_suppress: [compound_statement]
+    lint_suppress:
+    # the renderer's one input and the inputs it may not read state one rule
+    - compound_statement
     verification: >-
       `test/wire/csaf/test_projection.py::test_the_renderer_needs_no_case_only_a_preview_and_inputs`
       renders a preview built by hand, with no case behind it, from the cut
@@ -867,7 +869,9 @@ groups:
       Security Advisory profiles require a product tree and product status.
     adr:
     - ADR-0219
-    lint_suppress: [compound_statement]
+    lint_suppress:
+    # the category and the schema together say what a valid projection is
+    - compound_statement
     verification: >-
       `test/wire/csaf/test_projection.py::test_each_profiles_projection_passes_the_pinned_schema`
       validates a projection cut by each profile against the pinned local copy of
@@ -911,7 +915,9 @@ groups:
       must start at 0 or 1 with no gap.
     adr:
     - ADR-0219
-    lint_suppress: [compound_statement]
+    lint_suppress:
+    # the version and its revision entry are one versioning rule (test 6.1.21)
+    - compound_statement
     verification: >-
       `test/wire/csaf/test_projection.py::test_every_projection_is_version_one_with_one_revision`
       checks the version and the revision history of a projection cut by each
@@ -965,7 +971,9 @@ groups:
     adr:
     - ADR-0219
     - ADR-0218
-    lint_suppress: [compound_statement]
+    lint_suppress:
+    # where credit comes from and where it may not come from are one rule (ADR-0218)
+    - compound_statement
     verification: >-
       `test/wire/csaf/test_projection.py::test_the_document_credits_the_caller_over_the_default`,
       `::test_with_no_caller_credit_the_document_credits_the_default` and
@@ -987,7 +995,9 @@ groups:
       the outbox, not about the case, and Vultron records no intentions.
     adr:
     - ADR-0219
-    lint_suppress: [compound_statement]
+    lint_suppress:
+    # the status a ledger fact takes and the two it never takes are one rule
+    - compound_statement
     verification: >-
       `test/wire/csaf/test_projection.py::test_each_act_with_a_csaf_meaning_is_one_completed_action`
       renders a joined projection of a ledger holding acts with and without a

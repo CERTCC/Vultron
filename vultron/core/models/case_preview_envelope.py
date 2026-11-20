@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 
 from vultron.core.models.preview_object import PreviewObject, PreviewValue
 from vultron.core.models.redacted import Redacted
+from vultron.core.models.wire_keys import wire_key
 from vultron.core.states.em import EM, is_em_embargo_active
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
 
@@ -131,11 +132,12 @@ def invitation_preview_faults(preview: CasePreview) -> list[str]:
                 f"carries an open embargo proposal at"
                 f" 'embargoRegister[{index}]' (CM-17-014)"
             )
-    for key, value in (
-        ("ledgerPosition", preview.ledger_position),
-        ("ledgerEntries", preview.ledger_entries),
+    for field, value in (
+        ("ledger_position", preview.ledger_position),
+        ("ledger_entries", preview.ledger_entries),
     ):
         if value is not None:
+            key = wire_key(field)
             faults.append(
                 f"carries the case's bookkeeping at {key!r} (CM-17-025)"
             )

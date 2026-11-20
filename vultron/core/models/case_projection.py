@@ -43,7 +43,7 @@ from typing import Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 
-from vultron.core.models.base import NonEmptyString
+from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -63,7 +63,11 @@ class PublicationStatus(StrEnum):
     FINAL = "final"
 
 
-class _Value(BaseModel):
+class _Value(ValidatedAssignmentMixin, BaseModel):
+    """A value a call site passes beside a cut: a plain model, not an AS2
+    object, because it never travels as one.  Frozen, so a renderer cannot
+    change what its call site passed."""
+
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 

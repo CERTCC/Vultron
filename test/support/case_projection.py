@@ -169,7 +169,8 @@ def ledger_entry(
         **({"inReplyTo": in_reply_to} if in_reply_to else {}),
         **(extra or {}),
     }
-    return CaseLedgerEntry(
+    return make(
+        CaseLedgerEntry,
         context=CASE_ID,
         log_index=log_index,
         log_object_id=act_id,

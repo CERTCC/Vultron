@@ -59,6 +59,7 @@ from vultron.core.models.case_preview_profile import (
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.preview_object import PreviewObject, to_loose
+from vultron.core.models.wire_keys import wire_key
 
 _OP = PreviewOperation
 _ANY = frozenset(PreviewOperation)
@@ -114,11 +115,18 @@ SHOWN_ENTRY_FIELDS = (
 #: the activity verbatim, and a value the profile withholds elsewhere, such
 #: as the case bookkeeping or another participant's report, could otherwise
 #: leave the case inside it (ADR-0219).
-SHOWN_PAYLOAD_KEYS = ("id", "type", "actor", "to", "published", "inReplyTo")
+SHOWN_PAYLOAD_KEYS = (
+    "id",
+    "type",
+    "actor",
+    "to",
+    "published",
+    wire_key("in_reply_to"),
+)
 
 #: The kept payload members that name other objects.  Each is cut to the ids
 #: it names, so an object the activity embeds there is not carried whole.
-_REFERENCE_KEYS = frozenset({"actor", "to", "inReplyTo"})
+_REFERENCE_KEYS = frozenset({"actor", "to", wire_key("in_reply_to")})
 
 
 @dataclass(frozen=True)
