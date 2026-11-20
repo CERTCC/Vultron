@@ -169,18 +169,49 @@ def test_a_rule_with_a_pec_part_is_undecided_everywhere():
         assert report.conditionals == ()
 
 
-def test_the_unclaimed_moves_hold_every_unclaimed_result():
-    unclaimed = {u.move: u for u in _report().unclaimed}
+def _unclaimed_where() -> dict[str, dict[PositionKey, set[bool]]]:
+    """For each scored move, at each position, whether it is unclaimed on
+    each history there."""
+    found: dict[str, dict[PositionKey, set[bool]]] = {}
     for point in vendor_points():
         key = _key(point)
-        for result in compare_point(point, authored_rules()).results:
-            if result.kind is not ResultKind.UNCLAIMED_MOVE:
+        unclaimed = {
+            r.move
+            for r in compare_point(point, authored_rules()).results
+            if r.kind is ResultKind.UNCLAIMED_MOVE
+        }
+        for verdict in point.verdicts:
+            if verdict.score is None:
                 continue
-            assert result.move is not None
-            report = unclaimed[result.move]
-            assert any(_covers(p, key) for p in report.patterns) or any(
-                c.position == key for c in report.conditionals
+            name = verdict.move.name
+            found.setdefault(name, {}).setdefault(key, set()).add(
+                name in unclaimed
             )
+    return found
+
+
+@pytest.mark.spec("SHD-06-007")
+def test_the_unclaimed_moves_are_stated_exactly_where_they_are_unclaimed():
+    """Each move unclaimed somewhere is reported, and no other; its
+    patterns cover the positions where it is unclaimed on every history and
+    no other, and its conditionals are the positions where it is unclaimed
+    on some histories only."""
+    where = _unclaimed_where()
+    keys = list(dict.fromkeys(_key(p) for p in vendor_points()))
+    unclaimed = {u.move: u for u in _report().unclaimed}
+    assert set(unclaimed) == {
+        move
+        for move, positions in where.items()
+        if any(True in found for found in positions.values())
+    }
+    for move, report in unclaimed.items():
+        positions = where[move]
+        for key in keys:
+            found = positions.get(key, set())
+            covered = any(_covers(p, key) for p in report.patterns)
+            conditional = any(c.position == key for c in report.conditionals)
+            assert covered is (found == {True}), (move, key)
+            assert conditional is (found == {True, False}), (move, key)
 
 
 def test_a_move_unclaimed_on_some_histories_only_says_when():

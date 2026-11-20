@@ -25,6 +25,7 @@ from vultron.measure.action_rules import (
     ResultKind,
     RulePattern,
     RuleResult,
+    authored_rules,
 )
 from vultron.measure.standing import StandingRecord, case_standing
 from vultron.shadow.dashboard import view
@@ -90,7 +91,7 @@ def test_a_rule_disagreement_and_a_misplaced_rule_are_flagged(standing):
     note = view.flagged_note(rows)
     assert note is not None and note.startswith("3 flagged results")
     assert all(
-        f.startswith("⚠️")
+        str(f).startswith("⚠️")
         for f in flags
         if f != view.RESULT_FLAGS[ResultKind.AGREEMENT]
     )
@@ -159,9 +160,17 @@ def test_an_unclaimed_move_names_no_rule(standing):
 
 def test_the_rows_number_the_authored_table_by_default(standing):
     rows = view.action_rule_rows(view.rule_comparisons(standing), _NAMES)
-    numbers = {r["Rule"] for r in (*rows.checked, *rows.unnumbered)}
-    assert numbers - {"—"}
-    assert all(str(n).startswith(("Rule ", "—")) for n in numbers)
+    numbered = [
+        r for r in (*rows.checked, *rows.unnumbered) if r["Rule"] != "—"
+    ]
+    assert numbered
+    table = authored_rules()
+    for row in numbered:
+        rule = table[int(str(row["Rule"]).removeprefix("Rule ")) - 1]
+        assert (row["Roles"], row["Action"]) == (
+            rule.roles_label,
+            rule.action_label,
+        )
 
 
 def test_a_rule_outside_the_numbering_table_is_refused(standing):

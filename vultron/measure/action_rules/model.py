@@ -674,6 +674,38 @@ def rule_number(rule: AuthoredRule, rules: Sequence[AuthoredRule]) -> int:
     return list(rules).index(rule) + 1
 
 
+class RuleNumbers:
+    """Each rule's place in one table, from 1, numbered once.
+
+    :func:`rule_number` scans the table and compares whole rules, which a
+    pass over every point repeats thousands of times.  This looks a rule up
+    by identity instead: give it the rule objects the table holds, as a
+    comparison's results do.  Two equal rules in the table keep their own
+    numbers.
+    """
+
+    def __init__(self, rules: Sequence[AuthoredRule]) -> None:
+        # The table is held so that no number's id is reused.
+        self._rules = tuple(rules)
+        self._numbers = {
+            id(rule): number
+            for number, rule in enumerate(self._rules, start=1)
+        }
+
+    def __call__(self, rule: AuthoredRule) -> int:
+        """*rule*'s number.
+
+        Raises:
+            ValueError: *rule* is not one of the table's rule objects.
+        """
+        number = self._numbers.get(id(rule))
+        if number is None:
+            raise ValueError(
+                "the rule is not one of the numbered table's rules"
+            )
+        return number
+
+
 def rule_label(number: int) -> str:
     """A rule by its number: ``Rule 12``."""
     return f"Rule {number}"

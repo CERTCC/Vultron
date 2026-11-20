@@ -43,6 +43,7 @@ from vultron.measure.action_rules import (
     MatchStatus,
     Position,
     ProposalConsent,
+    RuleNumbers,
     RulePattern,
     SourcePair,
     authored_rules,
@@ -601,3 +602,16 @@ def test_a_rule_is_numbered_by_its_place_in_the_table():
     assert rule_label(rule_number(rules[-1], rules)) == f"Rule {len(rules)}"
     with pytest.raises(ValueError):
         rule_number(make_rule(), rules[:1])
+
+
+def test_a_numbered_table_numbers_each_rule_object_once():
+    rules = authored_rules()
+    number = RuleNumbers(rules)
+    assert [number(r) for r in rules] == list(range(1, len(rules) + 1))
+    twin = make_rule()
+    same = make_rule()
+    assert twin == same
+    numbered = RuleNumbers([twin, same])
+    assert (numbered(twin), numbered(same)) == (1, 2)
+    with pytest.raises(ValueError):
+        numbered(make_rule())

@@ -328,7 +328,9 @@ def rebuild_fragments(root: Path = ROOT) -> list[Path]:
 
 def main(argv: list[str] | None = None) -> int:
     """``uv run action-rules-docs --check | --write [--root DIR]``."""
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=(__doc__ or "").partition("\n")[0]
+    )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
         "--check",

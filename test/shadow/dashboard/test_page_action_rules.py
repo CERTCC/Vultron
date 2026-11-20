@@ -12,7 +12,6 @@ Spec: SHD-06-001, SHD-06-003, SHD-06-006.
 from __future__ import annotations
 
 from collections.abc import Hashable, Iterator
-from typing import Any
 
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -55,10 +54,10 @@ _DISAGREEMENT = view.RESULT_FLAGS[ResultKind.RULE_DISAGREEMENT]
 _MISPLACED = view.RESULT_FLAGS[ResultKind.MISPLACED_RULE]
 
 
-def _rule_tables(at: AppTest) -> dict[str, list[dict[Hashable, Any]]]:
+def _rule_tables(at: AppTest) -> dict[str, list[dict[Hashable, object]]]:
     """The page's two action-rule tables, each as its rows; empty for one
     drawn empty."""
-    found: dict[str, list[dict[Hashable, Any]]] = {
+    found: dict[str, list[dict[Hashable, object]]] = {
         "checked": [],
         "unnumbered": [],
     }

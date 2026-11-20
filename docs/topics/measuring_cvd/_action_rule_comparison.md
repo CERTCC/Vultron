@@ -38,20 +38,20 @@ Do not edit by hand: change the move advice and the authored action rules, then 
 | Rule | Roles | Action | Result | Where |
 |---|---|---|---|---|
 | Rule 2 | any | Publish vulnerability | unscored rule: the action changes no state here; not measured: the rule names no desideratum; its reason: Defense; a record for future reference | `...P..` |
-| Rule 4 | any | Publish vulnerability | unscored rule: not measured: this step happens anyway; not measured: the rule names no desideratum; its reason: Defense | `...pX.` |
+| Rule 4 | any | Publish vulnerability | unscored rule: not measured: this step happens anyway; its reason: Defense | `...pX.` |
 | Rule 4 | any | Publish vulnerability | unscored rule: the action changes no state here; not measured: the rule names no desideratum; its reason: Defense | `...PX.` |
-| Rule 5 | any | Publicize published exploits | unscored rule: not measured: this step happens anyway; not measured: the rule names no desideratum; its reason: SA: draw attention to the published exploit | `...pX.` |
+| Rule 5 | any | Publicize published exploits | unscored rule: not measured: this step happens anyway; its reason: SA: draw attention to the published exploit | `...pX.` |
 | Rule 5 | any | Publicize published exploits | unscored rule: the action changes no state here; not measured: the rule names no desideratum; its reason: SA: draw attention to the published exploit | `...PX.` |
 | Rule 6 | any | Monitor for exploit refinement | unscored rule: the action changes no state here | `....X.` |
-| Rule 7 | any | Publish detection for exploits | unscored rule: not measured: this step happens anyway; not measured: the rule names no desideratum; its reason: Detection | `...pX.` |
+| Rule 7 | any | Publish detection for exploits | unscored rule: not measured: this step happens anyway; its reason: Detection | `...pX.` |
 | Rule 7 | any | Publish detection for exploits | unscored rule: the action changes no state here; not measured: the rule names no desideratum; its reason: Detection | `...PX.` |
 | Rule 9 | any | Publish vulnerability | unscored rule: not measured: the rule names no desideratum; its reason: Defense | `...pxA` |
 | Rule 9 | any | Publish vulnerability | unscored rule: the action changes no state here; not measured: the rule names no desideratum; its reason: Defense | `...P.A` |
-| Rule 9 | any | Publish vulnerability | unscored rule: not measured: this step happens anyway; not measured: the rule names no desideratum; its reason: Defense | `...pXA` |
+| Rule 9 | any | Publish vulnerability | unscored rule: not measured: this step happens anyway; its reason: Defense | `...pXA` |
 | Rule 10 | any | Monitor for additional attacks | unscored rule: the action changes no state here; not measured: the rule names no desideratum; its reason: SA | `.....A` |
 | Rule 11 | any | Publish detection for attacks | unscored rule: not measured: the rule names no desideratum; its reason: Detection | `...pxA` |
 | Rule 11 | any | Publish detection for attacks | unscored rule: the action changes no state here; not measured: the rule names no desideratum; its reason: Detection | `...P.A` |
-| Rule 11 | any | Publish detection for attacks | unscored rule: not measured: this step happens anyway; not measured: the rule names no desideratum; its reason: Detection | `...pXA` |
+| Rule 11 | any | Publish detection for attacks | unscored rule: not measured: this step happens anyway; its reason: Detection | `...pXA` |
 | Rule 16 | any | Monitor for exploit publication | unscored rule: the action changes no state here | `....x.` |
 | Rule 17 | any | Monitor for attacks | unscored rule: the action changes no state here | `.....a` |
 | Rule 18 | VENDOR | Pay attention to public reports (cs.vendor_becomes_aware) | unscored rule: not measured: this step happens anyway | `...P..` · RM START |
@@ -75,8 +75,8 @@ Do not edit by hand: change the move advice and the authored action rules, then 
 | Rule 29 | any | Publish mitigation | ⚠️ agreement once Ac_i≺P, Ac_i≺X, Ac_i≺A are already met or broken; rule disagreement while Ac_i≺P, Ac_i≺X, Ac_i≺A are still open | `VFdpxa` · RM DEFERRED · EM NONE |
 | Rule 29 | any | Publish mitigation | ⚠️ agreement once Ac_i≺P, Ac_i≺X, Ac_i≺A are already met or broken; rule disagreement while Ac_i≺P, Ac_i≺X, Ac_i≺A are still open | `VFdpxa` · RM DEFERRED · EM EXITED |
 | Rule 30 | any | Publish mitigation | unscored rule: the action changes no state here; not measured: the rule names no desideratum; its reason: Defense | `.f.P..` |
-| Rule 31 | any | Publish vulnerability | unscored rule: not measured: this step happens anyway; not measured: the rule names no desideratum; its reason: Defense | `...pX.` |
-| Rule 32 | any | Publish mitigation | unscored rule: not measured: this step happens anyway; not measured: the rule names no desideratum; its reason: Defense | `...pX.` |
+| Rule 31 | any | Publish vulnerability | unscored rule: not measured: this step happens anyway; its reason: Defense | `...pX.` |
+| Rule 32 | any | Publish mitigation | unscored rule: not measured: this step happens anyway; its reason: Defense | `...pX.` |
 | Rule 33 | any | Publish vulnerability | unscored rule: the action changes no state here; not measured: the rule names no desideratum; its reason: Defense | `...PX.` |
 | Rule 34 | any | Publish mitigation | unscored rule: the action changes no state here; not measured: the rule names no desideratum; its reason: Defense | `...PX.` |
 | Rule 35 | any | Publish vulnerability | agreement | `...pxA` · RM START<br/>`..DpxA` |

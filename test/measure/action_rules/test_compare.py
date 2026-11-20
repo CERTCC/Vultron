@@ -397,6 +397,17 @@ def test_a_publication_where_an_exploit_forces_awareness_is_not_joined():
     assert result.reason == FORCED_STEP
 
 
+@pytest.mark.spec("SHD-05-028", "SHD-05-030")
+def test_a_forced_step_rule_with_no_desideratum_says_not_measured_once():
+    rule = _rule(
+        action=Actions.PUBLISH_VULNERABILITY, reason="Defense", desiderata=()
+    )
+    point = _point(RM.ACCEPTED, CS.VFdpXa, EM.NONE)
+    result = _only(compare_point(point, [rule]), rule)
+    assert result.kind is _K.UNSCORED_RULE
+    assert result.reason == f"{FORCED_STEP}; its reason: Defense"
+
+
 #: The vendor not yet aware while the public is: ``vfdP..`` forces V next.
 _PUBLIC_FIRST = (RM.START, CS.vfdPxa, EM.NONE)
 

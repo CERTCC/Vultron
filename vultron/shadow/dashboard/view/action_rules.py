@@ -43,12 +43,12 @@ from vultron.measure.action_rules import (
     AuthoredRule,
     PointComparison,
     ResultKind,
+    RuleNumbers,
     RuleResult,
     authored_rules,
     case_points,
     compare_points,
     rule_label,
-    rule_number,
 )
 from vultron.measure.standing import StandingRecord
 from vultron.shadow.dashboard.view.bands import size_text
@@ -119,16 +119,14 @@ def rule_comparisons(
     return compare_points(case_points(standing), table)
 
 
-def _rule_name(
-    rule: AuthoredRule | None, rules: Sequence[AuthoredRule]
-) -> str:
-    """A rule by its place in *rules*, as the docs number it; a dash for an
-    unclaimed move, which no rule names.
+def _rule_name(rule: AuthoredRule | None, number: RuleNumbers) -> str:
+    """A rule by its place in the numbered table, as the docs number it; a
+    dash for an unclaimed move, which no rule names.
 
     Raises:
-        ValueError: *rule* is not one of *rules*.
+        ValueError: *rule* is not one of the table's rules.
     """
-    return "—" if rule is None else rule_label(rule_number(rule, rules))
+    return "—" if rule is None else rule_label(number(rule))
 
 
 def _note(result: RuleResult) -> str:
@@ -145,7 +143,7 @@ def _note(result: RuleResult) -> str:
 def _checked_row(
     result: RuleResult,
     names: Mapping[str, str],
-    rules: Sequence[AuthoredRule],
+    number: RuleNumbers,
 ) -> Row:
     rule = result.rule
     deciding = (
@@ -157,7 +155,7 @@ def _checked_row(
     return {
         "Vendor": actor_label(result.vendor, names),
         "Result": RESULT_FLAGS[result.kind],
-        "Rule": _rule_name(rule, rules),
+        "Rule": _rule_name(rule, number),
         "Roles": rule.roles_label if rule is not None else "",
         "Action": rule.action_label if rule is not None else "",
         "Move": result.move or "",
@@ -180,12 +178,12 @@ def _unnumbered_row(
     rule: AuthoredRule,
     why: str,
     names: Mapping[str, str],
-    rules: Sequence[AuthoredRule],
+    number: RuleNumbers,
 ) -> Row:
     return {
         "Vendor": actor_label(vendor, names),
         "Result": flag,
-        "Rule": _rule_name(rule, rules),
+        "Rule": _rule_name(rule, number),
         "Roles": rule.roles_label,
         "Action": rule.action_label,
         "Why no number": why,
@@ -201,9 +199,9 @@ def action_rule_rows(
     rules with no number (SHD-06-003, SHD-06-006).
 
     *rules* numbers each rule by its place, as the docs do; by default the
-    authored table.
+    authored table.  They are the rules *comparisons* compared.
     """
-    table = authored_rules() if rules is None else rules
+    numbers = RuleNumbers(authored_rules() if rules is None else rules)
     checked: list[Row] = []
     unnumbered: list[Row] = []
     flagged = 0
@@ -219,15 +217,15 @@ def action_rule_rows(
                         result.rule,
                         result.reason,
                         names,
-                        table,
+                        numbers,
                     )
                 )
                 continue
             flagged += result.kind in FLAGGED
-            checked.append(_checked_row(result, names, table))
+            checked.append(_checked_row(result, names, numbers))
         unnumbered.extend(
             _unnumbered_row(
-                vendor, UNDECIDED_FLAG, rule, UNDECIDED_REASON, names, table
+                vendor, UNDECIDED_FLAG, rule, UNDECIDED_REASON, names, numbers
             )
             for rule in comparison.undecided
         )

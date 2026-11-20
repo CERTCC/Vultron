@@ -276,9 +276,24 @@ def group_positions(
     return tuple(c.pattern() for c in kept)
 
 
-def _key(point: VendorPoint) -> PositionKey:
+def position_key(point: VendorPoint) -> PositionKey:
+    """*point*'s position: its RM, CS and EM states, without its history."""
     p = point.position
     return PositionKey(p.rm, p.cs, p.em)
+
+
+def walk_positions(points: Iterable[VendorPoint]) -> list[PositionKey]:
+    """Each position of *points* once, in walk order."""
+    return list(dict.fromkeys(position_key(p) for p in points))
+
+
+def patterns_for(
+    targets: Sequence[PositionKey], every: Sequence[PositionKey]
+) -> tuple[RulePattern, ...]:
+    """Patterns holding every one of *targets* and no other position of
+    *every* (:func:`group_positions`)."""
+    held = set(targets)
+    return group_positions(targets, [k for k in every if k not in held])
 
 
 class _Variant(NamedTuple):
@@ -294,7 +309,7 @@ def _variants(
     order."""
     found: dict[tuple[str, PositionKey], list[_Variant]] = {}
     for point in points:
-        key = _key(point)
+        key = position_key(point)
         opened = frozenset(point.open_desiderata or ())
         for verdict in point.verdicts:
             if verdict.score is None:
@@ -400,7 +415,7 @@ def rules_from(points: Sequence[VendorPoint]) -> tuple[GeneratedRule, ...]:
     In the order the moves are first scored in the walk, then in band order,
     the unforced rule first.
     """
-    every = list(dict.fromkeys(_key(p) for p in points))
+    every = walk_positions(points)
     groups, _ = _split(points)
     moves = list(dict.fromkeys(move for move, _, _ in groups))
     rules = []
@@ -410,15 +425,13 @@ def rules_from(points: Sequence[VendorPoint]) -> tuple[GeneratedRule, ...]:
                 targets = groups.get((move, band, forced))
                 if not targets:
                     continue
-                held = set(targets)
-                others = [k for k in every if k not in held]
                 rules.append(
                     GeneratedRule(
                         move=move,
                         role=move_role(move),
                         band=band,
                         forced=forced,
-                        patterns=group_positions(targets, others),
+                        patterns=patterns_for(targets, every),
                     )
                 )
     return tuple(rules)

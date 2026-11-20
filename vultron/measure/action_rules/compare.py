@@ -206,7 +206,24 @@ class PointComparison(BaseModel):
 def _not_measured(rule: AuthoredRule) -> str:
     """Why a rule that names no desideratum gets no band, with its reason
     (SHD-05-028)."""
-    return f"{NOT_MEASURED}; its reason: {rule.reason}"
+    return f"{NOT_MEASURED}; {_its_reason(rule)}"
+
+
+def _its_reason(rule: AuthoredRule) -> str:
+    return f"its reason: {rule.reason}"
+
+
+def _unscored_reason(rule: AuthoredRule, why: str | None) -> str | None:
+    """Why *rule* is unscored: *why*, and for a rule that names no
+    desideratum also the rule's reason (SHD-05-028), saying "not measured"
+    once where the step is forced (SHD-05-030)."""
+    if rule.measured:
+        return why
+    if why is None:
+        return _not_measured(rule)
+    if why == FORCED_STEP:
+        return f"{why}; {_its_reason(rule)}"
+    return f"{why}; {_not_measured(rule)}"
 
 
 def rule_move(rule: AuthoredRule, position: Position) -> str | None:
@@ -300,15 +317,12 @@ def _rule_result(
         )
 
     def unscored(why: str | None, **fields: object) -> RuleResult:
-        """An unscored-rule result; one for a rule that names no
-        desideratum also carries the rule's reason (SHD-05-028)."""
-        if not rule.measured:
-            why = (
-                _not_measured(rule)
-                if why is None
-                else (f"{why}; {_not_measured(rule)}")
-            )
-        return result(ResultKind.UNSCORED_RULE, reason=why, **fields)
+        """An unscored-rule result (:func:`_unscored_reason`)."""
+        return result(
+            ResultKind.UNSCORED_RULE,
+            reason=_unscored_reason(rule, why),
+            **fields,
+        )
 
     if move is None:
         return unscored(no_state)

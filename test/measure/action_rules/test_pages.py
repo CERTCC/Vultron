@@ -20,6 +20,7 @@ import re
 import pytest
 
 from test.measure.action_rules.builders import ACTION_RULES_GROUP
+from vultron.core.scoring.potential_actions import Actions
 from vultron.measure.action_rules import (
     authored_rules,
     conditional_verdicts,
@@ -163,9 +164,12 @@ def test_the_authored_table_holds_one_row_for_each_carried_over_rule():
         for part in (rule.pattern.rm, rule.pattern.em, rule.pattern.proposal):
             for state in part or ():
                 assert state.name in row[1]
-        assert _pattern_of(row[2]) == rule.source.pattern
+        source = rule.source
+        assert source is not None
+        assert _pattern_of(row[2]) == source.pattern
         assert row[3] == rule.roles_label
-        action = rule.action if rule.move is None else rule.source.action
+        action = source.action if rule.move is not None else rule.action
+        assert isinstance(action, Actions)
         assert row[4] == action.name.replace("_", " ").capitalize()
         assert row[5] == rule.reason.replace("|", r"\|")
         for desideratum in rule.desiderata:

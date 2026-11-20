@@ -37,7 +37,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.measure.action_rules.authored import authored_rules
 from vultron.measure.action_rules.compare import (
@@ -48,15 +48,17 @@ from vultron.measure.action_rules.compare import (
 )
 from vultron.measure.action_rules.generated import (
     PositionKey,
-    group_positions,
     history_branches,
     history_condition,
+    patterns_for,
+    position_key,
+    walk_positions,
 )
 from vultron.measure.action_rules.model import (
     AuthoredRule,
     MoveName,
+    RuleNumbers,
     RulePattern,
-    rule_number,
 )
 from vultron.measure.action_rules.verdicts import VendorPoint, vendor_points
 from vultron.primitives import NonEmptyString
@@ -75,7 +77,7 @@ type OutcomeKind = ResultKind | Literal["undecided", "no result"]
 _KIND_ORDER: tuple[OutcomeKind, ...] = (*ResultKind, UNDECIDED, NO_RESULT)
 
 
-class Outcome(BaseModel):
+class Outcome(BaseModel, frozen=True):
     """What the comparison gives one rule, or one move, on one history.
 
     Fields:
@@ -84,7 +86,9 @@ class Outcome(BaseModel):
         blind_spot: The issue a rule disagreement's rule cites.
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    # Frozen as a class argument, where type checkers see it: outcomes are
+    # gathered in sets.
+    model_config = ConfigDict(extra="forbid")
 
     kind: OutcomeKind
     reason: NonEmptyString | None = None
@@ -217,6 +221,15 @@ class UnclaimedReport(BaseModel):
     patterns: tuple[RulePattern, ...] = ()
     conditionals: tuple[ConditionalOutcome, ...] = ()
 
+    @model_validator(mode="after")
+    def _unclaimed_somewhere(self) -> UnclaimedReport:
+        if not (self.patterns or self.conditionals):
+            raise ValueError(
+                f"{self.move} is reported unclaimed but has neither a"
+                " pattern nor a conditional outcome where it is"
+            )
+        return self
+
 
 class ComparisonReport(BaseModel):
     """The comparison over every valid position of one vendor.
@@ -225,7 +238,7 @@ class ComparisonReport(BaseModel):
         rules: Each authored rule that matches or is undecided at some
             position, in table order.
         unclaimed: Each move that is unclaimed somewhere, in the order the
-            walk first finds it unclaimed.
+            walk first scores it.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -235,11 +248,6 @@ class ComparisonReport(BaseModel):
 
 
 type _Variants = dict[PositionKey, list[tuple[Outcome, frozenset[str]]]]
-
-
-def _key(point: VendorPoint) -> PositionKey:
-    p = point.position
-    return PositionKey(p.rm, p.cs, p.em)
 
 
 def _outcome(result: RuleResult) -> Outcome:
@@ -282,19 +290,12 @@ def _split(
     spans = [
         OutcomeSpan(
             outcome=outcome,
-            patterns=_patterns(steady[outcome], every),
+            patterns=patterns_for(steady[outcome], every),
         )
         for outcome in order
         if outcome in steady
     ]
     return spans, conditionals
-
-
-def _patterns(
-    targets: Sequence[PositionKey], every: Sequence[PositionKey]
-) -> tuple[RulePattern, ...]:
-    held = set(targets)
-    return group_positions(targets, [k for k in every if k not in held])
 
 
 def comparison_report(
@@ -309,24 +310,25 @@ def comparison_report(
     """
     points = vendor_points() if points is None else points
     rules = authored_rules() if rules is None else rules
-    every = list(dict.fromkeys(_key(p) for p in points))
+    every = walk_positions(points)
+    number = RuleNumbers(rules)
     by_rule: dict[int, _Variants] = {}  # by rule number
     by_move: dict[str, _Variants] = {}
     for point in points:
-        key = _key(point)
+        key = position_key(point)
         opened = frozenset(point.open_desiderata or ())
         comparison = compare_point(point, rules)
         for rule in comparison.undecided:
-            by_rule.setdefault(rule_number(rule, rules), {}).setdefault(
-                key, []
-            ).append((Outcome(kind=UNDECIDED), opened))
+            by_rule.setdefault(number(rule), {}).setdefault(key, []).append(
+                (Outcome(kind=UNDECIDED), opened)
+            )
         unclaimed: set[str] = set()
         for result in comparison.results:
             if result.rule is None:
                 assert result.move is not None, "an unclaimed move names it"
                 unclaimed.add(result.move)
                 continue
-            by_rule.setdefault(rule_number(result.rule, rules), {}).setdefault(
+            by_rule.setdefault(number(result.rule), {}).setdefault(
                 key, []
             ).append((_outcome(result), opened))
         for name in dict.fromkeys(
@@ -339,12 +341,12 @@ def comparison_report(
                 (Outcome(kind=kind), opened)
             )
     reports = []
-    for number in sorted(by_rule):
-        spans, conditionals = _split(by_rule[number], every)
+    for n in sorted(by_rule):
+        spans, conditionals = _split(by_rule[n], every)
         reports.append(
             RuleReport(
-                number=number,
-                rule=rules[number - 1],
+                number=n,
+                rule=rules[n - 1],
                 spans=tuple(spans),
                 conditionals=tuple(conditionals),
             )
