@@ -21,7 +21,6 @@ tracks:
   - "#6408"   # PR may not close a ratchet's open owner
   - "#6409"   # typed term for every Vultron field
   - "#6422"   # term check and owned ratchets
-  - "#6413"   # vulnerability item title -> name
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
   - "#6418"   # profile cites Controlled Identifiers context
@@ -586,10 +585,9 @@ data-integrity v2 and Multikey v1. CID v1 is pinned but not cited, so the
 profile's `assertionMethod` has no term until #6418 cites it. Each field the check
 refuses today is an entry in its owner's ratchet in
 `test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
-resolves to the marked one's meaning until its owner renames it: the item `title`
-takes the note's (#6413), and the item's `notes` takes the case's list of Note
-ids (#6416). The check walks computed fields too, so the case's
-derived `activeParticipants` is marked.
+resolves to the marked one's meaning until its owner renames it: the item's `notes`
+takes the case's list of Note ids (#6416). The check walks computed fields too, so
+the case's derived `activeParticipants` is marked.
 
 **Field review.** Each row names the Task that fixes it. A row is a ratchet entry
 only when a rule refuses the field. The note's `audience` breaks no rule (it is
@@ -599,15 +597,13 @@ Invite carry the roles they propose in one field, `roles`, declared on
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
-| `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
 | `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
-Every other field is a Vultron term. `title` is a clash only until #6413 renames the
-item's. `state`, `status` and `kind` are each used once on the wire, and
-`caseStatus` is declared once, on a participant status, so none of them is a
-clash.
+Every other field is a Vultron term. `state`, `status` and `kind` are each used once
+on the wire, and `caseStatus` is declared once, on a participant status, so none of
+them is a clash.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
 EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context

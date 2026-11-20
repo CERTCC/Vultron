@@ -1048,8 +1048,9 @@ groups:
       refuses a `cve` key, and asserts a CSAF 2.1 vulnerability entry's `cve`, `ids`,
       `title` (as the item's `name`), `notes` and `references` round-trip through it.
       `test/wire/as2/vocab/test_vulnerability_item.py::test_a_csaf_entrys_title_is_the_items_name`
-      requires the item to declare no `title` and to hold it as `name`; it is a strict
-      `xfail` until #6413 moves the title.
+      requires the item to declare no `title` and to hold it as `name`, and
+      `::test_an_item_with_a_title_key_is_refused` checks that core validation refuses
+      an item with a `title` key (MV-11-004).
     adr:
     - ADR-0187
     - ADR-0194
@@ -12398,9 +12399,9 @@ groups:
       replaced, because a sender that holds a partial or stale view of the item would
       otherwise erase entries it cannot see (ADR-0187).
     verification: >-
-      A test marked `CM-34-007` admits an update that supplies a new `title` and an
+      A test marked `CM-34-007` admits an update that supplies a new `name` and an
       `ids` list holding one new entry with `system_name` `CVE`, to an item that has a
-      `title`, a note and another identifier, and asserts the item's `title` is the
+      `name`, a note and another identifier, and asserts the item's `name` is the
       supplied one, its note is kept, and its `ids` hold the other identifier and the
       `CVE` entry.
     adr:

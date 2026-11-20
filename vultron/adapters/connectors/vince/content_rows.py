@@ -79,7 +79,7 @@ def _item(
     vince_id = {"systemName": VINCE_ID_SYSTEM, "text": vul.name}
     data: dict[str, object] = {
         "id": t.ids.minted(f"vul:{vul.name}"),
-        "title": vul.name,
+        "name": vul.name,
         "ids": [vince_id],
         "notes": (
             [{"category": "description", "text": vul.description}]
