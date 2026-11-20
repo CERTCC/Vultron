@@ -40,10 +40,10 @@ A node publishes a key in three ways, and the scans read each:
   restores that way is covered; any other client write must be restored
   like a port binding.  The scans read clients as built and call no
   ``setup()``, so a key a node registers only in ``setup()`` is not seen;
-  the seam registers its keys when it is built.  The tree scan reads the clients of every built
-  received tree, and :func:`_call_out_contract_trees` holds one seam per
-  capability declaration, so a contract no received tree builds is read
-  too.
+  the seam registers its keys when it is built.  The tree scan reads the
+  clients of every built received tree, and
+  :func:`_call_out_contract_trees` holds one seam per capability
+  declaration, so a contract no received tree builds is read too.
 
 Both scans reuse the act-key vocabulary ratchet's walkers.  The tree scan
 builds received trees only; a trigger tree, or a tree a node builds and

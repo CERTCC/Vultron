@@ -25,6 +25,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.call_out import FixedAnswerBackend
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -144,7 +145,7 @@ def test_one_runs_answer_is_not_visible_to_the_next_run(
     within_run: dict[str, object],
 ) -> None:
     first, first_peek = _seam_then_peek(answer)
-    bridge.execute_with_setup(first, actor_id=ACTOR_ID)
+    run_tree(bridge, first, actor_id=ACTOR_ID)
     # The later sibling of the same run read the answer ...
     assert first_peek.seen == within_run
     # ... and nothing of it outlives the run, under either spelling.
@@ -153,7 +154,7 @@ def test_one_runs_answer_is_not_visible_to_the_next_run(
     )
 
     second, second_peek = _peek_only()
-    result = bridge.execute_with_setup(second, actor_id=ACTOR_ID)
+    result = run_tree(bridge, second, actor_id=ACTOR_ID)
     assert result.status == Status.SUCCESS
     assert second_peek.seen == {}
 
@@ -170,7 +171,7 @@ def test_a_nested_runs_answer_puts_back_the_outer_runs(
             inner, _ = _seam_then_peek(
                 CallOutAnswer.yes({"probe_verdict": "inner"})
             )
-            bridge.execute_with_setup(inner, actor_id=ACTOR_ID)
+            run_tree(bridge, inner, actor_id=ACTOR_ID)
             storage = py_trees.blackboard.Blackboard.storage
             outer_seen["probe_verdict"] = storage.get("/probe_verdict")
             return Status.SUCCESS
@@ -183,7 +184,7 @@ def test_a_nested_runs_answer_puts_back_the_outer_runs(
             _RunNested(name="RunNested"),
         ],
     )
-    bridge.execute_with_setup(outer, actor_id=ACTOR_ID)
+    run_tree(bridge, outer, actor_id=ACTOR_ID)
     assert outer_seen == {"probe_verdict": "outer"}
     assert "/probe_verdict" not in py_trees.blackboard.Blackboard.storage
 
@@ -195,7 +196,7 @@ def test_a_value_present_before_the_run_is_put_back(
     storage = py_trees.blackboard.Blackboard.storage
     storage["/probe_verdict"] = "before"
     tree, peek = _seam_then_peek(CallOutAnswer.yes({"probe_verdict": "run"}))
-    bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
+    run_tree(bridge, tree, actor_id=ACTOR_ID)
     assert peek.seen == {"probe_verdict": "run"}
     assert storage["/probe_verdict"] == "before"
 
