@@ -125,7 +125,8 @@ class SettleReceivedOutcome(py_trees.decorators.Decorator):
     ) -> None:
         super().__init__(name=name, child=child)
         self.logger = node_logger(self)  # type: ignore[assignment]
-        self._blackboard = py_trees.blackboard.Client(name=name)
+        # Attached, so the run that ends the tree releases it (#6727).
+        self._blackboard = self.attach_blackboard_client(name=name)
         for key in (
             KEY_DISPOSITION,
             KEY_EVENT,

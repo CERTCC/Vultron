@@ -44,6 +44,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.blackboard_scope import (
+    release_tree_clients,
     restore_keys,
     snapshot_keys,
 )
@@ -277,6 +278,10 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                     " leader"
                 )
                 self.logger.warning("%s", msg)
+                # Nothing ticks, but a node may have registered its client
+                # when the tree was built (a call-out seam does); the tree
+                # ends here all the same (#6727).
+                release_tree_clients(tree)
                 return BTExecutionResult(
                     status=Status.FAILURE,
                     feedback_message=msg,
@@ -529,3 +534,11 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # state, so the inner call restores exactly what the outer
                 # call wrote.
                 restore_keys(storage, previous_values)
+                #  3. Registry release.  Every node's setup() registers a
+                #     blackboard client in py_trees' process-global registry,
+                #     which keeps it until it is unregistered, collected or
+                #     not.  The tree was built for this run, so its clients
+                #     end here; left registered, each run grew the registry by
+                #     one client per node for the life of the process (#6727).
+                #     A nested run releases only its own tree.
+                release_tree_clients(tree)
