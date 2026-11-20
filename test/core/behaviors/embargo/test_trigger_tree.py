@@ -27,6 +27,7 @@ import pytest
 
 from test.support.future_dates import days_from_now
 from test.support.objects import make
+from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
@@ -44,6 +45,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ProposeEmbargoLifecycleNode,
     ReadOpenEmbargoProposalsNode,
     RejectEmbargoLifecycleNode,
+    SendTerminateEmbargoActivityNode,
 )
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
@@ -56,6 +58,10 @@ from vultron.core.behaviors.embargo.trigger_tree import (
     reject_embargo_trigger_bt,
     reject_proposed_embargo_bt,
     terminate_embargo_bt,
+)
+from vultron.core.behaviors.sender.nodes import (
+    ConstructActivitiesNode,
+    ResolveCaseManagerNode,
 )
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -304,6 +310,34 @@ class TestTerminateEmbargoBt:
             if isinstance(n, CommitAndApplyEmbargoTerminationNode)
         ], "the termination is the arm's only commit"
         assert not any(isinstance(n, _EmbargoLifecycleNode) for n in manager)
+
+    @pytest.mark.parametrize("use_builder", [True, False])
+    def test_the_ask_resolves_the_manager_it_addresses(
+        self, result_out, activity_builder, use_builder
+    ):
+        """The ask's reader of ``/case_actor_id`` follows a resolve in its
+        own arm, with no role guard between them: a reader of an undeclared
+        multi-publisher key follows its own publisher
+        (``notes/bt-integration.md``, #6667)."""
+        tree = terminate_embargo_bt(
+            case_id=CASE_ID,
+            result_out=result_out,
+            termination=EmbargoTermination.early(),
+            activity_builder=activity_builder if use_builder else None,
+        )
+        ask = _arm(tree, "AskCaseManager")
+        reader = (
+            ConstructActivitiesNode
+            if use_builder
+            else SendTerminateEmbargoActivityNode
+        )
+        types = [type(n) for n in ask]
+        assert ResolveCaseManagerNode in types
+        assert types.index(ResolveCaseManagerNode) < types.index(reader)
+        between = ask[
+            types.index(ResolveCaseManagerNode) + 1 : types.index(reader)
+        ]
+        assert not any(isinstance(n, CheckIsCaseManagerNode) for n in between)
 
     def test_emit_node_present_without_activity_builder(self, result_out):
         tree = terminate_embargo_bt(

@@ -64,7 +64,7 @@ DEMO_STUB_SUMMARY = "Vulnerability report — details shared after acceptance."
 
 @dataclass(frozen=True)
 class CaseInviter:
-    """The participant who asks the CASE_MANAGER to invite the invitee."""
+    """The Case Owner that sends the CASE_MANAGER its Invite of the invitee."""
 
     name: str
     client: DataLayerClient
@@ -122,25 +122,36 @@ def _trigger_invite(
     invitee_name: str,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Have *inviter* ask the CASE_MANAGER to invite *invitee* to *case*."""
-    invite_offer = (
+    """Have *inviter* send the CASE_MANAGER its own Invite of *invitee*."""
+    owner_invite = (
         ActorSession(client=inviter.client, actor=inviter.actor)
         .with_case(case)
         .quiet()
         .invite_actor_to_case(invitee_id=invitee.id_, roles=[inviter.role])
     ).activity
+    if owner_invite is None:
+        raise AssertionError(
+            f"{inviter.name}'s invite-actor-to-case trigger returned no"
+            f" Invite of {invitee_name}"
+        )
     logger.info(
-        "%s asked the CASE_MANAGER to invite %s: %s",
+        "%s sent the CASE_MANAGER its Invite of %s: %s",
         inviter.name,
         invitee_name,
-        invite_offer.id_,
+        owner_invite["id"],
     )
 
 
 def _seed_stub_summary(
-    case_manager_client: DataLayerClient, case: as_VulnerabilityCase
+    case_manager_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    inviter: CaseInviter | None = None,
 ) -> None:
-    """Seed ``stub_summary`` on the CASE_MANAGER's DataLayer copy of *case*."""
+    """Seed ``stub_summary`` on the CASE_MANAGER's copy of *case*.
+
+    With *inviter*, its own copy too: the Case Owner's Invite carries its
+    own preview of the case, which needs a summary (CM-17-007, CM-17-010).
+    """
     case_manager_id = find_case_actor_participant_id(
         case_manager_client, case.id_
     )
@@ -153,6 +164,10 @@ def _seed_stub_summary(
         client=case_manager_client,
         actor=get_actor_by_id(case_manager_client, case_manager_id),
     ).with_case(case).quiet().set_stub_summary(DEMO_STUB_SUMMARY)
+    if inviter is not None:
+        ActorSession(client=inviter.client, actor=inviter.actor).with_case(
+            case
+        ).quiet().set_stub_summary(DEMO_STUB_SUMMARY)
 
 
 def _await_and_answer(

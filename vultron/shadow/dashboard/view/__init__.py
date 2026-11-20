@@ -30,7 +30,8 @@ one score, and nothing here reorders a move (SHD-03-002).
 
 The case narrative reads one row per ledger entry
 (:func:`narrative_rows`), each with its state changes in words, and a
-case-state flag the source cannot observe shown as unknown (CRD-02-005).
+case-state flag the source cannot observe shown as unknown (CRD-02-005),
+and each line's hindsight mark (:func:`marked_narrative_rows`).
 
 Each concern has its own module, and every name is imported from here:
 
@@ -45,6 +46,8 @@ Each concern has its own module, and every name is imported from here:
 * :mod:`~vultron.shadow.dashboard.view.action_rules` — the authored action
   rules beside the bands, compared with them (ADR-0216).
 * :mod:`~vultron.shadow.dashboard.view.narrative` — the case narrative.
+* :mod:`~vultron.shadow.dashboard.view.marks` — each narrative line's
+  hindsight mark: its icon, note and shade (#6672).
 * :mod:`~vultron.shadow.dashboard.view.points` — the point picker's words.
 * :mod:`~vultron.shadow.dashboard.view.reader_report` — the case reader's
   report: untranslated, inferred and unobservable facts.
@@ -70,6 +73,7 @@ from vultron.shadow.dashboard.view.bands import (
     BandView,
     band_views,
     harm_text,
+    move_label,
     size_text,
     unbanded_rows,
 )
@@ -87,6 +91,15 @@ from vultron.shadow.dashboard.view.labels import (
     RM_BADGES,
     Row,
     actor_label,
+)
+from vultron.shadow.dashboard.view.marks import (
+    HINDSIGHT_COLUMN,
+    HINDSIGHT_ICONS,
+    HINDSIGHT_NOTE_COLUMN,
+    mark_label,
+    mark_note,
+    mark_shades,
+    marked_narrative_rows,
 )
 from vultron.shadow.dashboard.view.narrative import (
     UNKNOWN_FLAG,
@@ -140,6 +153,9 @@ __all__ = [
     "DESIDERATA_NOTE",
     "DESIDERATUM_BADGES",
     "DESIDERATUM_EVENT_LABELS",
+    "HINDSIGHT_COLUMN",
+    "HINDSIGHT_ICONS",
+    "HINDSIGHT_NOTE_COLUMN",
     "LEADING_MARK",
     "LEGEND_BETTER",
     "LEGEND_DOMINATED",
@@ -170,6 +186,11 @@ __all__ = [
     "point_note",
     "point_options",
     "harm_text",
+    "mark_label",
+    "mark_note",
+    "mark_shades",
+    "marked_narrative_rows",
+    "move_label",
     "shade",
     "unbanded_rows",
     "participant_rows",

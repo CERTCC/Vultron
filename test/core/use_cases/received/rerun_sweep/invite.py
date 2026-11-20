@@ -51,7 +51,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-from .._ledger_network import BROADCAST, MANAGER, LedgerNetwork
+from .._ledger_network import BROADCAST, MANAGER, OWNER, LedgerNetwork
 from ..conftest import seed_inert_invitee
 from . import Scenario, applied, refused
 from ._net import deliver, send_applied
@@ -141,6 +141,22 @@ def invite_actor_to_case() -> Scenario:
         event=received_event(stub, receiving_actor_id=JOINER),
         reached=_recorded(stub.id_),
     )
+
+
+@refused(MessageSemantics.INVITE_ACTOR_TO_CASE)
+def invite_actor_to_case_naming_the_manager() -> Scenario:
+    """An Owner's Invite naming the CASE_MANAGER as invitee: refused (CM-17-015)."""
+    net = LedgerNetwork(f"{_BASE}/owner-invite-refused", em_state=EM.NONE)
+    owner_invite = rm_invite_to_case_activity(
+        make(as_Actor, id_=MANAGER),
+        to=[MANAGER],
+        case=case_stub(net.case_id),
+        actor=OWNER,
+        roles=[CVDRole.VENDOR],
+        id_=f"{net.case_id}/owner-invitations/manager",
+        at=authored_at(),
+    )
+    return deliver(net, owner_invite)
 
 
 @refused(MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE)

@@ -42,6 +42,7 @@ from vultron.measure.standing.desiderata import (
 from vultron.measure.standing.joint import (
     NoJointStep,
     case_prefix,
+    embargo_end,
     joint_step,
     vendor_numbers,
 )
@@ -81,6 +82,7 @@ __all__ = [
     "StandingRecord",
     "action_advice",
     "case_prefix",
+    "embargo_end",
     "case_standing",
     "cs_moves",
     "desiderata_standing",

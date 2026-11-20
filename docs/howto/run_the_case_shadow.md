@@ -163,11 +163,32 @@ Below the scoreboard, **Case narrative** tells who did what, when, and which sta
 The tool reads each line from the ledger; nobody writes it by hand.
 
 - **#** is the entry's log index.
+- **Hindsight** grades the step the entry took against the move advice that was open just before it, as the table after this list shows.
+- **Hindsight note** names the move the mark graded, and says why a line is not graded.
+  A sub-optimal move that a harm-free move beats says that a harm-free move did as well.
 - **Time** is the time the actor's activity claims, and **Committed** shows the Case Manager's commit stamp only where it differs.
 - **Actor**, **Activity** and **Object** name who acted, the phrase for the entry's semantic type, and what the activity names.
 - **State changes** lists each state the entry moved: a participant's report state (RM) and its fix path and deployment (VFD), and the case's embargo state (EM) and public state (PXA).
   A `?` in a VFD or PXA state is an event the source never records, which the page reads as unknown.
 - **Notes**, when shown, says what the tool could not read in an entry.
+
+| Mark | The step the entry took |
+|---|---|
+| ⭐ best | A layer-1 move of the first band, harm-free then trade-off, that holds any move, so a trade-off move is best when no harm-free move was open. |
+| 👍 good | Any other harm-free move. |
+| ⚠️ sub-optimal | Any other trade-off move. |
+| ➖ neutral | An unhelpful move that changes no Vendor's values, or a move that keeps every state, such as a second embargo proposal. |
+| 👎 bad | An unhelpful move that leaves a Vendor below the chance value. |
+| 🎲 not graded | An event no participant chooses: an exploit made public, attacks observed, or the public becoming aware of the vul, unless an embargo ended on its own terms before that. |
+| 💬 not graded | An act that is not a move, such as a note, or a participant's answer to an embargo invitation. |
+
+The icons differ in shape, so you can read them without color.
+A best, good or sub-optimal mark also takes the shade its layer has on its band's legend.
+The ledger records that the public became aware of the vul, but not whether a participant published it or it leaked.
+So the entry that makes the case public is 🎲, except after an embargo that ended on its own terms, at its end time or because a fix was ready or deployed.
+That entry is graded as a participant's publication.
+A public exploit always makes the public aware, so the entry where the public becomes aware after a public exploit, or together with one, is 🎲.
+A later publication changes no state, so it is 💬.
 
 To see whether a better move was open earlier, pick a narrative line in **Show the case as it stood just after**, above the scoreboard.
 The scoreboard then shows the case as it stood just after that entry: its states and their maps, its participants and their tabs, its desiderata, its move bands with their color legends, and its action rules, worked out from the entries up to that line only.

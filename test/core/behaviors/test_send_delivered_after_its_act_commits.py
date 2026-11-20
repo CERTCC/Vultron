@@ -48,9 +48,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, INVITEE_ID
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
-from vultron.core.behaviors.case.nodes.invite_actor_emit import (
-    EmitInviteActorToCaseNode,
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    EmitOwnerDecidedStubInviteNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitOfferCaseParticipantToOwnerNode,
@@ -141,8 +143,9 @@ def _stub_invite() -> _Setup:
         dl=dl,
         actor_id=_OWNER,
         case_id=case_id,
-        node=lambda: EmitInviteActorToCaseNode(
-            invitee_id=_INVITEE, case_id=case_id, roles=["vendor"]
+        node=lambda: with_act_keys(
+            EmitOwnerDecidedStubInviteNode(["vendor"], credits_sender=False),
+            {CASE_ID: case_id, INVITEE_ID: _INVITEE},
         ),
         semantic_type="invite_actor_to_case",
     )

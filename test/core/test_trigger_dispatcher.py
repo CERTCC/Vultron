@@ -46,6 +46,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.config.actor import ActorConfig
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.use_case_result import (
@@ -169,6 +170,26 @@ class _SvcPlainStubUseCase:
         )
 
 
+class _ConfigStubRequest(TriggerRequest[RoleOfferResult], CaseTriggerRequest):
+    pass
+
+
+class _SvcConfigStubUseCase(_SvcPlainStubUseCase):
+    """A ``takes_actor_config`` row's use case: records the config it got."""
+
+    def __init__(
+        self,
+        dl: CaseOutboxPersistence,
+        request: object,
+        trigger_activity: TriggerActivityPort | None = None,
+        *,
+        clock: ClockPort,
+        actor_config: ActorConfig | None,
+    ) -> None:
+        super().__init__(dl, request, trigger_activity, clock=clock)
+        self.actor_config = actor_config
+
+
 class _SvcWrongResultStubUseCase(_SvcBtStubUseCase):
     def execute(self) -> StatusResult:
         return OfferResult(offer=None)  # type: ignore[return-value]
@@ -193,6 +214,16 @@ def _stub_rows() -> list[TriggerEntry]:
             exposure=TriggerExposure.GENERAL_PURPOSE,
             bt_backed=False,
             spec_ids=("TRIG-12-004",),
+        ),
+        TriggerEntry(
+            verb="stub-config",
+            request_model=_ConfigStubRequest,
+            use_case_class=_SvcConfigStubUseCase,
+            result_type=RoleOfferResult,
+            exposure=TriggerExposure.GENERAL_PURPOSE,
+            bt_backed=False,
+            spec_ids=("TRIG-12-004",),
+            takes_actor_config=True,
         ),
         TriggerEntry(
             verb="stub-wrong",
@@ -255,6 +286,37 @@ def test_bt_backed_row_is_built_with_the_whole_port_bundle(
     assert built.ports == ports
     assert built.clock is clock
     assert built._dl is dl
+
+
+@pytest.mark.spec("TRIG-12-004", "CM-11-014")
+@pytest.mark.parametrize("configured", [True, False])
+def test_a_takes_actor_config_row_is_built_with_the_local_actor_config(
+    actor_and_dl, ports, configured: bool
+) -> None:
+    """The dispatcher hands its ``ActorConfig`` to a flagged row only.
+
+    An unconfigured dispatcher hands the flagged row ``None`` (the
+    ``ActorConfig`` defaults); the unflagged rows' constructors take no
+    ``actor_config`` at all, so handing them one would raise.
+    """
+    actor, dl = actor_and_dl
+    config = ActorConfig() if configured else None
+    dispatcher = RegistryTriggerDispatcher(
+        _stub_rows(), **ports, clock=SystemClock(), actor_config=config
+    )
+
+    dispatcher.trigger(
+        _ConfigStubRequest(actor_id=actor.id_, case_id=_CASE), dl
+    )
+    dispatcher.trigger(
+        _StatusStubRequest(actor_id=actor.id_, case_id=_CASE), dl
+    )
+    dispatcher.trigger(_RoleStubRequest(actor_id=actor.id_, case_id=_CASE), dl)
+
+    flagged, unflagged = _SvcPlainStubUseCase.built
+    assert isinstance(flagged, _SvcConfigStubUseCase)
+    assert flagged.actor_config is config
+    assert not hasattr(unflagged, "actor_config")
 
 
 @pytest.mark.spec("TRIG-12-004")

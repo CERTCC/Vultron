@@ -13,8 +13,9 @@ RCV-embargo-specific invariants (DEMOMA-20-006):
   CASE_MANAGER's commit
   path emits.  The strings are imported from that code, never hand-listed
   here, so the check cannot drift from what the manager writes.
-- ``invite_actor_to_case`` appears exactly once (the Vendor's invitation; the
-  Reporter is seated when the case is created and is never invited).
+- the Vendor is invited exactly once: one Case Owner's Invite and the one
+  stub Invite answering it, both ``invite_actor_to_case`` (the Reporter is
+  seated when the case is created and is never invited).
 - ``close_case`` is present and the Vendor replica holds the whole log from
   genesis (it joined late).
 
@@ -32,6 +33,7 @@ import pytest
 
 from test.ci.invariants.common import (
     auth_entries,
+    check_case_invitations,
     check_late_joiner_has_full_history,
     check_semantic_type_count,
     check_semantic_type_present,
@@ -185,19 +187,17 @@ def test_rcv_embargo_termination_committed_exactly_once(
 
 
 @pytest.mark.case_ledger_invariants
-def test_rcv_embargo_invite_actor_to_case_exactly_once(
+def test_rcv_embargo_vendor_invited_exactly_once(
     rcv_embargo_replicas: dict[str, list[dict]],
 ) -> None:
-    """``invite_actor_to_case`` appears exactly once (the Vendor's invitation).
+    """The Vendor is invited exactly once: one Owner's Invite, one stub Invite.
 
     The Reporter is seated as a participant when the case is created
     (CP-09-002), so only the Vendor is invited.
 
     Spec: DEMOMA-20-007 (phase 1).
     """
-    violations = check_semantic_type_count(
-        rcv_embargo_replicas, "invite_actor_to_case", min_count=1, max_count=1
-    )
+    violations = check_case_invitations(rcv_embargo_replicas, invitee_count=1)
     assert not violations, violations[0] if violations else ""
 
 

@@ -268,4 +268,8 @@ class TestInviteChainSkipsDependents:
             ),
         ):
             coordinator_invites_vendor(state)
-        seed.assert_called_once_with(state.case_actor_client, state.case)
+        seed.assert_called_once()
+        assert seed.call_args.args[:2] == (
+            state.case_actor_client,
+            state.case,
+        )

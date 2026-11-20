@@ -14,13 +14,15 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""What every part of the page shares: its logger and its table."""
+"""What every part of the page shares: its logger and its tables, plain or
+shaded."""
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
 
+import pandas as pd
 import streamlit as st
 
 from vultron.shadow.dashboard import view
@@ -36,6 +38,23 @@ def _table(rows: Sequence[view.Row], empty: str) -> None:
         st.dataframe(list(rows), hide_index=True, width="stretch")
     else:
         st.caption(empty)
+
+
+def _styled_table(
+    rows: Sequence[view.Row],
+    shades: Sequence[view.Shade | None],
+    column: str | None = None,
+) -> None:
+    """*rows*, each filled with its shade, in row order: every cell of a
+    row, or only its *column* cell; a row whose shade is ``None`` is not
+    filled."""
+    styles = ["" if s is None else s.css for s in shades]
+    blank = [""] * len(styles)
+    styler = pd.DataFrame(list(rows)).style.apply(
+        lambda cells: styles if column in (None, cells.name) else blank,
+        axis=0,
+    )
+    st.dataframe(styler, hide_index=True, width="stretch")
 
 
 __all__ = [
