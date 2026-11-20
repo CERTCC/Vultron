@@ -291,7 +291,7 @@ class TestAddObjectToCaseSemantics:
             ),
         ],
     )
-    @pytest.mark.spec("TRIG-10-001")
+    @pytest.mark.spec("TRIG-10-001", "VAM-01-020")
     def test_refused_type_raises_and_persists_nothing(
         self, adapter, dl, make_object
     ):
