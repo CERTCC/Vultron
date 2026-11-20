@@ -53,7 +53,7 @@ class CaseProposalAdmissionRecord(CoreRecord):
     """Durable record that this service admitted a ``CaseProposal``.
 
     Attributes:
-        proposal_id: URI of the ``as_CaseProposal`` that was admitted. Used as
+        proposal_id: URI of the ``CaseProposal`` that was admitted. Used as
             the stable key component for ``build_id()``.
         case_actor_id: URI of the case actor service that made the decision.
         proposer_uri: URI of the proposing actor owed the ``Accept``.

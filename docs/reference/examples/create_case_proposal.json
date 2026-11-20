@@ -30,8 +30,8 @@
     }
   },
   "object": {
-    "type": "CaseProposal",
     "id": "urn:uuid:27de30c4-15bc-4ec2-aadc-83294c9f5388",
+    "type": "CaseProposal",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "summary": "Request case initialization for a new vulnerability.",

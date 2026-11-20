@@ -79,7 +79,7 @@ def _report_ids(case: VulnerabilityCase) -> set[str]:
 def activity_names_proposal(activity: Any, proposal_id: str) -> bool:
     """Return True if *activity*'s top-level object is *proposal_id*.
 
-    The object round-trips as the rehydrated ``as_CaseProposal``, as the bare URI
+    The object round-trips as the rehydrated ``CaseProposal``, as the bare URI
     storage dehydrated it to, or as a plain dict, so all three shapes are probed.
     Only the **top-level** object is compared, which is what keeps unrelated
     activities out: an ``Accept(Offer(VulnerabilityReport))`` from validate-report

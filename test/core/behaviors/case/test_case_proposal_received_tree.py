@@ -3737,8 +3737,6 @@ class TestEP04SenderProposalAtCaseCreation:
             attributed_to=_VENDOR_URI,
             object_=report,
             target=_CASE_ACTOR_URI,
-            offer_id=offer.id_,
-            offer_actor_id=_REPORTER_URI,
             in_reply_to=offer,
         )
         activity = make(
