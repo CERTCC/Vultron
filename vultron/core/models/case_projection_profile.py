@@ -321,7 +321,7 @@ PUBLIC_PROFILE = ProjectionProfile(
 #: The profile of the operator's request for a document to give a party
 #: outside Vultron (ADR-0219).
 JOINED_PROFILE = ProjectionProfile(
-    name="joined-v1",
+    name="joined-v2",
     distribution=DistributionLabel.AMBER_STRICT,
     fields=_profile_rows({name: _INCLUDE for name in _JOINED_ONLY}),
     ledger_acts=JOINED_LEDGER_ACTS,

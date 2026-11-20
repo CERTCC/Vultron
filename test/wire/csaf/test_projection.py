@@ -18,13 +18,9 @@ inputs (CSAF-06).
 
 import json
 from datetime import UTC, datetime
-from functools import cache
 from typing import Any
 
 import pytest
-from jsonschema import Draft202012Validator, FormatChecker
-from referencing import Registry
-from referencing.jsonschema import DRAFT202012
 
 from test.support.case_projection import (
     CASE_ID,
@@ -39,6 +35,7 @@ from test.support.case_projection import (
     RELATED_CASE,
     REPORTER,
     VENDOR,
+    csaf_schema_validator,
     ledger_entry,
     projected_case,
     projected_ledger,
@@ -68,7 +65,6 @@ from vultron.core.models.vulnerability_item import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
-from vultron.metadata.csaf.pin import PINNED_COPY_DIR, load_pin
 from vultron.wire.csaf.projection import (
     ACTION_CATEGORIES,
     ACTION_SUMMARIES,
@@ -89,29 +85,6 @@ def _position(log_index: object, entry_hash: str) -> Any:
     return CasePreview.model_validate(
         {"ledgerPosition": {"logIndex": log_index, "entryHash": entry_hash}}
     ).ledger_position
-
-
-@cache
-def _validator() -> Draft202012Validator:
-    """A validator of the pinned CSAF 2.1 schema, reading every schema it
-    references from the pinned local copy."""
-    pin = load_pin()
-    # Every schema of the copy is read as draft 2020-12, the dialect the
-    # CSAF meta-schema extends.
-    resources = [
-        (
-            url,
-            DRAFT202012.create_resource(
-                json.loads((PINNED_COPY_DIR / path).read_bytes())
-            ),
-        )
-        for url, path in pin.sources.items()
-    ]
-    registry: Registry[Any] = Registry().with_resources(resources)
-    root = json.loads((PINNED_COPY_DIR / pin.root).read_bytes())
-    return Draft202012Validator(
-        root, registry=registry, format_checker=FormatChecker()
-    )
 
 
 def _inputs(profile: ProjectionProfile, **fields: Any) -> ProjectionInputs:
@@ -174,7 +147,10 @@ def test_each_profiles_projection_passes_the_pinned_schema(
 ) -> None:
     rendered = _render(profile)
 
-    errors = [error.message for error in _validator().iter_errors(rendered)]
+    errors = [
+        error.message
+        for error in csaf_schema_validator().iter_errors(rendered)
+    ]
     assert errors == []
     assert _document(rendered)["category"] == "csaf_base"
 
@@ -186,7 +162,7 @@ def test_the_schema_check_is_not_vacuous() -> None:
     rendered = _render(PUBLIC_PROFILE)
     rendered["vulnerabilities"] = [{}]
 
-    assert not _validator().is_valid(rendered)
+    assert not csaf_schema_validator().is_valid(rendered)
 
 
 @pytest.mark.spec("CSAF-06-001")
@@ -201,7 +177,7 @@ def test_the_renderer_needs_no_case_only_a_preview_and_inputs() -> None:
 
     rendered = _csaf(preview, _inputs(PUBLIC_PROFILE))
 
-    assert _validator().is_valid(rendered)
+    assert csaf_schema_validator().is_valid(rendered)
     assert _document(rendered)["title"] == "A hand-built preview"
 
 
@@ -307,7 +283,10 @@ def test_the_same_inputs_give_an_identical_document(
 def test_the_tracking_id_derives_from_case_profile_and_log_index() -> None:
     tracking = _document(_render(PUBLIC_PROFILE))["tracking"]
 
-    assert tracking["id"] == f"{CASE_ID}/public-v1/{POSITION.log_index}"
+    assert (
+        tracking["id"]
+        == f"{CASE_ID}/{PUBLIC_PROFILE.name}/{POSITION.log_index}"
+    )
 
 
 def _tracking_id(
@@ -362,7 +341,7 @@ def test_the_default_credit_adds_no_digest_but_caller_credit_does() -> None:
         preview, _inputs(PUBLIC_PROFILE)
     )
     assert _tracking_id(preview, caller).startswith(
-        f"{CASE_ID}/public-v1/7/ack-"
+        f"{CASE_ID}/{PUBLIC_PROFILE.name}/7/ack-"
     )
     assert _tracking_id(preview, none_credited) != _tracking_id(
         preview, default
@@ -370,8 +349,9 @@ def test_the_default_credit_adds_no_digest_but_caller_credit_does() -> None:
 
 
 def test_tracking_id_names_its_parts_in_order() -> None:
-    assert tracking_id("https://x.org/c", "joined-v1", 3, None) == (
-        "https://x.org/c/joined-v1/3"
+    name = JOINED_PROFILE.name
+    assert tracking_id("https://x.org/c", name, 3, None) == (
+        f"https://x.org/c/{name}/3"
     )
 
 
@@ -646,7 +626,7 @@ def test_a_case_with_no_vul_items_has_no_vulnerabilities() -> None:
     rendered = _csaf(preview, _inputs(PUBLIC_PROFILE))
 
     assert "vulnerabilities" not in rendered
-    assert _validator().is_valid(rendered)
+    assert csaf_schema_validator().is_valid(rendered)
 
 
 def test_a_case_with_no_name_is_titled_by_its_id() -> None:
@@ -667,7 +647,7 @@ def test_the_position_is_read_from_the_preview() -> None:
 
     tracking = _document(_csaf(preview, _inputs(PUBLIC_PROFILE)))["tracking"]
 
-    assert tracking["id"].endswith("/public-v1/11")
+    assert tracking["id"].endswith(f"/{PUBLIC_PROFILE.name}/11")
 
 
 def test_an_action_that_loses_a_distinction_says_it_in_its_summary() -> None:
@@ -740,7 +720,7 @@ def test_a_vul_items_own_references_render_on_its_vulnerability() -> None:
             }
         ],
     }
-    assert _validator().is_valid(rendered)
+    assert csaf_schema_validator().is_valid(rendered)
 
 
 def test_a_vul_item_with_nothing_shown_is_left_out() -> None:

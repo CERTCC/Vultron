@@ -65,7 +65,7 @@ For each case field the profile names the operations the protocol permits and th
 `CasePreview.for_projection` cuts a preview for a projection by one of the two profiles in `vultron/core/models/case_projection_profile.py`.
 `ProjectionCut.of` in `vultron/core/models/case_projection.py` pairs that preview with the profile, whose name and Traffic Light Protocol (TLP) label the document takes:
 
-| Field | Public profile (`public-v1`, `CLEAR`) | Joined profile (`joined-v1`, `AMBER+STRICT`) |
+| Field | Public profile (`public-v1`, `CLEAR`) | Joined profile (`joined-v2`, `AMBER+STRICT`) |
 |---|---|---|
 | `id_` | The case's identifier | The case's identifier |
 | `name`, `summary`, `published`, `updated`, `vulnerability_items`, `case_references`, `ledger_position` | The case's values | The case's values |
