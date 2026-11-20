@@ -14,9 +14,7 @@ from test.measure.history.builders import (
 from vultron.core.scoring.potential_actions import Actions
 from vultron.core.states.cs import CS
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import (
-    EmbargoConsentState,
-)
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.measure.action_rules import (

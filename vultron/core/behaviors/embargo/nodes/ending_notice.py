@@ -60,8 +60,10 @@ from vultron.core.behaviors.act_key_ports import (
     act_key_ports,
     act_key_remappings,
     act_value,
+    optional_act_value,
 )
-from vultron.core.behaviors.act_keys import CASE_ID
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, REQUESTING_ACTOR_ID
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
@@ -225,42 +227,43 @@ class SendEmbargoEndingNoticesNode(
     blackboard, is ``inReplyTo`` (CM-24-001, CM-24-002, CM-24-020).
 
     The notice is not committed to the ledger.  It carries the embargo and,
-    for a termination, the what and the why the register records
+    for a termination, the cause the register records
     (EMB-13-005).  No notice owed, or nobody to send it to, is ``SUCCESS``
     with nothing sent.  A notice owed with no trigger-activity factory is a
     wiring fault and fails the node (BT-14-001); so does a capture node that
     never ran.  A factory or outbox error escapes to ``BTBridge``: the EM
     write is already done, so it is an internal fault, not a refusal.
 
-    The case is read from ``/case_id`` (BTND-01-008), and the embargo before
-    the write from the snapshot of *capture*, the paired capture node.
+    The case is read from ``/case_id`` and the actor who asked for the
+    change from ``/requesting_actor_id``, which a change no other actor
+    asked for leaves unset (BTND-01-008).  The embargo before the write is
+    read from the snapshot of *capture*, the paired capture node.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_EmitSingleActivityBase.INPUT_PORTS,
-        **act_key_ports(CASE_ID),
+        **act_key_ports(CASE_ID, REQUESTING_ACTOR_ID),
     }
 
     def __init__(
         self,
         capture: CaptureActiveEmbargoNode,
-        requested_by: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._snapshot = capture.snapshot
-        self._requested_by = requested_by
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             **super()._domain_port_remappings(),
-            **act_key_remappings(CASE_ID),
+            **act_key_remappings(CASE_ID, REQUESTING_ACTOR_ID),
         }
 
     def initialise(self) -> None:
         super().initialise()
         self.case_id: str = act_value(self, CASE_ID, str)
+        self._requested_by = optional_act_value(self, REQUESTING_ACTOR_ID, str)
 
     def _send(
         self,
@@ -294,13 +297,11 @@ class SendEmbargoEndingNoticesNode(
                 f"{self.name}: case '{self.case_id}' records no termination"
             )
         else:
-            # The notice carries the what and the why the register records
-            # (ADR-0122, EMB-13-005).
+            # The notice carries the cause the register records (EMB-13-005).
             activity_id, blob = factory.terminate_embargo(
                 embargo_id=notice.notice_embargo_id,
                 case_id=self.case_id,
                 actor=actor,
-                reason=termination.reason,
                 cause=termination.cause,
                 to=[recipient],
                 attributed_to=authorship.attributed_to,
@@ -381,16 +382,15 @@ def embargo_ending_notice_nodes(
     Place the capture node before the write and the notice node after it,
     behind the CASE_MANAGER gate.  *requested_by* names the actor whose
     request the CASE_MANAGER is carrying out, for ``attributedTo``.  Each
-    node is seeded with *case_id* (``with_case_id``).
+    node is seeded with *case_id*, and the notice node with *requested_by*
+    on ``/requesting_actor_id`` (``with_act_keys``).
     """
     capture = CaptureActiveEmbargoNode()
     return (
         with_case_id(capture, case_id),
-        with_case_id(
-            SendEmbargoEndingNoticesNode(
-                capture=capture, requested_by=requested_by
-            ),
-            case_id,
+        with_act_keys(
+            SendEmbargoEndingNoticesNode(capture=capture),
+            {CASE_ID: case_id, REQUESTING_ACTOR_ID: requested_by},
         ),
     )
 

@@ -47,7 +47,6 @@ from vultron.core.services.embargo_lifecycle.results import (
     TransitionMode,
 )
 from vultron.core.services.embargo_ordering import read_embargo_event
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronInvalidStateTransitionError
 
 logger = logging.getLogger(__name__)
@@ -83,15 +82,15 @@ def termination_timing_violations(
     """Why *termination* of *case*'s embargo in force may not apply at *at*.
 
     An ``END_TIME_REACHED`` termination claimed before the embargo's end
-    time is refused (ADR-0122); see
+    time is refused (EMB-13-008); see
     :func:`~vultron.core.models.embargo_termination.end_time_violations`.
     The embargo is read by :func:`embargo_in_force`.  No embargo in force, or
-    an ``EARLY`` termination, has nothing to check.
+    an early termination, has nothing to check.
 
     Raises:
         VultronNotFoundError: the embargo in force cannot be read.
     """
-    if termination.reason != TerminationReason.END_TIME_REACHED:
+    if not termination.is_end_time_reached:
         return []
     embargo = embargo_in_force(store, case)
     if embargo is None:

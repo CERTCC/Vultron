@@ -185,20 +185,26 @@ def _node_classes() -> list[type]:
     )
 
 
-def _input_bindings(classes: Iterable[type]) -> dict[str, list[str]]:
-    """Each absolute key an input port is bound to, with the classes."""
+def _class_bindings(
+    classes: Iterable[type], ports: str
+) -> dict[str, list[str]]:
+    """Each absolute key a class binds a port of *ports* to, with the sites.
+
+    *ports* names the class attribute that declares the ports read:
+    ``"INPUT_PORTS"`` or ``"OUTPUT_PORTS"``.
+    """
     found: dict[str, list[str]] = {}
     for cls in classes:
         remaps = getattr(cls, "_domain_port_remappings", None)
         if not callable(remaps):
             continue
-        inputs = getattr(cls, "INPUT_PORTS", {})
+        declared = getattr(cls, ports, {})
         bound = remaps()
         if not isinstance(bound, Mapping):
             continue
         for port, target in bound.items():
             if (
-                port in inputs
+                port in declared
                 and isinstance(target, str)
                 and target.startswith("/")
             ):
@@ -208,20 +214,36 @@ def _input_bindings(classes: Iterable[type]) -> dict[str, list[str]]:
     return found
 
 
-def _instance_input_bindings(
-    roots: Iterable[py_trees.behaviour.Behaviour],
+def _instance_bindings(
+    roots: Iterable[py_trees.behaviour.Behaviour], ports: str
 ) -> dict[str, list[str]]:
-    """Each flat key an input port of a built node is bound to."""
+    """Each absolute key a port of *ports* of a built node is bound to."""
     found: dict[str, list[str]] = {}
     for root in roots:
         for node in root.iterate():
-            inputs = getattr(type(node), "INPUT_PORTS", {})
+            declared = getattr(type(node), ports, {})
             for port, target in act_key_bindings(node).items():
-                if port in inputs and target.count("/") == 1:
+                if port in declared:
                     found.setdefault(target, []).append(
                         f"{type(node).__qualname__}.{port} in {root.name}"
                     )
     return found
+
+
+def _input_bindings(classes: Iterable[type]) -> dict[str, list[str]]:
+    """Each absolute key an input port is bound to, with the classes."""
+    return _class_bindings(classes, "INPUT_PORTS")
+
+
+def _instance_input_bindings(
+    roots: Iterable[py_trees.behaviour.Behaviour],
+) -> dict[str, list[str]]:
+    """Each flat key an input port of a built node is bound to."""
+    return {
+        key: sites
+        for key, sites in _instance_bindings(roots, "INPUT_PORTS").items()
+        if key.count("/") == 1
+    }
 
 
 def _unnamed_in(bindings: dict[str, list[str]]) -> list[str]:

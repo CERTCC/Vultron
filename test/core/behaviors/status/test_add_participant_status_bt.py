@@ -39,6 +39,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BlackboardKeyProbe
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
@@ -297,11 +298,12 @@ class TestLoadParticipantNode:
         self, populated_dl, populated_bridge
     ):
         node = LoadParticipantNode(participant_id=PARTICIPANT_ID)
-        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-        participant = py_trees.blackboard.Blackboard().get(
-            "append_status_participant"
+        tree, probe = BlackboardKeyProbe.after(
+            node, "append_status_participant"
         )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+        participant = probe.value
         assert participant is not None
         assert participant.id_ == PARTICIPANT_ID
 
@@ -368,11 +370,12 @@ class TestResolveAndPersistStatusObjectNode:
             status_id=STATUS_ID,
             status_obj_fallback=None,
         )
-        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-        status_obj = py_trees.blackboard.Blackboard().get(
-            "append_status_status_obj"
+        tree, probe = BlackboardKeyProbe.after(
+            node, "append_status_status_obj"
         )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+        status_obj = probe.value
         assert status_obj is not None
         assert status_obj.id_ == STATUS_ID
 

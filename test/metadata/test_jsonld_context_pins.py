@@ -29,8 +29,8 @@ from vultron.metadata.wire_context.terms import CITED_CONTEXTS
 
 _PIN_PATH = Path(__file__).resolve().parents[2] / "third_party/jsonld/pin.json"
 
-#: Every context pinned: the cited ones, and Controlled Identifiers v1,
-#: pinned before a profile cites it.
+#: Every context pinned: today, each one a Vultron message or actor profile
+#: cites.
 _PINNED_CONTEXTS = frozenset(
     {
         "https://www.w3.org/ns/activitystreams",

@@ -23,10 +23,13 @@ abandonment of proposed terms once P/X/A is set (EMB-16-002).
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, TERMINATION
 from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
 from vultron.core.behaviors.case_id_scope import with_case_id
+from vultron.core.behaviors.chosen_termination import ChosenTermination
 from vultron.core.behaviors.embargo.nodes import (
     AbandonEmbargoProposalsLifecycleNode,
     CommitAndApplyEmbargoTerminationNode,
@@ -40,9 +43,6 @@ from vultron.core.behaviors.embargo.nodes import (
     ReadOpenEmbargoProposalsNode,
     ask_case_manager_to_terminate_once,
     embargo_ending_notice_nodes,
-)
-from vultron.core.behaviors.embargo.nodes.chosen_cause import (
-    ChosenTermination,
 )
 from vultron.core.behaviors.embargo.trigger_tree._arms import (
     ABANDONMENT_LEFT_TO_CASE_MANAGER,
@@ -129,20 +129,19 @@ def terminate_embargo_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Shared BT for terminating the active embargo (BT-19-001, EP-09-008).
 
-    *termination* is how the embargo ends (ADR-0122): ``EARLY`` with the
+    *termination* is how the embargo ends (ADR-0122, ADR-0203): an early
     cause the requester names, or none, for a participant's own decision;
     :class:`ThreatSignalTermination` for the CS ``P``/``X``/``A`` cascades
-    (``EARLY``, caused by the signals the case carries at the write);
+    (caused by the signals the case carries at the write);
     :class:`ChosenTermination` for an actor's voluntary termination, whose
     reason call-out chose the cause earlier in the same run (EMB-14-001); and
-    ``END_TIME_REACHED``, with no cause, for the end-time paths, claimed at
-    the act's instant (ADR-0176) and refused before the embargo's end time.  The
-    CASE_MANAGER's ``Remove`` carries the what in ``content`` and the cause
-    its ``TERMINATED`` entry records as ``terminationCause`` (EMB-13-005).
-    A participant's ask carries the what and any cause it may name
-    (``participant_cause``): only the CASE_MANAGER may name a
-    ``THREAT_SIGNAL`` cause, and it learns the signals from the case status
-    update instead.
+    the ``END_TIME_REACHED`` cause for the end-time paths, claimed at the
+    act's instant (ADR-0176) and refused before the embargo's end time.  The
+    CASE_MANAGER's ``Remove`` carries the cause its ``TERMINATED`` entry
+    records as ``terminationCause`` (EMB-13-005).  A participant's ask
+    carries any cause it may name (``participant_cause``): only the
+    CASE_MANAGER may name a ``THREAT_SIGNAL`` cause, and it learns the
+    signals from the case status update instead.
 
     Satisfies the routing-gated state-mutation ordering:
 
@@ -186,17 +185,11 @@ def terminate_embargo_bt(
             ],
         )
     else:
-        # The ask carries the what and any cause a participant may name.  A
-        # threat-signal termination is EARLY and its ask names no cause: a
+        # The ask carries any cause a participant may name.  A threat-signal
+        # termination's ask names no cause, so it ends the embargo early: a
         # THREAT_SIGNAL cause from anyone but the CASE_MANAGER is refused
         # (EMB-13-005).
-        ask = ask_case_manager_to_terminate_once(
-            case_id,
-            termination.reason,
-            termination
-            if isinstance(termination, ChosenTermination)
-            else termination.participant_cause,
-        )
+        ask = ask_case_manager_to_terminate_once(case_id, termination)
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=requested_by
     )
@@ -214,13 +207,12 @@ def terminate_embargo_bt(
                 as_case_manager=[
                     capture,
                     # Decide, commit the Remove, then apply it (ADR-0124).
-                    with_case_id(
+                    with_act_keys(
                         CommitAndApplyEmbargoTerminationNode(
                             result_out=result_out,
-                            termination=termination,
                             builder=activity_builder,
                         ),
-                        case_id,
+                        {CASE_ID: case_id, TERMINATION: termination},
                     ),
                     _make_emit_node(case_id),
                     notices,

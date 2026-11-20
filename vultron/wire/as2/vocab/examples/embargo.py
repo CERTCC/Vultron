@@ -15,7 +15,6 @@ from datetime import timedelta
 
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_termination import FixDeployedCause
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -453,7 +452,6 @@ def remove_embargo() -> as_Remove:
         embargo_event(90),
         actor=_vendor.id_,
         origin=_case.id_,
-        reason=TerminationReason.EARLY,
         cause=FixDeployedCause(),
         at=EXAMPLE_TIMESTAMP,
     )
@@ -479,6 +477,6 @@ def notify_embargo_termination() -> as_Remove:
         to=[coordinator().id_],
         origin=_case.id_,
         context=_case.id_,
-        reason=TerminationReason.EARLY,
+        cause=FixDeployedCause(),
         at=EXAMPLE_TIMESTAMP,
     )

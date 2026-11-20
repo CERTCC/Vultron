@@ -80,7 +80,6 @@ from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
-    TerminationReason,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -577,7 +576,6 @@ def test_a_replica_follows_the_owners_embargo_removal():
             origin=net.case_id,
             actor=OWNER,
             to=[MANAGER],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         ),
     )
@@ -978,7 +976,6 @@ def test_embargo_removal_writes_nothing_at_an_active_replica():
             origin=net.case_id,
             actor=MANAGER,
             to=[BYSTANDER],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         ),
     )

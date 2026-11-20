@@ -50,7 +50,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-import py_trees
 import pytest
 
 import vultron
@@ -81,7 +80,6 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -563,7 +561,6 @@ def test_removed_signatory_is_sent_the_termination(removal_case) -> None:
             origin=CASE_ID,
             actor=OWNER,
             to=[MANAGER],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
     )
@@ -595,7 +592,6 @@ def _paused_replica_receives_ending_notice(
             origin=CASE_ID,
             actor=sender,
             to=[VENDOR],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         ),
         receiving_actor_id=VENDOR,
@@ -696,14 +692,12 @@ def test_removed_participant_is_not_invited_to_an_embargo_revision() -> None:
     removal.remove(VENDOR)
     assert VENDOR in removal.read_case().actor_participant_index
 
-    scenario.run(
+    _, captured = scenario.run_capturing(
         CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
+        "/embargo_invite_recipients",
         embargo_proposer_id=OWNER,
     )
 
-    recipients = cast(
-        list[str],
-        py_trees.blackboard.Blackboard.storage["/embargo_invite_recipients"],
-    )
+    recipients = cast(list[str], captured)
     assert OTHER in recipients
     assert VENDOR not in recipients

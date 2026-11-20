@@ -335,7 +335,7 @@ def test_invite_stub_shows_the_ids_of_each_stored_vul_item(adapter, dl):
     shown, marked = json.loads(blob)["object"]["preview"]["vulnerabilityItems"]
     assert shown == {
         "type": "VulnerabilityItem",
-        "ids": [{"systemName": "CVE", "text": "CVE-2026-0042"}],
+        "ids": [{"systemName": "CVE", "identifier": "CVE-2026-0042"}],
     }
     assert marked == {"type": "Redacted"}
     stored = dl.read(case_id)

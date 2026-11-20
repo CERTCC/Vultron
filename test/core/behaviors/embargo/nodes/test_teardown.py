@@ -62,7 +62,6 @@ from vultron.core.models.embargo_termination import (
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
-    TerminationReason,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -186,10 +185,15 @@ class TestTerminationCauseIsAdmissibleNode:
     ) -> TerminationCauseIsAdmissibleNode:
         case, _, dl = make_case_with_manager(suffix)
         setup_blackboard(dl)
-        node = TerminationCauseIsAdmissibleNode(termination=termination)
+        node = TerminationCauseIsAdmissibleNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
-                node, {act_keys.CASE_ID: case.id_, act_keys.SENDER_ID: sender}
+                node,
+                {
+                    act_keys.TERMINATION: termination,
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.SENDER_ID: sender,
+                },
             )
         )
         bt.setup()
@@ -221,9 +225,8 @@ class TestTerminationCauseIsAdmissibleNode:
         "termination",
         [
             EmbargoTermination.early(),
-            EmbargoTermination.from_reason(
-                TerminationReason.EARLY,
-                FixReadyCause(vendors=[OTHER_PARTICIPANT_ACTOR]),
+            EmbargoTermination(
+                cause=FixReadyCause(vendors=[OTHER_PARTICIPANT_ACTOR]),
             ),
         ],
         ids=["no-cause", "fix-ready"],
@@ -242,13 +245,14 @@ class TestTerminationCauseIsAdmissibleNode:
         case, _ = make_case_and_embargo("tca-nomgr")
         dl.create(case)
         setup_blackboard(dl)
-        node = TerminationCauseIsAdmissibleNode(
-            termination=EmbargoTermination.threat([ThreatSignal.X])
-        )
+        node = TerminationCauseIsAdmissibleNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
                 {
+                    act_keys.TERMINATION: EmbargoTermination.threat(
+                        [ThreatSignal.X]
+                    ),
                     act_keys.CASE_ID: case.id_,
                     act_keys.SENDER_ID: CASE_MANAGER_ACTOR,
                 },
@@ -267,13 +271,14 @@ class TestTerminationCauseIsAdmissibleNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         setup_blackboard(dl)
-        node = TerminationCauseIsAdmissibleNode(
-            termination=EmbargoTermination.threat([ThreatSignal.P])
-        )
+        node = TerminationCauseIsAdmissibleNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
                 {
+                    act_keys.TERMINATION: EmbargoTermination.threat(
+                        [ThreatSignal.P]
+                    ),
                     act_keys.CASE_ID: "https://example.org/cases/nonexistent",
                     act_keys.SENDER_ID: CASE_MANAGER_ACTOR,
                 },
@@ -299,11 +304,15 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
-                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+                {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.EMBARGO_ID: _e1(case),
+                },
             )
         )
         bt.setup()
@@ -344,11 +353,15 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
-                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+                {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.EMBARGO_ID: _e1(case),
+                },
             )
         )
         bt.setup()
@@ -377,11 +390,15 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl, actor_id=ACTOR_ID)
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
-                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+                {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.EMBARGO_ID: _e1(case),
+                },
             )
         )
         bt.setup()
@@ -413,11 +430,15 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
-                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+                {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.EMBARGO_ID: _e1(case),
+                },
             )
         )
         bt.setup()
@@ -445,11 +466,15 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
-                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+                {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.EMBARGO_ID: _e1(case),
+                },
             )
         )
         bt.setup()
@@ -471,11 +496,15 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
-                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+                {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.EMBARGO_ID: _e1(case),
+                },
             )
         )
         bt.setup()
@@ -500,11 +529,15 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
-                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+                {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.EMBARGO_ID: _e1(case),
+                },
             )
         )
         bt.setup()
@@ -535,11 +568,12 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
                 {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: f"{case.id_}/embargo_events/e2",
                 },
@@ -563,11 +597,12 @@ class TestClearActiveEmbargoNode:
         )
         setup_blackboard(dl)
 
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
                 {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
                     act_keys.CASE_ID: "https://example.org/cases/nonexistent",
                     act_keys.EMBARGO_ID: "https://example.org/cases/nonexistent/embargo_events/e1",
                 },
@@ -589,11 +624,15 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
-                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+                {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.EMBARGO_ID: _e1(case),
+                },
             )
         )
         bt.setup()
@@ -632,11 +671,15 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(termination=EmbargoTermination.early())
+        node = ClearActiveEmbargoNode()
         bt = py_trees.trees.BehaviourTree(
             root=with_act_keys(
                 node,
-                {act_keys.CASE_ID: case.id_, act_keys.EMBARGO_ID: _e1(case)},
+                {
+                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.CASE_ID: case.id_,
+                    act_keys.EMBARGO_ID: _e1(case),
+                },
             )
         )
         bt.setup()
@@ -656,7 +699,7 @@ class TestClearActiveEmbargoNode:
 
 
 def _remove_entry(
-    case_id: str, embargo_id: str | None, content: object = "EARLY"
+    case_id: str, embargo_id: str | None, cause: object = None
 ) -> CaseLedgerEntry:
     """The CASE_MANAGER's ``Remove(EmbargoEvent)`` entry naming *embargo_id*."""
     return _to_persistable_entry(
@@ -673,7 +716,7 @@ def _remove_entry(
                     if embargo_id is not None
                     else None
                 ),
-                "content": content,
+                **({"terminationCause": cause} if cause is not None else {}),
                 "published": now_utc().isoformat(),
                 "context": case_id,
             },
@@ -836,14 +879,19 @@ class TestApplyEmbargoTeardownNode:
         assert status == py_trees.common.Status.SUCCESS
 
     @pytest.mark.parametrize(
-        ("content", "names_embargo"),
-        [(None, True), ("THREAT_SIGNAL", True), ("EARLY", False)],
+        ("cause", "names_embargo"),
+        [
+            ("END_TIME_REACHED", True),
+            ({"kind": "LEAK"}, True),
+            (None, False),
+        ],
+        ids=["bare-kind", "unknown-kind", "no-embargo"],
     )
-    def test_refuses_a_malformed_entry(self, content, names_embargo):
-        """No termination reason, or no embargo named: FAILURE, unchanged."""
+    def test_refuses_a_malformed_entry(self, cause, names_embargo):
+        """A malformed cause, or no embargo named: FAILURE, unchanged."""
         dl, case = self._store("atn-bad", EM.ACTIVE)
         entry = _remove_entry(
-            case.id_, _e1(case) if names_embargo else None, content
+            case.id_, _e1(case) if names_embargo else None, cause
         )
 
         status = _copy_node(dl, entry).update()
@@ -866,7 +914,8 @@ class TestApplyEmbargoTeardownNode:
         )
         dl.create(case)  # the embargo record itself is not stored
         node = _copy_node(
-            dl, _remove_entry(case.id_, _e1(case), "END_TIME_REACHED")
+            dl,
+            _remove_entry(case.id_, _e1(case), {"kind": "END_TIME_REACHED"}),
         )
 
         status = node.update()

@@ -69,10 +69,7 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.embargo_register import (
-    FINAL_REGISTER_STATUSES,
-    TerminationReason,
-)
+from vultron.core.states.embargo_register import FINAL_REGISTER_STATUSES
 from vultron.errors import INTERNAL_FAULTS, VultronError
 
 
@@ -104,13 +101,13 @@ def adopted_revision_timing_violations(
 ) -> list[str] | None:
     """Judge a termination by the revision a paused replica adopts first.
 
-    ``None`` unless *termination* is ``END_TIME_REACHED``, *actor_id* is a
+    ``None`` unless *termination*'s cause is ``END_TIME_REACHED``, *actor_id* is a
     paused signatory (CM-31-010) and the ``Remove`` names a revision it
     would adopt (:func:`names_unadopted_revision`, CM-31-042).  Otherwise
     the reasons *termination*, claimed at *at*, may not end that revision,
     judged by its own end time: the stored record, else the ``Remove``'s
     inline copy (EMB-18-003), checked as the adoption checks it
-    (EMB-18-004).  An ``EARLY`` termination has no time rule, so it reads
+    (EMB-18-004).  An early termination has no time rule, so it reads
     nothing here and the adoption alone judges the named revision.
 
     The guard calling this runs on every path, while the adoption runs only
@@ -124,7 +121,7 @@ def adopted_revision_timing_violations(
         VultronValidationError: the revision belongs to another case.
     """
     if (
-        termination.reason != TerminationReason.END_TIME_REACHED
+        not termination.is_end_time_reached
         or embargo_id is None
         or actor_id is None
         or not names_unadopted_revision(case, embargo_id)

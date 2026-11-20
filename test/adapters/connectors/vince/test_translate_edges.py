@@ -416,11 +416,26 @@ def test_the_reporter_s_id_carries_no_contact_detail():
     assert reporter(shared) != reporter(withheld)
 
 
+def test_a_vuls_description_is_its_items_description_note():
+    """VINCE-CT-01: the vul's description travels as one ``vulNotes``
+    entry of category ``description``, its body in ``content`` (CM-05-018)."""
+    raw = reads(ACTIVE)
+    items = records(_translate(raw), "VulnerabilityItem")
+    assert "notes" not in items[0]
+    assert items[0]["vulNotes"] == [
+        {
+            "category": "description",
+            "content": raw["vuls"][0]["description"],
+        }
+    ]
+
+
 def test_a_vul_with_no_description_has_no_notes():
     raw = reads(ACTIVE)
     raw["vuls"][0]["description"] = None
     items = records(_translate(raw), "VulnerabilityItem")
-    assert "notes" not in items[0] or items[0]["notes"] == []
+    assert "notes" not in items[0]
+    assert items[0].get("vulNotes", []) == []
 
 
 def test_a_vul_listed_twice_is_a_rule_conflict():

@@ -489,10 +489,10 @@ class TestRemoveEmbargoFromCaseActivity:
     cls = _RemoveEmbargoFromCaseActivity
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls, content="EARLY")
+        _assert_rejects_string(self.cls)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls, content="EARLY")
+        _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
@@ -502,43 +502,22 @@ class TestRemoveEmbargoFromCaseActivity:
                 context="urn:uuid:case-123",
                 end_time=days_from_now(45),
             ),
-            content="EARLY",
         )
 
     @pytest.mark.parametrize(
-        ("content", "match"),
-        [
-            (None, "END_TIME_REACHED"),
-            ("early", "END_TIME_REACHED"),
-            ("THREAT_SIGNAL", "END_TIME_REACHED"),
-            ("Ended early.", "END_TIME_REACHED"),
-            # A blank is refused as blank before the reason check (CS-08-001).
-            ("", "non-empty string"),
-        ],
+        "cause",
+        [None, {"kind": "END_TIME_REACHED"}, {"kind": "FIX_DEPLOYED"}],
+        ids=["no-cause", "end-time", "fix-deployed"],
     )
-    def test_refuses_content_that_is_not_a_termination_reason(
-        self, content, match
-    ):
-        """AC-1 (#4293): ``content`` is exactly END_TIME_REACHED or EARLY."""
-        with pytest.raises(ValidationError, match=match):
-            _make_activity(
-                self.cls,
-                make(
-                    as_EmbargoEvent,
-                    context="urn:uuid:case-123",
-                    end_time=days_from_now(45),
-                ),
-                content=content,
-            )
-
-    @pytest.mark.parametrize("content", ["END_TIME_REACHED", "EARLY"])
-    def test_accepts_each_termination_reason(self, content):
+    def test_accepts_each_termination_cause(self, cause):
+        """ADR-0203: the termination is its cause, END_TIME_REACHED
+        included; ``content`` carries no what."""
         embargo = make(
             as_EmbargoEvent,
             context="urn:uuid:case-123",
             end_time=days_from_now(45),
         )
-        _assert_accepts_inline(self.cls, embargo, content=content)
+        _assert_accepts_inline(self.cls, embargo, terminationCause=cause)
 
 
 # ---------------------------------------------------------------------------

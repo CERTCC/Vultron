@@ -9,8 +9,7 @@
   "name": "https://vultron.example/organizations/vendorco Remove Embargo for VendorCo Case #20260601 from urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
-  "content": "EARLY",
-  "summary": "The embargo ended before its end time.",
+  "summary": "The embargo ended early: the fix is deployed.",
   "actor": "https://vultron.example/organizations/vendorco",
   "origin": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
@@ -41,6 +40,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "zikwZpGh55BT41KHu2rob6bN7K8Exs7Cv9fDuK634Fpko54FLFV2iRFoWKEM6fZ9RdYBPPMiWvmJM8ww9VvFv6qs"
+    "proofValue": "z5uXFmFxrDXPadY3b3FaeWBuiJ8MbAaxqWtnTYg3dGnMTVY1UJxUUVvu5i15E3au9pU3buy7fiThZZTUkqvX6NvNx"
   }
 }

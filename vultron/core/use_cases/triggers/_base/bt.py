@@ -92,8 +92,9 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
     #: Whether a case-scoped request's tree takes the case-wide clock
     #: decisions first (the embargo end-time check, EMB-13-003).  ``False``
     #: only for a trigger whose own tree takes that decision's path and must
-    #: answer for it: terminate-embargo ends the embargo with
-    #: ``END_TIME_REACHED`` itself once the end time has passed (ADR-0122).
+    #: answer for it: terminate-embargo ends the embargo with the
+    #: ``END_TIME_REACHED`` cause itself once the end time has passed
+    #: (ADR-0122).
     _takes_case_clock_decisions: ClassVar[bool] = True
 
     def __init__(

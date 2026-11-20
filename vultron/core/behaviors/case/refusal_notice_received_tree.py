@@ -43,6 +43,8 @@ import py_trees
 from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import (
     CASE_ID,
+    EXPECTED_SENDER_SEQUENCE,
+    REFUSAL_REASON,
     REFUSED_ACTIVITY_ID,
     SENDER_ID,
 )
@@ -65,7 +67,7 @@ def refusal_notice_received_tree(
     *,
     case_id: str | None,
     refused_activity_id: str,
-    reason: str | None,
+    refusal_reason: str | None,
     sender_id: str,
     sender_rule: SenderRule,
     expected_sender_sequence: int | None = None,
@@ -75,7 +77,8 @@ def refusal_notice_received_tree(
     Args:
         case_id: The case the notice concerns.
         refused_activity_id: The refused activity the notice names.
-        reason: The refusing guard's reason, from the notice's ``summary``.
+        refusal_reason: The refusing guard's reason, from the notice's
+            ``summary``.
         sender_id: The notice's ``actor``.
         sender_rule: The use case's declared sender rule (HP-01-008).
         expected_sender_sequence: The notice's ``expectedSenderSequence``,
@@ -89,17 +92,22 @@ def refusal_notice_received_tree(
         notice = {CASE_ID: case_id, SENDER_ID: sender_id}
         effects.append(
             with_act_keys(
-                ClearRefusedAssertionNode(reason=reason),
-                {**notice, REFUSED_ACTIVITY_ID: refused_activity_id},
+                ClearRefusedAssertionNode(),
+                {
+                    **notice,
+                    REFUSED_ACTIVITY_ID: refused_activity_id,
+                    REFUSAL_REASON: refusal_reason,
+                },
             )
         )
         if expected_sender_sequence is not None:
             effects.append(
                 with_act_keys(
-                    ResumeOutboundSequenceNode(
-                        expected=expected_sender_sequence
-                    ),
-                    notice,
+                    ResumeOutboundSequenceNode(),
+                    {
+                        **notice,
+                        EXPECTED_SENDER_SEQUENCE: expected_sender_sequence,
+                    },
                 )
             )
     return create_receive_activity_tree(

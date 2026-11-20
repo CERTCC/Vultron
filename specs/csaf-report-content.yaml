@@ -434,13 +434,14 @@ groups:
     statement: >-
       A receiver that fills case inputs from a CSAF document SHOULD give the case a
       vulnerability item for each entry in `vulnerabilities[]` that has a `cve` or an
-      `ids` entry, with the entry's `ids`, `notes` and `references`, its `cve` as an
-      `ids` entry whose `system_name` is `CVE`, and its `title` as the item's `name`.
+      `ids` entry, with the entry's `ids`, `notes` (as the item's `vul_notes`) and
+      `references`, its `cve` as an `ids` entry whose `system_name` is `CVE`, and its
+      `title` as the item's `name`.
     rationale: >-
       A vulnerability item takes the identity fields of a CSAF vulnerability entry
-      (CM-05-018), so each entry becomes an item with only its `title` renamed to the AS2
-      `name` that means the same (ADR-0194), and its `cve` folded into `ids`, where the
-      item keeps every identifier; a projection back to CSAF returns that entry to
+      (CM-05-018), so each entry becomes an item with a field renamed only where the
+      item's wire name must differ (ADR-0194), and its `cve` folded into `ids`, where
+      the item keeps every identifier; a projection back to CSAF returns that entry to
       `cve`. The identifiers are
       what later messages and projections refer to (CM-05-003, ADR-0187), so an entry
       with no identifier names no vulnerability and makes no item.
@@ -448,7 +449,7 @@ groups:
       `test/core/use_cases/received/test_case_from_csaf_report.py::test_each_csaf_vulnerability_becomes_a_vulnerability_item`
       attaches a document with two vulnerabilities, and checks that the case gets a
       vulnerability item for each, with its `cve` as a `CVE` entry in its `ids`, and its
-      other `ids`, `notes` and `references`;
+      other `ids`, `notes` (as `vul_notes`) and `references`;
       `test/wire/as2/vocab/test_vulnerability_item.py::test_a_csaf_entrys_identity_fields_round_trip`
       checks that a CSAF entry with both a `cve` and `ids` round-trips through the item
       unchanged;

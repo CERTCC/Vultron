@@ -222,16 +222,16 @@ class as_Remove(as_TransitiveActivity):
     # Remove is reconstructed as a bare as_Remove, so without the field here
     # the parse edge would set the cause aside (MV-11-003).  The core cause
     # models validate it, so an unknown ``kind`` or a malformed detail is
-    # refused at the edge; the extractor checks it against ``content``.  The
-    # marker gives it a term in the generated JSON-LD context.
+    # refused at the edge (EMB-13-012).  The marker gives it a term in the
+    # generated JSON-LD context.
     termination_cause: TerminationCause | None = Field(
         default=None,
         validation_alias="terminationCause",
         serialization_alias="terminationCause",
         json_schema_extra=vultron_property(
-            "Why an embargo ended early, on the Remove that terminates it: an "
-            "object whose kind is THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or "
-            "OTHER",
+            "Why an embargo ended, on the Remove that terminates it: an "
+            "object whose kind is END_TIME_REACHED, THREAT_SIGNAL, FIX_READY, "
+            "FIX_DEPLOYED or OTHER",
             PropertyValueKind.PLAIN,
         ),
     )

@@ -78,9 +78,19 @@ logger = logging.getLogger(__name__)
 
 #: The JSON-LD context that defines the proof terms (FEP-8b32).
 DATA_INTEGRITY_CONTEXT = "https://w3id.org/security/data-integrity/v2"
-#: The JSON-LD context that defines the key terms an actor profile publishes:
-#: ``assertionMethod``, ``Multikey``, ``controller``, ``publicKeyMultibase``.
+#: The JSON-LD context that defines the ``Multikey`` an actor profile
+#: publishes, and its scoped ``controller`` and ``publicKeyMultibase``.
 MULTIKEY_CONTEXT = "https://w3id.org/security/multikey/v1"
+#: The W3C Controlled Identifiers v1 context: the one an actor profile cites
+#: that defines ``assertionMethod`` at top level.  Multikey v1 does not, and
+#: data-integrity v2 defines it only as a ``proofPurpose`` value.
+CONTROLLED_IDENTIFIERS_CONTEXT = "https://www.w3.org/ns/cid/v1"
+#: The external contexts an actor profile adds after its own, in order
+#: (ENC-01-002): together they define every key term the profile publishes.
+PROFILE_KEY_CONTEXTS: tuple[str, ...] = (
+    MULTIKEY_CONTEXT,
+    CONTROLLED_IDENTIFIERS_CONTEXT,
+)
 PROOF_TYPE = "DataIntegrityProof"
 CRYPTOSUITE = "eddsa-jcs-2022"
 PROOF_PURPOSE = "assertionMethod"
@@ -729,11 +739,13 @@ def verify(document: Mapping[str, Any], public_key_multibase: str) -> None:
 
 
 __all__ = [
+    "CONTROLLED_IDENTIFIERS_CONTEXT",
     "CRYPTOSUITE",
     "DATA_INTEGRITY_CONTEXT",
     "KEY_FRAGMENT",
     "MAX_JSON_DEPTH",
     "MULTIKEY_CONTEXT",
+    "PROFILE_KEY_CONTEXTS",
     "PROOF_PURPOSE",
     "PROOF_TYPE",
     "SigningKey",

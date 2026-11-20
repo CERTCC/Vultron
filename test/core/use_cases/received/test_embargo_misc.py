@@ -30,7 +30,6 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     AnnounceEmbargoEventToCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
@@ -281,7 +280,6 @@ class TestResetEmbargoConsentWithInlineParticipants:
             origin=case.id_,
             actor=case_manager_id,
             to=[actor_id],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
         event = make_payload(

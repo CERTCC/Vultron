@@ -580,7 +580,7 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">Many to one</td>
 <td markdown="span">Interpretive</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">The case holds a list of `VulnerabilityItem` objects (`vulnerability_items`), each in the shape of the identity fields of a CSAF 2.1 vulnerability entry: `ids`, `notes` and `references` (CM-05-018, CM-05-021). The item has no `cve` field: its CVE ID is an `ids` entry whose `systemName` is `CVE`. The item holds the CSAF entry's `title` as its `name`, the AS2 property that means the same. An item holds none of the per-vulnerability state of a CSAF entry, such as product status, metrics or remediations (CM-05-020). An item carries no content document: it holds no CSAF document and no CVE record ([#6241](https://github.com/CERTCC/Vultron/issues/6241){:target="_blank"}). A CSAF document or a CVE record drafted from the case is a projection of the case, not item content. A CSAF document for one vulnerability must still define the products that it refers to (mandatory test 6.1.1, Missing Definition of Product ID). A projection can now set `dl_vuln_ids` from the items. Issue [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} tracks the rest of this change.</td>
+<td markdown="span">The case holds a list of `VulnerabilityItem` objects (`vulnerability_items`), each in the shape of the identity fields of a CSAF 2.1 vulnerability entry: `ids`, `vulNotes` and `references` (CM-05-018, CM-05-021). The item has no `cve` field: its CVE ID is an `ids` entry whose `systemName` is `CVE`. The item holds the CSAF entry's `title` as its `name`, the AS2 property that means the same, and the entry's `notes` as its `vulNotes`, because a case's `notes` are the ids of its AS2 `Note` objects. An item holds none of the per-vulnerability state of a CSAF entry, such as product status, metrics or remediations (CM-05-020). An item carries no content document: it holds no CSAF document and no CVE record ([#6241](https://github.com/CERTCC/Vultron/issues/6241){:target="_blank"}). A CSAF document or a CVE record drafted from the case is a projection of the case, not item content. A CSAF document for one vulnerability must still define the products that it refers to (mandatory test 6.1.1, Missing Definition of Product ID). A projection can now set `dl_vuln_ids` from the items. Issue [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} tracks the rest of this change.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`VulnerabilityItem` `ids`</td>
@@ -588,7 +588,15 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">One to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">The item keeps every identifier in `ids`, so a reader finds all of a vulnerability's identifiers in one place. CSAF's `cve` maps to an `ids` entry whose `systemName` is `CVE`, placed first, and the CSAF `ids[]` entries follow in order. The first `CVE` entry maps back to CSAF's `cve`, and every other entry maps back to `ids[]`. A `CVE` entry's `text` must have the CVE ID format CSAF gives `cve` (CM-05-019). Both models treat identifiers from different systems as aliases for one vulnerability (CM-05-009), and the `text` of an identifier of any other system is never parsed (CM-05-008).</td>
+<td markdown="span">The item keeps every identifier in `ids`, so a reader finds all of a vulnerability's identifiers in one place. CSAF's `cve` maps to an `ids` entry whose `systemName` is `CVE`, placed first, and the CSAF `ids[]` entries follow in order. The first `CVE` entry maps back to CSAF's `cve`, and every other entry maps back to `ids[]`. Each entry holds CSAF's `system_name` as its `systemName` and CSAF's `text` as its `identifier`, because a note's body is also CSAF `text`. A `CVE` entry's `identifier` must have the CVE ID format CSAF gives `cve` (CM-05-019). Both models treat identifiers from different systems as aliases for one vulnerability (CM-05-009), and the `identifier` of an entry of any other system is never parsed (CM-05-008).</td>
+</tr>
+<tr markdown="1">
+<td markdown="span">`VulnerabilityItem` `vulNotes`</td>
+<td markdown="span">`vulnerabilities[].notes[]`</td>
+<td markdown="span">One to one</td>
+<td markdown="span">Mechanical</td>
+<td markdown="span">Mechanical</td>
+<td markdown="span">Each CSAF note becomes one entry of the item's `vulNotes`, in order (CM-05-018). The note keeps CSAF's `category`. It holds CSAF's `text` as `content` and CSAF's `title` as `name`, the AS2 properties that mean the same. It holds CSAF's `audience` as `intendedAudience`, because AS2 `audience` names an object or a link, and CSAF's `audience` is free text. A note's `product_ids` and `group_ids` are per-vulnerability state, so the item refuses them (CM-05-020).</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`CaseReference`, whose `url` Link carries CVE reference tags as `rel` values</td>

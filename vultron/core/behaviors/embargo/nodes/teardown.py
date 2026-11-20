@@ -30,6 +30,7 @@ from vultron.core.behaviors.act_keys import (
     CASE_ID,
     EMBARGO_ID,
     TERMINATED_AT,
+    TERMINATION,
 )
 from vultron.core.behaviors.embargo.copy_commit import (
     read_embargo_case_file,
@@ -69,9 +70,6 @@ from vultron.core.services.embargo_lifecycle import (
     termination_timing_violations,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import (
-    termination_reason_from_content,
-)
 from vultron.errors import (
     BtNodePreconditionError,
     VultronEntryRefusedError,
@@ -92,8 +90,8 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     ADR-0124): the ``ACTIVE`` entry is ``TERMINATED`` recording
     *termination* and every open proposal is ``CANCELLED`` in the same step
     (EP-08-004, ADR-0122), in one save.  For a received ``Remove``,
-    *termination* is the what its ``content`` carries, claimed at its
-    ``published`` time (*terminated_at*); an ``END_TIME_REACHED`` claimed
+    *termination* is the cause its ``terminationCause`` carries, claimed at
+    its ``published`` time (*terminated_at*); an ``END_TIME_REACHED`` claimed
     before the embargo's end time is refused: FAILURE, nothing written.
 
     It ends the embargo the ``Remove`` names and no other.  An EM already
@@ -101,23 +99,19 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     one in force changes nothing (ADR-0122); both return SUCCESS, and
     :attr:`applied` tells a caller which happened.
 
-    The case is read from ``/case_id`` and *embargo_id* from
-    ``/embargo_id`` (BTND-01-008); *terminated_at* from ``/terminated_at``,
-    which a ``Remove`` that claims no time leaves unset.
+    The case is read from ``/case_id``, *embargo_id* from ``/embargo_id``
+    and *termination* from ``/termination`` (BTND-01-008); *terminated_at*
+    from ``/terminated_at``, which a ``Remove`` that claims no time leaves
+    unset.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        **act_key_ports(CASE_ID, EMBARGO_ID, TERMINATED_AT),
+        **act_key_ports(CASE_ID, EMBARGO_ID, TERMINATED_AT, TERMINATION),
     }
 
-    def __init__(
-        self,
-        termination: EmbargoTermination,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._termination = termination
         #: True only when this tick terminated an embargo.
         self.applied = False
         #: True when this tick's termination was refused (ADR-0122).
@@ -125,13 +119,16 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return act_key_remappings(CASE_ID, EMBARGO_ID, TERMINATED_AT)
+        return act_key_remappings(
+            CASE_ID, EMBARGO_ID, TERMINATED_AT, TERMINATION
+        )
 
     def initialise(self) -> None:
         super().initialise()
         self.case_id: str = act_value(self, CASE_ID, str)
         self._embargo_id: str = act_value(self, EMBARGO_ID, str)
         self._terminated_at = optional_act_value(self, TERMINATED_AT, datetime)
+        self._termination = act_value(self, TERMINATION, EmbargoTermination)
 
     def _refuse(self, exc: VultronError) -> Status:
         self.refused = True
@@ -211,16 +208,15 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
     apply function, it terminates the embargo the ``Remove`` names (its
     ``object``), never whatever is in force locally, and cancels every open
     proposal in the same step (EP-08-004).  The ``TERMINATED`` entry records
-    the what the ``Remove`` carries in ``content`` and the why it carries as
-    ``terminationCause``, copied as the entry states it: a replica never
-    works a cause out from its own case state, and an entry with no
-    ``terminationCause`` records the what alone (EMB-13-005).
+    the cause the ``Remove`` carries as ``terminationCause``,
+    ``END_TIME_REACHED`` included, copied as the entry states it: a replica
+    never works a cause out from its own case state, and an entry with no
+    ``terminationCause`` records an early end with no cause (EMB-13-005).
 
     As on the CASE_MANAGER, where such a ``Remove`` is ledgered with no
     effect (CLP-02-013), an entry naming an embargo that is not the one in
     force changes nothing: SUCCESS, nothing written.  An entry whose
-    ``content`` is not a termination reason, whose ``terminationCause`` is
-    malformed or does not fit that reason (EMB-13-004), that names no
+    ``terminationCause`` is malformed (EMB-13-012), that names no
     embargo, or that claims ``END_TIME_REACHED`` before the embargo's end
     time (its ``published`` time, ADR-0122), or against an embargo this
     store cannot read (EMB-18-003), is refused: FAILURE, which keeps the
@@ -234,12 +230,11 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
         embargo_id = _extract_id_from_field(snapshot.get("object"))
         if embargo_id is None:
             raise TypeError("the Remove names no EmbargoEvent")
-        reason = termination_reason_from_content(snapshot.get("content"))
         return RegisterStep(
             kind=RegisterStepKind.TERMINATE,
             embargo=embargo_id,
             termination=EmbargoTermination.model_validate(
-                {"reason": reason, "cause": snapshot.get(_TERMINATION_CAUSE)}
+                {"cause": snapshot.get(_TERMINATION_CAUSE)}
             ),
         )
 

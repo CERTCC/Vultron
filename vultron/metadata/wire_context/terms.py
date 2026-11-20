@@ -57,8 +57,8 @@ Loose readings, and whether each can miss or invent a violation:
   reported, and the first is named in each message.
 - **An unmarked field that reuses a cited term with another meaning
   passes** (misses): the check sees that the term exists, not what the field
-  means by it.  ``VulnerabilityItemNote.audience`` sends CSAF free text under
-  AS2's ``audience``; #6416's acceptance criteria track it, not a ratchet.
+  means by it.  A review of each such field against the term's definition
+  is the only guard (``notes/as2-vocabulary-alignment.md``).
 
 A VM-10-012 violation is never a ratchet entry: the generator refuses it too,
 so :func:`load_ratchets` refuses an entry for it.
@@ -88,19 +88,22 @@ from vultron.metadata.wire_context.sync import (
     wire_field_classes,
     wire_name,
 )
-from vultron.wire.as2.signing import DATA_INTEGRITY_CONTEXT, MULTIKEY_CONTEXT
+from vultron.wire.as2.signing import (
+    DATA_INTEGRITY_CONTEXT,
+    PROFILE_KEY_CONTEXTS,
+)
 from vultron.wire.as2.vocab.base.base import ACTIVITY_STREAMS_NS
 from vultron.wire.as2.vocab.base.registry import declared_wire_type
 
 #: The external contexts a Vultron message or actor profile cites today: a
 #: term counts for VM-10-007 only when one of these defines it.  Each must be
-#: a pinned context (``third_party/jsonld/pin.json``).  Controlled
-#: Identifiers v1 is pinned but not cited, so the profile's
-#: ``assertionMethod`` has no term until #6418 cites it and adds it here.
+#: a pinned context (``third_party/jsonld/pin.json``).  A signed message cites
+#: data-integrity v2; an actor profile cites the key contexts (Multikey v1,
+#: and Controlled Identifiers v1 for ``assertionMethod``).
 CITED_CONTEXTS: tuple[str, ...] = (
     ACTIVITY_STREAMS_NS,
     DATA_INTEGRITY_CONTEXT,
-    MULTIKEY_CONTEXT,
+    *PROFILE_KEY_CONTEXTS,
 )
 
 #: Repository-relative path of the module holding the owners' ratchets.

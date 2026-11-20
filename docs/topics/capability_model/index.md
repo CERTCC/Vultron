@@ -520,7 +520,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 
 | Sentinel condition | How it acts |
 |---|---|
-| Embargo end date passes | Calls `terminate-embargo` with the reason `END_TIME_REACHED` |
+| Embargo end date passes | Calls `terminate-embargo` with the cause `END_TIME_REACHED` |
 | Active attack observed in a threat feed | As a case Participant, sends `Add(ParticipantStatus)` recording the attack (the [*A* event](../process_models/cs/cs_model.md#the-attacks-observed-substate-a-a)); no trigger endpoint covers this yet ([#1845](https://github.com/CERTCC/Vultron/issues/1845)) |
 | Fix confirmed deployed | As a case Participant, sends `Add(ParticipantStatus)` recording deployment (the [*D* event](../process_models/cs/cs_model.md#the-fix-deployed-substate-d-d)) |
 | New party named by a [participant suggester](#participant-and-actor-discovery) | Calls `suggest-actor-to-case` or `invite-actor-to-case` |
@@ -566,7 +566,7 @@ The end time is in the case's embargo register, so a BT reads it there instead o
 The CASE_MANAGER ends the embargo the next time it handles the case after the end time (EMB-13-003).
 What stays open is whether something should end an embargo at its end time when nothing else happens in the case.
 That is a Sentinel (BT-18-013).
-No BT asks it: it watches the clock, and calls `terminate-embargo` with the reason `END_TIME_REACHED` on its own initiative.
+No BT asks it: it watches the clock, and calls `terminate-embargo` with the cause `END_TIME_REACHED` on its own initiative.
 Who runs it, and how it authenticates to the trigger, are among the Sentinel design questions in [#2450](https://github.com/CERTCC/Vultron/issues/2450).
 
 ---

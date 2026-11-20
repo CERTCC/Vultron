@@ -30,6 +30,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
+    EndTimeReachedCause,
     FixDeployedCause,
     FixReadyCause,
     OtherCause,
@@ -38,7 +39,6 @@ from vultron.core.models.embargo_termination import (
     ThreatSignalCause,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -346,7 +346,7 @@ def _run_cascade_ask(
             wire_render_port=As2WireRenderAdapter(),
         ),
         tree=ask_case_manager_to_terminate_once(
-            case.id_, TerminationReason.EARLY
+            case.id_, EmbargoTermination.early()
         ),
         actor_id=actor_id,
     )
@@ -448,8 +448,8 @@ def test_an_early_request_records_its_cause_or_other(
     cause: TerminationCause | None,
     recorded: TerminationCause,
 ) -> None:
-    """The requested cause reaches the Remove and the TERMINATED entry; an
-    EARLY request naming none is recorded as OTHER."""
+    """The requested cause reaches the Remove and the TERMINATED entry;
+    a request naming none is recorded as OTHER."""
     owner, owner_dl = owner_actor_and_dl
     finder = _persist_actor(owner_dl, "Finder Co")
     case, _, _ = _build_active_embargo_case(owner_dl, owner.id_, finder.id_)
@@ -469,9 +469,7 @@ def test_an_early_request_records_its_cause_or_other(
         )
     )
 
-    expected = EmbargoTermination(
-        reason=TerminationReason.EARLY, cause=recorded
-    )
+    expected = EmbargoTermination(cause=recorded)
     updated = cast(VulnerabilityCase, owner_dl.read(case.id_))
     entry = updated.embargo_register_entry(embargo_id)
     assert entry is not None
@@ -492,15 +490,17 @@ def test_a_request_naming_a_threat_signal_is_refused() -> None:
         )
 
 
-@pytest.mark.spec("EMB-13-004")
-def test_an_end_time_request_naming_a_cause_is_refused() -> None:
-    with pytest.raises(ValidationError, match="END_TIME_REACHED"):
-        TerminateEmbargoTriggerRequest(
-            actor_id=_VENDOR_ID,
-            case_id="https://example.org/cases/c1",
-            reason=TerminationReason.END_TIME_REACHED,
-            cause=FixDeployedCause(),
-        )
+@pytest.mark.spec("EMB-13-010")
+def test_an_end_time_request_names_the_end_time_cause() -> None:
+    """End time reached is a cause like the others (ADR-0203): the request
+    has no separate reason to name it with."""
+    request = TerminateEmbargoTriggerRequest(
+        actor_id=_VENDOR_ID,
+        case_id="https://example.org/cases/c1",
+        cause=EndTimeReachedCause(),
+    )
+    assert request.cause == EndTimeReachedCause()
+    assert "reason" not in TerminateEmbargoTriggerRequest.model_fields
 
 
 @pytest.mark.spec("EMB-14-001")

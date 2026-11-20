@@ -29,7 +29,6 @@ from vultron.core.models.embargo_termination import (
     CASE_MANAGER_ONLY_CAUSE_KINDS,
     TerminationCause,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.triggers.request_bodies._base import (
     CaseTriggerRequest,
 )
@@ -111,34 +110,24 @@ class TerminateEmbargoRequest(CaseTriggerRequest):
     TRIG-03-001: Must include case_id to identify the target case.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
 
-    ``reason`` is what ends the embargo (ADR-0122).  ``EARLY``, the default,
-    is the actor's own decision to end it before its end time.
-    ``END_TIME_REACHED`` is a request to end it at its end time, such as a
-    Sentinel monitoring embargo timers sends: refused before the end time,
-    and answered as already done, with no activity, once the embargo has
-    ended.
-
-    ``cause`` is why an ``EARLY`` termination ends the embargo (EMB-13-004):
-    ``FIX_READY`` with its vendors, ``FIX_DEPLOYED`` or ``OTHER``.  An
-    ``EARLY`` request with no cause is recorded as ``OTHER``.  A
-    ``THREAT_SIGNAL`` cause is refused: a case status update setting ``P``,
-    ``X`` or ``A`` is how a threat signal ends an embargo (EMB-13-005).  A
-    cause on an ``END_TIME_REACHED`` request is refused too.
+    ``cause`` is why the embargo ends (EMB-13-010, ADR-0203).  An early
+    cause (``FIX_READY`` with its vendors, ``FIX_DEPLOYED`` or ``OTHER``) is
+    the actor's own decision to end it before its end time; a request with
+    no cause is recorded as ``OTHER``.  ``END_TIME_REACHED`` is a request to
+    end it at its end time, such as a Sentinel monitoring embargo timers
+    sends: refused before the end time, and answered as already done, with
+    no activity, once the embargo has ended.  A ``THREAT_SIGNAL`` cause is
+    refused: a case status update setting ``P``, ``X`` or ``A`` is how a
+    threat signal ends an embargo (EMB-13-005).
     """
 
-    reason: TerminationReason = TerminationReason.EARLY
     cause: TerminationCause | None = None
 
     @model_validator(mode="after")
     def _cause_fits_request(self) -> TerminateEmbargoRequest:
-        """Refuse a cause this request may not name (EMB-13-004/005)."""
+        """Refuse a cause this request may not name (EMB-13-005)."""
         if self.cause is None:
             return self
-        if self.reason == TerminationReason.END_TIME_REACHED:
-            raise ValueError(
-                "an END_TIME_REACHED termination cannot have a cause"
-                " (EMB-13-004)"
-            )
         if self.cause.kind in CASE_MANAGER_ONLY_CAUSE_KINDS:
             raise ValueError(
                 f"a terminate-embargo request cannot name a {self.cause.kind}"

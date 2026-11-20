@@ -251,11 +251,11 @@
     ],
     "id": "urn:test:vulnerabilityitem:golden",
     "ids": [],
-    "notes": [],
     "published": "2026-01-02T03:04:05.000000+00:00",
     "references": [],
     "type": "VulnerabilityItem",
-    "updated": "2026-01-02T03:04:05.000000+00:00"
+    "updated": "2026-01-02T03:04:05.000000+00:00",
+    "vulNotes": []
   },
   "VulnerabilityReport": {
     "@context": [

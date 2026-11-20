@@ -37,6 +37,7 @@ from vultron.core.behaviors.act_keys import (
     EMBARGO,
     EMBARGO_ID,
     TERMINATED_AT,
+    TERMINATION,
 )
 from vultron.core.behaviors.embargo.copy_commit import (
     read_embargo_case_file,
@@ -117,9 +118,9 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
 class TerminationIsTimelyNode(DataLayerConditionWithPorts):
     """Guard: a received termination may end the embargo in force now.
 
-    FAILURE when *termination* is ``END_TIME_REACHED`` claimed at
+    FAILURE when *termination*'s cause is ``END_TIME_REACHED`` claimed at
     *terminated_at* before the end time of the case's embargo in force, or
-    carries no time (ADR-0122); SUCCESS otherwise, an ``EARLY`` termination
+    carries no time (EMB-13-008); SUCCESS otherwise, an early termination
     or a case with no embargo in force included.  It runs among the received
     tree's precondition guards, so a refused termination is never committed
     (CLP-10-006).  An embargo that cannot be read fails closed (EMB-18-003).
@@ -134,7 +135,8 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
     judged against that revision's own end time: the stored record, else
     *embargo*, the ``Remove``'s inline copy (EMB-18-003).
 
-    The case is read from ``/case_id`` (BTND-01-008), *terminated_at* from
+    The case is read from ``/case_id`` and *termination* from
+    ``/termination`` (BTND-01-008), *terminated_at* from
     ``/terminated_at``, *embargo_id* from ``/embargo_id`` and *embargo* from
     ``/embargo``.  The last three are optional ports, and an unseeded one
     reads whatever its key already holds rather than ``None``.
@@ -144,24 +146,24 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
-        **act_key_ports(CASE_ID, TERMINATED_AT, EMBARGO_ID, EMBARGO),
+        **act_key_ports(
+            CASE_ID, TERMINATION, TERMINATED_AT, EMBARGO_ID, EMBARGO
+        ),
     }
 
-    def __init__(
-        self,
-        termination: EmbargoTermination,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._termination = termination
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return act_key_remappings(CASE_ID, TERMINATED_AT, EMBARGO_ID, EMBARGO)
+        return act_key_remappings(
+            CASE_ID, TERMINATION, TERMINATED_AT, EMBARGO_ID, EMBARGO
+        )
 
     def initialise(self) -> None:
         super().initialise()
         self.case_id: str = act_value(self, CASE_ID, str)
+        self._termination = act_value(self, TERMINATION, EmbargoTermination)
         self._terminated_at = optional_act_value(self, TERMINATED_AT, datetime)
         self._embargo_id = optional_act_value(self, EMBARGO_ID, str)
         self._embargo = optional_act_value(self, EMBARGO, EmbargoEvent)

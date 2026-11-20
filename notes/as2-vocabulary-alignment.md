@@ -21,10 +21,7 @@ tracks:
   - "#6408"   # PR may not close a ratchet's open owner
   - "#6409"   # typed term for every Vultron field
   - "#6422"   # term check and owned ratchets
-  - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
-  - "#6418"   # profile cites Controlled Identifiers context
-  - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
   - "#6481"   # embargo stores its status; register is a list (slice of #6246)
   - "#6482"   # embargo end is Update; owner's early end its own (#6246)
@@ -372,17 +369,14 @@ schema.org; it has no "concluded" status or structured cause. VOC Announce can c
 an activity ("Sally announced that she had arrived at work"). VOC `summary`: "a
 natural language summarization of the object".
 
-**Today.** `Remove(EmbargoEvent)[origin=case]` with the reason enum in `content`
-(`vultron/wire/as2/vocab/activities/embargo.py`) and the cause in the Vultron
-`terminationCause` (`vultron/core/models/embargo_termination.py`). The status,
+**Today.** `Remove(EmbargoEvent)[origin=case]` with the cause, `END_TIME_REACHED`
+included, in the Vultron `terminationCause`
+(`vultron/wire/as2/vocab/activities/embargo.py`,
+`vultron/core/models/embargo_termination.py`); `content` carries no what. The status,
 `replaces` and termination are on the register entry
 (`vultron/core/models/embargo_register/entry.py`), not the embargo. The Owner's
 `Remove` is ledgered as received (EMB-13-003, EMB-13-013). Teardown:
 `vultron/core/behaviors/embargo/nodes/teardown.py`; EMB-19.
-
-**Term-check owner.** #6421 owns the termination `reason` enum in the #6253 term-check
-ratchet, so the entry keeps an open owner. Planning this section adopts #6421
-for that field rather than filing a second Task.
 
 **Touches.** EMB-07, EMB-13 (003, 004, 005, 009 to 014), EMB-19, CM-31-009,
 CM-31-030, CM-31-031, CM-31-042, EP-08-004, ADR-0116 and ADR-0122 (partially
@@ -581,25 +575,23 @@ check (`vultron/metadata/wire_context/terms.py`, run by `uv run wire-context
 --check` and the unit suite) refuses a field with no term, a Vultron property named
 like a pinned external term, and two disagreeing declarations of one name. An
 external term counts only when a context in `CITED_CONTEXTS` defines it: AS2,
-data-integrity v2 and Multikey v1. CID v1 is pinned but not cited, so the
-profile's `assertionMethod` has no term until #6418 cites it. Each field the check
+data-integrity v2, Multikey v1 and CID v1. The actor profile cites Multikey v1 and
+CID v1 after its own contexts (`PROFILE_KEY_CONTEXTS` in
+`vultron/wire/as2/signing.py`), so `Multikey` and `assertionMethod` resolve in a
+JSON-LD processor. Each field the check
 refuses today is an entry in its owner's ratchet in
 `test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
-resolves to the marked one's meaning until its owner renames it: the item's `notes`
-takes the case's list of Note ids (#6416). The check walks computed fields too, so
-the case's derived `activeParticipants` is marked.
+resolves to the marked one's meaning, so the check reports it as having no term.
+The check walks computed fields too, so the case's derived `activeParticipants` is
+marked.
 
-**Field review.** Each row names the Task that fixes it. A row is a ratchet entry
-only when a rule refuses the field. The note's `audience` breaks no rule (it is
-an AS2 term), so its owner's own acceptance criteria track it. An Offer and an
-Invite carry the roles they propose in one field, `roles`, declared on
+**Field review.** Every field the review found has been fixed by its Task, so no
+row and no ratchet entry is left. A ratchet entry holds a field only when a rule
+refuses it. A field that reuses an AS2 term with another
+meaning breaks no rule, so only this review finds it: CSAF's free-text note
+`audience` travels as `intendedAudience`, not AS2 `audience` (CM-05-018). An Offer
+and an Invite carry the roles they propose in one field, `roles`, declared on
 `as_Offer` and inherited by `as_Invite` (#6417).
-
-| Field (class) | Finding | Becomes | Owner |
-|---|---|---|---|
-| `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
-| `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
-| termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
 Every other field is a Vultron term. `state`, `status` and `kind` are each used once
 on the wire, and `caseStatus` is declared once, on a participant status, so none of

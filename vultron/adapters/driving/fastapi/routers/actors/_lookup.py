@@ -210,13 +210,15 @@ def profile_of_record(actor_record: dict[str, object]) -> dict[str, Any]:
     profile: dict[str, Any] = as_actor.model_dump(
         mode="json", by_alias=True, exclude_none=True
     )
-    # The key terms (``assertionMethod``, ``Multikey``, ``controller``,
-    # ``publicKeyMultibase``) are defined by the Multikey context, not the
-    # Vultron one, so a JSON-LD-expanding verifier keeps them only with it.
-    # Appended to the dumped context, so whatever default it has stays first.
-    profile["@context"] = signing.with_context(
-        profile.get("@context"), signing.MULTIKEY_CONTEXT
-    )
+    # The key terms are not the Vultron context's: Multikey v1 defines
+    # ``Multikey`` and its ``controller`` and ``publicKeyMultibase``, and
+    # Controlled Identifiers v1 defines ``assertionMethod``.  A
+    # JSON-LD-expanding verifier keeps the key only with both.  Appended to
+    # the dumped context, so whatever default it has stays first.
+    context = profile.get("@context")
+    for key_context in signing.PROFILE_KEY_CONTEXTS:
+        context = signing.with_context(context, key_context)
+    profile["@context"] = context
     own = hosted_endpoints(as_actor.id_)
     for field_name in ("inbox", "outbox"):
         profile[field_name] = (

@@ -53,7 +53,7 @@
           "ids": [
             {
               "systemName": "CVE",
-              "text": "CVE-2026-0001"
+              "identifier": "CVE-2026-0001"
             }
           ]
         }
@@ -102,6 +102,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2wtx1K3xFRYSHbeTs4urkTdvpX6NNJHEXqijVPsZ7oCwR4GH14ktyjx1MUsS4pksCepnnNUAcadSs4TPKZc5f33x"
+    "proofValue": "z64SKyf9L7RVfc3Tcm3UU5T7byrTxLmx9vUWdKAhddxwoRdqJzQgVdp6RYFdFVKkMX8PBKiYqvpozpbt4K5d6eEjM"
   }
 }

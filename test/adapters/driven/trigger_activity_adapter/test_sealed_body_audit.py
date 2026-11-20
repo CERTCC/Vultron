@@ -71,7 +71,6 @@ from vultron.core.models.vulnerability_item import (
     VulnerabilityItemId,
 )
 from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -637,7 +636,6 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     ),
     "withdraw_from_embargo": lambda w: w.adapter.withdraw_from_embargo(

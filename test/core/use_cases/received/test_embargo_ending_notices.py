@@ -77,7 +77,9 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_termination import (
+    EndTimeReachedCause,
     FixReadyCause,
+    TerminationCause,
     ThreatSignal,
     ThreatSignalTermination,
 )
@@ -99,10 +101,7 @@ from vultron.core.participants.recipients import (
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import (
-    EmbargoRegisterStatus,
-    TerminationReason,
-)
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -280,7 +279,6 @@ class _Manager:
                 origin=CASE_ID,
                 actor=OWNER,
                 to=[MANAGER],
-                reason=TerminationReason.EARLY,
                 at=authored_at(),
             )
         )
@@ -354,7 +352,6 @@ def test_the_ending_notice_carries_the_cause_the_manager_records() -> None:
             origin=CASE_ID,
             actor=OWNER,
             to=[MANAGER],
-            reason=TerminationReason.EARLY,
             cause=cause,
             at=authored_at(),
         )
@@ -899,7 +896,6 @@ def _termination_from(sender: str, dl: SqliteDataLayer, to: str) -> Any:
         context=CASE_ID,
         actor=sender,
         to=[to],
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
 
@@ -1050,7 +1046,6 @@ def _remove_of(embargo: Any, *, to: str) -> Any:
         context=CASE_ID,
         actor=MANAGER,
         to=[to],
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
 
@@ -1091,7 +1086,7 @@ def test_paused_replica_ends_a_longer_revision_it_was_not_told_of() -> None:
 
 
 def _removed_revision(
-    reason: TerminationReason, *, end_in_days: int, to: str = REMOVED
+    cause: TerminationCause | None, *, end_in_days: int, to: str = REMOVED
 ) -> Any:
     """The CASE_MANAGER's ``Remove`` of a revision ending in *end_in_days*."""
     revision = make(
@@ -1106,7 +1101,7 @@ def _removed_revision(
         context=CASE_ID,
         actor=MANAGER,
         to=[to],
-        reason=reason,
+        cause=cause,
         at=authored_at(),
     )
 
@@ -1115,21 +1110,21 @@ def _removed_revision(
 @pytest.mark.spec("EMB-18-003")
 @pytest.mark.spec("SYNC-19-001")
 @pytest.mark.parametrize(
-    "reason",
-    [TerminationReason.EARLY, TerminationReason.END_TIME_REACHED],
+    "cause", [None, EndTimeReachedCause()], ids=["early", "end-time"]
 )
 def test_paused_replica_ends_an_expired_revision_it_has_not_activated(
-    reason: TerminationReason,
+    cause: TerminationCause | None,
 ) -> None:
     """An expiry ``Remove`` of an unseen, expired revision ends it (#5900).
 
     The replica's own embargo (60 days out) has not reached its end time,
     but the revision the ``Remove`` names has: the claim is judged against
-    the revision's own end time, so either reason ends the same.
+    the revision's own end time, so an early end and the end time end the
+    same.
     """
     replica = _Replica(REMOVED)
 
-    result = replica.receive(_removed_revision(reason, end_in_days=-1))
+    result = replica.receive(_removed_revision(cause, end_in_days=-1))
 
     assert result.disposition is HandlerDisposition.APPLIED
     case = replica.case()
@@ -1140,7 +1135,7 @@ def test_paused_replica_ends_an_expired_revision_it_has_not_activated(
         (REVISION_ID, EmbargoRegisterStatus.TERMINATED),
     ]
     assert case.embargo_termination is not None
-    assert case.embargo_termination.reason is reason
+    assert case.embargo_termination.cause == cause
 
 
 @pytest.mark.spec("CM-31-042")
@@ -1151,7 +1146,7 @@ def test_paused_replica_refuses_an_early_expiry_remove_of_a_revision() -> None:
     before = replica.embargo_state()
 
     result = replica.receive(
-        _removed_revision(TerminationReason.END_TIME_REACHED, end_in_days=30)
+        _removed_revision(EndTimeReachedCause(), end_in_days=30)
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -1172,7 +1167,7 @@ def test_paused_replica_refuses_expiry_of_a_longer_revision() -> None:
     before = replica.embargo_state()
 
     result = replica.receive(
-        _removed_revision(TerminationReason.END_TIME_REACHED, end_in_days=30)
+        _removed_revision(EndTimeReachedCause(), end_in_days=30)
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -1204,7 +1199,7 @@ def test_paused_replica_refuses_an_expiry_remove_of_another_case() -> None:
             context=CASE_ID,
             actor=MANAGER,
             to=[REMOVED],
-            reason=TerminationReason.END_TIME_REACHED,
+            cause=EndTimeReachedCause(),
             at=authored_at(),
         )
     )
@@ -1531,7 +1526,6 @@ def test_owed_notice_without_a_trigger_factory_is_an_internal_fault() -> None:
                 origin=CASE_ID,
                 actor=OWNER,
                 to=[MANAGER],
-                reason=TerminationReason.EARLY,
                 at=authored_at(),
             ),
             receiving_actor_id=MANAGER,
