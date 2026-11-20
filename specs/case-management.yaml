@@ -1041,8 +1041,8 @@ groups:
     rationale: >-
       Shaped like a CSAF vulnerability entry, the item maps a CSAF report's
       vulnerabilities in and out field by field. Pairing each identifier with its
-      system names its namespace without parsing it (CM-05-008, ADR-0187). A `title` and a
-      note's `text` travel as AS2 `name` and `content`, which mean the same
+      system names its namespace without parsing it (CM-05-008, ADR-0187). A `title`
+      and a note's `text` travel as AS2 `name` and `content`, which mean the same
       (VM-10-009). The other renames give each wire name one meaning (VM-10-012): a
       case's `notes` are Note ids, and AS2 `audience` is an object, not free text.
     verification: >-
