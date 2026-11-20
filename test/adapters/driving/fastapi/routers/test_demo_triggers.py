@@ -714,7 +714,7 @@ class TestDemoGetCaseLedger:
         )
         entries = response.json()
         assert len(entries) == 1
-        assert entries[0]["caseId"] == case_with_actor.id_
+        assert entries[0]["context"] == case_with_actor.id_
 
     def test_ndjson_via_accept_header(
         self, client_demo: TestClient, actor, case_with_actor, dl
@@ -781,7 +781,7 @@ class TestDemoGetCaseLedger:
         assert response.status_code == status.HTTP_200_OK
         entries = response.json()
         assert len(entries) == 2
-        assert all(e["caseId"] == http_case_id for e in entries)
+        assert all(e["context"] == http_case_id for e in entries)
         assert [e["logIndex"] for e in entries] == [0, 1]
 
 
@@ -807,7 +807,7 @@ class TestDemoGetCaseLedgerEntry:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["logIndex"] == 1
-        assert data["caseId"] == case_with_actor.id_
+        assert data["context"] == case_with_actor.id_
         assert data["semanticType"] == "test_event_1"
 
     def test_returns_404_for_missing_index(
@@ -850,7 +850,7 @@ class TestDemoGetCaseLedgerEntry:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["logIndex"] == 0
-        assert data["caseId"] == http_case_id
+        assert data["context"] == http_case_id
 
     def test_response_uses_camelcase_aliases(
         self, client_demo: TestClient, actor, case_with_actor, dl
@@ -867,7 +867,7 @@ class TestDemoGetCaseLedgerEntry:
         assert "logObjectId" in data
         assert "semanticType" in data
         assert "logIndex" in data
-        assert "caseId" in data
+        assert "context" in data
         assert "log_object_id" not in data
         assert "semantic_type" not in data
 
@@ -935,7 +935,7 @@ class TestDemoStreamCaseLedger:
         events = parse_sse_body(
             client_demo.get(self._url(actor, case_with_actor.id_)).text
         )
-        assert [json.loads(e["data"])["caseId"] for e in events[:-1]] == [
+        assert [json.loads(e["data"])["context"] for e in events[:-1]] == [
             case_with_actor.id_
         ]
 
@@ -994,7 +994,7 @@ class TestDemoStreamCaseLedger:
         events = parse_sse_body(
             client_demo.get(self._url(actor, http_case_id)).text
         )
-        assert json.loads(events[0]["data"])["caseId"] == http_case_id
+        assert json.loads(events[0]["data"])["context"] == http_case_id
 
     def test_unknown_case_returns_404(self, client_demo: TestClient, actor):
         response = client_demo.get(

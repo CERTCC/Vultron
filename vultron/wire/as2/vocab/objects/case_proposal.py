@@ -72,15 +72,15 @@ class as_CaseProposal(as_VultronObject):
             which the proposal is addressed (CP-01-005).
         summary: Optional human-readable description of the proposal
             (CP-01-006).
-        offer_id: Optional URI of the ``Offer(VulnerabilityReport)`` this
-            proposal descends from, with ``offer_actor_id`` naming its sender
-            (CP-01-007).
-        in_reply_to: The ``Offer(VulnerabilityReport)`` itself, inline, when
-            the proposer holds it (CP-01-008).  The proposal answers the
-            Reporter's submission, which is what AS2's ``inReplyTo`` says; and
-            a sender inlines the objects it introduces (ADR-0107), the
-            case-actor having never seen the Offer.  It is how the Reporter's
-            proposed embargo terms (EP-04-004) reach case creation.
+        in_reply_to: The ``Offer(VulnerabilityReport)`` this proposal
+            descends from (CP-01-007): inline when the proposer holds it
+            (CP-01-008), else its id.  The proposal answers the Reporter's
+            submission, which is what AS2's ``inReplyTo`` says; and a sender
+            inlines the objects it introduces (ADR-0107), the case-actor
+            having never seen the Offer.  The inline Offer is how the
+            Reporter's proposed embargo terms (EP-04-004) reach case
+            creation.  Its sender is the Offer's ``actor``, or the report's
+            ``attributedTo`` when only the id travels.
         proposer_case_roles: The CVD roles the proposer holds in a case it
             owns, copied from its own ``ActorConfig.default_case_roles``
             (CP-01-013, ADR-0133).  The CASE_MANAGER seats the proposer with
@@ -136,43 +136,28 @@ class as_CaseProposal(as_VultronObject):
         description="Optional human-readable description of the proposal.",
     )
 
-    # CP-01-007: provenance of the report this proposal is about.
+    # CP-01-007, CP-01-008: the Offer this proposal answers, inline when the
+    # proposer holds it, else its id.
     #
     # The CaseActor commits the canonical `add_report_to_case` ledger entry, and
-    # the entry's snapshot keeps the report's Offer provenance for the case's
-    # participants, who were never sent the Offer (CM-11-020). The CaseActor cannot look the
-    # offer up: the `OfferRecord` lives in the store of the actor that received
-    # the Offer, and a co-located CaseActor has its own store and no read into a
+    # the entry names the report's Offer for the case's participants, who were
+    # never sent the Offer (CM-11-020). The CaseActor cannot look the offer up:
+    # the `OfferRecord` lives in the store of the actor that received the
+    # Offer, and a co-located CaseActor has its own store and no read into a
     # sibling's (ADR-0073, PCR-01-003). So the offer travels here, on the
     # proposal, for the same reason and by the same rule as the report itself
-    # (CP-01-004).
-    #
-    # Without it the snapshot carried no `offerId` and the ledger lost the
-    # report's Offer provenance (#2548).
-    offer_id: NonEmptyString | None = Field(
-        default=None,
-        validation_alias="offerId",
-        serialization_alias="offerId",
-        description="URI of the Offer(VulnerabilityReport) this proposal descends from.",
-    )
-    offer_actor_id: NonEmptyString | None = Field(
-        default=None,
-        validation_alias="offerActorId",
-        serialization_alias="offerActorId",
-        description="URI of the actor that sent the Offer named by offer_id.",
-    )
-    # CP-01-008: the Offer itself, carried whole.  ``offer_id``/``offer_actor_id``
-    # are its bare-reference twin; when both forms are present they MUST agree
-    # (CP-01-020).
+    # (CP-01-004); without it the ledger lost the report's Offer provenance
+    # (#2548).  AS2's `inReplyTo` is the one name for it: no Vultron
+    # `offerId`/`offerActorId` pair beside it (#6419).
     # Typed on the base ``as_Offer``: the parser expands an inline Offer to the
     # class the wire registry holds for ``type: Offer``, which is the base.
-    in_reply_to: as_Offer | None = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
+    in_reply_to: as_Offer | NonEmptyString | None = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
         default=None,
         validation_alias="inReplyTo",
         serialization_alias="inReplyTo",
         description=(
             "The Offer(VulnerabilityReport) this proposal answers, inline"
-            " (CP-01-008)."
+            " (CP-01-008) or by id (CP-01-007)."
         ),
     )
 
@@ -223,31 +208,17 @@ class as_CaseProposal(as_VultronObject):
         return value
 
     @model_validator(mode="after")
-    def _offer_reference_agrees_with_inline_offer(self) -> as_CaseProposal:
-        """The bare provenance and the inline Offer name the same submission.
+    def _inline_offer_submitted_this_report(self) -> as_CaseProposal:
+        """An inline Offer in ``inReplyTo`` is the one that brought the report.
 
-        Raises ``ValueError`` (a Pydantic validation error) when both forms are
-        present and disagree: one proposal cannot descend from two Offers.
+        Raises ``ValueError`` (a Pydantic validation error) when the inline
+        Offer submitted a different report: one proposal cannot answer
+        another report's submission.  A bare Offer id carries nothing to
+        compare.
         """
         offer = self.in_reply_to
-        if offer is None:
+        if not isinstance(offer, as_Offer):
             return self
-        if self.offer_id is not None and offer.id_ != self.offer_id:
-            raise ValueError(
-                f"as_CaseProposal offerId {self.offer_id!r} does not name the"
-                f" inline Offer {offer.id_!r} carried in inReplyTo (CP-01-020)"
-            )
-        offer_actor = getattr(offer.actor, "id_", offer.actor)
-        if (
-            self.offer_actor_id is not None
-            and offer_actor is not None
-            and offer_actor != self.offer_actor_id
-        ):
-            raise ValueError(
-                f"as_CaseProposal offerActorId {self.offer_actor_id!r} does"
-                f" not name the inline Offer's actor {offer_actor!r}"
-                " (CP-01-020)"
-            )
         # The Offer must be the one that brought *this* report: otherwise the
         # case-actor would read another report's proposed terms (EP-04-009).
         offered_report = getattr(offer.object_, "id_", offer.object_)

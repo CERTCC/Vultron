@@ -148,7 +148,7 @@ def test_a_stub_invite_and_its_reply_name_the_case_their_object_names() -> (
         lambda: add_log_entry_activity(
             make(
                 as_CaseLedgerEntry,
-                case_id=_CASE,
+                context=_CASE,
                 log_index=0,
                 log_object_id=f"{_CASE}/activities/0",
                 semantic_type="create_case",

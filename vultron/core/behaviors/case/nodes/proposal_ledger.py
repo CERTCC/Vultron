@@ -111,13 +111,11 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self,
         report_id: str | None,
         offer_id: str | None = None,
-        offer_actor_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
         self._offer_id = offer_id
-        self._offer_actor_id = offer_actor_id
         self._case_id_bb: str | None = None
         self._create_activity_id_bb: str | None = None
 
@@ -275,17 +273,14 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                     report_id,
                 )
                 continue
-            offer_id, offer_actor_id = offer_for_report_or(
-                self.datalayer,
-                report_id,
-                (self._offer_id, self._offer_actor_id),
+            offer_id = offer_for_report_or(
+                self.datalayer, report_id, self._offer_id
             )
             activity = port.record_report_added_to_case(
                 report_id=report_id,
                 case_id=case_id,
                 actor=self.actor_id,
                 offer_id=offer_id,
-                offer_actor_id=offer_actor_id,
                 at=self._require_act_instant(),
             )
             self._commit_one(

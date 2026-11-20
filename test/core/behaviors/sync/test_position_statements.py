@@ -186,15 +186,15 @@ def test_factory_reads_the_cases_ledger() -> None:
 
     assert isinstance(activity, as_Read)
     assert activity.type_ == "Read"
-    assert _as_id(activity.object_) == case_ledger_id(entry.case_id)
-    assert activity.context == entry.case_id
+    assert _as_id(activity.object_) == case_ledger_id(entry.context)
+    assert activity.context == entry.context
     assert activity.ledger_position is not None
     assert activity.ledger_position.log_index == entry.log_index
     assert activity.ledger_position.entry_hash == entry.entry_hash
     body = activity.model_dump(by_alias=True, mode="json", exclude_none=True)
     # Identity only: the ledger carries no items (ADR-0204).
     assert body["object"] == {
-        "id": case_ledger_id(entry.case_id),
+        "id": case_ledger_id(entry.context),
         "type": "OrderedCollection",
     }
     assert body["ledgerPosition"] == {

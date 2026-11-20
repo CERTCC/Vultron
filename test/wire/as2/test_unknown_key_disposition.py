@@ -361,7 +361,7 @@ def _inline_ledger_entry(**keys: Any) -> dict[str, Any]:
 
     entry = make(
         CaseLedgerEntry,
-        case_id="https://example.org/cases/1",
+        context="https://example.org/cases/1",
         log_index=0,
         log_object_id="https://example.org/activities/0",
         semantic_type="create_case",

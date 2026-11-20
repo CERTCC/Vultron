@@ -21,12 +21,10 @@ tracks:
   - "#6408"   # PR may not close a ratchet's open owner
   - "#6409"   # typed term for every Vultron field
   - "#6422"   # term check and owned ratchets
-  - "#6411"   # ledger entry case in context
   - "#6413"   # vulnerability item title -> name
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
   - "#6418"   # profile cites Controlled Identifiers context
-  - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
   - "#6481"   # embargo stores its status; register is a list (slice of #6246)
@@ -274,14 +272,11 @@ which this object is considered a response".
 
 **Today.** `Remove(Note)` and `Remove(EmbargoEvent)` name the case in `origin`,
 and `ActivityPattern.origin_` matches it as `target_` matches `target` (#6463);
-`Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`; `offerId` /
-`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`.
+`Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`;
+`Add(VulnerabilityReport)` and `CaseProposal` name the report Offer in `inReplyTo`
+(#6419).
 
-**Term-check owner.** #6419 owns `offerId`/`offerActorId` in the #6253 term-check
-ratchet, so the entry keeps an open owner. Planning this section adopts #6419
-for that field rather than filing a second Task.
-
-**Touches.** CM-16-004, CP-01-007, CM-24-002, CM-24-012, the delegated-authorship
+**Touches.** CM-16-004, CM-24-002, CM-24-012, the delegated-authorship
 helper `vultron/core/behaviors/delegated_authorship.py`. The Owner's
 `Remove(<Actor>, origin=<case>)` (§ "The Owner Sends Its Removal or
 Reinstatement") matches on `origin_`; `notes/case-joining.md` shows
@@ -604,11 +599,9 @@ Invite carry the roles they propose in one field, `roles`, declared on
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
-| `caseId` (`CaseLedgerEntry`) | AS2 duplicate | `context` | #6411 |
 | `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
 | `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
-| `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
 Every other field is a Vultron term. `title` is a clash only until #6413 renames the
@@ -868,14 +861,14 @@ received one is refused as unrecognized (VAM-01-017).
   `Add(<Actor>, target=<case>)`, naming the actor (CM-31-011, ADR-0199 revision 2).
   The object type tells the two `Add`s apart.
 - **The replica** stores the record in the case the entry's `target` names, not one
-  taken from `entry.case_id` or the verb.
+  taken from the entry's `context` or the verb.
 
 **AS2 basis.** CORE App. B: the AS1 "post" verb maps to `Create` without a target and
 to `Add` with one.
 
 **Today.** `create_participant_activity` builds `Create(CaseParticipant)` with
 `target=case_target_ref(target)` (`vultron/wire/as2/factories/case_participant.py`);
-`ApplyCreateCaseParticipantFromLedgerNode` seats the record from `entry.case_id`.
+`ApplyCreateCaseParticipantFromLedgerNode` seats the record from the entry's `context`.
 
 **Touches.** The factory and wire class, `record_case_participant_created`, the
 `create_participant` example, the semantic registry and canonical signatures, the

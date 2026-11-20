@@ -105,7 +105,7 @@ def _assert_held_back(
     ]
     assert len(messages) == 1, messages
     message = messages[0]
-    assert entry.case_id in message
+    assert entry.context in message
     assert f"log_index={entry.log_index}" in message
     assert peer_id in message
 

@@ -82,7 +82,7 @@ def save_ledger_entry(
     """Store a bare ledger entry for *case_id* directly in *dl*."""
     entry = make(
         CaseLedgerEntry,
-        case_id=case_id,
+        context=case_id,
         log_index=log_index,
         log_object_id=f"{case_id}/objects/{log_index}",
         semantic_type=semantic_type or f"test_event_{log_index}",

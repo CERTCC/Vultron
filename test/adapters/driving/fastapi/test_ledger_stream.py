@@ -168,7 +168,7 @@ class TestCaseLedgerEntries:
         save_ledger_entry(dl, other.id_, 0)
         entries = case_ledger_entries(dl, case.id_)
         assert [e.log_index for e in entries] == [0, 1, 2]
-        assert {e.case_id for e in entries} == {case.id_}
+        assert {e.context for e in entries} == {case.id_}
 
 
 class TestStreamCaseLedger:

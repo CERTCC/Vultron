@@ -66,6 +66,7 @@ from vultron.core.use_cases.received.sync import (
     AddLedgerEntryReceivedUseCase,
 )
 from vultron.errors import VultronBTInternalError, VultronWiringError
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import add_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -232,8 +233,8 @@ class TestAddLedgerEntryReceivedUseCase:
             "type": "Add",
             "id": "urn:uuid:test-add-rt",
             "actor": ACTOR_URI,
-            "target": f"{first_entry.case_id}/ledger",
-            "context": first_entry.case_id,
+            "target": f"{first_entry.context}/ledger",
+            "context": first_entry.context,
             "inReplyTo": first_entry.payload_snapshot["id"],
             # Required on every inbound activity: the parser refuses one
             # without a sender-supplied claimed time (ISSUE-3149).
@@ -247,7 +248,7 @@ class TestAddLedgerEntryReceivedUseCase:
             == MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER
         )
         assert event.log_entry is not None
-        assert event.log_entry.case_id == CASE_URI
+        assert event.log_entry.context == CASE_URI
 
     @pytest.mark.spec("SYNC-01-001")
     @pytest.mark.spec("SYNC-01-002")
@@ -390,7 +391,7 @@ class TestAddLedgerEntryReceivedUseCase:
         case_entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if getattr(obj, "case_id", None) == CASE_URI
+            if getattr(obj, "context", None) == CASE_URI
         ]
         assert len(case_entries) == 1
 
@@ -417,7 +418,7 @@ class TestAddLedgerEntryReceivedUseCase:
             == MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER
         )
         assert event.log_entry is not None
-        assert event.log_entry.case_id == CASE_URI
+        assert event.log_entry.context == CASE_URI
 
 
 def _announce_event(
@@ -470,7 +471,7 @@ class TestOutOfOrderAnnounceBuffering:
         return {
             obj.log_index
             for obj in dl.list_objects("CaseLedgerEntry")
-            if getattr(obj, "case_id", None) == CASE_URI
+            if getattr(obj, "context", None) == CASE_URI
             and isinstance(obj, CaseLedgerEntry)
         }
 
@@ -1327,14 +1328,12 @@ class TestAddLedgerEntryShapeAtTheEdge:
         [
             ("target", "https://example.org/cases/other/ledger", "target"),
             ("target", None, "ledger_id"),
-            ("context", "https://example.org/cases/other", "context"),
             ("inReplyTo", "https://example.org/activities/other", "inReplyTo"),
             ("inReplyTo", None, "acknowledged_act_id"),
         ],
         ids=[
             "other-ledger",
             "no-ledger",
-            "other-case",
             "other-act",
             "no-act",
         ],
@@ -1347,3 +1346,15 @@ class TestAddLedgerEntryShapeAtTheEdge:
             body[key] = value
         with pytest.raises(PydanticValidationError, match=slot):
             received_event(parse_activity(body))
+
+    @pytest.mark.spec("SYNC-02-008")
+    @pytest.mark.spec("CLP-14-012")
+    @pytest.mark.spec("HP-08-015")
+    def test_an_add_naming_another_case_is_refused_at_the_parse_edge(self):
+        """The entry names its case in ``context``, so the Add's own
+        ``context`` naming another case is two cases on one act, refused
+        before extraction (HP-08-015)."""
+        body = self._body()
+        body["context"] = "https://example.org/cases/other"
+        with pytest.raises(VultronParseValidationError, match="HP-08-015"):
+            parse_activity(body)

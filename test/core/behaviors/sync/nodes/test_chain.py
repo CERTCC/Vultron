@@ -102,7 +102,7 @@ def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
     blackboard.register_key(
         key="log_entry", access=py_trees.common.Access.READ
     )
-    assert blackboard.log_entry.case_id == CASE_ID
+    assert blackboard.log_entry.context == CASE_ID
     assert blackboard.log_entry.log_index == 0
 
 

@@ -162,7 +162,7 @@ def _entry(
     activity_id = f"{case_id}/activity/{record.record_id}"
     return make(
         CaseLedgerEntry,
-        case_id=case_id,
+        context=case_id,
         log_index=index,
         log_object_id=activity_id,
         semantic_type=rule.semantic_type,

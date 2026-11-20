@@ -152,7 +152,7 @@ def _tail(dl: SqliteDataLayer, case_id: str) -> CaseLedgerEntry:
         (
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == case_id
+            if isinstance(e, CaseLedgerEntry) and e.context == case_id
         ),
         key=lambda e: e.log_index,
     )

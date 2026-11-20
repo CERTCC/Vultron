@@ -1000,7 +1000,7 @@ class TestNoteUseCases:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1
         entry = cast(CaseLedgerEntry, entries[0])
@@ -1122,7 +1122,7 @@ class TestNoteUseCases:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert entries == []
 

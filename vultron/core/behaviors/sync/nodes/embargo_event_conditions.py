@@ -152,9 +152,9 @@ class _EmbargoInviteEventNode(_ActivityEventNode):
             raise VultronWiringError(
                 f"{self.name}: no DataLayer to classify the"
                 f" '{_EMBARGO_INVITE_EVENT}' entry on case"
-                f" '{entry.case_id}'"
+                f" '{entry.context}'"
             )
-        case = self._resolve_case_replica(entry.case_id)
+        case = self._resolve_case_replica(entry.context)
         relayed = is_relayed_embargo_invite(
             entry.payload_snapshot, case, self.datalayer
         )
@@ -224,9 +224,9 @@ class _RejectEmbargoInviteEventNode(_ActivityEventNode):
             raise VultronWiringError(
                 f"{self.name}: no DataLayer to classify the"
                 f" '{_REJECT_EMBARGO_INVITE_EVENT}' entry on case"
-                f" '{entry.case_id}'"
+                f" '{entry.context}'"
             )
-        case = self._resolve_case_replica(entry.case_id)
+        case = self._resolve_case_replica(entry.context)
         by_manager = sent_by_case_manager(
             entry.payload_snapshot, case, self.datalayer
         )

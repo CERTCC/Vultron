@@ -49,7 +49,7 @@ _CASE_ID = "urn:uuid:test-case-2768-0001"
 def _entries_up_to(highest: int) -> list[dict]:
     """One canonical hash chain covering indices ``0..highest``."""
     return [
-        {"log_index": i, "entry_hash": f"hash-{i}", "case_id": _CASE_ID}
+        {"log_index": i, "entry_hash": f"hash-{i}", "context": _CASE_ID}
         for i in range(highest + 1)
     ]
 

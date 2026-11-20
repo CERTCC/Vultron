@@ -74,7 +74,7 @@ def test_no_summary_shows_an_opaque_id(scenario):
 
 def _entry(payload: dict, log_index: int = 1) -> dict:
     return {
-        "caseId": _CASE,
+        "context": _CASE,
         "logIndex": log_index,
         "semanticType": "add_participant_status_to_participant",
         "entryHash": f"{log_index:064x}",

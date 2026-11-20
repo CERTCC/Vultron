@@ -44,7 +44,7 @@ def _entry(
     index: int, semantic_type: str = "add_note", **payload: object
 ) -> dict:
     return {
-        "caseId": _CASE,
+        "context": _CASE,
         "logIndex": index,
         "entryHash": f"h{index}",
         "semanticType": semantic_type,

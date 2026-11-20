@@ -127,19 +127,20 @@ class _LedgerRecordsMixin:
         case_id: str,
         actor: str,
         offer_id: str | None = None,
-        offer_actor_id: str | None = None,
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Build and seal ``Add(VulnerabilityReport)[target=VulnerabilityCase]``."""
+        """Build and seal ``Add(VulnerabilityReport)[target=VulnerabilityCase]``.
+
+        ``offer_id`` names the report's Offer in ``inReplyTo`` (CP-01-007).
+        """
         report = _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
         activity = add_report_to_case_activity(
             report=report,
             target=case_id,
             actor=actor,
             context=case_id,
-            offer_id=offer_id or None,
-            offer_actor_id=offer_actor_id or None,
+            in_reply_to=offer_id or None,
             id_=derived_activity_id(
                 "report-added-to-case", actor, case_id, report_id
             ),

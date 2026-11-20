@@ -108,7 +108,7 @@ class ApplyCreateCaseParticipantFromLedgerNode(_LedgerEffectNode):
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
-        case = self._resolve_case_replica(entry.case_id)
+        case = self._resolve_case_replica(entry.context)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
@@ -116,7 +116,7 @@ class ApplyCreateCaseParticipantFromLedgerNode(_LedgerEffectNode):
             self.logger.debug(
                 "%s: '%s' already holds a record for '%s' — idempotent no-op",
                 self.name,
-                entry.case_id,
+                entry.context,
                 record.attributed_to,
             )
             return Status.SUCCESS
@@ -133,7 +133,7 @@ class ApplyCreateCaseParticipantFromLedgerNode(_LedgerEffectNode):
             " (CM-11-006)",
             self.name,
             record.id_,
-            entry.case_id,
+            entry.context,
         )
         return Status.SUCCESS
 
@@ -179,7 +179,7 @@ class ApplyCaseParticipantUpdateFromLedgerNode(_LedgerEffectNode):
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
-        case = self._resolve_case_replica(entry.case_id)
+        case = self._resolve_case_replica(entry.context)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
@@ -189,7 +189,7 @@ class ApplyCaseParticipantUpdateFromLedgerNode(_LedgerEffectNode):
                 "%s: case '%s' holds no record '%s' for '%s' — skipping the"
                 " update (non-fatal)",
                 self.name,
-                entry.case_id,
+                entry.context,
                 record.id_,
                 record.attributed_to,
             )
@@ -201,7 +201,7 @@ class ApplyCaseParticipantUpdateFromLedgerNode(_LedgerEffectNode):
             " (roles %s; CM-23-016)",
             self.name,
             record.id_,
-            entry.case_id,
+            entry.context,
             [role.value for role in record.case_roles],
         )
         return Status.SUCCESS

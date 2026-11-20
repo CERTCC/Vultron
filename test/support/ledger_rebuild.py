@@ -286,7 +286,7 @@ def _replay(
         body = signed_body(json.loads(dump_outbound_body(announce)))
         verdict = receive_into(replica, body, as_actor)
         assert verdict.disposition is HandlerDisposition.APPLIED, (
-            f"rebuild of '{entry.case_id}' as '{as_actor}': entry"
+            f"rebuild of '{entry.context}' as '{as_actor}': entry"
             f" {entry.log_index} ({entry.semantic_type}) was"
             f" {verdict.disposition.value}: {verdict.reason}"
         )

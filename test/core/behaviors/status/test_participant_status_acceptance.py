@@ -181,7 +181,7 @@ def _ledger_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
         cast(CaseLedgerEntry, obj)
         for obj in dl.list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
-        and cast(CaseLedgerEntry, obj).case_id == CASE_ID
+        and cast(CaseLedgerEntry, obj).context == CASE_ID
     ]
     return sorted(entries, key=lambda e: e.log_index)
 

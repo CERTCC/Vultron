@@ -147,7 +147,7 @@ class ApplyCaseParticipantRoleGrantFromLedgerNode(_LedgerEffectNode):
         assert self.datalayer is not None
 
         entry = self._get_entry()
-        case_id = entry.case_id
+        case_id = entry.context
         parsed = role_and_target_from_accept_snapshot(entry.payload_snapshot)
         if not case_id or parsed is None:
             self.logger.debug(

@@ -1881,7 +1881,7 @@ groups:
         statement: >-
           When a `dump-manifest.json` under the scenario's devlogs directory has a
           non-null `caseId`, `test/ci/invariants/common.py::load_devlogs()` MUST return
-          only the ledger entries whose `case_id` matches it.
+          only the ledger entries whose `context` matches it.
         rationale: >-
           Local demo runs can leave JSONL files for different cases in the same
           `devlogs/` directory. Without a filter on the case, `load_devlogs()` joins

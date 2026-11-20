@@ -142,7 +142,7 @@ def test_send_missing_entries_node_replays_entries_after_divergence(
         actor_id=OWNER_ACTOR_ID,
         sync_port=sync_port,
         case_actor_id=case_actor.id_,
-        replay_case_id=second_entry.case_id,
+        replay_case_id=second_entry.context,
         replay_peer_id=PARTICIPANT_ACTOR_ID,
         replay_case_ledger_entries=[first_entry, second_entry],
         replay_from_index=0,
@@ -172,7 +172,7 @@ def test_send_missing_entries_node_stamps_the_replay_with_the_acts_instant(
         actor_id=OWNER_ACTOR_ID,
         sync_port=MagicMock(spec=SyncActivityPort),
         case_actor_id=case_actor.id_,
-        replay_case_id=second_entry.case_id,
+        replay_case_id=second_entry.context,
         replay_peer_id=PARTICIPANT_ACTOR_ID,
         replay_case_ledger_entries=[first_entry, second_entry],
         replay_from_index=0,
@@ -549,7 +549,7 @@ def _replay(bridge, case_actor, sync_port, entries, *, from_index: int):
         actor_id=OWNER_ACTOR_ID,
         sync_port=sync_port,
         case_actor_id=case_actor.id_,
-        replay_case_id=entries[-1].case_id,
+        replay_case_id=entries[-1].context,
         replay_peer_id=PARTICIPANT_ACTOR_ID,
         replay_case_ledger_entries=entries,
         replay_from_index=from_index,
@@ -624,7 +624,7 @@ def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
     assert _queued_announces(datalayer) == before
     assert (
         read_replication_state(
-            datalayer, case_id=first.case_id, peer_id=PARTICIPANT_ACTOR_ID
+            datalayer, case_id=first.context, peer_id=PARTICIPANT_ACTOR_ID
         )
         is None
     )

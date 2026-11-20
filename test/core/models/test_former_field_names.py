@@ -61,7 +61,7 @@ def _case_data() -> dict[str, Any]:
 
 def _entry_data() -> dict[str, Any]:
     return {
-        "caseId": "https://example.org/cases/c-1",
+        "context": "https://example.org/cases/c-1",
         "logIndex": 0,
         "logObjectId": "https://example.org/activities/act-1",
         "semanticType": "invite_actor_to_case",
@@ -87,6 +87,8 @@ _FORMER: list[tuple[type[BaseModel], dict[str, Any], str]] = [
     # An Offer's and an Invite's proposed roles are one field, ``roles``
     # (VM-10-012, #6417).
     (VultronActivity, _activity_data(), "suggested_roles"),
+    # The entry names its case in AS2 ``context`` (CLP-14-012, #6411).
+    (CaseLedgerEntry, _entry_data(), "case_id"),
     (
         ReceivedActivityRecord,
         {
