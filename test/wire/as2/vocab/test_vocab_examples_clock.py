@@ -71,20 +71,25 @@ def test_examples_equal_across_second_boundary(
 
 
 def _clock_free(example: object) -> object:
-    """*example*'s dump, the minted id of a stub Invite's preview dropped.
+    """*example*'s dump, the ids minted for a stub Invite's preview dropped.
 
     The case's preview takes a fresh id from the installed id source
-    (OID-01-011, ADR-0205), which differs between two calls outside the
-    generator's scoped source; that source pins it in the committed
-    examples (``test_docs_vocab_examples_pinned``).  Nothing here depends on
-    the clock.
+    (OID-01-011, ADR-0205), and so does the status of the case each call
+    builds, which the preview shows (CM-17-013).  Both differ between two
+    calls outside the generator's scoped source; that source pins them in
+    the committed examples (``test_docs_vocab_examples_pinned``).  Nothing
+    here depends on the clock.
     """
     if not isinstance(example, BaseModel):
         return example
     dumped = example.model_dump(mode="json", by_alias=True)
     obj = dumped.get("object")
     if isinstance(obj, dict) and isinstance(obj.get("preview"), dict):
-        obj["preview"].pop("id", None)
+        preview = obj["preview"]
+        preview.pop("id", None)
+        for status in preview.get("caseStatuses") or []:
+            if isinstance(status, dict):
+                status.pop("id", None)
     return dumped
 
 

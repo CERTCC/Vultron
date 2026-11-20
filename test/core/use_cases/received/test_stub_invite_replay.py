@@ -288,7 +288,7 @@ def _entry_types(net: LedgerNetwork) -> list[str]:
     entries = [
         e
         for e in net.stores[MANAGER].list_objects("CaseLedgerEntry")
-        if isinstance(e, CaseLedgerEntry) and e.case_id == net.case_id
+        if isinstance(e, CaseLedgerEntry) and e.context == net.case_id
     ]
     return [
         str(e.semantic_type)

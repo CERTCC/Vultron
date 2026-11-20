@@ -137,8 +137,8 @@ def semantic_type(entry: dict) -> str:
 
 
 def case_id(entry: dict) -> str:
-    """Return the ``case_id`` from an entry dict (handles camelCase JSONL)."""
-    return str(entry.get("case_id", entry.get("caseId", "")))
+    """Return the case an entry dict names in its ``context`` (CLP-14-012)."""
+    return str(entry.get("context", ""))
 
 
 def payload(entry: dict) -> dict:
@@ -876,7 +876,10 @@ def check_nested_objects_inlined(
 def check_payload_context_uses_case_uri(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """payloadSnapshot.context matches the entry's case_id for recorded entries (Invariant 11)."""
+    """payloadSnapshot.context matches the entry's context (Invariant 11).
+
+    Only recorded entries are checked.
+    """
     auth = auth_entries(replicas)
     mismatches: list[str] = []
     for e in auth:
@@ -890,7 +893,7 @@ def check_payload_context_uses_case_uri(
         if isinstance(context, str) and context != cid:
             mismatches.append(
                 f"logIndex={log_index(e)} semanticType={semantic_type(e)!r}: "
-                f"context={context[:60]!r} != case_id={cid[:60]!r}"
+                f"payload context={context[:60]!r} != entry context={cid[:60]!r}"
             )
     return mismatches
 

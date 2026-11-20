@@ -360,13 +360,13 @@ class TestCoerceToSemanticClass:
 
         assert isinstance(result, as_Add)
         assert isinstance(result.object_, WireCaseLedgerEntry)  # type: ignore[union-attr]
-        assert result.object_.case_id == entry.case_id  # type: ignore[union-attr]
+        assert result.object_.context == entry.context  # type: ignore[union-attr]
         assert result.object_.log_object_id == entry.log_object_id  # type: ignore[union-attr]
 
     def test_retype_inline_object_refs_recurses_into_sub_activities(self):
         """_retype_inline_object_refs recurses into re-typed inline sub-activities.
 
-        Accept(object_=Offer(object_=CaseLedgerEntry(case_id=...))) — both Offer
+        Accept(object_=Offer(object_=CaseLedgerEntry(context=...))) — both Offer
         and CaseLedgerEntry are kept inline by _KEEP_INLINE_NESTED_TYPES.
         Without recursion, re-typing the Offer via model_validate parses the inner
         CaseLedgerEntry dict against the base as_Object union (as_Offer.object_ is
@@ -382,7 +382,7 @@ class TestCoerceToSemanticClass:
 
         ledger_entry = make(
             as_CaseLedgerEntry,
-            case_id="https://example.org/cases/retype-recurse-1",
+            context="https://example.org/cases/retype-recurse-1",
             log_object_id="https://example.org/activities/obj-retype-1",
             semantic_type="log_entry_committed",
             log_index=0,
@@ -416,7 +416,7 @@ class TestCoerceToSemanticClass:
             f"_retype_inline_object_refs; got {type(inner_entry).__name__!r}"
         )
         assert (
-            inner_entry.case_id == "https://example.org/cases/retype-recurse-1"
+            inner_entry.context == "https://example.org/cases/retype-recurse-1"
         )
         assert inner_entry.semantic_type == "log_entry_committed"
 

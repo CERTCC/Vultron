@@ -124,7 +124,7 @@ class RecommenderIsNotCaseOwnerNode(_CaseOwnerStandingGuardBase):
     The Owner decides whom to invite and sends that decision as its own
     ``Invite(<case preview>)[target=<invitee>]`` (CM-17-007).  An
     ``Offer(Actor)[target=VulnerabilityCase]`` from it is refused, so the
-    Owner's decision has one wire form (CM-17-026, ADR-0199).
+    Owner's decision has one wire form (CM-17-027, ADR-0199).
     """
 
     _passes_when_owner = False
@@ -134,7 +134,7 @@ class RecommenderIsNotCaseOwnerNode(_CaseOwnerStandingGuardBase):
             f"'{sender_id}' holds CASE_OWNER in case '{case_id}': the Case"
             " Owner invites an actor with its own"
             " Invite(<case preview>)[target=<invitee>], not an Offer(Actor)"
-            " — REFUSED (CM-17-007, CM-17-026, ADR-0199)"
+            " — REFUSED (CM-17-007, CM-17-027, ADR-0199)"
         )
 
 
@@ -163,7 +163,7 @@ class InviteeIsNotCaseAuthorityNode(
             self,
             f"the Invite's target '{invitee_id}' is {who} of case"
             f" '{self._act_case()}', which is sent no stub Invite — REFUSED"
-            " (CM-17-015, CM-17-025)",
+            " (CM-17-015, CM-17-026)",
         )
 
 

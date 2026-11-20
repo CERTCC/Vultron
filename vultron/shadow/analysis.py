@@ -89,7 +89,7 @@ def reading_ledger(reading: CaseReading) -> CaseLedger | None:
     read = case_ledgers_from_files(
         [LedgerFile(path=READING_SOURCE, rows=_rows(reading))]
     )
-    return read.cases[reading.ledger[0].case_id]
+    return read.cases[reading.ledger[0].context]
 
 
 class CaseAnalysis(BaseModel):

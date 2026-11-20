@@ -101,7 +101,7 @@ _ADVICE_PAGE = """
 from test.measure.history.builders import two_vendors_ledger
 from vultron.measure.advice import case_advice
 from vultron.measure.standing import case_standing
-from vultron.shadow.dashboard.page import _show_advice
+from vultron.shadow.dashboard.page.advice import _show_advice
 
 _show_advice(case_advice(case_standing(two_vendors_ledger().case_ledger())), {})
 """
@@ -181,7 +181,7 @@ render(Watched([__ANSWERS__]))
 
 def _follow_page(answers: str) -> AppTest:
     """The follow page over *answers*, its case entered and followed."""
-    case_id = recording_rows(_RV)[0]["caseId"]
+    case_id = recording_rows(_RV)[0]["context"]
     script = _FOLLOW_PAGE.replace("__ANSWERS__", answers)
     at = AppTest.from_string(script, default_timeout=_TIMEOUT).run()
     at.text_input[0].input(case_id).run()
@@ -365,7 +365,7 @@ def test_each_state_is_shown_on_its_machines_map(recordings_app):
 
 
 _NO_PARTICIPANTS_PAGE = """
-from vultron.shadow.dashboard.page import _show_participant_minimaps
+from vultron.shadow.dashboard.page.scoreboard import _show_participant_minimaps
 
 _show_participant_minimaps([], {})
 """
@@ -381,7 +381,7 @@ from vultron.measure.sequences import (
     UnprojectableReason,
 )
 from vultron.measure.standing import CaseStanding, ParticipantStanding
-from vultron.shadow.dashboard.page import _show_participant_minimaps
+from vultron.shadow.dashboard.page.scoreboard import _show_participant_minimaps
 
 VENDOR = "https://vendor.example/actors/vendor"
 _show_participant_minimaps(
@@ -922,7 +922,7 @@ def test_a_followed_case_shows_its_new_standing_after_each_entry():
     at = _follow_page("(sse_rows(rows) + CLOSE,)")
     assert at.session_state["seen"] == [1, 2, 3]
     case_id, kept = at.session_state[LAST_READING_KEY]
-    assert case_id == recording_rows(_RV)[0]["caseId"]
+    assert case_id == recording_rows(_RV)[0]["context"]
     assert len(kept.ledger) == 3
     assert "Participants" in _texts(at.subheader)
     assert not at.error

@@ -35,7 +35,23 @@
     "preview": {
       "id": "urn:uuid:43b52653-5106-4d95-a435-deecdd2d43f4",
       "type": "CasePreview",
-      "summary": "A memory-corruption vulnerability in widget — details shared after acceptance."
+      "name": "VendorCo Case #20260601",
+      "published": "2026-06-01T19:12:00.000000+00:00",
+      "updated": "2026-06-01T19:12:00.000000+00:00",
+      "summary": "A memory-corruption vulnerability in widget — details shared after acceptance.",
+      "attributedTo": "https://vultron.example/organizations/vendorco",
+      "caseStatuses": [
+        {
+          "id": "urn:uuid:7022c752-7f53-40e6-851b-b6a178f88184",
+          "type": "CaseStatus",
+          "name": "NONE pxa",
+          "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+          "published": "2026-06-01T19:12:00.000000+00:00",
+          "attributedTo": "https://vultron.example/organizations/vendorco",
+          "emState": "NONE",
+          "pxaState": "pxa"
+        }
+      ]
     }
   },
   "roles": [
@@ -52,6 +68,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z363Zahu3a1i8SUPXzxbv8BDQLykt3brdt1dmWpP7SvNa1mGAt3A97eGrNJzos8gVhnXtRCZ23CwdvZ8G6TSPaCFi"
+    "proofValue": "z3UDNBzuG6yLKSBgCAnq1P4NUWR4J1k8fNjw7FsFfm4YL15ftNGWVBxweFwa524kTp3gdfNAjSvjigNFy1cn8S4nx"
   }
 }

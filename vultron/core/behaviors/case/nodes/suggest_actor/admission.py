@@ -275,7 +275,7 @@ class _RolesAreGrantableGuardBase(DataLayerConditionWithPorts):
 class SuggestedRolesAreGrantableNode(_RolesAreGrantableGuardBase):
     """Guard: a recommendation suggests no authority role for the invitee.
 
-    The roles are the received ``Offer(Actor)``'s ``suggestedRoles``, fixed
+    The roles are the received ``Offer(Actor)``'s ``roles``, fixed
     at construction.  The guard runs on every path the recommend tree takes:
     a Coordinator's suggestion and the Case Owner's own invitation alike
     (CM-20-006, CM-20-008).

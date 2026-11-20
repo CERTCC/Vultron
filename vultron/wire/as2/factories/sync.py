@@ -99,8 +99,8 @@ def _ledger_add_fields(entry: as_CaseLedgerEntry) -> dict[str, object]:
         return {"object_": entry}
     return {
         "object_": entry,
-        "target": case_ledger_id(entry.case_id),
-        "context": entry.case_id,
+        "target": case_ledger_id(entry.context),
+        "context": entry.context,
         "in_reply_to": entry.committed_act_id(),
     }
 
@@ -137,7 +137,7 @@ def reject_log_entry_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    kwargs.setdefault("context", getattr(entry, "case_id", None))
+    kwargs.setdefault("context", getattr(entry, "context", None))
     return build_activity(
         "reject_log_entry_activity",
         _RejectLogEntryActivity,
@@ -176,7 +176,7 @@ def read_ledger_at_entry_activity(
         ),
     )
     return read_ledger_position_activity(
-        entry.case_id, position, **kwargs, at=at
+        entry.context, position, **kwargs, at=at
     )
 
 

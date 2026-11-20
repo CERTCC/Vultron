@@ -55,9 +55,8 @@ _BM = TypeVar("_BM", bound=BaseModel)
 def _to_wire(core_obj: Any, wire_cls: type[_BM]) -> _BM:
     """Convert a core domain object to its wire vocabulary counterpart.
 
-    Uses ``wire_cls.from_core(core_obj)`` so that wire classes that override
-    ``from_core`` (e.g. ``as_VulnerabilityCase`` which wraps ``case_activity``
-    string IDs as stub ``as_Activity`` objects) apply their custom logic.
+    Uses ``wire_cls.from_core(core_obj)`` so that a wire class that overrides
+    ``from_core`` applies its own conversion logic.
 
     Raises:
         VultronNotFoundError: when *core_obj* is ``None`` (dl.read returned

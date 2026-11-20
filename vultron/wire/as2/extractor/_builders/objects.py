@@ -334,7 +334,7 @@ def _build_note_object(obj: object) -> dict[str, Any]:
 
 def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
-    case_id = getattr(obj, "case_id", None)
+    case_id = _get_id(getattr(obj, "context", None))
     log_index = getattr(obj, "log_index", -1)
     log_object_id = getattr(obj, "log_object_id", None) or getattr(
         obj, "logObjectId", None
@@ -356,7 +356,7 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
         return {
             "object_": CaseLedgerEntry(
                 id_=object_id,
-                case_id=case_id,
+                context=case_id,
                 log_index=log_index,
                 term=getattr(obj, "term", None),
                 log_object_id=log_object_id,

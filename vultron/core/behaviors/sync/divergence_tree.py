@@ -88,7 +88,7 @@ def create_case_diverged_fault_tree(
     """
     if refused_entry is None:
         return create_intake_only_received_tree("CaseDivergedFaultReceivedBT")
-    case_id = refused_entry.case_id
+    case_id = refused_entry.context
     return create_receive_activity_tree(
         name="CaseDivergedFaultReceivedBT",
         case_id=None,

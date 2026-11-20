@@ -53,7 +53,7 @@ def committed_semantic_types(dl: DataLayer, case_id: str) -> list[str]:
     return [
         str(entry.semantic_type)
         for entry in dl.list_objects("CaseLedgerEntry")
-        if isinstance(entry, CaseLedgerEntry) and entry.case_id == case_id
+        if isinstance(entry, CaseLedgerEntry) and entry.context == case_id
     ]
 
 
@@ -62,7 +62,7 @@ def ledger_entries(dl: DataLayer, case_id: str) -> list[CaseLedgerEntry]:
     entries = [
         entry
         for entry in dl.list_objects("CaseLedgerEntry")
-        if isinstance(entry, CaseLedgerEntry) and entry.case_id == case_id
+        if isinstance(entry, CaseLedgerEntry) and entry.context == case_id
     ]
     return sorted(entries, key=lambda entry: entry.log_index)
 
@@ -163,7 +163,7 @@ def checking_each_commit(
     def _checked(
         entry: CaseLedgerEntry, dl: CasePersistence
     ) -> VulnerabilityCase:
-        mismatch = case_position_mismatch(dl, entry.case_id)
+        mismatch = case_position_mismatch(dl, entry.context)
         if mismatch is not None:
             failures.append(
                 f"before committing entry {entry.log_index}"

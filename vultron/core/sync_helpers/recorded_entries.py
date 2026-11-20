@@ -67,7 +67,7 @@ def recorded_entries_for_case(
     entries = [
         obj
         for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+        if isinstance(obj, CaseLedgerEntry) and obj.context == case_id
     ]
     entries.sort(key=lambda entry: entry.log_index)
     return entries

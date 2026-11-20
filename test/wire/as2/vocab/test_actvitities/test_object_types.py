@@ -670,7 +670,7 @@ class TestAddLogEntryActivity:
             self.cls,
             make(
                 as_CaseLedgerEntry,
-                case_id="https://example.org/cases/c1",
+                context="https://example.org/cases/c1",
                 log_object_id="https://example.org/cases/c1/events/e1",
                 semantic_type="test_event",
                 payload_snapshot={"id": "https://example.org/activities/a1"},

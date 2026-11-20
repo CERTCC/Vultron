@@ -186,8 +186,8 @@ from its role (CLP-09).
   `owner_decided_stub_invite`, which an Owner holding the CASE_MANAGER role runs from
   its trigger with neither field (CM-17-017). Refused with a notice: a sender without
   `CASE_OWNER`, a `target` that is the CASE_MANAGER or the Owner, a removed, joined or
-  closed invitee, or no role (CM-17-025). The Owner's `Offer(Actor)` is refused too
-  (CM-17-026), so a recommendation is only ever a suggestion.
+  closed invitee, or no role (CM-17-026). The Owner's `Offer(Actor)` is refused too
+  (CM-17-027), so a recommendation is only ever a suggestion.
 - **Re-invite.** Same record, fresh stub Invite and deadline, `inReplyTo` the earlier
   stub (CM-11-044 wins over CM-24-020). Refused for a `CLOSED` participant (no rejoin,
   ADR-0085) and for one already joined, before anything is queued or committed

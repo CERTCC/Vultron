@@ -25,9 +25,9 @@ CaseActor; the CaseActor emits its stub Invite (ADR-0109, ADR-0199).  Then:
   same body decoded (pinned at unit level in
   ``test_actor_and_announce_nodes``), so the two agree;
 - every delivered body carries its sender's proof, which verifies (SIG-01-001);
-- the wire carries the enriched case stub — the ``activeEmbargo`` CM-17-002
-  requires for informed consent, which the old re-read-and-dehydrate delivery
-  path collapsed to a bare URI (#2624).
+- the wire carries the enriched case stub — the in-force ``embargoRegister``
+  entry CM-17-002 requires for informed consent, which the old
+  re-read-and-dehydrate delivery path collapsed to a bare URI (#2624).
 
 What this deliberately does not assert is a received entry: the invitee is no
 CASE_MANAGER and commits none, and a received entry recording the received
@@ -53,6 +53,7 @@ from test.demo.test_remote_case_actor_invite import (
     _invite,
     _Topology,
 )
+from test.support.case_preview import current_em_state, in_force_embargo
 from test.support.objects import make
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.config import app_config_scope
@@ -231,11 +232,11 @@ class TestTheWireCarriesTheSealedBody:
         preview = reference["preview"]
         assert preview["type"] == "CasePreview"
         assert "caseId" not in preview
-        assert "activeEmbargo" in preview, (
+        assert in_force_embargo(preview) is not None, (
             "the invitee was not sent the embargo terms it is asked to consent"
             f" to (CM-17-002). preview={preview!r}"
         )
-        assert "caseStatus" in preview
+        assert current_em_state(preview) == "ACTIVE"
 
 
 #: The ActivityStreams actor types an inline actor carries.

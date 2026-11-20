@@ -338,7 +338,7 @@ def _case_ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
         (
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
+            if isinstance(e, CaseLedgerEntry) and e.context == CASE_ID
         ),
         key=lambda e: e.log_index,
     )
@@ -486,7 +486,7 @@ class TestOwnerLeaveReceivePath:
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and getattr(e, "case_id", None) == CASE_ID
+            and getattr(e, "context", None) == CASE_ID
             and getattr(e, "semantic_type", None)
             == "add_participant_status_to_participant"
         ]
@@ -2977,7 +2977,7 @@ def _case_actor_rm_entry_states(dl: SqliteDataLayer) -> list[RM]:
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and e.case_id == CASE_ID
+            and e.context == CASE_ID
             and e.semantic_type == "add_participant_status_to_participant"
             and (e.payload_snapshot or {})
             .get("object", {})
@@ -3001,7 +3001,7 @@ def _case_actor_rm_closed_entries(dl: SqliteDataLayer) -> list:
         e
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
-        and getattr(e, "case_id", None) == CASE_ID
+        and getattr(e, "context", None) == CASE_ID
         and getattr(e, "semantic_type", None)
         == "add_participant_status_to_participant"
         and (e.payload_snapshot or {}).get("object", {}).get("attributedTo")

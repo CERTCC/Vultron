@@ -553,7 +553,7 @@ def test_embargo_without_start_time_extracts_with_no_start_time():
 LEDGER_ENTRY: dict[str, Any] = {
     "type": "CaseLedgerEntry",
     "id": f"{CASE_ID}/ledger/0",
-    "caseId": CASE_ID,
+    "context": CASE_ID,
     "logIndex": 0,
     "logObjectId": "https://example.org/activities/0",
     "semanticType": "create_case",

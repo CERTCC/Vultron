@@ -15,8 +15,10 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.states.cs import CS_vf
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
@@ -49,8 +51,11 @@ from vultron.wire.as2.vocab.examples._base import (
     case,
     case_actor,
     finder,
+    gen_report,
     vendor,
+    vulnerability_item,
 )
+from vultron.wire.as2.vocab.examples.embargo import embargo_event
 from vultron.wire.as2.vocab.examples.status import (
     participant_status,
 )
@@ -163,13 +168,30 @@ def add_coordinator_participant_to_case() -> as_Add:
 
 
 def rm_invite_to_case() -> as_Invite:
+    """The stub ``Invite`` to the example case, with an embargo in force.
+
+    Its preview is cut from the case by the invitation profile (CM-17-010,
+    ADR-0217): the stub summary, the case name and times, the Case Owner,
+    the current status, the CVE ID of the vul item, and the embargo in force
+    whole as the register's one entry the invitee consents to (CM-17-002,
+    CM-17-011).  The case's content and its report are marked ``Redacted``.
+    """
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _case = case(
         stub_summary=(
             "A memory-corruption vulnerability in widget"
             " — details shared after acceptance."
-        )
+        ),
+        content="The full technical write-up, shared with participants.",
+        vulnerability_reports=[gen_report().id_],
+        vulnerability_items=[vulnerability_item()],
+        embargo_register=[
+            EmbargoRegisterEntry(
+                embargo=embargo_event(),
+                status=EmbargoRegisterStatus.ACTIVE,
+            )
+        ],
     )
     _activity = rm_invite_to_case_activity(
         _coordinator,

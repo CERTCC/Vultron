@@ -26,6 +26,10 @@ Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005; ADR-0051.
 from vultron.core.behaviors.case.nodes.participant.status_entries import (
     CommitParticipantStatusEntriesNode,
 )
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 
 
 class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
@@ -122,9 +126,22 @@ class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
                 of each status it wrote, in order.
             name: Node name.
         """
-        super().__init__(
-            subject_actor_id=closing_actor_id,
-            case_id=case_id,
-            status_ids=closure_steps,
-            name=name,
-        )
+        super().__init__(status_ids=closure_steps, name=name)
+        self._closing_actor_id = closing_actor_id
+        self._closing_case_id = case_id
+
+    # The closing actor and the case are this node's own arguments (#6576
+    # moves them to keys), so it reads neither key.
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {}
+
+    def _subject(self) -> str:
+        return self._closing_actor_id
+
+    def _given_case(self) -> str | None:
+        return self._closing_case_id

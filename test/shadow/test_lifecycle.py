@@ -262,7 +262,7 @@ def test_a_case_read_leaves_no_copy_after_the_process_exits(host):
 @pytest.mark.spec("SHD-01-003")
 def test_a_followed_case_leaves_no_copy_after_the_process_exits(host):
     """AC-6 of #6531: a case followed live is held in memory only."""
-    case_id = json.loads(_RECORDING.read_text().splitlines()[0])["caseId"]
+    case_id = json.loads(_RECORDING.read_text().splitlines()[0])["context"]
     _run(host, "follows", case_id)
     _assert_nothing_left(host)
 

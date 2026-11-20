@@ -165,7 +165,7 @@ Case Owner triggers SvcInviteActorToCaseUseCase
     carrying the roles
     → CASE_MANAGER's inbox only (CM-17-007, ADR-0109, ADR-0199)
   → CASE_MANAGER refuses it with a refusal notice unless the sender holds
-    CVDRole.CASE_OWNER and the invitee is invitable (CM-17-025); else it
+    CVDRole.CASE_OWNER and the invitee is invitable (CM-17-026); else it
     commits the Owner's Invite as one entry (CM-17-018)
   → CASE_MANAGER sends its own Invite(VulnerabilityCase preview)[target=Actor]
     (sent by case_actor_id, attributedTo case_owner_id, inReplyTo the Owner's

@@ -43,7 +43,6 @@ from vultron.core.models.base import (
     UriString,
     with_record_id,
 )
-from vultron.core.models.wire_keys import wire_key
 
 
 class VultronOfferRecord(CoreRecord):
@@ -86,18 +85,3 @@ class VultronOfferRecord(CoreRecord):
             if offer_id is not None:
                 data = with_record_id(data, cls.build_id(offer_id))
         return data
-
-
-#: The AS2 keys under which a canonical ``add_report_to_case`` payload snapshot
-#: carries the two Offer provenance facts (CP-01-007).  They are provenance read
-#: from the ledger; no invited actor rebuilds a :class:`VultronOfferRecord` from
-#: them, because it was never sent the Offer (CM-11-020, ISSUE-2134).
-#:
-#: A payload snapshot is a *wire object*: CLP-07-011 makes it the AS2
-#: serialization of the inbound activity, so its keys are AS2-spelled by
-#: definition.  These two are snapshot-only extension properties with no core
-#: model of their own to carry a field alias, so they are derived here from this
-#: record's field names — core code names the core field and never types the
-#: camelCase (ARCH-25-002, ADR-0099).
-SNAPSHOT_OFFER_ID_KEY = wire_key("offer_id", VultronOfferRecord)
-SNAPSHOT_OFFER_ACTOR_ID_KEY = wire_key("offer_actor_id", VultronOfferRecord)

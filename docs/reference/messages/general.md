@@ -29,7 +29,7 @@ The General shorthands cover messages not tied to a specific state change.
 {% include-markdown "./_occasions/sections/suggest-actor-to-case.md" heading-offset=1 %}
 
 The Case Owner does not suggest: it decides, and invites an actor with its own Invite ([Case Owner invites an actor](case_management.md#owner-invite-actor-to-case)).
-The CASE_MANAGER refuses an `Offer(Actor)` from the Case Owner with a refusal notice (CM-17-026).
+The CASE_MANAGER refuses an `Offer(Actor)` from the Case Owner with a refusal notice (CM-17-027).
 
 {% include-markdown "./_occasions/sections/offer-case-participant.md" heading-offset=1 %}
 

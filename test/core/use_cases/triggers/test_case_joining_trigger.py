@@ -270,7 +270,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
         e
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
-        and e.case_id == case.id_
+        and e.context == case.id_
         and e.semantic_type == "invite_actor_to_case"
         and invitee.id_ in json.dumps(e.payload_snapshot, default=str)
     ]
@@ -507,7 +507,7 @@ def test_reinvite_to_closed_participant_is_refused(actor_store) -> None:
     """``CLOSED`` is terminal with no rejoin; the trigger refuses the Invite.
 
     The trigger refuses it before anything is queued (CM-11-043), and the
-    CASE_MANAGER refuses an Owner's Invite for it that arrives (CM-17-025).
+    CASE_MANAGER refuses an Owner's Invite for it that arrives (CM-17-026).
     """
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")

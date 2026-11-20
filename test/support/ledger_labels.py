@@ -94,7 +94,7 @@ def label_mismatches(
     *dl* is passed to :func:`label_mismatch` for each entry.
     """
     return [
-        f"case '{entry.case_id}' entry {entry.log_index}: {reason}"
+        f"case '{entry.context}' entry {entry.log_index}: {reason}"
         for entry in entries
         if (
             reason := label_mismatch(

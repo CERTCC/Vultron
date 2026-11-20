@@ -75,6 +75,7 @@ from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
     DEPLOY_MITIGATION_DETERMINISTIC,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.report.deploy_fix_tree import (
     create_stay_deferred_arm,
     deployment_target,
@@ -137,7 +138,7 @@ def create_deploy_mitigation_tree(
         name="_DeployMitigationIfAvailable",
         memory=False,
         children=[
-            CheckRMStateAccepted(case_id=case_id, actor_id=actor_id),
+            with_case_id(CheckRMStateAccepted(), case_id),
             bundle.mitigation_available_factory("MitigationAvailable"),
             bundle.prioritize_deployment_factory("PrioritizeDeployment"),
             bundle.deploy_mitigation_factory("DeployMitigation"),

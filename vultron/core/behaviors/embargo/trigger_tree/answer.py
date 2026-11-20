@@ -140,7 +140,9 @@ def _decision_arms(
         # each stub's terms with the embargo in force and does nothing
         # while a proposal is open, so a reject or a participant's accept
         # re-issues nothing.
-        ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
+        with_case_id(
+            ReissueStubInvitesNode(actor_config=actor_config), case_id
+        ),
     ]
     if ends_embargo_after_disclosure:
         tail = [

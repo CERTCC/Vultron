@@ -68,9 +68,9 @@ sequenceDiagram
    Name at least one role: the CASE_MANAGER assigns no default and refuses an `Invite` with none (CM-11-019, CM-11-050).
    Do not offer `CASE_MANAGER` or `CASE_OWNER`: the CASE_MANAGER refuses the `Invite` (CM-20-008).
    Ownership moves by transfer, and the CASE_MANAGER role moves by delegation.
-   The CASE_MANAGER also refuses an `Invite` that names itself or you, or an actor that has joined, closed or been removed (CM-17-025).
+   The CASE_MANAGER also refuses an `Invite` that names itself or you, or an actor that has joined, closed or been removed (CM-17-026).
    Each refusal comes back as a refusal notice.
-   Do not send `Offer(Actor)` for your own decision: the CASE_MANAGER refuses it (CM-17-026).
+   Do not send `Offer(Actor)` for your own decision: the CASE_MANAGER refuses it (CM-17-027).
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/owner-invite-actor-to-case.md" %}
 

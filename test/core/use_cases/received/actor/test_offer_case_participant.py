@@ -2075,7 +2075,7 @@ def _seed_a_recommendation_at_the_case_manager() -> tuple[
         target=_case_ref(CASE_ID),
         actor=RECOMMENDER_ID,
         to=[CASE_ACTOR_ID],
-        suggested_roles=["vendor"],
+        roles=["vendor"],
         at=authored_at(),
     )
     return dl, received_event(recommendation, at=dl)

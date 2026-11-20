@@ -44,6 +44,7 @@ _PUBLISHED = "2026-01-01T00:00:00+00:00"
 def _stub() -> dict[str, Any]:
     return {
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "id": "urn:uuid:abc-preview",
         "summary": "A vul in widget; details shared after acceptance.",
     }
@@ -229,6 +230,7 @@ def test_a_case_uri_or_link_is_accepted_where_a_stub_is_refused(
             "id": _CASE_ID,
             "preview": {
                 "type": "CasePreview",
+                "attributedTo": "https://example.org/actors/vendor",
                 "id": "urn:uuid:abc-preview-2",
                 "summary": "A vul in widget.",
             },

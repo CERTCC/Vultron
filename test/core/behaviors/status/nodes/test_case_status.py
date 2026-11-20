@@ -36,6 +36,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_KEY,
+    OBJECT_ID as OBJECT_KEY,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
@@ -192,7 +197,7 @@ def _case_status_entries(dl) -> list[CaseLedgerEntry]:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and obj.case_id == CASE_ID
+            and obj.context == CASE_ID
             and obj.semantic_type == "add_case_status_to_case"
         ),
         key=lambda entry: entry.log_index,
@@ -215,7 +220,7 @@ class TestEmitCaseStatusUpdateNode:
         assert isinstance(case_before, CoreCase)
         initial_count = len(case_before.case_statuses)
 
-        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        node = with_act_keys(EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID})
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
@@ -259,8 +264,9 @@ class TestEmitCaseStatusUpdateNode:
             ),
         )
         dl.create(report)
-        node = EmitCaseStatusUpdateNode(
-            case_id=CASE_ID, reported_status_id=report.id_
+        node = with_act_keys(
+            EmitCaseStatusUpdateNode(adopts_reported_status=True),
+            {CASE_KEY: CASE_ID, OBJECT_KEY: report.id_},
         )
         result = run_tree(
             BTBridge(
@@ -294,13 +300,13 @@ class TestEmitCaseStatusUpdateNode:
     ):
         """A snapshot equal in EM and PXA to the last committed one is no
         change, so it is neither committed nor appended (#5123)."""
-        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        node = with_act_keys(EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID})
         first = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert first.status == Status.SUCCESS
         after_first = populated_dl.read(CASE_ID)
         assert isinstance(after_first, CoreCase)
 
-        again = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        again = with_act_keys(EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID})
         second = run_tree(populated_bridge, tree=again, actor_id=ACTOR_ID)
 
         assert second.status == Status.SUCCESS
@@ -335,7 +341,9 @@ class TestEmitCaseStatusUpdateNode:
         populated_dl.save(case)
         first = run_tree(
             populated_bridge,
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            tree=with_act_keys(
+                EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID}
+            ),
             actor_id=ACTOR_ID,
         )
         assert first.status == Status.SUCCESS
@@ -350,8 +358,9 @@ class TestEmitCaseStatusUpdateNode:
 
         result = run_tree(
             populated_bridge,
-            tree=EmitCaseStatusUpdateNode(
-                case_id=CASE_ID, reported_status_id=report.id_
+            tree=with_act_keys(
+                EmitCaseStatusUpdateNode(adopts_reported_status=True),
+                {CASE_KEY: CASE_ID, OBJECT_KEY: report.id_},
             ),
             actor_id=ACTOR_ID,
         )
@@ -373,7 +382,9 @@ class TestEmitCaseStatusUpdateNode:
 
         first = run_tree(
             populated_bridge,
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            tree=with_act_keys(
+                EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID}
+            ),
             actor_id=ACTOR_ID,
         )
         assert first.status == Status.SUCCESS
@@ -392,7 +403,9 @@ class TestEmitCaseStatusUpdateNode:
 
         result = run_tree(
             populated_bridge,
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            tree=with_act_keys(
+                EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID}
+            ),
             actor_id=ACTOR_ID,
         )
 
@@ -422,7 +435,9 @@ class TestEmitCaseStatusUpdateNode:
 
         first = run_tree(
             populated_bridge,
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            tree=with_act_keys(
+                EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID}
+            ),
             actor_id=ACTOR_ID,
             at=pinned,
         )
@@ -440,7 +455,9 @@ class TestEmitCaseStatusUpdateNode:
         populated_dl.save(case)
         second = run_tree(
             populated_bridge,
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            tree=with_act_keys(
+                EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID}
+            ),
             actor_id=ACTOR_ID,
             at=pinned,
         )
@@ -473,7 +490,9 @@ class TestEmitCaseStatusUpdateNode:
 
         result = run_tree(
             populated_bridge,
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            tree=with_act_keys(
+                EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID}
+            ),
             actor_id=ACTOR_ID,
             at=at,
         )
@@ -501,7 +520,9 @@ class TestEmitCaseStatusUpdateNode:
 
         result = run_tree(
             populated_bridge,
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            tree=with_act_keys(
+                EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID}
+            ),
             actor_id=ACTOR_ID,
         )
 
@@ -525,7 +546,9 @@ class TestEmitCaseStatusUpdateNode:
         a first status: the node fails and writes nothing (ARCH-15-001)."""
         first = run_tree(
             populated_bridge,
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            tree=with_act_keys(
+                EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID}
+            ),
             actor_id=ACTOR_ID,
         )
         assert first.status == Status.SUCCESS
@@ -546,7 +569,9 @@ class TestEmitCaseStatusUpdateNode:
 
         result = run_tree(
             populated_bridge,
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            tree=with_act_keys(
+                EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID}
+            ),
             actor_id=ACTOR_ID,
         )
 
@@ -574,7 +599,7 @@ class TestEmitCaseStatusUpdateNode:
         assert isinstance(case_before, CoreCase)
         initial_count = len(case_before.case_statuses)
 
-        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        node = with_act_keys(EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID})
         result = run_tree(
             BTBridge(
                 datalayer=populated_dl,
@@ -606,7 +631,7 @@ class TestEmitCaseStatusUpdateNode:
             sync_port=SyncActivityAdapter(populated_dl),
             trigger_activity=TriggerActivityAdapter(populated_dl),
         )
-        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        node = with_act_keys(EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID})
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
@@ -614,7 +639,7 @@ class TestEmitCaseStatusUpdateNode:
             obj
             for obj in populated_dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and getattr(obj, "case_id", None) == CASE_ID
+            and getattr(obj, "context", None) == CASE_ID
             and getattr(obj, "semantic_type", None)
             == "add_case_status_to_case"
         ]
@@ -649,8 +674,9 @@ class TestEmitCaseStatusUpdateNode:
         assert isinstance(case_before, CoreCase)
         initial_count = len(case_before.case_statuses)
 
-        node = EmitCaseStatusUpdateNode(
-            case_id=CASE_ID, reported_status_id=reported_status_id
+        node = with_act_keys(
+            EmitCaseStatusUpdateNode(adopts_reported_status=True),
+            {CASE_KEY: CASE_ID, OBJECT_KEY: reported_status_id},
         )
         result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
 
@@ -668,8 +694,9 @@ class TestEmitCaseStatusUpdateNode:
     @pytest.mark.spec("RSH-04-004")
     def test_missing_case_fails(self, bridge):
         """FAILURE when the case is not found in the DataLayer."""
-        node = EmitCaseStatusUpdateNode(
-            case_id="https://example.org/cases/nonexistent"
+        node = with_act_keys(
+            EmitCaseStatusUpdateNode(),
+            {CASE_KEY: "https://example.org/cases/nonexistent"},
         )
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
@@ -685,7 +712,7 @@ class TestEmitCaseStatusUpdateNode:
             sync_port=SyncActivityAdapter(populated_dl),
             trigger_activity=TriggerActivityAdapter(populated_dl),
         )
-        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        node = with_act_keys(EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID})
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
@@ -702,7 +729,7 @@ class TestEmitCaseStatusUpdateNode:
         self, bridge
     ):
         """Empty string case_id → FAILURE with a diagnostic mentioning absence."""
-        node = EmitCaseStatusUpdateNode(case_id="")
+        node = with_act_keys(EmitCaseStatusUpdateNode(), {CASE_KEY: ""})
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert (
@@ -713,7 +740,7 @@ class TestEmitCaseStatusUpdateNode:
     @pytest.mark.spec("ARCH-15-001")
     def test_none_case_id_returns_failure_with_diagnostic(self, bridge):
         """None case_id → FAILURE with a diagnostic mentioning absence."""
-        node = EmitCaseStatusUpdateNode(case_id=None)
+        node = with_act_keys(EmitCaseStatusUpdateNode(), {CASE_KEY: None})
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert (
@@ -758,7 +785,8 @@ class TestEmitCaseStatusUpdateNode:
         bb.trigger_activity_factory = TriggerActivityAdapter(populated_dl)
 
         try:
-            node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+            py_trees.blackboard.Blackboard.storage[CASE_KEY.path] = CASE_ID
+            node = EmitCaseStatusUpdateNode()
             node.setup()
             node.initialise()
             result = node.update()
@@ -774,6 +802,7 @@ class TestEmitCaseStatusUpdateNode:
                 "/datalayer",
                 "actor_id",
                 "/actor_id",
+                CASE_KEY.path,
                 "wire_render_port",
                 "/wire_render_port",
                 "trigger_activity_factory",

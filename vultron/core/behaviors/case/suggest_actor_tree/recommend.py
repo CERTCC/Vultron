@@ -126,7 +126,7 @@ def create_recommend_actor_to_case_received_tree(
             the pending-offer path it is appended to the
             duplicate-recommendation Note (CM-16-008).
         suggested_roles: Role strings the received Offer carries
-            (``suggestedRoles``), as the CASE_MANAGER stored it.  The
+            (``roles``), as the CASE_MANAGER stored it.  The
             precondition guard refuses them when they name ``CASE_MANAGER``
             or ``CASE_OWNER`` (CM-20-008); otherwise they are injected into
             the role Evaluator on the fresh path, and ``None`` leaves the

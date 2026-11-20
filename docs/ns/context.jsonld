@@ -20,10 +20,6 @@
       "VulnerabilityCase": "vultron:VulnerabilityCase",
       "VulnerabilityItem": "vultron:VulnerabilityItem",
       "VulnerabilityReport": "vultron:VulnerabilityReport",
-      "activeEmbargo": {
-        "@id": "vultron:activeEmbargo",
-        "@type": "@id"
-      },
       "activeParticipants": {
         "@id": "vultron:activeParticipants",
         "@type": "@id",
@@ -33,11 +29,6 @@
         "@id": "vultron:actorParticipantIndex",
         "@type": "@id",
         "@container": "@index"
-      },
-      "caseActivity": {
-        "@id": "vultron:caseActivity",
-        "@type": "@id",
-        "@container": "@set"
       },
       "caseEngagement": "vultron:caseEngagement",
       "caseParticipants": {
@@ -183,10 +174,6 @@
       "state": "vultron:state",
       "status": "vultron:status",
       "stubSummary": "vultron:stubSummary",
-      "suggestedRoles": {
-        "@id": "vultron:suggestedRoles",
-        "@container": "@set"
-      },
       "systemName": "vultron:systemName",
       "term": "vultron:term",
       "termination": "vultron:termination",

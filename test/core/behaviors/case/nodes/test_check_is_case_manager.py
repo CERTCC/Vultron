@@ -23,6 +23,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
 from vultron.core.behaviors.case.nodes.conditions import (
@@ -30,6 +31,7 @@ from vultron.core.behaviors.case.nodes.conditions import (
 )
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 
@@ -155,13 +157,23 @@ def test_sets_case_actor_id_output_on_success(
     assert "/case_actor_id" not in py_trees.blackboard.Blackboard.storage
 
 
+def _ledger_entry(case_id: str) -> CaseLedgerEntry:
+    """A ledger entry naming *case_id* in its ``context`` (CLP-14-012)."""
+    return make(
+        CaseLedgerEntry,
+        context=case_id,
+        log_object_id=case_id,
+        semantic_type="create_case",
+        published=ACT_AT,
+        received_at=ACT_AT,
+    )
+
+
 @pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_resolves_case_id_from_activity_log_entry(
     bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
 ) -> None:
-    activity = SimpleNamespace(
-        log_entry=SimpleNamespace(case_id=case_with_manager.id_)
-    )
+    activity = SimpleNamespace(log_entry=_ledger_entry(case_with_manager.id_))
     result = bt_scenario.run(
         CheckIsCaseManagerNode(),
         actor_id=MANAGER_ACTOR_ID,
@@ -195,7 +207,7 @@ def test_an_own_activity_is_own_in_either_spelling(
     the comparison gave.
     """
     activity = SimpleNamespace(
-        actor_id=sender, log_entry=SimpleNamespace(case_id=CASE_ID)
+        actor_id=sender, log_entry=_ledger_entry(CASE_ID)
     )
     with caplog.at_level(logging.DEBUG):
         result = bt_scenario.run(

@@ -86,7 +86,7 @@ def _arm(
 
 
 def create_sender_sequence_stage(
-    case_id: str,
+    case_id: str | None,
     sender_id: str,
 ) -> CaseManagerGate:
     """The CASE_MANAGER's judgment of *sender_id*'s number on *case_id*.

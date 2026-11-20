@@ -91,7 +91,7 @@ def projected(reading: CaseReading) -> tuple[CaseEventHistory, ReachedState]:
     ]
     read = case_ledgers_from_files([LedgerFile(path=path, rows=rows)])
     assert read.unusable_rows == []
-    return derive_case(read.cases[reading.ledger[0].case_id])
+    return derive_case(read.cases[reading.ledger[0].context])
 
 
 def _records(node: object, kind: str) -> Iterator[Mapping[str, Any]]:

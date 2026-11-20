@@ -46,8 +46,8 @@ class _RecommendActorActivity(as_Offer):
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
-    # suggested_roles is inherited from as_Offer, aliased there; redeclaring it
-    # here would shadow the base field and drop the camelCase alias (#1990).
+    # roles is inherited from as_Offer, so the Offer and the Invite declare
+    # one field with one definition (VM-10-012); do not redeclare it here.
 
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 

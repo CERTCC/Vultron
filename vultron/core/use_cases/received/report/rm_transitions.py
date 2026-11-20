@@ -58,21 +58,6 @@ def _already_valid_reader(report_id: str) -> OutcomeReader:
     return read
 
 
-def _case_id_for_report(
-    dl: CasePersistence, report_id: str | None
-) -> str | None:
-    """Return the id of this store's case for *report_id*, or ``None``.
-
-    A pre-flight read for the tree factories, not a domain mutation
-    (CLP-10-005).  ``None`` is a real answer: the receiver may not hold the
-    case yet, and the tree then refuses the activity itself.
-    """
-    if report_id is None:
-        return None
-    case = dl.find_case_by_report_id(report_id)
-    return case.id_ if case is not None else None
-
-
 class ValidateReportReceivedUseCase:
     # The sender declares its own RM state to the CASE_MANAGER; only a
     # participant of the case may (HP-01-006, RSH-06-006, PCR-08-001).
@@ -106,21 +91,14 @@ class ValidateReportReceivedUseCase:
             report_id,
         )
 
+        # The tree finds the report's case with its own lookup node, so no
+        # store is read here (BT-25-009, ADR-0195).
         def build(_receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
-            # Read once the runner resolved the receiver (BT-17-009); the
-            # lookup moves into the tree in #6476.
-            case_id = _case_id_for_report(self._dl, report_id)
-            if case_id is None:
-                logger.debug(
-                    "ValidateReportReceivedUseCase: no case found for report"
-                    " '%s' — the path stage will refuse the activity",
-                    report_id,
-                )
+            # Built once the runner resolved the receiver (BT-17-009).
             return create_validate_report_received_tree(
                 report_id=report_id,
                 offer_id=offer_id,
                 sender_actor_id=sender_actor_id,
-                case_id=case_id,
                 sender_rule=self.sender_entitlement,
             )
 
@@ -166,15 +144,12 @@ class InvalidateReportReceivedUseCase:
         # *executes* in the receiving actor's store, but the RM write is about
         # the *sender*, ``request.actor_id`` — the activity is an assertion
         # about the sender's state (HP-00-001), which the tree factory reads
-        # from the request.
+        # from the request.  The tree finds the report's case with its own
+        # lookup node, so no store is read here (BT-25-009, ADR-0195).
         def build(_receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
-            # The case the sender guard and the RM adjudication read, once
-            # the runner resolved the receiver (BT-17-009); the lookup moves
-            # into the tree in #6476.
+            # Built once the runner resolved the receiver (BT-17-009).
             return create_invalidate_report_received_tree(
-                request,
-                case_id=_case_id_for_report(self._dl, request.report_id),
-                sender_rule=self.sender_entitlement,
+                request, sender_rule=self.sender_entitlement
             )
 
         # A restated declaration changes nothing: its repeat guard says so,
@@ -274,13 +249,12 @@ class CloseReportReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
 
+        # The tree finds the report's case with its own lookup node, so no
+        # store is read here (BT-25-009, ADR-0195).
         def build(_receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
-            # Read once the runner resolved the receiver (BT-17-009); the
-            # lookup moves into the tree in #6476.
+            # Built once the runner resolved the receiver (BT-17-009).
             return create_close_report_received_tree(
-                request,
-                case_id=_case_id_for_report(self._dl, request.report_id),
-                sender_rule=self.sender_entitlement,
+                request, sender_rule=self.sender_entitlement
             )
 
         return run_received_tree(

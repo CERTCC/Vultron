@@ -776,7 +776,7 @@ class TestInviteActorUseCases:
         assert calls[0]["actor_id"] == owner_id
         assert calls[0]["tree"].name == "InviteActorToCaseReceivedBT"
 
-    @pytest.mark.spec("CM-17-025")
+    @pytest.mark.spec("CM-17-026")
     @pytest.mark.spec("CLP-10-017")
     def test_case_actors_own_invite_at_its_inbox_is_refused(
         self, make_payload
@@ -986,7 +986,7 @@ class TestInviteActorUseCases:
         entries = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_id
+            if isinstance(e, WireCaseLedgerEntry) and e.context == case_id
         ]
         assert len(entries) >= 1, (
             "Expected at least one CaseLedgerEntry after reject-invite"
@@ -1480,7 +1480,7 @@ class TestInviteActorUseCases:
         entries = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, WireCaseLedgerEntry) and e.case_id == case.id_
+            if isinstance(e, WireCaseLedgerEntry) and e.context == case.id_
         ]
         assert len(entries) >= 1
         assert any(
@@ -1749,7 +1749,7 @@ class TestInviteActorUseCases:
         ledger = [
             e.entry_hash
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == case.id_
+            if isinstance(e, CaseLedgerEntry) and e.context == case.id_
         ]
         assert ledger == [first.entry_hash, second.entry_hash], (
             "the Accept's own entry is rolled back with the backfill"
@@ -1824,7 +1824,7 @@ class TestInviteActorUseCases:
         ledger = [
             e.log_index
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == case.id_
+            if isinstance(e, CaseLedgerEntry) and e.context == case.id_
         ]
         assert sorted(ledger) == [first.log_index, second.log_index], (
             "the Accept's own entry is rolled back with the backfill"
@@ -1971,7 +1971,7 @@ def _assert_a_duplicate_answer(
     ledger = [
         e.entry_hash
         for e in dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, CaseLedgerEntry) and e.case_id == case_id
+        if isinstance(e, CaseLedgerEntry) and e.context == case_id
     ]
     assert ledger == ledger_before, "a duplicate commits no ledger entry"
     stored = dl.read(record_before.id_)

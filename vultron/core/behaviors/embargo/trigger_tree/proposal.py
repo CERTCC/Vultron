@@ -135,7 +135,7 @@ def _propose_arms(
             ),
         ],
         otherwise=[
-            ResolveCaseManagerNode(case_id=case_id),
+            with_case_id(ResolveCaseManagerNode(), case_id),
             with_act_keys(PersistEmbargoEventNode(), {EMBARGO: embargo}),
             ConstructActivitiesNode(
                 activity_builder=_asserting(activity_builder, result_out)
