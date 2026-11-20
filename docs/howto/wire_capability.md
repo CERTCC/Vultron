@@ -137,6 +137,10 @@ Your backend never writes its declared keys itself and never chooses a `Status`.
 The seam, `SynchronousCallOut`, is the only place that turns an answer into tree behavior.
 The domain bundle puts every backend it hands out behind the seam, so you do not wire the seam yourself.
 
+What the seam writes lasts for one run of the tree.
+Later nodes of that run can read your outputs or your refusal reason, but the next run cannot.
+The bridge restores every key the seam writes when the run ends (BT-17-020).
+
 ### When to answer error instead of no
 
 Answer *no* only for a decision your backend made about this request.
