@@ -86,7 +86,7 @@ new case field fails the profile check until it is classified.
 | Ledger entries | omit | substitute: entries with a CSAF meaning, each payload snapshot cut by this profile |
 | `ledger_position` | include | include |
 | `stub_summary` | omit | omit |
-| Indexes, pending proposals, genesis hash, `case_activity`, related cases | omit | omit |
+| Indexes, pending proposals, genesis hash, related cases | omit | omit |
 | Any other AS2 property | omit | omit |
 
 - **Public omits participants.** A case records no public credit (ADR-0218), so

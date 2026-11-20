@@ -23,12 +23,12 @@ from vultron.core.use_cases.received.sync.add_log_entry import (
     AddLedgerEntryReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync.replay import (
-    ReadLedgerEntryReceivedUseCase,
+    ReadLedgerReceivedUseCase,
     RejectLedgerEntryReceivedUseCase,
 )
 
 __all__ = [
     "AddLedgerEntryReceivedUseCase",
-    "ReadLedgerEntryReceivedUseCase",
+    "ReadLedgerReceivedUseCase",
     "RejectLedgerEntryReceivedUseCase",
 ]

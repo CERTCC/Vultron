@@ -241,7 +241,6 @@ def test_the_profile_names_the_known_bookkeeping_as_omit_only() -> None:
     assert {
         "actor_participant_index",
         "pending_embargo_proposal_index",
-        "case_activity",
         "genesis_hash",
         "ledger_position",
         "stub_summary",

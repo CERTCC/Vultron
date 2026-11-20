@@ -88,7 +88,7 @@ While an embargo is in force, that is, while the embargo state is `ACTIVE` or `R
 - `caseStatuses`: the case's statuses, reduced to the current one, whose embargo state is the one in force.
   A receiver reads the status as sent, because it sits inside the stub ([MV-12-006](requirements/messages.md#mv-12-006), [CLP-15-010](requirements/ledger-replication.md#clp-15-010)).
 
-The stub never carries the case's bookkeeping: its ledger position, genesis hash, participant and proposal indexes, activity list, or the owner's `stubSummary`.
+The stub never carries the case's bookkeeping: its ledger position, genesis hash, participant and proposal indexes, or the owner's `stubSummary`.
 Every other field is the sender's choice.
 The reference implementation cuts each stub from the case by one fixed profile:
 

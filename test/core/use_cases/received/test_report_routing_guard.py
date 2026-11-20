@@ -437,7 +437,8 @@ class TestCloseInvalidateDisposition:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVING_ACTOR_ID)
         result = _run_invalidate(dl, _make_invalidate_event())
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason and "InvalidateReportReceivedBT" in result.reason
+        # The lookup's miss guard declares the refusal (BT-25-010).
+        assert result.reason and "(BT-25-010)" in result.reason
 
     @pytest.mark.spec("HP-01-003")
     def test_close_without_local_case_is_refused(self):

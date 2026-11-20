@@ -15,14 +15,15 @@
 """Nodes for a participant's ledger position statement (SYNC-17, ADR-0155).
 
 A participant states how far it has applied a case's ledger by sending the
-case's CASE_MANAGER ``Read(CaseLedgerEntry)`` naming its tail entry
-(SYNC-17-001).  The CASE_MANAGER first checks that the stated position is a
-position in its own ledger (:class:`CheckStatedPositionInLedgerNode`,
-SYNC-17-005); the record and the replay that answer it are the replication
-nodes a ``Reject(CaseLedgerEntry)`` already runs (SYNC-17-003, SYNC-17-004).
+case's CASE_MANAGER ``Read(<case>/ledger)`` stating its tail, or index -1
+when it holds no entry (SYNC-17-001, ADR-0204).  The CASE_MANAGER first
+checks that the stated position is a position in its own ledger
+(:class:`CheckStatedPositionInLedgerNode`, SYNC-17-005); the record and the
+replay that answer it are the replication nodes a
+``Reject(CaseLedgerEntry)`` already runs (SYNC-17-003, SYNC-17-004).
 
 :class:`StateLedgerPositionsNode` is the sending side: it queues one
-``Read(CaseLedgerEntry)`` for each case the executing actor holds a replica
+``Read(<case>/ledger)`` for each case the executing actor holds a replica
 of (SYNC-17-007).  :func:`position_statement_recipient` decides, for it and
 for the statement a participant sends once a case copy seeds its replica
 (SYNC-17-008), whether the actor states a position in a case at all and to
@@ -45,7 +46,6 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.behaviors.sync.nodes.replay_case import replay_case_id
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
@@ -55,7 +55,10 @@ from vultron.core.participants.recipients import closure_recorded
 from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.sync_helpers import sorted_case_ledger_entries
+from vultron.core.sync_helpers import (
+    holds_ledger_position,
+    sorted_case_ledger_entries,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError, VultronWiringError
 
@@ -63,7 +66,7 @@ logger = logging.getLogger(__name__)
 
 
 def _stated_position(activity: object, node_name: str) -> LedgerPosition:
-    """The ``LedgerPosition`` a ``Read(CaseLedgerEntry)`` states.
+    """The ``LedgerPosition`` a ``Read(<case>/ledger)`` states.
 
     Raises ``VultronError`` when the activity carries none (BT-HELPER-01).
     """
@@ -73,30 +76,22 @@ def _stated_position(activity: object, node_name: str) -> LedgerPosition:
     raise VultronError(f"{node_name}: activity states no ledger position")
 
 
-def ledger_entry_at(
-    entries: list[CaseLedgerEntry], position: LedgerPosition
-) -> CaseLedgerEntry | None:
-    """The entry of *entries* at *position*'s index, or ``None``."""
-    return next(
-        (entry for entry in entries if entry.log_index == position.log_index),
-        None,
-    )
-
-
 class CheckStatedPositionInLedgerNode(
     DeclaredRefusalMixin, DataLayerConditionWithPorts
 ):
-    """Pass only a stated position that names an entry of this ledger.
+    """Pass only a stated position this ledger holds.
 
-    The CASE_MANAGER answers a ``Read(CaseLedgerEntry)`` only when the
+    The CASE_MANAGER answers a ``Read(<case>/ledger)`` only when the
     position it states is one its own ledger holds: an entry at the stated
-    ``log_index`` whose id is the stated ``object`` and whose hash is the
-    stated ``entry_hash``.  Any other position is not a lag: replaying from
-    a guessed point would send a suffix the replica cannot anchor.  So it is
-    logged at WARNING with the sender and the position, and the node fails
-    before any replication state is recorded or any entry sent
-    (SYNC-17-005).  A replica whose case has diverged reports it by
-    SYNC-16-001.  The failure is a refusal it declares
+    ``log_index`` whose hash is the stated ``entry_hash``, or, at index -1,
+    the case's genesis hash, the empty ledger's position, which asks for
+    every entry (:func:`~vultron.core.sync_helpers.holds_ledger_position`,
+    SYNC-16-027).  Any other position is not a lag: replaying from a guessed
+    point would send a suffix the replica cannot anchor.  So it is logged at
+    WARNING with the sender and the position, and the node fails before any
+    replication state is recorded or any entry sent (SYNC-17-005).  A
+    replica whose case has diverged reports it by SYNC-16-001.  The failure
+    is a refusal it declares
     (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`), so the
     handler reports ``REFUSED`` with the position's problem.
     """
@@ -121,39 +116,28 @@ class CheckStatedPositionInLedgerNode(
         activity = self.activity
         case_id = replay_case_id(activity, self.name)
         position = _stated_position(activity, self.name)
-        stated_id = getattr(activity, "stated_entry_id", None)
-        held = ledger_entry_at(
-            sorted_case_ledger_entries(
-                cast(CasePersistence, self.datalayer), case_id
-            ),
-            position,
-        )
-        if held is None:
-            problem = "names an entry this ledger does not hold"
-        elif held.id_ != stated_id:
-            problem = (
-                f"names entry '{stated_id}', but index holds '{held.id_}'"
-            )
-        elif held.entry_hash != position.entry_hash:
-            problem = (
-                f"names an index at which this ledger's entry has hash"
-                f" {held.entry_hash:.16}…"
-            )
-        else:
+        if holds_ledger_position(
+            case_id, cast(CasePersistence, self.datalayer), position
+        ):
             return Status.SUCCESS
+        problem = (
+            "is not the empty ledger's: the hash is not the case's genesis"
+            " hash"
+            if position.log_index == EMPTY_LEDGER_LOG_INDEX
+            else "names no entry this ledger holds at that index and hash"
+        )
         self.feedback_message = (
             f"stated ledger position (log_index={position.log_index},"
             f" entry_hash={position.entry_hash:.16}…) {problem}"
         )
         self.logger.warning(
-            "%s: Read(CaseLedgerEntry) '%s' from '%s' for case '%s': stated"
-            " position (object='%s', log_index=%d, entry_hash=%.16s…) %s;"
-            " nothing recorded or sent (SYNC-17-005)",
+            "%s: Read '%s' of the ledger of case '%s' from '%s': stated"
+            " position (log_index=%d, entry_hash=%.16s…) %s; nothing"
+            " recorded or sent (SYNC-17-005)",
             self.name,
             getattr(activity, "activity_id", None),
-            getattr(activity, "actor_id", None),
             case_id,
-            stated_id,
+            getattr(activity, "actor_id", None),
             position.log_index,
             position.entry_hash,
             problem,
@@ -165,15 +149,16 @@ class CheckStatedPositionInLedgerNode(
 
 def stated_replica_position(
     case: VulnerabilityCase, dl: CasePersistence
-) -> LedgerPosition | None:
+) -> LedgerPosition:
     """The ledger position a participant states for its replica of *case*.
 
     The position of the last entry its chain stores (SYNC-17-001).  A chain
     that stores none, as after a first seed from a case copy, is stated at
     the case's own position: the seeded case reflects every entry up to it,
     and the replica stores them as no-ops when they arrive (SYNC-16-005,
-    SYNC-16-023, SYNC-17-008).  ``None`` when that position is the empty
-    ledger's, which names no entry to state.
+    SYNC-16-023, SYNC-17-008).  A case at the empty ledger's position is
+    stated there, index -1 with its genesis hash, which says the replica
+    holds no entry and asks for every one (SYNC-16-027, ADR-0204).
     """
     entries = sorted_case_ledger_entries(dl, case.id_)
     if entries:
@@ -181,8 +166,6 @@ def stated_replica_position(
         return LedgerPosition(
             log_index=tail.log_index, entry_hash=tail.entry_hash
         )
-    if case.ledger_position.log_index == EMPTY_LEDGER_LOG_INDEX:
-        return None
     return case.ledger_position
 
 
@@ -216,17 +199,18 @@ def position_statement_recipient(
 
 
 class StateLedgerPositionsNode(DataLayerActionWithPorts):
-    """Queue ``Read(CaseLedgerEntry)`` for each case replica the actor holds.
+    """Queue ``Read(<case>/ledger)`` for each case replica the actor holds.
 
     For each ``VulnerabilityCase`` in the executing actor's store whose
-    CASE_MANAGER is another actor, the participant names the last entry its
-    replica has stored and sends it to that CASE_MANAGER (SYNC-17-001,
+    CASE_MANAGER is another actor, the participant states the position of
+    the last entry its replica has stored to that CASE_MANAGER (SYNC-17-001,
     SYNC-17-007); a replica whose chain stores no entry yet states the
     position its case copy seeded it at (:func:`stated_replica_position`),
     so a post-seed statement lost to a failed delivery is made after the
-    next restart (SYNC-17-008).  It sends nothing for a case at the empty
-    ledger's position (it has no entry to name), nor for one
-    :func:`position_statement_recipient` names no CASE_MANAGER for.
+    next restart (SYNC-17-008), and one at the empty ledger's position
+    states index -1, asking for every entry (SYNC-16-027).  It sends nothing
+    for a case :func:`position_statement_recipient` names no CASE_MANAGER
+    for.
 
     ``sent`` counts the statements queued, for the caller's log.
     """
@@ -273,9 +257,7 @@ class StateLedgerPositionsNode(DataLayerActionWithPorts):
             if manager_id is None:
                 continue
             position = stated_replica_position(case, dl)
-            if position is None:
-                continue
-            self._sync_port.send_read_ledger_entry(
+            self._sync_port.send_read_ledger(
                 case_id=case.id_,
                 ledger_position=position,
                 actor_id=self.actor_id,

@@ -64,7 +64,7 @@ class PostCloseExemption(StrEnum):
 
     - ``LEDGER_RESYNC`` — the tree replays entries the ledger already holds to
       a replica that asked for them (``Reject(CaseLedgerEntry)``) or stated a
-      position behind them (``Read(CaseLedgerEntry)``, SYNC-17-004).  It appends
+      position behind them (``Read(<case>/ledger)``, SYNC-17-004).  It appends
       nothing, and the CASE_MANAGER MAY keep serving resync after close
       (ADR-0085, CM-23-013).
     - ``ENCLOSING_TREE_GUARDS`` — the tree is a subtree of a received tree that

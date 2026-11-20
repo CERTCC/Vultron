@@ -480,6 +480,38 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
     assert _archived(datalayer, event)
 
 
+@pytest.mark.spec("SYNC-03-001")
+@pytest.mark.spec("MSM-05-008")
+@pytest.mark.spec("RF-08-004")
+def test_the_gap_nak_rejects_the_entry_and_names_the_add(
+    bridge, datalayer, case_actor
+):
+    """The gap NAK is ``Reject(CaseLedgerEntry)``: its object is the entry
+    it could not apply, and its ``inReplyTo`` the ``Add`` that carried it
+    (ADR-0204)."""
+    datalayer.save(_make_entry(0))
+    bad_entry = _make_entry(1, "badbadbadbadbad0" * 4)
+    event = _make_event(bad_entry, actor_id=case_actor.id_)
+
+    run_tree(
+        bridge,
+        tree=create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
+        ),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+        sync_port=SyncActivityAdapter(datalayer),
+        at=helpers_clock.now_utc(),
+    )
+
+    (reject_id,) = _queued_rejects(datalayer)
+    body = read_sealed_body_dict(datalayer, reject_id)
+    assert body is not None
+    assert body["object"]["type"] == "CaseLedgerEntry"
+    assert body["object"]["id"] == bad_entry.id_
+    assert body["inReplyTo"] == event.activity_id
+
+
 def _tampered(entry: CaseLedgerEntry) -> CaseLedgerEntry:
     """Return *entry* with content its ``entry_hash`` was not computed over."""
     return entry.model_copy(

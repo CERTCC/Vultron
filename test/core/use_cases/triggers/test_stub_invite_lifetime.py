@@ -67,6 +67,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     RecordedStubInvite,
@@ -828,7 +830,7 @@ def _run_reissue(dl: Any, case_id: str, owner_id: str) -> BTExecutionResult:
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ),
-        tree=ReissueStubInvitesNode(case_id=case_id),
+        tree=with_act_keys(ReissueStubInvitesNode(), {CASE_KEY: case_id}),
         actor_id=owner_id,
     )
 
@@ -1130,9 +1132,10 @@ def test_a_re_issue_credits_the_asker_and_names_the_stub_it_supersedes(
         raise _Built
 
     monkeypatch.setattr(stub_reissue, "build_stub_invite", _capture)
-    node = stub_reissue.ReissueStubInvitesNode(
-        case_id="https://example.org/cases/c"
-    )
+    node = stub_reissue.ReissueStubInvitesNode()
+    # The node reads its case from /case_id when it ticks (BTND-01-008);
+    # this test calls the build step directly, so it sets the case read.
+    node.case_id = "https://example.org/cases/c"
     node.actor_id = "https://example.org/actors/manager"
     node.trigger_activity_factory = object()  # type: ignore[assignment]
     node._require_act_instant = now_utc  # type: ignore[method-assign]

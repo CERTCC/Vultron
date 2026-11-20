@@ -93,6 +93,8 @@ from collections.abc import Collection, Sequence
 
 import py_trees
 
+from vultron.core.behaviors.act_inputs import declare_inputs
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.act_transaction import (
     OneActExemption,
     received_act_stage,
@@ -131,6 +133,7 @@ from vultron.core.behaviors.case.receive_stages.decisions import (
 )
 from vultron.core.behaviors.case.receive_stages.doors import (
     addressee_stage,
+    case_lookup_stage,
     case_resolution_stage,
     check_nested,
     closed_sender_stage,
@@ -190,6 +193,7 @@ def create_receive_activity_tree(
     sender_rule: SenderRule | None = None,
     sender_context: SenderContext | None = None,
     case_resolution: list[py_trees.behaviour.Behaviour] | None = None,
+    case_lookup: py_trees.behaviour.Behaviour | None = None,
     replica_effects: Sequence[py_trees.behaviour.Behaviour | OnPaths]
     | None = None,
     replica_emit_exemption: ReplicaEmitExemption | None = None,
@@ -370,7 +374,7 @@ def create_receive_activity_tree(
     after it replayed, and a split one is logged at ERROR and an active
     participant re-seeded; nothing it does changes the act's outcome.  A
     tree that answers the position itself names a registered
-    ``ledger_position_exemption`` (``Read(CaseLedgerEntry)``, SYNC-17-005).
+    ``ledger_position_exemption`` (``Read(<case>/ledger)``, SYNC-17-005).
 
     The same trees judge the ``senderSequence`` the activity's sender
     numbers it with, next
@@ -379,7 +383,7 @@ def create_receive_activity_tree(
     is held, and a late, reused or missing number refused with a notice,
     before anything judges the act; every other activity goes on in its
     sender's order.  A tree whose activity takes no number names a
-    registered ``sender_sequence_exemption`` (``Read(CaseLedgerEntry)``,
+    registered ``sender_sequence_exemption`` (``Read(<case>/ledger)``,
     SYNC-21-001).
 
     ``CaseOpenToExternalWrites`` is the post-close write boundary
@@ -620,14 +624,27 @@ def create_receive_activity_tree(
             has_sender_rule=sender_rule is not None,
         )
     children.extend(seen_before_stage(name, nested=nested))
+    # A case only the store holds is found by the tree's own lookup, ahead
+    # of the path stage that reads the receiver's role in it (BT-25-009).
+    run_time_case = case_lookup is not None
     stage_case_id = path_stage_case_id(
         case_id, manager_case_id, sender_context
     )
+    lookup = case_lookup_stage(
+        name,
+        case_lookup,
+        case_named=stage_case_id is not None,
+        sender_context=sender_context,
+        held_case=held_case,
+        case_resolution=case_resolution or (),
+        nested=nested,
+    )
+    children.extend(lookup)
     path_stage = received_path_stage(
         name,
         stage_case_id,
         paths,
-        case_resolved_at_run_time=bool(case_resolution),
+        case_resolved_at_run_time=bool(case_resolution) and not run_time_case,
         sender_rule=sender_rule,
         held_case=held_case,
     )
@@ -666,7 +683,8 @@ def create_receive_activity_tree(
     )
     if guard is not None:
         children.append(guard)
-    door_guards = list(children)
+    # The lookup publishes the tree's input; it is no door (ADR-0154).
+    door_guards = [child for child in children if child not in lookup]
     # Intake records the message only once every door has admitted it, so a
     # message a door turns away is never held in full (CLP-10-017,
     # CLP-10-018).
@@ -675,12 +693,18 @@ def create_receive_activity_tree(
     if guard is not None:
         children.extend(
             ledger_position_stage(
-                name, sender_context, ledger_position_exemption
+                name,
+                sender_context,
+                ledger_position_exemption,
+                run_time_case=run_time_case,
             )
         )
         children.extend(
             sender_sequence_stage(
-                name, sender_context, sender_sequence_exemption
+                name,
+                sender_context,
+                sender_sequence_exemption,
+                run_time_case=run_time_case,
             )
         )
     decisions = case_and_tree_decisions(
@@ -688,6 +712,7 @@ def create_receive_activity_tree(
         clock_decisions or [],
         sender_guarded=guard is not None,
         post_close_exemption=post_close_exemption,
+        run_time_case=run_time_case,
     )
     if decisions:
         children.append(
@@ -697,6 +722,7 @@ def create_receive_activity_tree(
                 decisions,
                 sender_guarded=guard is not None,
                 post_close_exemption=post_close_exemption,
+                run_time_case=run_time_case,
             )
         )
     effects = refusal_effects_with_notice(
@@ -705,27 +731,24 @@ def create_receive_activity_tree(
         precondition_guards,
         refusal_effects or [],
         refusal_notice_exemption,
+        run_time_case=run_time_case,
     )
     guards = precondition_guard_nodes(
         name,
         precondition_guards,
         case_id or manager_case_id,
         path_stage,
+        run_time_case=run_time_case,
     )
-    if effects:
-        children.append(
-            refusal_stage(
-                name,
-                guards,
-                effects,
-                case_id,
-                intake_ran=True,
-            )
-        )
-    else:
-        children.extend(guards)
+    # The guards, wrapped so any refusal effects answer their refusal.
+    children.extend(
+        [refusal_stage(name, guards, effects, case_id, intake_ran=True)]
+        if effects
+        else guards
+    )
+    commits = case_id is not None or run_time_case
     act: list[py_trees.behaviour.Behaviour] = []
-    if case_id is not None:
+    if commits:
         act.append(
             create_guarded_commit_case_ledger_entry_tree(
                 case_id=case_id, case_may_be_absent=case_may_be_absent
@@ -747,19 +770,28 @@ def create_receive_activity_tree(
                 manager_gate_name,
                 manager_body_name,
                 manager_case_may_be_absent,
+                run_time_case=run_time_case,
             )
         )
     # The act's own entry commits with its consequences, or none of them is
     # kept (CLP-07-015, ADR-0151).
-    children.extend(received_act_stage(name, act, case_id, one_act_exemption))
-    return ReceivedActivityTree(
+    children.extend(
+        received_act_stage(
+            name, act, case_id, one_act_exemption, commits=commits
+        )
+    )
+    tree = ReceivedActivityTree(
         name=name,
         children=children,
         door_guards=door_guards,
         refusal_notice_exemption=refusal_notice_exemption,
         one_act_exemption=one_act_exemption,
         nested=nested,
+        input_stages=lookup,
     )
+    # The lookup is the one source of ``/case_id`` in its tree (BT-25-011):
+    # the runner checks it before the first tick.
+    return declare_inputs(tree, published=[CASE_ID] if lookup else [])
 
 
 # The stage builders moved to ``receive_stages`` (CS-18-005); the public

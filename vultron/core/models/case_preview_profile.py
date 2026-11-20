@@ -329,7 +329,6 @@ _NAMED_ROWS: dict[str, PreviewFieldRule] = {
     "genesis_hash": _BOOKKEEPING,
     "ledger_position": _BOOKKEEPING,
     "actor_participant_index": _BOOKKEEPING,
-    "case_activity": _BOOKKEEPING,
     "stub_summary": _BOOKKEEPING,
 }
 

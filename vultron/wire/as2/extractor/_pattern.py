@@ -8,7 +8,7 @@ dispatch entries. This is the primitive building block imported by both
 
 from enum import StrEnum
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.enums import VultronObjectType as VOtype
@@ -17,7 +17,6 @@ from vultron.wire.as2.enums import (
     as_ObjectType as AOtype,
     as_TransitiveActivityType as TAtype,
 )
-from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
     class_named_by,
@@ -106,10 +105,7 @@ class ActivityPattern(BaseModel):
     ``UNKNOWN_UNRESOLVABLE_OBJECT``, which the inbox answers by fetching the
     object (AKM-05-007).  A typed reference, by contrast, carries its type,
     and satisfies a type constraint as the whole object would (MV-10-011).
-    ``accepts_bare_object`` opts a pattern out of the bare-URI rule; only a
-    pattern a field other than the object's type tells
-    apart from every other pattern of its verb may set it, as
-    ``LedgerPositionReadPattern`` does with ``ledgerPosition``.
+    No pattern opts out of the bare-URI rule (SE-01-006).
 
     ``object_form`` constrains the object's form, as received (SE-01-009,
     ADR-0205): a typed reference that carries a preview, or a whole object.
@@ -131,10 +127,13 @@ class ActivityPattern(BaseModel):
     (SE-01-007).
     """
 
+    # A field no pattern declares is refused, not ignored, so a pattern
+    # cannot ask for a rule that does not exist (SE-01-006).
+    model_config = ConfigDict(extra="forbid")
+
     description: str | None = None
     activity_: TAtype | IAtype
     strict: bool = False
-    accepts_bare_object: bool = False
     object_form: ObjectForm | None = None
 
     to_: AOtype | VOtype | ActivityPattern | None = None
@@ -158,21 +157,15 @@ class ActivityPattern(BaseModel):
         """Refuse an ``object_form`` no object it could match has.
 
         A form is a form of a non-activity object (SE-01-009): an inline
-        activity is neither a previewed reference nor read by form, and a
-        pattern that accepts a bare object accepts what no form describes.
+        activity is neither a previewed reference nor read by form.
         """
         if self.object_form is None:
             return self
-        reason = None
         if isinstance(self.object_, ActivityPattern):
-            reason = "a nested activity pattern sets its own"
-        elif self.accepts_bare_object:
-            reason = "it requires an inline object, not a bare one"
-        if reason is not None:
             # Pydantic reports a ValueError raised here as a validation error.
-            raise ValueError(
-                f"object_form constrains a non-activity object (SE-01-009):"
-                f" {reason}"
+            raise ValueError(  # noqa: TRY004 - Pydantic reports only ValueError
+                "object_form constrains a non-activity object (SE-01-009):"
+                " a nested activity pattern sets its own"
             )
         return self
 
@@ -188,15 +181,12 @@ class ActivityPattern(BaseModel):
     def matches_object(self, value: object) -> bool:
         """True if *value*, an activity's ``object``, satisfies ``object_``.
 
-        A bare string satisfies a scalar ``object_`` only when the pattern
-        sets ``accepts_bare_object`` (SE-01-006), and *value* must have the
-        form ``object_form`` asks (SE-01-009).
+        A bare string satisfies no scalar ``object_`` (SE-01-006), and
+        *value* must have the form ``object_form`` asks (SE-01-009).
         """
         if not matches_object_form(self.object_form, value):
             return False
-        return _match_activity_field(
-            self.object_, value, strict=not self.accepts_bare_object
-        )
+        return _match_activity_field(self.object_, value, strict=True)
 
     def _match_qualifiers(self, activity: as_Activity) -> bool:
         """Match ``target_``, ``origin_``, ``context_`` and ``to_``."""
@@ -245,37 +235,21 @@ class InlineActivityObjectPattern(ActivityPattern):
         return self._match_qualifiers(activity)
 
 
-class LedgerEntryRejectPattern(ActivityPattern):
-    """``Reject(CaseLedgerEntry)``, or the objectless genesis-replay form.
-
-    Matches what the base pattern matches, and also a plain ``Reject`` that
-    names no entry, states the empty chain's position and names the case
-    as its ``target``: a replica with no stored entry asking for a replay
-    from genesis (SYNC-16-027).  The parser refuses any other ``Reject``
-    without an object, so nothing else reaches the second branch.
-    """
-
-    def match(self, activity: as_Activity) -> bool:
-        if super().match(activity):
-            return True
-        return is_genesis_replay_reject(activity)
-
-
 class LedgerPositionReadPattern(ActivityPattern):
-    """``Read(CaseLedgerEntry)``: a participant's stated ledger position.
+    """``Read(<case>/ledger)``: a participant's stated ledger position.
 
-    The entry goes by reference (SYNC-17-001), and the receiver may not hold
-    it, so this is the one pattern that accepts a bare id in ``object_``
-    (SE-01-006).  What makes the ``Read`` a position statement is the
-    ``ledgerPosition`` it carries: a ``Read`` without one is not matched
-    here, so an acknowledgment ``Read`` whose object did not resolve is
-    never read as a ledger position.
+    The object is the case's ledger, an ``OrderedCollection`` named by its
+    id and type (ADR-0204).  What makes the ``Read`` a position statement is
+    the ``ledgerPosition`` it carries (SYNC-17-001): a ``Read`` without one
+    is not matched here.  Nor is one whose ledger lists ``items``: the
+    ledger is identity only, and the position is the ``ledgerPosition``'s
+    to state.
     """
-
-    accepts_bare_object: bool = True
 
     def match(self, activity: as_Activity) -> bool:
         if getattr(activity, "ledger_position", None) is None:
+            return False
+        if getattr(getattr(activity, "object_", None), "items", None):
             return False
         return super().match(activity)
 

@@ -80,8 +80,7 @@ class GenesisRejectAlreadyAnsweredNode(DataLayerConditionWithPorts):
         activity = self.activity
         if activity.last_accepted_hash != "":
             return Status.FAILURE
-        entry = activity.rejected_entry
-        rejected_index = None if entry is None else entry.log_index
+        rejected_index = activity.rejected_entry.log_index
         case_id = replay_case_id(activity, self.name)
         peer_id = activity.actor_id
         if not genesis_reject_answered(

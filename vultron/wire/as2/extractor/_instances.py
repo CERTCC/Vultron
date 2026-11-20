@@ -16,7 +16,6 @@ from vultron.wire.as2.enums import (
 from vultron.wire.as2.extractor._pattern import (
     ActivityPattern,
     InlineActivityObjectPattern,
-    LedgerEntryRejectPattern,
     LedgerPositionReadPattern,
     ObjectForm,
 )
@@ -485,25 +484,25 @@ AnnounceVulnerabilityCasePattern = ActivityPattern(
     activity_=TAtype.ANNOUNCE,
     object_=VOtype.VULNERABILITY_CASE,
 )
-RejectLogEntryPattern = LedgerEntryRejectPattern(
+RejectLogEntryPattern = ActivityPattern(
     description=(
         "Participant rejects a CaseLedgerEntry announcement due to "
-        "hash-chain mismatch. The object is the rejected CaseLedgerEntry, or "
-        "absent when the participant holds no entry and asks for a replay "
-        "from genesis, naming the case as its target (SYNC-16-027)."
+        "hash-chain mismatch: the object is the rejected CaseLedgerEntry, and "
+        "inReplyTo names the Add that carried it (SYNC-03-001, ADR-0204)."
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_LEDGER_ENTRY,
 )
-ReadLogEntryPattern = LedgerPositionReadPattern(
+ReadLedgerPattern = LedgerPositionReadPattern(
     description=(
         "Participant states its ledger position: a Read whose object is the "
-        "last CaseLedgerEntry it has applied, by reference, whose context is "
-        "the case and whose ledgerPosition is the entry's position "
-        "(SYNC-17-001)."
+        "case's ledger, the OrderedCollection <case>/ledger, whose context is "
+        "the case and whose ledgerPosition is the sender's tail, at index -1 "
+        "when it holds no entry (SYNC-17-001, ADR-0204)."
     ),
     activity_=TAtype.READ,
-    object_=VOtype.CASE_LEDGER_ENTRY,
+    object_=AOtype.ORDERED_COLLECTION,
+    context_=VOtype.VULNERABILITY_CASE,
 )
 RefusalNoticePattern = InlineActivityObjectPattern(
     description=(

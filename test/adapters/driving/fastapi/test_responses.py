@@ -87,7 +87,6 @@ def test_subclass_fields_not_stripped():
         vulnerability_reports=[report.id_],
         case_participants=[],
         embargo_register=[],
-        case_activity=[],
     )
     response = AS2JSONResponse(case)
     body = json.loads(bytes(response.body))
@@ -96,7 +95,6 @@ def test_subclass_fields_not_stripped():
         "vulnerabilityReports",
         "caseParticipants",
         "embargoRegister",
-        "caseActivity",
     ]
     for field in case_specific_fields:
         assert field in body, (

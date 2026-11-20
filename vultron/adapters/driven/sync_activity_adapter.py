@@ -46,7 +46,10 @@ from vultron.adapters.outbox_sealed_body import (
     seal_outbound_body,
 )
 from vultron.core.models.activity_ids import derived_activity_id
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_ledger_entry import (
+    CaseLedgerEntry,
+    case_ledger_id,
+)
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import ResendOutcome
@@ -54,7 +57,6 @@ from vultron.core.sync_helpers import ledger_tail_position
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
     add_log_entry_activity,
-    genesis_replay_reject_activity,
     read_ledger_position_activity,
     reject_log_entry_activity,
 )
@@ -191,8 +193,9 @@ class SyncActivityAdapter:
         both *entry* and *tail_hash*, so its id keys on the tail, not on the
         copy: the replay it asks for starts there whichever copy prompted
         it, and the entries committed after that replay reach the replica by
-        fan-out.  The genesis-replay ``Reject`` has no entry to key on, so
-        :meth:`send_genesis_replay_reject` keys on the copy's position.
+        fan-out.  A replica whose chain stores no entry has none to name, so
+        it states its position with :meth:`send_read_ledger` at index -1
+        instead (SYNC-16-027).
 
         *in_reply_to* names the inbound activity that prompted the Reject
         (RF-08-004) and does not key the id.  So when a later copy prompts
@@ -224,7 +227,31 @@ class SyncActivityAdapter:
             ),
         )
 
-    def send_genesis_replay_reject(
+    def send_read_ledger(
+        self,
+        case_id: str,
+        ledger_position: LedgerPosition,
+        actor_id: str,
+        to: list[str],
+        *,
+        at: datetime,
+    ) -> None:
+        """Build and queue a ``Read(<case>/ledger)`` position statement.
+
+        The activity gets a fresh id: each statement is a new observation of
+        the participant's position, and the CASE_MANAGER must answer it even
+        when an earlier one stated the same position, because its ledger may
+        have grown since (SYNC-17-004).  A derived id would make the repeat a
+        redelivery the CASE_MANAGER skips.
+
+        Spec: SYNC-17-001, SYNC-17-008.
+        """
+        read = read_ledger_position_activity(
+            case_id, ledger_position, actor=actor_id, to=to, at=at
+        )
+        self._queue_read(actor_id, case_id, read)
+
+    def send_empty_chain_read(
         self,
         case_id: str,
         copy_tail_hash: str,
@@ -234,70 +261,63 @@ class SyncActivityAdapter:
         in_reply_to: str,
         at: datetime,
     ) -> None:
-        """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
+        """Build and queue the ``Read(<case>/ledger)`` at index -1 that answers a copy.
 
-        The activity id is derived from the case, the ledger position of the
-        copy that replaced it and the recipients, so a repeat for the same copy builds
-        no new activity and reuses the id (ID-04-004), while a request after
-        a later copy is its own; a sealed one no longer pending is queued
-        once more (ID-04-005).  *in_reply_to*, the copy's
-        ``Announce(VulnerabilityCase)`` (RF-08-004), does not key the id, so
-        a repeat of the same copy under another Announce sends the stored
-        body, which names the first one.
+        The ``Read`` answers one inbound activity, the
+        ``Announce(VulnerabilityCase)`` whose copy left the chain short, so
+        its id is derived from the case, the copy's position and the
+        recipients, as the ``Reject`` that answers a copy is (ID-04-004): a
+        repeat for the same copy builds no new activity and reuses the id,
+        while a request after a later copy is its own.  If that ``Read`` is
+        sealed but no longer pending, it is queued once more under the same
+        id and body, which the receiver deduplicates (ID-04-005).
+        *in_reply_to* does not key the id, so a repeat of the same copy under
+        another Announce sends the stored body, which names the first one.
 
-        Spec: SYNC-16-007, RF-08-004.
+        Raises:
+            VultronNotFoundError: This store holds no *case_id* to read the
+                genesis hash from (``ledger_tail_position``).
+
+        Spec: SYNC-16-007, SYNC-16-027, RF-08-004.
         """
-        reject_id = derived_activity_id(
-            "genesis-replay-reject",
+        read_id = derived_activity_id(
+            "empty-chain-read",
             actor_id,
             case_id,
             copy_tail_hash,
             *sorted(to),
         )
-        self._queue_reject(
-            reject_id,
-            actor_id,
-            f"genesis-replay Reject(CaseLedgerEntry) for case '{case_id}'",
-            lambda: genesis_replay_reject_activity(
-                case_id,
-                ledger_tail_position(case_id, self._dl),
-                in_reply_to=in_reply_to,
-                actor=actor_id,
-                to=to,
-                id_=reject_id,
-                at=at,
-            ),
-        )
-
-    def send_read_ledger_entry(
-        self,
-        case_id: str,
-        ledger_position: LedgerPosition,
-        actor_id: str,
-        to: list[str],
-        *,
-        at: datetime,
-    ) -> None:
-        """Build and queue a ``Read(CaseLedgerEntry)`` position statement.
-
-        The activity gets a fresh id: each statement is a new observation of
-        the participant's position, and the CASE_MANAGER must answer it even
-        when an earlier one named the same entry, because its ledger may have
-        grown since (SYNC-17-004).  A derived id would make the repeat a
-        redelivery the CASE_MANAGER skips.
-
-        Spec: SYNC-17-001, SYNC-17-008.
-        """
+        if requeue_if_sealed(self._dl, read_id):
+            logger.info(
+                "sync adapter: empty-chain Read '%s' of '%s' was already"
+                " built; not building it again",
+                read_id,
+                case_ledger_id(case_id),
+            )
+            return
         read = read_ledger_position_activity(
-            case_id, ledger_position, actor=actor_id, to=to, at=at
+            case_id,
+            ledger_tail_position(case_id, self._dl),
+            actor=actor_id,
+            to=to,
+            in_reply_to=in_reply_to,
+            id_=read_id,
+            at=at,
         )
+        self._queue_read(actor_id, case_id, read)
+
+    def _queue_read(
+        self, actor_id: str, case_id: str, read: as_Activity
+    ) -> None:
+        """Store, seal and queue a ``Read(<case>/ledger)``, and log it."""
         self._save_seal_and_queue(actor_id, read)
+        position = read.ledger_position
         logger.info(
-            "sync adapter: queued Read(CaseLedgerEntry) '%s' for entry '%s'"
-            " to %s",
+            "sync adapter: queued Read '%s' of '%s' at log_index=%s to %s",
             read.id_,
-            read.object_,
-            to,
+            case_ledger_id(case_id),
+            None if position is None else position.log_index,
+            read.to,
         )
 
     def resend_sealed_activity(self, activity_id: str) -> ResendOutcome:

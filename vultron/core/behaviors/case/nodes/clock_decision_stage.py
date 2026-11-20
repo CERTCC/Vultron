@@ -133,7 +133,7 @@ class ClockDecisionStage(py_trees.composites.Sequence):
 
 
 def create_clock_decision_gate(
-    case_id: str, decisions: list[py_trees.behaviour.Behaviour]
+    case_id: str | None, decisions: list[py_trees.behaviour.Behaviour]
 ) -> CaseManagerGate:
     """The clock-decision stage for *case_id*, run only at its CASE_MANAGER.
 

@@ -54,7 +54,7 @@ class SenderSequenceExemption(BaseModel):
 LEDGER_REQUEST_TAKES_NO_NUMBER: Final = SenderSequenceExemption(
     name="ledger-request-takes-no-number",
     reason=(
-        "The activity is a Read(CaseLedgerEntry), a request about the ledger"
+        "The activity is a Read(<case>/ledger), a request about the ledger"
         " and not a case event (CLP-02-013), so its sender numbers it not"
         " (SYNC-21-001): a request for a missed entry must not wait behind"
         " the gap it reports."

@@ -2893,16 +2893,25 @@ groups:
   - id: CM-12-005
     priority: MUST
     kind: project
-    statement: '`InvalidateReportReceivedUseCase`, `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` MUST
-      dereference the incoming report ID to the associated case ID before delegating to the corresponding case-level use case'
+    statement: >-
+      The received trees of `InvalidateReportReceivedUseCase`,
+      `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` MUST resolve
+      the incoming report ID to the associated case ID, with a lookup node in the
+      tree (BT-25-009), before any case-scoped stage reads the case.
     rationale: >-
       The report-level messages name the report. But each participant's RM state that
-      these messages change is on the case. When the use case resolves the report to its
-      case first, one case-level use case applies the change. Thus the report-level path
-      and the case-level path cannot become different.
-    verification: Inspection of `vultron/core/` confirms that `InvalidateReportReceivedUseCase`,
-      `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` each resolve the report
-      ID to its associated case ID before delegating.
+      these messages change is on the case. When the tree resolves the report to its
+      case first, every case-scoped stage applies the change to that one case. Thus the
+      report-level path and the case-level path cannot become different, and the use
+      case reads no store (ADR-0195).
+    verification: >-
+      `test/core/behaviors/report/test_report_case_lookup.py::test_the_lookup_is_the_one_source_of_the_case`
+      and `::test_the_lookup_runs_ahead_of_the_path_stage_and_is_no_door` build each
+      tree and assert that its lookup is the one source of `/case_id` and runs ahead
+      of the path stage.
+    see_also:
+    - spec_id: BT-25-009
+      reason: 'an example: the report-to-case lookup is a lookup node of the tree'
 - id: CM-13
   title: Embargo Acceptance Ownership
   specs:
@@ -4432,8 +4441,8 @@ groups:
     kind: protocol
     statement: >-
       A stub Invite's preview MUST NOT carry the case's bookkeeping: its ledger
-      position, genesis hash, participant index, pending-proposal index, activity
-      list or stub summary.
+      position, genesis hash, participant index, pending-proposal index or stub
+      summary.
     rationale: >-
       These fields keep the case's own records in step, and mean nothing outside
       the case. The pending-proposal index would also name open proposals, which

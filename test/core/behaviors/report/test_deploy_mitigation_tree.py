@@ -32,6 +32,7 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.call_out import acting_as
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
+from vultron.core.behaviors.act_key_scope import unscoped
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
@@ -171,7 +172,7 @@ def test_should_stay_deferred_arm_composition():
     arm = tree.children[1]
     assert isinstance(arm, py_trees.composites.Sequence)
     assert len(arm.children) == 2
-    assert isinstance(arm.children[0], RMinStateDeferred)
+    assert isinstance(unscoped(arm.children[0]), RMinStateDeferred)
     assert arm.children[1].name == "NoNewDeploymentInfo"
 
 
@@ -183,7 +184,7 @@ def test_deploy_mitigation_if_available_arm_composition():
     arm = tree.children[2]
     assert isinstance(arm, py_trees.composites.Sequence)
     assert len(arm.children) == 4
-    assert isinstance(arm.children[0], CheckRMStateAccepted)
+    assert isinstance(unscoped(arm.children[0]), CheckRMStateAccepted)
     assert arm.children[1].name == "MitigationAvailable"
     assert arm.children[2].name == "PrioritizeDeployment"
     assert arm.children[3].name == "DeployMitigation"

@@ -81,7 +81,6 @@ _CHOSEN = {
     "genesis_hash": _OP.OMIT,
     "ledger_position": _OP.OMIT,
     "actor_participant_index": _OP.OMIT,
-    "case_activity": _OP.OMIT,
     "stub_summary": _OP.OMIT,
 }
 
@@ -311,7 +310,6 @@ def test_the_cut_leaves_out_the_case_bookkeeping() -> None:
         "genesisHash",
         "ledgerPosition",
         "actorParticipantIndex",
-        "caseActivity",
         "stubSummary",
         "pendingEmbargoProposalIndex",
     ):

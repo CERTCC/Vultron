@@ -178,7 +178,7 @@ def test_child_0_is_has_active_embargo():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
     )
-    assert isinstance(tree.children[0], HasActiveEmbargoNode)
+    assert isinstance(unscoped(tree.children[0]), HasActiveEmbargoNode)
 
 
 # ---------------------------------------------------------------------------
@@ -443,7 +443,7 @@ def test_result_out_passed_through():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=result
     )
-    guard = tree.children[0]
+    guard = unscoped(tree.children[0])
     assert isinstance(guard, HasActiveEmbargoNode)
     # HasActiveEmbargoNode stores result_out as an instance attribute
     assert guard._result_out is result

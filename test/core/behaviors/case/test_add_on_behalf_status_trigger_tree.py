@@ -24,6 +24,7 @@ creates no participant: the target-is-participant guard precedes every write
 import py_trees.behaviour
 import pytest
 
+from vultron.core.behaviors.act_key_scope import ActKeyScope
 from vultron.core.behaviors.case.add_on_behalf_status_trigger_tree import (
     add_on_behalf_status_trigger_bt,
     on_behalf_required_roles,
@@ -134,6 +135,8 @@ def test_every_guard_precedes_the_only_write(dimension) -> None:
             node,
             (
                 py_trees.composites.Composite,
+                # A scope seeds its child's keys and writes no state.
+                ActKeyScope,
                 DataLayerConditionWithPorts,
                 *_ALLOWED_NON_CONDITION_NODES,
             ),

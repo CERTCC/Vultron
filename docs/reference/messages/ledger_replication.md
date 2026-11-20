@@ -33,7 +33,7 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
 4. A participant whose hashes do not match sends `Reject(CaseLedgerEntry)` whose `ledgerPosition` is its ledger tail, the last entry it accepted.
    From that position, the CASE_MANAGER can replay the gap (SYNC-03-001, SYNC-03-002).
    Its `inReplyTo` names the `Add(CaseLedgerEntry)` that carried the entry (RF-08-004).
-5. A participant that wants to check its ledger is current states its position: `Read(CaseLedgerEntry)` naming the last entry it applied.
+5. A participant that wants to check its ledger is current states its position: `Read(<case>/ledger)`, a `Read` of the case's ledger whose `ledgerPosition` is the last entry it applied, or index -1 when it holds none.
    The CASE_MANAGER records that position and replays every entry after it (SYNC-17-001, SYNC-17-004).
 
 Every case message a participant or the CASE_MANAGER sends also states how far its sender's ledger had got.
@@ -47,7 +47,7 @@ The position is part of the received body, so the ledger entry for the message r
 A participant also numbers each case message it sends the CASE_MANAGER that carries a `ledgerPosition`, in the activity's `senderSequence` (SYNC-21-001, [ADR-0178](../../adr/0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)).
 The number is 1 for its first message on the case and one more than the last for each next one (SYNC-21-002).
 A resend keeps its number, as it keeps its position (SYNC-21-003).
-`Read(CaseLedgerEntry)` and `Reject(CaseLedgerEntry)` carry no number, because they ask about the ledger rather than state a case event, and the CASE_MANAGER numbers none of its own messages.
+`Read(<case>/ledger)` and `Reject(CaseLedgerEntry)` carry no number, because they ask about the ledger rather than state a case event, and the CASE_MANAGER numbers none of its own messages.
 A participant that lost its count resumes past the highest of its own numbers in the ledger it holds (SYNC-21-006).
 A refusal notice that names an `expectedSenderSequence` moves the participant's count up, so its next message for the case is numbered no lower (SYNC-21-007).
 
@@ -68,7 +68,7 @@ Before the CASE_MANAGER role passes to another actor, the outgoing CASE_MANAGER 
 The CASE_MANAGER reads the position on every case message it receives.
 Apart from a reply to the full-case Invite, which must not be behind the Invite's own position (CM-11-012), the position never changes how it judges the message.
 A position behind its ledger tail is normal while entries are still on their way, so the CASE_MANAGER logs the lag at DEBUG and applies or refuses the message on its own merits (SYNC-18-004, SYNC-18-010).
-A position at or behind the tail is also the sender's statement of how far it has got, so the CASE_MANAGER answers it as it answers a `Read(CaseLedgerEntry)`.
+A position at or behind the tail is also the sender's statement of how far it has got, so the CASE_MANAGER answers it as it answers a `Read(<case>/ledger)`.
 It records the position as the sender's acknowledged position and, when the position lags, replays every entry after it under the same rate bound and outbox de-duplication (SYNC-18-007).
 A position that names an entry the CASE_MANAGER's ledger holds with a different hash, or an index past its tail, means the sender's chain has split from the canonical ledger.
 The CASE_MANAGER logs the split at ERROR and sends the sender `Announce(VulnerabilityCase)` of its current case, at most once per re-seed cooldown (SYNC-18-011, SYNC-18-012, SYNC-16-004).
@@ -137,9 +137,8 @@ It replays that `Add` when the predecessor arrives (ADR-0037, SYNC-14-009).
 - **Example artifact:** [reject_case_ledger_entry.json](../examples/reject_case_ledger_entry.json).
 
 A participant that holds no entry has none to reject.
-If its case is replaced by a copy ahead of its chain, it sends a `Reject` with no `object`, the `ledgerPosition` of its empty chain (`logIndex` -1) and the case as its `target`.
-That `Reject` asks for a replay from genesis (SYNC-16-027, SYNC-16-029).
-A `Reject` with no `object` that states no `ledgerPosition`, or one that names an entry, is refused when it is parsed.
+If its case is replaced by a copy ahead of its chain, it states its position instead, with [`Read(<case>/ledger)`](#read-case-ledger) at `logIndex` -1, which asks for every entry (SYNC-16-027, SYNC-16-029).
+Every `Reject` names an object: one that names none is refused when it is parsed (SYNC-16-028, [ADR-0204](../../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md)).
 
 Buffering takes priority over rejection (ADR-0037).
 A participant sends a `Reject` only for an entry that is really missing from the chain, never for one that is only out of order.
@@ -151,38 +150,50 @@ The check runs before any write, so a stranger cannot obtain case content by sen
 
 ---
 
-{% include-markdown "./_occasions/sections/read-case-ledger-entry.md" %}
+{% include-markdown "./_occasions/sections/read-case-ledger.md" %}
 
-- **Object:** the last canonical entry the participant has applied, by reference: its id, not the entry.
+- **Object:** the case's ledger, `<case>/ledger`, an `OrderedCollection` given by its `id` and `type` alone: the ledger is an identity, and no route serves it (ADR-0204).
 - **Context:** the case.
-- **`ledgerPosition`:** the named entry's `logIndex` and `entryHash`, so the CASE_MANAGER can tell a lag from a position its ledger does not hold (SYNC-17-001).
-  The entry it names is the participant's tail, so this is the same `ledgerPosition` every case activity carries (SYNC-18-001).
+- **`ledgerPosition`:** the participant's tail, the `logIndex` and `entryHash` of the last entry it applied, so the CASE_MANAGER can tell a lag from a position its ledger does not hold (SYNC-17-001).
+  A participant that holds no entry states `logIndex` -1 with the case's genesis hash.
+  This is the same `ledgerPosition` every case activity carries (SYNC-18-001).
 - **Triggering transition:** a case copy seeding the participant's replica (SYNC-17-008), and otherwise the participant's own policy, not a protocol shorthand. The reference participant also sends one for each case it holds after every restart, and on `ledger.position_statement_interval_seconds` when that is set, which is off by default (SYNC-17-007).
 - **Spec:** SYNC-17-001 through SYNC-17-008; the Invite resend, SYNC-20-001 through SYNC-20-008.
-- **Pattern:** `ReadLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.
-- **Factory:** `read_ledger_entry_activity`, or `read_ledger_position_activity` for a position whose entry the sender does not store, in `vultron/wire/as2/factories/sync.py`.
-- **Example artifact:** [read_case_ledger_entry.json](../examples/read_case_ledger_entry.json).
+- **Pattern:** `ReadLedgerPattern` in `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `read_ledger_position_activity`, or `read_ledger_at_entry_activity` for the position of an entry the sender holds, in `vultron/wire/as2/factories/sync.py`.
+- **Example artifact:** [read_case_ledger.json](../examples/read_case_ledger.json).
 
-`Read(CaseLedgerEntry)` is the participant's position statement.
-`Read` states a fact and asks for nothing, so it claims no refusal, where a `Reject` would.
+`Read(<case>/ledger)` is the participant's position statement, in one form for every position ([ADR-0204](../../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md)).
+`Read` states how far the sender has read the ledger, so it claims no refusal, where a `Reject` would.
+The CASE_MANAGER replays what follows the stated position, so a position behind its tail asks for a replay, and one at index -1 asks for the whole ledger.
 It covers the case the `Reject` loop cannot: when the last `Add(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives with a gap, and no `Reject` is ever sent ([ADR-0155](../../adr/0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md)).
-A participant whose case is still at the empty ledger's position has applied no entry, so it has none to name and sends no `Read`.
+A participant whose case is still at the empty ledger's position states index -1:
+
+```json
+{
+  "type": "Read",
+  "object": {"id": "<case>/ledger", "type": "OrderedCollection"},
+  "context": "<case>",
+  "ledgerPosition": {"logIndex": -1, "entryHash": "<the case's genesis hash>"}
+}
+```
 
 A participant also states its position once `Announce(VulnerabilityCase)` seeds its replica of a case (SYNC-17-008).
-Its chain stores no entry yet, but the seeded case reflects every entry up to the copy's position, so the `Read` names the entry at that position.
+Its chain stores no entry yet, but the seeded case reflects every entry up to the copy's position, so the `Read` states that position.
 The statement tells the CASE_MANAGER that the replica is ready, so the CASE_MANAGER can resend an Invite the participant dropped before the copy arrived ([ADR-0163](../../adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md)).
 A copy that replaces a case the participant already holds sends no `Read`.
-If that send fails after the seed, the reference participant's next restart statement names the same position while its chain still stores no entry, because such a replica states its case's position (SYNC-17-007).
+If that send fails after the seed, the reference participant's next restart statement states the same position while its chain still stores no entry, because such a replica states its case's position (SYNC-17-007).
 
 The CASE_MANAGER's answer is the one it gives a `Reject`.
-It records the named entry's hash as the sender's acknowledged position (SYNC-17-003).
+It records the stated position's hash as the sender's acknowledged position (SYNC-17-003).
 When that position is behind its ledger tail, it sends the sender every entry after it, in log order, as `Add(CaseLedgerEntry)`, under the same replay rate bound and outbox de-duplication as a `Reject`-triggered replay (SYNC-17-004).
+At index -1 that is every entry (SYNC-16-029).
 At the tail it sends nothing.
 
 It answers only an active participant (SYNC-17-002, CM-10-004).
 A removed, unconsented or closed participant's `Read` is `REFUSED`, with no replication state recorded and no entry replayed.
 An unconsented participant that is still on the roster is still resent the Invites it owes an answer to (SYNC-20-001).
-A position the CASE_MANAGER's ledger does not hold, or an index at which its entry has a different hash, is logged at WARNING and answered with nothing (SYNC-17-005).
+A position the CASE_MANAGER's ledger does not hold, an index at which its entry has a different hash, or index -1 with a hash other than the case's genesis hash, is logged at WARNING and answered with nothing (SYNC-17-005).
 A `Read` and its answer are never ledgered: stating a position changes nothing in the case file (SYNC-17-006).
 
 ### Resending unanswered Invites
@@ -190,7 +201,7 @@ A `Read` and its answer are never ledgered: stating a position changes nothing i
 A position statement tells the CASE_MANAGER that the participant's replica holds the case, so the participant can now answer an Invite it lost.
 An Invite that reached a joiner before its case copy waits in the joiner's pre-bootstrap queue, and is dropped when the queue's window ends (CBT-03-003).
 Any Invite can also be lost in delivery.
-So when a participant states a position the CASE_MANAGER's ledger holds, in `Read(CaseLedgerEntry)` or as any case activity's `ledgerPosition`, the CASE_MANAGER resends each Invite that participant owes an answer to ([ADR-0163](../../adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md), SYNC-20-001).
+So when a participant states a position the CASE_MANAGER's ledger holds, in `Read(<case>/ledger)` or as any case activity's `ledgerPosition`, the CASE_MANAGER resends each Invite that participant owes an answer to ([ADR-0163](../../adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md), SYNC-20-001).
 
 The resend runs apart from the active-participant check.
 Any participant still on the roster is resent its Invites, even an inert one that has not consented to the embargo in force, because an Invite is how it is asked to consent.
@@ -227,7 +238,7 @@ It records the time of the last one as a `GenesisRejectRecord` and deletes that 
 A report submitter's replica is seeded by the report receiver's `Create(VulnerabilityCase)` instead (CBT-01-001), and that seed replays the held `Add` the same way (SYNC-15-005).
 The report receiver's own seed, the CASE_MANAGER's `Create(VulnerabilityCase)`, replays held entries the same way too.
 The receiver and the CASE_MANAGER are separate senders, so the CASE_MANAGER's entries often arrive before that `Create`.
-After an `Announce(VulnerabilityCase)` seed, the participant states its position in the seeded case with `Read(CaseLedgerEntry)` ([Read case ledger entry](#read-case-ledger-entry), SYNC-17-008).
+After an `Announce(VulnerabilityCase)` seed, the participant states its position in the seeded case with `Read(<case>/ledger)` ([Read case ledger](#read-case-ledger), SYNC-17-008).
 A `Create(VulnerabilityCase)` seed sends no such statement, because SYNC-17-008 covers only the `Announce(VulnerabilityCase)` seed.
 
 - **Pattern:** `AnnounceVulnerabilityCasePattern` in
