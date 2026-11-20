@@ -48,6 +48,7 @@ import dataclasses
 import importlib
 import pkgutil
 from collections.abc import Iterator
+from contextlib import nullcontext
 
 import py_trees
 import pytest
@@ -55,6 +56,7 @@ from py_trees.common import Status
 
 import vultron.demo.fuzzer.bundles as stochastic_bundles
 from test.support.call_out import bind_test_target
+from test.support.case_projection import CALL_OUT_RUN_CONTEXTS
 from vultron.core.behaviors.call_out import (
     bundles as core_bundles,
     unwrap_call_out,
@@ -198,9 +200,10 @@ def _tick_and_read(
 ) -> tuple[Status, dict[str, object]]:
     """Tick *field*'s node behind the seam; return its status and writes."""
     py_trees.blackboard.Blackboard.storage.clear()
-    node = bind_test_target(getattr(bundle, field)(field))
-    node.tick_once()
-    written = dict(py_trees.blackboard.Blackboard.storage)
+    with CALL_OUT_RUN_CONTEXTS.get(field, nullcontext)():
+        node = bind_test_target(getattr(bundle, field)(field))
+        node.tick_once()
+        written = dict(py_trees.blackboard.Blackboard.storage)
     py_trees.blackboard.Blackboard.storage.clear()
     return node.status, written
 

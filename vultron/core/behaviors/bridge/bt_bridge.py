@@ -56,6 +56,7 @@ from vultron.errors import (
 )
 
 if TYPE_CHECKING:
+    from vultron.core.ports.case_projection import CaseProjectionPort
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
@@ -96,6 +97,7 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
         trigger_activity: TriggerActivityPort | None = None,
         sync_port: SyncActivityPort | None = None,
         wire_render_port: WireRenderPort | None = None,
+        case_projection_port: CaseProjectionPort | None = None,
     ):
         """
         Initialize BT bridge with DataLayer access and optional leadership guard.
@@ -122,6 +124,10 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 it is placed on the py_trees blackboard under the key
                 ``wire_render_port`` so that BT nodes can call it without
                 importing from the wire layer (ARCH-01-001, ARCH-01-004).
+            case_projection_port: Optional port for rendering a cut case as
+                a document (ADR-0219).  When provided it is placed on the
+                blackboard under the key ``case_projection_port`` for the
+                publication pipeline's draft step.
         """
         self.datalayer = datalayer
         self.is_leader = is_leader
@@ -133,6 +139,7 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
         self.trigger_activity = trigger_activity
         self.sync_port = sync_port
         self.wire_render_port = wire_render_port
+        self.case_projection_port = case_projection_port
         self.logger = logging.getLogger(
             f"{_LOGGER_PREFIX}.{self.__class__.__name__}"
         )
@@ -301,6 +308,7 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 "sync_port",
                 "is_leader",
                 "wire_render_port",
+                "case_projection_port",
                 # The act's instant (ADR-0176).  Placed by the act's outermost
                 # run and inherited by its nested ones; restoring it here is
                 # what keeps one act's instant from reaching the next act.

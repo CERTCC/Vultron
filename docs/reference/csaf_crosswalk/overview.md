@@ -111,12 +111,16 @@ Issue [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} p
 A Vultron participant can produce a CSAF document from its copy of the case.
 This crosswalk calls such a document a **projection**.
 [ADR-0219](../../adr/0219-a-csaf-projection-is-a-case-preview-cut-by-its-call-sites-profile-then-rendered-to-csaf.md) (provisionally accepted) decides how a projection is made.
-A projection can occur at two times:
+The reference implementation makes a projection at two places:
 
-| Time | Use |
-|---|---|
-| At publication | The public record of the vulnerability. The [publication pipeline](../../adr/0030-publish-leaf-draft-review-submit-pipeline.md) (ADR-0030) defines a draft, review, and submit pipeline for advisory artifacts, and a CSAF document can be one output of its draft step. |
-| During coordination | A bridge to a vendor, a national Computer Security Incident Response Team (CSIRT), or a reporting authority that does not use Vultron. |
+| Place | Profile | Tracking status | Use |
+|---|---|---|---|
+| The draft step of the [publication pipeline](../../adr/0030-publish-leaf-draft-review-submit-pipeline.md) (ADR-0030) | Public | `final` | The public record of the vulnerability. The draft step writes the projection as its draft, which the pipeline then reviews and submits. |
+| The operator endpoint `GET /actors/{actor_id}/cases/{case_key}/csaf` | Joined | `interim` | A bridge to a vendor, a national Computer Security Incident Response Team (CSIRT), or a reporting authority that does not use Vultron. The operator gives the document to that party out of band. |
+
+Both places read the actor's own copy of the case.
+The endpoint writes nothing: it adds no ledger entry and sends no activity.
+The tracking status of the endpoint's document is `interim` because the case continues to change.
 
 A projection takes case information out of the protocol.
 For this reason, a projection must not include information that the recipient is not entitled to see.
@@ -124,7 +128,8 @@ The place that makes the projection selects a fixed profile, and the profile cut
 Each projection also states the ledger position that it shows, because the case continues to change after the projection.
 The `involvement` timeline of a projection is a filtered view of the case ledger.
 That agrees with the CSAF design, in which the issuing party selects the events that its audience needs.
-The case holds no product data, so each projection is a CSAF Base document (`csaf_base`), not a Security Advisory, a VEX document, or a Vulnerability Report.
+Both places take the CSAF category from one selection over the preview.
+The case holds no product data, so the selection gives a CSAF Base document (`csaf_base`), not a Security Advisory, a VEX document, or a Vulnerability Report.
 Issue [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} planned these rules.
 
 ---

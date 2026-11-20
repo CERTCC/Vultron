@@ -32,6 +32,7 @@ dependencies provide.
 from fastapi import APIRouter
 
 from vultron.adapters.driving.fastapi.routers.actors import (
+    _case_csaf,
     _case_object,
     _embargo_policy,
 )
@@ -68,12 +69,14 @@ router.include_router(profile.router)
 router.include_router(mailbox.router)
 # Included ahead of the catch-all below on purpose: FastAPI matches routes in
 # registration order, and ``GET /{actor_id:path}`` would otherwise claim
-# ``/actors/{slug}/embargo-policy`` and ``/actors/{slug}/cases/{key}/objects``
-# with the suffix folded into the segment.
+# ``/actors/{slug}/embargo-policy``, ``/actors/{slug}/cases/{key}/objects``
+# and ``/actors/{slug}/cases/{key}/csaf`` with the suffix folded into the
+# segment.
 router.include_router(
     _embargo_policy.router, prefix="/actors", tags=["Actors"]
 )
 router.include_router(_case_object.router, prefix="/actors", tags=["Actors"])
+router.include_router(_case_csaf.router, prefix="/actors", tags=["Actors"])
 router.include_router(profile.catch_all_router)
 
 __all__ = [

@@ -385,6 +385,11 @@ RUN_KEYS: Mapping[str, RunKey] = MappingProxyType(
                 " (ARCH-20-001).",
             ),
             RunKey(
+                "case_projection_port",
+                object,
+                "The port that renders a cut case as a document (ADR-0219).",
+            ),
+            RunKey(
                 "sync_port",
                 object,
                 "The port that fans a ledger entry out (SYNC-02-003).",

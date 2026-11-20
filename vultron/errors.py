@@ -511,6 +511,16 @@ class BtNodePreconditionError(VultronError):
     """
 
 
+class VultronProjectionError(VultronError):
+    """Raised when an actor's replica of a case cannot be projected.
+
+    The replica holds the case but not all a projection needs: an object
+    the case names by id, or the ledger entry at the case's position, whose
+    commit time dates the document (ADR-0219, CSAF-06-007).  A later sync
+    may supply it, so it is not the case's absence.
+    """
+
+
 class VultronWiringError(VultronError):
     """Raised when a node is missing a DataLayer or port it requires.
 

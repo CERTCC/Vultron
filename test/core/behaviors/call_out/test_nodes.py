@@ -30,11 +30,14 @@ These lock the contract that core tree builders rely on when they default
 ``call_out`` to a core DETERMINISTIC bundle.
 """
 
+from contextlib import nullcontext
+
 import py_trees
 import pytest
 from py_trees.common import Status
 
 from test.support.call_out import bind_test_target, tick_call_out
+from test.support.case_projection import CALL_OUT_RUN_CONTEXTS
 from vultron.core.behaviors.call_out import (
     AlwaysFail,
     AlwaysSucceed,
@@ -57,6 +60,9 @@ from vultron.core.behaviors.call_out.bundles import (
 )
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     DeterministicEvaluateCveEligibility,
+)
+from vultron.core.behaviors.call_out.bundles.publication import (
+    DraftAdvisoryArtifactByProjection,
 )
 from vultron.core.behaviors.call_out.nodes import (
     CASE_OWNER_APPROVAL_REQUIRED_REASON,
@@ -228,6 +234,7 @@ _CORE_DETERMINISTIC_NODE_TYPES = (
     AlwaysFail,
     RequireCaseOwnerApprovalNode,
     DeterministicEvaluateCveEligibility,
+    DraftAdvisoryArtifactByProjection,
 )
 
 
@@ -256,9 +263,10 @@ def test_bundle_factories_build_core_deterministic_nodes(bundle):
 @pytest.mark.parametrize("bundle", _DETERMINISTIC_BUNDLES)
 def test_bundle_nodes_are_deterministic_on_tick(bundle):
     """Each bundle node ticks to a fixed SUCCESS or FAILURE (never RUNNING)."""
-    for factory in _factory_fields(bundle):
-        node = bind_test_target(factory("probe"))
-        node.tick_once()
+    for field in vars(bundle):
+        with CALL_OUT_RUN_CONTEXTS.get(field, nullcontext)():
+            node = bind_test_target(getattr(bundle, field)("probe"))
+            node.tick_once()
         assert node.status in (Status.SUCCESS, Status.FAILURE)
 
 
