@@ -33,6 +33,8 @@ from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
 from vultron.core.models.actor import VultronService
@@ -147,7 +149,7 @@ class TestResolveCaseManagerIdCallers:
         )
         scenario.dl.create(case)
 
-        node = ResolveCaseManagerNode(case_id=CASE_ID)
+        node = with_act_keys(ResolveCaseManagerNode(), {CASE_KEY: CASE_ID})
         result = scenario.run(node, actor_id=ACTOR_ID)
         scenario.assert_failure(result)
 

@@ -36,10 +36,18 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import (
     TRIGGER_FACTORY_UNAVAILABLE,
     DataLayerActionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.node_logger import (
     fail_with_fault,
@@ -103,29 +111,52 @@ class CommitParticipantStatusEntriesNode(
     #: case-closure commits turn it off (CM-23-002, SYNC-10-001/002).
     check_freshness: bool = True
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, SENDER_ID)
+
     def __init__(
         self,
-        subject_actor_id: str,
-        case_id: str | None,
         status_ids: list[str],
         name: str | None = None,
     ) -> None:
         """Create the node.
 
+        The subject, the actor whose statuses are recorded, is the sender
+        on ``/sender_id`` (RSH-08-001); the case is the one on ``/case_id``,
+        or, with none there, the case the first written status names as its
+        ``context`` (the writer resolved it from ``/case_id``).  Both are read
+        when the node ticks (BTND-01-008).
+
         Args:
-            subject_actor_id: The actor whose statuses are recorded.
-            case_id: The case, or ``None`` for the case the first written
-                status names as its ``context`` (the writer resolved it from
-                ``/case_id``).
             status_ids: The list the paired writer fills with the id of each
                 status it wrote, in order.
             name: Node name.
         """
         super().__init__(name=name or self.__class__.__name__)
-        self._subject_actor_id = subject_actor_id
-        self._given_case_id = case_id
-        self._case_id = case_id or ""
+        self._subject_actor_id = ""
+        self._given_case_id: str | None = None
+        self._case_id = ""
         self._status_ids = status_ids
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._subject_actor_id = self._subject()
+        self._given_case_id = self._given_case()
+        self._case_id = self._given_case_id or ""
+
+    def _subject(self) -> str:
+        """The actor whose statuses are recorded: the sender."""
+        return act_value(self, SENDER_ID, str)
+
+    def _given_case(self) -> str | None:
+        """The case the statuses are recorded on, when the tree names one."""
+        return optional_act_value(self, CASE_ID, str)
 
     def _refuse(self, reason: str) -> Status:
         """Fail with *reason*; the act's transaction takes the statuses back."""

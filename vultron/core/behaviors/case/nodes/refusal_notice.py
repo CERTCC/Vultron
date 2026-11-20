@@ -139,6 +139,8 @@ def refusal_effects_with_notice(
     guards: Sequence[py_trees.behaviour.Behaviour | Diversion | OnPaths],
     refusal_effects: list[py_trees.behaviour.Behaviour],
     exemption: RefusalNoticeExemption | None,
+    *,
+    run_time_case: bool = False,
 ) -> list[py_trees.behaviour.Behaviour]:
     """A received tree's refusal effects, the refusal notice first (CLP-02-005).
 
@@ -160,8 +162,11 @@ def refusal_effects_with_notice(
     """
     where = f"create_receive_activity_tree({name})"
     guarded = bool(guards)
+    # A case the tree's lookup publishes is the tree's case too; the notice
+    # then reads it from ``/case_id`` (BT-25-009).
+    commits = case_id is not None or run_time_case
     if exemption is None:
-        if case_id is None or not guarded:
+        if not commits or not guarded:
             return refusal_effects
         return [refusal_notice(case_id), *refusal_effects]
     require_registered(
@@ -172,7 +177,7 @@ def refusal_effects_with_notice(
         registry_name="REFUSAL_NOTICE_EXEMPTIONS",
         spec_id="CLP-02-005",
     )
-    if case_id is None or not guarded:
+    if not commits or not guarded:
         raise VultronWiringError(
             f"{where}: refusal-notice exemption {exemption.name!r} exempts"
             " nothing — the tree has no precondition guards or no case to"

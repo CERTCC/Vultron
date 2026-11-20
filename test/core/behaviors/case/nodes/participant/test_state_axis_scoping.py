@@ -31,6 +31,11 @@ from pydantic import BaseModel, ValidationError
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.objects import make, with_times
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_KEY,
+    OBJECT_ID as OBJECT_KEY,
+)
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -296,8 +301,9 @@ class TestCaseAxesNeverWriteParticipantProgress:
 
         bt_scenario.assert_success(
             bt_scenario.run(
-                EmitCaseStatusUpdateNode(
-                    case_id=CASE_ID, reported_status_id=report.id_
+                with_act_keys(
+                    EmitCaseStatusUpdateNode(adopts_reported_status=True),
+                    {CASE_KEY: CASE_ID, OBJECT_KEY: report.id_},
                 ),
                 actor_id=actor.id_,
             )

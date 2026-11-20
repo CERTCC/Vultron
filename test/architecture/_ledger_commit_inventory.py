@@ -22,7 +22,8 @@ paths commit an entry:
   received activity under its ``MessageSemantics`` value.  A received use case
   reaches it when a tree factory it calls — directly or through further
   ``vultron.core`` functions — passes ``create_receive_activity_tree`` a
-  ``case_id`` that is not the literal ``None`` (CLP-10-013), or builds the
+  ``case_id`` that is not the literal ``None`` (CLP-10-013), or a
+  ``case_lookup`` that publishes the case at run time (BT-25-009), or builds the
   commit node or guarded-commit subtree itself.  :func:`received_commit_semantics`
   follows those calls from every routed use case's methods.
 * **Explicit commits.**  A node that commits an entry of its own passes
@@ -149,7 +150,18 @@ def _commits(fn: Callable[..., Any], seen: set[Any], depth: int = 0) -> bool:
 
 
 def _passes_a_case_id(call: ast.Call) -> bool:
-    """True unless a ``create_receive_activity_tree`` call passes ``None``."""
+    """True unless a ``create_receive_activity_tree`` call passes ``None``.
+
+    A call passing a ``case_lookup`` commits too: the tree commits to the
+    case its lookup publishes (BT-25-009).
+    """
+    lookup = next(
+        (kw.value for kw in call.keywords if kw.arg == "case_lookup"), None
+    )
+    if lookup is not None and not (
+        isinstance(lookup, ast.Constant) and lookup.value is None
+    ):
+        return True
     case_id = next(
         (kw.value for kw in call.keywords if kw.arg == "case_id"),
         call.args[1] if len(call.args) > 1 else None,

@@ -163,6 +163,8 @@ def diversion_stage(
     diversion: Diversion,
     case_id: str | None,
     path_stage: ReceivedPathNode | None,
+    *,
+    run_time_case: bool = False,
 ) -> DiversionStage:
     """Build the stage for one :class:`Diversion` (CLP-10-026).
 
@@ -218,7 +220,7 @@ def diversion_stage(
             f" found {commits} (CLP-10-026)"
         )
     manager_only = path_stage.manager_path_only
-    if manager_only and case_id is None:
+    if manager_only and case_id is None and not run_time_case:
         raise VultronWiringError(
             f"{where}: a diversion in a manager-only declaration may commit"
             " its own entry, so the tree must name the case it commits"
@@ -260,6 +262,8 @@ def precondition_guard_nodes(
     guards: Sequence[py_trees.behaviour.Behaviour | Diversion | OnPaths],
     case_id: str | None,
     path_stage: ReceivedPathNode | None,
+    *,
+    run_time_case: bool = False,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The tree's guards, each :class:`Diversion` and :class:`OnPaths` in place.
 
@@ -271,7 +275,9 @@ def precondition_guard_nodes(
     return resolve_path_branches(
         f"create_receive_activity_tree({name})",
         [
-            diversion_stage(name, guard, case_id, path_stage)
+            diversion_stage(
+                name, guard, case_id, path_stage, run_time_case=run_time_case
+            )
             if isinstance(guard, Diversion)
             else guard
             for guard in guards
