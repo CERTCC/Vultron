@@ -82,16 +82,11 @@ from vultron.core.models.case_projection import PublicationStatus
 from vultron.core.models.case_projection_profile import PUBLIC_PROFILE
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.case_projection import (
+    PROJECTION_FAILURES,
     project_case,
     require_projection_port,
 )
-from vultron.errors import (
-    VultronActivityConstructionError,
-    VultronNotFoundError,
-    VultronProjectionError,
-    VultronValidationError,
-    VultronWiringError,
-)
+from vultron.errors import VultronWiringError
 
 #: The blackboard key the runner places the projection port under.
 CASE_PROJECTION_PORT_KEY = "case_projection_port"
@@ -156,12 +151,7 @@ class DraftAdvisoryArtifactByProjection(DraftAdvisoryArtifactCapability):
                 PublicationStatus.FINAL,
                 port,
             )
-        except (
-            VultronNotFoundError,
-            VultronProjectionError,
-            VultronValidationError,
-            VultronActivityConstructionError,
-        ) as exc:
+        except PROJECTION_FAILURES as exc:
             return CallOutAnswer.error(
                 f"drafting the public projection of case '{case_id}'"
                 f" failed: {exc}"

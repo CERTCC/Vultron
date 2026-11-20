@@ -27,10 +27,13 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.call_out import tick_call_out
 from test.support.case_projection import (
     CASE_ID,
     COORDINATOR,
+    JOINED_ONLY_UNRENDERED,
     JOINED_ONLY_VALUES,
+    publication_draft_run,
     store_projected_replica,
 )
 from test.support.csaf_schema import schema_errors
@@ -55,6 +58,8 @@ from vultron.core.behaviors.report.publish_artifact_tree import (
     create_publish_artifact_tree,
 )
 from vultron.core.models.case_projection_profile import PUBLIC_PROFILE
+from vultron.core.models.ledger_position import LedgerPosition
+from vultron.errors import VultronWiringError
 
 
 class _Capture(py_trees.behaviour.Behaviour):
@@ -125,11 +130,19 @@ def test_the_publication_tree_drafts_a_schema_valid_public_projection(
 
 
 @pytest.mark.spec("CSAF-06-012")
+@pytest.mark.parametrize(
+    "value",
+    [
+        JOINED_ONLY_VALUES["content"],
+        JOINED_ONLY_VALUES["report"],
+        *JOINED_ONLY_UNRENDERED.values(),
+    ],
+)
 def test_the_public_draft_holds_none_of_the_joined_only_content(
-    dl: SqliteDataLayer,
+    dl: SqliteDataLayer, value: str
 ) -> None:
-    """The draft is the public cut: the case's content and report text,
-    which only the joined profile includes, appear nowhere in it."""
+    """The draft is the public cut: no value only the joined profile
+    includes appears in it."""
     store_projected_replica(dl)
 
     _, seen = _run(
@@ -138,9 +151,30 @@ def test_the_public_draft_holds_none_of_the_joined_only_content(
         CsafProjectionAdapter(),
     )
 
-    text = seen[DRAFT_ARTIFACT_KEY]
-    for field in ("content", "report"):
-        assert JOINED_ONLY_VALUES[field] not in text
+    assert value not in seen[DRAFT_ARTIFACT_KEY]
+
+
+@pytest.mark.spec("CSAF-06-002")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CSAF-06-002: the public draft's default credit names the REPORTER"
+        " participants, which the public profile omits, because CSAF-06-009"
+        " makes them the default at every call site. Tracked by #6706."
+    ),
+)
+def test_the_public_draft_names_no_reporter_participant(
+    dl: SqliteDataLayer,
+) -> None:
+    store_projected_replica(dl)
+
+    _, seen = _run(
+        dl,
+        create_publish_artifact_tree(case_id=CASE_ID),
+        CsafProjectionAdapter(),
+    )
+
+    assert JOINED_ONLY_VALUES["reporter_name"] not in seen[DRAFT_ARTIFACT_KEY]
 
 
 @pytest.mark.spec("BT-23-013")
@@ -215,8 +249,8 @@ def test_a_missing_projection_port_is_a_wiring_error(
 def test_a_case_the_store_does_not_hold_fails_the_draft(
     dl: SqliteDataLayer,
 ) -> None:
-    """The backend could not draft: an *error*, not a refusal, and no
-    draft is written."""
+    """The backend could not draft: an *error*, which fails the run as an
+    internal error, not a refusal, and no draft is written (ADR-0183)."""
     result, seen = _run(
         dl,
         create_publish_artifact_tree(case_id=CASE_ID),
@@ -224,4 +258,40 @@ def test_a_case_the_store_does_not_hold_fails_the_draft(
     )
 
     assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "drafting the public projection" in result.feedback_message
     assert seen == {}
+
+
+def test_a_replica_it_cannot_project_fails_the_draft_as_an_error(
+    dl: SqliteDataLayer,
+) -> None:
+    """A replica without the entry at its position cannot be dated, so the
+    draft is an *error*, not a refusal."""
+    case = store_projected_replica(dl)
+    case.ledger_position = LedgerPosition(log_index=9, entry_hash="09" * 32)
+    dl.save(case)
+
+    result, seen = _run(
+        dl,
+        create_publish_artifact_tree(case_id=CASE_ID),
+        CsafProjectionAdapter(),
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "ledger index 9" in result.feedback_message
+    assert seen == {}
+
+
+@pytest.mark.parametrize("missing", ["/datalayer", "/actor_id"])
+def test_a_run_without_its_store_or_actor_is_a_wiring_error(
+    missing: str,
+) -> None:
+    with publication_draft_run():
+        py_trees.blackboard.Blackboard.storage.pop(missing)
+        backend = DraftAdvisoryArtifactByProjection("Draft")
+
+        with pytest.raises(VultronWiringError, match="DataLayer or actor_id"):
+            tick_call_out(backend)
+    py_trees.blackboard.Blackboard.storage.clear()

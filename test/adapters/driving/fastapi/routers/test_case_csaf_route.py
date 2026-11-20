@@ -41,6 +41,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.case_projection_profile import JOINED_PROFILE
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.errors import VultronValidationError
 
 _SLUG = "csaf-operator"
 
@@ -143,6 +144,26 @@ def test_a_replica_without_the_entry_at_its_position_is_409(
 
     assert response.status_code == status.HTTP_409_CONFLICT
     assert "ledger index 9" in response.json()["detail"]
+
+
+def test_a_preview_that_renders_no_document_is_409(
+    client_actors: TestClient,
+    host: SqliteDataLayer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cut that gives no document fails the read as the draft step fails:
+    the projection could not be made, answered 409, never a 500."""
+    store_projected_replica(host)
+
+    def refuse(*_: object, **__: object) -> None:
+        raise VultronValidationError("the preview shows no ledger position")
+
+    monkeypatch.setattr(projection_adapters.csaf, "render_csaf", refuse)
+
+    response = _get(client_actors)
+
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert "no ledger position" in response.json()["detail"]
 
 
 @pytest.mark.spec("CSAF-06-013")

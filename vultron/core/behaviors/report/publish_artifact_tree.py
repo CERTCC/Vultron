@@ -205,10 +205,13 @@ def create_publish_artifact_tree(
             in the py_trees display tree.  Optional — defaults to empty string.
         draft_advisory_artifact_factory: Factory for the Composer call-out
             point that drafts the advisory artifact from case data.  Defaults
-            to the ``PUBLICATION_DETERMINISTIC`` field, an ``AlwaysSucceed``
-            that writes ``draft_advisory_artifact`` (ADR-0025, BT-23-002,
-            BT-23-013); inject ``call_out=PUBLICATION_STOCHASTIC`` for the
-            probabilistic fuzzer node.
+            to the ``PUBLICATION_DETERMINISTIC`` field,
+            ``DraftAdvisoryArtifactByProjection``, which writes the case's
+            public CSAF projection to ``draft_advisory_artifact`` (ADR-0219,
+            BT-23-013).  It reads ``/case_id`` and the run's
+            ``case_projection_port``, store and actor.  Inject
+            ``call_out=PUBLICATION_STOCHASTIC`` for the probabilistic fuzzer
+            node.
         review_advisory_draft_factory: Factory for the Evaluator call-out
             point that reviews and approves the draft.  The default
             auto-approve DETERMINISTIC backend writes an

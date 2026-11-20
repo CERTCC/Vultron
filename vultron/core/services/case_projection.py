@@ -65,11 +65,24 @@ from vultron.core.services.held_references import read_held
 from vultron.core.sync_helpers.ledger_reads import sorted_case_ledger_entries
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
+    VultronActivityConstructionError,
     VultronNotFoundError,
     VultronProjectionError,
+    VultronValidationError,
     VultronWiringError,
 )
 from vultron.primitives import same_actor_id
+
+#: What a projection of a replica can fail with apart from a wiring fault:
+#: the case or an object it names is not held, the replica lacks what the
+#: projection needs, or the cut gives no document.  Every call site treats
+#: these alike: the projection could not be made (ADR-0219).
+PROJECTION_FAILURES: tuple[type[Exception], ...] = (
+    VultronNotFoundError,
+    VultronProjectionError,
+    VultronValidationError,
+    VultronActivityConstructionError,
+)
 
 
 def require_projection_port(port: object) -> CaseProjectionPort:
@@ -261,6 +274,7 @@ def project_case(
 
 
 __all__ = [
+    "PROJECTION_FAILURES",
     "case_held_whole",
     "case_projection",
     "position_committed_at",

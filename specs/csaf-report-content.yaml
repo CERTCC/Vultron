@@ -1057,7 +1057,8 @@ groups:
       runs the publication tree on a stored replica and checks that the draft
       is a schema-valid `final` document of the public profile, and
       `::test_the_public_draft_holds_none_of_the_joined_only_content` that it
-      holds no value only the joined profile includes;
+      holds none of the case content, report text, Case Owner or notes that only
+      the joined profile includes;
       `test/adapters/driving/fastapi/routers/test_case_csaf_route.py::test_the_endpoint_returns_the_joined_interim_projection`
       checks that the endpoint returns a schema-valid `interim` document of the
       joined profile.

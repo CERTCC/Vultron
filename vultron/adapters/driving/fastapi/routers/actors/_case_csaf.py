@@ -20,6 +20,11 @@ gives the document to a party outside Vultron out of band.
 The read writes nothing: no DataLayer write, no ledger entry and no
 activity (CSAF-06-013).  The case is named in the path by its id or by its
 surrogate key, as the case-object route names it.
+
+The document is the joined profile's cut, labelled ``AMBER+STRICT``, and
+the route checks no requester: HTTP-level request authentication is not
+built yet (#509), so a deployment must not expose it to anyone but the
+operator.
 """
 
 import logging
@@ -36,8 +41,10 @@ from vultron.core.models.case_projection import PublicationStatus
 from vultron.core.models.case_projection_profile import JOINED_PROFILE
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
-from vultron.core.services.case_projection import project_case
-from vultron.errors import VultronProjectionError
+from vultron.core.services.case_projection import (
+    PROJECTION_FAILURES,
+    project_case,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -55,7 +62,8 @@ _CSAF = CsafProjectionAdapter()
         " the case: the joined profile's cut, with tracking status"
         " `interim` (ADR-0219). The operator hands it to a party outside"
         " Vultron; the read writes nothing, adds no ledger entry and sends"
-        " no activity."
+        " no activity. HTTP-level request authentication is not built yet"
+        " (#509): any caller that reaches the route gets the document."
     ),
     operation_id="actors_get_case_csaf",
 )
@@ -69,8 +77,9 @@ def get_case_csaf(
 
     *case_key* is the case's full id, or its surrogate key.  404 when this
     actor holds no such case, or the key matches more than one; 409 when
-    the replica holds the case but not all a projection needs, such as the
-    ledger entry at the case's position, which a later sync supplies.
+    the replica holds the case but cannot be projected, such as one that
+    lacks the ledger entry at the case's position, which a later sync
+    supplies (every :data:`PROJECTION_FAILURES` but a missing case).
     """
     case = find_case(case_key, dl)
     if case is None:
@@ -90,7 +99,7 @@ def get_case_csaf(
             PublicationStatus.INTERIM,
             _CSAF,
         )
-    except VultronProjectionError as exc:
+    except PROJECTION_FAILURES as exc:
         logger.warning(
             "CSAF projection refused: %s (case_id=%s, actor_id=%s)",
             exc,
