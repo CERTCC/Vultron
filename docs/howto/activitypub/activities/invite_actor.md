@@ -63,7 +63,7 @@ sequenceDiagram
 1. Trigger the invitation as Case Owner.
    Your container sends your own `Offer(Actor)` to the CASE_MANAGER (CM-17-007).
    The `Offer` has the invited actor as its `object` and the case as its `target`.
-   It lists the roles you offer in `suggestedRoles`.
+   It lists the roles you offer in `roles`, the field the Invite uses too.
    With no roles given, the CASE_MANAGER assigns a non-empty default role list (CM-16-003).
    A stub Invite always names at least one role, and the CASE_MANAGER refuses to send one with none (CM-11-019, CM-11-048).
    Do not offer `CASE_MANAGER` or `CASE_OWNER`: the CASE_MANAGER refuses the `Offer` and sends no Invite (CM-20-008).

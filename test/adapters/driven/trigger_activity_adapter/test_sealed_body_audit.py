@@ -1010,7 +1010,9 @@ def test_invite_roles_survive_into_the_sealed_body(world):
 
 
 @pytest.mark.spec("CM-16-003")
-def test_suggested_roles_survive_into_the_sealed_body(world):
+def test_recommended_roles_survive_into_the_sealed_body(world):
+    """The recommend-actor Offer carries its roles under the one ``roles``
+    wire name an Invite uses, not a second name (VM-10-012, #6417)."""
     _, blob = world.adapter_as(_PEER).suggest_actor_to_case(
         recommended_id=_PEER,
         case_id=world.case_id,
@@ -1019,7 +1021,9 @@ def test_suggested_roles_survive_into_the_sealed_body(world):
         roles=["deployer"],
         at=authored_at(),
     )
-    assert json.loads(blob)["suggestedRoles"] == ["deployer"]
+    body = json.loads(blob)
+    assert body["roles"] == ["deployer"]
+    assert "suggestedRoles" not in body
 
 
 #: Where each role-delegation recipe carries the delegate actor in its sealed

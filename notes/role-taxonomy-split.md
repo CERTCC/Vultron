@@ -94,7 +94,7 @@ either role (CM-20-008), and the trigger bodies that refuse to build one
 Only one of these checks is a guard the split makes pointless. Do not read them
 as a matched set.
 
-**Stays: the CM-20-008 and CM-20-009 checks.** `suggestedRoles` is a wire
+**Stays: the CM-20-008 and CM-20-009 checks.** `roles` is a wire
 string list, so a suggestion can still name an authority role after the split,
 and the edge must still refuse it. When the split lands, point them at the new
 authority enum. Retiring `UNOFFERABLE_ROLES` must not delete `AUTHORITY_ROLES`.

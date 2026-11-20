@@ -206,7 +206,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "proposerCaseRoles",
         "role",
         "roles",
-        "suggestedRoles",
         # States.
         "caseEngagement",
         "caseStatus",

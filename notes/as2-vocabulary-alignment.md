@@ -588,17 +588,16 @@ ids (#6416). The check walks computed fields too, so the case's
 derived `activeParticipants` is marked.
 
 **Field review.** Each row names the Task that fixes it. A row is a ratchet entry
-only when a rule refuses the field. The note's `audience` and
-`roles`/`suggestedRoles` break no rule (the first is an AS2 term, the last a
-judgment no check can make), so their owners' own acceptance criteria track
-them.
+only when a rule refuses the field. The note's `audience` breaks no rule (it is
+an AS2 term), so its owner's own acceptance criteria track it. An Offer and an
+Invite carry the roles they propose in one field, `roles`, declared on
+`as_Offer` and inherited by `as_Invite` (#6417).
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
 | `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
 | `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
-| `roles` (`as_Invite`), `suggestedRoles` (`as_Offer`) | two names, one meaning | one name | #6417 |
 
 Every other field is a Vultron term. `title` is a clash only until #6413 renames the
 item's. `state`, `status` and `kind` are each used once on the wire, and
