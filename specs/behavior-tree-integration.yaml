@@ -1413,6 +1413,28 @@ groups:
       spec_id: BT-17-008
     adr:
     - ADR-0109
+  - id: BT-17-020
+    priority: MUST
+    kind: project
+    statement: >-
+      Every absolute blackboard key that a tree node publishes MUST be restored when
+      its run ends, by `BTBridge.execute_with_setup` or by the publisher itself, unless
+      a recorded exemption states why no reader can see an earlier run's value.
+    rationale: >-
+      A published key that nothing restores outlives its run. A later act whose
+      writer does not tick reads the earlier act's value, and nothing ties a new
+      publishing node to the list of keys the bridge restores.
+    verification: >-
+      `test_every_key_a_node_class_publishes_is_restored` and
+      `test_every_key_a_built_received_tree_publishes_is_restored` in
+      `test/architecture/test_bridge_managed_keys_cover_published_keys.py` fail on a
+      published key that is neither restored nor exempt; the probes there show that
+      they can fail.
+    relationships:
+    - rel_type: extends
+      spec_id: BT-17-013
+    adr:
+    - ADR-0087
 - id: BT-16
   title: Simulation Fuzzer Node Layout
   specs:

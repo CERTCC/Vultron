@@ -407,65 +407,39 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # StoreCaseInputClaimsRecordsNode on the new-case arm: one
                 # proposal's inputs must never fill another's case.
                 "report_case_inputs",
-                # --- Output-port keys audited and deliberately NOT scoped ---
-                #
-                # Each key below has more than one writer, but no reader can
-                # see a value an earlier execution left: on every path that
-                # reaches a reader, a writer in the same execution ticks first
-                # and writes the key, or a sentinel, before the reader runs.
-                # Nor does any nested execute_with_setup run between a writer
-                # and its reader.  Adding a reader that a writer does not
-                # precede on every path means adding the key here.
-                #
-                # ``activity_ids`` — ConstructActivitiesNode (``None`` on its
-                #   failure arms) → QueueToOutboxNode, its next sibling in the
-                #   send tree and the embargo proposal and termination trees.
-                #
-                # ``tail_hash`` / ``tail_index`` — ReconstructChainTailNode →
-                #   CreateLogEntryNode in the commit tree, and in the announce
-                #   tree CheckHashMatchesNode, BufferOutOfOrderEntryNode and
-                #   SendRejectLogEntryNode.  One reader runs after the writer
-                #   FAILS: ReconstructOrRejectOnMissingCase is a Selector whose
-                #   SendGenesisRejectOnMissingCaseNode arm reads tail_hash.  It
-                #   is safe because the writer stores the "" / -1 sentinel
-                #   before returning FAILURE on the pre-genesis path.  Its only
-                #   other FAILURE, a missing datalayer, makes that arm raise
-                #   before it sends, and an unresolvable case id raises.
-                #
-                # ``log_entry`` / ``log_entry_preexisting`` —
-                #   CreateLogEntryNode (both arms write both keys) →
-                #   PersistLogEntryNode and FanOutLogEntryNode, its later
-                #   siblings in the commit tree.  A tree that runs
-                #   FanOutLogEntryNode with no CreateLogEntryNode before it
-                #   passes both keys as context_data.
-                #
-                # ``invitee_case`` — CheckInviteeNotAlreadyParticipantNode
-                #   (``None`` on its duplicate arm), a precondition guard of
-                #   the accept-invite tree → _CheckEmbargoActiveStateNode and
-                #   _SignEmbargoConsentLeafNode, manager effects that run only
-                #   after every guard has passed.
-                #
-                # ``admission_record_was_prior`` — RecordProposalAdmissionNode
-                #   (both SUCCESS arms write it) → LoadExistingCaseNode, which
-                #   runs right after it in the same ActTransaction of the
-                #   case-proposal tree.
-                #
-                # ``activity_id`` — _BuildCreateCaseActivityNode →
-                #   UpdateActorOutbox, its next sibling in the create-case
-                #   trigger tree.  The other writer, CreateCaseActivity, is in
-                #   no tree today.
-                #
-                # ``participant`` — LookupParticipantNode and
-                #   FindParticipantByActorIdNode (whose key a caller may
-                #   rename, as the sender guard does); nothing reads
-                #   ``/participant``.
-                #
-                # ``/ledger_position/case_id`` and
-                #   ``/ledger_position/case_actor_id`` — the scoped copies the
-                #   ledger-position stage's FindCaseActorNode writes →
-                #   ReplayMissingEntriesNode, its next sibling in that stage.
-                #   They are kept off the root keys so the act's own nodes
-                #   never read them.
+                # Intra-tree handoffs: each is published by one node for a
+                # later sibling in the same tree (BTND-03-004).  A run whose
+                # writer does not tick (a short-circuited Sequence, a skipped
+                # arm, a guard that refuses first) must find no earlier run's
+                # value, and a nested run that writes one must put back the
+                # outer run's (BT-17-013).
+                "abandoned_proposals",
+                "accept_activity_id",
+                "actor_default_embargo_duration",
+                "append_status_participant",
+                "append_status_status_obj",
+                "case_copy_replaces",
+                "default_embargo",
+                "default_embargo_initialized",
+                "embargo_id",
+                "embargo_invite_recipients",
+                "excluded_actor_ids",
+                "fanout_recipients",
+                "fanout_withheld",
+                "initial_embargo_duration",
+                "invitee_vf_status_id",
+                "ledger_position_standing",
+                "new_invite_participant",
+                "protocol_default_embargo_duration",
+                "replay_case_id",
+                "replay_case_ledger_entries",
+                "replay_from_index",
+                "replay_peer_id",
+                # A key a node publishes and this list leaves out is listed,
+                # with the reason no later run can read its value, in the
+                # architecture test that fails on a published key in neither
+                # list (BT-17-020): test/architecture/
+                # test_bridge_managed_keys_cover_published_keys.py.
             ]
             # setup_tree() also writes /activity (when one is supplied) and one
             # key per **context_data entry, so those are execution-scoped for

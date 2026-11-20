@@ -272,9 +272,10 @@ A multi-writer key may stay unscoped only when, on every path that reaches a
 reader, a writer in the same execution ticks first and writes the key or a
 sentinel. A failed writer does not end every path: a Selector arm after it
 still runs, which is why `ReconstructChainTailNode` writes its `""` / `-1`
-sentinel before failing. Record each such key and its reason beside the fixed
-list in `BTBridge.execute_with_setup`; a new reader that a writer does not
-precede on every path moves the key into the list.
+sentinel before failing. Record each such key and its reason in `_NOT_RESTORED`
+of `test/architecture/test_bridge_managed_keys_cover_published_keys.py`, which
+fails on a published key that is neither managed nor listed (BT-17-020); a new
+reader that a writer does not precede on every path moves the key into the list.
 
 The fix is the key's lifetime, never the reader: widening the declaration of the
 tree that tripped over it would have masked the leak and left
