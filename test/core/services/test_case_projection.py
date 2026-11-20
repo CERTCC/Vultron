@@ -47,7 +47,6 @@ from vultron.core.models.case_projection_profile import (
     JOINED_PROFILE,
     PUBLIC_PROFILE,
 )
-from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.vulnerability_item import VulnerabilityItem
@@ -272,26 +271,3 @@ def test_an_actor_with_no_record_publishes_under_its_id(
 
     assert actor.name == VENDOR
     assert actor.roles == (CVDRole.VENDOR,)
-
-
-def test_a_register_embargo_named_by_id_is_read_whole(
-    dl: SqliteDataLayer,
-) -> None:
-    """The disclosure date reads the in-force embargo's end, so an embargo
-    the register names by id is read from the store."""
-    case = store_projected_replica(dl)
-    (entry,) = case.embargo_register
-    embargo = entry.embargo
-    assert isinstance(embargo, EmbargoEvent)
-    dl.save(embargo)
-    by_id = case.model_copy(
-        update={
-            "embargo_register": [
-                entry.model_copy(update={"embargo": embargo.id_})
-            ]
-        }
-    )
-
-    (held,) = case_held_whole(by_id, dl).embargo_register
-
-    assert held.embargo == embargo

@@ -25,9 +25,9 @@ the two cannot cut or date a projection differently.
 
 - **The case is read whole.**  A stored case names most of what it holds by
   id, and a profile cuts what the case holds, so each participant, report,
-  vulnerability item, reference, status and register embargo it names by id
-  is read first (:func:`case_held_whole`).  The case in the store is not
-  changed.
+  vulnerability item, reference and status it names by id is read first
+  (:func:`case_held_whole`); the register holds its embargoes inline
+  already.  The case in the store is not changed.
 - **The inputs come from the store, never a clock.**  Every document date is
   the commit time of the ledger entry at the case's position
   (:func:`position_committed_at`, ADR-0176); the publisher is the projecting
@@ -55,8 +55,6 @@ from vultron.core.models.case_projection import (
 from vultron.core.models.case_projection_profile import ProjectionProfile
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_register.entry import EmbargoRegisterEntry
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.ports.case_persistence import CasePersistence
@@ -100,28 +98,13 @@ def require_projection_port(port: object) -> CaseProjectionPort:
     return port
 
 
-def _register_held_whole(
-    entries: Sequence[EmbargoRegisterEntry], dl: CasePersistence
-) -> list[EmbargoRegisterEntry]:
-    """*entries* with each embargo named by id read as its object."""
-    held: list[EmbargoRegisterEntry] = []
-    for entry in entries:
-        if not isinstance(entry.embargo, str):
-            held.append(entry)
-            continue
-        refs: list[str | EmbargoEvent] = [entry.embargo]
-        (embargo,) = read_held(refs, EmbargoEvent, dl)
-        held.append(entry.model_copy(update={"embargo": embargo}))
-    return held
-
-
 def case_held_whole(
     case: VulnerabilityCase, dl: CasePersistence
 ) -> VulnerabilityCase:
     """A copy of *case* holding inline each object it names by id in *dl*.
 
-    The participants, reports, vulnerability items, references, statuses and
-    register embargoes a profile cuts.  *case* is not changed.
+    The participants, reports, vulnerability items, references and statuses
+    a profile cuts.  *case* is not changed.
 
     Raises:
         VultronProjectionError: *dl* does not hold an object *case* names.
@@ -142,9 +125,6 @@ def case_held_whole(
             ),
             "case_statuses": read_held(
                 list(case.case_statuses), CaseStatus, dl
-            ),
-            "embargo_register": _register_held_whole(
-                case.embargo_register, dl
             ),
         }
     except VultronNotFoundError as exc:
