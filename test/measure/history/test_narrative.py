@@ -212,8 +212,8 @@ def test_a_register_with_no_em_state_says_so_once_and_changes_no_em():
         "id": CASE,
         "type": "VulnerabilityCase",
         "embargoRegister": [
-            {"embargo": embargo(), "status": "ACTIVE"},
-            {"embargo": embargo(EMBARGO_2), "status": "TERMINATED"},
+            {**embargo(), "status": "ACTIVE"},
+            {**embargo(EMBARGO_2), "status": "TERMINATED"},
         ],
     }
     ledger.add("announce_vulnerability_case", "Announce", CM, broken)
@@ -230,10 +230,10 @@ def test_a_register_broken_another_way_says_so_again():
     ledger = Ledger()
     ledger.genesis([], with_embargo=False)
     for register in (
-        [{"embargo": embargo(), "status": "SUPERSEDED"}],
+        [{**embargo(), "status": "SUPERSEDED"}],
         [
-            {"embargo": embargo(EMBARGO_2), "status": "PROPOSED"},
-            {"embargo": embargo("urn:uuid:embargo-3"), "status": "TERMINATED"},
+            {**embargo(EMBARGO_2), "status": "PROPOSED"},
+            {**embargo("urn:uuid:embargo-3"), "status": "TERMINATED"},
         ],
     ):
         ledger.add(
@@ -342,7 +342,7 @@ def test_an_em_change_after_a_broken_register_reads_from_the_last_em_state():
             "id": CASE,
             "type": "VulnerabilityCase",
             "embargoRegister": [
-                {"embargo": embargo(), "status": "SUPERSEDED"},
+                {**embargo(), "status": "SUPERSEDED"},
             ],
         },
     )

@@ -33,9 +33,9 @@ from typing import Any
 import base58
 import pytest
 
+from test.support.embargo_register import registered
 from test.support.signatures import signature_of
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.embargo_register.entry import EmbargoRegisterEntry
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.wire.as2 import signing
 from vultron.wire.as2.errors import (
@@ -838,9 +838,7 @@ def _full_case_announcement() -> str:
         actor_participant_index={p.attributed_to: p.id_ for p in participants},
         case_statuses=[status_examples.case_status()],
         embargo_register=[
-            EmbargoRegisterEntry(
-                embargo=embargo, status=EmbargoRegisterStatus.ACTIVE
-            )
+            registered(embargo, status=EmbargoRegisterStatus.ACTIVE)
         ],
     )
     create = case_examples.create_case().model_copy(update={"object_": case})

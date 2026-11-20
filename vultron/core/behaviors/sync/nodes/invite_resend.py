@@ -160,7 +160,7 @@ def _embargo_invite_owed(
     RSVP deadline has not passed at *at*, the act's instant (EP-09-002,
     EP-09-011, CM-31-013).
     """
-    entry = case.embargo_register_entry(embargo_id)
+    entry = case.registered_embargo(embargo_id)
     if entry is None or entry.status not in _ANSWERABLE_EMBARGO:
         return False
     row = participant.held_row(embargo_id)

@@ -49,7 +49,6 @@ from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.errors import VultronError, VultronInvalidStateTransitionError
@@ -61,7 +60,7 @@ class EmbargoTermsNotHeldNode(
     """Guard: the case does not already hold the proposed end time.
 
     FAILURE with :attr:`is_repeat` set when the proposal's end time equals
-    that of a ``PROPOSED`` register entry, or, when no entry is ``PROPOSED``,
+    that of a ``PROPOSED`` registered embargo, or, when none is ``PROPOSED``,
     that of the ``ACTIVE`` one (EP-09-032).  On the received side the
     handler reports the run as ``SKIPPED``: the commit would add an entry
     that changes nothing and the relay would ask every participant again
@@ -69,9 +68,9 @@ class EmbargoTermsNotHeldNode(
 
     SUCCESS when the end time is new, and when there is nothing to compare: the
     store holds no case, or the proposed terms do not resolve to a stored
-    ``EmbargoEvent`` (``read_embargo_event`` raises a ``VultronError``).  A
-    register entry that does not resolve is left out of the comparison with a
-    WARNING.  Any other error propagates.  A guard that cannot prove a
+    ``EmbargoEvent`` (``read_embargo_event`` raises a ``VultronError``).  The
+    register holds each embargo whole (ADR-0202), so its terms are read from
+    it.  Any other error propagates.  A guard that cannot prove a
     duplicate admits the proposal, in either mode, and the effect path
     decides what it means.
 
@@ -120,22 +119,11 @@ class EmbargoTermsNotHeldNode(
         assert self.datalayer is not None
         return read_embargo_event(self.datalayer, self.embargo_id).end_time
 
-    def _entry_end_time(self, entry: EmbargoRegisterEntry) -> datetime:
-        """A register entry's end time.
-
-        Raises:
-            VultronError: the entry's terms do not resolve.
-        """
-        if isinstance(entry.embargo, EmbargoEvent):
-            return entry.embargo.end_time
-        assert self.datalayer is not None
-        return read_embargo_event(self.datalayer, entry.embargo_id).end_time
-
     @staticmethod
     def _held_entries(
         case: VulnerabilityCase,
-    ) -> list[EmbargoRegisterEntry]:
-        """The entries whose terms a proposal would repeat (EP-09-032).
+    ) -> list[EmbargoEvent]:
+        """The embargoes whose terms a proposal would repeat (EP-09-032).
 
         The pending proposals; with none pending, the embargo in force.
         """
@@ -172,28 +160,14 @@ class EmbargoTermsNotHeldNode(
                 exc,
             )
             return Status.SUCCESS
-        holding: EmbargoRegisterEntry | None = None
-        for entry in self._held_entries(case):
-            # The proposal's own entry is not a second proposal of its
+        holding: EmbargoEvent | None = None
+        for held in self._held_entries(case):
+            # The proposal's own embargo is not a second proposal of its
             # terms: an Invite naming an embargo the register already holds
             # is judged by id, by the guards and effects that read the
             # register.
-            if entry.embargo_id == self.embargo_id:
-                continue
-            try:
-                entry_end_time = self._entry_end_time(entry)
-            except VultronError as exc:
-                self.logger.warning(
-                    "%s: register entry '%s' on case '%s' is not readable"
-                    " (%s); left out of the duplicate check (EP-09-032)",
-                    self.name,
-                    entry.embargo_id,
-                    self.case_id,
-                    exc,
-                )
-                continue
-            if entry_end_time == end_time:
-                holding = entry
+            if held.id_ != self.embargo_id and held.end_time == end_time:
+                holding = held
                 break
         if holding is None:
             return Status.SUCCESS
@@ -205,7 +179,7 @@ class EmbargoTermsNotHeldNode(
         )
         self.feedback_message = (
             f"Embargo '{self.embargo_id}' on case '{self.case_id}' ends at"
-            f" {end_time.isoformat()}, as {held_as} '{holding.embargo_id}'"
+            f" {end_time.isoformat()}, as {held_as} '{holding.id_}'"
             " does — repeat, nothing to apply (EP-09-032)"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)

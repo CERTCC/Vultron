@@ -454,7 +454,7 @@ def _ended_embargo(datalayer, *, reject_first: bool) -> VulnerabilityCase:
     if reject_first:
         case.apply_embargo_register_step(rejection_changes(EMBARGO_ID))
     case.apply_embargo_register_step(
-        termination_changes(case.embargo_register, EmbargoTermination.early())
+        termination_changes(case.embargo_register, EmbargoTermination.other())
     )
     datalayer.save(case)
     assert _case(datalayer).embargo_register_status(EMBARGO_ID) is (

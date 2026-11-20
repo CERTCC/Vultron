@@ -859,7 +859,7 @@ def test_a_rerun_after_the_embargo_exited_initializes_nothing(
     assert _em_state(bt_scenario) == EM.ACTIVE
 
     _case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
-    terminate(_case, EmbargoTermination.early())
+    terminate(_case, EmbargoTermination.other())
     bt_scenario.dl.save(_case)
     assert _em_state(bt_scenario) == EM.EXITED
     events_before = len(list(bt_scenario.dl.list_objects("EmbargoEvent")))

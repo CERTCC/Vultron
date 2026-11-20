@@ -69,7 +69,7 @@ class EmbargoAvailability(StrEnum):
 def _stored_embargo(
     store: CasePersistence, case: VulnerabilityCase, embargo_id: str
 ) -> EmbargoEvent:
-    """The ``EmbargoEvent`` *embargo_id*: the register's copy, else the store's.
+    """The ``EmbargoEvent`` *embargo_id*: the register's, else the store's.
 
     Raises:
         RuntimeError: The register names *embargo_id* but neither carries the
@@ -77,9 +77,9 @@ def _stored_embargo(
             case, so that is a fault in its own store, never the sender's
             (Regime 1, ADR-0087; EMB-18-003).
     """
-    entry = case.embargo_register_entry(embargo_id)
-    if entry is not None and isinstance(entry.embargo, EmbargoEvent):
-        return entry.embargo
+    registered = case.registered_embargo(embargo_id)
+    if registered is not None:
+        return registered
     try:
         return read_embargo_event(store, embargo_id)
     except (VultronNotFoundError, VultronNotAnEmbargoError) as exc:
@@ -118,7 +118,7 @@ def embargo_availability(
     Raises:
         RuntimeError: An answerable embargo cannot be read from *store*.
     """
-    if case.embargo_register_entry(embargo_id) is None:
+    if case.registered_embargo(embargo_id) is None:
         return EmbargoAvailability.NEVER_HELD
     if not case.can_answer_embargo(embargo_id):
         return EmbargoAvailability.UNAVAILABLE

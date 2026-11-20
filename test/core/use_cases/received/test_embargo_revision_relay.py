@@ -164,7 +164,7 @@ def _consent_of(
     embargo the register holds is ``UNINVITED``.
     """
     case = cast(VulnerabilityCase, dl.read(case_id))
-    if case.embargo_register_entry(embargo_id) is None:
+    if case.registered_embargo(embargo_id) is None:
         return None
     participant = cast(
         CaseParticipant, dl.read(case.actor_participant_index[actor_id])
@@ -367,7 +367,7 @@ def _deadline_of(
     ``None`` when the store's register holds no entry for the embargo.
     """
     case = cast(VulnerabilityCase, dl.read(case_id))
-    if case.embargo_register_entry(embargo_id) is None:
+    if case.registered_embargo(embargo_id) is None:
         return None
     participant = cast(
         CaseParticipant, dl.read(case.actor_participant_index[actor_id])
@@ -877,7 +877,7 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == em_at_race
     assert case.active_embargo_id == active_id
-    assert case.embargo_register_entry(racing.id_) is None
+    assert case.registered_embargo(racing.id_) is None
     # An earlier open revision (at REVISE) is left open, not withdrawn.
     assert case.proposed_embargo_ids == proposed_before
     assert [a.to for a in _outbox_of_type(dl, "Reject")] == [[racer]]
@@ -903,7 +903,7 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     assert case.current_status.em.state == EM.EXITED
     assert case.active_embargo_id is None
     assert case.proposed_embargo_ids == []
-    ended = case.embargo_register_entry(active_id)
+    ended = case.registered_embargo(active_id)
     assert ended is not None
     assert ended.status is EmbargoRegisterStatus.TERMINATED
     assert ended.termination == EmbargoTermination.threat(
@@ -911,7 +911,7 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     )
     # The refused revision never entered the register, even as the embargo
     # it would have revised ended.
-    assert case.embargo_register_entry(racing.id_) is None
+    assert case.registered_embargo(racing.id_) is None
     assert len(_outbox_of_type(dl, "Remove")) == 1
 
 

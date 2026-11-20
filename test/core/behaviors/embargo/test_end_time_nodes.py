@@ -98,7 +98,7 @@ def test_timely_guard_fails_closed_on_an_unreadable_embargo() -> None:
 
 def test_timely_guard_has_nothing_to_check_for_an_early_termination() -> None:
     dl, case = _store()
-    node = TerminationIsTimelyNode(termination=EmbargoTermination.early())
+    node = TerminationIsTimelyNode(termination=EmbargoTermination.other())
 
     assert _tick(with_case_id(node, case.id_), dl) == Status.SUCCESS
 
@@ -169,7 +169,7 @@ def test_timely_guard_trial_applies_the_step_the_remove_names(
 
     dl, case = _store(end_time=now_utc() + timedelta(days=1))
     node = with_act_keys(
-        TerminationIsTimelyNode(termination=EmbargoTermination.early()),
+        TerminationIsTimelyNode(termination=EmbargoTermination.other()),
         {
             act_keys.CASE_ID: case.id_,
             act_keys.EMBARGO_ID: f"{case.id_}/embargo_events/e1",

@@ -198,7 +198,7 @@ def test_activate_embargo_observed_invalid_state_no_raise(
     refreshed = cast(VulnerabilityCase, dl.read(case.id_))
     assert refreshed.em_state == EM.EXITED
     assert refreshed.active_embargo is None
-    assert refreshed.embargo_register_entry(embargo.id_) is None
+    assert refreshed.registered_embargo(embargo.id_) is None
 
 
 def test_activate_embargo_observed_already_active_syncs_embargo(

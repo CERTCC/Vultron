@@ -149,7 +149,7 @@ def _register(
 ) -> list[tuple[str | None, EmbargoRegisterStatus]]:
     """Each embargo register entry *actor_id*'s case holds, as (id, status)."""
     return [
-        (_as_id(entry.embargo), entry.status)
+        (entry.id_, entry.status)
         for entry in net.case(actor_id).embargo_register
     ]
 

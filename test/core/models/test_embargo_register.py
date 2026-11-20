@@ -19,6 +19,7 @@ from test.support.embargo_register import (
     cancel_on_threat,
     propose,
     reject,
+    stand_in,
     terminate,
 )
 from test.support.objects import make, with_times
@@ -29,10 +30,9 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
-    EmbargoRegisterEntry,
     RegisterChange,
     apply_register_step,
-    carry_embargo_inline,
+    proposal_changes,
     register_step_is_legal,
 )
 from vultron.core.models.embargo_termination import (
@@ -60,24 +60,29 @@ CASE_ID = "https://example.org/cases/c1"
 A, B, C = (f"https://example.org/embargoes/{n}" for n in "abc")
 
 
-def _entry(embargo_id: str, status: S, **kw: Any) -> EmbargoRegisterEntry:
+def _entry(embargo_id: str, status: S, **kw: Any) -> EmbargoEvent:
+    """A registered embargo *embargo_id* holding *status* (ADR-0202)."""
     if status == S.TERMINATED:
-        kw.setdefault("termination", EmbargoTermination.early())
-    return EmbargoRegisterEntry(embargo=embargo_id, status=status, **kw)
+        kw.setdefault("termination", EmbargoTermination.other())
+    return EmbargoEvent.model_validate(
+        {**stand_in(embargo_id).model_dump(), "status": status, **kw}
+    )
 
 
 def _change(embargo_id: str, trigger: T, **kw: Any) -> RegisterChange:
+    if trigger == T.PROPOSE:
+        kw.setdefault("embargo", stand_in(embargo_id))
     return RegisterChange(embargo_id=embargo_id, trigger=trigger, **kw)
 
 
 def _terminate(embargo_id: str) -> RegisterChange:
     return _change(
-        embargo_id, T.TERMINATE, termination=EmbargoTermination.early()
+        embargo_id, T.TERMINATE, termination=EmbargoTermination.other()
     )
 
 
-def _statuses(entries: list[EmbargoRegisterEntry]) -> dict[str, S]:
-    return {e.embargo_id: e.status for e in entries}
+def _statuses(entries: list[EmbargoEvent]) -> dict[str, S]:
+    return {e.id_: e.status for e in entries}
 
 
 def _case(**kw: Any) -> VulnerabilityCase:
@@ -132,7 +137,7 @@ def test_threat_signal_cancels_proposals_while_none_is_active() -> None:
 def test_entries_are_never_removed() -> None:
     before = [_entry(A, S.PROPOSED), _entry(B, S.PROPOSED)]
     after = apply_register_step(before, [_change(A, T.REJECT)])
-    assert [e.embargo_id for e in after] == [A, B]
+    assert [e.id_ for e in after] == [A, B]
     assert _statuses(after) == {A: S.REJECTED, B: S.PROPOSED}
 
 
@@ -146,9 +151,7 @@ def test_a_step_leaves_its_input_untouched() -> None:
 # Steps the register refuses (AC-2: each refused combination)
 # ---------------------------------------------------------------------------
 
-REFUSED: dict[
-    str, tuple[list[EmbargoRegisterEntry], list[RegisterChange], str]
-] = {
+REFUSED: dict[str, tuple[list[EmbargoEvent], list[RegisterChange], str]] = {
     "re-proposing an entry": (
         [_entry(A, S.PROPOSED)],
         [_change(A, T.PROPOSE)],
@@ -272,7 +275,7 @@ def test_a_refusal_names_every_rule_the_step_breaks() -> None:
     "kw",
     [
         {"trigger": T.TERMINATE},
-        {"trigger": T.CANCEL, "termination": EmbargoTermination.early()},
+        {"trigger": T.CANCEL, "termination": EmbargoTermination.other()},
     ],
 )
 def test_a_termination_belongs_to_terminate_alone(kw: dict) -> None:
@@ -314,7 +317,7 @@ def test_case_views_read_the_register() -> None:
     assert (case.em_state, case.proposed_embargo_ids) == (EM.REVISE, [B])
     activate(case, B)
     assert case.em_state is EM.ACTIVE
-    assert case.embargo_register_entry(B).replaces == A  # type: ignore[union-attr]
+    assert case.registered_embargo(B).replaces == A  # type: ignore[union-attr]
     terminate(case)
     assert case.em_state is EM.EXITED
     assert case.active_embargo is None
@@ -657,7 +660,7 @@ def test_construction_stamps_the_register_em_onto_the_status() -> None:
     ],
 )
 def test_construction_refuses_an_impossible_register(
-    entries: list[EmbargoRegisterEntry],
+    entries: list[EmbargoEvent],
 ) -> None:
     with pytest.raises(ValueError, match="embargo register"):
         _case(embargo_register=entries)
@@ -677,32 +680,96 @@ def test_a_former_stored_field_is_refused_as_an_unknown_key() -> None:
     ]
 
 
-def test_the_active_view_returns_an_inline_embargo_object() -> None:
-    embargo = make(
+def _embargo(embargo_id: str = A) -> EmbargoEvent:
+    return make(
         EmbargoEvent,
-        id_=A,
+        id_=embargo_id,
         context=CASE_ID,
         end_time=now_utc() + timedelta(days=3),
     )
+
+
+def test_the_active_view_returns_the_registered_embargo() -> None:
+    embargo = _embargo()
     case = _case()
     propose(case, embargo)
     activate(case, A)
-    assert case.active_embargo == embargo
+    active = case.active_embargo
+    assert active is not None
+    assert (active.id_, active.end_time, active.status) == (
+        A,
+        embargo.end_time,
+        S.ACTIVE,
+    )
     assert case.active_embargo_id == A
 
 
-def test_carry_embargo_inline_swaps_only_the_named_entry() -> None:
-    embargo = make(
-        EmbargoEvent,
-        id_=A,
-        context=CASE_ID,
-        end_time=now_utc() + timedelta(days=3),
+# ---------------------------------------------------------------------------
+# An embargo stores its own status, revision link and termination (ADR-0202)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("EMB-13-010")
+def test_an_embargo_starts_proposed_with_no_replaces_or_termination() -> None:
+    embargo = _embargo()
+    assert (embargo.status, embargo.replaces, embargo.termination) == (
+        S.PROPOSED,
+        None,
+        None,
     )
-    entries = [_entry(A, S.ACTIVE), _entry(B, S.PROPOSED)]
-    carried = carry_embargo_inline(entries, embargo)
-    assert carried[0].embargo == embargo
-    assert carried[0].status is S.ACTIVE
-    assert carried[1] == entries[1]
+
+
+@pytest.mark.spec("EMB-13-010")
+@pytest.mark.parametrize("status", [s for s in S if s != S.TERMINATED])
+def test_an_embargo_stores_its_termination_only_when_terminated(
+    status: S,
+) -> None:
+    with pytest.raises(ValueError, match="termination"):
+        _entry(A, status, termination=EmbargoTermination.other())
+
+
+@pytest.mark.spec("EMB-13-010")
+def test_a_terminated_embargo_requires_its_termination() -> None:
+    with pytest.raises(ValueError, match="termination"):
+        _entry(A, S.TERMINATED, termination=None)
+
+
+@pytest.mark.parametrize("status", [S.ACTIVE, S.SUPERSEDED, S.TERMINATED])
+def test_an_embargo_that_was_active_may_name_what_it_replaced(
+    status: S,
+) -> None:
+    assert _entry(A, status, replaces=B).replaces == B
+
+
+def test_proposing_sets_the_embargos_state_whatever_it_claims() -> None:
+    """The register, not the carried object, gives a new embargo its state."""
+    claimed = _entry(A, S.TERMINATED, replaces=B)
+    (proposed,) = apply_register_step([], proposal_changes(claimed))
+    assert (proposed.status, proposed.replaces, proposed.termination) == (
+        S.PROPOSED,
+        None,
+        None,
+    )
+    assert claimed.status is S.TERMINATED
+
+
+def test_a_step_stores_the_termination_on_the_terminated_embargo() -> None:
+    termination = EmbargoTermination.threat([ThreatSignal.X])
+    case = _case()
+    activate(case, A)
+    terminate(case, termination)
+    terminated = case.registered_embargo(A)
+    assert terminated is not None
+    assert (terminated.status, terminated.termination) == (
+        S.TERMINATED,
+        termination,
+    )
+    assert case.embargo_termination == termination
+
+
+def test_a_proposal_must_carry_its_embargo() -> None:
+    with pytest.raises(ValueError, match="embargo object"):
+        RegisterChange(embargo_id=A, trigger=T.PROPOSE)
 
 
 def test_the_register_round_trips_through_its_wire_spelling() -> None:
@@ -712,12 +779,17 @@ def test_the_register_round_trips_through_its_wire_spelling() -> None:
     propose(case, B)
     activate(case, B)
     dumped = case.model_dump(mode="json", by_alias=True)
-    assert dumped["embargoRegister"][1] == {
-        "embargo": B,
-        "status": "ACTIVE",
-        "replaces": A,
-        "termination": None,
-    }
+    registered = dumped["embargoRegister"][1]
+    assert (
+        registered["id"],
+        registered["status"],
+        registered["replaces"],
+    ) == (
+        B,
+        "ACTIVE",
+        A,
+    )
+    assert "embargo" not in registered
     restored = VulnerabilityCase.model_validate(
         with_times(VulnerabilityCase, dumped)
     )

@@ -25,7 +25,7 @@ receiver's parse edge both run it, so one envelope is judged on both sides.
 
 from typing import TYPE_CHECKING
 
-from vultron.core.models.preview_object import PreviewObject, PreviewValue
+from vultron.core.models.preview_object import PreviewObject
 from vultron.core.models.redacted import Redacted
 from vultron.core.states.em import EM, is_em_embargo_active
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
@@ -63,28 +63,29 @@ def preview_em_state(preview: CasePreview) -> EM | None:
 
 
 def _shown_register(preview: CasePreview) -> list[object]:
-    """The register entries *preview* shows; none when it marks the list."""
+    """The registered embargoes *preview* shows; none when it marks the list."""
     register = preview.embargo_register
     return list(register) if isinstance(register, list) else []
 
 
-def _entry_status(entry: object) -> object:
-    """The register status *entry* shows, or ``None`` when it shows none."""
-    return getattr(entry, "status", None)
+def _entry_status(embargo: object) -> object:
+    """The status *embargo* shows, or ``None`` when it shows none."""
+    return getattr(embargo, "status", None)
 
 
-def preview_in_force_entry(preview: CasePreview) -> PreviewValue | None:
-    """The in-force register entry *preview* shows (CM-17-002).
+def preview_in_force_embargo(preview: CasePreview) -> PreviewObject | None:
+    """The in-force embargo *preview* shows (CM-17-002).
 
-    The entry whose status is ``ACTIVE``.  ``None`` when the preview shows no
-    register, marks it, or shows no ``ACTIVE`` entry.
+    The registered embargo whose status is ``ACTIVE`` (ADR-0202).  ``None``
+    when the preview shows no register, marks it, or shows no ``ACTIVE``
+    embargo.
     """
     return next(
         (
-            entry
-            for entry in _shown_register(preview)
-            if isinstance(entry, PreviewValue)
-            and _entry_status(entry) == EmbargoRegisterStatus.ACTIVE
+            embargo
+            for embargo in _shown_register(preview)
+            if isinstance(embargo, PreviewObject)
+            and _entry_status(embargo) == EmbargoRegisterStatus.ACTIVE
         ),
         None,
     )
@@ -95,11 +96,11 @@ def invitation_preview_faults(preview: CasePreview) -> list[str]:
 
     An invitation preview shows its ``summary`` and the Case Owner, never as
     a marker (CM-17-010).  While an embargo is in force it also shows the
-    embargo's terms, as an in-force ``embargoRegister`` entry whose embargo
-    is not a marker, and the EM state of its current status (CM-17-002,
+    embargo's terms, as an ``ACTIVE`` embargo in ``embargoRegister`` whose
+    end time is not a marker, and the EM state of its current status (CM-17-002,
     CM-17-013).  The embargo is in force when the current status's EM state
     is ``ACTIVE`` or ``REVISE``, or when the register shows an ``ACTIVE``
-    entry.  The register carries no open proposal (CM-17-014).
+    embargo.  The register carries no open proposal (CM-17-014).
 
     Each fault names its position under the preview, so a receiver can name
     where it is (MV-10-007).  The type already refuses a marked
@@ -118,11 +119,11 @@ def invitation_preview_faults(preview: CasePreview) -> list[str]:
     elif isinstance(owner, Redacted):
         faults.append("marks the Case Owner at 'attributedTo' Redacted")
     em_state = preview_em_state(preview)
-    entry = preview_in_force_entry(preview)
+    embargo = preview_in_force_embargo(preview)
     if (em_state is not None and is_em_embargo_active(em_state)) or (
-        entry is not None
+        embargo is not None
     ):
-        faults.extend(_in_force_faults(preview, em_state, entry))
+        faults.extend(_in_force_faults(preview, em_state, embargo))
     for index, shown in enumerate(_shown_register(preview)):
         if _entry_status(shown) == EmbargoRegisterStatus.PROPOSED:
             faults.append(
@@ -133,7 +134,7 @@ def invitation_preview_faults(preview: CasePreview) -> list[str]:
 
 
 def _in_force_faults(
-    preview: CasePreview, em_state: EM | None, entry: PreviewValue | None
+    preview: CasePreview, em_state: EM | None, embargo: PreviewObject | None
 ) -> list[str]:
     """What *preview* lacks of an embargo in force (CM-17-002, CM-17-013)."""
     faults: list[str] = []
@@ -146,17 +147,17 @@ def _in_force_faults(
         faults.append(
             "marks 'embargoRegister' Redacted while an embargo is in force"
         )
-    elif entry is None:
+    elif embargo is None:
         faults.append(
-            "lacks the in-force entry in 'embargoRegister' while an embargo"
+            "lacks the in-force embargo in 'embargoRegister' while an embargo"
             " is in force"
         )
     else:
-        embargo = getattr(entry, "embargo", None)
-        if embargo is None or isinstance(embargo, Redacted):
+        end_time = getattr(embargo, "end_time", None)
+        if end_time is None or isinstance(end_time, Redacted):
             faults.append(
-                "lacks or marks the in-force embargo at"
-                " 'embargoRegister[].embargo'"
+                "lacks or marks the in-force embargo's end time at"
+                " 'embargoRegister[].endTime'"
             )
     return faults
 
@@ -165,5 +166,5 @@ __all__ = [
     "invitation_preview_faults",
     "preview_current_status",
     "preview_em_state",
-    "preview_in_force_entry",
+    "preview_in_force_embargo",
 ]

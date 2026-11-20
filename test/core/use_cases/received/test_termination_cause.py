@@ -172,7 +172,7 @@ def test_a_malformed_cause_is_refused(cause: dict[str, object]) -> None:
 def test_a_termination_with_no_cause_ended_early() -> None:
     recorded = EmbargoTermination.model_validate({})
 
-    assert recorded == EmbargoTermination.early()
+    assert recorded == EmbargoTermination.other()
     assert recorded.cause is None
     assert not recorded.is_end_time_reached
 
@@ -561,7 +561,7 @@ def test_an_uncaused_remove_carries_no_termination_cause() -> None:
         terminate_embargo_bt(
             case_id=net.case_id,
             result_out={},
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
         ),
         actor_id=MANAGER,
     )

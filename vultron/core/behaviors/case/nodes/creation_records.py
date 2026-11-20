@@ -104,12 +104,12 @@ def creation_embargoes(
         _EntryNotCommitted: An embargo the register names cannot be read.
     """
     embargoes: list[EmbargoEvent] = []
-    for entry in case.embargo_register:
+    for embargo_id in case.register_embargo_ids:
         try:
-            embargoes.append(read_embargo_event(datalayer, entry.embargo_id))
+            embargoes.append(read_embargo_event(datalayer, embargo_id))
         except VultronError as exc:
             raise _EntryNotCommitted(
-                f"embargo '{entry.embargo_id}' of case '{case.id_}' cannot"
+                f"embargo '{embargo_id}' of case '{case.id_}' cannot"
                 f" be read: {exc}"
             ) from exc
     return embargoes

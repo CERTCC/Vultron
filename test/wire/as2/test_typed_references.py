@@ -39,7 +39,7 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_preview import (
     CasePreview,
-    preview_in_force_entry,
+    preview_in_force_embargo,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
@@ -262,7 +262,7 @@ def _in_force(embargo: dict[str, Any]) -> dict[str, Any]:
     """A preview's fields showing *embargo* in force, with its EM state, as
     a stub Invite's preview must (CM-17-002, CM-17-013)."""
     return {
-        "embargoRegister": [{"embargo": embargo, "status": "ACTIVE"}],
+        "embargoRegister": [{**embargo, "status": "ACTIVE"}],
         "caseStatuses": [{"type": "CaseStatus", "emState": "ACTIVE"}],
     }
 
@@ -307,7 +307,7 @@ def test_an_embargo_in_a_case_preview_without_published_is_read_as_shown() -> (
 
     preview = getattr(_object_of(activity), "preview", None)
     assert isinstance(preview, CasePreview)
-    embargo = getattr(preview_in_force_entry(preview), "embargo", None)
+    embargo = preview_in_force_embargo(preview)
     assert is_loose_form_of(embargo, EmbargoEvent)
     assert getattr(embargo, "published", None) is None
 

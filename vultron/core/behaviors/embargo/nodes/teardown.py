@@ -211,7 +211,8 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
     the cause the ``Remove`` carries as ``terminationCause``,
     ``END_TIME_REACHED`` included, copied as the entry states it: a replica
     never works a cause out from its own case state, and an entry with no
-    ``terminationCause`` records an early end with no cause (EMB-13-005).
+    ``terminationCause`` records an early end with an ``OTHER`` cause
+    (EMB-13-005, ADR-0202).
 
     As on the CASE_MANAGER, where such a ``Remove`` is ledgered with no
     effect (CLP-02-013), an entry naming an embargo that is not the one in
@@ -230,11 +231,14 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
         embargo_id = _extract_id_from_field(snapshot.get("object"))
         if embargo_id is None:
             raise TypeError("the Remove names no EmbargoEvent")
+        cause = snapshot.get(_TERMINATION_CAUSE)
         return RegisterStep(
             kind=RegisterStepKind.TERMINATE,
             embargo=embargo_id,
-            termination=EmbargoTermination.model_validate(
-                {"cause": snapshot.get(_TERMINATION_CAUSE)}
+            termination=(
+                EmbargoTermination.from_cause(None)
+                if cause is None
+                else EmbargoTermination.model_validate({"cause": cause})
             ),
         )
 

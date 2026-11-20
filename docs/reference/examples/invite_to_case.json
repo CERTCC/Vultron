@@ -72,20 +72,18 @@
       ],
       "embargoRegister": [
         {
-          "embargo": {
-            "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-08-30T00:00:00+00:00",
-            "type": [
-              "EmbargoEvent",
-              "Event"
-            ],
-            "name": "Embargo for VendorCo Case #20260601",
-            "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
-            "startTime": "2026-06-01T19:12:00.000000+00:00",
-            "endTime": "2026-08-30T00:00:00.000000+00:00",
-            "published": "2026-06-01T19:12:00.000000+00:00",
-            "updated": "2026-06-01T19:12:00.000000+00:00",
-            "content": "We propose to embargo VendorCo Case #20260601 for 90 days."
-          },
+          "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-08-30T00:00:00+00:00",
+          "type": [
+            "EmbargoEvent",
+            "Event"
+          ],
+          "name": "Embargo for VendorCo Case #20260601",
+          "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+          "startTime": "2026-06-01T19:12:00.000000+00:00",
+          "endTime": "2026-08-30T00:00:00.000000+00:00",
+          "published": "2026-06-01T19:12:00.000000+00:00",
+          "updated": "2026-06-01T19:12:00.000000+00:00",
+          "content": "We propose to embargo VendorCo Case #20260601 for 90 days.",
           "status": "ACTIVE"
         }
       ]
@@ -102,6 +100,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2wtx1K3xFRYSHbeTs4urkTdvpX6NNJHEXqijVPsZ7oCwR4GH14ktyjx1MUsS4pksCepnnNUAcadSs4TPKZc5f33x"
+    "proofValue": "z5rierRzSsk3L9sHm9WVYbRuayhPWSaEjPNsgHrzvYnDSiWANvexmnS3NzFLwAQTF9SvSGSWWjdUf4sYbwXuu5Fn2"
   }
 }

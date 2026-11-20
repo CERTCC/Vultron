@@ -297,9 +297,7 @@ def _add_participant(
         embargo_consents=rows,
     )
     # A row for every register entry (ADR-0122); the explicit one is kept.
-    participant.write_uninvited_rows(
-        e.embargo_id for e in case.embargo_register
-    )
+    participant.write_uninvited_rows(e.id_ for e in case.embargo_register)
     dl.create(participant)
     case.case_participants = [*case.case_participants, participant.id_]
     case.actor_participant_index = {

@@ -35,7 +35,7 @@ from vultron.core.models.case_preview import (
     preview_em_state,
 )
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.preview_object import (
     is_loose_form_of,
     loose_form,
@@ -896,9 +896,9 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
         summary="Security issue — embargo active, details after acceptance",
         attributed_to="https://example.org/actors/vendor",
         embargo_register=[
-            loose_form(EmbargoRegisterEntry).model_validate(
+            loose_form(EmbargoEvent).model_validate(
                 {
-                    "embargo": "https://example.org/embargoes/1",
+                    "id": "https://example.org/embargoes/1",
                     "status": "ACTIVE",
                 }
             )

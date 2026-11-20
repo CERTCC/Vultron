@@ -1074,7 +1074,7 @@ def test_paused_replica_ends_a_longer_revision_it_was_not_told_of() -> None:
     case = replica.case()
     assert case.active_embargo_id is None
     assert case.current_status.em.state == EM.EXITED
-    assert [(e.embargo_id, e.status) for e in case.embargo_register] == [
+    assert [(e.id_, e.status) for e in case.embargo_register] == [
         (EMBARGO_ID, EmbargoRegisterStatus.SUPERSEDED),
         (REVISION_ID, EmbargoRegisterStatus.TERMINATED),
     ]
@@ -1130,7 +1130,7 @@ def test_paused_replica_ends_an_expired_revision_it_has_not_activated(
     case = replica.case()
     assert case.active_embargo_id is None
     assert case.current_status.em.state == EM.EXITED
-    assert [(e.embargo_id, e.status) for e in case.embargo_register] == [
+    assert [(e.id_, e.status) for e in case.embargo_register] == [
         (EMBARGO_ID, EmbargoRegisterStatus.SUPERSEDED),
         (REVISION_ID, EmbargoRegisterStatus.TERMINATED),
     ]

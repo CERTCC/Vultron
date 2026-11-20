@@ -519,8 +519,7 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
             case.current_status.em.state,
             case.active_embargo_id,
             tuple(
-                (entry.embargo_id, entry.status)
-                for entry in case.embargo_register
+                (entry.id_, entry.status) for entry in case.embargo_register
             ),
             tuple(
                 (row.embargo_id, row.state)

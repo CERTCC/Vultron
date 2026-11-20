@@ -86,7 +86,7 @@ def names_unadopted_revision(case: VulnerabilityCase, embargo_id: str) -> bool:
     current = case.active_embargo_id
     if current is None or current == embargo_id:
         return False
-    entry = case.embargo_register_entry(embargo_id)
+    entry = case.registered_embargo(embargo_id)
     return entry is None or entry.status not in FINAL_REGISTER_STATUSES
 
 
@@ -367,7 +367,7 @@ class AdoptRemovedEmbargoRevisionNode(_ObservedRevisionActivationNode):
 
     def _nothing_to_adopt(self, case: VulnerabilityCase) -> str:
         current = case.active_embargo_id
-        entry = case.embargo_register_entry(self.embargo_id)
+        entry = case.registered_embargo(self.embargo_id)
         if current in (None, self.embargo_id) or entry is None:
             return (
                 f"Case '{self.case_id}' has {current!r} in force — nothing to"

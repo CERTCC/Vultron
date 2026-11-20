@@ -149,7 +149,8 @@ def _statuses_absent(preview: dict[str, Any]) -> None:
 def _open_proposal_added(preview: dict[str, Any]) -> None:
     preview["embargoRegister"].append(
         {
-            "embargo": "https://example.org/embargoes/revision",
+            "type": "EmbargoEvent",
+            "id": "https://example.org/embargoes/revision",
             "status": "PROPOSED",
         }
     )

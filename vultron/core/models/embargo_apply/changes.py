@@ -134,6 +134,7 @@ class RegisterStep(ValidatedAssignmentMixin, BaseModel):
         register = case.embargo_register
         match self.kind:
             case RegisterStepKind.PROPOSE:
+                assert isinstance(self.embargo, EmbargoEvent)  # checked above
                 return proposal_changes(self.embargo)
             case RegisterStepKind.ACTIVATE:
                 return activation_changes(register, self.embargo_id)

@@ -28,7 +28,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.clock_decisions import clock_decision_node_ids
-from test.support.embargo_register import activate, register
+from test.support.embargo_register import activate, register, registered
 from test.support.objects import make
 from test.support.refusal_effects import refusal_effect_node_ids
 from test.support.sender_sequence_stage import sender_sequence_node_ids
@@ -44,7 +44,6 @@ from vultron.core.behaviors.case.receive_activity_tree import received_stages
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -145,12 +144,12 @@ class TestSignEmbargoConsentLeafNode:
             bt_scenario, earlier_accepted=True
         )
         register = [
-            EmbargoRegisterEntry(
-                embargo=_EARLIER_EMBARGO_ID,
+            registered(
+                _EARLIER_EMBARGO_ID,
                 status=EmbargoRegisterStatus.SUPERSEDED,
             ),
-            EmbargoRegisterEntry(
-                embargo=_EMBARGO_ID,
+            registered(
+                _EMBARGO_ID,
                 status=EmbargoRegisterStatus.ACTIVE,
                 replaces=_EARLIER_EMBARGO_ID,
             ),

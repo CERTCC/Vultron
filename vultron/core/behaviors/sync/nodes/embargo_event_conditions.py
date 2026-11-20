@@ -76,7 +76,7 @@ def _proposes_nothing(
     embargo_id = _extract_id_from_field(snapshot.get("object"))
     if embargo_id is None:
         return False
-    held = case.embargo_register_entry(embargo_id)
+    held = case.registered_embargo(embargo_id)
     return held is not None and held.status != EmbargoRegisterStatus.PROPOSED
 
 

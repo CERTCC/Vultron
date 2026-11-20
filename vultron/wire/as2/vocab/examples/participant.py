@@ -17,7 +17,6 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
@@ -150,9 +149,8 @@ def rm_invite_to_case() -> as_Invite:
         vulnerability_reports=[gen_report().id_],
         vulnerability_items=[vulnerability_item()],
         embargo_register=[
-            EmbargoRegisterEntry(
-                embargo=embargo_event(),
-                status=EmbargoRegisterStatus.ACTIVE,
+            embargo_event().model_copy(
+                update={"status": EmbargoRegisterStatus.ACTIVE}
             )
         ],
     )

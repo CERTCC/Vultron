@@ -118,20 +118,19 @@ sender's cut runs too, so both sides judge one envelope.
   state is the case's and its `published` is the status's own (CLP-15-010).
   Do not build a status for the stub: a class default states a value nobody
   observed.
-- "In force" means the register holds an `ACTIVE` entry: EM `ACTIVE` or
+- "In force" means the register holds an `ACTIVE` embargo: EM `ACTIVE` or
   `REVISE`, never the exact EM state alone. Read it with
-  `VulnerabilityCase.active_register_entry`, the entry the consent row and the
+  `VulnerabilityCase.active_embargo`, the embargo the consent row and the
   Accept's signing name (CM-11-001, CM-11-006),
   or a `REVISE` invitee is bound to terms it never saw (CM-17-014, #4697). The
   open revision stays out of the stub; EP-09-011 relays it after joining.
-- The stub's `embargoRegister` is that one entry, its embargo the full
-  `EmbargoEvent` as the sender holds it, never a copy rebuilt from its ID and
-  `end_time` (CM-17-011). The protocol lets a stub name the embargo by ID for
+- The stub's `embargoRegister` is that one embargo, the full `EmbargoEvent`
+  with its own `status` as the sender holds it, never a copy rebuilt from its
+  ID and `end_time` (CM-17-011). The protocol lets a stub name the embargo by ID for
   the invitee to fetch (CM-17-002), but an invitee is not yet an active
   participant, and the case host serves case objects only to those
-  (AKM-05-006), so the cut refuses an entry holding only the ID. The factory
-  takes the fetched embargo as `embargo_obj` and carries it on a copy of the
-  case.
+  (AKM-05-006). The register holds each embargo whole (ADR-0202, CM-17-024),
+  so the cut always has it to embed.
 - A stored case names its vul items by id, so the invite adapter carries the
   stored items on a copy before the cut; an item it cannot read is marked
   `Redacted`, since the cut shows each item only as its `ids` (CM-05-018).

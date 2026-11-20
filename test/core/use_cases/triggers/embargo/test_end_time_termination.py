@@ -242,7 +242,7 @@ class _World:
 def _assert_full_cascade(world: _World, termination: EmbargoTermination):
     """AC-5: TERMINATED with its cause, proposals CANCELLED, EM EXITED, ET."""
     case = world.case()
-    entry = case.embargo_register_entry(world.embargo.id_)
+    entry = case.registered_embargo(world.embargo.id_)
     assert entry is not None
     assert entry.status is S.TERMINATED
     assert entry.termination == termination

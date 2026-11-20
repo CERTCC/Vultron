@@ -450,7 +450,7 @@ def test_every_participant_holds_one_row_per_register_entry_after_a_join(
     )
 
     case = cast(VulnerabilityCase, dl.read_case(case_id))
-    register_ids = [e.embargo_id for e in case.embargo_register]
+    register_ids = [e.id_ for e in case.embargo_register]
     assert revision.id_ in register_ids and len(register_ids) == 2
     rows = _rows_by_participant(dl, case_id)
     assert JOINER in case.actor_participant_index
@@ -553,7 +553,7 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     case = cast(VulnerabilityCase, dl.read_case(case_id))
-    register_ids = [e.embargo_id for e in case.embargo_register]
+    register_ids = [e.id_ for e in case.embargo_register]
     assert len(register_ids) == 2
     rows = _rows_by_participant(dl, case_id)
     assert len(rows) >= 3
@@ -621,7 +621,7 @@ def test_a_late_joiner_holds_an_uninvited_row_for_every_final_entry(
     )
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
     case = cast(VulnerabilityCase, dl.read_case(case_id))
-    assert [(e.embargo_id, e.status) for e in case.embargo_register] == [
+    assert [(e.id_, e.status) for e in case.embargo_register] == [
         (superseded, EmbargoRegisterStatus.SUPERSEDED),
         (d1.id_, EmbargoRegisterStatus.ACTIVE),
         (d2.id_, EmbargoRegisterStatus.REJECTED),
@@ -642,7 +642,7 @@ def test_a_late_joiner_holds_an_uninvited_row_for_every_final_entry(
     )
     _assert_one_row_per_entry(
         _rows_by_participant(dl, case_id),
-        [e.embargo_id for e in case.embargo_register],
+        [e.id_ for e in case.embargo_register],
     )
     (relayed,) = _relayed_to(dl, JOINER)
     assert relayed.attributed_to == PROPOSER

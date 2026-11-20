@@ -415,7 +415,7 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        if case.embargo_register_entry(embargo_id) is None:
+        if case.registered_embargo(embargo_id) is None:
             # The proposal is committed before its relay (EP-09-001, EP-09-002), so a
             # replica replaying the relay holds the entry; one that does not
             # has a gap, and the entry is not marked applied (SYNC-12-001).

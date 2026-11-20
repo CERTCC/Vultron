@@ -333,6 +333,12 @@ Issue: #6246. Records: ADR-0201, ADR-0202, ADR-0203.
 and the embargo patterns match `EmbargoEvent` only, so a plain `Event` is no
 embargo (#6480).
 
+**Built (embargo state).** `EmbargoEvent` stores `status`, `replaces` and, once
+terminated, `termination` (cause required, `causedBy`, `summary`); the case's
+`embargoRegister` is a list of whole embargoes, with no entry type (#6481). A
+`Remove` naming no cause stores `OTHER`. The `Update`, `Announce` and the
+termination's `causedBy` and `summary` are still to build (#6625, #6482, #6483).
+
 **Decision.**
 
 - **The embargo is its own wire type.** `"type": ["EmbargoEvent", "Event"]`, a

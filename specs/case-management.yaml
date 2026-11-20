@@ -4430,7 +4430,7 @@ groups:
     statement: >-
       When a stub carries the active embargo, this codebase MUST embed the whole
       `EmbargoEvent` as the inviter holds it, not just its ID and `end_time`. The
-      embargo sits in the stub's `embargoRegister` entry.
+      embargo sits in the stub's `embargoRegister`, with its own `status`.
     rationale: >-
       This is a prototype decision, not a protocol decision. An implementation can let
       the invitee get the embargo from the inviter by its ID. This prototype does not
@@ -4439,13 +4439,12 @@ groups:
       and name. A copy built again from the ID and end time would not keep them.
     verification: >-
       `test_rm_invite_stub_embeds_the_full_active_embargo` in
-      `test/wire/as2/factories/test_case_factories.py`, run once with the case naming
-      the embargo by ID and once with it holding the embargo inline, confirms the
-      embargo of the stub's `embargoRegister` entry equals the stored embargo's
-      full serialization;
+      `test/wire/as2/factories/test_case_factories.py`, run with an embargo in force
+      and with a revision open, confirms the embargo in the stub's `embargoRegister`
+      equals the registered embargo's full serialization;
       `test_invite_stub_embeds_the_stored_embargo` in
       `test/adapters/driven/trigger_activity_adapter/test_actors.py` confirms the
-      same for an embargo the inviter reads from its store.
+      same for an embargo the inviter also holds in its store.
     relationships:
     - rel_type: refines
       spec_id: CM-17-002
@@ -4454,24 +4453,22 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      This codebase MUST NOT send a stub Invite whose active embargo the inviter
-      cannot embed. It cannot embed it when it holds only the ID, or an object
-      that is not that embargo.
+      This codebase MUST NOT hold an embargo in a case's `embargoRegister` by its ID
+      alone, so a stub Invite never names its active embargo by ID.
     rationale: >-
       A stub that names the embargo only by ID would give the invitee no method to
-      read the terms, because this prototype supplies no fetch (CM-17-002). A stub
-      that carried another embargo would state the wrong terms.
+      read the terms, because this prototype supplies no fetch (CM-17-002). The
+      register holds each embargo whole, with its own status (ADR-0202), so the
+      stub embeds the embargo the register holds and never another.
     verification: >-
-      `test_rm_invite_refuses_an_active_embargo_it_cannot_embed`,
-      `test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one` and
-      `test_rm_invite_refuses_a_supplied_embargo_that_is_no_embargo` in
-      `test/wire/as2/factories/test_case_factories.py`, and
-      `test_an_in_force_embargo_held_by_id_is_refused` in
-      `test/core/models/test_case_preview_profile.py`, confirm the Invite is
-      refused when the active embargo cannot be embedded;
-      `test_invite_is_refused_when_the_embargo_is_not_in_the_store` in
+      `test_a_register_naming_an_embargo_by_id_alone_is_refused` in
+      `test/core/models/test_case_preview_profile.py` confirms a case refuses a
+      register entry that is an ID;
+      `test_invite_embeds_the_registered_embargo_the_store_lacks` in
       `test/adapters/driven/trigger_activity_adapter/test_actors.py` confirms the
-      refusal when it is missing from the inviter's store.
+      stub embeds the registered embargo with no read of the inviter's store.
+    adr:
+    - ADR-0202
     relationships:
     - rel_type: derives_from
       spec_id: CM-17-011
@@ -4548,18 +4545,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Each participant record MUST hold one embargo consent row for every entry in the
-      case's embargo register. Each row holds one of five states. The `UNINVITED` state
+      Each participant record MUST hold one embargo consent row for every embargo in
+      the case's embargo register. Each row holds one of five states. The `UNINVITED` state
       means not asked, and is the start state. The `INVITED` state means asked, with no
       answer yet. The `AGREED` state records agreement, and `DECLINED` records an
       explicit refusal or a withdrawal. The `TIMED_OUT` state means invited, with the
       RSVP deadline passed and no answer. A participant is a *signatory* when its row
-      for the register's `ACTIVE` entry is `AGREED`. A participant has *lapsed* when
-      three things hold. An entry is `ACTIVE`, and the participant's row for it is
-      neither `AGREED` nor `DECLINED`. Following `replaces` back from the `ACTIVE`
-      entry, the first entry whose row is `AGREED` or `DECLINED` has an `AGREED` row.
-      Both positions are read from the rows and the register, never stored (CM-18-016).
-      With no `ACTIVE` entry, nobody is a signatory and nobody has lapsed.
+      for the register's embargo whose `status` is `ACTIVE` is `AGREED`. A participant
+      has *lapsed* when three things hold. An embargo is `ACTIVE`, and the
+      participant's row for it is neither `AGREED` nor `DECLINED`. Following each
+      embargo's `replaces` back from the `ACTIVE` embargo, the first embargo whose row
+      is `AGREED` or `DECLINED` has an `AGREED` row. Both positions are read from the
+      rows and the embargoes' own `status` and `replaces` fields, never stored
+      (CM-18-016, ADR-0202). With no `ACTIVE` embargo, nobody is a signatory and
+      nobody has lapsed.
     rationale: >-
       One row for each pair of participant and embargo records each answer one time. To
       find if a participant is bound by the active embargo, a reader looks at the row
@@ -4574,7 +4573,7 @@ groups:
       Inspection of `vultron/core/states/participant_embargo_consent.py` confirms that
       `EmbargoConsentState` declares exactly `UNINVITED`, `INVITED`, `AGREED`,
       `DECLINED` and `TIMED_OUT`. Unit tests confirm that every participant holds
-      exactly one row per register entry after case setup, a proposal and a join, and
+      exactly one row per registered embargo after case setup, a proposal and a join, and
       that `has_lapsed()` reads the `replaces` chain (a three-step chain, an agreed
       proposal that never took effect, and a withdrawal).
     adr:
@@ -4583,6 +4582,7 @@ groups:
     - ADR-0093
     - ADR-0118
     - ADR-0122
+    - ADR-0202
     stories:
     - story_2022_023
     - story_2026_001
@@ -4613,7 +4613,7 @@ groups:
     kind: protocol
     statement: >-
       Creating a participant record MUST write an `UNINVITED` consent row on it for
-      every entry already in the case's embargo register.
+      every embargo already in the case's embargo register.
     rationale: >-
       A participant that joins after embargoes were proposed was asked about none of
       them. A row for each entry records that, so the participant holds a row for every
@@ -4659,14 +4659,14 @@ groups:
     kind: project
     statement: >-
       This codebase MUST raise when it reads a participant's missing consent row for a
-      register entry, never reading it as a consent state (CM-18-021).
+      registered embargo, never reading it as a consent state (CM-18-021).
     rationale: >-
       How this codebase treats the defect CM-18-021 names; split from CM-18-001 so that
       item states only the rows every participant holds (MS-12-010). Raising is how one
       implementation fails fast, and no other participant observes it.
     verification: >-
       Unit tests in `test/core/models/test_embargo_consent_move.py` confirm that reading
-      a missing row for a register entry, and for the embargo in force, raises.
+      a missing row for a registered embargo, and for the embargo in force, raises.
     relationships:
     - rel_type: implements
       spec_id: CM-18-021
@@ -4859,8 +4859,8 @@ groups:
     statement: >-
       This codebase MUST change a participant's consent row only through one of three
       `CaseParticipant` methods. The method `apply_pec_transition(embargo_id, trigger,
-      entry_status=...)` applies a `PEC_Trigger`, given the register status of the
-      embargo's entry. The method `copy_consent_row()` writes a row that a ledger entry
+      entry_status=...)` applies a `PEC_Trigger`, given the embargo's own `status` in
+      the register (ADR-0202). The method `copy_consent_row()` writes a row that a ledger entry
       carries in full (ADR-0124). The method `write_uninvited_rows()` writes the
       `UNINVITED` rows that record no answer.
     rationale: >-
@@ -4884,6 +4884,7 @@ groups:
     - ADR-0048
     - ADR-0122
     - ADR-0124
+    - ADR-0202
   - id: CM-18-024
     priority: MUST
     kind: project

@@ -9,11 +9,12 @@ from collections.abc import Iterator, Sequence
 
 import pytest
 
+from test.support.embargo_register import stand_in
 from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
-    EmbargoRegisterEntry,
     RegisterChange,
     activation_changes,
     apply_register_step,
@@ -77,16 +78,16 @@ ADR_0130_TABLE: dict[str, frozenset[tuple[EM, EM]]] = {
 
 _IDS = ("urn:em:e1", "urn:em:e2", "urn:em:e3")
 
-Register = tuple[EmbargoRegisterEntry, ...]
+Register = tuple[EmbargoEvent, ...]
 Step = tuple[EM_Trigger, list[RegisterChange], bool]
 
 
-def _em(register: Sequence[EmbargoRegisterEntry]) -> EM:
+def _em(register: Sequence[EmbargoEvent]) -> EM:
     return derive_em(entry.status for entry in register)
 
 
 def _ids(register: Register, status: S) -> list[str]:
-    return [e.embargo_id for e in register if e.status == status]
+    return [e.id_ for e in register if e.status == status]
 
 
 def _steps(register: Register) -> Iterator[Step]:
@@ -94,7 +95,11 @@ def _steps(register: Register) -> Iterator[Step]:
     if _ids(register, S.TERMINATED):
         return  # invariant 4: a terminated register takes no further step
     if len(register) < len(_IDS):
-        yield EM_Trigger.PROPOSE, proposal_changes(_IDS[len(register)]), False
+        yield (
+            EM_Trigger.PROPOSE,
+            proposal_changes(stand_in(_IDS[len(register)])),
+            False,
+        )
     for embargo_id in _ids(register, S.PROPOSED):
         yield (
             EM_Trigger.ACCEPT,
@@ -105,14 +110,14 @@ def _steps(register: Register) -> Iterator[Step]:
     if _ids(register, S.ACTIVE):
         yield (
             EM_Trigger.TERMINATE,
-            termination_changes(register, EmbargoTermination.early()),
+            termination_changes(register, EmbargoTermination.other()),
             False,
         )
     elif _ids(register, S.PROPOSED):
         # A threat signal with no embargo in force abandons the named open
         # proposals (EMB-16-001), which is an ER: the EM trigger is
         # ``reject``.  It may name every open proposal or only some of them.
-        cancel = termination_changes(register, EmbargoTermination.early())
+        cancel = termination_changes(register, EmbargoTermination.other())
         yield EM_Trigger.REJECT, cancel, True
         if len(cancel) > 1:
             for embargo_id in _ids(register, S.PROPOSED):
@@ -159,12 +164,12 @@ def test_every_register_step_moves_em_along_an_em_transition() -> None:
     }
 
 
-def _register_after(*steps: str) -> list[EmbargoRegisterEntry]:
-    register: list[EmbargoRegisterEntry] = []
+def _register_after(*steps: str) -> list[EmbargoEvent]:
+    register: list[EmbargoEvent] = []
     for step in steps:
         verb, embargo_id = step.split(":", 1)
         if verb == "propose":
-            changes = proposal_changes(embargo_id)
+            changes = proposal_changes(stand_in(embargo_id))
         elif verb == "accept":
             changes = activation_changes(register, embargo_id)
         else:
@@ -238,7 +243,7 @@ def test_em_transition_table_is_declared_and_enforced(
     with pytest.raises(
         VultronInvalidStateTransitionError, match="not an EM transition"
     ):
-        apply_register_step([], proposal_changes("urn:em:e1"))
+        apply_register_step([], proposal_changes(stand_in("urn:em:e1")))
 
 
 @pytest.mark.spec("EMB-18-005")
@@ -265,7 +270,7 @@ def test_is_em_transition_answers_from_the_table(
 @pytest.mark.parametrize(
     ("changes", "expected"),
     [
-        (proposal_changes("a"), EM_Trigger.PROPOSE),
+        (proposal_changes(stand_in("a")), EM_Trigger.PROPOSE),
         (
             [
                 RegisterChange(
@@ -283,7 +288,7 @@ def test_is_em_transition_answers_from_the_table(
                 RegisterChange(
                     embargo_id="a",
                     trigger=RegisterTrigger.TERMINATE,
-                    termination=EmbargoTermination.early(),
+                    termination=EmbargoTermination.other(),
                 ),
                 RegisterChange(embargo_id="b", trigger=RegisterTrigger.CANCEL),
             ],
@@ -306,7 +311,11 @@ def test_each_register_step_names_its_em_trigger(
     ("open_proposals", "changes", "threat_signal"),
     [
         ((), [], False),
-        (("a",), [*proposal_changes("b"), *rejection_changes("a")], False),
+        (
+            ("a",),
+            [*proposal_changes(stand_in("b")), *rejection_changes("a")],
+            False,
+        ),
         # Every other step rule admits this on a threat signal with no
         # embargo in force; only its two EM triggers refuse it.
         (
@@ -360,7 +369,7 @@ def test_a_refused_em_move_leaves_the_case_unchanged(
         attributed_to=owner,
         case_participants=[participant],
     )
-    case.apply_embargo_register_step(proposal_changes("urn:em:a"))
+    case.apply_embargo_register_step(proposal_changes(stand_in("urn:em:a")))
     case.pending_embargo_proposal_index = {"urn:em:a": "urn:invite:a"}
     before = case.model_dump()
     narrowed = {
@@ -404,7 +413,7 @@ def test_an_unmapped_register_trigger_is_a_domain_refusal(
     with pytest.raises(
         VultronInvalidStateTransitionError, match="no EM trigger is mapped"
     ):
-        apply_register_step([], proposal_changes("urn:em:e1"))
+        apply_register_step([], proposal_changes(stand_in("urn:em:e1")))
 
 
 @pytest.mark.spec("EMB-18-006")

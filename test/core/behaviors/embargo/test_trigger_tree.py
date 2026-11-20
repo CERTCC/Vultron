@@ -293,7 +293,7 @@ class TestTerminateEmbargoBt:
         tree = terminate_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=activity_builder if use_builder else None,
         )
         manager = _arm(tree, "AsCaseManager")
@@ -322,7 +322,7 @@ class TestTerminateEmbargoBt:
         tree = terminate_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=activity_builder if use_builder else None,
         )
         ask = _arm(tree, "AskCaseManager")
@@ -343,7 +343,7 @@ class TestTerminateEmbargoBt:
         tree = terminate_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
         )
         all_nodes = _collect_nodes(tree)
         node_types = [type(n).__name__ for n in all_nodes]

@@ -197,7 +197,7 @@ def test_the_resend_check_reads_no_clock(datalayer: SqliteDataLayer) -> None:
 def _invited(rsvp_deadline: datetime | None) -> tuple[Any, Any]:
     """A case whose open embargo invited a participant, and the participant."""
     case = SimpleNamespace(
-        embargo_register_entry=lambda _id: SimpleNamespace(
+        registered_embargo=lambda _id: SimpleNamespace(
             status=EmbargoRegisterStatus.PROPOSED
         )
     )

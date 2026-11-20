@@ -21,10 +21,10 @@ be one of that trigger's moves (ADR-0122, ADR-0130).
 from collections.abc import Iterable, Mapping, Sequence
 from types import MappingProxyType
 
-from vultron.core.models.embargo_register.entry import (
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_register.change import (
     _S,
     _T,
-    EmbargoRegisterEntry,
     RegisterChange,
     repeated_ids,
 )
@@ -100,8 +100,8 @@ def register_step_em_trigger(
 
 
 def em_move_violations(
-    before: Sequence[EmbargoRegisterEntry],
-    after: Sequence[EmbargoRegisterEntry],
+    before: Sequence[EmbargoEvent],
+    after: Sequence[EmbargoEvent],
     em_trigger: EM_Trigger,
 ) -> list[str]:
     """The EM move from *before* to *after*, if *em_trigger* does not allow it.
@@ -110,8 +110,8 @@ def em_move_violations(
     derives from each (ADR-0122); the move must then be in the EM transition
     table (ADR-0130, EMB-18-006).  An empty list means the move is legal.
     """
-    source = derive_em(entry.status for entry in before)
-    dest = derive_em(entry.status for entry in after)
+    source = derive_em(embargo.status for embargo in before)
+    dest = derive_em(embargo.status for embargo in after)
     if is_em_transition(em_trigger, source, dest):
         return []
     return [
@@ -121,18 +121,18 @@ def em_move_violations(
 
 
 def _step_violations(
-    entries: Sequence[EmbargoRegisterEntry],
+    entries: Sequence[EmbargoEvent],
     changes: Sequence[RegisterChange],
     *,
     threat_signal: bool,
 ) -> list[str]:
     """Every rule the step breaks before its result is built (EH-07-001)."""
-    by_id = {entry.embargo_id: entry for entry in entries}
+    by_id = {entry.id_: entry for entry in entries}
     triggers = {change.trigger for change in changes}
     violations: list[str] = []
     if any(entry.status == _S.TERMINATED for entry in entries):
         violations.append(
-            "an entry is TERMINATED, so the register accepts no further"
+            "an embargo is TERMINATED, so the register accepts no further"
             " change (invariant 4)"
         )
     duplicates = repeated_ids([change.embargo_id for change in changes])
@@ -160,34 +160,39 @@ def _step_violations(
 
 
 def _entry_after(
-    entry: EmbargoRegisterEntry | None,
+    entry: EmbargoEvent | None,
     change: RegisterChange,
     superseded_id: str | None,
-) -> EmbargoRegisterEntry:
+) -> EmbargoEvent:
     status = register_status_after(
         entry.status if entry is not None else None, change.trigger
     )
     if entry is None:
-        return EmbargoRegisterEntry(
-            embargo=change.embargo or change.embargo_id, status=status
-        )
-    update: dict[str, object] = {"status": status}
+        # ``PROPOSE``: the register decides the new embargo's state, not
+        # whatever state the carried object claims (ADR-0202).
+        assert change.embargo is not None  # required on PROPOSE
+        entry = change.embargo
+        update: dict[str, object] = {
+            "status": status,
+            "replaces": None,
+            "termination": None,
+        }
+    else:
+        update = {"status": status}
     if change.trigger == _T.ACTIVATE and superseded_id is not None:
         update["replaces"] = superseded_id
     if change.termination is not None:
         update["termination"] = change.termination
     # Revalidate rather than ``model_copy``: the copy skips validators.
-    return EmbargoRegisterEntry.model_validate(
-        {**entry.model_dump(), **update, "embargo": entry.embargo}
-    )
+    return type(entry).model_validate({**entry.model_dump(), **update})
 
 
 def apply_register_step(
-    entries: Sequence[EmbargoRegisterEntry],
+    entries: Sequence[EmbargoEvent],
     changes: Sequence[RegisterChange],
     *,
     threat_signal: bool = False,
-) -> list[EmbargoRegisterEntry]:
+) -> list[EmbargoEvent]:
     """Return the register after one step of *changes*, or raise.
 
     The step's triggers are checked together (ADR-0122): each must be legal
@@ -200,9 +205,10 @@ def apply_register_step(
     must be one of that trigger's moves in the EM transition table
     (ADR-0130, EMB-18-006).  Every node — the CASE_MANAGER and each replica —
     applies a step only through this function, so all of them make the same
-    checks.  An activated entry
-    records the entry it superseded in ``replaces``.  New entries are
-    appended; none is removed.
+    checks.  An activated embargo
+    records the embargo it superseded in ``replaces``.  A proposed embargo
+    is appended; none is removed.  Each changed embargo is a new, revalidated
+    object; *entries* and the objects in it are left as they were.
 
     Raises:
         VultronInvalidStateTransitionError: naming every rule the step breaks;
@@ -221,11 +227,11 @@ def apply_register_step(
         superseded_id = next(
             (c.embargo_id for c in changes if c.trigger == _T.SUPERSEDE), None
         )
-        known = {entry.embargo_id for entry in entries}
+        known = {entry.id_ for entry in entries}
         after = [
             (
-                _entry_after(entry, by_change[entry.embargo_id], superseded_id)
-                if entry.embargo_id in by_change
+                _entry_after(entry, by_change[entry.id_], superseded_id)
+                if entry.id_ in by_change
                 else entry
             )
             for entry in entries
@@ -248,7 +254,7 @@ def apply_register_step(
 
 
 def register_step_is_legal(
-    entries: Sequence[EmbargoRegisterEntry],
+    entries: Sequence[EmbargoEvent],
     changes: Sequence[RegisterChange],
     *,
     threat_signal: bool = False,
@@ -257,7 +263,7 @@ def register_step_is_legal(
 
     For a caller that must write something else before the step lands, and
     only if the step will (the rejecting owner's consent row is frozen once
-    its entry is ``REJECTED``, ADR-0122).
+    its embargo is ``REJECTED``, ADR-0122).
     """
     try:
         apply_register_step(entries, changes, threat_signal=threat_signal)

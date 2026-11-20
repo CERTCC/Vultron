@@ -109,7 +109,7 @@ def _participant_for(
 
 def _require_open_entry(case: VulnerabilityCase, embargo_id: str) -> None:
     """Refuse a row change for an embargo the register lacks or has closed."""
-    entry = case.embargo_register_entry(embargo_id)
+    entry = case.registered_embargo(embargo_id)
     if entry is None:
         raise VultronEntryRefusedError(
             f"case '{case.id_}' holds no register entry for embargo"

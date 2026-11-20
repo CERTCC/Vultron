@@ -170,9 +170,7 @@ def _seed_case(
         scenario.seed(active)
     for record in records:
         # The rows the proposals wrote (ADR-0122).
-        record.write_uninvited_rows(
-            e.embargo_id for e in case.embargo_register
-        )
+        record.write_uninvited_rows(e.id_ for e in case.embargo_register)
     scenario.seed(*records, case, embargo)
     return case
 

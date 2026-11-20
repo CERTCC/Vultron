@@ -234,14 +234,15 @@ MARKED_PREVIEW_FIELDS: dict[str, tuple[dict[str, Any], Any]] = {
         {
             "embargoRegister": [
                 {
+                    "type": "EmbargoEvent",
                     "status": "ACTIVE",
-                    "embargo": {"type": "EmbargoEvent", "endTime": MARKER},
+                    "endTime": MARKER,
                 }
             ],
             # An embargo in force is shown with its EM state (CM-17-013).
             "caseStatuses": [{"type": "CaseStatus", "emState": "ACTIVE"}],
         },
-        lambda preview: preview.embargo_register[0].embargo.end_time,
+        lambda preview: preview.embargo_register[0].end_time,
     ),
 }
 
@@ -530,11 +531,9 @@ CUT_PREVIEW: dict[str, Any] = {
     ],
     "embargoRegister": [
         {
-            "embargo": {
-                "type": ["EmbargoEvent", "Event"],
-                "id": "urn:uuid:embargo-1",
-                "endTime": "2026-12-01T00:00:00.000000+00:00",
-            },
+            "type": ["EmbargoEvent", "Event"],
+            "id": "urn:uuid:embargo-1",
+            "endTime": "2026-12-01T00:00:00.000000+00:00",
             "status": "ACTIVE",
         }
     ],
@@ -595,18 +594,18 @@ def test_the_walk_admits_a_preview_whole_and_refuses_a_marker_beside_it() -> (
 #: A key a dict in a preview's field carries that its loose form lacks, and
 #: where the set-aside report names it.
 TYPELESS_EXTRAS: dict[str, tuple[dict[str, Any], str, str]] = {
-    "register entry with a summary": (
+    "registered embargo with an extra key": (
         {
             "embargoRegister": [
                 {
-                    "summary": "an extra key",
+                    "id": "urn:uuid:e1",
                     "status": "ACTIVE",
-                    "embargo": {"type": "EmbargoEvent", "id": "urn:uuid:e1"},
+                    "anExtraKey": "an extra key",
                 }
             ],
             "caseStatuses": [{"type": "CaseStatus", "emState": "ACTIVE"}],
         },
-        "summary",
+        "anExtraKey",
         "object.preview.embargoRegister[0]",
     ),
     "identifier with a type": (

@@ -469,7 +469,7 @@ def test_an_early_request_records_its_cause_or_other(
 
     expected = EmbargoTermination(cause=recorded)
     updated = cast(VulnerabilityCase, owner_dl.read(case.id_))
-    entry = updated.embargo_register_entry(embargo_id)
+    entry = updated.registered_embargo(embargo_id)
     assert entry is not None
     assert entry.termination == expected
     assert result.activity is not None

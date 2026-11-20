@@ -36,7 +36,12 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
 )
 from test.support.act_runner import run_tree
-from test.support.embargo_register import propose, reject, write_consent_rows
+from test.support.embargo_register import (
+    STAND_IN_END_TIME,
+    propose,
+    reject,
+    write_consent_rows,
+)
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -116,16 +121,18 @@ def _case(
     case, _, dl = make_case_with_manager(
         suffix, em_state, other_consent=other_consent
     )
-    for entry in case.embargo_register:
-        embargo = entry.embargo
-        if not isinstance(embargo, EmbargoEvent):
-            embargo = make(
-                as_EmbargoEvent,
-                id_=embargo,
-                context=case.id_,
-                end_time=_NOW + timedelta(days=90),
-            )
+    # A stand-in the fixture registered by id alone ends 90 days out.
+    case.embargo_register = [
+        (
+            embargo.model_copy(update={"end_time": _NOW + timedelta(days=90)})
+            if embargo.end_time == STAND_IN_END_TIME
+            else embargo
+        )
+        for embargo in case.embargo_register
+    ]
+    for embargo in case.embargo_register:
         dl.save(embargo)
+    dl.save(case)
     return case, dl
 
 
@@ -173,10 +180,12 @@ def _end_active_embargo(
     ended = stored.model_copy(update={"end_time": end})
     dl.save(ended)
     case.embargo_register = [
-        entry.model_copy(update={"embargo": ended})
-        if entry.embargo_id == active_id
-        else entry
-        for entry in case.embargo_register
+        (
+            embargo.model_copy(update={"end_time": end})
+            if embargo.id_ == active_id
+            else embargo
+        )
+        for embargo in case.embargo_register
     ]
     dl.save(case)
     return active_id
@@ -258,9 +267,7 @@ def test_a_terminated_embargo_is_held_but_unavailable() -> None:
     case, dl = _case("avail-exited", EM.EXITED)
     (entry,) = case.embargo_register
 
-    assert embargo_availability(dl, case, entry.embargo_id, _NOW) is (
-        _A.UNAVAILABLE
-    )
+    assert embargo_availability(dl, case, entry.id_, _NOW) is (_A.UNAVAILABLE)
 
 
 @pytest.mark.spec("MSM-07-012")

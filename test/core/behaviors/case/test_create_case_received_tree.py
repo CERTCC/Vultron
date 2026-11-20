@@ -47,7 +47,6 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -576,11 +575,7 @@ def test_bootstrap_addressees_withhold_an_inert_finder():
         ),
     )
     case = case.model_copy(
-        update={
-            "embargo_register": carry_embargo_inline(
-                case.embargo_register, embargo
-            )
-        }
+        update={"embargo_register": register(active=embargo)}
     )
 
     owner_dl, status = _run_at_owner(case)

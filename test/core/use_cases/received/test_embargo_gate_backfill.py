@@ -243,7 +243,7 @@ class _GateScenario:
             ),
             tree=terminate_embargo_bt(
                 case_id=CASE_ID,
-                termination=EmbargoTermination.early(),
+                termination=EmbargoTermination.other(),
                 result_out={},
             ),
             actor_id=MANAGER_ID,

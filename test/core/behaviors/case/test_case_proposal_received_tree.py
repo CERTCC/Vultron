@@ -4254,7 +4254,7 @@ class TestEP04SenderProposalAtCaseCreation:
             make_payload, dl, sender_days=self._SENDER_END_DAYS
         )
         assert case.current_status.em.state == EM.ACTIVE
-        terminate(case, EmbargoTermination.early())
+        terminate(case, EmbargoTermination.other())
         dl.save(case)
         while dl.outbox_pop() is not None:
             pass

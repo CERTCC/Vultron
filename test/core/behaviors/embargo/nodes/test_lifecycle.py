@@ -161,7 +161,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out={},
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=builder if use_builder else None,
         )
         result = run_tree(bridge, tree, actor_id=CASE_MANAGER_ACTOR)
@@ -289,7 +289,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=builder,
         )
         result = run_tree(bridge, tree, actor_id=OTHER_PARTICIPANT_ACTOR)
@@ -338,7 +338,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=builder,
         )
         result = run_tree(bridge, tree, actor_id=ACTOR_ID)
@@ -366,7 +366,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=lambda _to: ("", ""),
         )
         result = run_tree(bridge, tree, actor_id=ACTOR_ID)
@@ -406,7 +406,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
         )
         result = run_tree(bridge, tree, actor_id=ACTOR_ID)
 
@@ -446,7 +446,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
         )
         result = run_tree(bridge, tree, actor_id=ACTOR_ID)
 

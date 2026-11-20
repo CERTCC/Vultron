@@ -196,7 +196,7 @@ def test_case_manager_records_an_early_remove_as_early(make_payload) -> None:
     assert result.disposition is HandlerDisposition.APPLIED
     ended = cast(VulnerabilityCase, dl.read(case.id_))
     assert ended.em_state is EM.EXITED
-    assert ended.embargo_termination == EmbargoTermination.early()
+    assert ended.embargo_termination == EmbargoTermination.other()
 
 
 @pytest.mark.spec("EMB-13-003")
@@ -376,7 +376,7 @@ def test_replica_replay_records_an_entry_with_no_cause_as_early() -> None:
     assert status == Status.SUCCESS
     ended = cast(VulnerabilityCase, dl.read(case.id_))
     assert ended.em_state is EM.EXITED
-    assert ended.embargo_termination == EmbargoTermination.early()
+    assert ended.embargo_termination == EmbargoTermination.other()
 
 
 @pytest.mark.spec("EMB-13-005")

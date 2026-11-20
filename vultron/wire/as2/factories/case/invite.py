@@ -25,7 +25,6 @@ from pydantic import ValidationError
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_preview_profile import INVITATION_PROFILE
-from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._actor import carried_actor
@@ -51,60 +50,12 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
-from vultron.wire.as2.vocab.objects.embargo_event import (
-    as_EmbargoEvent as WireEmbargoEvent,
-)
-
-
-def _with_embargo_inline(
-    case: VulnerabilityCase, embargo_obj: object
-) -> VulnerabilityCase:
-    """*case*, its in-force register entry holding *embargo_obj* whole.
-
-    A case seeded from a sealed Announce carries the ``EmbargoEvent``
-    inline; a locally built one holds the id, and the caller fetches the
-    object.  The object is embedded as held, never rebuilt, so the invitee
-    sees the terms the inviter holds.  The stored case is untouched: the
-    entry is replaced on a copy, as for any case put on the wire
-    (:func:`~vultron.core.models.embargo_register.carry_embargo_inline`).
-
-    Raises:
-        VultronActivityConstructionError: When *embargo_obj* is not an
-            ``EmbargoEvent`` or is not the case's in-force embargo.  A stub
-            naming the embargo by ID alone would leave the invitee no way to
-            read the terms, since the case host serves case objects only to
-            active participants (AKM-05-006, CM-17-011), so it is not sent.
-    """
-    entry = case.active_register_entry
-    if embargo_obj is None or entry is None:
-        return case
-    if not isinstance(embargo_obj, WireEmbargoEvent):
-        raise VultronActivityConstructionError(
-            f"_with_embargo_inline: case {case.id_!r} has embargo"
-            f" {entry.embargo_id!r} in force, and"
-            f" {type(embargo_obj).__name__} is no EmbargoEvent to embed in"
-            " the stub (CM-17-002, CM-17-011)"
-        )
-    if embargo_obj.id_ != entry.embargo_id:
-        raise VultronActivityConstructionError(
-            f"_with_embargo_inline: embargo {embargo_obj.id_!r} is not case"
-            f" {case.id_!r}'s in-force embargo {entry.embargo_id!r}"
-            " (CM-17-011)"
-        )
-    return case.model_copy(
-        update={
-            "embargo_register": carry_embargo_inline(
-                case.embargo_register, embargo_obj
-            )
-        }
-    )
 
 
 def rm_invite_to_case_activity(
     invitee: as_Actor | CoreActor | str,
     case: VulnerabilityCase,
     roles: list[str] | None = None,
-    embargo_obj: Any = None,
     *,
     at: datetime,
     **kwargs,
@@ -124,7 +75,7 @@ def rm_invite_to_case_activity(
     CM-17-010, ADR-0217): the owner's ``stub_summary``, the case name and
     times, the Case Owner, the current status, each vul item's ``ids`` and,
     while an embargo is in force (EM ``ACTIVE`` or ``REVISE``), the in-force
-    register entry with the embargo whole, never the open revision
+    embargo whole, with its status, never the open revision
     (CM-17-011, EP-09-011).  Every other value the case holds is marked
     ``Redacted``.  The invitee is the ``target``.
 
@@ -139,10 +90,6 @@ def rm_invite_to_case_activity(
             (CM-17-003).  When provided the Invite carries the intended
             participant roles so the seating node
             can set them on the new inert ``CaseParticipant``.
-        embargo_obj: The fetched in-force ``EmbargoEvent``, used when
-            *case*'s register names it by id, to embed it whole in the
-            preview (CM-17-002, CM-17-011).  ``None`` when the register holds
-            it inline or no embargo is in force.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor`` for the inviting party).
 
@@ -153,8 +100,7 @@ def rm_invite_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails,
             *case* is not a ``VulnerabilityCase``, the case carries no
-            ``stub_summary`` (CM-17-010), or its in-force embargo cannot be
-            embedded whole (CM-17-011, CM-17-024).
+            ``stub_summary`` (CM-17-010).
     """
     if not isinstance(case, VulnerabilityCase):
         raise VultronActivityConstructionError(
@@ -170,10 +116,7 @@ def rm_invite_to_case_activity(
             "object_": as_TypedReference(
                 type_=VO_type.VULNERABILITY_CASE.value,
                 id_=case.id_,
-                preview=as_CasePreview.from_case(
-                    _with_embargo_inline(case, embargo_obj),
-                    INVITATION_PROFILE,
-                ),
+                preview=as_CasePreview.from_case(case, INVITATION_PROFILE),
             ),
             "target": carried_actor(invitee),
             **with_case_context(kwargs, case.id_),

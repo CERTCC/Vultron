@@ -390,14 +390,12 @@ def test_stage_inline_object_stages_the_inline_embargo_a_case_names(
             "name": "Embargoed Case",
             "embargoRegister": [
                 {
-                    "embargo": {
-                        "type": "EmbargoEvent",
-                        "published": _PUBLISHED,
-                        "id": embargo_id,
-                        "context": case_id,
-                        "startTime": _PUBLISHED,
-                        "endTime": "2099-01-01T00:00:00+00:00",
-                    },
+                    "type": "EmbargoEvent",
+                    "published": _PUBLISHED,
+                    "id": embargo_id,
+                    "context": case_id,
+                    "startTime": _PUBLISHED,
+                    "endTime": "2099-01-01T00:00:00+00:00",
                     "status": "ACTIVE",
                 }
             ],

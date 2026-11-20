@@ -150,7 +150,7 @@ def _trigger(net: LedgerNetwork) -> py_trees.common.Status:
         terminate_embargo_bt(
             case_id=net.case_id,
             result_out={},
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=_builder,
         ),
         actor_id=MANAGER,
@@ -228,7 +228,7 @@ class TestCaseManagerCommitsFirst:
         assert em_at_commit == [EM.REVISE]
         ended = net.case(MANAGER)
         assert ended.em_state is EM.EXITED
-        assert {e.embargo_id: e.status for e in ended.embargo_register} == {
+        assert {e.id_: e.status for e in ended.embargo_register} == {
             net.initial_embargo_id: EmbargoRegisterStatus.TERMINATED,
             f"{net.case_id}/embargo_events/revision": (
                 EmbargoRegisterStatus.CANCELLED
@@ -336,7 +336,7 @@ class TestReplicaCopiesTheTermination:
         assert _trigger(net) == py_trees.common.Status.SUCCESS
 
         assert net.case(MANAGER).embargo_termination == (
-            EmbargoTermination.early()
+            EmbargoTermination.other()
         )
         self._replay_and_compare(net)
 

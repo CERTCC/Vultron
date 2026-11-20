@@ -255,7 +255,7 @@ class LedgerNetwork:
         ids = [
             self.case_id,
             *(str(p) for p in case.actor_participant_index.values()),
-            *(str(_as_id(e.embargo)) for e in case.embargo_register),
+            *(e.id_ for e in case.embargo_register),
         ]
         records = (dl.read(record_id) for record_id in ids)
         return [

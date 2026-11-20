@@ -14,17 +14,15 @@
 
 """The register step each protocol event causes (ADR-0122).
 
-The callers say *what happened*; these builders say which entries move.
+The callers say *what happened*; these builders say which embargoes move.
 """
 
 from collections.abc import Sequence
 
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_register.entry import (
+from vultron.core.models.embargo_register.change import (
     _S,
     _T,
-    EmbargoRegisterEntry,
     RegisterChange,
 )
 from vultron.core.models.embargo_termination import EmbargoTermination
@@ -34,33 +32,29 @@ from vultron.core.states.embargo_register import (
 
 
 def _ids_with(
-    entries: Sequence[EmbargoRegisterEntry], status: EmbargoRegisterStatus
+    embargoes: Sequence[EmbargoEvent], status: EmbargoRegisterStatus
 ) -> list[str]:
-    return [entry.embargo_id for entry in entries if entry.status == status]
+    return [embargo.id_ for embargo in embargoes if embargo.status == status]
 
 
-def proposal_changes(embargo: str | EmbargoEvent) -> list[RegisterChange]:
-    """The step that proposes *embargo*: one new ``PROPOSED`` entry."""
-    embargo_id = _as_id(embargo)
-    assert embargo_id is not None
+def proposal_changes(embargo: EmbargoEvent) -> list[RegisterChange]:
+    """The step that proposes *embargo*: the register adds it, ``PROPOSED``."""
     return [
         RegisterChange(
-            embargo_id=embargo_id,
-            trigger=_T.PROPOSE,
-            embargo=embargo if isinstance(embargo, EmbargoEvent) else None,
+            embargo_id=embargo.id_, trigger=_T.PROPOSE, embargo=embargo
         )
     ]
 
 
 def activation_changes(
-    entries: Sequence[EmbargoRegisterEntry], embargo_id: str
+    embargoes: Sequence[EmbargoEvent], embargo_id: str
 ) -> list[RegisterChange]:
-    """The step that activates *embargo_id*, superseding any ``ACTIVE`` entry."""
+    """The step that activates *embargo_id*, superseding any ``ACTIVE`` embargo."""
     return [
         RegisterChange(embargo_id=embargo_id, trigger=_T.ACTIVATE),
         *(
             RegisterChange(embargo_id=active_id, trigger=_T.SUPERSEDE)
-            for active_id in _ids_with(entries, _S.ACTIVE)
+            for active_id in _ids_with(embargoes, _S.ACTIVE)
         ),
     ]
 
@@ -71,7 +65,7 @@ def rejection_changes(embargo_id: str) -> list[RegisterChange]:
 
 
 def termination_changes(
-    entries: Sequence[EmbargoRegisterEntry], termination: EmbargoTermination
+    embargoes: Sequence[EmbargoEvent], termination: EmbargoTermination
 ) -> list[RegisterChange]:
     """End the embargo in force with *termination*; cancel proposals (EP-08-004)."""
     return [
@@ -81,29 +75,10 @@ def termination_changes(
                 trigger=_T.TERMINATE,
                 termination=termination,
             )
-            for active_id in _ids_with(entries, _S.ACTIVE)
+            for active_id in _ids_with(embargoes, _S.ACTIVE)
         ),
         *(
             RegisterChange(embargo_id=proposed_id, trigger=_T.CANCEL)
-            for proposed_id in _ids_with(entries, _S.PROPOSED)
+            for proposed_id in _ids_with(embargoes, _S.PROPOSED)
         ),
-    ]
-
-
-def carry_embargo_inline(
-    entries: Sequence[EmbargoRegisterEntry], embargo: EmbargoEvent
-) -> list[EmbargoRegisterEntry]:
-    """*entries* with *embargo*'s entry holding the object, not its id.
-
-    For a copy of a case about to be sent: a recipient cannot dereference an
-    embargo it does not hold (AKM-02-004, EMB-18-003).  The status is
-    unchanged, so this is not a register step.
-    """
-    return [
-        (
-            entry.model_copy(update={"embargo": embargo})
-            if entry.embargo_id == embargo.id_
-            else entry
-        )
-        for entry in entries
     ]

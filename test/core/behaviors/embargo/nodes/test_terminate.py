@@ -501,7 +501,7 @@ class TestParticipantCause:
 
     @pytest.mark.spec("EMB-13-005")
     def test_no_cause_stays_none(self) -> None:
-        assert EmbargoTermination.early().participant_cause is None
+        assert EmbargoTermination.other().participant_cause is None
 
     @pytest.mark.spec("EMB-13-005")
     def test_any_other_cause_passes_through(self) -> None:

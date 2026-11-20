@@ -228,7 +228,7 @@ def _named_by(case: VulnerabilityCase) -> set[str]:
     named |= {
         str(i) for ref in case.case_statuses if (i := _as_id(ref)) is not None
     }
-    named |= {entry.embargo_id for entry in case.embargo_register}
+    named |= {embargo.id_ for embargo in case.embargo_register}
     named |= {str(v) for v in case.pending_embargo_proposal_index.values()}
     return named
 

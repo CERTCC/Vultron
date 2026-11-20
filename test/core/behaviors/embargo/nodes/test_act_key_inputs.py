@@ -135,14 +135,14 @@ _NODES: list[tuple[NodeBuild, tuple[ActKey, ...]]] = [
     (ExpireOverdueInvitesNode, (CASE_ID,)),
     (ExpirePendingInvitesOnCloseNode, (CASE_ID,)),
     (
-        lambda: ClearActiveEmbargoNode(termination=EmbargoTermination.early()),
+        lambda: ClearActiveEmbargoNode(termination=EmbargoTermination.other()),
         (CASE_ID, EMBARGO_ID),
     ),
     (HasEmbargoActiveNode, (CASE_ID,)),
     (SendAnnounceEmbargoEventNode, (CASE_ID, EMBARGO_ID)),
     (
         lambda: TerminationIsTimelyNode(
-            termination=EmbargoTermination.early()
+            termination=EmbargoTermination.other()
         ),
         (CASE_ID,),
     ),
@@ -150,13 +150,13 @@ _NODES: list[tuple[NodeBuild, tuple[ActKey, ...]]] = [
     (TeardownAskPendingNode, (CASE_ID, EMBARGO_ID)),
     (
         lambda: TerminationCauseIsAdmissibleNode(
-            termination=EmbargoTermination.early()
+            termination=EmbargoTermination.other()
         ),
         (CASE_ID, SENDER_ID),
     ),
     (
         lambda: CommitAndApplyEmbargoTerminationNode(
-            result_out={}, termination=EmbargoTermination.early()
+            result_out={}, termination=EmbargoTermination.other()
         ),
         (CASE_ID,),
     ),

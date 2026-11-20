@@ -39,6 +39,7 @@ from vultron.core.services.embargo_lifecycle.results import (
     ParticipantConsentChange,
     TransitionMode,
 )
+from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     RegisterTrigger,
@@ -151,11 +152,13 @@ class _ProposalOperationsMixin(_PecActivationMixin):
                 "propose embargo",
             )
 
-        entry = case.embargo_register_entry(embargo_id)
+        entry = case.registered_embargo(embargo_id)
         if entry is None:
             case_mutated = self._apply_register_step(
                 case,
-                proposal_changes(embargo_id),
+                proposal_changes(
+                    read_embargo_event(self._persistence, embargo_id)
+                ),
                 transition_mode=transition_mode,
                 actor_id=actor_id,
             )
@@ -168,7 +171,7 @@ class _ProposalOperationsMixin(_PecActivationMixin):
         elif transition_mode == TransitionMode.STRICT:
             raise VultronInvalidStateTransitionError(
                 f"Cannot propose embargo '{embargo_id}' on case '{case_id}':"
-                f" its register entry is already {entry.status}."
+                f" it is already {entry.status} in the register."
             )
         else:
             logger.warning(

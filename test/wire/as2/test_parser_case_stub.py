@@ -72,13 +72,11 @@ def _enriched_stub() -> dict:
         "summary": "Security issue — embargo active, details shared after acceptance",
         "embargoRegister": [
             {
-                "embargo": {
-                    "type": "EmbargoEvent",
-                    "published": "2026-01-01T00:00:00+00:00",
-                    "id": f"{_CASE_ID}/embargoes/e0",
-                    "context": _CASE_ID,
-                    "endTime": days_from_now(30).isoformat(),
-                },
+                "type": "EmbargoEvent",
+                "published": "2026-01-01T00:00:00+00:00",
+                "id": f"{_CASE_ID}/embargoes/e0",
+                "context": _CASE_ID,
+                "endTime": days_from_now(30).isoformat(),
                 "status": "ACTIVE",
             }
         ],

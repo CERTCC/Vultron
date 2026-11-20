@@ -1913,10 +1913,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `TERMINATED` register entry MUST record the termination's structured
-      cause, when known.
-      The cause is an object discriminated on `kind`, whose details depend on the
-      kind.
+      A `TERMINATED` embargo MUST store its termination on the embargo itself:
+      its structured cause, the id of the act that caused it when known, and a
+      human reason in `summary` when one is given.
+      The cause is required, an object discriminated on `kind`, whose details
+      depend on the kind.
       One kind is `END_TIME_REACHED`: the embargo reached its end time.
       Another is `THREAT_SIGNAL`, with the signals (`P`, `X`, `A`) that ended the
       embargo, distinct and in that order.
@@ -1929,13 +1930,17 @@ groups:
       new cause (adversary awareness, exploit code held by adversaries, a
       participant's leak) is a new kind rather than a change to a closed list
       (ADR-0122). End time reached is one of them, so no separate what is recorded
-      beside it (ADR-0203).
+      beside it (ADR-0203). Every fact about an embargo is stored on the embargo,
+      so a message about its end can be an `Update` of the embargo (ADR-0202).
     verification: >-
       `test/core/use_cases/received/test_termination_reason.py`
       (`test_case_manager_records_an_early_remove_as_early`,
       `test_case_manager_records_an_end_time_remove_after_the_end_time`) and
       `test/core/models/test_embargo_termination.py` cover the recorded cause for
-      `END_TIME_REACHED`, `THREAT_SIGNAL` and none;
+      `END_TIME_REACHED`, `THREAT_SIGNAL` and `OTHER`;
+      `test/core/models/test_embargo_register.py`
+      (`test_an_embargo_stores_its_termination_only_when_terminated`) refuses a
+      termination on an embargo that is not `TERMINATED`;
       `test/core/use_cases/received/test_termination_cause.py`
       (`test_an_early_termination_records_each_new_cause_kind`) builds an early
       termination with each of `FIX_READY`, `FIX_DEPLOYED` and `OTHER`.
@@ -1944,6 +1949,7 @@ groups:
     - testable_without_steps
     adr:
     - ADR-0122
+    - ADR-0202
     relationships:
     - rel_type: extends
       spec_id: EMB-13-004
@@ -1958,23 +1964,25 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST read every cause kind but `END_TIME_REACHED` as an early
-      termination (EMB-13-010). A termination with no cause is valid: it ended the
-      embargo early, and records no cause.
+      termination (EMB-13-010). A termination `Remove` that names no cause ended the
+      embargo early, and the `TERMINATED` embargo stores the cause `OTHER` for it.
     rationale: >-
       Every cause but the end time explains why an embargo ended before its end
       time. A sender may end an embargo early without naming why, so the absence of
       a cause is an early end, never an end at the end time, which is a cause of its
-      own (ADR-0203).
+      own (ADR-0203). The stored termination always names its cause kind
+      (ADR-0202), and `OTHER` is the kind for a reason no other kind names.
     verification: >-
       `test/core/use_cases/received/test_termination_cause.py`
       (`test_end_time_reached_is_the_one_cause_kind_that_is_not_early`,
       `test_a_termination_with_no_cause_ended_early`) reads each cause kind and a
-      termination with no cause.
+      `Remove` with no cause, stored as `OTHER`.
     testable: true
     lint_suppress:
     - testable_without_steps
     adr:
     - ADR-0122
+    - ADR-0202
     - ADR-0203
     relationships:
     - rel_type: extends
@@ -2125,7 +2133,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A replica MUST record, on its `TERMINATED` entry, the cause that the
+      A replica MUST store, on its `TERMINATED` embargo, the cause that the
       termination's ledger entry carries.
     rationale: >-
       One ledger entry is one activity, and the termination's entry is the whole
@@ -2136,12 +2144,13 @@ groups:
       (`test_replica_replay_copies_the_cause_the_entry_carries`) and
       `test/core/use_cases/received/test_termination_cause.py`
       (`test_a_replica_copies_an_owner_fix_ready_cause`) assert the replica's
-      `TERMINATED` entry equals the CASE_MANAGER's.
+      `TERMINATED` embargo equals the CASE_MANAGER's.
     testable: true
     lint_suppress:
     - testable_without_steps
     adr:
     - ADR-0122
+    - ADR-0202
     relationships:
     - rel_type: extends
       spec_id: EMB-13-005
@@ -2156,12 +2165,12 @@ groups:
     rationale: >-
       A replica's own view can differ from the CASE_MANAGER's, such as threat signals
       its PXA does not carry. A cause it worked out would then disagree with the
-      CASE_MANAGER's `TERMINATED` entry (CM-23-016).
+      CASE_MANAGER's `TERMINATED` embargo (CM-23-016).
     verification: >-
       `test/core/use_cases/received/test_termination_cause.py`
       (`test_a_replica_copies_signals_its_own_pxa_does_not_carry`) replays a
       termination whose threat signals differ from the replica's PXA and asserts the
-      two `TERMINATED` entries are equal.
+      two `TERMINATED` embargoes are equal.
     testable: true
     lint_suppress:
     - testable_without_steps

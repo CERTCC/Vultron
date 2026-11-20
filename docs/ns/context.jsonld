@@ -56,6 +56,10 @@
       },
       "category": "vultron:category",
       "cause": "vultron:cause",
+      "causedBy": {
+        "@id": "vultron:causedBy",
+        "@type": "@id"
+      },
       "childCases": {
         "@id": "vultron:childCases",
         "@type": "@id",
@@ -67,10 +71,6 @@
       },
       "dState": "vultron:dState",
       "emState": "vultron:emState",
-      "embargo": {
-        "@id": "vultron:embargo",
-        "@type": "@id"
-      },
       "embargoConsents": {
         "@id": "vultron:embargoConsents",
         "@container": "@set"

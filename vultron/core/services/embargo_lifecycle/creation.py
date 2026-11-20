@@ -234,7 +234,7 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         )
         work._apply_register_step(
             case,
-            proposal_changes(embargo_id),
+            proposal_changes(embargo),
             transition_mode=TransitionMode.STRICT,
             actor_id=actor_id,
         )

@@ -149,15 +149,15 @@ class TestInviteActorToCaseWithInlineEmbargo:
         assert preview["type"] == "CasePreview"
         assert "caseId" not in preview
         (entry,) = preview["embargoRegister"]
-        assert entry["embargo"]["id"] == embargo.id_
-        assert entry["embargo"]["endTime"]
+        assert entry["id"] == embargo.id_
+        assert entry["endTime"]
         (status,) = preview["caseStatuses"]
         assert status["emState"] == "ACTIVE"
 
 
-class TestInviteActorToCaseWithEmbargoHeldById:
-    """A locally built case names its active embargo by id; the adapter reads
-    the object from the store so the stub can embed it whole (CM-17-011)."""
+class TestInviteActorToCaseWithRegisteredEmbargo:
+    """A case's register holds its active embargo whole (ADR-0202), so the
+    stub embeds it as registered (CM-17-011)."""
 
     @staticmethod
     def _seed_case(dl, case_id: str, *, store_embargo: bool):
@@ -192,7 +192,7 @@ class TestInviteActorToCaseWithEmbargoHeldById:
                         em=EmDimension(state=EM.ACTIVE),
                     )
                 ],
-                embargo_register=register(active=embargo.id_),
+                embargo_register=register(active=embargo),
             )
         )
         return embargo
@@ -216,26 +216,28 @@ class TestInviteActorToCaseWithEmbargoHeldById:
         # Nested, it does not restate the activity's ``@context`` (VM-10-004).
         del expected["@context"]
         (entry,) = json.loads(blob)["object"]["preview"]["embargoRegister"]
-        assert entry["embargo"] == expected
+        # The registered embargo is the stored one, now in force (ADR-0202).
+        assert entry == {**expected, "status": "ACTIVE"}
 
     @pytest.mark.spec("CM-17-024")
-    def test_invite_is_refused_when_the_embargo_is_not_in_the_store(
+    def test_invite_embeds_the_registered_embargo_the_store_lacks(
         self, adapter, dl
     ):
-        """No object to embed means no Invite, not a stub naming a bare id."""
+        """The register holds the embargo whole, so the stub embeds it with
+        no store read (ADR-0202)."""
         case_id = "https://example.org/cases/case-embargo-missing"
-        self._seed_case(dl, case_id, store_embargo=False)
+        embargo = self._seed_case(dl, case_id, store_embargo=False)
 
-        with pytest.raises(
-            VultronActivityConstructionError, match="CM-17-011"
-        ):
-            adapter.invite_actor_to_case(
-                invitee_id=_INVITEE,
-                case_id=case_id,
-                actor=_ACTOR,
-                to=[_INVITEE],
-                at=authored_at(),
-            )
+        _, blob = adapter.invite_actor_to_case(
+            invitee_id=_INVITEE,
+            case_id=case_id,
+            actor=_ACTOR,
+            to=[_INVITEE],
+            at=authored_at(),
+        )
+
+        (entry,) = json.loads(blob)["object"]["preview"]["embargoRegister"]
+        assert (entry["id"], entry["status"]) == (embargo.id_, "ACTIVE")
 
 
 class TestInviteActorToCase:

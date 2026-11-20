@@ -582,7 +582,7 @@ class _World:
     def termination(self) -> EmbargoTermination | None:
         case = self.dl.read(self.case_id)
         assert isinstance(case, VulnerabilityCase)
-        entry = case.embargo_register_entry(self.embargo.id_)
+        entry = case.registered_embargo(self.embargo.id_)
         assert entry is not None
         assert entry.status is EmbargoRegisterStatus.TERMINATED
         return entry.termination

@@ -22,7 +22,7 @@ import pytest
 
 from vultron.core.models.case_preview import CasePreview
 from vultron.core.models.dimensions import EmDimension
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.preview_object import is_loose_form_of, loose_form
 from vultron.core.models.vulnerability_item import (
     VulnerabilityItem,
@@ -68,7 +68,7 @@ def test_an_actor_inside_a_preview_is_read_whole() -> None:
 
 
 def test_a_dict_without_a_type_takes_its_field_s_one_loose_form() -> None:
-    entry = loose_form(EmbargoRegisterEntry)
+    entry = loose_form(EmbargoTermination)
 
     assert inline_class({}, slots=(entry,), in_preview=True) is entry
 
@@ -78,7 +78,7 @@ def test_a_dict_without_a_type_and_two_loose_forms_is_left_to_its_field() -> (
 ):
     """Two loose forms leave no one class to read it, so its field
     validates it, as outside a preview."""
-    slots = (loose_form(EmbargoRegisterEntry), loose_form(VulnerabilityItemId))
+    slots = (loose_form(EmbargoTermination), loose_form(VulnerabilityItemId))
 
     assert inline_class({}, slots=slots, in_preview=True) is None
 

@@ -573,7 +573,7 @@ def test_decide_termination_refuses(
         if termination == "no threat signal"
         else EmbargoTermination.end_time_reached()
         if termination == "end time not reached"
-        else EmbargoTermination.early()
+        else EmbargoTermination.other()
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):

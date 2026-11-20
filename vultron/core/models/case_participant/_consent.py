@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.embargo_register import (
     FINAL_REGISTER_STATUSES,
     EmbargoRegisterStatus,
@@ -283,41 +283,41 @@ class EmbargoConsentRowsMixin:
             == EmbargoConsentState.AGREED
         )
 
-    def has_lapsed(self, register: Sequence[EmbargoRegisterEntry]) -> bool:
+    def has_lapsed(self, register: Sequence[EmbargoEvent]) -> bool:
         """True when it was bound, and the embargo in force is one it did not agree to.
 
         Derived from the rows and *register*, the case's embargo register
-        (ADR-0122, CM-18-001): an entry is ``ACTIVE``, this participant's row
+        (ADR-0122, CM-18-001): an embargo is ``ACTIVE``, this participant's row
         for it is neither ``AGREED`` nor ``DECLINED``, and, following
-        ``replaces`` back from the ``ACTIVE`` entry, the first entry whose
+        ``replaces`` back from the ``ACTIVE`` embargo, the first one whose
         row is ``AGREED`` or ``DECLINED`` has an ``AGREED`` row.  Only the
         embargoes that were once in force are on that chain, so agreeing to a
         proposal that never took effect binds nothing to lapse from; and a
         participant that withdrew from a later embargo (a ``DECLINED`` row
         on the chain) has not lapsed when a further revision replaces it.
-        With no ``ACTIVE`` entry nobody has lapsed.
+        With no ``ACTIVE`` embargo nobody has lapsed.
 
         Raises:
-            VultronValidationError: an entry on the chain names a ``replaces``
+            VultronValidationError: an embargo on the chain names a ``replaces``
                 the register does not hold, or the chain loops.
-            VultronNotFoundError: the participant has no row for an entry on
+            VultronNotFoundError: the participant has no row for an embargo on
                 the chain.
         """
-        by_id = {entry.embargo_id: entry for entry in register}
+        by_id = {embargo.id_: embargo for embargo in register}
         active = next(
             (e for e in register if e.status == EmbargoRegisterStatus.ACTIVE),
             None,
         )
         answered = (EmbargoConsentState.AGREED, EmbargoConsentState.DECLINED)
-        if active is None or self.consent_for(active.embargo_id) in answered:
+        if active is None or self.consent_for(active.id_) in answered:
             return False
-        seen = {active.embargo_id}
+        seen = {active.id_}
         replaced_id = active.replaces
         while replaced_id is not None:
             if replaced_id not in by_id:
                 raise VultronValidationError(
                     f"Embargo register names '{replaced_id}' as replaced but"
-                    " holds no entry for it; lapsed cannot be read."
+                    " does not hold it; lapsed cannot be read."
                 )
             if replaced_id in seen:
                 raise VultronValidationError(

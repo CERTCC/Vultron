@@ -858,7 +858,7 @@ def revising(
 
 def _register(dl: SqliteDataLayer, case_id: str) -> list[tuple[str, str]]:
     case = cast(VulnerabilityCase, dl.read(case_id))
-    return [(e.embargo_id, e.status.value) for e in case.embargo_register]
+    return [(e.id_, e.status.value) for e in case.embargo_register]
 
 
 @pytest.mark.spec("MSM-07-010", "VP-13-017")

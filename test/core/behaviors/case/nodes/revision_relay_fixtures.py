@@ -123,9 +123,7 @@ def seed(
     )
     for record in records:
         # The rows the register's entries gave each participant (ADR-0122).
-        record.write_uninvited_rows(
-            e.embargo_id for e in case.embargo_register
-        )
+        record.write_uninvited_rows(e.id_ for e in case.embargo_register)
     scenario.seed(*records, case, embargo, report)
     scenario.dl.save(
         _to_persistable_entry(

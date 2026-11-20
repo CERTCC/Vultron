@@ -39,11 +39,9 @@ from vultron.core.models._helpers import authored_times
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_reference import CaseReference
-from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.services.case_inline import inline_owned
-from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import (
     VultronError,
     VultronNotFoundError,
@@ -268,26 +266,6 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             else:
                 materialized.append(ref)
         updates: dict[str, Any] = {"case_participants": materialized}
-        # Carry the active embargo inline too: a recipient refuses a case
-        # naming an embargo its own store cannot read (EMB-18-003), and the
-        # CASE_MANAGER minted this one, so no recipient holds it yet.  Raises
-        # when this store cannot read it — sending the bare id would only
-        # hand every recipient a case it must refuse.
-        if isinstance(raw_case.active_embargo, str):
-            try:
-                embargo = read_embargo_event(
-                    self.datalayer, raw_case.active_embargo
-                )
-            except (VultronNotFoundError, VultronValidationError) as exc:
-                raise VultronValidationError(
-                    f"case '{raw_case.id_}' names active embargo"
-                    f" '{raw_case.active_embargo}', which this store cannot"
-                    " read, so the Create(VulnerabilityCase) cannot carry it"
-                    f" inline (EMB-18-003): {exc}"
-                ) from exc
-            updates["embargo_register"] = carry_embargo_inline(
-                raw_case.embargo_register, embargo
-            )
         # Carry the full reports inline (AKM-02-004, ISSUE-2134).  The owner
         # holds the report it proposed, so its extractor keeps only the ids.
         # The reports ride on the copy, so the Create renders as one object

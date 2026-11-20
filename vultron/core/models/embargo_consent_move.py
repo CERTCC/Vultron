@@ -78,7 +78,7 @@ def consent_row_move(
             the register holds, a broken invariant (ADR-0122).
     """
     participant = case_file.participants.get(actor_id)
-    entry = case_file.case.embargo_register_entry(embargo_id)
+    entry = case_file.case.registered_embargo(embargo_id)
     if participant is None or entry is None:
         return None
     # Every register entry has a row on every participant (ADR-0122): a
@@ -128,10 +128,7 @@ def owner_declined(case_file: EmbargoCaseFile, embargo_id: str) -> bool:
             register holds, a broken invariant (ADR-0122).
     """
     owner = case_file.participants.get(case_file.case.attributed_to)
-    if (
-        owner is None
-        or case_file.case.embargo_register_entry(embargo_id) is None
-    ):
+    if owner is None or case_file.case.registered_embargo(embargo_id) is None:
         return False
     return owner.consent_for(embargo_id) == EmbargoConsentState.DECLINED
 

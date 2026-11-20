@@ -313,7 +313,7 @@ def test_propose_embargo_invalid_state_raises(
 
     untouched = cast(VulnerabilityCase, dl.read(case.id_))
     assert untouched.em_state == EM.EXITED
-    assert untouched.embargo_register_entry(embargo.id_) is None
+    assert untouched.registered_embargo(embargo.id_) is None
 
 
 def test_propose_embargo_observed_mode_skips_a_refused_proposal(
@@ -347,7 +347,7 @@ def test_propose_embargo_observed_mode_skips_a_refused_proposal(
     assert result.case_changed is False
     untouched = cast(VulnerabilityCase, dl.read(case.id_))
     assert untouched.em_state == EM.EXITED
-    assert untouched.embargo_register_entry(embargo.id_) is None
+    assert untouched.registered_embargo(embargo.id_) is None
 
 
 # ---------------------------------------------------------------------------

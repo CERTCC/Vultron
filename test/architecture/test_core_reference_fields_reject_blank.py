@@ -161,9 +161,10 @@ def test_the_scan_covers_the_fields_3877_named() -> None:
         "actor_participant_index",
         "parent_cases",
     } <= set(string_fields(classes["VulnerabilityCase"]))
-    assert {"embargo", "replaces"} <= set(
-        string_fields(classes["EmbargoRegisterEntry"])
+    assert {"replaces", "context"} <= set(
+        string_fields(classes["EmbargoEvent"])
     )
+    assert "caused_by" in string_fields(classes["EmbargoTermination"])
     # The AS2 reference properties #3894 retyped from ``Any`` on the root.
     assert {
         "context",

@@ -289,8 +289,8 @@ def creation_entry_sequence(
     """
     sequence = [("create_case", case.id_)]
     sequence += [
-        ("create_embargo_event", entry.embargo_id)
-        for entry in case.embargo_register
+        ("create_embargo_event", embargo.id_)
+        for embargo in case.embargo_register
     ]
     sequence += [
         ("add_report_to_case", str(_as_id(report)))

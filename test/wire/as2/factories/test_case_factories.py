@@ -42,7 +42,7 @@ from vultron.core.models.case_preview import (
     preview_current_status,
     preview_em_state,
     preview_embargo_id,
-    preview_in_force_entry,
+    preview_in_force_embargo,
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
@@ -1197,11 +1197,11 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     assert isinstance(stub, as_CasePreview)
     # A preview holds its contents in loose forms (ADR-0217); the embargo is
     # shown whole, every term as the inviter holds it (CM-17-011).
-    entry = preview_in_force_entry(stub)
-    assert entry is not None
-    shown = getattr(entry, "embargo", None)
+    shown = preview_in_force_embargo(stub)
     assert is_loose_form_of(shown, as_EmbargoEvent)
-    assert _as2(shown) == _as2(embargo)
+    expected = case.active_embargo
+    assert expected is not None and _as2(shown) == _as2(expected)
+    assert getattr(shown, "status", None) == "ACTIVE"
     assert is_loose_form_of(preview_current_status(stub), as_CaseStatus)
     assert preview_em_state(stub) is EM.ACTIVE
 
@@ -1270,7 +1270,7 @@ def test_enriched_stub_carries_the_current_status_and_in_force_entry(
     assert status["pxaState"] == CS_pxa.PXa.name
     (entry,) = stub["embargoRegister"]
     assert entry["status"] == "ACTIVE"
-    assert entry["embargo"]["id"] == embargo.id_
+    assert entry["id"] == embargo.id_
     assert "activeEmbargo" not in stub
     assert "caseStatus" not in stub
 
@@ -1316,17 +1316,14 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     assert isinstance(reference, as_TypedReference)
     stub = reference.preview
     assert isinstance(stub, as_CasePreview)
-    entry = preview_in_force_entry(stub)
-    assert entry is not None
-    assert is_loose_form_of(getattr(entry, "embargo", None), as_EmbargoEvent)
+    assert is_loose_form_of(preview_in_force_embargo(stub), as_EmbargoEvent)
     assert preview_embargo_id(stub) == in_force.id_
     # The register is reduced to the in-force entry: the revision is not in
     # it (CM-17-014).
     shown_register = stub.embargo_register
     assert isinstance(shown_register, list)
     assert [preview_embargo_id(stub)] == [
-        getattr(getattr(shown, "embargo", None), "id_", None)
-        for shown in shown_register
+        getattr(shown, "id_", None) for shown in shown_register
     ]
     assert is_loose_form_of(preview_current_status(stub), as_CaseStatus)
     assert preview_em_state(stub) is EM.REVISE
@@ -1369,7 +1366,6 @@ def test_no_embargo_in_force_leaves_the_stub_bare(
         invitee=sample_actor,
         case=case,
         actor=_ACTOR_URI,
-        embargo_obj=embargo,
         at=authored_at(),
     )
 
@@ -1389,11 +1385,11 @@ _IN_FORCE_EM = pytest.mark.parametrize(
 
 def _embargo_active_case(
     case_id: str,
-    active_embargo: str | EmbargoEvent,
+    active_embargo: EmbargoEvent,
     *,
     revising: bool = False,
 ) -> VulnerabilityCase:
-    """A case with *active_embargo* (id or object) in force.
+    """A case with *active_embargo* in force.
 
     EM is ``ACTIVE``, or ``REVISE`` when *revising* adds an open revision.
     """
@@ -1438,34 +1434,22 @@ def _full_embargo(case_id: str) -> EmbargoEvent:
 
 @pytest.mark.spec("CM-17-011")
 @_IN_FORCE_EM
-@pytest.mark.parametrize(
-    "held_inline", [False, True], ids=["named-by-id", "held-inline"]
-)
-def test_rm_invite_stub_embeds_the_full_active_embargo(
-    sample_actor, held_inline, revising
-):
+def test_rm_invite_stub_embeds_the_full_active_embargo(sample_actor, revising):
     """The stub carries the whole embargo, not just its id and end time.
 
     The prototype builds no way for the invitee to ask the inviter for the
-    embargo by id, so the stub embeds it (CM-17-011).  Every term the stored
-    embargo holds reaches the wire unchanged — its sender-set start, name,
-    summary and author included — rather than a rebuilt copy that keeps only
-    the end time and mints a fresh start.  That holds whether the case names
-    the embargo by id (the caller passes the object it read) or holds it
-    inline.
+    embargo by id, so the stub embeds it (CM-17-011).  Every term the
+    registered embargo holds reaches the wire unchanged — its sender-set
+    start, name, summary and author included — with its own status
+    (ADR-0202), rather than a rebuilt copy that keeps only the end time and
+    mints a fresh start.
     """
     case_id = "https://example.org/cases/full-embargo"
     embargo = _full_embargo(case_id)
-    case = _embargo_active_case(
-        case_id, embargo if held_inline else embargo.id_, revising=revising
-    )
+    case = _embargo_active_case(case_id, embargo, revising=revising)
 
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor,
-        case=case,
-        actor=_ACTOR_URI,
-        embargo_obj=None if held_inline else embargo,
-        at=authored_at(),
+        invitee=sample_actor, case=case, actor=_ACTOR_URI, at=authored_at()
     )
     wire = json.loads(
         invite.model_dump_json(
@@ -1473,75 +1457,15 @@ def test_rm_invite_stub_embeds_the_full_active_embargo(
         )
     )
 
+    active = case.active_embargo
+    assert active is not None
     expected = json.loads(
-        embargo.model_dump_json(by_alias=True, exclude_none=True)
+        active.model_dump_json(by_alias=True, exclude_none=True)
     )
     del expected["@context"]  # nested: VM-10-004
-    (entry,) = wire["object"]["preview"]["embargoRegister"]
-    assert entry["embargo"] == expected
-
-
-@pytest.mark.spec("CM-17-024")
-@_IN_FORCE_EM
-def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(
-    sample_actor, revising
-):
-    """An active embargo named only by id, with no object to embed, is refused.
-
-    A bare id would leave the invitee no way to read the terms it would agree
-    to, since the prototype does not build fetching by id (CM-17-002,
-    CM-17-024).  The factory refuses rather than sending an uninformed stub.
-    """
-    case_id = "https://example.org/cases/embargo-not-held"
-    case = _embargo_active_case(
-        case_id, _full_embargo(case_id).id_, revising=revising
-    )
-
-    with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
-        rm_invite_to_case_activity(
-            invitee=sample_actor,
-            case=case,
-            actor=_ACTOR_URI,
-            at=authored_at(),
-        )
-
-
-@pytest.mark.spec("CM-17-024")
-@_IN_FORCE_EM
-def test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one(
-    sample_actor, revising
-):
-    """A supplied embargo whose id is not the case's active embargo is refused."""
-    case_id = "https://example.org/cases/embargo-mismatch"
-    case = _embargo_active_case(
-        case_id, _full_embargo(case_id).id_, revising=revising
-    )
-
-    with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
-        rm_invite_to_case_activity(
-            invitee=sample_actor,
-            case=case,
-            actor=_ACTOR_URI,
-            embargo_obj=_full_embargo(case_id),
-            at=authored_at(),
-        )
-
-
-@pytest.mark.spec("CM-17-024")
-def test_rm_invite_refuses_a_supplied_embargo_that_is_no_embargo(sample_actor):
-    """A supplied in-force embargo that is not an ``EmbargoEvent`` is refused:
-    it holds no terms to embed (CM-17-011)."""
-    case_id = "https://example.org/cases/embargo-not-an-embargo"
-    case = _embargo_active_case(case_id, _full_embargo(case_id).id_)
-
-    with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
-        rm_invite_to_case_activity(
-            invitee=sample_actor,
-            case=case,
-            actor=_ACTOR_URI,
-            embargo_obj=make(as_VulnerabilityCase, attributed_to=_ACTOR_URI),
-            at=authored_at(),
-        )
+    (shown,) = wire["object"]["preview"]["embargoRegister"]
+    assert shown == expected
+    assert shown["status"] == "ACTIVE"
 
 
 @pytest.mark.spec("CM-11-001")

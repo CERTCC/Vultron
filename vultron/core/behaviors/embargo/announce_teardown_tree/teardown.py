@@ -183,8 +183,8 @@ def remove_embargo_from_case_tree(
             (ADR-0115, EP-09-005, PCR-03-001).
         termination_cause: Why the embargo ended, ``END_TIME_REACHED``
             included, as the ``Remove`` carries it in ``terminationCause``, or
-            ``None`` when it names none; recorded on the ``TERMINATED`` entry
-            as given (EMB-13-005, ADR-0203).  A
+            ``None`` when it names none, which records ``OTHER``; stored on
+            the ``TERMINATED`` embargo (EMB-13-005, ADR-0202, ADR-0203).  A
             ``THREAT_SIGNAL`` cause from anyone but the CASE_MANAGER is
             refused before the commit (``TerminationCauseIsAdmissibleNode``).
         terminated_at: The ``Remove``'s ``published`` time.  An
@@ -209,8 +209,8 @@ def remove_embargo_from_case_tree(
         case_id, requested_by=sender_actor_id
     )
     # The Remove carries its cause, when its sender names one (EMB-13-005);
-    # the TERMINATED entry records it as given.
-    termination = EmbargoTermination(cause=termination_cause)
+    # the TERMINATED embargo stores it, OTHER when it names none.
+    termination = EmbargoTermination.from_cause(termination_cause)
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,

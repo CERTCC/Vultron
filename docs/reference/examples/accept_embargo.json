@@ -38,7 +38,8 @@
       "endTime": "2026-08-30T00:00:00.000000+00:00",
       "published": "2026-06-01T19:12:00.000000+00:00",
       "updated": "2026-06-01T19:12:00.000000+00:00",
-      "content": "We propose to embargo VendorCo Case #20260601 for 90 days."
+      "content": "We propose to embargo VendorCo Case #20260601 for 90 days.",
+      "status": "PROPOSED"
     }
   },
   "proof": {
@@ -52,6 +53,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4u6UtnUDYR8xFjCnd6ozTXcQQQVNxWP6FWjusZrWtAiWW19H14YJ19QqUt1SCB4GaKHVmqfNMd3jVf1tzSg1nm8T"
+    "proofValue": "zVASWtNqb25DVpJfbN2QHbsgSDLf6SdVtCdJQ8UVEdts8c8RT3xvMvyPZKoZJXJ3V8rxAJJWXrHkh7Um1gfuzMj6"
   }
 }

@@ -27,11 +27,12 @@ A termination is its cause, a union discriminated on ``kind`` (EMB-13-010):
 End time reached is a cause like the others, so no separate
 ``END_TIME_REACHED``/``EARLY`` value travels beside it (ADR-0203): every
 cause but :class:`EndTimeReachedCause` ends an embargo before its end time.
-``cause`` is ``None`` when no structured cause is recorded: an early
-termination whose sender named none.  The termination ``Remove`` carries
-the cause as ``terminationCause``, checked at the parse edge (EMB-13-005).
-A replica copies the cause from the ledger entry and never works it out
-itself.
+The stored termination always names its cause: a ``Remove`` whose sender
+named none records ``OTHER`` (:meth:`EmbargoTermination.from_cause`).  The
+termination ``Remove`` carries the cause as ``terminationCause``, checked at
+the parse edge (EMB-13-005).  A replica copies the cause from the ledger
+entry and never works it out itself.  The termination is stored on the
+terminated embargo itself (ADR-0202).
 
 :func:`end_time_violations` is the end-time rule every node applies before
 an end-time termination: it is refused when it is claimed before the
@@ -51,7 +52,7 @@ from vultron.core.models.base import (
     vultron_property,
 )
 from vultron.core.states.cs import CS_pxa
-from vultron.primitives import NormalisedActorId
+from vultron.primitives import NonEmptyString, NormalisedActorId
 
 
 class ThreatSignal(StrEnum):
@@ -249,15 +250,17 @@ TerminationCause = Annotated[
 
 
 class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
-    """How one embargo ended: its cause, when one is recorded (ADR-0203).
+    """How one embargo ended, stored on the embargo (ADR-0202, ADR-0203).
 
-    No cause is an early termination whose sender named none.
+    ``cause`` is required: end time reached is a cause like the others, and
+    an early end whose sender named no structured cause is ``OTHER``
+    (:meth:`from_cause`).  ``caused_by`` is the id of the act that caused
+    the end, when known, and ``summary`` the human reason, when given.
     """
 
     model_config = _FROZEN
 
-    cause: TerminationCause | None = Field(
-        default=None,
+    cause: TerminationCause = Field(
         json_schema_extra=vultron_property(
             (
                 "Why an embargo ended: an object whose kind names the "
@@ -266,19 +269,30 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
             PropertyValueKind.PLAIN,
         ),
     )
+    caused_by: NonEmptyString | None = Field(
+        default=None,
+        json_schema_extra=vultron_property(
+            "The id of the act that caused an embargo to end, when known",
+            PropertyValueKind.IRI,
+        ),
+    )
+    #: The human reason the embargo ended, when one is given (ADR-0203).
+    summary: NonEmptyString | None = None
 
     @property
     def is_end_time_reached(self) -> bool:
         """Whether the embargo ended at its end time, not early."""
-        return (
-            self.cause is not None
-            and self.cause.kind == TerminationCauseKind.END_TIME_REACHED
-        )
+        return self.cause.kind == TerminationCauseKind.END_TIME_REACHED
 
     @classmethod
-    def early(cls) -> EmbargoTermination:
-        """An early termination with no structured cause recorded."""
-        return cls()
+    def from_cause(cls, cause: TerminationCause | None) -> EmbargoTermination:
+        """The termination a ``Remove`` naming *cause* records.
+
+        A ``Remove`` that names no structured cause ends the embargo early
+        for a reason no other kind names, so it records ``OTHER``: the
+        stored termination always names its cause kind (ADR-0202).
+        """
+        return cls(cause=cause if cause is not None else OtherCause())
 
     @classmethod
     def end_time_reached(cls) -> EmbargoTermination:
@@ -290,6 +304,11 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
         """An early termination caused by the threat *signals*."""
         return cls(cause=ThreatSignalCause(signals=signals))
 
+    @classmethod
+    def other(cls) -> EmbargoTermination:
+        """An early termination for a reason no other kind names."""
+        return cls(cause=OtherCause())
+
     @property
     def participant_cause(self) -> TerminationCause | None:
         """The cause a participant's ask for this termination may carry.
@@ -298,10 +317,7 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
         (``THREAT_SIGNAL``): the CASE_MANAGER would refuse that ask, and it
         learns the signals from the case status update instead (EMB-13-005).
         """
-        if (
-            self.cause is None
-            or self.cause.kind in CASE_MANAGER_ONLY_CAUSE_KINDS
-        ):
+        if self.cause.kind in CASE_MANAGER_ONLY_CAUSE_KINDS:
             return None
         return self.cause
 

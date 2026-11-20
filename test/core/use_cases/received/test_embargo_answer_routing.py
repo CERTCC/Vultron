@@ -1173,10 +1173,12 @@ def test_an_accept_of_an_active_embargo_past_its_end_time_is_refused():
     )
     dl_mgr.save(ended)
     case.embargo_register = [
-        entry.model_copy(update={"embargo": ended})
-        if entry.embargo_id == revision_id
-        else entry
-        for entry in case.embargo_register
+        (
+            embargo.model_copy(update={"end_time": ended.end_time})
+            if embargo.id_ == revision_id
+            else embargo
+        )
+        for embargo in case.embargo_register
     ]
     dl_mgr.save(case)
 

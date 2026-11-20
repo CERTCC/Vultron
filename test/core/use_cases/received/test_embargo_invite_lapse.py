@@ -660,7 +660,7 @@ class TestInviteeIsTheAddressee:
             case_roles=[CVDRole.VENDOR],
         )
         # Every participant holds a row for every register entry (ADR-0122).
-        register_ids = [e.embargo_id for e in case.embargo_register]
+        register_ids = [e.id_ for e in case.embargo_register]
         coord_cp.write_uninvited_rows(register_ids)
 
         dl.create(case)
