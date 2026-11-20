@@ -65,11 +65,10 @@ _PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", CaseLedgerEntry)
 _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Create", "VulnerabilityCase"),
     ("Offer", "VulnerabilityReport"),
-    # The CASE_MANAGER's ownership-transfer Offer (CM-21-005, ADR-0148).
+    # An ownership-transfer Offer: the Case Owner's own, committed as
+    # received, and the one the CASE_MANAGER makes from it (CM-21-028,
+    # ADR-0199).
     ("Offer", "VulnerabilityCase"),
-    # The Case Owner's ownership-transfer proposal, Offer(Offer(VulnerabilityCase)),
-    # committed as received (ADR-0148).  Owner-authored.
-    ("Offer", "Offer"),
     ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
     ("TentativeReject", "Offer"),  # invalidate_report (RI)
     # A Reject of an Offer: the ownership transferee's decline (CLP-02-016),
@@ -77,8 +76,8 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # Reject(Offer(VulnerabilityReport)) on a case is admitted now (CM-23-019).
     ("Reject", "Offer"),
     # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-007, CLP-02-013).
-    # The Case Owner's withdrawal of its ownership-transfer proposal
-    # (CM-21-015, ADR-0148).  Owner-authored: an Offer that passes its
+    # The Case Owner's withdrawal of its ownership-transfer Offer
+    # (CM-21-015, ADR-0199).  Owner-authored: an Offer that passes its
     # end_time is closed by that time alone, with no entry (CM-21-043,
     # ADR-0152).
     ("Undo", "Offer"),

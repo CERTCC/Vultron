@@ -218,7 +218,8 @@ class TestVocabCaseNoteExamples(unittest.TestCase):
 
 class TestVocabCaseOwnershipExamples(unittest.TestCase):
     def test_propose_case_ownership_transfer(self):
-        """The owner's proposal nests the Offer it asks for (ADR-0148)."""
+        """The owner's own Offer of the case, sent to the CASE_MANAGER alone
+        (ADR-0199)."""
         activity = examples.propose_case_ownership_transfer()
         vendor = examples.vendor()
         coordinator = examples.coordinator()
@@ -228,13 +229,12 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.context, case.id_)
         self.assertEqual(activity.to, [examples.case_actor().id_])
-        inner = activity.object_
-        assert isinstance(inner, as_Offer)
-        self.assertIsInstance(inner.target, as_Actor)
-        self.assertEqual(cast(as_Actor, inner.target).id_, coordinator.id_)
-        self.assertEqual(
-            cast(as_VulnerabilityCase, inner.object_).id_, case.id_
-        )
+        self.assertIsInstance(activity.target, as_Actor)
+        self.assertEqual(cast(as_Actor, activity.target).id_, coordinator.id_)
+        self.assertEqual(activity.object_, case_reference(case.id_))
+        # The Owner's Offer is its own: it credits and answers nobody.
+        self.assertIsNone(activity.attributed_to)
+        self.assertIsNone(activity.in_reply_to)
 
     def test_offer_case_ownership_transfer(self):
         activity = examples.offer_case_ownership_transfer()
@@ -285,12 +285,14 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         vendor = examples.vendor()
 
         self.assertEqual(activity.type_, "Undo")
-        # The owner withdraws its own proposal (CM-21-036, ADR-0148).
+        # The owner withdraws its own Offer (CM-21-036, ADR-0199).
         self.assertEqual(activity.actor, vendor.id_)
-        proposal = activity.object_
-        assert isinstance(proposal, as_Offer)
-        self.assertEqual(proposal.actor, vendor.id_)
-        self.assertIsInstance(proposal.object_, as_Offer)
+        owner_offer = activity.object_
+        assert isinstance(owner_offer, as_Offer)
+        self.assertEqual(owner_offer.actor, vendor.id_)
+        self.assertEqual(
+            owner_offer.object_, case_reference(examples.case().id_)
+        )
 
     def test_announce_case(self):
         activity = examples.announce_case()

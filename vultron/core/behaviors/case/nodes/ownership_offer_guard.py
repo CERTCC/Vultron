@@ -13,20 +13,22 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's guards on an ownership-transfer proposal (CM-21-026, CM-21-014).
+"""The CASE_MANAGER's guards on the Case Owner's ownership-transfer Offer.
+
+The Owner's own ``Offer(VulnerabilityCase)`` is its proposal (ADR-0199,
+CM-21-005, CM-21-014, CM-21-026).
 
 Provides:
 
 - :class:`OwnershipProposalAdmissibleNode` — precondition guard that refuses
-  a proposal whose inner Offer names another case, no actor the
-  CASE_MANAGER can address, or a transferee that is not an active
-  participant (ADR-0148, CM-21-021).
+  an Owner's Offer that names no actor the CASE_MANAGER can address, or a
+  transferee that is not an active participant (ADR-0148, CM-21-021).
 - :class:`NoOpenOwnershipOfferNode` — precondition guard that refuses a new
-  proposal while an earlier ownership-transfer Offer for the case is open.
+  Owner's Offer while an earlier ownership-transfer Offer for the case is
+  open.
 - :func:`case_manager_admits_ownership_proposal_guard` — both of them, for
-  the received proposal tree's ``precondition_guards``.  No gate: that tree
-  declares the manager path alone, so the path stage refuses every other
-  receiver before the guards run (HP-01-038, HP-01-039).
+  the received tree's manager-path branch of ``precondition_guards``
+  (HP-01-038).
 
 The guards on a reply to the Offer (:class:`OfferParty`,
 :class:`OwnershipOfferOpenNode`, :class:`OwnershipTransfereeActiveNode`,
@@ -56,11 +58,11 @@ from vultron.core.predicates.addressing import same_actor_id
 
 
 class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
-    """Guard: the proposal's inner Offer is one the CASE_MANAGER can make.
+    """Guard: the Owner's Offer is one the CASE_MANAGER can make its own from.
 
-    The CASE_MANAGER validates the inner Offer rather than copying it
-    (ADR-0148): its object must be the case the proposal names, and its
-    ``target`` an actor the CASE_MANAGER can address — present, and not the
+    The CASE_MANAGER validates the Owner's Offer rather than relaying it
+    (ADR-0148, ADR-0199): its ``target`` must be an actor the CASE_MANAGER
+    can address — present, and not the
     CASE_MANAGER itself, since a received tree emits nothing whose only
     recipient is the executing actor (BT-17-008, ADR-0109; CM-33-003 refuses
     the role offer on the same ground), nor the proposing owner, who already
@@ -71,14 +73,14 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
     anyone else invites it first.  The
     test is :func:`~vultron.core.participants.recipients.may_act_on_case`,
     the one the transferee's Accept passes again (:class:`OwnershipTransfereeActiveNode`).
-    Anything else in the inner
-    Offer (its id, ``actor`` and ``to``) is the sender's and is never read,
-    so the Offer the CASE_MANAGER makes carries its own id (CM-21-027).
+    Anything else in the
+    Owner's Offer (its id, ``actor`` and ``to``) is the sender's and is never
+    copied, so the Offer the CASE_MANAGER makes carries its own id
+    (CM-21-027).
 
     Read-only, so it runs in ``precondition_guards``
-    (:func:`case_manager_admits_ownership_proposal_guard`), which the
-    proposal tree's manager-path declaration already scopes to the
-    CASE_MANAGER: a refused proposal leaves no entry and sends nothing.
+    (:func:`case_manager_admits_ownership_proposal_guard`), on the tree's
+    manager-path branch: a refused Offer leaves no entry and sends nothing.
 
     Spec: CM-21-005, CM-21-026, CM-21-019, CM-21-021, BT-17-008.
     """
@@ -86,7 +88,6 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
     def __init__(
         self,
         case_id: str,
-        proposed_case_id: str | None,
         transferee_id: str | None,
         proposer_id: str,
         name: str | None = None,
@@ -94,15 +95,13 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
         """Create the guard.
 
         Args:
-            case_id: The case the proposal names (its ``context``).
-            proposed_case_id: The case the inner Offer names as its object.
-            transferee_id: The inner Offer's ``target``.
-            proposer_id: The proposal's sender.
+            case_id: The case the Owner's Offer names as its ``object``.
+            transferee_id: The Owner's Offer's ``target``.
+            proposer_id: The Owner's Offer's sender.
             name: Optional node name.
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
-        self._proposed_case_id = proposed_case_id
         self._transferee_id = transferee_id
         self._proposer_id = proposer_id
 
@@ -115,22 +114,17 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.actor_id is not None
-        if self._proposed_case_id != self._case_id:
-            return self._refuse(
-                f"the inner Offer names case '{self._proposed_case_id}', not"
-                f" the proposal's case '{self._case_id}'"
-            )
         transferee = self._transferee_id
         if not transferee:
-            return self._refuse("the inner Offer names no transferee")
+            return self._refuse("the Owner's Offer names no transferee")
         if same_actor_id(transferee, self.actor_id):
             return self._refuse(
-                f"the inner Offer names the CASE_MANAGER '{transferee}' as"
+                f"the Owner's Offer names the CASE_MANAGER '{transferee}' as"
                 " the transferee; it sends itself no Offer (BT-17-008)"
             )
         if same_actor_id(transferee, self._proposer_id):
             return self._refuse(
-                f"the inner Offer names the proposer '{transferee}', which"
+                f"the Owner's Offer names its sender '{transferee}', which"
                 f" already owns case '{self._case_id}'"
             )
         assert self.datalayer is not None
@@ -153,7 +147,7 @@ class NoOpenOwnershipOfferNode(
 ):
     """Guard: the case has no earlier ownership-transfer Offer still open.
 
-    The CASE_MANAGER refuses a new proposal while an earlier Offer for the
+    The CASE_MANAGER refuses a new Owner's Offer while an earlier Offer for the
     case is open, because two pending Offers would let two transferees
     accept the same case (CM-21-014, CM-21-001).  "Open" is read from the
     case ledger through
@@ -175,8 +169,8 @@ class NoOpenOwnershipOfferNode(
     act afresh.
 
     Read-only, so it runs in ``precondition_guards``
-    (:func:`case_manager_admits_ownership_proposal_guard`), scoped to the
-    CASE_MANAGER by the proposal tree's manager-path declaration.
+    (:func:`case_manager_admits_ownership_proposal_guard`), on the tree's
+    manager-path branch.
     """
 
     _REPEAT_FLAG = "is_redelivery"
@@ -243,21 +237,19 @@ class NoOpenOwnershipOfferNode(
 def case_manager_admits_ownership_proposal_guard(
     case_id: str,
     proposal_id: str,
-    proposed_case_id: str | None,
     transferee_id: str | None,
     proposer_id: str,
 ) -> list[py_trees.behaviour.Behaviour]:
-    """Precondition guards: the proposal is admissible at the CASE_MANAGER.
+    """Precondition guards: the Owner's Offer is admissible at the CASE_MANAGER.
 
     The open-Offer check runs first, so a redelivery is recognised as such
-    before its inner Offer is judged again; then the inner Offer is checked
-    (:class:`OwnershipProposalAdmissibleNode`).  A refused proposal is
-    neither committed nor made into an Offer (CM-21-026, CM-21-014).
+    before the Owner's Offer is judged again; then the Offer is checked
+    (:class:`OwnershipProposalAdmissibleNode`).  A refused Offer is neither
+    committed nor made into the CASE_MANAGER's own (CM-21-026, CM-21-014).
 
-    No role gate and no path branch: a proposal reaches the CASE_MANAGER
-    alone, so its tree declares the manager path by itself and the path
-    stage refuses every other receiver before these guards run (HP-01-038,
-    HP-01-039).
+    No role gate: the received tree runs these on its manager-path branch
+    alone, since the transferee receiving the CASE_MANAGER's Offer judges
+    nothing (HP-01-038).
     """
     return [
         NoOpenOwnershipOfferNode(
@@ -267,7 +259,6 @@ def case_manager_admits_ownership_proposal_guard(
         ),
         OwnershipProposalAdmissibleNode(
             case_id=case_id,
-            proposed_case_id=proposed_case_id,
             transferee_id=transferee_id,
             proposer_id=proposer_id,
         ),

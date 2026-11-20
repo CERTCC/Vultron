@@ -139,7 +139,7 @@ groups:
       `object_` is a bare string URI that no pattern matches, for an
       `Accept(Invite)` whose Invite's `object_` is one, and for an
       `Undo(Offer(Offer))` and an `Undo(Accept(Invite))` whose innermost
-      `object_` is one; `test_a_bare_object_two_activities_deep_is_the_one_fetched`
+      `object_` is one, whether or not a pattern of that depth is registered; `test_a_bare_object_two_activities_deep_is_the_one_fetched`
       confirms the fetch names that innermost id.
     relationships:
     - rel_type: supersedes
@@ -812,14 +812,15 @@ groups:
     kind: protocol
     statement: >-
       `OFFER_CASE_OWNERSHIP_TRANSFER` MUST be represented as
-      `Offer(VulnerabilityCase)`: the one Offer of a transfer, which the
-      CASE_MANAGER makes from the Case Owner's proposal (CM-21-005).
+      `Offer(VulnerabilityCase)`, with the transferee as `target`: the Case Owner's own
+      Offer to the CASE_MANAGER, and the Offer the CASE_MANAGER makes from it to the
+      transferee (CM-21-005).
     rationale: >-
-      The Offer asks the transferee to become the Case Owner, and an AS2 `Offer` gives
-      an object to a receiver for a decision. The CASE_MANAGER makes the Offer, so the
-      transfer goes through the actor that records it in the case ledger (CM-21-005). An
-      `Offer` of the case differs by shape from the Case Owner's proposal, an `Offer` of
-      an `Offer` (VAM-04-018).
+      An AS2 `Offer` gives an object to the actor named by `target` for a decision. The
+      Owner offers the case and the CASE_MANAGER makes the ask the transferee answers, so
+      the transfer goes through the actor that records it in the case ledger (CM-21-005,
+      ADR-0199). Both Offers have one shape; the receiver's path tells them apart
+      (VAM-04-018).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `OfferCaseOwnershipTransferActivityPattern` uses `TAtype.OFFER` and
       `AOtype.VULNERABILITY_CASE`; a test marked `VAM-04-007` in
@@ -830,6 +831,8 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CM-21-005
+    adr:
+    - ADR-0199
   - id: VAM-04-008
     priority: MUST
     kind: protocol
@@ -1038,18 +1041,17 @@ groups:
     kind: protocol
     statement: >-
       `UNDO_CASE_OWNERSHIP_TRANSFER` MUST be represented as
-      `Undo(Offer(Offer(VulnerabilityCase)))`: the Case Owner's withdrawal of its
-      own proposal, and with it of the open Offer the CASE_MANAGER made from it
-      (CM-21-015).
+      `Undo(Offer(VulnerabilityCase))`: the Case Owner's withdrawal of its own Offer,
+      and with it of the open Offer the CASE_MANAGER made from it (CM-21-015).
     rationale: >-
       An actor undoes only an activity that it performed, so the Case Owner withdraws
-      its own proposal with an `Undo` of that proposal. The withdrawal also ends the
-      Offer that the CASE_MANAGER made from the proposal (CM-21-015), so no transferee
-      can accept an Offer that the Case Owner withdrew.
+      its own Offer with an `Undo` of that Offer. The withdrawal also ends the Offer
+      that the CASE_MANAGER made from it (CM-21-015), so no transferee can accept an
+      Offer that the Case Owner withdrew.
     verification: >-
-      A unit test confirms that `Undo(Offer(Offer(VulnerabilityCase)))` matches
+      A unit test confirms that `Undo(Offer(VulnerabilityCase))` matches
       `UndoCaseOwnershipTransferActivityPattern`, which wraps
-      `ProposeCaseOwnershipTransferActivityPattern` inside an `Undo` outer
+      `OfferCaseOwnershipTransferActivityPattern` inside an `Undo` outer
       pattern, and resolves to `UNDO_CASE_OWNERSHIP_TRANSFER`.
     stories:
     - story_2022_050
@@ -1107,27 +1109,27 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `PROPOSE_CASE_OWNERSHIP_TRANSFER` MUST be represented as
-      `Offer(Offer(VulnerabilityCase))` with the case as the proposal's
-      `context`: the Case Owner's proposal to the CASE_MANAGER, whose inner Offer
-      is the template of the Offer the CASE_MANAGER makes (CM-21-005).
+      The Case Owner's ownership-transfer proposal MUST be represented as its own
+      `Offer(VulnerabilityCase)`, with the transferee as `target`, addressed to the
+      CASE_MANAGER: the shape of the CASE_MANAGER's Offer, matched by the same
+      pattern, and told apart from it by the path the receiver is on (CM-21-005).
     rationale: >-
-      The proposal and the CASE_MANAGER's `Offer(VulnerabilityCase)` (VAM-04-007)
-      are told apart by shape, an Offer of an Offer against an Offer of a case,
-      so neither pattern needs a sender check and no new vocabulary type is
-      needed (ADR-0148).
+      The Owner offers the case to the transferee, so the Owner's act is an `Offer` of
+      the case with the transferee as `target` (ADR-0199). The CASE_MANAGER receives
+      only the Owner's, and the transferee only the CASE_MANAGER's, so the receiver's
+      path, not a second shape, tells them apart, and no new vocabulary type is
+      needed.
     verification: >-
-      A unit test confirms that a proposal matches
-      `ProposeCaseOwnershipTransferActivityPattern`, which wraps
-      `OfferCaseOwnershipTransferActivityPattern` inside an `Offer` outer
-      pattern, and resolves to `PROPOSE_CASE_OWNERSHIP_TRANSFER`, while its inner
-      Offer alone resolves to `OFFER_CASE_OWNERSHIP_TRANSFER` and neither matches
-      the other's pattern.
+      A unit test confirms that the Owner's Offer is an
+      `_OfferCaseOwnershipTransferActivity`, matches
+      `OfferCaseOwnershipTransferActivityPattern` and resolves to
+      `OFFER_CASE_OWNERSHIP_TRANSFER`.
     relationships:
     - rel_type: derives_from
       spec_id: CM-21-005
     adr:
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
 - id: VAM-05

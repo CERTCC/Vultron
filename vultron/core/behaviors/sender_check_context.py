@@ -80,15 +80,16 @@ class OwnershipOfferRequest:
     A ``NAMED_ACTOR`` sender must be its transferee (CM-21-011); a
     ``CASE_OWNER`` sender must be the Case Owner that made it (CM-21-015).
 
+    The offerer check recognises a redelivery of the withdrawal that closed
+    the Offer by the received activity's own id, which it reads from the
+    ``/activity`` run key (HP-01-014).
+
     Attributes:
         offer_id: The Offer the reply names; ``None`` when it names none,
             which refuses.
-        reply_id: The reply's own id, so the offerer check recognises a
-            redelivery of the withdrawal that closed the Offer (HP-01-014).
     """
 
     offer_id: str | None
-    reply_id: str
 
 
 @dataclass(frozen=True)

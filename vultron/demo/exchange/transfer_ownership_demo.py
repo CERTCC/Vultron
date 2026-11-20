@@ -41,16 +41,16 @@ When run as a script, this module will:
 4. Run the demo workflows (accept, reject and withdraw)
 5. Verify side effects in the data layer
 
-Routing model (ADR-0053, ADR-0148):
-The vendor's proposal, ``Offer(Offer(VulnerabilityCase))``, the response to the
-Offer and the proposal's withdrawal are addressed to the **CaseActor's** inbox,
+Routing model (ADR-0053, ADR-0148, ADR-0199):
+The vendor's own ``Offer(VulnerabilityCase)``, the response to the CaseActor's
+Offer and the vendor's withdrawal are addressed to the **CaseActor's** inbox,
 never to the transferee or the offerer directly (CM-21-005, CM-21-006,
-CM-21-010, CM-21-015).  The CaseActor records the proposal, makes the one
-``Offer(VulnerabilityCase)`` of the transfer under its own id, sends it to the
-transferee and ledgers it, broadcasting each ``Add(CaseLedgerEntry)`` to
+CM-21-010, CM-21-015).  The CaseActor records the vendor's Offer, makes its
+own ``Offer(VulnerabilityCase)`` from it under an id it derives, sends it to
+the transferee and ledgers it, broadcasting each ``Add(CaseLedgerEntry)`` to
 every participant — which is how actors outside the negotiation, such as the
 reporter, learn a transfer is pending.  The demo therefore discovers the
-CaseActor's Offer by its properties rather than by the proposal's id
+CaseActor's Offer by its properties rather than by the vendor's Offer's id
 (EDF-06-004).
 """
 
@@ -107,7 +107,7 @@ def demo_transfer_ownership_accept(
     2. Vendor offers case ownership to coordinator, with a deadline to
        answer (OfferCaseOwnershipTransferActivity → **CaseActor** inbox,
        CM-21-005, TRIG-11-007)
-    3. CaseActor makes the Offer from the proposal and sends it to the
+    3. CaseActor makes its own Offer from the vendor's and sends it to the
        coordinator, carrying the deadline; the demo discovers it
     4. Coordinator accepts through its ``accept-case-ownership-transfer``
        trigger (AcceptCaseOwnershipTransferActivity → **CaseActor** inbox,

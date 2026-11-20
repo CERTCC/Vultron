@@ -102,10 +102,13 @@ def _addressee_node(
             SenderIsExpectedCaseCreatorNode(), ctx, {CASE_ID: request.case_id}
         )
     if isinstance(request, OwnershipOfferRequest):
-        return SenderIsOwnershipTransfereeNode(
-            case_id=_case_of(ctx, "an ownership-transfer Offer"),
-            offer_id=request.offer_id,
-            sender_actor_id=ctx.sender_id,
+        return _sender_seeded(
+            SenderIsOwnershipTransfereeNode(),
+            ctx,
+            {
+                CASE_ID: _case_of(ctx, "an ownership-transfer Offer"),
+                OFFER_ID: request.offer_id,
+            },
         )
     if isinstance(request, RoleOfferRequest):
         return _sender_seeded(
@@ -209,17 +212,22 @@ def _case_owner_role_node(
 ) -> py_trees.behaviour.Behaviour:
     """The ``CASE_OWNER`` role check for the activity in *ctx*."""
     if isinstance(ctx.request, OwnershipOfferRequest):
-        return SenderIsOwnershipOffererNode(
-            case_id=_case_of(ctx, "an ownership-transfer Offer"),
-            offer_id=ctx.request.offer_id,
-            sender_actor_id=ctx.sender_id,
-            reply_id=ctx.request.reply_id,
+        return _sender_seeded(
+            SenderIsOwnershipOffererNode(),
+            ctx,
+            {
+                CASE_ID: _case_of(ctx, "an ownership-transfer Offer"),
+                OFFER_ID: ctx.request.offer_id,
+            },
         )
     if ctx.ownership_proposal_id is not None:
-        return SenderIsOfferingCaseOwnerNode(
-            case_id=_case_of(ctx, "an ownership-transfer Offer"),
-            proposal_id=ctx.ownership_proposal_id,
-            sender_actor_id=ctx.sender_id,
+        return _sender_seeded(
+            SenderIsOfferingCaseOwnerNode(),
+            ctx,
+            {
+                CASE_ID: _case_of(ctx, "an ownership-transfer Offer"),
+                PROPOSAL_ID: ctx.ownership_proposal_id,
+            },
         )
     return _sender_seeded(SenderIsCaseOwnerNode(), ctx, {CASE_ID: ctx.case_id})
 

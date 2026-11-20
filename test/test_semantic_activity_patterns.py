@@ -17,7 +17,6 @@ from vultron.wire.as2.extractor import (
     ActivateEmbargoOnCasePattern,
     ActivityPattern,
     OfferCaseOwnershipTransferActivityPattern,
-    ProposeCaseOwnershipTransferActivityPattern,
     UndoCaseOwnershipTransferActivityPattern,
 )
 from vultron.wire.as2.extractor._instances import (
@@ -35,7 +34,6 @@ from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
-    propose_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     reject_case_participant_role_activity,
     rm_accept_invite_to_case_activity,
@@ -1460,12 +1458,12 @@ def test_undo_of_an_embargo_invite_is_not_the_ownership_withdrawal() -> None:
 
 
 # ---------------------------------------------------------------------------
-# VAM-04-015 — the ownership-transfer withdrawal, an Undo of the proposal
+# VAM-04-015 — the ownership-transfer withdrawal, an Undo of the Owner's Offer
 # ---------------------------------------------------------------------------
 
 
-def _proposal():
-    return propose_case_ownership_transfer_activity(
+def _owner_offer():
+    return offer_case_ownership_transfer_activity(
         make(
             as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Proposed"
         ),
@@ -1478,14 +1476,14 @@ def _proposal():
 
 @pytest.mark.spec("VAM-04-015")
 @pytest.mark.spec("CM-21-015")
-def test_undo_of_ownership_proposal_matches_the_withdrawal_pattern():
+def test_undo_of_the_owners_offer_matches_the_withdrawal_pattern():
     undo = undo_case_ownership_transfer_activity(
-        _proposal(), actor="https://example.org/vendor", at=authored_at()
+        _owner_offer(), actor="https://example.org/vendor", at=authored_at()
     )
 
     assert (
         UndoCaseOwnershipTransferActivityPattern.object_
-        is ProposeCaseOwnershipTransferActivityPattern
+        is OfferCaseOwnershipTransferActivityPattern
     )
     assert UndoCaseOwnershipTransferActivityPattern.match(undo)
     assert (
@@ -1496,27 +1494,17 @@ def test_undo_of_ownership_proposal_matches_the_withdrawal_pattern():
 
 @pytest.mark.spec("VAM-04-018")
 @pytest.mark.spec("CM-21-005")
-def test_ownership_proposal_is_told_apart_from_the_offer_by_shape():
-    """Offer(Offer(VulnerabilityCase)) and Offer(VulnerabilityCase) each match
-    one pattern (ADR-0148).
-    """
-    proposal = _proposal()
-    offer = cast(Any, proposal.object_)
+def test_the_owners_offer_and_the_case_managers_offer_share_one_pattern():
+    """The Owner's Offer is ``Offer(VulnerabilityCase)``, the shape of the
+    CASE_MANAGER's Offer made from it, so both match the one ownership-transfer
+    pattern and the receiver's path tells them apart (ADR-0199)."""
+    owner_offer = _owner_offer()
 
+    assert OfferCaseOwnershipTransferActivityPattern.match(owner_offer)
     assert (
-        ProposeCaseOwnershipTransferActivityPattern.object_
-        is OfferCaseOwnershipTransferActivityPattern
-    )
-    assert (
-        find_matching_semantics(proposal)
-        == MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER
-    )
-    assert not OfferCaseOwnershipTransferActivityPattern.match(proposal)
-    assert (
-        find_matching_semantics(offer)
+        find_matching_semantics(owner_offer)
         == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
     )
-    assert not ProposeCaseOwnershipTransferActivityPattern.match(offer)
 
 
 @pytest.mark.spec("VAM-04-007")
@@ -1539,7 +1527,7 @@ def test_ownership_proposal_is_told_apart_from_the_offer_by_shape():
 def test_the_case_managers_offer_and_its_answers_match_their_patterns(
     factory, semantics
 ):
-    offer = cast(Any, _proposal().object_)
+    offer = _owner_offer()
     activity = (
         offer
         if factory is None
@@ -1864,9 +1852,10 @@ def test_a_bare_object_two_activities_deep_is_unresolvable(
 ) -> None:
     """The chain is followed to its end, not one level down.
 
-    ``Undo(Offer(Offer(<id>)))`` is the shape of the registered depth-2
-    ownership-transfer Undo; with a bare innermost object it matches nothing
-    and names that innermost id as the one to fetch.
+    ``Undo(Offer(Offer(<id>)))`` and ``Undo(Accept(Invite(<id>)))`` are each
+    two activities deep; with a bare innermost object each matches nothing
+    and names that innermost id as the one to fetch, whether or not a pattern
+    of that depth is registered.
     """
     innermost = _bare_object_body(inner, context=_CASE_URI)
     activity = parse_activity(

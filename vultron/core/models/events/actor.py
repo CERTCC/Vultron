@@ -119,56 +119,17 @@ def _deadline_in_utc(v: datetime | None, field: str) -> datetime | None:
     return v.astimezone(UTC)
 
 
-class ProposeCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
-    """The Case Owner proposed an ownership transfer to the CASE_MANAGER.
-
-    ``Offer(Offer(VulnerabilityCase))`` with the case as its ``context``
-    (ADR-0148).  The inner Offer is the template of the one the CASE_MANAGER
-    makes: its object names the case, its ``target`` the transferee, and its
-    ``end_time`` the deadline to answer.  The CASE_MANAGER takes only those
-    three from it; the inner id, ``actor`` and ``to`` are the sender's and
-    are ignored (CM-21-027).
-
-    ``proposed_answer_deadline`` is the inner Offer's ``end_time``, normalised
-    to UTC at the wire edge (CM-21-042); ``None`` when it carries none.
-    """
-
-    semantic_type: Literal[
-        MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER
-    ] = MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER
-    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
-    proposed_answer_deadline: datetime | None = None
-    _serialize_proposed_answer_deadline = timestamp_serializer(
-        "proposed_answer_deadline"
-    )
-
-    @field_validator("proposed_answer_deadline")
-    @classmethod
-    def _proposed_deadline_is_utc(cls, v: datetime | None) -> datetime | None:
-        return _deadline_in_utc(v, "proposed_answer_deadline")
-
-    @property
-    def case_id(self) -> str | None:
-        """The case the proposal is about: its ``context``."""
-        return self.context_id
-
-    @property
-    def proposed_case_id(self) -> str | None:
-        """The case the inner Offer names as its object."""
-        return self.inner_object_id
-
-    @property
-    def transferee_id(self) -> str | None:
-        """The actor the inner Offer names as its ``target``."""
-        return self.inner_target_id
-
-
 class OfferCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
-    """The CASE_MANAGER offered ownership of a VulnerabilityCase to an actor.
+    """An actor offered ownership of a VulnerabilityCase to another actor.
 
-    The one ``Offer(VulnerabilityCase)`` of a transfer, which the
-    CASE_MANAGER makes on the Case Owner's behalf and the transferee answers
-    (ADR-0148, CM-21-028).
+    ``Offer(VulnerabilityCase)``, ``target`` the transferee.  One shape with
+    two senders, which the receiver's path tells apart (ADR-0199): at the
+    CASE_MANAGER it is the Case Owner's own Offer, the proposal the
+    CASE_MANAGER judges (CM-21-005); at the transferee it is the Offer the
+    CASE_MANAGER made from it, the one the transferee answers (CM-21-028).
+    The CASE_MANAGER takes only the case, the transferee and the deadline
+    from the Owner's Offer; its id, ``actor`` and ``to`` are the sender's
+    and are not copied (CM-21-027).
 
     ``answer_deadline`` is the Offer's activity-level ``end_time``, the
     deadline to answer it (CM-21-016), normalised to UTC at the wire edge;
@@ -187,6 +148,21 @@ class OfferCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     def _answer_deadline_is_utc(cls, v: datetime | None) -> datetime | None:
         """Hold the deadline in UTC (CM-21-042, CS-13-001)."""
         return _deadline_in_utc(v, "answer_deadline")
+
+    @property
+    def case_id(self) -> str | None:
+        """The case the Offer names as its ``object``."""
+        return self.object_id
+
+    @property
+    def transferee_id(self) -> str | None:
+        """The actor the Offer names as its ``target``, normalised.
+
+        The transferee becomes the Case Owner if it accepts, so it is
+        normalised where it is extracted (OID-01-006).
+        """
+        target_id = self.target_id
+        return normalise_actor_id(target_id) if target_id else None
 
 
 class AcceptCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
@@ -223,11 +199,11 @@ class RejectCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
 
 
 class UndoCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
-    """The Case Owner withdrew its ownership-transfer proposal.
+    """The Case Owner withdrew its ownership-transfer Offer.
 
-    ``Undo(Offer(Offer(VulnerabilityCase)))``, sent by the Case Owner that
-    made the proposal and addressed to the CASE_MANAGER, which withdraws the
-    Offer it made from that proposal (CM-21-015, ADR-0148).
+    ``Undo(Offer(VulnerabilityCase))``, sent by the Case Owner that made the
+    Offer and addressed to the CASE_MANAGER, which withdraws the Offer it
+    made from it (CM-21-015, CM-21-037, ADR-0199).
     """
 
     semantic_type: Literal[MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER] = (
@@ -236,7 +212,7 @@ class UndoCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
 
     @property
     def proposal_id(self) -> str | None:
-        """The proposal withdrawn."""
+        """The Owner's Offer withdrawn: the proposal the CASE_MANAGER judged."""
         return self.object_id
 
     @property
@@ -245,8 +221,8 @@ class UndoCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
 
     @property
     def case_id(self) -> str | None:
-        """The case the withdrawn proposal names: the proposal's ``context``."""
-        return self.inner_context_id
+        """The case the withdrawn Offer names as its ``object``."""
+        return self.inner_object_id
 
     @property
     def proposer_id(self) -> str:

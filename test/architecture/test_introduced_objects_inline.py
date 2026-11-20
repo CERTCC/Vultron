@@ -298,7 +298,7 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "reject_case_participant_role_activity": _answers("offer"),
     "accept_case_ownership_transfer_activity": _answers("offer"),
     "reject_case_ownership_transfer_activity": _answers("offer"),
-    "undo_case_ownership_transfer_activity": _answers("proposal"),
+    "undo_case_ownership_transfer_activity": _answers("offer"),
     "accept_case_proposal_activity": _answers("proposal"),
     "reject_case_proposal_activity": _answers("proposal"),
     "rm_accept_invite_to_case_activity": _answers("invite"),
@@ -332,8 +332,6 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "rm_defer_case_activity": _NAMES_CASE,
     "rm_close_case_activity": _NAMES_CASE,
     "offer_case_ownership_transfer_activity": _NAMES_CASE,
-    # The inner Offer it nests names the held case (ADR-0148, ADR-0165).
-    "propose_case_ownership_transfer_activity": _NAMES_CASE,
     "remove_participant_activity": _ACTOR_REF,
     "reinstate_participant_activity": _ACTOR_REF,
     # The admitted act it carries is one the receiver's CASE_MANAGER admitted
@@ -552,7 +550,6 @@ _CASE_NAMING_SLOTS: dict[str, tuple[str, ...]] = {
     "rm_defer_case_activity": ("object",),
     "rm_close_case_activity": ("object",),
     "offer_case_ownership_transfer_activity": ("object",),
-    "propose_case_ownership_transfer_activity": ("object", "object"),
 }
 
 

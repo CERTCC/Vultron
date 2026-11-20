@@ -19,7 +19,6 @@ from vultron.core.models.events.actor import (
     AcceptCaseParticipantRoleReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
     OfferCaseParticipantRoleReceivedEvent,
-    ProposeCaseOwnershipTransferReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
     UndoCaseOwnershipTransferReceivedEvent,
@@ -30,7 +29,6 @@ from vultron.core.use_cases.received.actor import (
     AcceptCaseParticipantRoleReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
     OfferCaseParticipantRoleReceivedUseCase,
-    ProposeCaseOwnershipTransferReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
     RejectCaseParticipantRoleReceivedUseCase,
     UndoCaseOwnershipTransferReceivedUseCase,
@@ -46,7 +44,6 @@ from vultron.wire.as2.extractor import (
     AcceptCaseParticipantRolePattern,
     OfferCaseOwnershipTransferActivityPattern,
     OfferCaseParticipantRolePattern,
-    ProposeCaseOwnershipTransferActivityPattern,
     RejectCaseOwnershipTransferActivityPattern,
     RejectCaseParticipantRolePattern,
     UndoCaseOwnershipTransferActivityPattern,
@@ -54,7 +51,6 @@ from vultron.wire.as2.extractor import (
 from vultron.wire.as2.vocab.activities.case.ownership import (
     _AcceptCaseOwnershipTransferActivity,
     _OfferCaseOwnershipTransferActivity,
-    _ProposeCaseOwnershipTransferActivity,
     _RejectCaseOwnershipTransferActivity,
     _UndoCaseOwnershipTransferActivity,
 )
@@ -140,41 +136,6 @@ ENTRIES: list[SemanticEntry] = [
         ),
         page=MessagePage.CASE_MANAGEMENT,
     ),
-    # Before the Offer(VulnerabilityCase) entry: the proposal is an Offer
-    # whose object is that Offer, the more specific shape (ADR-0148).
-    SemanticEntry(
-        semantics=MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER,
-        pattern=ProposeCaseOwnershipTransferActivityPattern,
-        event_class=ProposeCaseOwnershipTransferReceivedEvent,
-        use_case_class=ProposeCaseOwnershipTransferReceivedUseCase,
-        phrase="{actor} proposed an offer of case ownership",
-        wire_activity_class=_ProposeCaseOwnershipTransferActivity,
-        include_activity=True,
-        occasions=(
-            Occasion(
-                when=(
-                    "the Case Owner proposes to transfer ownership of the "
-                    "case to another participant"
-                ),
-                anchor="propose-case-ownership-transfer",
-                addressee=AddresseeSide.CASE_MANAGER,
-                heading="Propose case ownership transfer",
-                description=(
-                    "Asks the CASE_MANAGER to offer the case to another "
-                    "participant, for example from a Reporter to a "
-                    "Coordinator. The CASE_MANAGER offers the case only to "
-                    "an active participant, so the Case Owner invites any "
-                    "other actor first. The inner Offer names the case, the "
-                    "new owner as its target and, optionally, an `endTime` "
-                    "after which the CASE_MANAGER refuses an answer: the "
-                    "offer is then closed, with nothing recorded or sent. "
-                    "The CASE_MANAGER makes the offer itself."
-                ),
-                example="propose_case_ownership_transfer",
-            ),
-        ),
-        page=MessagePage.CASE_MANAGEMENT,
-    ),
     SemanticEntry(
         semantics=MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
         pattern=OfferCaseOwnershipTransferActivityPattern,
@@ -186,8 +147,30 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
+                    "the Case Owner offers ownership of the case to another "
+                    "participant"
+                ),
+                anchor="propose-case-ownership-transfer",
+                addressee=AddresseeSide.CASE_MANAGER,
+                heading="Case Owner offers case ownership",
+                description=(
+                    "The Case Owner's own Offer, sent to the CASE_MANAGER "
+                    "only: the case as the object and the new owner as the "
+                    "target, for example from a Reporter to a Coordinator. "
+                    "The CASE_MANAGER offers the case only to an active "
+                    "participant, so the Case Owner invites any other actor "
+                    "first. An optional `endTime` is the deadline to answer: "
+                    "after it the CASE_MANAGER refuses an answer, and the "
+                    "offer is closed with nothing recorded or sent. The "
+                    "CASE_MANAGER records this Offer and makes its own Offer "
+                    "to the new owner, which answers that one."
+                ),
+                example="propose_case_ownership_transfer",
+            ),
+            Occasion(
+                when=(
                     "the CASE_MANAGER offers the case to the actor the Case "
-                    "Owner proposed"
+                    "Owner named"
                 ),
                 anchor="offer-case-ownership-transfer",
                 addressee=AddresseeSide.PARTICIPANT,
@@ -195,10 +178,9 @@ ENTRIES: list[SemanticEntry] = [
                 description=(
                     "Offers the case to the actor named by the target, on "
                     "the Case Owner's behalf: `attributedTo` names the owner "
-                    "and `inReplyTo` the owner's proposal. This is the one "
-                    "offer of the transfer, the one the new "
-                    "owner accepts or rejects. It carries the proposal's "
-                    "`endTime`, if any."
+                    "and `inReplyTo` the owner's own Offer. This is the "
+                    "offer the new owner accepts or rejects. It carries the "
+                    "owner's `endTime`, if any."
                 ),
                 example="offer_case_ownership_transfer",
             ),
@@ -259,16 +241,16 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Owner withdraws its proposal while the offer "
-                    "of case ownership is open"
+                    "the Case Owner withdraws its offer while the "
+                    "CASE_MANAGER's offer of case ownership is open"
                 ),
                 anchor="withdraw-case-ownership-transfer",
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Withdraw case ownership transfer",
                 description=(
-                    "Withdraws the proposal, and with it the CASE_MANAGER's "
-                    "offer, before the offer is answered. The current Case "
-                    "Owner keeps the case."
+                    "Withdraws the Case Owner's own Offer, and with it the "
+                    "CASE_MANAGER's offer, before the offer is answered. The "
+                    "current Case Owner keeps the case."
                 ),
                 example="undo_case_ownership_transfer",
             ),

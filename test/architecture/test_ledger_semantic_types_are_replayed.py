@@ -176,17 +176,13 @@ NO_REPLICA_EFFECT: dict[str, str] = {
     MS.REJECT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     "accept_actor_recommendation": _RECOMMENDATION,
     "reject_actor_recommendation": _RECOMMENDATION,
-    MS.PROPOSE_CASE_OWNERSHIP_TRANSFER.value: (
-        "records the Case Owner's proposal; the Offer the CASE_MANAGER makes"
-        " from it follows as its own offer_case_ownership_transfer entry, and"
-        " no owner or role moves until that Offer is accepted (ADR-0148,"
-        " CM-21-005)"
-    ),
     MS.OFFER_CASE_OWNERSHIP_TRANSFER.value: (
-        "records the Offer the CASE_MANAGER made; the transferee answers it"
-        " from its intake archive, the owner holds its own proposal and a"
-        " bystander never answers, so no replica keeps a record of it, and no"
-        " owner or role moves until it is accepted (ADR-0148, CM-21-005)"
+        "records the Case Owner's own Offer, then the Offer the CASE_MANAGER"
+        " made from it; the transferee answers the CASE_MANAGER's from its"
+        " intake archive, the owner holds its own and a bystander never"
+        " answers, so no replica keeps a record of either, and no owner or"
+        " role moves until the CASE_MANAGER's Offer is accepted (ADR-0199,"
+        " CM-21-005, CM-21-028)"
     ),
     MS.ACCEPT_CASE_OWNERSHIP_TRANSFER.value: (
         "records the received Accept and closes the ownership-transfer Offer;"

@@ -477,16 +477,16 @@ Issues: #6626, #6466, #6464, #6697. Record: ADR-0199 revision 3.
 The three flows that need an answer:
 
 - **Ownership transfer.** The Owner sends its own `Offer(VulnerabilityCase)`,
-  `target` = the transferee, to the CASE_MANAGER. It replaces the nested
-  `Offer(Offer(VulnerabilityCase))`. The CASE_MANAGER refuses it under ADR-0148's
-  rules (Owner only, one open Offer per case, the transferee an active participant
-  other than the CASE_MANAGER and the Owner; CM-21-014, CM-21-019, CM-21-021), or
-  ledgers it and makes its own Offer to the transferee under an id derived from the
-  Owner's, as it does today (CM-21-028, CM-21-029). The CASE_MANAGER's Offer is the
-  one that is answered, closed and expired. The Owner withdraws with `Undo` of its
-  own Offer, which the CASE_MANAGER resolves to the Offer it made (CM-21-037).
-  CM-21-044 (refuse every received `Offer(VulnerabilityCase)`) inverts: the Owner's
-  flat Offer is now the proposal.
+  `target` = the transferee, to the CASE_MANAGER. The CASE_MANAGER refuses it under
+  ADR-0148's rules (Owner only, one open Offer per case, the transferee an active
+  participant other than the CASE_MANAGER and the Owner; CM-21-014, CM-21-019,
+  CM-21-021), or ledgers it and makes its own Offer to the transferee under an id
+  derived from the Owner's (CM-21-028, CM-21-029). The two Offers share one shape,
+  so the receiver's path tells them apart, and at the CASE_MANAGER every received
+  `Offer(VulnerabilityCase)` is an Owner's proposal (CM-21-044). The CASE_MANAGER's
+  Offer is the one that is answered, closed and expired. The Owner withdraws with
+  `Undo` of its own Offer, which the CASE_MANAGER resolves to the Offer it made
+  (CM-21-037).
 - **Case invitation, direct.** The Owner sends its own `Invite(<case preview>)`,
   `target` = the invitee, carrying the roles, to the CASE_MANAGER. It replaces the
   recommend-actor `Offer(Actor)[target=VulnerabilityCase]` the direct trigger sends
@@ -516,8 +516,9 @@ relaying the Owner's Offer because the delivered `actor` would not be its sender
 the CASE_MANAGER would keep its record under the Owner's id; the CASE_MANAGER's own
 Offer answers both.
 
-**Today.** `Offer(Offer(VulnerabilityCase))` and `notes/ownership-transfer.md`; the
-direct invite is built (#6697): the trigger in
+**Today.** The ownership transfer is `ownership_transfer_tree/proposal.py`, one
+received tree for both Offers (`notes/ownership-transfer.md`); the direct invite is
+built (#6697): the trigger in
 `vultron/core/use_cases/triggers/actor/recommendation.py` sends the Owner's Invite,
 the CASE_MANAGER's tree is `invite_actor_to_case_received_tree.py` with its nodes in
 `vultron/core/behaviors/case/nodes/owner_invite.py` (CM-17-018, CM-17-026), and the

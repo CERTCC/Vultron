@@ -5483,9 +5483,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Case Owner MUST propose an ownership transfer by sending
-      `Offer(Offer(VulnerabilityCase))`, with the case as `context`, to the CASE_MANAGER
-      only, never to the transferee (PCR-08-001).
+      A Case Owner MUST propose an ownership transfer by sending its own
+      `Offer(VulnerabilityCase)`, with the transferee as `target`, to the CASE_MANAGER
+      only, never to the transferee (PCR-08-001). That Offer is the Owner's proposal.
     rationale: >-
       Routing the transfer through the CASE_MANAGER lets it ledger the offer in
       flight and broadcast it to every active participant (CM-10-004), so no
@@ -5503,22 +5503,22 @@ groups:
     - ADR-0053
     - ADR-0114
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-025
     priority: MUST
     kind: protocol
     statement: >-
-      The inner Offer of an ownership-transfer proposal MUST name the case as its object
-      and the transferee as its `target`. It optionally carries the deadline to answer
-      as its `end_time` (CM-21-016).
+      The Owner's ownership-transfer Offer MUST name the case as its object and the
+      transferee as its `target`. It optionally carries the deadline to answer as its
+      `end_time` (CM-21-016).
     rationale: >-
-      The inner Offer says what the owner asks the CASE_MANAGER to offer and to whom.
-      Without the case and the transferee in it, the CASE_MANAGER cannot make the Offer
-      the owner asked for (CM-21-028).
+      The Owner's Offer says what the owner offers and to whom. Without the case and the
+      transferee in it, the CASE_MANAGER cannot make its own Offer from it (CM-21-028).
     verification: >-
-      A test marked `CM-21-025` asserts that the proposal's inner Offer names the case
-      as its object and the transferee as its `target`.
+      A test marked `CM-21-025` asserts that the Owner's Offer names the case as its
+      object and the transferee as its `target`.
     relationships:
     - rel_type: extends
       spec_id: CM-21-005
@@ -5526,24 +5526,24 @@ groups:
       spec_id: CM-21-016
     adr:
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-026
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST refuse an ownership-transfer proposal, with no ledger commit
-      and no outbound Offer, unless its inner Offer passes two checks. The inner Offer's
-      object is the proposal's case. Its `target` is an actor the CASE_MANAGER can
-      address (present, neither itself nor the proposer) and an active participant of
-      the case (CM-21-021).
+      The CASE_MANAGER MUST refuse the Owner's ownership-transfer Offer, with no ledger
+      commit and no outbound Offer, unless its `target` is an actor the CASE_MANAGER can
+      address (present, neither itself nor the Owner) and an active participant of the
+      case (CM-21-021).
     rationale: >-
-      A proposal is a request the CASE_MANAGER acts on. An inner Offer that names
-      another case, or a transferee the CASE_MANAGER cannot address, would make an Offer
-      nobody can answer, or one about a case the proposal did not concern.
+      The Owner's Offer is a proposal the CASE_MANAGER acts on. A transferee the
+      CASE_MANAGER cannot address would make an Offer nobody can answer.
     verification: >-
-      Tests marked `CM-21-026` deliver a proposal whose inner Offer names another case
-      or no addressable target and assert it is refused with no entry and no Offer.
+      Tests marked `CM-21-026` deliver an Owner's Offer that names no transferee, the
+      CASE_MANAGER or the Owner, and assert it is refused with the refusal notice, no
+      entry and no Offer.
     relationships:
     - rel_type: extends
       spec_id: CM-21-005
@@ -5551,45 +5551,51 @@ groups:
       spec_id: CM-21-021
     adr:
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-027
     priority: MUST
     kind: protocol
     statement: >-
-      When it admits an ownership-transfer proposal, the CASE_MANAGER MUST ignore any
-      id, `actor` or `to` inside the inner Offer.
+      When it admits the Owner's ownership-transfer Offer, the CASE_MANAGER MUST NOT
+      copy its id, `actor` or `to` onto the Offer it makes.
     rationale: >-
-      The CASE_MANAGER makes the Offer itself (CM-21-028). An id, actor or recipient
-      list that the owner wrote into the inner Offer would let the owner choose fields
-      that only the CASE_MANAGER sets, such as an id that collides with a stored object.
+      The CASE_MANAGER makes its own Offer (CM-21-028). An id, actor or recipient list
+      copied from the Owner's Offer would let the owner choose fields that only the
+      CASE_MANAGER sets, such as an id that collides with a stored object.
     verification: >-
-      A test marked `CM-21-027` delivers a proposal whose inner Offer carries its own
-      id, `actor` and `to`, and asserts that the made Offer takes none of them.
+      A test marked `CM-21-027` delivers the Owner's Offer and asserts that the made
+      Offer carries the derived id, the CASE_MANAGER as `actor` and the transferee as
+      `to`.
     relationships:
     - rel_type: extends
       spec_id: CM-21-005
     adr:
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-028
     priority: MUST
     kind: protocol
     statement: >-
-      On admitting a proposal, the CASE_MANAGER MUST make the single ownership-transfer
-      `Offer(VulnerabilityCase)` itself, under an id it derives from the proposal,
-      addressed to the transferee. The Offer's `actor` is the CASE_MANAGER, its
-      `attributed_to` the owner and its `in_reply_to` the proposal (CM-24-001,
-      CM-24-002, CM-24-020).
+      On admitting the Owner's Offer, the CASE_MANAGER MUST make its own ownership-transfer
+      `Offer(VulnerabilityCase)`, with the Owner's case and `target`, under an id it
+      derives from the Owner's Offer, addressed to the transferee. The Offer's `actor`
+      is the CASE_MANAGER, its `attributed_to` the owner and its `in_reply_to` the
+      Owner's Offer (CM-24-001, CM-24-002, CM-24-020).
     rationale: >-
-      Making the Offer itself rather than forwarding the owner's gives a transfer one
-      Offer, under an id no other party chose, told apart from the proposal by its shape
-      (ADR-0148, DL-06-006).
+      An Offer to the transferee is an ask, which the CASE_MANAGER makes (ADR-0199).
+      Making its own Offer rather than relaying the owner's gives the transfer one Offer
+      to answer, under an id no other party chose, kept under the CASE_MANAGER's own key
+      (ADR-0148, DL-06-006). The two Offers share one shape; the receiver's path tells
+      them apart.
     verification: >-
-      A test marked `CM-21-028` delivers the owner's proposal and asserts one
+      A test marked `CM-21-028` delivers the Owner's Offer and asserts one
       `Offer(VulnerabilityCase)` is queued to the transferee with the derived id,
-      `actor` the CASE_MANAGER, `attributedTo` the owner and `inReplyTo` the proposal.
+      `actor` the CASE_MANAGER, `attributedTo` the owner and `inReplyTo` the Owner's
+      Offer.
     relationships:
     - rel_type: extends
       spec_id: CM-21-005
@@ -5601,22 +5607,25 @@ groups:
       spec_id: CM-24-020
     adr:
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-029
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST ledger the Offer it made from a proposal once that Offer is
-      in its outbox (SYNC-09-002). That Offer is the one that is ledgered, answered,
-      closed and expired.
+      The CASE_MANAGER MUST ledger the Owner's admitted Offer as one entry, and the
+      Offer it made from it as another once that Offer is in its outbox (SYNC-09-002).
+      The CASE_MANAGER's Offer is the one that is answered, closed and expired.
     rationale: >-
-      Ledgering the Offer after it is queued keeps the ledger from recording an Offer
-      that was never sent. One ledgered Offer gives every reader one transfer to answer,
-      close or expire (CM-21-014).
+      Ledgering the CASE_MANAGER's Offer after it is queued keeps the ledger from
+      recording an Offer that was never sent. One Offer to answer gives every reader one
+      transfer to answer, close or expire (CM-21-014); the Owner's Offer is its record
+      of the decision, which nobody answers.
     verification: >-
-      A test marked `CM-21-029` asserts that the `offer_case_ownership_transfer`
-      entry's snapshot is the queued Offer.
+      A test marked `CM-21-029` asserts that the Owner's Offer is ledgered first and
+      that the CASE_MANAGER's `offer_case_ownership_transfer` entry's snapshot is the
+      queued Offer.
     relationships:
     - rel_type: extends
       spec_id: CM-21-028
@@ -5624,6 +5633,7 @@ groups:
       spec_id: SYNC-09-002
     adr:
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-006
@@ -6002,19 +6012,18 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER admits the proposing Case Owner's
-      `Undo(Offer(Offer(VulnerabilityCase)))`, it MUST commit a `CaseLedgerEntry`
-      recording the withdrawal. The entry closes the Offer the CASE_MANAGER made from
-      that proposal.
+      When the CASE_MANAGER admits the proposing Case Owner's `Undo` of its own
+      `Offer(VulnerabilityCase)`, it MUST commit a `CaseLedgerEntry` recording the
+      withdrawal. The entry closes the Offer the CASE_MANAGER made from the Owner's.
     rationale: >-
       Without a withdrawal, one open Offer per case (CM-21-014) lets a transferee
       who never answers block every later transfer of the case. Ledgering the
       withdrawal tells the transferee and every replica that the Offer can no
       longer be accepted, the same way the Reject entry does (CM-21-012).
     verification: >-
-      A test marked `CM-21-015` delivers the owner's `Undo` of its proposal and
+      A test marked `CM-21-015` delivers the owner's `Undo` of its own Offer and
       asserts the CASE_MANAGER ledgers the withdrawal, which closes the Offer it
-      made from that proposal.
+      made from it.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-21-014
@@ -6025,23 +6034,25 @@ groups:
     adr:
     - ADR-0053
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-036
     priority: MAY
     kind: protocol
     statement: >-
-      The proposing Case Owner MAY withdraw the Offer made from its proposal while that
-      Offer is open (CM-21-014), by sending the CASE_MANAGER
-      `Undo(Offer(Offer(VulnerabilityCase)))`.
+      The proposing Case Owner MAY withdraw the Offer made from its own Offer while that
+      Offer is open (CM-21-014), by sending the CASE_MANAGER `Undo` of its own
+      `Offer(VulnerabilityCase)`.
     rationale: >-
-      The owner names its own proposal, the one activity of the transfer it holds, so
-      it needs nothing it learned from the ledger to withdraw (ADR-0148).
+      The owner names its own Offer, the one activity of the transfer it holds, so it
+      needs nothing it learned from the ledger to withdraw (ADR-0148, ADR-0199).
     relationships:
     - rel_type: uses_definition
       spec_id: CM-21-014
     adr:
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-037
@@ -6049,13 +6060,13 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST resolve the Offer that an owner's Undo withdraws by the id
-      it derived for that Offer from the proposal (CM-21-028).
+      it derived for that Offer from the Owner's own Offer (CM-21-028).
     rationale: >-
-      The owner names only its proposal. The derived id links the proposal to the one
-      Offer made from it, so the CASE_MANAGER closes that Offer and no other.
+      The owner names only its own Offer. The derived id links it to the one Offer the
+      CASE_MANAGER made from it, so the CASE_MANAGER closes that Offer and no other.
     verification: >-
-      A test marked `CM-21-037` asserts that the Undo of a proposal closes the Offer
-      made from it.
+      A test marked `CM-21-037` asserts that the Undo of the Owner's Offer closes the
+      Offer made from it.
     relationships:
     - rel_type: extends
       spec_id: CM-21-015
@@ -6063,6 +6074,7 @@ groups:
       spec_id: CM-21-028
     adr:
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-038
@@ -6159,19 +6171,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the inner Offer of the owner's proposal carries an `end_time`, the
-      CASE_MANAGER MUST copy it onto the Offer it makes (CM-21-028).
+      When the Owner's ownership-transfer Offer carries an `end_time`, the CASE_MANAGER
+      MUST copy it onto the Offer it makes (CM-21-028).
     rationale: >-
-      The deadline is the owner's choice, stated in its proposal. The Offer the
-      transferee answers is the CASE_MANAGER's, so the deadline must travel onto it.
+      The deadline is the owner's choice, stated in its Offer. The Offer the transferee
+      answers is the CASE_MANAGER's, so the deadline must travel onto it.
     verification: >-
-      A test marked `CM-21-041` asserts that the made Offer carries the proposal's
+      A test marked `CM-21-041` asserts that the made Offer carries the Owner's Offer's
       `end_time`.
     relationships:
     - rel_type: extends
       spec_id: CM-21-028
     adr:
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-042
@@ -6295,23 +6308,28 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST refuse every ownership-transfer `Offer(VulnerabilityCase)`
-      it receives, from any sender. It makes that Offer itself (CM-21-028).
+      The CASE_MANAGER MUST judge every ownership-transfer `Offer(VulnerabilityCase)` it
+      receives as an Owner's proposal (CM-21-005), never as an Offer to answer. It
+      makes the Offer that is answered itself (CM-21-028).
     rationale: >-
-      An Offer the CASE_MANAGER admitted from another sender would be a second Offer
-      for the transfer, under an id it did not derive, and would bypass the owner's
-      proposal and its sender rule (CM-21-019).
+      The Owner's Offer and the CASE_MANAGER's share one shape (ADR-0199). An Offer the
+      CASE_MANAGER took as one to answer would be a second Offer for the transfer, under
+      an id it did not derive, and would bypass the owner's sender rule (CM-21-019).
     verification: >-
-      A test marked `CM-21-044` sends an `Offer(VulnerabilityCase)` to the CASE_MANAGER
-      and asserts it is refused.
+      A test marked `CM-21-044` sends the CASE_MANAGER an `Offer(VulnerabilityCase)`
+      from itself and asserts the sender guard refuses it, with nothing ledgered and no
+      Offer made.
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
     - rel_type: derives_from
       spec_id: CM-21-028
+    - rel_type: uses_definition
+      spec_id: CM-21-005
     adr:
     - ADR-0115
     - ADR-0148
+    - ADR-0199
     stories:
     - story_2022_050
   - id: CM-21-045
@@ -6323,11 +6341,11 @@ groups:
       A proposal is sent to the CASE_MANAGER alone (CM-21-005). A replica that admitted
       one would act for the CASE_MANAGER, which only the CASE_MANAGER may do.
     verification: >-
-      `test_own_copy_is_refused_at_the_path_stage` in
+      `test_own_copy_is_refused_by_the_sender_guard` in
       `test/core/use_cases/received/actor/test_ownership.py` asserts that a replica
-      refuses the owner's own copy of its proposal and writes nothing. The
-      proposal's type declares the manager path alone, so the path stage refuses
-      the replica ahead of the sender guard (HP-01-038, HP-01-039).
+      refuses the owner's own copy of its Offer and writes nothing. On the replica
+      path the Offer is the CASE_MANAGER's, so the sender guard refuses a copy from
+      any other sender (CM-21-046, PCR-03-001).
     relationships:
     - rel_type: uses_definition
       spec_id: CM-21-005

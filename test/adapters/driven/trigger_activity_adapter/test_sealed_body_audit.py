@@ -340,7 +340,7 @@ class _World:
         return offer_id
 
     def ownership_proposal_id(self) -> str:
-        proposal_id, _ = self.adapter.propose_case_ownership_transfer(
+        proposal_id, _ = self.adapter.offer_case_ownership_transfer(
             case_id=self.case_id,
             transferee_id=_PEER,
             actor=_ACTOR,
@@ -809,15 +809,6 @@ RECIPES: dict[str, Recipe] = {
         to=[_ACTOR],
         at=authored_at(),
     ),
-    "propose_case_ownership_transfer": lambda w: (
-        w.adapter.propose_case_ownership_transfer(
-            case_id=w.case_id,
-            transferee_id=_PEER,
-            actor=_ACTOR,
-            to=[_CASE_ACTOR],
-            at=authored_at(),
-        )
-    ),
     "offer_case_ownership_transfer": lambda w: (
         w.adapter.offer_case_ownership_transfer(
             case_id=w.case_id,
@@ -1060,7 +1051,6 @@ _HELD_ACTOR_PATHS: dict[str, tuple[str, ...]] = {
     "invite_actor_to_full_case": ("target",),
     "suggest_actor_to_case": ("object",),
     "offer_case_ownership_transfer": ("target",),
-    "propose_case_ownership_transfer": ("object", "target"),
 }
 
 

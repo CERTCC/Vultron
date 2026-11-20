@@ -34,41 +34,40 @@ If they went directly between the two parties, no ledger entry would be written,
 
 ```text
 Owner sends trigger: offer-case-ownership-transfer
-  → Owner sends Offer(Offer(VulnerabilityCase))    ← the proposal
-      inner target: transferee
+  → Owner sends Offer(VulnerabilityCase)           ← the proposal
+      target:       transferee
       context:      case_id
       actor:        owner_id          (the owner's own activity)
       to:           [case_actor_id]   ← MUST route through Case Actor (CM-21-005)
 
-Case Actor inbox receives the proposal:
+Case Actor inbox receives the owner's Offer:
   0. Checks the sender holds CASE_OWNER
      (anyone else: refused, nothing written).        ← CM-21-019
   1. Checks no offer for the case is open,           ← CM-21-014
-     and the inner Offer names this case and a
-     transferee it can address                       ← CM-21-026
+     and the target is a transferee it can address   ← CM-21-026
      that is an active participant.                  ← CM-21-021
-  2. Commits CaseLedgerEntry (the proposal).
-  3. Makes the offer and queues it to the transferee:
+  2. Commits CaseLedgerEntry (the owner's Offer).
+  3. Makes its own offer and queues it to the transferee:
        Offer(VulnerabilityCase)
        target:        transferee
-       id:            derived from the proposal
+       id:            derived from the owner's Offer
        actor:         case_actor_id   (delegated-message contract)
        attributed_to: owner_id
-  4. Commits CaseLedgerEntry (the offer).
+       in_reply_to:   the owner's Offer
+  4. Commits CaseLedgerEntry (its own offer).
   5. Add(CaseLedgerEntry) → all participants.   ← all parties learn the offer
 ```
 
-The owner asks for the transfer by sending a proposal to the CASE_MANAGER — in the prototype, the Case Actor ([ADR-0148](../../adr/0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md)).
-The proposal is an `Offer` whose object is the `Offer` the owner wants made.
-The inner offer names the case, the proposed new owner as its `target`, and an optional deadline.
+The owner asks for the transfer by sending a proposal to the CASE_MANAGER — in the prototype, the Case Actor ([ADR-0148](../../adr/0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md), [ADR-0199](../../adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md)).
+The proposal is the owner's own `Offer` of the case.
+It names the case, the proposed new owner as its `target`, and an optional deadline.
 The proposal leaves from the owner's own outbox, under the owner's own identity.
 No container sends a message as an actor it does not host ([CM-24-011](../../reference/specs/architecture.md#cm-24-011), [ADR-0109](../../adr/0109-a-container-emits-only-as-actors-it-hosts.md)).
 
 The CASE_MANAGER admits a proposal only from the current Case Owner.
 It refuses a proposal from anyone else before it writes or sends anything ([CM-21-019](../../reference/vultron-spec/requirements/case-management.md#cm-21-019)).
 
-The CASE_MANAGER checks the inner offer and does not copy it.
-The inner offer must name the proposal's case.
+The CASE_MANAGER checks the owner's offer and does not relay it.
 Its `target` must be an actor the CASE_MANAGER can address, and must be neither the CASE_MANAGER nor the owner.
 The `target` must also be an [active participant](../../reference/glossary.md#cvd-roles-and-participants) of the case, and one whose closure the case's ledger does not record ([CM-21-021](../../reference/vultron-spec/requirements/case-management.md#cm-21-021)).
 An active participant has joined the case, has not been removed, and has agreed to the active embargo while one is in force ([CM-10-004](../../reference/vultron-spec/requirements/case-management.md#cm-10-004)).
@@ -77,10 +76,12 @@ The new owner administers the case and its embargo, so the CASE_MANAGER offers i
 The offer names the case by its `id` and `type` and carries no copy of it.
 So an owner that wants to hand the case to an actor that is not an active participant invites that actor first, and proposes the transfer once the actor has joined.
 The owner's `offer-case-ownership-transfer` trigger makes the same check on the owner's own copy of the case, and refuses such a transferee before it sends anything.
-The CASE_MANAGER ignores any `id`, `actor` or `to` the owner put inside the inner offer.
+The CASE_MANAGER copies none of the `id`, `actor` or `to` of the owner's offer.
 
-The CASE_MANAGER then makes the offer itself.
+The CASE_MANAGER records the owner's offer in the ledger, then makes its own offer.
 The offer is a new `Offer` of the case under an `id` the CASE_MANAGER derives from the proposal.
+The two offers have the same shape.
+The CASE_MANAGER reads every one it receives as a proposal, and the proposed owner answers only the CASE_MANAGER's.
 So a repeat of the proposal makes the same offer and never a second one.
 The CASE_MANAGER sends it under its own identity, with the owner who asked for it named as the author (`attributed_to`).
 Every message the CASE_MANAGER sends on a participant's behalf follows this delegated-message contract ([CM-24-001](../../reference/vultron-spec/requirements/case-management.md#cm-24-001), [CM-24-002](../../reference/vultron-spec/requirements/case-management.md#cm-24-002), [CM-24-004](../../reference/specs/architecture.md#cm-24-004), [CM-24-005](../../reference/specs/project.md#cm-24-005)).
@@ -184,7 +185,7 @@ A closed offer cannot be answered again: an `Accept` after a `Reject`, or a `Rej
 
 ```text
 Owner sends trigger: withdraw-case-ownership-transfer
-  → Undo(proposal), that is Undo(Offer(Offer(VulnerabilityCase)))
+  → Undo(proposal), that is Undo(Offer(VulnerabilityCase))
       to: [case_actor_id]     ← MUST route through Case Actor (CM-21-015)
 
 Case Actor inbox receives Undo:
@@ -209,7 +210,7 @@ Ownership stays where it was, and the owner may propose the case again at once.
 ```text
 Owner sends trigger: offer-case-ownership-transfer
   with end_time (optional)                              ← TRIG-11-007
-  → Offer(Offer(VulnerabilityCase)), inner endTime: deadline
+  → the owner's Offer(VulnerabilityCase), endTime: deadline
   → the Case Actor's Offer(VulnerabilityCase), endTime: deadline
 
 Case Actor inbox receives an Accept, Reject or Undo of the offer,

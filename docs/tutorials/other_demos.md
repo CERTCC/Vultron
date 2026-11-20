@@ -234,7 +234,7 @@ sequenceDiagram
     participant CA as Case Actor
     participant C as Coordinator
 
-    V->>CA: Propose Case Ownership Transfer<br/>Offer(Offer(VulnerabilityCase))
+    V->>CA: Case Owner offers case ownership<br/>Offer(VulnerabilityCase)
     CA->>C: Offer Case Ownership Transfer<br/>Offer(VulnerabilityCase)
     alt Coordinator accepts
         C-->>CA: Accept Case Ownership Transfer<br/>Accept(Offer)
@@ -243,7 +243,7 @@ sequenceDiagram
         C-->>CA: Reject Case Ownership Transfer<br/>Reject(Offer)
         Note over CA: Ledgers the Reject, ownership unchanged
     else Vendor withdraws
-        V-->>CA: Withdraw Case Ownership Transfer<br/>Undo(Offer(Offer))
+        V-->>CA: Withdraw Case Ownership Transfer<br/>Undo(Offer(VulnerabilityCase))
         Note over CA: Ledgers the withdrawal, ownership unchanged
     end
 ```

@@ -88,7 +88,7 @@ from vultron.core.models.pending_assertion import (
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
-    ProposeCaseOwnershipTransferReceivedUseCase,
+    OfferCaseOwnershipTransferReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
     UndoCaseOwnershipTransferReceivedUseCase,
 )
@@ -140,10 +140,9 @@ _BUILDERS: dict[str, Callable[[], object]] = {
     "create_propose_ownership_transfer_tree": lambda: (
         create_propose_ownership_transfer_tree(
             case_id=_CASE,
-            proposed_case_id=_CASE,
             transferee_id=_OTHER,
             proposal_id=f"{_CASE}/proposals/p1",
-            sender_rule=ProposeCaseOwnershipTransferReceivedUseCase.sender_entitlement,
+            sender_rule=OfferCaseOwnershipTransferReceivedUseCase.sender_entitlement,
             sender_id=_OWNER,
         )
     ),

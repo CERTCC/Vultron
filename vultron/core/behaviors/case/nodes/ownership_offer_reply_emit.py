@@ -24,8 +24,8 @@ Provides:
   ``Reject(Offer(VulnerabilityCase))`` from the declining actor to the
   CASE_MANAGER (CM-21-010).
 - :class:`EmitWithdrawCaseOwnershipTransferNode` — emits
-  ``Undo(Offer(Offer(VulnerabilityCase)))``, the owner's withdrawal of its
-  own proposal, to the CASE_MANAGER (CM-21-015, ADR-0148).
+  ``Undo(Offer(VulnerabilityCase))``, the owner's withdrawal of its own
+  Offer, to the CASE_MANAGER (CM-21-015, ADR-0199).
 
 Split from ``ownership_transfer.py`` (BTND-07-004), which re-exports these
 names.  The leaf nodes are assembled into trigger trees in
@@ -136,12 +136,12 @@ class EmitRejectCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
 
 
 class EmitWithdrawCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
-    """Emit ``Undo(Offer(Offer(VulnerabilityCase)))`` to the CASE_MANAGER.
+    """Emit ``Undo(Offer(VulnerabilityCase))`` to the CASE_MANAGER.
 
     Calls ``trigger_activity_factory.withdraw_case_ownership_transfer()``
-    with ``actor=self.actor_id`` and ``offer_id``, the owner's own proposal,
+    with ``actor=self.actor_id`` and ``offer_id``, the owner's own Offer,
     then queues the resulting activity in the actor's outbox (TRIG-11-006,
-    CM-21-015, ADR-0148).
+    CM-21-015, ADR-0199).
     """
 
     _verb = "withdrew"
@@ -150,7 +150,7 @@ class EmitWithdrawCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         if to is None:
-            # No fallback: the stored proposal's ``actor`` is the owner
+            # No fallback: the stored Offer's ``actor`` is the owner
             # itself, so the port's last-resort addressing would send the
             # withdrawal to its own sender.  A
             # withdrawal goes to the CASE_MANAGER or nowhere (CM-21-036,

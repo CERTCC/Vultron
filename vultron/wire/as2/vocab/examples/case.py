@@ -23,7 +23,6 @@ from vultron.wire.as2.factories import (
     create_case_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
-    propose_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     reject_case_participant_role_activity,
     rm_close_case_activity,
@@ -185,30 +184,32 @@ def reengage_case() -> as_Join:
 
 
 def propose_case_ownership_transfer() -> as_Offer:
-    """The Case Owner's proposal: Offer(Offer(VulnerabilityCase)) (ADR-0148).
+    """The Case Owner's own Offer of the case, its proposal (ADR-0199).
 
-    Addressed to the Case Manager, which makes the inner Offer itself, under
-    its own id (:func:`offer_case_ownership_transfer`).
+    ``Offer(VulnerabilityCase)``, ``target`` the new owner, addressed to the
+    Case Manager only, which makes its own Offer from it
+    (:func:`offer_case_ownership_transfer`).
     """
     _vendor = vendor()
     _case = case()
     _coordinator = _COORDINATOR
-    _activity = propose_case_ownership_transfer_activity(
+    _activity = offer_case_ownership_transfer_activity(
         _case,
         target=_coordinator.id_,
         actor=_vendor.id_,
         to=[case_actor().id_],
-        content=f"Please offer ownership of case {_case.name} to the coordinator.",
+        context=_case.id_,
+        content=f"We're offering ownership of case {_case.name} to the coordinator.",
         at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
 
 def offer_case_ownership_transfer() -> as_Offer:
-    """The Case Manager's Offer, made from the owner's proposal (ADR-0148).
+    """The Case Manager's Offer, made from the Case Owner's own (ADR-0199).
 
     ``actor`` is the Case Manager, ``attributedTo`` the Case Owner whose
-    proposal it carries out and ``inReplyTo`` that proposal (CM-24-001,
+    Offer it carries out and ``inReplyTo`` that Offer (CM-24-001,
     CM-24-002, CM-24-020).
     """
     _vendor = vendor()
@@ -221,6 +222,7 @@ def offer_case_ownership_transfer() -> as_Offer:
         in_reply_to=propose_case_ownership_transfer().id_,
         target=_coordinator.id_,
         to=[_coordinator.id_],
+        context=_case.id_,
         content=f"We're offering to transfer ownership of case {_case.name} to you.",
         at=EXAMPLE_TIMESTAMP,
     )
@@ -256,12 +258,12 @@ def reject_case_ownership_transfer() -> as_Reject:
 def undo_case_ownership_transfer() -> as_Undo:
     _case = case()
     _vendor = vendor()
-    _proposal = propose_case_ownership_transfer()
+    _owner_offer = propose_case_ownership_transfer()
     _activity = undo_case_ownership_transfer_activity(
-        _proposal,
+        _owner_offer,
         actor=_vendor.id_,
         to=[case_actor().id_],
-        content=f"We're withdrawing our proposal to transfer ownership of case {_case.name}.",
+        content=f"We're withdrawing our offer to transfer ownership of case {_case.name}.",
         at=EXAMPLE_TIMESTAMP,
     )
     return _activity

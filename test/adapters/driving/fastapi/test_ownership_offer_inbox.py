@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 """The CASE_MANAGER commits an ownership Offer naming a peer it holds no profile of.
 
-The Case Owner proposes the transfer as ``Offer(Offer(VulnerabilityCase))``
-and the CASE_MANAGER makes and ledgers the ``Offer(VulnerabilityCase)``
-(ADR-0148).  The transferee is a *peer*: the CASE_MANAGER's store need not
-hold its actor profile, and no handler writes one.  Both ledger commits still
-need the transferee inline in the snapshot (CLP-07-006), so the proposal and
-the Offer must carry it inline and storage must keep it so (DL-08-003).
+The Case Owner proposes the transfer with its own ``Offer(VulnerabilityCase)``
+and the CASE_MANAGER ledgers it, then makes and ledgers its own
+``Offer(VulnerabilityCase)`` from it (ADR-0199).  The transferee is a *peer*:
+the CASE_MANAGER's store need not hold its actor profile, and no handler writes
+one.  Both ledger commits still
+need the transferee inline in the snapshot (CLP-07-006), so both Offers must
+carry it inline and storage must keep it so (DL-08-003).
 Before #4843 the sender named the transferee by a bare id and the
 commit worked only when an earlier delivery had happened to leave the
 transferee's profile in the CASE_MANAGER's store.
@@ -66,7 +67,6 @@ _VENDOR_ID = "https://example.org/users/vendor-4843"
 _COORDINATOR_ID = "https://example.org/users/coordinator-4843"
 _CASE_ID = "https://example.org/cases/case-4843"
 _OWNERSHIP_EVENT = MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER.value
-_PROPOSAL_EVENT = MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER.value
 
 
 @pytest.fixture(autouse=True)
@@ -124,7 +124,7 @@ def _ownership_offer_body(vendor_dl: SqliteDataLayer) -> dict[str, Any]:
     """
     offer_id, _ = TriggerActivityAdapter(
         vendor_dl
-    ).propose_case_ownership_transfer(
+    ).offer_case_ownership_transfer(
         case_id=_CASE_ID,
         transferee_id=_COORDINATOR_ID,
         actor=_VENDOR_ID,
@@ -165,11 +165,14 @@ def _assert_inline_transferee(snapshot: dict[str, Any]) -> None:
 
 
 def _assert_committed_with_inline_transferee(dl: SqliteDataLayer) -> None:
-    (proposal,) = _entries(dl, _PROPOSAL_EVENT)
-    _assert_inline_transferee(proposal.payload_snapshot["object"])
-    entries = _entries(dl, _OWNERSHIP_EVENT)
-    assert len(entries) == 1, [e.semantic_type for e in entries]
-    _assert_inline_transferee(entries[0].payload_snapshot)
+    # The Owner's Offer, then the CASE_MANAGER's made from it (ADR-0199):
+    # each snapshot carries the transferee inline (CLP-07-006).
+    entries = sorted(
+        _entries(dl, _OWNERSHIP_EVENT), key=lambda entry: entry.log_index
+    )
+    assert len(entries) == 2, [e.log_object_id for e in entries]
+    for entry in entries:
+        _assert_inline_transferee(entry.payload_snapshot)
 
 
 @pytest.mark.spec("CLP-07-006")

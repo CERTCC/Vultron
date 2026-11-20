@@ -118,21 +118,22 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 
 {% include-markdown "./_occasions/sections/propose-case-ownership-transfer.md" %}
 
-- **Routing:** the proposal is addressed to the CASE_MANAGER, never to the proposed new owner ([CM-21-005](../vultron-spec/requirements/case-management.md#cm-21-005)).
+- **Routing:** the Case Owner's own Offer is addressed to the CASE_MANAGER, never to the proposed new owner ([CM-21-005](../vultron-spec/requirements/case-management.md#cm-21-005)).
   See [Case Ownership Transfer](../../topics/case_lifecycle/ownership_transfer.md).
+  It has the shape of the CASE_MANAGER's offer below; the CASE_MANAGER reads every one it receives as an Owner's proposal ([CM-21-044](../vultron-spec/requirements/case-management.md#cm-21-044)).
   The CASE_MANAGER admits it only from the Case Owner, and only while no offer for the case is open ([CM-21-019](../vultron-spec/requirements/case-management.md#cm-21-019), [CM-21-014](../vultron-spec/requirements/case-management.md#cm-21-014)).
-  It refuses a proposal whose inner offer names another case, or no actor it can address, and ignores any `id`, `actor` or `to` inside the inner offer.
-- **Context:** the case the proposal is about.
-  The inner offer's object must be that case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
-- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`, which returns the proposal ([TRIG-11-001](../specs/project.md#trig-11-001), [Trigger API Reference](../trigger-api.md#actor-participation)).
-- **Effect:** the CASE_MANAGER records the proposal in the ledger and makes the offer below itself ([ADR-0148](../../adr/0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md)).
+  It refuses one whose `target` is no actor it can address, or not an active participant, with a refusal notice, and copies none of its `id`, `actor` or `to` ([CM-21-026](../vultron-spec/requirements/case-management.md#cm-21-026), [CM-21-027](../vultron-spec/requirements/case-management.md#cm-21-027)).
+- **Target:** the proposed new owner, as a full actor object.
+- **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
+- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`, which returns the Owner's Offer ([TRIG-11-001](../specs/project.md#trig-11-001), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Effect:** the CASE_MANAGER records the Owner's Offer in the ledger and makes its own offer below from it ([ADR-0199](../../adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md)).
 - **Triggering transition:** none — ownership transfer is a roster operation.
 - **Example artifact:** [propose_case_ownership_transfer.json](../examples/propose_case_ownership_transfer.json).
 
 {% include-markdown "./_occasions/sections/offer-case-ownership-transfer.md" %}
 
-- **Routing:** the CASE_MANAGER makes the offer from the owner's proposal and records it in the ledger ([§12.3 Case Ownership Transfer](../vultron-spec/interactions.md#123-case-ownership-transfer-n), [CM-21-005](../vultron-spec/requirements/case-management.md#cm-21-005)).
-  It is the one offer of the transfer: its `id` is one the CASE_MANAGER derives from the proposal, and the proposed new owner answers it by that `id`.
+- **Routing:** the CASE_MANAGER makes the offer from the Case Owner's own Offer and records it in the ledger ([§12.3 Case Ownership Transfer](../vultron-spec/interactions.md#123-case-ownership-transfer-n), [CM-21-028](../vultron-spec/requirements/case-management.md#cm-21-028)).
+  It is the offer the proposed new owner answers: its `id` is one the CASE_MANAGER derives from the Owner's Offer, its `attributedTo` the Case Owner and its `inReplyTo` the Owner's Offer.
   A participant takes it only from the CASE_MANAGER ([CM-21-019](../vultron-spec/requirements/case-management.md#cm-21-019)).
 - **Target:** the proposed new owner, as a full actor object.
 - **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
@@ -157,8 +158,8 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 {% include-markdown "./_occasions/sections/withdraw-case-ownership-transfer.md" %}
 
 - **Routing:** the withdrawal is addressed to the CASE_MANAGER ([CM-21-036](../vultron-spec/requirements/case-management.md#cm-21-036)).
-  It is an `Undo` of the owner's own proposal.
-  The CASE_MANAGER withdraws the offer that it made from that proposal.
+  It is an `Undo` of the owner's own Offer.
+  The CASE_MANAGER withdraws the offer that it made from that Offer.
   It acts only when the withdrawal comes from the Case Owner that the offer was made for, and only while the offer is open.
   It records the withdrawal in the ledger and sends the entry to every participant, which closes the offer.
   The proposed owner can no longer accept it, and the case may be offered again ([CM-21-014](../vultron-spec/requirements/case-management.md#cm-21-014)).

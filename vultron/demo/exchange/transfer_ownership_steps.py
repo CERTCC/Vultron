@@ -22,9 +22,10 @@ is particular to it (DEMOMA-17-001).
 import logging
 from datetime import datetime, timedelta
 
+from vultron.core.participants.ownership_offer import ownership_offer_id
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
-    wait_for_semantic_type_in_ledger,
+    wait_for_ledger_event,
 )
 from vultron.demo.helpers.workflow import (
     seat_participant_through_stub_invite,
@@ -120,16 +121,17 @@ def vendor_offers_ownership(
     CM-21-016).
 
     The ``offer-case-ownership-transfer`` trigger (TRIG-11-001, DEMOMA-05-001)
-    sends the vendor's proposal to the CaseActor, which makes the Offer with
-    ``attributed_to`` the vendor: the CaseActor is the sender of record for a
-    delegated case message, and the vendor is the participant whose intent it
-    carries (CM-24-001, CM-24-002, ADR-0148).  The demo gates on the
-    CaseActor's ledger entry for that Offer, which it commits once the Offer
-    is queued for the coordinator, so it is the cause the next step waits
-    for (EDF-06).
+    sends the vendor's own Offer of the case to the CaseActor, which ledgers
+    it and makes its own Offer from it with ``attributed_to`` the vendor: the
+    CaseActor is the sender of record for a delegated case message, and the
+    vendor is the participant whose intent it carries (CM-24-001, CM-24-002,
+    ADR-0199).  Both Offers are ledgered as ``offer_case_ownership_transfer``,
+    so the demo gates on the CaseActor's own entry, by the id it derives from
+    the vendor's Offer, which it commits once its Offer is queued for the
+    coordinator: the cause the next step waits for (EDF-06).
 
     Returns:
-        The id of the vendor's proposal, which it names to withdraw it.
+        The id of the vendor's own Offer, which it names to withdraw it.
     """
     offer = (
         ActorSession(client=client, actor=vendor)
@@ -144,10 +146,13 @@ def vendor_offers_ownership(
     )
     logger.info("Vendor offered ownership: %s", logfmt(offer))
     with demo_gate("Ownership offer recorded by the CaseActor (CM-21-029)"):
-        wait_for_semantic_type_in_ledger(
+        wait_for_ledger_event(
             client=client,
             case_id=case.id_,
             semantic_type="offer_case_ownership_transfer",
+            log_object_id=ownership_offer_id(
+                case_actor_id, case.id_, offer.id_, vendor.id_
+            ),
             dl_actor_id=case_actor_id,
         )
     return offer.id_
@@ -167,8 +172,8 @@ def check_offer_carries_deadline(
 ) -> None:
     """Check the Offer the coordinator holds names the vendor's deadline.
 
-    The coordinator answers the CaseActor's Offer, not the vendor's proposal
-    (CM-21-005), so that Offer is what must tell it when it may no longer
+    The coordinator answers the CaseActor's Offer, not the vendor's own
+    (CM-21-028), so that Offer is what must tell it when it may no longer
     answer (CM-21-016).
     """
     with demo_check("The CaseActor's Offer carries the deadline to answer"):

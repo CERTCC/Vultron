@@ -127,11 +127,6 @@
       "phrase": "{actor} declined the role offer"
     },
     {
-      "semanticType": "propose_case_ownership_transfer",
-      "wire": "Offer(Offer(VulnerabilityCase))",
-      "phrase": "{actor} proposed an offer of case ownership"
-    },
-    {
       "semanticType": "offer_case_ownership_transfer",
       "wire": "Offer(VulnerabilityCase)",
       "phrase": "{actor} offered {target} case ownership"
@@ -148,7 +143,7 @@
     },
     {
       "semanticType": "undo_case_ownership_transfer",
-      "wire": "Undo(Offer(Offer(VulnerabilityCase)))",
+      "wire": "Undo(Offer(VulnerabilityCase))",
       "phrase": "{actor} withdrew the case ownership offer"
     },
     {

@@ -17,7 +17,7 @@
 """TriggerOwnershipPort: the ownership part of
 :class:`~vultron.core.ports.trigger_activity.TriggerActivityPort`.
 
-Case ownership transfer: propose, offer, answer and withdraw.
+Case ownership transfer: offer, answer and withdraw.
 """
 
 from datetime import datetime
@@ -25,30 +25,7 @@ from typing import Protocol
 
 
 class TriggerOwnershipPort(Protocol):
-    """Case ownership transfer: propose, offer, answer and withdraw."""
-
-    def propose_case_ownership_transfer(
-        self,
-        case_id: str,
-        transferee_id: str,
-        actor: str,
-        content: str | None = None,
-        to: list[str] | None = None,
-        end_time: datetime | None = None,
-        *,
-        at: datetime,
-    ) -> tuple[str, str]:
-        """Create and persist the Case Owner's ownership-transfer proposal.
-
-        ``Offer(Offer(VulnerabilityCase))`` with the case as its ``context``
-        (ADR-0148): the inner Offer names the case, *transferee_id* as its
-        ``target`` and, when given, *end_time* as its ``end_time``, the
-        deadline to answer it (TRIG-11-007, CM-21-016).  The owner sends it
-        to the CASE_MANAGER (*to*), which makes the Offer itself.
-
-        Returns ``(activity_id, activity_dict)`` (TRIG-11-001).
-        """
-        ...
+    """Case ownership transfer: offer, answer and withdraw."""
 
     def offer_case_ownership_transfer(
         self,
@@ -66,13 +43,14 @@ class TriggerOwnershipPort(Protocol):
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
 
-        The one Offer of a transfer, which the CASE_MANAGER makes from the
-        owner's proposal (ADR-0148, CM-21-028), with *attributed_to* the
-        owner and *in_reply_to* the proposal (CM-24-020).  *end_time*, when
+        Both Offers of a transfer have this shape (ADR-0199): the Case
+        Owner's own, sent *to* the CASE_MANAGER (TRIG-11-001), and the one
+        the CASE_MANAGER makes from it (CM-21-028), with *attributed_to* the
+        owner and *in_reply_to* the Owner's Offer (CM-24-020).  *end_time*, when
         given, is the Offer's activity-level
         ``end_time``: the deadline to answer it (CM-21-016).  *id_*, when
         given, is the Offer's id, which the CASE_MANAGER derives from the
-        proposal (OX-06-002); an id the store already holds hands back the
+        Owner's (OX-06-002); an id the store already holds hands back the
         body sealed then.
 
         Returns ``(activity_id, activity_dict)``.
@@ -115,11 +93,11 @@ class TriggerOwnershipPort(Protocol):
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist the owner's withdrawal of its proposal.
+        """Create and persist the owner's withdrawal of its own Offer.
 
-        ``Undo(Offer(Offer(VulnerabilityCase)))``: *offer_id* names the
-        proposal this actor sent, which the CASE_MANAGER made its Offer from
-        (CM-21-015, ADR-0148).
+        ``Undo(Offer(VulnerabilityCase))``: *offer_id* names the Offer this
+        actor sent, which the CASE_MANAGER made its Offer from (CM-21-015,
+        ADR-0199).
 
         Returns ``(activity_id, activity_dict)`` (TRIG-11-006).
         """

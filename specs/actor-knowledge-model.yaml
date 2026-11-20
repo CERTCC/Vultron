@@ -326,8 +326,8 @@ groups:
       This codebase MUST carry the case that `Join`, `Ignore` and `Leave` of a case and
       the ownership-transfer `Offer(VulnerabilityCase)` act on as a typed reference: an
       inline object with only the case's `id` and `type`. The ownership-transfer
-      `Offer` is both the one nested in the owner's proposal and the one the
-      CASE_MANAGER makes.
+      `Offer` is both the Case Owner's own and the one the CASE_MANAGER makes from
+      it.
     rationale: >-
       Every receiver of these acts holds the case: the CASE_MANAGER holds the canonical
       case, and the transferee of an ownership-transfer `Offer` is an active participant

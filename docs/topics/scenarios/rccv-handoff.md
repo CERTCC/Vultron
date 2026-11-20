@@ -134,8 +134,9 @@ C2 joins the case.  An `accept_invite_actor_to_case` entry is recorded.
 ### 6. C1 offers case ownership to C2
 
 C1 decides to transfer the case to C2 and initiates the ownership-transfer protocol.
-C1 proposes the transfer to the **Case Actor**, not to C2 (ADR-0053, ADR-0148).
-The Case Actor makes the offer itself, under its own identity, and records it as an `offer_case_ownership_transfer` entry, so every participant learns that a transfer is on offer.
+C1 proposes the transfer with its own offer of the case to the **Case Actor**, not to C2 (ADR-0053, ADR-0148, ADR-0199).
+The Case Actor records C1's offer, then makes its own offer under its own identity and records that one too.
+Both are `offer_case_ownership_transfer` entries, so every participant learns that a transfer is on offer.
 
 *Antecedent:* C2's `accept_invite_actor_to_case` entry is in the ledger.
 

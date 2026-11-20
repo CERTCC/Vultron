@@ -547,7 +547,7 @@ REPLY_ID = "https://example.org/activities/reply-sender-rule"
             SenderIsOfferAddresseeNode,
         ),
         (
-            OwnershipOfferRequest(offer_id=OFFER_ID, reply_id=REPLY_ID),
+            OwnershipOfferRequest(offer_id=OFFER_ID),
             CASE_ID,
             SenderIsOwnershipTransfereeNode,
         ),
@@ -578,6 +578,35 @@ def test_named_actor_picks_the_check_for_the_record_holding_its_request(
     assert node.guards_kind is Kind.NAMED_ACTOR
 
 
+@pytest.mark.spec("CM-21-011")
+@pytest.mark.spec("BTND-01-008")
+def test_an_ownership_reply_naming_no_offer_is_refused() -> None:
+    """A reply that names no Offer leaves ``/offer_id`` unseeded, which the
+    transferee check reads as absent and refuses, at the CASE_MANAGER."""
+    scenario = _store(MANAGER)
+    guard = staged_sender_guard(
+        SenderRule.at_case_manager_only(Kind.NAMED_ACTOR),
+        SenderCheckContext(
+            sender_id=VENDOR,
+            case_id=CASE_ID,
+            request=OwnershipOfferRequest(offer_id=None),
+        ),
+    )
+    assert guard is not None
+
+    tree = guard_tree(guard, CASE_ID)
+    result = scenario.run(tree, activity=SimpleNamespace(actor_id=VENDOR))
+
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.FAILURE
+    reasons = [
+        node.feedback_message
+        for node in tree.iterate()
+        if isinstance(node, SenderIsOwnershipTransfereeNode)
+    ]
+    assert reasons and "names no ownership-transfer Offer" in reasons[0]
+
+
 def test_named_actor_without_its_request_record_is_a_wiring_error() -> None:
     with pytest.raises(VultronWiringError, match="NAMED_ACTOR"):
         staged_sender_guard(
@@ -592,9 +621,7 @@ def test_an_ownership_offer_check_without_a_case_is_a_wiring_error() -> None:
             SenderRule.before_case(Kind.NAMED_ACTOR),
             SenderCheckContext(
                 sender_id=VENDOR,
-                request=OwnershipOfferRequest(
-                    offer_id=OFFER_ID, reply_id=REPLY_ID
-                ),
+                request=OwnershipOfferRequest(offer_id=OFFER_ID),
             ),
             NO_CASE_PATHS,
         )
@@ -707,12 +734,10 @@ def test_case_owner_against_an_ownership_offer_is_the_offerer_check() -> None:
         SenderCheckContext(
             sender_id=OWNER,
             case_id=CASE_ID,
-            request=OwnershipOfferRequest(
-                offer_id=OFFER_ID, reply_id=REPLY_ID
-            ),
+            request=OwnershipOfferRequest(offer_id=OFFER_ID),
         ),
     )
-    role = _owner_role_check(guard)
+    role = unscoped(_owner_role_check(guard))
     assert isinstance(role, SenderIsOwnershipOffererNode)
     assert role.guards_kind is Kind.CASE_OWNER
 
@@ -729,7 +754,7 @@ def test_case_owner_for_a_new_ownership_offer_is_the_offering_owner_check() -> (
             sender_id=OWNER, case_id=CASE_ID, ownership_proposal_id=OFFER_ID
         ),
     )
-    role = _owner_role_check(guard)
+    role = unscoped(_owner_role_check(guard))
     assert isinstance(role, SenderIsOfferingCaseOwnerNode)
     assert role.guards_kind is Kind.CASE_OWNER
 
@@ -1307,7 +1332,7 @@ _OWNER_CONTEXTS = {
     "ownership-offer-withdrawal": SenderCheckContext(
         sender_id=OWNER,
         case_id=CASE_ID,
-        request=OwnershipOfferRequest(offer_id=OFFER_ID, reply_id=REPLY_ID),
+        request=OwnershipOfferRequest(offer_id=OFFER_ID),
     ),
 }
 

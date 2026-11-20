@@ -269,8 +269,8 @@ def create_receive_activity_tree(
     Every other stage is built as usual.
 
     ``held_case`` names the act of a tree whose message names its case and
-    carries none of it — ``Join``, ``Ignore``, ``Leave`` and the owner's
-    ``Offer(Offer(VulnerabilityCase))`` (AKM-03-004, ADR-0165).  The path
+    carries none of it — ``Join``, ``Ignore``, ``Leave`` and an
+    ownership-transfer ``Offer(VulnerabilityCase)`` (AKM-03-004, ADR-0165).  The path
     stage refuses such an act at a receiver that holds no replica of the case
     with a reason naming the activity and the case (AKM-03-006), so no use
     case reads its store to ask first.  It needs ``paths`` without the

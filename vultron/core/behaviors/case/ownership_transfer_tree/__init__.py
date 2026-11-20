@@ -18,18 +18,14 @@
 Provides:
 
 - :func:`create_propose_ownership_transfer_tree` — BT for
-  ``ProposeCaseOwnershipTransferReceivedUseCase``: the CASE_MANAGER admits
-  the Case Owner's proposal only from the owner and only while no Offer for
-  the case is open (CM-21-014, CM-21-019), ledgers it, and makes the one
-  ``Offer(VulnerabilityCase)`` of the transfer through
-  ``MakeOwnershipTransferOfferNode`` in ``manager_effects``, so the
-  factory's CASE_MANAGER gate lets only the CASE_MANAGER make it (CM-21-005,
-  BT-17-008).
-- :func:`create_offer_ownership_transfer_tree` — BT for
-  ``OfferCaseOwnershipTransferReceivedUseCase``: the transferee takes the
-  CASE_MANAGER's Offer, which intake records for it to answer; its sender
-  guard admits the case's CASE_MANAGER alone, and nobody at the
-  CASE_MANAGER (CM-21-019).
+  ``OfferCaseOwnershipTransferReceivedUseCase``, one tree for the one wire
+  shape (ADR-0199).  At the CASE_MANAGER the Offer is the Case Owner's
+  proposal: admitted only from the owner and only while no Offer for the
+  case is open (CM-21-014, CM-21-019), ledgered, and made into the
+  CASE_MANAGER's own ``Offer(VulnerabilityCase)`` through
+  ``MakeOwnershipTransferOfferNode`` in ``manager_effects`` (CM-21-005,
+  CM-21-028, BT-17-008).  At the transferee it is that Offer, which intake
+  records for it to answer, taken from the case's CASE_MANAGER alone.
 - :func:`create_accept_ownership_transfer_tree` — BT for
   ``AcceptCaseOwnershipTransferReceivedUseCase``.
 - :func:`create_reject_ownership_transfer_tree` — BT for
@@ -37,24 +33,23 @@ Provides:
   effects, so the declined Offer is ledgered and closed (CM-21-012).
 - :func:`create_undo_ownership_transfer_tree` — BT for
   ``UndoCaseOwnershipTransferReceivedUseCase``: the owner's withdrawal of
-  its proposal, ledgered like the Reject so it closes the Offer made from
+  its own Offer, ledgered like the Reject so it closes the Offer made from
   it (CM-21-015).
 
-The proposal and the three replies judge the case's Offer against its own
+The Owner's Offer and the three replies judge the case's Offer against its own
 ``end_time`` and the act's instant (ADR-0176), at the CASE_MANAGER only: an
 Offer past its deadline is closed, with no entry recording the expiry, so a
-late reply is refused and a new proposal is admitted (CM-21-014, CM-21-016,
+late reply is refused and a new Owner's Offer is admitted (CM-21-014, CM-21-016,
 CM-21-017, ADR-0152).
 
 The factories live in submodules grouped by concern (CS-18-005):
 
-- ``proposal``: the Case Owner's proposal and the CASE_MANAGER's Offer.
+- ``proposal``: the Case Owner's Offer and the CASE_MANAGER's Offer.
 - ``replies``: the transferee's ``Accept`` or ``Reject`` of the Offer and the
-  owner's ``Undo`` of its proposal.
+  owner's ``Undo`` of its own Offer.
 """
 
 from vultron.core.behaviors.case.ownership_transfer_tree.proposal import (
-    create_offer_ownership_transfer_tree,
     create_propose_ownership_transfer_tree,
     proposal_sender_context,
 )
@@ -66,7 +61,6 @@ from vultron.core.behaviors.case.ownership_transfer_tree.replies import (
 
 __all__ = [
     "create_accept_ownership_transfer_tree",
-    "create_offer_ownership_transfer_tree",
     "create_propose_ownership_transfer_tree",
     "create_reject_ownership_transfer_tree",
     "create_undo_ownership_transfer_tree",

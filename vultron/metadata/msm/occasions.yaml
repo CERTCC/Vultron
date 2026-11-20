@@ -283,33 +283,33 @@ groups:
       title: How to Delegate a Role to Another Participant
     example: reject_case_participant_role
   - anchor: propose-case-ownership-transfer
-    heading: Propose case ownership transfer
-    when: the Case Owner proposes to transfer ownership of the case to another participant
-    send: Offer(Offer(VulnerabilityCase))
+    heading: Case Owner offers case ownership
+    when: the Case Owner offers ownership of the case to another participant
+    send: Offer(VulnerabilityCase)
     send_to: the CASE_MANAGER
     sent_by: the Case Owner
-    semantics: propose_case_ownership_transfer
+    semantics: offer_case_ownership_transfer
     status: none
-    description: 'Asks the CASE_MANAGER to offer the case to another participant, for example
-      from a Reporter to a Coordinator. The CASE_MANAGER offers the case only to an active
-      participant, so the Case Owner invites any other actor first. The inner Offer names
-      the case, the new owner as its target and, optionally, an `endTime` after which the
-      CASE_MANAGER refuses an answer: the offer is then closed, with nothing recorded or sent.
-      The CASE_MANAGER makes the offer itself.'
+    description: 'The Case Owner''s own Offer, sent to the CASE_MANAGER only: the case as
+      the object and the new owner as the target, for example from a Reporter to a Coordinator.
+      The CASE_MANAGER offers the case only to an active participant, so the Case Owner invites
+      any other actor first. An optional `endTime` is the deadline to answer: after it the
+      CASE_MANAGER refuses an answer, and the offer is closed with nothing recorded or sent.
+      The CASE_MANAGER records this Offer and makes its own Offer to the new owner, which
+      answers that one.'
     seen_in: []
     example: propose_case_ownership_transfer
   - anchor: offer-case-ownership-transfer
     heading: Offer case ownership transfer
-    when: the CASE_MANAGER offers the case to the actor the Case Owner proposed
+    when: the CASE_MANAGER offers the case to the actor the Case Owner named
     send: Offer(VulnerabilityCase)
     send_to: a participant
     sent_by: the CASE_MANAGER
     semantics: offer_case_ownership_transfer
     status: none
     description: 'Offers the case to the actor named by the target, on the Case Owner''s behalf:
-      `attributedTo` names the owner and `inReplyTo` the owner''s proposal. This is the one
-      offer of the transfer, the one the new owner accepts or rejects. It carries the proposal''s
-      `endTime`, if any.'
+      `attributedTo` names the owner and `inReplyTo` the owner''s own Offer. This is the offer
+      the new owner accepts or rejects. It carries the owner''s `endTime`, if any.'
     seen_in: []
     example: offer_case_ownership_transfer
   - anchor: accept-case-ownership-transfer
@@ -336,14 +336,15 @@ groups:
     example: reject_case_ownership_transfer
   - anchor: withdraw-case-ownership-transfer
     heading: Withdraw case ownership transfer
-    when: the Case Owner withdraws its proposal while the offer of case ownership is open
-    send: Undo(Offer(Offer(VulnerabilityCase)))
+    when: the Case Owner withdraws its offer while the CASE_MANAGER's offer of case ownership
+      is open
+    send: Undo(Offer(VulnerabilityCase))
     send_to: the CASE_MANAGER
     sent_by: the Case Owner
     semantics: undo_case_ownership_transfer
     status: none
-    description: Withdraws the proposal, and with it the CASE_MANAGER's offer, before the
-      offer is answered. The current Case Owner keeps the case.
+    description: Withdraws the Case Owner's own Offer, and with it the CASE_MANAGER's offer,
+      before the offer is answered. The current Case Owner keeps the case.
     seen_in: []
     example: undo_case_ownership_transfer
   - anchor: invite-actor-to-case

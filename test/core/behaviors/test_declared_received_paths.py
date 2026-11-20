@@ -227,12 +227,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         f"{_C}/ownership_transfer_tree/proposal.py",
         "create_propose_ownership_transfer_tree",
         0,
-    ): frozenset({CM}),
-    (
-        f"{_C}/ownership_transfer_tree/proposal.py",
-        "create_offer_ownership_transfer_tree",
-        0,
-    ): frozenset({PR}),
+    ): frozenset({CM, PR}),
     # Each reply goes to the CASE_MANAGER alone (TRIG-11-002/005, CM-21-015);
     # a replica takes the change from the ledger (#6394).
     (

@@ -40,19 +40,6 @@ __all__ = ["KNOWN_PER_ACT_PARAMETERS"]
 # owner: #6593
 KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
     {
-        # #6466: The Case Owner offers ownership with its own Offer of the case,
-        #   and the CASE_MANAGER makes the transferee's Offer from it
-        "vultron/core/behaviors/sender_entitlement/addressee.py::SenderIsRequestAddresseeNode::sender_actor_id": 6466,
-        "vultron/core/behaviors/sender_entitlement/ownership.py::SenderIsOfferingCaseOwnerNode::case_id": 6466,
-        "vultron/core/behaviors/sender_entitlement/ownership.py::SenderIsOfferingCaseOwnerNode::proposal_id": 6466,
-        "vultron/core/behaviors/sender_entitlement/ownership.py::SenderIsOfferingCaseOwnerNode::sender_actor_id": 6466,
-        "vultron/core/behaviors/sender_entitlement/ownership.py::SenderIsOwnershipOfferPartyNode::case_id": 6466,
-        "vultron/core/behaviors/sender_entitlement/ownership.py::SenderIsOwnershipOfferPartyNode::offer_id": 6466,
-        "vultron/core/behaviors/sender_entitlement/ownership.py::SenderIsOwnershipOfferPartyNode::sender_actor_id": 6466,
-        "vultron/core/behaviors/sender_entitlement/ownership.py::SenderIsOwnershipOffererNode::case_id": 6466,
-        "vultron/core/behaviors/sender_entitlement/ownership.py::SenderIsOwnershipOffererNode::offer_id": 6466,
-        "vultron/core/behaviors/sender_entitlement/ownership.py::SenderIsOwnershipOffererNode::reply_id": 6466,
-        "vultron/core/behaviors/sender_entitlement/ownership.py::SenderIsOwnershipOffererNode::sender_actor_id": 6466,
         # #6573: The case invite, full-case invite and replica-bootstrap nodes
         #   read every per-act value from vocabulary keys
         "vultron/core/behaviors/case/accept_invite_tree.py::MaybeSignEmbargoConsentNode::case_id": 6573,
@@ -283,7 +270,6 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::NoOpenOwnershipOfferNode::proposal_id": 6576,
         "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::NoOpenOwnershipOfferNode::proposer_id": 6576,
         "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::OwnershipProposalAdmissibleNode::case_id": 6576,
-        "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::OwnershipProposalAdmissibleNode::proposed_case_id": 6576,
         "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::OwnershipProposalAdmissibleNode::proposer_id": 6576,
         "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::OwnershipProposalAdmissibleNode::transferee_id": 6576,
         "vultron/core/behaviors/case/nodes/ownership_offer_reply_emit.py::_EmitOwnershipAnswerNode::case_id": 6576,
@@ -826,7 +812,6 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/case/nodes/owner_invite_stub.py::owner_decided_stub_invite::offered_roles": 6585,
         "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::case_manager_admits_ownership_proposal_guard::case_id": 6585,
         "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::case_manager_admits_ownership_proposal_guard::proposal_id": 6585,
-        "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::case_manager_admits_ownership_proposal_guard::proposed_case_id": 6585,
         "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::case_manager_admits_ownership_proposal_guard::proposer_id": 6585,
         "vultron/core/behaviors/case/nodes/ownership_offer_guard.py::case_manager_admits_ownership_proposal_guard::transferee_id": 6585,
         "vultron/core/behaviors/case/nodes/ownership_reply_guard.py::_named_offer::case_id": 6585,
@@ -963,12 +948,9 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/case/owner_close_embargo_guards.py::owner_close_blocked_by_embargo_guards::closing_actor_id": 6586,
         "vultron/core/behaviors/case/owner_close_embargo_guards.py::owner_close_not_blocked_by_embargo::case_id": 6586,
         "vultron/core/behaviors/case/owner_close_embargo_guards.py::owner_close_not_blocked_by_embargo::closing_actor_id": 6586,
-        "vultron/core/behaviors/case/ownership_transfer_tree/proposal.py::create_offer_ownership_transfer_tree::case_id": 6586,
-        "vultron/core/behaviors/case/ownership_transfer_tree/proposal.py::create_offer_ownership_transfer_tree::sender_id": 6586,
         "vultron/core/behaviors/case/ownership_transfer_tree/proposal.py::create_propose_ownership_transfer_tree::answer_deadline": 6586,
         "vultron/core/behaviors/case/ownership_transfer_tree/proposal.py::create_propose_ownership_transfer_tree::case_id": 6586,
         "vultron/core/behaviors/case/ownership_transfer_tree/proposal.py::create_propose_ownership_transfer_tree::proposal_id": 6586,
-        "vultron/core/behaviors/case/ownership_transfer_tree/proposal.py::create_propose_ownership_transfer_tree::proposed_case_id": 6586,
         "vultron/core/behaviors/case/ownership_transfer_tree/proposal.py::create_propose_ownership_transfer_tree::sender_id": 6586,
         "vultron/core/behaviors/case/ownership_transfer_tree/proposal.py::create_propose_ownership_transfer_tree::transferee_id": 6586,
         "vultron/core/behaviors/case/ownership_transfer_tree/proposal.py::proposal_sender_context::case_id": 6586,

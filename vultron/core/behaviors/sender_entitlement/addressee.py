@@ -114,10 +114,9 @@ class SenderIsRequestAddresseeNode(SenderEntitlementConditionNode):
     - :class:`NothingToProtect`: ``SUCCESS``; a subclass returns it only
       where an unrecorded request has nothing to protect.
 
-    Its constructor still takes the sender for the ownership-transfer
-    checks alone, which #6466 moves; every other subclass derives from
-    :class:`_SenderKeyAddresseeNode`, which reads the sender from
-    ``/sender_id`` (BTND-01-008).
+    The sender is read from ``/sender_id`` when the node ticks, never taken
+    by the constructor (BTND-01-008, BTND-01-009).  A subclass reads any
+    further per-act value it needs from its own key.
 
     Spec: HP-01-006, HP-01-009.
     """
@@ -129,13 +128,26 @@ class SenderIsRequestAddresseeNode(SenderEntitlementConditionNode):
     _spec: ClassVar[str]
     """The requirement a refusal cites; each subclass names its own."""
 
-    def __init__(
-        self,
-        sender_actor_id: str,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **SenderEntitlementConditionNode.INPUT_PORTS,
+        **act_key_ports(SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(SENDER_ID),
+        }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.sender_actor_id = sender_actor_id
+        self.sender_actor_id = ""
+        """The sender, read from ``/sender_id`` in :meth:`initialise`."""
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.sender_actor_id = act_value(self, SENDER_ID, str)
 
     def _recorded_request(self) -> RecordedRequest | NothingToProtect:
         """The request as this store recorded it.
@@ -198,36 +210,7 @@ class SenderIsRequestAddresseeNode(SenderEntitlementConditionNode):
         return Status.SUCCESS
 
 
-class _SenderKeyAddresseeNode(SenderIsRequestAddresseeNode):
-    """An addressee check that reads the sender from ``/sender_id``.
-
-    The base's comparison and refusal, with the sender read from its key
-    when the node ticks rather than taken by the constructor (BTND-01-008).
-    A subclass reads any further per-act value it needs from its own key.
-    """
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **SenderIsRequestAddresseeNode.INPUT_PORTS,
-        **act_key_ports(SENDER_ID),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            **super()._domain_port_remappings(),
-            **act_key_remappings(SENDER_ID),
-        }
-
-    def __init__(self, name: str | None = None) -> None:
-        # No sender yet: it is read from ``/sender_id`` when the node ticks.
-        super().__init__(sender_actor_id="", name=name)
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.sender_actor_id = act_value(self, SENDER_ID, str)
-
-
-class SenderIsProposalAddresseeNode(_SenderKeyAddresseeNode):
+class SenderIsProposalAddresseeNode(SenderIsRequestAddresseeNode):
     """Guard: sender must be the actor the CaseProposal was addressed to.
 
     The vendor records the addressee on its ``VultronReportCaseLink``
@@ -248,7 +231,7 @@ class SenderIsProposalAddresseeNode(_SenderKeyAddresseeNode):
     _spec = "CP-06-005"
 
     INPUT_PORTS: dict[str, PortInformation] = {
-        **_SenderKeyAddresseeNode.INPUT_PORTS,
+        **SenderIsRequestAddresseeNode.INPUT_PORTS,
         **act_key_ports(REPORT_ID),
     }
 
@@ -280,7 +263,7 @@ class SenderIsProposalAddresseeNode(_SenderKeyAddresseeNode):
         )
 
 
-class SenderIsExpectedCaseCreatorNode(_SenderKeyAddresseeNode):
+class SenderIsExpectedCaseCreatorNode(SenderIsRequestAddresseeNode):
     """Guard: the sender of a bootstrap ``Create(VulnerabilityCase)`` is the
     actor this store expects the case from.
 
@@ -304,7 +287,7 @@ class SenderIsExpectedCaseCreatorNode(_SenderKeyAddresseeNode):
     _spec = "CBT-01-011"
 
     INPUT_PORTS: dict[str, PortInformation] = {
-        **_SenderKeyAddresseeNode.INPUT_PORTS,
+        **SenderIsRequestAddresseeNode.INPUT_PORTS,
         **act_key_ports(CASE_ID),
     }
 
@@ -330,7 +313,7 @@ class SenderIsExpectedCaseCreatorNode(_SenderKeyAddresseeNode):
         )
 
 
-class SenderIsOfferAddresseeNode(_SenderKeyAddresseeNode):
+class SenderIsOfferAddresseeNode(SenderIsRequestAddresseeNode):
     """Guard: sender must be an actor the ``Offer(VulnerabilityReport)`` was
     addressed to.
 
@@ -353,7 +336,7 @@ class SenderIsOfferAddresseeNode(_SenderKeyAddresseeNode):
     _spec = "RMB-08-004"
 
     INPUT_PORTS: dict[str, PortInformation] = {
-        **_SenderKeyAddresseeNode.INPUT_PORTS,
+        **SenderIsRequestAddresseeNode.INPUT_PORTS,
         **act_key_ports(OFFER_ID),
     }
 

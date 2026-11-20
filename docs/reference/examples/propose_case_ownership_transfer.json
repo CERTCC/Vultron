@@ -5,31 +5,23 @@
     "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Offer",
-  "id": "urn:uuid:e37dd281-a585-442e-b817-23c07e556f20",
-  "name": "https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
+  "id": "urn:uuid:fd771189-5fc9-4e89-b211-a949b8d301e9",
+  "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
-  "content": "Please offer ownership of case VendorCo Case #20260601 to the coordinator.",
+  "content": "We're offering ownership of case VendorCo Case #20260601 to the coordinator.",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
   ],
   "actor": "https://vultron.example/organizations/vendorco",
+  "target": {
+    "type": "Actor",
+    "id": "https://vultron.example/organizations/coordinator"
+  },
   "object": {
-    "type": "Offer",
-    "id": "urn:uuid:fd771189-5fc9-4e89-b211-a949b8d301e9",
-    "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
-    "published": "2026-06-01T19:12:00.000000+00:00",
-    "updated": "2026-06-01T19:12:00.000000+00:00",
-    "actor": "https://vultron.example/organizations/vendorco",
-    "target": {
-      "type": "Actor",
-      "id": "https://vultron.example/organizations/coordinator"
-    },
-    "object": {
-      "type": "VulnerabilityCase",
-      "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
-    }
+    "type": "VulnerabilityCase",
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
   },
   "proof": {
     "@context": [
@@ -42,6 +34,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z3PAqAMBXmHAdKXcFa7trwtXwowujhyn2EuipymYtB15Ti3GBCfw7UxqLyqcS1Aj9hRXHTwmWscX7ihoUyAvkEmyB"
+    "proofValue": "z5eT118FJbjT3joPg3SthfG8vG65fVMPbG5kXXxFbfZApgtgqBytbHB53P6gDTtNtFQgZ9Zc1bfbY5wQyTzQ2RrD2"
   }
 }

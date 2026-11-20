@@ -58,7 +58,6 @@ from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_case_activity,
     offer_case_ownership_transfer_activity,
-    propose_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     rm_accept_invite_to_case_activity,
     rm_close_case_activity,
@@ -143,8 +142,8 @@ def sample_offer(sample_case) -> as_Offer:
 
 @pytest.fixture
 def sample_proposal(sample_case) -> as_Offer:
-    """The owner's ownership-transfer proposal — used for Undo tests."""
-    return propose_case_ownership_transfer_activity(
+    """The owner's own ownership-transfer Offer — used for Undo tests."""
+    return offer_case_ownership_transfer_activity(
         sample_case, target=_TARGET_URI, actor=_ACTOR_URI, at=authored_at()
     )
 
@@ -624,41 +623,50 @@ def test_reject_ownership_transfer_plain_offer_raises(sample_report):
 @pytest.mark.spec("CM-21-015")
 def test_undo_ownership_transfer_returns_undo(sample_proposal):
     result = undo_case_ownership_transfer_activity(
-        proposal=sample_proposal, actor=_ACTOR_URI, at=authored_at()
+        offer=sample_proposal, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Undo)
 
 
-def test_undo_ownership_transfer_object_is_the_proposal(sample_proposal):
+def test_undo_ownership_transfer_object_is_the_owners_offer(sample_proposal):
     result = undo_case_ownership_transfer_activity(
-        proposal=sample_proposal, actor=_ACTOR_URI, at=authored_at()
+        offer=sample_proposal, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_proposal
 
 
 @pytest.mark.spec("AF-04-001")
-def test_undo_ownership_transfer_plain_offer_raises(sample_offer):
-    """The Offer itself is not withdrawn; the owner's proposal is (ADR-0148)."""
+def test_undo_ownership_transfer_plain_offer_raises():
+    """Only an ownership-transfer Offer is withdrawn: a plain ``as_Offer``
+    that offers no case fails validation (ADR-0199)."""
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         undo_case_ownership_transfer_activity(
-            proposal=sample_offer, at=authored_at()
+            offer=make(
+                as_Offer,
+                actor=_ACTOR_URI,
+                object_="https://example.org/reports/not-a-case",
+            ),
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
 
 # ---------------------------------------------------------------------------
-# propose_case_ownership_transfer_activity
+# offer_case_ownership_transfer_activity: the Owner's Offer
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.spec("CM-21-016")
 @pytest.mark.spec("CM-21-025")
-def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
-    """Offer(Offer(VulnerabilityCase)), context the case: the inner Offer names
-    the case, the transferee and the deadline (ADR-0148)."""
+def test_owners_offer_names_the_case_the_transferee_and_the_deadline(
+    sample_case,
+):
+    """The Owner's own Offer(VulnerabilityCase), sent to the CASE_MANAGER:
+    the case by typed reference, the transferee as ``target`` and the
+    deadline as its own ``end_time`` (ADR-0199)."""
     deadline = FAR_FUTURE  # far-future; tests round-trip, not a specific value
-    result = propose_case_ownership_transfer_activity(
+    result = offer_case_ownership_transfer_activity(
         sample_case,
         target=_TARGET_URI,
         end_time=deadline,
@@ -668,14 +676,11 @@ def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
     )
 
     assert isinstance(result, as_Offer)
-    assert result.context == sample_case.id_
-    inner = result.object_
-    assert isinstance(inner, as_Offer)
-    assert inner.object_ == case_reference(sample_case.id_)
-    assert isinstance(inner.target, as_Actor)
-    assert inner.target.id_ == _TARGET_URI
-    assert inner.end_time == deadline
-    assert result.end_time is None
+    assert result.object_ == case_reference(sample_case.id_)
+    assert isinstance(result.target, as_Actor)
+    assert result.target.id_ == _TARGET_URI
+    assert result.end_time == deadline
+    assert result.to == [_CASE_ACTOR_URI]
 
 
 # ---------------------------------------------------------------------------
