@@ -27,6 +27,7 @@ from test.support.act_clock import clock_at
 from test.support.act_runner import run_in_act
 from test.support.objects import authored_at, make
 from test.support.received import received_event
+from test.support.signing import resigned
 from test.wire.csaf._documents import section, vulnerability_report_document
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -35,6 +36,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.case_actor_identity import case_actor_identity
 from vultron.core.models.actor import VultronService
 from vultron.core.models.attached_document import AttachedDocument
@@ -126,15 +128,20 @@ class Receipt:
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
         self.dl.save(make(VultronService, id_=receiver_id, name=receiver_name))
 
-    def handle(self, at: datetime = RECEIVED_AT) -> HandlerResult:
+    def handle(
+        self,
+        at: datetime = RECEIVED_AT,
+        actor_config: ActorConfig | None = None,
+    ) -> HandlerResult:
         """Handle the Offer inside an act at *at*, as the inbox does
-        (ADR-0176)."""
+        (ADR-0176), under the receiver's *actor_config* when given."""
         with clock_at(at):
             return run_in_act(
                 SubmitReportReceivedUseCase(
                     self.dl,
                     self.event,
                     trigger_activity=TriggerActivityAdapter(self.dl),
+                    actor_config=actor_config,
                 ),
                 at=at,
             )
@@ -164,6 +171,19 @@ class Receipt:
     def proposal_body(self) -> dict[str, Any]:
         """The ``Create(CaseProposal)`` this receipt sent, as sealed."""
         return sent_create_of(self.dl, "CaseProposal")
+
+    def proposal_body_without_case_inputs(self) -> dict[str, Any]:
+        """The sent proposal with its ``caseInputs`` taken off, re-signed.
+
+        What a proposer that converts no document would send, so the
+        CASE_MANAGER fills the case from the carried Offer's document
+        itself (CP-01-025, CP-01-029).
+        """
+
+        def strip(body: dict[str, Any]) -> None:
+            body["object"].pop("caseInputs", None)
+
+        return resigned(self.proposal_body(), alter=strip)
 
 
 def sent_bodies(dl: SqliteDataLayer) -> list[dict[str, Any]]:

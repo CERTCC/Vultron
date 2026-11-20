@@ -26,6 +26,7 @@ from test.support.received import (
 )
 from test.support.signing import signed_body
 from vultron.core.models.actor import CoreActor, VultronOrganization
+from vultron.core.models.case_proposal import CaseProposal, ProposedCaseInputs
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
@@ -64,6 +65,19 @@ def _make_report(dl) -> as_VulnerabilityReport:
     return report
 
 
+def _proposal(
+    report: as_VulnerabilityReport, offer_id: str | None = None
+) -> CaseProposal:
+    """The Vendor's core proposal of *report*, as its conversion builds it."""
+    return make(
+        CaseProposal,
+        attributed_to=_VENDOR,
+        object_=report,
+        target=_CASE_ACTOR,
+        in_reply_to=offer_id,
+    )
+
+
 class TestCreateCaseProposal:
     @pytest.mark.spec("CP-01-010")
     def test_the_create_carries_the_senders_stored_profile_inline(
@@ -74,10 +88,7 @@ class TestCreateCaseProposal:
         dl.save(_vendor_profile(timedelta(days=30)))
 
         _, blob = adapter.create_case_proposal(
-            actor=_VENDOR,
-            report_id=report.id_,
-            case_actor_id=_CASE_ACTOR,
-            at=authored_at(),
+            _proposal(report), at=authored_at()
         )
 
         actor = json.loads(blob)["actor"]
@@ -96,12 +107,7 @@ class TestCreateCaseProposal:
         report = _make_report(dl)
 
         with pytest.raises(ValueError, match="CP-01-010"):
-            adapter.create_case_proposal(
-                actor=_VENDOR,
-                report_id=report.id_,
-                case_actor_id=_CASE_ACTOR,
-                at=authored_at(),
-            )
+            adapter.create_case_proposal(_proposal(report), at=authored_at())
 
         assert list(dl.list_objects("CaseProposal")) == []
 
@@ -117,12 +123,7 @@ class TestCreateCaseProposal:
         )
 
         with pytest.raises(TypeError, match="CP-01-010"):
-            adapter.create_case_proposal(
-                actor=_VENDOR,
-                report_id=report.id_,
-                case_actor_id=_CASE_ACTOR,
-                at=authored_at(),
-            )
+            adapter.create_case_proposal(_proposal(report), at=authored_at())
 
         assert list(dl.list_objects("CaseProposal")) == []
 
@@ -136,10 +137,7 @@ class TestCreateCaseProposal:
         dl.save(_vendor_profile(timedelta(days=30)))
 
         _, blob = adapter.create_case_proposal(
-            actor=_VENDOR,
-            report_id=report.id_,
-            case_actor_id=_CASE_ACTOR,
-            at=authored_at(),
+            _proposal(report), at=authored_at()
         )
         event = extract_event(parse_activity(json.loads(blob)))
 
@@ -168,11 +166,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         assert dl.read(offer.id_) is None
 
         _, blob = adapter.create_case_proposal(
-            actor=_VENDOR,
-            report_id=report.id_,
-            case_actor_id=_CASE_ACTOR,
-            offer_id=offer.id_,
-            at=authored_at(),
+            _proposal(report, offer_id=offer.id_), at=authored_at()
         )
 
         carried = json.loads(blob)["object"]["inReplyTo"]
@@ -208,11 +202,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         archive_delivered(dl, body)
 
         _, blob = adapter.create_case_proposal(
-            actor=_VENDOR,
-            report_id=report.id_,
-            case_actor_id=_CASE_ACTOR,
-            offer_id=offer.id_,
-            at=authored_at(),
+            _proposal(report, offer_id=offer.id_), at=authored_at()
         )
 
         assert json.loads(blob)["object"]["inReplyTo"] == body
@@ -236,11 +226,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
 
         with caplog.at_level("WARNING"):
             _, blob = adapter.create_case_proposal(
-                actor=_VENDOR,
-                report_id=report.id_,
-                case_actor_id=_CASE_ACTOR,
-                offer_id=other.id_,
-                at=authored_at(),
+                _proposal(report, offer_id=other.id_), at=authored_at()
             )
 
         proposal = json.loads(blob)["object"]
@@ -261,11 +247,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
 
         with caplog.at_level("WARNING"):
             _, blob = adapter.create_case_proposal(
-                actor=_VENDOR,
-                report_id=report.id_,
-                case_actor_id=_CASE_ACTOR,
-                offer_id=offer_id,
-                at=authored_at(),
+                _proposal(report, offer_id=offer_id), at=authored_at()
             )
 
         proposal = json.loads(blob)["object"]
@@ -273,3 +255,55 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         assert not {"offerId", "offerActorId"} & set(proposal)
         assert "by id only" in caplog.text
         assert "invalid offer data" not in caplog.text
+
+
+class TestCreateCaseProposalRendersTheCoreProposal:
+    """CP-01-026: the adapter sends the receiver's proposal as given."""
+
+    _FINDER = "https://example.org/actors/finder"
+
+    @pytest.mark.spec("CP-01-026")
+    def test_the_case_inputs_travel_as_given(self, adapter, dl):
+        report = _make_report(dl)
+        dl.save(_vendor_profile(timedelta(days=30)))
+        proposal = _proposal(report).model_copy(
+            update={
+                "case_inputs": ProposedCaseInputs(
+                    name="Owner's name", exploit_public=True
+                )
+            }
+        )
+
+        _, blob = adapter.create_case_proposal(proposal, at=authored_at())
+
+        sent = json.loads(blob)["object"]["caseInputs"]
+        assert sent["name"] == "Owner's name"
+        assert sent["exploitPublic"] is True
+
+    @pytest.mark.spec("CP-01-008")
+    def test_carrying_the_offer_leaves_the_callers_proposal_unchanged(
+        self, adapter, dl
+    ):
+        report = _make_report(dl)
+        dl.save(_vendor_profile(timedelta(days=30)))
+        offer = rm_submit_report_activity(
+            report, to=_VENDOR, actor=self._FINDER, at=authored_at()
+        )
+        archive_received(dl, offer)
+        proposal = _proposal(report, offer_id=offer.id_)
+
+        _, blob = adapter.create_case_proposal(proposal, at=authored_at())
+
+        assert json.loads(blob)["object"]["inReplyTo"]["id"] == offer.id_
+        assert proposal.in_reply_to == offer.id_
+
+    @pytest.mark.spec("CP-04-001")
+    def test_it_is_addressed_to_the_proposals_target(self, adapter, dl):
+        report = _make_report(dl)
+        dl.save(_vendor_profile(timedelta(days=30)))
+
+        _, blob = adapter.create_case_proposal(
+            _proposal(report), at=authored_at()
+        )
+
+        assert json.loads(blob)["to"] == [_CASE_ACTOR]

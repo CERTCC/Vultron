@@ -45,6 +45,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
     CheckProposalAlreadySentForReport,
+    ConvertReportToCaseProposalNode,
     EnsureCaseActorHostedNode,
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
@@ -219,15 +220,15 @@ class TestTreeStructure:
         assert isinstance(flow, py_trees.composites.Sequence)
         assert flow.name == "ReceiveReportProposalFlow"
 
-    def test_flow_has_three_children(self, report, offer, reporter_actor_id):
-        """ReceiveReportProposalFlow has exactly 3 children."""
+    def test_flow_has_four_children(self, report, offer, reporter_actor_id):
+        """ReceiveReportProposalFlow has exactly 4 children."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[-1].children[1]
-        assert len(flow.children) == 3
+        assert len(flow.children) == 4
 
     def test_flow_first_child_ensures_case_actor_hosted(
         self, report, offer, reporter_actor_id
@@ -259,17 +260,25 @@ class TestTreeStructure:
         flow = tree.children[-1].children[1]
         assert isinstance(flow.children[1], WritePendingReportCaseLinkNode)
 
-    def test_flow_third_child_is_propose(
+    @pytest.mark.spec("CP-01-026")
+    def test_flow_converts_the_report_then_sends_the_proposal(
         self, report, offer, reporter_actor_id
     ):
-        """Flow's third child is ProposeReportCaseToActorNode."""
+        """The conversion runs ahead of the send, as its own leaf, so the
+        receiver may change the proposal between them."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[-1].children[1]
-        assert isinstance(flow.children[2], ProposeReportCaseToActorNode)
+        [convert] = [
+            n
+            for n in flow.children[2].iterate()
+            if isinstance(n, ConvertReportToCaseProposalNode)
+        ]
+        assert convert is not None
+        assert isinstance(flow.children[3], ProposeReportCaseToActorNode)
 
     def test_no_create_case_node(self, report, offer, reporter_actor_id):
         """Tree does NOT contain CreateCaseNode (AC-1)."""

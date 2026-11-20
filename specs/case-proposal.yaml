@@ -305,9 +305,15 @@ groups:
       sends. The CASE_MANAGER's own reading stays as the fallback for a proposer that
       sends none.
     verification: >-
-      `test_the_receiver_states_the_case_inputs_of_a_csaf_report` in
-      `test/core/use_cases/received/test_case_from_csaf_report.py` is a strict `xfail`
-      until #6723 builds it.
+      `test_the_receiver_states_the_case_inputs_of_a_csaf_report`,
+      `test_a_report_with_no_csaf_report_document_sends_no_case_inputs`,
+      `test_the_receiver_may_change_its_proposal_before_it_is_sent` and
+      `test_a_csaf_report_reaches_a_separate_case_manager_as_case_inputs` in
+      `test/core/use_cases/received/test_case_from_csaf_report.py` send a proposal
+      from a receiver of a CSAF report and check its `caseInputs`, their absence
+      for a report with no such document, an owner's change made before the send,
+      and the case a separate CASE_MANAGER builds from them;
+      `test/core/services/test_report_case_proposal.py` checks the conversion.
     adr:
     - ADR-0184
   - id: CP-01-027

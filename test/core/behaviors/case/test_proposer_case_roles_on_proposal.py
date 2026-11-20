@@ -31,12 +31,10 @@ both ran in one container (#1876).
 """
 
 import pytest
-from py_trees.common import Status
 from pydantic import ValidationError
 
-from test.support.act_runner import run_tree
 from test.support.objects import make, with_times
-from vultron.core.behaviors.case.nodes import ProposeReportCaseToActorNode
+from test.support.report_proposal import propose_report_case
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.events.case_proposal import (
     CreateCaseProposalReceivedEvent,
@@ -91,15 +89,7 @@ class TestReceiverStatesItsRoles:
     """Sender side: the proposal carries the sender's own default roles."""
 
     def _propose(self, bridge, datalayer, actor_id, report_id):
-        node = ProposeReportCaseToActorNode(report_id=report_id)
-        result = run_tree(bridge, tree=node, actor_id=actor_id)
-        assert result.status == Status.SUCCESS, node.feedback_message
-        (proposal,) = [
-            p
-            for p in datalayer.list_objects("CaseProposal")
-            if isinstance(p, as_CaseProposal)
-        ]
-        return proposal
+        return propose_report_case(bridge, datalayer, actor_id, report_id)
 
     def test_a_vendor_states_vendor(
         self, configured_roles, datalayer, actor, report, bridge

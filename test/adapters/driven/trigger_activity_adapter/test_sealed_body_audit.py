@@ -59,6 +59,7 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
+from vultron.core.models.case_proposal import CaseProposal
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.fault_classes import (
@@ -313,13 +314,19 @@ class _World:
             self.deliver(_ACTOR, proposal_id, holder)
         return proposal_id
 
+    def peer_proposal(self) -> CaseProposal:
+        """The peer's core proposal of the report, addressed to the
+        CASE_MANAGER."""
+        return make(
+            CaseProposal,
+            attributed_to=_PEER,
+            object_=self.report,
+            target=_CASE_ACTOR,
+        )
+
     def case_proposal(self) -> dict[str, Any]:
         _, blob = self.adapter_as(_PEER).create_case_proposal(
-            actor=_PEER,
-            report_id=str(self.report.id_),
-            case_actor_id=_CASE_ACTOR,
-            to=[_CASE_ACTOR],
-            at=authored_at(),
+            self.peer_proposal(), to=[_CASE_ACTOR], at=authored_at()
         )
         proposal = json.loads(blob)["object"]
         assert isinstance(proposal, dict)
@@ -553,11 +560,7 @@ RECIPES: dict[str, Recipe] = {
         )
     ),
     "create_case_proposal": lambda w: w.adapter_as(_PEER).create_case_proposal(
-        actor=_PEER,
-        report_id=str(w.report.id_),
-        case_actor_id=_CASE_ACTOR,
-        to=[_CASE_ACTOR],
-        at=authored_at(),
+        w.peer_proposal(), to=[_CASE_ACTOR], at=authored_at()
     ),
     "reject_case_proposal": lambda w: w.adapter_as(
         _CASE_ACTOR

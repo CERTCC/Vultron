@@ -22,7 +22,9 @@ One mapping, in two halves, serves every side of a report:
 - :func:`case_inputs_from_proposal` is the date step, which judges the
   disclosure date at a reference time (CSAF-03-001, CSAF-03-003);
 - :func:`case_inputs_from_claims` composes the two and names what became of
-  each claimed value (CSAF-04-004).
+  each claimed value (CSAF-04-004);
+- :func:`proposed_claim_outcomes` names the values the first half used, for
+  the record of a report receiver that carries them on its proposal.
 
 The CASE_MANAGER runs the date step at the instant it creates a case from a
 proposal: on the proposal's ``caseInputs`` when it carries them (CP-01-024),
@@ -41,6 +43,7 @@ that a split or a party may be needed; nothing here acts on one
 (CSAF-04-008).
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -60,6 +63,7 @@ from vultron.core.models.report_claims import (
     CaseSplitSignal,
     ClaimedReference,
     ClaimOutcome,
+    ClaimsReading,
     ReportClaims,
     VulnerabilityClaims,
 )
@@ -182,6 +186,19 @@ def fills_case_inputs(claims: ReportClaims) -> bool:
     question, because it needs the receiver's store.
     """
     return claims.document_category == CSAF_VULNERABILITY_REPORT
+
+
+def filling_reading(
+    readings: Sequence[ClaimsReading],
+) -> ClaimsReading | None:
+    """The one reading that fills case inputs: the first of the right category.
+
+    A report may carry several CSAF documents.  Only the first of category
+    ``csaf_vulnerability_report`` speaks for the case; every other value stays
+    display only, so two documents never compete for one input
+    (CSAF-02-001).
+    """
+    return next((r for r in readings if fills_case_inputs(r.claims)), None)
 
 
 def _require_aware(reference_time: datetime) -> None:
@@ -523,6 +540,64 @@ def case_inputs_from_proposal(
     return judged.model_copy(update={"proposed_embargo_end": end})
 
 
+def _undated_outcomes(
+    claims: ReportClaims, stated: StatedReportFields
+) -> dict[str, ClaimOutcome]:
+    """The outcomes of every value the mapping uses that is not a date.
+
+    The name and summary, the SSVC Exploitation values that set X or A, the
+    first known exploitation dates, and the values the items and references
+    take (CSAF-03-004 to CSAF-03-009).  Shared by the receiver's
+    :func:`proposed_claim_outcomes` and the CASE_MANAGER's
+    :func:`case_inputs_from_claims`, which add the disclosure dates.
+    """
+    outcomes: dict[str, ClaimOutcome] = {}
+    _stated_or_claimed("name", stated.name, claims.name, outcomes)
+    _stated_or_claimed("summary", stated.summary, claims.summary, outcomes)
+    for index, vul in enumerate(claims.vulnerabilities):
+        prefix = f"vulnerabilities[{index}]."
+        if _exploitation(vul) in _STATES_SOMETHING:
+            outcomes[f"{prefix}exploitation"] = ClaimOutcome.APPLIED
+        for i in range(len(vul.first_known_exploitation_dates)):
+            outcomes[f"{prefix}first_known_exploitation_dates[{i}]"] = (
+                ClaimOutcome.APPLIED
+            )
+    _item_outcomes(claims, outcomes)
+    return outcomes
+
+
+def proposed_claim_outcomes(
+    claims: ReportClaims, *, stated: StatedReportFields | None = None
+) -> dict[str, ClaimOutcome]:
+    """Name each value :func:`proposed_case_inputs_from_claims` used.
+
+    What a report receiver's own record marks once it has carried the
+    document's values on its proposal as ``caseInputs`` (CSAF-04-004): a
+    value it took is ``APPLIED``, a name or summary *stated* beats is
+    ``OVERRIDDEN``.  The earliest ``disclosure_date`` is ``APPLIED`` because
+    the proposal carries it, unjudged (CP-01-023); a later one stays display
+    only.  Reads no clock.  A document of any category but
+    ``csaf_vulnerability_report`` fills nothing, so no outcome is given
+    (CSAF-02-002).
+    """
+    stated = stated or StatedReportFields()
+    if not fills_case_inputs(claims):
+        return {}
+    outcomes = _undated_outcomes(claims, stated)
+    dates = [
+        vul.disclosure_date
+        for vul in claims.vulnerabilities
+        if vul.disclosure_date is not None
+    ]
+    earliest = min(dates) if dates else None
+    for index, vul in enumerate(claims.vulnerabilities):
+        if earliest is not None and vul.disclosure_date == earliest:
+            outcomes[f"vulnerabilities[{index}].disclosure_date"] = (
+                ClaimOutcome.APPLIED
+            )
+    return outcomes
+
+
 def _claim_outcomes(
     claims: ReportClaims,
     *,
@@ -537,9 +612,7 @@ def _claim_outcomes(
     earliest and none is stated, and display only when the case starts with
     P, X or A, since the case then takes no embargo end (EP-04-020).
     """
-    outcomes: dict[str, ClaimOutcome] = {}
-    _stated_or_claimed("name", stated.name, claims.name, outcomes)
-    _stated_or_claimed("summary", stated.summary, claims.summary, outcomes)
+    outcomes = _undated_outcomes(claims, stated)
     states = [
         _vul_state(vul, reference_time) for vul in claims.vulnerabilities
     ]
@@ -549,24 +622,15 @@ def _claim_outcomes(
         if s.future_disclosure_date is not None
     ]
     earliest = min(future_dates) if future_dates and eligible else None
-    for index, (vul, state) in enumerate(
-        zip(claims.vulnerabilities, states, strict=True)
-    ):
-        prefix = f"vulnerabilities[{index}]."
+    for index, state in enumerate(states):
+        path = f"vulnerabilities[{index}].disclosure_date"
         if state.public:
-            outcomes[f"{prefix}disclosure_date"] = ClaimOutcome.APPLIED
+            outcomes[path] = ClaimOutcome.APPLIED
         elif state.future_disclosure_date is not None and eligible:
             if stated.proposed_embargo_end is not None:
-                outcomes[f"{prefix}disclosure_date"] = ClaimOutcome.OVERRIDDEN
+                outcomes[path] = ClaimOutcome.OVERRIDDEN
             elif state.future_disclosure_date == earliest:
-                outcomes[f"{prefix}disclosure_date"] = ClaimOutcome.APPLIED
-        if _exploitation(vul) in _STATES_SOMETHING:
-            outcomes[f"{prefix}exploitation"] = ClaimOutcome.APPLIED
-        for i in range(len(vul.first_known_exploitation_dates)):
-            outcomes[f"{prefix}first_known_exploitation_dates[{i}]"] = (
-                ClaimOutcome.APPLIED
-            )
-    _item_outcomes(claims, outcomes)
+                outcomes[path] = ClaimOutcome.APPLIED
     return outcomes
 
 
@@ -713,9 +777,11 @@ __all__ = [
     "case_reference_from_claim",
     "case_reference_from_link",
     "claims_signals",
+    "filling_reading",
     "fills_case_inputs",
     "makes_vulnerability_item",
     "proposed_case_inputs_from_claims",
+    "proposed_claim_outcomes",
     "proposed_item_from_claims",
     "reference_link_from_claim",
     "vulnerability_item_from_claims",

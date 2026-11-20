@@ -81,7 +81,7 @@ build fails.
   (ADR-0079).
 - **`actor.case_actor_service_url`** has no default and MUST be supplied for
   any actor that may propose a case for a report it receives; without it
-  `EnsureCaseActorHostedNode`, `ProposeReportCaseToActorNode` and
+  `EnsureCaseActorHostedNode`, `ConvertReportToCaseProposalNode` and
   `WritePendingReportCaseLinkNode` fail (CP-08-001, `notes/case-proposal.md`).
 - **`actor.default_case_roles`** need not list `CASE_OWNER`; it is always
   appended at participant creation (BTND-05-002). A report receiver states these

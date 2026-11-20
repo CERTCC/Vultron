@@ -36,6 +36,15 @@ The reference implementation does not permit a URI reference here, because the r
 The proposal also names, in its `inReplyTo`, the `Offer(VulnerabilityReport)` that delivered the report: the Offer inline when the proposer still holds it, or its id.
 The accepting service cannot reconstruct that provenance, and it needs it for the first ledger entry (CP-01-007, CP-01-019).
 
+The proposal can also state the case's starting content as `caseInputs`: its name, summary, exploit public and attacks observed flags, vulnerability items, case references and earliest disclosure date (CP-01-022).
+In the reference implementation, a report receiver whose report carries a Common Security Advisory Framework (CSAF) Vulnerability Report converts that document into `caseInputs` (CP-01-026).
+The first document of that category fills them, and a name or summary that the report states beats the document's (CSAF-02-001, CSAF-02-003).
+The receiver can change the converted proposal before it sends it, for example to rename the case or drop a vulnerability item.
+The receiver's own record of the document marks each value that the conversion used, and that record is never sent (CSAF-04-004, CSAF-04-005).
+
+The receiver passes the disclosure date along as the document states it, and `caseInputs` has no field that says the vulnerability is public (CP-01-023, CP-01-027).
+The accepting service decides whether the date has passed when it builds the case, and that can be well after the receiver received the report.
+
 The proposal is addressed to the service's own actor identity, never to an identity derived per case or per report (CP-04-003).
 That identity exists before the report does.
 The service does not exist yet as a per-case actor.
@@ -73,7 +82,7 @@ The accepting service does the steps below, and the order is not interchangeable
 
 | Step | What it establishes |
 |---|---|
-| Resolve or create the case | A redelivered proposal (same proposal identifier) reuses its case rather than creating a second (CP-05-006, CP-05-013); a new proposal identifier is a new request, and the case is reused only for the proposer that owns it (CP-05-008, CP-05-017, CP-05-020). A new case starts with its report's name and summary (CSAF-03-006). Where the report is silent, a Common Security Advisory Framework (CSAF) Vulnerability Report on the carried `Offer` fills them, can mark the vulnerability public, its exploit public or attacks observed, and can propose an embargo end (CSAF-02-001, CSAF-03). The case also takes a vulnerability item for each vulnerability the CSAF document names, and a case reference for each of its document-level references (CSAF-03-008, CSAF-03-009). |
+| Resolve or create the case | A redelivered proposal (same proposal identifier) reuses its case rather than creating a second (CP-05-006, CP-05-013); a new proposal identifier is a new request, and the case is reused only for the proposer that owns it (CP-05-008, CP-05-017, CP-05-020). A new case starts from the proposal's `caseInputs` when it carries them, and the service then reads no CSAF document (CP-01-024, CP-01-028). A disclosure date that has passed marks the vulnerability public; a later one proposes the embargo end, unless the carried `Offer` proposes one (CSAF-03-001, CSAF-03-003). A proposal with no `caseInputs` falls back to the report: the case starts with its report's name and summary (CSAF-03-006), and where the report is silent, a CSAF Vulnerability Report on the carried `Offer` fills them, can mark the vulnerability public, its exploit public or attacks observed, and can propose an embargo end (CP-01-025, CSAF-02-001, CSAF-03). That fallback also gives the case a vulnerability item for each vulnerability the CSAF document names, and a case reference for each of its document-level references (CSAF-03-008, CSAF-03-009). |
 | Store the inline report | Everything downstream derives from it — the reporter Participant, its ledger entry, the consent seed |
 | Add itself as Participant | COORDINATOR and CASE_MANAGER, so the authority is in the roster |
 | Add the proposing actor | CASE_OWNER at `RM.RECEIVED`, plus the roles its proposal states in `proposerCaseRoles` (CP-09-007) — never the accepting service's own configuration |

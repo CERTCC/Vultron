@@ -133,6 +133,11 @@ default embargo and the canonical ledger entries natively — no back-fill, no p
 - The receiver's `receive_report_case_tree.py` creates no case, participants or
   embargo: it writes a pending `VultronReportCaseLink` and sends the proposal. Do not
   re-add the receiver-side creation nodes ADR-0041 removed.
+- The receiver builds the proposal in core and sends it in a separate node:
+  `ConvertReportToCaseProposalNode` puts the core `CaseProposal` on the blackboard
+  and `ProposeReportCaseToActorNode` hands it to the adapter, which only renders it
+  and inlines the held Offer. Keep the two apart, so a node between them can
+  change the proposal before it is sent (CP-01-026).
 - A new case starts from the proposal's `caseInputs` when it carries them, whole,
   with no CSAF document read (CP-01-024); else from its report, filled from a CSAF
   document on the carried Offer's report where the report is silent (CP-01-025,

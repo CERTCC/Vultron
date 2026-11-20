@@ -12,11 +12,15 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """A case created from an initial CSAF report starts from what the report says.
 
-Receive-path tests for CSAF-02-001 to CSAF-02-003 and CSAF-03-001 to
-CSAF-03-009.  The Vendor receives the Finder's ``Offer(VulnerabilityReport)``
-and sends ``Create(CaseProposal)``; a separate CASE_MANAGER, in its own store,
-receives that sealed proposal and creates the case from the CSAF document on
-the Offer the proposal carries.
+Receive-path tests for CSAF-02-001 to CSAF-02-003, CSAF-03-001 to
+CSAF-03-009 and CP-01-022 to CP-01-029.  The Vendor receives the Finder's
+``Offer(VulnerabilityReport)``, converts its CSAF document into the
+``caseInputs`` of its ``Create(CaseProposal)`` (CP-01-026) and marks what the
+conversion used on its own claims record; a separate CASE_MANAGER, in its own
+store, receives that sealed proposal and creates the case from those inputs
+(CP-01-024).  ``_created_by_fallback`` takes the ``caseInputs`` off, so the
+CASE_MANAGER fills the case from the CSAF document on the Offer the proposal
+carries and keeps its own record of it (CP-01-025, CP-01-029).
 """
 
 import json
@@ -24,7 +28,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import patch
 
+import py_trees
 import pytest
+from py_trees.common import Status
 
 from test.core.use_cases.received._csaf_receipt import (
     RECEIVED_AT,
@@ -36,17 +42,23 @@ from test.core.use_cases.received._csaf_receipt import (
     document,
 )
 from test.support.act_clock import clock_at
-from test.support.act_runner import run_in_act
+from test.support.act_runner import run_in_act, run_tree
 from test.support.ledger import ledger_entries
 from test.support.objects import make
 from test.support.received import received_event
+from test.support.report_proposal import proposal_nodes
 from test.support.signing import resigned
 from test.wire.csaf._documents import section, vulnerability_report_document
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.proposal import CASE_PROPOSAL_KEY
 from vultron.core.models.actor import VultronOrganization, VultronService
+from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_proposal import CaseProposal
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
@@ -115,10 +127,24 @@ def _ssvc(key: str) -> list[dict[str, Any]]:
 
 
 def _created(receipt: Receipt) -> tuple[CaseManager, VulnerabilityCase]:
-    """Deliver *receipt*'s proposal to a separate CASE_MANAGER."""
+    """Deliver *receipt*'s proposal, as sent, to a separate CASE_MANAGER."""
     receipt.handle()
     manager = CaseManager()
     result = manager.receive(receipt.proposal_body())
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    return manager, manager.case()
+
+
+def _created_by_fallback(
+    receipt: Receipt, at: datetime = RECEIVED_AT
+) -> tuple[CaseManager, VulnerabilityCase]:
+    """Deliver *receipt*'s proposal with no ``caseInputs``, so a separate
+    CASE_MANAGER reads the carried Offer's document itself (CP-01-025)."""
+    receipt.handle()
+    manager = CaseManager()
+    result = manager.receive(
+        receipt.proposal_body_without_case_inputs(), at=at
+    )
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     return manager, manager.case()
 
@@ -146,9 +172,10 @@ def test_a_missing_name_and_summary_come_from_the_csaf_document() -> None:
     manager, case = _created(receipt)
 
     assert (case.name, case.summary) == (_TITLE, _SUMMARY_NOTE)
-    [record] = manager.records()
+    record = receipt.record()
     assert record.outcomes["name"] is ClaimOutcome.APPLIED
     assert record.outcomes["summary"] is ClaimOutcome.APPLIED
+    assert manager.records() == []
 
 
 @pytest.mark.spec("CSAF-03-007")
@@ -186,11 +213,12 @@ def test_a_vultron_field_beats_the_csaf_value() -> None:
         proposed_embargo_end=proposed_end,
     )
 
-    manager, case = _created(receipt)
+    manager, case = _created_by_fallback(receipt)
 
     assert case.name == "Widget overflow"
     assert case.summary == _SUMMARY_NOTE
     assert _embargo_end(manager, case) == proposed_end
+    assert receipt.record().outcomes["name"] is ClaimOutcome.OVERRIDDEN
     [record] = manager.records()
     assert record.outcomes["name"] is ClaimOutcome.OVERRIDDEN
     assert (
@@ -203,7 +231,7 @@ def test_a_vultron_field_beats_the_csaf_value() -> None:
 def test_a_future_disclosure_date_proposes_the_embargo_end() -> None:
     receipt = Receipt(csaf(_quiet_document(disclosure_date=_SOONER)))
 
-    manager, case = _created(receipt)
+    manager, case = _created_by_fallback(receipt)
 
     assert _embargo_end(manager, case) == _when(_SOONER)
     [record] = manager.records()
@@ -272,22 +300,41 @@ def test_a_first_known_exploitation_date_sets_a() -> None:
     assert case.em_state is EM.NONE
 
 
-@pytest.mark.spec("CSAF-02-001")
-def test_only_the_creating_side_marks_what_shaped_the_case() -> None:
-    """The receiver's record stays display only; the CASE_MANAGER's says what
-    the case took, so no record claims a value the case did not take."""
+@pytest.mark.spec("CSAF-02-001", "CSAF-04-004", "CP-01-028")
+def test_the_side_that_converts_the_document_marks_what_it_used() -> None:
+    """The receiver converts the document, so its record says what the
+    proposal took, and the CASE_MANAGER, reading no document, keeps none."""
     receipt = Receipt(
         csaf(_quiet_document(disclosure_date=_SOONER)), report_name=None
     )
 
     manager, _ = _created(receipt)
 
-    assert set(receipt.record().outcomes.values()) == {
-        ClaimOutcome.DISPLAY_ONLY
-    }
+    outcomes = receipt.record().outcomes
+    assert outcomes["name"] is ClaimOutcome.APPLIED
+    assert (
+        outcomes["vulnerabilities[0].disclosure_date"] is ClaimOutcome.APPLIED
+    )
+    assert outcomes["distribution_label"] is ClaimOutcome.DISPLAY_ONLY
+    assert manager.records() == []
+
+
+@pytest.mark.spec("CSAF-02-001", "CSAF-04-004")
+def test_the_case_manager_marks_what_it_read_when_no_inputs_are_stated() -> (
+    None
+):
+    """Without ``caseInputs`` the CASE_MANAGER reads the document itself and
+    keeps its own record, keyed on the case it filled."""
+    receipt = Receipt(
+        csaf(_quiet_document(disclosure_date=_SOONER)), report_name=None
+    )
+
+    manager, _ = _created_by_fallback(receipt)
+
     [record] = manager.records()
     assert record.reading == receipt.record().reading
     assert record.case_id == manager.case().id_
+    assert record.outcomes["name"] is ClaimOutcome.APPLIED
 
 
 @pytest.mark.spec("CSAF-02-002")
@@ -343,12 +390,12 @@ def test_the_first_vulnerability_report_document_fills_the_case() -> None:
         report_name=None,
     )
 
-    manager, case = _created(receipt)
+    _, case = _created(receipt)
 
     assert case.name == _TITLE
     assert case.current_status.pxa.state is CS_pxa.pxa
     second = next(
-        r for r in manager.records() if r.reading.claims.name != _TITLE
+        r for r in receipt.records() if r.reading.claims.name != _TITLE
     )
     assert set(second.outcomes.values()) == {ClaimOutcome.DISPLAY_ONLY}
 
@@ -368,14 +415,10 @@ def test_the_reference_time_is_the_case_managers_receipt_of_the_proposal() -> (
     receipt = Receipt(
         csaf(_quiet_document(disclosure_date=between.isoformat()))
     )
-    receipt.handle()
-    manager = CaseManager()
     later = between + timedelta(days=1)
 
-    result = manager.receive(receipt.proposal_body(), at=later)
+    manager, case = _created_by_fallback(receipt, at=later)
 
-    assert result.disposition is HandlerDisposition.APPLIED, result.reason
-    case = manager.case()
     assert case.current_status.pxa.state is CS_pxa.Pxa
     assert case.em_state is EM.NONE
     [record] = manager.records()
@@ -391,7 +434,7 @@ def test_an_offer_embargo_that_has_run_out_sets_no_csaf_date_aside() -> None:
         proposed_embargo_end=_when(_PAST),
     )
 
-    manager, case = _created(receipt)
+    manager, case = _created_by_fallback(receipt)
 
     assert _embargo_end(manager, case) == _when(_SOONER)
     [record] = manager.records()
@@ -410,7 +453,7 @@ def test_two_cases_from_one_report_each_keep_their_record() -> None:
     for receiver in (VENDOR, "https://coordinator.example.org/actors/coord"):
         receipt = Receipt(document_, receiver_id=receiver, report_name=None)
         receipt.handle()
-        result = manager.receive(receipt.proposal_body())
+        result = manager.receive(receipt.proposal_body_without_case_inputs())
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
 
     cases = manager.cases()
@@ -562,7 +605,7 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_item() -> None:
     assert {first.published, second.published, first_ref.published} == {
         case.published
     }
-    [record] = manager.records()
+    record = receipt.record()
     for path in (
         "vulnerabilities[0].cve",
         "vulnerabilities[0].ids[0]",
@@ -586,7 +629,7 @@ def test_a_vulnerability_with_no_cve_and_no_ids_makes_no_item() -> None:
     assert ("CVE", "CVE-2026-0001") in [
         (i.system_name, i.identifier) for i in item.ids
     ]
-    [record] = manager.records()
+    record = receipt.record()
     assert (
         record.outcomes["vulnerabilities[1].title"]
         is ClaimOutcome.DISPLAY_ONLY
@@ -610,7 +653,7 @@ def test_each_csaf_reference_becomes_a_case_reference() -> None:
     ]
     # A vulnerability's own references stay on its item, not on the case.
     assert _BULLETIN not in {r.url.href for r in refs}
-    [record] = manager.records()
+    record = receipt.record()
     assert record.outcomes["references[0]"] is ClaimOutcome.APPLIED
     assert record.outcomes["references[1]"] is ClaimOutcome.APPLIED
 
@@ -939,10 +982,8 @@ def test_a_proposal_with_no_case_inputs_is_filled_from_the_document() -> None:
     """The CASE_MANAGER's fallback: it reads the carried Offer's document and
     records what each claimed value became."""
     receipt = Receipt(csaf(_quiet_document(disclosure_date=_SOONER)))
-    receipt.handle()
-    assert "caseInputs" not in receipt.proposal_body()["object"]
 
-    manager, case = _created_from(receipt.proposal_body())
+    manager, case = _created_by_fallback(receipt)
 
     assert case.name == "Widget overflow"
     assert _embargo_end(manager, case) == _when(_SOONER)
@@ -954,17 +995,139 @@ def test_a_proposal_with_no_case_inputs_is_filled_from_the_document() -> None:
     assert record.outcomes["name"] is ClaimOutcome.OVERRIDDEN
 
 
-@pytest.mark.spec("CP-01-026")
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CP-01-026: the report receiver sends caseInputs on a proposal whose"
-        " initial report carries a csaf_vulnerability_report document."
-        " Tracked by #6723."
-    ),
-)
+@pytest.mark.spec("CP-01-026", "CP-01-023", "CP-01-027")
 def test_the_receiver_states_the_case_inputs_of_a_csaf_report() -> None:
-    receipt = Receipt(csaf(_quiet_document(disclosure_date=_SOONER)))
+    """The proposal carries the document's inputs, the disclosure date as
+    the document states it though it has passed, and no P."""
+    receipt = Receipt(
+        csaf(_quiet_document(disclosure_date=_PAST, metrics=_ssvc("P"))),
+        report_name=None,
+    )
     receipt.handle()
 
+    inputs = receipt.proposal_body()["object"]["caseInputs"]
+
+    assert (inputs["name"], inputs["summary"]) == (_TITLE, _SUMMARY_NOTE)
+    assert inputs["exploitPublic"] is True
+    assert inputs["attacksObserved"] is False
+    assert datetime.fromisoformat(inputs["disclosureDate"]) == _when(_PAST)
+    assert not {"public", "pxa"} & set(inputs)
+    [item] = inputs["proposedItems"]
+    assert "id" not in item
+
+
+@pytest.mark.spec("CP-01-026")
+@pytest.mark.parametrize(
+    "attachments",
+    [(), (document("not a CSAF document"),)],
+    ids=["no-document", "not-csaf"],
+)
+def test_a_report_with_no_csaf_report_document_sends_no_case_inputs(
+    attachments: tuple[AttachedDocument, ...],
+) -> None:
+    receipt = Receipt(*attachments)
+    receipt.handle()
+
+    assert "caseInputs" not in receipt.proposal_body()["object"]
+
+
+@pytest.mark.spec("CP-01-026", "CSAF-02-002")
+def test_a_document_of_another_category_sends_no_case_inputs() -> None:
+    data = _quiet_document(disclosure_date=_SOONER)
+    section(data, "document")["category"] = "csaf_security_advisory"
+    receipt = Receipt(csaf(data))
+    receipt.handle()
+
+    assert "caseInputs" not in receipt.proposal_body()["object"]
+    assert set(receipt.record().outcomes.values()) == {
+        ClaimOutcome.DISPLAY_ONLY
+    }
+
+
+class _OwnerEdits(py_trees.behaviour.Behaviour):
+    """The receiver changes its proposal between conversion and send: it
+    renames the case and drops the item named *dropped*."""
+
+    def __init__(self, name: str, dropped: str) -> None:
+        super().__init__(name="OwnerEdits")
+        self._name = name
+        self._dropped = dropped
+        self._board = self.attach_blackboard_client(name="OwnerEdits")
+        self._board.register_key(
+            key=f"/{CASE_PROPOSAL_KEY}", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        proposal = self._board.get(f"/{CASE_PROPOSAL_KEY}")
+        assert isinstance(proposal, CaseProposal)
+        inputs = proposal.case_inputs
+        assert inputs is not None
+        edited = proposal.model_copy()
+        edited.case_inputs = inputs.model_copy(
+            update={
+                "name": self._name,
+                "proposed_items": [
+                    item
+                    for item in inputs.proposed_items
+                    if item.name != self._dropped
+                ],
+            }
+        )
+        self._board.set(f"/{CASE_PROPOSAL_KEY}", edited)
+        return Status.SUCCESS
+
+
+@pytest.mark.spec("CP-01-026")
+def test_the_receiver_may_change_its_proposal_before_it_is_sent() -> None:
+    receipt = Receipt(csaf(_two_vulnerabilities()), report_name=None)
+    # Keep the report and its claims record, and propose nothing yet.
+    receipt.handle(actor_config=ActorConfig(auto_create_case=False))
+    assert receipt.sent_bodies() == []
+    tree = proposal_nodes(
+        REPORT_ID,
+        readings=receipt.event.claims_readings,
+        between=[_OwnerEdits("Owner's name", dropped="Widget crash")],
+    )
+    bridge = BTBridge(
+        datalayer=receipt.dl,
+        trigger_activity=TriggerActivityAdapter(receipt.dl),
+    )
+
+    result = run_tree(bridge, tree=tree, actor_id=VENDOR, at=RECEIVED_AT)
+
+    assert result.status is Status.SUCCESS, result.feedback_message
+    inputs = receipt.proposal_body()["object"]["caseInputs"]
+    assert inputs["name"] == "Owner's name"
+    assert [i["name"] for i in inputs["proposedItems"]] == ["Widget overflow"]
+    manager, case = _created_from(receipt.proposal_body())
+    assert case.name == "Owner's name"
+    assert [item.name for item in _items(manager, case)] == ["Widget overflow"]
+
+
+@pytest.mark.spec("CP-01-024", "CP-01-026", "CP-01-028", "CSAF-04-005")
+def test_a_csaf_report_reaches_a_separate_case_manager_as_case_inputs() -> (
+    None
+):
+    """Two actors: the case takes the document's name, summary, items,
+    references and embargo end from the proposal's ``caseInputs``, and only
+    the receiver holds a claims record."""
+    data = _two_vulnerabilities()
+    data["vulnerabilities"][0]["disclosure_date"] = _SOONER
+    receipt = Receipt(csaf(data), report_name=None)
+
+    manager, case = _created(receipt)
+
     assert "caseInputs" in receipt.proposal_body()["object"]
+    assert (case.name, case.summary) == (_TITLE, _SUMMARY_NOTE)
+    assert [item.name for item in _items(manager, case)] == [
+        "Widget overflow",
+        "Widget crash",
+    ]
+    assert [r.url.href for r in _references(manager, case)] == [_WRITE_UP]
+    assert _embargo_end(manager, case) == _when(_SOONER)
+    assert manager.records() == []
+    assert receipt.record().case_id is None
+    # The receiver's record is its own: no sealed body carries it.
+    sent = json.dumps(receipt.sent_bodies())
+    assert "ReportClaimsRecord" not in sent
+    assert "display-only" not in sent

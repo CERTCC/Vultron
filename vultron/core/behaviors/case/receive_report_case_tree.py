@@ -46,7 +46,12 @@ Structure (ADR-0041):
        └─ ReceiveReportProposalFlow (Sequence)
           ├─ EnsureCaseActorHostedNode        # CaseActor record in its own store
           ├─ WritePendingReportCaseLinkNode   # VultronReportCaseLink(case_id=None)
+          ├─ ConvertReportToCaseProposalNode  # core CaseProposal, caseInputs
           └─ ProposeReportCaseToActorNode     # Create(CaseProposal) → CaseActor
+
+The conversion fills the proposal's ``caseInputs`` from the first
+``csaf_vulnerability_report`` document on the report, and the receiver may
+change the proposal before it is sent (CP-01-026, ADR-0184).
 
 Both trees here take the ordinary door order and declare the no-case path
 alone (ADR-0154, HP-01-041): an ``Offer(VulnerabilityReport)`` precedes its
@@ -65,9 +70,12 @@ from collections.abc import Sequence
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import REPORT_ID
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
     CheckProposalAlreadySentForReport,
+    ConvertReportToCaseProposalNode,
     EnsureCaseActorHostedNode,
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
@@ -84,6 +92,7 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     REPORT_CASE_PROPOSAL,
 )
 from vultron.core.models.events.report import SubmitReportReceivedEvent
+from vultron.core.models.report_claims import ClaimsReading
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +103,7 @@ def create_receive_report_case_tree(
     reporter_actor_id: str,
     actor_config: ActorConfig | None = None,
     received_effects: Sequence[py_trees.behaviour.Behaviour] = (),
+    claims_readings: Sequence[ClaimsReading] = (),
 ) -> py_trees.behaviour.Behaviour:
     """
     Create the receiver-side behavior tree for report receipt (ADR-0041).
@@ -122,6 +132,9 @@ def create_receive_report_case_tree(
                           proposes no case still holds them (CM-15-001,
                           CM-15-002, CM-15-005).  See
                           :func:`~vultron.core.behaviors.case.nodes.submit_report.submit_report_received_effects`.
+        claims_readings: The readings of the CSAF documents on the report,
+                         which the proposal's ``caseInputs`` are converted
+                         from (CP-01-026).
 
     Returns:
         Root node of the receive-report proposal behavior tree.
@@ -147,7 +160,11 @@ def create_receive_report_case_tree(
         children=[
             EnsureCaseActorHostedNode(),
             WritePendingReportCaseLinkNode(report_id=report_id),
-            ProposeReportCaseToActorNode(report_id=report_id),
+            with_act_keys(
+                ConvertReportToCaseProposalNode(readings=claims_readings),
+                {REPORT_ID: report_id},
+            ),
+            ProposeReportCaseToActorNode(),
         ],
     )
 
@@ -228,4 +245,5 @@ def create_submit_report_received_tree(
         reporter_actor_id=request.actor_id,
         actor_config=actor_config,
         received_effects=received_effects,
+        claims_readings=request.claims_readings,
     )
