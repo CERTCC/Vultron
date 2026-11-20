@@ -214,6 +214,7 @@ sense the docs actually use.
 *[RVCV]: Reporter, Vendor, Coordinator, Vendor (demo scenario)
 *[RVV]: Reporter, Vendor, Vendor (demo scenario)
 
+*[SA]: Situation Awareness
 *[SAAS]: Software as a Service
 *[SaaS]: Software as a Service
 *[SBOM]: Software Bill of Materials

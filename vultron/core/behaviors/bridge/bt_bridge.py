@@ -370,6 +370,12 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # single-process run the writer can even be a different
                 # actor's execution (BT-09).
                 "case_id",
+                # Published, with ``/case_id``, by ``FindRefusedLedgerEntry``
+                # as an output port (BT-25-009).  A later fault that names no
+                # entry must find none, or the miss guard would admit it and
+                # its refusal would lose its BT-25-010 reason.
+                "refused_entry",
+                "announce_id",
                 # The CASE_MANAGER's actor id, the one key for it
                 # (BTND-03-022).  Published by ``FindCaseActorNode`` (replay),
                 # ``ReceivedPathNode`` (path stage), ``CheckIsCaseManagerNode``
