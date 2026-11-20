@@ -171,7 +171,7 @@ class InviteeIsNotRemovedNode(_InviteKeysMixin, DataLayerConditionWithPorts):
     """Guard: the invitee is not a removed participant (CM-31-013).
 
     A removed participant is sent no stub Invite; only the Case Owner's
-    ``Add(CaseParticipant)`` reinstates it (CM-31-011).  The predicate is
+    ``Add(<Actor>)`` reinstates it (CM-31-011).  The predicate is
     :func:`~vultron.core.behaviors.case.nodes.suggest_actor.admission.removed_participant_refusal`,
     the one a suggestion is judged by.
     """

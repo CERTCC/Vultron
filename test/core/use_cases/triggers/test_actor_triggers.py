@@ -972,7 +972,7 @@ class TestCaseManagerJudgesTheOwnersInvite:
 
     @pytest.mark.spec("CM-31-013")
     def test_an_invite_of_a_removed_participant_is_refused(self, make_payload):
-        """Only the Owner's Add(CaseParticipant) reinstates it (CM-31-011)."""
+        """Only the Owner's Add(<Actor>) reinstates it (CM-31-011)."""
         harness = _OwnerDirectInvite()
         _seat(
             harness.manager_dl,
