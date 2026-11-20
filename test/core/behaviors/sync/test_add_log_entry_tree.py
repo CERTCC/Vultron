@@ -1437,7 +1437,7 @@ class TestAddLogEntryAppliesStubPath:
             str(getattr(p, "id_", p)) for p in case.case_participants
         }
 
-    @pytest.mark.spec("CM-11-025", "CM-23-044", "SYNC-02-008")
+    @pytest.mark.spec("CM-11-025", "CM-23-044", "SYNC-02-008", "SYNC-12-004")
     @pytest.mark.parametrize(
         "target",
         [None, "https://example.org/cases/another"],
@@ -1458,6 +1458,8 @@ class TestAddLogEntryAppliesStubPath:
         case = datalayer.read(CASE_ID)
         assert INVITEE_ACTOR_ID not in case.actor_participant_index
         assert datalayer.read(sent.id_) is None
+        # A failed effect keeps the entry out of the local ledger (SYNC-12-004).
+        assert datalayer.list_objects("CaseLedgerEntry") == []
 
     @pytest.mark.spec("OID-01-006")
     @pytest.mark.spec("SYNC-12-001")
