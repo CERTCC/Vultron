@@ -287,7 +287,10 @@ names stay as they were, while the seam alone writes the blackboard. A backend
 ticked anywhere but under the seam raises, so no tree can read an answer
 (BT-18-033). Default refusal reasons go to `call_out_refusal_reason`, which any
 refusal overwrites; a capability whose reason a tree or record reads names its
-own `refusal_reason_key` (`answer.py`). Tests inject backends from
+own `refusal_reason_key` (`answer.py`). Everything a seam writes lasts for one
+run: the bridge restores every key of every seam in the tree it runs, so a
+caller that needs an answer after the run copies it out while the tree runs
+(`KeepResolvedActorNode`; BT-17-020). Tests inject backends from
 `test/support/call_out.py`, never a raw `py_trees.behaviours.Success`.
 
 **A late answer is an error answer.** `TimeBoundedCallOut`, the seam every bundle

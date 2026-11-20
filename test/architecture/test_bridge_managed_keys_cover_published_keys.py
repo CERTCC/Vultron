@@ -22,7 +22,7 @@ the earlier act's value: PR #6770 found ``/refused_entry`` and
 ``/announce_id`` published and not restored, and nothing tied the node to
 the list (#6771).
 
-A node publishes a key in two ways, and the scans read both:
+A node publishes a key in three ways, and the scans read each:
 
 - An output port bound to an absolute key through the ports hooks
   (``PortRemappingHooks``, BTND-03-019).  The class scan reads every node
@@ -33,6 +33,17 @@ A node publishes a key in two ways, and the scans read both:
   :class:`ActKeyScope` restores the keys it seeds when its child's tick
   ends, on every outcome, so a key it publishes needs no bridge entry; any
   other node publishing that key still does.
+- A key a node registers to write on its own blackboard client.  A call-out
+  seam (``SynchronousCallOut``, ADR-0183) writes its answer this way, and a
+  later sibling reads it, so ``execute_with_setup`` restores every key
+  ``call_out_written_keys()`` finds in the tree it runs.  A key the runner
+  restores that way is covered; any other client write must be restored
+  like a port binding.  The scans read clients as built and call no
+  ``setup()``, so a key a node registers only in ``setup()`` is not seen;
+  the seam registers its keys when it is built.  The tree scan reads the
+  clients of every built received tree, and
+  :func:`_call_out_contract_trees` holds one seam per capability
+  declaration, so a contract no received tree builds is read too.
 
 Both scans reuse the act-key vocabulary ratchet's walkers.  The tree scan
 builds received trees only; a trigger tree, or a tree a node builds and
@@ -52,17 +63,17 @@ with the audit that shows a writer of the same run precedes every reader.
 The inbox pipeline's nodes never run under the bridge; ``process_payload``
 restores ``ALL_INBOX_KEYS``, and a separate test holds their
 published keys to that list.
-
-A key a call-out seam writes (``SynchronousCallOut``, ADR-0183) is no port
-binding, and is not read here.
 """
 
+import ast
 from collections.abc import Iterable
 
 import py_trees
 import pytest
+from py_trees.common import Access
 from py_trees.ports import PortInformation
 
+from test.architecture import _corpus
 from test.architecture._received_tree_builds import built_received_trees
 from test.architecture.test_act_key_vocabulary import (
     _INSTANCE_HOOKS_OUTSIDE_RECEIVED_TREES,
@@ -80,6 +91,19 @@ from test.architecture.test_bridge_managed_keys_cover_setup_writes import (
 from vultron.core.behaviors.act_inputs import PublishesActKeys
 from vultron.core.behaviors.act_key_scope import ActKeyScope
 from vultron.core.behaviors.act_keys import SENDER_ID
+from vultron.core.behaviors.call_out.answer import (
+    CallOutAnswer,
+    CallOutContract,
+)
+from vultron.core.behaviors.call_out.backend import CallOutBackend
+from vultron.core.behaviors.call_out.capabilities import (
+    capability_declarations,
+)
+from vultron.core.behaviors.call_out.guard import (
+    SynchronousCallOut,
+    call_out_written_keys,
+)
+from vultron.core.behaviors.call_out.nodes import always_succeed_as
 from vultron.core.behaviors.helpers.ports_base import (
     DataLayerActionWithPorts,
 )
@@ -222,8 +246,11 @@ def _tree_publications(
 
     Output-port bindings come from the vocabulary ratchet's walker; the
     keys a :class:`PublishesActKeys` node names come from
-    ``published_act_keys()``.  A site is self-restoring when the node is an
-    :class:`ActKeyScope`, which puts back every key it seeds.
+    ``published_act_keys()``; and every key a node registers to write on
+    its own blackboard client is read from the client.  A site is
+    self-restoring when the node is an :class:`ActKeyScope`, which puts
+    back every key it seeds, or when its client key is one the runner
+    restores for every call-out seam of the tree (``call_out_written_keys``).
     """
     roots = list(roots)
     found: dict[str, list[_Site]] = {
@@ -231,13 +258,47 @@ def _tree_publications(
         for key, sites in _instance_bindings(roots, "OUTPUT_PORTS").items()
     }
     for root in roots:
+        by_seams = set(call_out_written_keys(root))
         for node in root.iterate():
+            where = f"{type(node).__qualname__} in {root.name}"
             if isinstance(node, PublishesActKeys):
-                where = f"{type(node).__qualname__} in {root.name}"
                 restores = isinstance(node, ActKeyScope)
                 for key in node.published_act_keys():
                     found.setdefault(key.path, []).append((where, restores))
+            for path in _client_writes(node):
+                site = (f"{where} (client)", _bare(path) in by_seams)
+                found.setdefault(path, []).append(site)
     return found
+
+
+def _client_writes(node: py_trees.behaviour.Behaviour) -> set[str]:
+    """Every absolute key *node* registered to write on its own clients."""
+    return {
+        key
+        for client in node.blackboards
+        for key in (*client.write, *client.exclusive)
+    }
+
+
+def _call_out_contract_trees() -> list[py_trees.behaviour.Behaviour]:
+    """One tree per capability declaration, holding its ceiling seam.
+
+    Most call-outs sit in trigger trees, which the tree scan does not
+    build; every contract is declared once, so a tree per declaration
+    reads them all.
+    """
+    return [
+        py_trees.composites.Sequence(
+            name=declaration.__name__,
+            memory=False,
+            children=[
+                SynchronousCallOut(
+                    always_succeed_as(declaration)(declaration.__name__)
+                )
+            ],
+        )
+        for declaration in capability_declarations()
+    ]
 
 
 def _bridge_managed() -> set[str]:
@@ -312,6 +373,31 @@ class _PublishesSender(DataLayerActionWithPorts, register=False):
         return {"sender": SENDER_ID.path}
 
 
+class _ProbeBackend(CallOutBackend):
+    """A backend declaring one output and its refusal reason."""
+
+    contract = CallOutContract(outputs={"widget_verdict": str})
+
+    def answer(self) -> CallOutAnswer:
+        return CallOutAnswer.yes({"widget_verdict": "yes"})
+
+
+class _UnreportedSeam(SynchronousCallOut):
+    """A seam that writes its contract but reports none of it."""
+
+    def written_keys(self) -> tuple[str, ...]:
+        return ()
+
+
+class _SelfWritingBackend(_ProbeBackend):
+    """A backend writing a key on its own client, which no seam reports."""
+
+    def __init__(self, name: str = "") -> None:
+        super().__init__(name)
+        self._own = self.attach_blackboard_client(name="SelfWriting")
+        self._own.register_key("widget_cache", Access.WRITE)
+
+
 @pytest.mark.spec("BT-17-020")
 def test_the_scans_find_the_publications_they_check() -> None:
     """Guards the ratchet against passing vacuously."""
@@ -328,6 +414,23 @@ def test_the_scans_find_the_publications_they_check() -> None:
         if any(restores for _, restores in sites)
     }
     assert SENDER_ID.path in scoped  # the tree scan reads the scopes
+    # The tree scan reads the call-out seams' clients.
+    assert {
+        "/evaluate_case_proposal_verdict",
+        "/report_validity_verdict",
+        "/call_out_refusal_reason",
+    } <= scoped
+    by_contract = _tree_publications(_call_out_contract_trees())
+    declared = {
+        f"/{key}"
+        for declaration in capability_declarations()
+        for key in (
+            *declaration.contract.outputs,
+            *declaration.contract.refusal_ports,
+        )
+    }
+    assert declared <= set(by_contract)
+    assert len(declared) > 40
 
 
 @pytest.mark.spec("BT-17-020")
@@ -345,6 +448,144 @@ def test_every_key_a_built_received_tree_publishes_is_restored() -> None:
         _bridge_managed(),
     )
     assert unrestored == [], _FAILURE + "\n  ".join(unrestored)
+
+
+def _restores_call_out_keys(fn: ast.FunctionDef) -> bool:
+    """Whether *fn* extends ``managed_keys`` with the seams' keys in time.
+
+    The extension must read ``call_out_written_keys(tree)``, the tree the
+    run executes, and come before ``snapshot_keys`` reads ``managed_keys``,
+    or the snapshot would not hold the keys it restores.
+    """
+    extensions = [
+        node.lineno
+        for node in ast.walk(fn)
+        if isinstance(node, ast.AugAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == "managed_keys"
+        and isinstance(node.value, ast.List)
+        and any(
+            isinstance(elt, ast.Starred)
+            and isinstance(elt.value, ast.Call)
+            and isinstance(elt.value.func, ast.Name)
+            and elt.value.func.id == call_out_written_keys.__name__
+            and [ast.dump(a) for a in elt.value.args]
+            == [ast.dump(ast.Name(id="tree", ctx=ast.Load()))]
+            for elt in node.value.elts
+        )
+    ]
+    snapshots = [
+        node.lineno
+        for node in ast.walk(fn)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "snapshot_keys"
+    ]
+    return bool(extensions and snapshots) and max(extensions) < min(snapshots)
+
+
+@pytest.mark.spec("BT-17-020")
+def test_the_bridge_restores_every_seams_written_keys() -> None:
+    """The coverage below counts a seam's keys as restored only because
+    ``execute_with_setup`` adds them to ``managed_keys``."""
+    assert _restores_call_out_keys(
+        _function(_bridge_tree(), "execute_with_setup")
+    ), (
+        "execute_with_setup no longer extends managed_keys with"
+        " call_out_written_keys(tree), so a call-out's answer outlives its"
+        " run (BT-17-020)"
+    )
+
+
+_BRIDGE_SHAPES = {
+    "restores": (
+        "managed_keys += [*call_out_written_keys(tree)]\n"
+        "snapshot_keys(storage, managed_keys)"
+    ),
+    "no extension": (
+        "managed_keys += ['activity']\nsnapshot_keys(storage, managed_keys)"
+    ),
+    "another tree": (
+        "managed_keys += [*call_out_written_keys(activity)]\n"
+        "snapshot_keys(storage, managed_keys)"
+    ),
+    "after the snapshot": (
+        "snapshot_keys(storage, managed_keys)\n"
+        "managed_keys += [*call_out_written_keys(tree)]"
+    ),
+}
+
+
+@pytest.mark.spec("BT-17-020")
+@pytest.mark.parametrize("shape", list(_BRIDGE_SHAPES))
+def test_a_bridge_that_does_not_restore_the_seams_keys_fails_the_check(
+    shape: str,
+) -> None:
+    """The AST check passes only the shape that snapshots the seams' keys."""
+    module = _corpus.parse_inline(
+        "def execute_with_setup(tree, activity, storage, managed_keys):\n"
+        + "".join(
+            f"    {line}\n" for line in _BRIDGE_SHAPES[shape].split("\n")
+        )
+    )
+    assert isinstance(module, ast.Module)
+    fn = module.body[0]
+    assert isinstance(fn, ast.FunctionDef)
+    assert _restores_call_out_keys(fn) is (shape == "restores")
+
+
+@pytest.mark.spec("BT-17-020")
+def test_every_key_a_call_out_contract_writes_is_restored() -> None:
+    """Every declared contract, built or not: ``call_out_written_keys``
+    returns exactly the contract's outputs and refusal ports for a tree
+    holding its seam, and the seam's client writes no other key.  That the
+    bridge restores those keys is the AST check's half."""
+    trees = _call_out_contract_trees()
+    for tree, declaration in zip(
+        trees, capability_declarations(), strict=True
+    ):
+        contract = declaration.contract
+        assert call_out_written_keys(tree) == sorted(
+            {*contract.outputs, *contract.refusal_ports}
+        ), declaration.__name__
+    unrestored = _unrestored(_tree_publications(trees), _bridge_managed())
+    assert unrestored == [], _FAILURE + "\n  ".join(unrestored)
+
+
+@pytest.mark.spec("BT-17-020")
+def test_a_call_out_whose_written_keys_are_not_restored_fails_the_check() -> (
+    None
+):
+    """The scan reads the seam's client, not what the seam reports."""
+    reported = py_trees.composites.Sequence(
+        name="ProbeBT",
+        memory=False,
+        children=[SynchronousCallOut(_ProbeBackend(name="Reported"))],
+    )
+    managed = _bridge_managed()
+    assert _unrestored(_tree_publications([reported]), managed) == []
+
+    unreported = py_trees.composites.Sequence(
+        name="ProbeBT",
+        memory=False,
+        children=[_UnreportedSeam(_ProbeBackend(name="Unreported"))],
+    )
+    assert _unrestored(_tree_publications([unreported]), managed) == [
+        "_UnreportedSeam in ProbeBT (client) -> /call_out_refusal_reason",
+        "_UnreportedSeam in ProbeBT (client) -> /widget_verdict",
+    ]
+
+
+@pytest.mark.spec("BT-17-020")
+def test_a_backend_writing_its_own_key_fails_the_check() -> None:
+    probe = py_trees.composites.Sequence(
+        name="ProbeBT",
+        memory=False,
+        children=[SynchronousCallOut(_SelfWritingBackend(name="Writes"))],
+    )
+    assert _unrestored(_tree_publications([probe]), _bridge_managed()) == [
+        "_SelfWritingBackend in ProbeBT (client) -> /widget_cache"
+    ]
 
 
 @pytest.mark.spec("BT-17-020")

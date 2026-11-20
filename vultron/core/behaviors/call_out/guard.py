@@ -37,6 +37,12 @@ Both errors are plain ``RuntimeError`` subclasses, **not**
 ``FAILURE``.  A call-out backend is injected from *outside* the repository
 (BT-23-004), so only a runtime guard at the seam can police it.
 
+What a seam writes is read by later siblings, so the seam leaves it on the
+blackboard when its tick ends.  The run's runner restores it instead:
+``BTBridge.execute_with_setup`` restores every key that
+:func:`call_out_written_keys` finds in the tree it runs, so one run's answer
+or refusal reason never reaches the next run (BT-17-020).
+
 :class:`TimeBoundedCallOut` is the seam with a time budget (BT-18-015).  It
 measures, on a stopwatch, how long its backend took to answer, and raises
 :class:`CallOutBudgetExceededError`, naming the node and the budget, when the
@@ -77,6 +83,7 @@ from py_trees.common import Access, Status
 from vultron.config.app import load_actor_config
 from vultron.core.behaviors.call_out.answer import (
     CallOutAnswer,
+    CallOutContract,
     CallOutVerdict,
     is_of_port_type,
 )
@@ -123,6 +130,11 @@ def _check_data(
             )
 
 
+def _contract_keys(contract: CallOutContract) -> tuple[str, ...]:
+    """Every key *contract* lets a seam write: outputs, then refusal ports."""
+    return (*contract.outputs, *contract.refusal_ports)
+
+
 class SynchronousCallOut(py_trees.decorators.Decorator):
     """The call-out seam: turns its backend's answer into tree behaviour.
 
@@ -148,14 +160,23 @@ class SynchronousCallOut(py_trees.decorators.Decorator):
         # visualizations; the backend is reachable via ``self.decorated``.
         super().__init__(name=child.name, child=child)
         self._backend: CallOutBackend = child
-        contract = child.contract
         # Built here, not in setup(), so a tick without setup() still writes
         # the declared data (BT-23-013).
         self._bb = self.attach_blackboard_client(
             name=f"{type(self).__name__}_{child.name}"
         )
-        for key in (*contract.outputs, *contract.refusal_ports):
+        for key in _contract_keys(child.contract):
             self._bb.register_key(key, Access.WRITE)
+
+    def written_keys(self) -> tuple[str, ...]:
+        """Every blackboard key this seam may write: its backend's outputs
+        and refusal ports, as bare names.
+
+        A later sibling reads an answer, so the seam cannot restore these
+        keys when its own tick ends; the runner restores them when the run
+        ends (BT-17-020), reading them through :func:`call_out_written_keys`.
+        """
+        return _contract_keys(self._backend.contract)
 
     def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
         """Tick the backend armed for this one tick, then interpret it.
@@ -369,6 +390,25 @@ def guard_call_out_factory(
     return guarded
 
 
+def call_out_written_keys(root: py_trees.behaviour.Behaviour) -> list[str]:
+    """Every key a call-out seam in the tree under *root* may write.
+
+    ``BTBridge.execute_with_setup`` restores these when the run ends, so one
+    run's answer or refusal reason never reaches a later run (BT-17-020).
+    The keys come from the contract of each seam the tree holds, so a new
+    contract is covered without a list to extend.  A seam in a tree that a
+    node builds and runs nested is restored by that nested run.
+    """
+    return sorted(
+        {
+            key
+            for node in root.iterate()
+            if isinstance(node, SynchronousCallOut)
+            for key in node.written_keys()
+        }
+    )
+
+
 def unwrap_call_out(
     node: py_trees.behaviour.Behaviour,
 ) -> py_trees.behaviour.Behaviour:
@@ -388,6 +428,7 @@ __all__ = [
     "CallOutContractError",
     "SynchronousCallOut",
     "TimeBoundedCallOut",
+    "call_out_written_keys",
     "guard_call_out_factory",
     "time_bounded_call_out",
     "unwrap_call_out",

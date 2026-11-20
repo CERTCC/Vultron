@@ -48,6 +48,7 @@ from vultron.core.behaviors.blackboard_scope import (
     restore_keys,
     snapshot_keys,
 )
+from vultron.core.behaviors.call_out.guard import call_out_written_keys
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
     VultronConflictingActInstantError,
@@ -453,7 +454,18 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
             # overwrites the outer execution's value and, without this, never
             # puts it back.  The outer tree then resumes ticking against the
             # inner call's activity or case_id (#3161).
-            managed_keys += ["activity", *context_data.keys()]
+            #
+            # Every key a call-out seam in the tree may write (BT-17-020).  A
+            # seam writes its answer through its own blackboard client, not
+            # an output port, and a later sibling reads it, so the seam leaves
+            # it in place when its tick ends and only the run's end can
+            # restore it.  The keys come from each seam's contract, so a new
+            # contract needs no entry here.
+            managed_keys += [
+                "activity",
+                *context_data.keys(),
+                *call_out_written_keys(tree),
+            ]
             storage = py_trees.blackboard.Blackboard.storage
             # Both spellings of every key, and "absent" kept distinct from
             # "None" — see blackboard_scope for why each matters.  Shared with
