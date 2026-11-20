@@ -122,11 +122,11 @@ class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
         assert self.datalayer is not None
         entry = self._get_entry()
         pending: EmbargoEvent | None = None
-        if self._resolve_case_replica(entry.case_id) is not None:
+        if self._resolve_case_replica(entry.context) is not None:
             try:
                 pending = carried_entry_embargo(
                     self.datalayer,
-                    entry.case_id,
+                    entry.context,
                     entry.payload_snapshot.get("object"),
                 )
             except VultronError as exc:

@@ -439,7 +439,7 @@ The two digests below are illustrative: they show the fields' shape and are not 
         "type": "CaseLedgerEntry",
         "id": "https://vultron.example/cases/1/log/0",
         "published": "2026-05-31T12:00:00.000000+00:00",
-        "caseId": "https://vultron.example/cases/1",
+        "context": "https://vultron.example/cases/1",
         "logIndex": 0,
         "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001",
         "semanticType": "create_case",

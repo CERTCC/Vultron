@@ -104,7 +104,7 @@ def _entries(s: BTTestScenario) -> list[CaseLedgerEntry]:
     found = [
         e
         for e in s.dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
+        if isinstance(e, CaseLedgerEntry) and e.context == CASE_ID
     ]
     return sorted(found, key=lambda e: e.log_index)
 

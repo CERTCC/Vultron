@@ -88,12 +88,13 @@ class CaseLedgerEntry(CoreObject):
        record used for local processing. This class is the wire-serialisable
        counterpart.
 
-    The ``id_`` is auto-computed as ``{case_id}/log/{log_index}`` when not
+    The ``id_`` is auto-computed as ``{context}/log/{log_index}`` when not
     explicitly provided.
 
     Fields:
-        case_id: URI of the parent :class:`VulnerabilityCase`.
-        log_index: Monotonically increasing index scoped to ``case_id``.
+        context: URI of the parent :class:`VulnerabilityCase` (AS2
+            ``context``; CLP-14-012).
+        log_index: Monotonically increasing index scoped to ``context``.
         term: Raft cluster term; ``None`` for single-node deployments.
         log_object_id: Full URI of the asserted activity or primary object.
         semantic_type: The registry's label for the entry's payload.
@@ -111,12 +112,13 @@ class CaseLedgerEntry(CoreObject):
         validation_alias="type",
         serialization_alias="type",
     )
-    case_id: NonEmptyString = Field(
-        ..., description="URI of the parent VulnerabilityCase"
-    )
+    # Narrowed from CoreObject's optional reference to the required case URI:
+    # an entry belongs to exactly one case, named the way every case-scoped
+    # object names it, in AS2 ``context`` (CLP-07-007, CLP-14-012, ADR-0194).
+    context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     log_index: int = Field(
         default=-1,
-        description="Monotonically increasing index scoped to case_id",
+        description="Monotonically increasing index scoped to the case",
         ge=-1,
         json_schema_extra=LOG_INDEX_PROPERTY,
     )
@@ -237,17 +239,17 @@ class CaseLedgerEntry(CoreObject):
     @model_validator(mode="before")
     @classmethod
     def _set_id_from_case(cls, data: Any) -> Any:
-        """Compute ``id_`` from ``case_id`` and ``log_index``.
+        """Compute ``id_`` from ``context`` and ``log_index``.
 
-        Both field names are read in either spelling, because an entry parsed
+        ``log_index`` is read in either spelling, because an entry parsed
         off the wire (ARCH-25-003, ADR-0099) carries the AS2 keys; reading only the
         Python names left a wire-parsed entry with a random id instead of its
-        ledger coordinates.
+        ledger coordinates.  ``context`` is one spelling on both sides.
         """
         if not isinstance(data, dict):
             return data
-        case_id = data.get("case_id", data.get(wire_key("case_id")))
-        if case_id is None:
+        case_id = data.get("context")
+        if not isinstance(case_id, str):
             return data
         log_index = data.get("log_index", data.get(wire_key("log_index"), -1))
         data = dict(data)

@@ -121,7 +121,7 @@ class CaseTimelineEvent(BaseModel):
         received = first_present(raw, "received_at", "receivedAt")
 
         return cls(
-            case_id=str(first_present(raw, "case_id", "caseId", default="")),
+            case_id=str(first_present(raw, "context", default="")),
             log_index=coerce_int(
                 first_present(raw, "log_index", "logIndex", default=-1),
                 default=-1,

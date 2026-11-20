@@ -211,7 +211,7 @@ def _ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
         (
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == _CASE_ID
+            if isinstance(e, CaseLedgerEntry) and e.context == _CASE_ID
         ),
         key=lambda e: e.log_index,
     )

@@ -63,7 +63,7 @@ class _AddLogEntryActivity(as_Add):
 
     object_: the :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`
         being replicated, inline (SYNC-02-005).
-    target: the case's ledger, ``case_ledger_id(entry.case_id)``.
+    target: the case's ledger, ``case_ledger_id(entry.context)``.
     context: the entry's case.
     in_reply_to: the committed act, the id of the entry's snapshot.
 
@@ -81,17 +81,17 @@ class _AddLogEntryActivity(as_Add):
     def _names_the_ledger_the_case_and_the_act(self) -> Self:
         """Refuse an ``Add`` that misnames its ledger, case or act (ADR-0204)."""
         entry = self.object_
-        ledger = case_ledger_id(entry.case_id)
+        ledger = case_ledger_id(entry.context)
         if _as_id(self.target) != ledger:
             raise ValueError(
                 f"Add(CaseLedgerEntry) {self.id_!r}: target must be the"
                 f" case's ledger {ledger!r}, not {_as_id(self.target)!r}"
                 " (SYNC-02-006)"
             )
-        if _as_id(self.context) != entry.case_id:
+        if _as_id(self.context) != entry.context:
             raise ValueError(
                 f"Add(CaseLedgerEntry) {self.id_!r}: context must be the"
-                f" entry's case {entry.case_id!r}, not"
+                f" entry's case {entry.context!r}, not"
                 f" {_as_id(self.context)!r} (SYNC-02-006)"
             )
         try:

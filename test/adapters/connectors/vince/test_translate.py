@@ -239,12 +239,12 @@ def test_each_status_is_added_to_its_named_history(stem):
     assert statuses
     for entry in statuses:
         snapshot = entry.payload_snapshot
-        assert snapshot["context"] == entry.case_id
+        assert snapshot["context"] == entry.context
         if entry.semantic_type == "add_case_status_to_case":
-            assert snapshot["target"] == f"{entry.case_id}/statuses"
+            assert snapshot["target"] == f"{entry.context}/statuses"
         else:
             assert str(snapshot["target"]).endswith("/statuses")
-            assert snapshot["target"] != f"{entry.case_id}/statuses"
+            assert snapshot["target"] != f"{entry.context}/statuses"
     if stem == INACTIVE:
         assert any(
             e.semantic_type == "add_case_status_to_case" for e in statuses

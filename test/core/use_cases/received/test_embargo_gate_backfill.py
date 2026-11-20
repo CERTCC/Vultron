@@ -276,7 +276,7 @@ class _GateScenario:
         entries = [
             e
             for e in self.dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
+            if isinstance(e, CaseLedgerEntry) and e.context == CASE_ID
         ]
         return sorted(entries, key=lambda e: e.log_index)
 

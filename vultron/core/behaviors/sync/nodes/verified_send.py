@@ -52,7 +52,7 @@ def check_log_entry_verifies(
     """
     if not ledger_entry_hash_intact(entry):
         raise VultronUnverifiedLedgerEntryError(
-            case_id=entry.case_id,
+            case_id=entry.context,
             entry_id=entry.id_,
             log_index=entry.log_index,
             recipients=recipients,

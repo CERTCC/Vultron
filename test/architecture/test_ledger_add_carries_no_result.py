@@ -70,7 +70,7 @@ def _calls(name: str) -> list[tuple[str, ast.Call]]:
 def test_the_ledger_add_refuses_a_result() -> None:
     entry = make(
         as_CaseLedgerEntry,
-        case_id="https://example.org/cases/case-001",
+        context="https://example.org/cases/case-001",
         log_object_id="https://example.org/activities/act-001",
         semantic_type="test_event",
         payload_snapshot={"id": "https://example.org/activities/act-001"},

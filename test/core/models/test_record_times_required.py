@@ -61,7 +61,7 @@ _RECORDS: list[tuple[type[BaseModel], dict[str, Any], tuple[str, ...]]] = [
         CaseLedgerEntry,
         # ``updated`` is the object time CoreObject still defaults (Part C).
         {
-            "case_id": _CASE,
+            "context": _CASE,
             "log_object_id": _ACTIVITY,
             "semantic_type": "t",
             "updated": ACT_AT,

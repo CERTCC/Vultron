@@ -208,7 +208,7 @@ def ledger_problems(ledger: Sequence[CaseLedgerEntry]) -> list[str]:
     (EH-07-002).
     """
     problems: list[str] = []
-    case_ids = sorted({entry.case_id for entry in ledger})
+    case_ids = sorted({entry.context for entry in ledger})
     if len(case_ids) > 1:
         problems.append(f"the ledger holds entries of {case_ids}")
     entry_ids = [entry.id_ for entry in ledger]

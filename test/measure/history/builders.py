@@ -182,7 +182,7 @@ class Ledger:
         self.entries.append(
             {
                 "type": "CaseLedgerEntry",
-                "caseId": CASE,
+                "context": CASE,
                 "logIndex": index,
                 "entryHash": f"hash-{index}",
                 "semanticType": semantic_type,

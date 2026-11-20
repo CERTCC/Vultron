@@ -362,7 +362,7 @@ def _ledger_entries(dl, case_id: str) -> list:
     return [
         entry
         for entry in dl.list_objects("CaseLedgerEntry")
-        if getattr(entry, "case_id", None) == case_id
+        if getattr(entry, "context", None) == case_id
     ]
 
 

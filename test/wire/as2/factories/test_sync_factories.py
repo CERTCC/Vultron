@@ -56,7 +56,7 @@ _LAST_HASH = "abc123def456"
 def sample_log_entry() -> as_CaseLedgerEntry:
     return make(
         as_CaseLedgerEntry,
-        case_id="https://example.org/cases/case-001",
+        context="https://example.org/cases/case-001",
         log_object_id="https://example.org/activities/act-001",
         semantic_type="ReportCreated",
         payload_snapshot={"id": "https://example.org/activities/act-001"},
@@ -231,7 +231,7 @@ def test_reject_log_entry_states_the_tail_as_its_position(sample_log_entry):
         at=authored_at(),
     )
     assert result.ledger_position == tail
-    assert result.context == sample_log_entry.case_id
+    assert result.context == sample_log_entry.context
 
 
 @pytest.mark.spec("AF-04-001")
@@ -302,7 +302,7 @@ def test_read_ledger_entry_is_the_read_of_its_position():
     """Naming an entry and naming its position build the same statement."""
     sample_log_entry = make(
         as_CaseLedgerEntry,
-        case_id=_CASE_URI,
+        context=_CASE_URI,
         log_index=4,
         log_object_id="https://example.org/activities/act-004",
         semantic_type="ReportCreated",
@@ -315,7 +315,7 @@ def test_read_ledger_entry_is_the_read_of_its_position():
         sample_log_entry, actor=_ACTOR_URI, at=authored_at()
     )
     by_position = read_ledger_position_activity(
-        sample_log_entry.case_id,
+        sample_log_entry.context,
         LedgerPosition(
             log_index=sample_log_entry.log_index,
             entry_hash=sample_log_entry.entry_hash,

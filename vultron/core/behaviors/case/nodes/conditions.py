@@ -41,6 +41,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.role_predicate import has_role
 from vultron.enums.roles import CVDRole
@@ -175,7 +176,13 @@ def activity_case_id(activity: object | None) -> str | None:
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
-    raw = getattr(entry, "case_id", None)
+    # A ledger entry names its case in AS2 ``context`` (CLP-14-012); the
+    # other objects a case-scoped activity carries name it in ``case_id``.
+    raw = (
+        entry.context
+        if isinstance(entry, CaseLedgerEntry)
+        else getattr(entry, "case_id", None)
+    )
     return raw if isinstance(raw, str) else None
 
 
@@ -197,7 +204,7 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
        time seeds it with
        :func:`~vultron.core.behaviors.case_id_scope.with_case_id`; the node
        takes no ``case_id`` constructor argument (BTND-01-006).
-    2. ``activity.log_entry.case_id`` (or ``activity.object_.case_id``), the
+    2. ``activity.log_entry.context`` (or the ``object_``'s case), the
        documented resolution step for a tree that names no case.
 
     A case missing from the executing actor's store is a Regime 1 anomaly by

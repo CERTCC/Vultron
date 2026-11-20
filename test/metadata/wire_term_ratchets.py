@@ -25,11 +25,6 @@ empty, and the close guard refuses a pull request that closes an owner still
 cited here (ARCH-18-012).
 """
 
-# owner: #6411
-KNOWN_LEDGER_ENTRY_TERM_VIOLATIONS = frozenset(
-    {"CaseLedgerEntry.caseId: VM-10-007"}
-)
-
 # owner: #6416
 KNOWN_ITEM_NAME_CLASH_TERM_VIOLATIONS = frozenset(
     {

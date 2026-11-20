@@ -95,14 +95,14 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         if (f := self._require_datalayer()) is not None:
             return f
         entry = self._get_entry()
-        case = self._resolve_case_replica(entry.case_id)
+        case = self._resolve_case_replica(entry.context)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
 
         embargo_id = _extract_id_from_field(embargo_data)
         if not embargo_id:
             self.feedback_message = (
-                f"'{entry.semantic_type}' entry on case '{entry.case_id}' names"
+                f"'{entry.semantic_type}' entry on case '{entry.context}' names"
                 " no embargo"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
@@ -124,7 +124,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         assert self.datalayer is not None
         try:
             embargo = carried_entry_embargo(
-                self.datalayer, self._get_entry().case_id, embargo_data
+                self.datalayer, self._get_entry().context, embargo_data
             )
         except VultronError as exc:
             self.feedback_message = str(exc)
@@ -268,7 +268,7 @@ class _CopiedEmbargoEntryNode(ApplyEmbargoChangeFromLedgerNode):
         assert self.datalayer is not None
         self._embargo = _carried_embargo(
             self.datalayer,
-            entry.case_id,
+            entry.context,
             self._embargo_data(entry.payload_snapshot),
         )
         return self._change_for(entry, self._embargo)
@@ -281,7 +281,7 @@ class _CopiedEmbargoEntryNode(ApplyEmbargoChangeFromLedgerNode):
         assert self.datalayer is not None
         entry = self._get_entry()
         _store_carried_embargo(self.datalayer, self._embargo)
-        case = self._resolve_case_replica(entry.case_id)
+        case = self._resolve_case_replica(entry.context)
         if case is not None:
             self._after_apply(case, entry)
         return status

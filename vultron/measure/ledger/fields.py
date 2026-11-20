@@ -86,7 +86,7 @@ def payload_of(entry: Mapping[str, object]) -> dict[str, Any]:
 
 def case_id_of(entry: Mapping[str, object]) -> str | None:
     """Return *entry*'s case id, or ``None`` when it is absent or blank."""
-    value = first_present(entry, "case_id", "caseId")
+    value = first_present(entry, "context")
     if isinstance(value, str) and value.strip():
         return value
     return None

@@ -59,11 +59,11 @@ class AddLogEntryReceivedEvent(VultronEvent):
         entry = self._required(
             "log_entry", cast("CaseLedgerEntry | None", self.object_)
         )
-        if self.context_id != entry.case_id:
+        if self.context_id != entry.context:
             raise ValueError(
                 f"{type(self).__name__} {self.activity_id!r}: context names"
                 f" {self.context_id!r}, not the entry's case"
-                f" {entry.case_id!r} (SYNC-02-008)"
+                f" {entry.context!r} (SYNC-02-008)"
             )
         return entry
 
@@ -76,7 +76,7 @@ class AddLogEntryReceivedEvent(VultronEvent):
     def ledger_id(self) -> str:
         """The ledger the entry is added to: its case's ledger (SYNC-02-006)."""
         ledger = self._required("ledger_id", self.target_id)
-        expected = case_ledger_id(self.log_entry.case_id)
+        expected = case_ledger_id(self.log_entry.context)
         if ledger != expected:
             raise ValueError(
                 f"{type(self).__name__} {self.activity_id!r}: target names"
@@ -136,7 +136,7 @@ class RejectLogEntryReceivedEvent(VultronEvent):
     @property
     def rejected_case_id(self) -> str:
         """The case the rejection is about: the rejected entry's case."""
-        return self._required("rejected_case_id", self.rejected_entry.case_id)
+        return self._required("rejected_case_id", self.rejected_entry.context)
 
     @property
     def replay_case_id(self) -> str:

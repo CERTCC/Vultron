@@ -563,7 +563,7 @@ def _ledger_tail(joining: _JoiningCase) -> list[Any]:
             entry
             for entry in joining.dl.list_objects("CaseLedgerEntry")
             if isinstance(entry, CaseLedgerEntry)
-            and entry.case_id == joining.case.id_
+            and entry.context == joining.case.id_
         ),
         key=lambda entry: entry.log_index,
     )

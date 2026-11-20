@@ -349,6 +349,6 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
     assert recipients == [recipient]
     emitted_object = json.loads(body)["object"]
     assert emitted_object["type"] == "CaseLedgerEntry"
-    assert emitted_object["caseId"] == entry.case_id
+    assert emitted_object["context"] == entry.context
     assert emitted_object["logObjectId"] == entry.log_object_id
     assert emitted_object["semanticType"] == entry.semantic_type

@@ -61,7 +61,7 @@ def _note():
 def _entry(log_index: int, prev: str, entry_hash: str) -> CaseLedgerEntry:
     return make(
         CaseLedgerEntry,
-        case_id=_CASE,
+        context=_CASE,
         log_index=log_index,
         log_object_id=f"{_CASE}/activities/{log_index}",
         semantic_type="add_note_to_case",
