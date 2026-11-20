@@ -164,6 +164,13 @@ def release_tree_clients(root: py_trees.behaviour.Behaviour) -> None:
     detached too, so a later ``setup()`` attaches fresh ones instead of
     appending to released ones.
 
+    A client a node attached when it was *built* (a call-out seam, a
+    ``Capability``'s inputs, an ``Actuator``, ``SettleReceivedOutcome``) is
+    not attached again by ``setup()``, so a tree holding one is single-use:
+    run it again and that node reads through a released client.  A subtree a
+    node holds and re-runs through the bridge, until BT-25-001 removes those,
+    attaches its clients in ``setup()``.
+
     Args:
         root: The tree whose run has ended.
     """

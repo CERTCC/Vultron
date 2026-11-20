@@ -189,6 +189,13 @@ def peak_memory_stays_within_budget() -> Iterator[None]:
     in-process demo grows its worker as it runs; a loaded gate's memory
     killer took the worker running this module three times when each run's
     blackboard clients stayed registered.
+
+    A single-file guard: it holds exactly when this module runs alone in its
+    process.  Under ``-n`` the module is not pinned to one worker
+    (``--dist loadgroup``, no ``xdist_group``), so each worker sees only part
+    of it, after other modules may have raised the peak, and the guard reads
+    low.  The per-test ``no_blackboard_client_outlives_the_test`` guard is the
+    one that catches the leak under load.
     """
     with peak_rss_growth_within(_PEAK_RSS_GROWTH_BUDGET_MIB, __name__):
         yield

@@ -27,6 +27,11 @@ from dataclasses import dataclass
 
 import py_trees
 
+from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
+
+#: How long a snapshot waits for another thread's tree run to end, in seconds.
+_LOCK_WAIT_S = 30.0
+
 
 @dataclass(frozen=True)
 class RegistrySnapshot:
@@ -47,13 +52,11 @@ class RegistrySnapshot:
 
     def describe(self) -> str:
         """Name the clients and keys, for an assertion message."""
-        names = sorted(
-            {
-                py_trees.blackboard.Blackboard.clients.get(uid, str(uid))
-                for uid in self.clients
-            }
+        registered: dict[uuid.UUID, str] = (
+            py_trees.blackboard.Blackboard.clients
         )
-        keys = sorted({key for key, _access, _uid in self.metadata_ids})
+        names = sorted({registered.get(uid, str(uid)) for uid in self.clients})
+        keys = sorted({entry[0] for entry in self.metadata_ids})
         return (
             f"{len(self.clients)} client(s) {names[:10]}, "
             f"{len(self.metadata_ids)} key registration(s) on {keys[:10]}"
@@ -61,7 +64,27 @@ class RegistrySnapshot:
 
 
 def registry_snapshot() -> RegistrySnapshot:
-    """The registry's current client ids and key registrations."""
+    """The registry's current client ids and key registrations.
+
+    Read under the tree lock, so a run on another thread (a hold timer, a
+    replay) is read before it starts or after it has released, never halfway.
+
+    Raises:
+        AssertionError: when another thread holds the lock for longer than
+            :data:`_LOCK_WAIT_S`.
+    """
+    if not _BT_GLOBAL_LOCK.acquire(timeout=_LOCK_WAIT_S):
+        raise AssertionError(
+            "a tree run on another thread held the tree lock for over "
+            f"{_LOCK_WAIT_S:.0f} s, so the client registry could not be read"
+        )
+    try:
+        return _read_registry()
+    finally:
+        _BT_GLOBAL_LOCK.release()
+
+
+def _read_registry() -> RegistrySnapshot:
     board = py_trees.blackboard.Blackboard
     return RegistrySnapshot(
         clients=frozenset(board.clients),

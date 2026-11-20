@@ -27,7 +27,7 @@ shared worker.
 
 import resource
 import sys
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 
 #: ``ru_maxrss`` is in KiB on Linux and in bytes on macOS.
@@ -41,7 +41,7 @@ def peak_rss_mib() -> float:
 
 
 @contextmanager
-def peak_rss_growth_within(budget_mib: float, what: str) -> Iterator[None]:
+def peak_rss_growth_within(budget_mib: float, what: str) -> Generator[None]:
     """Fail if the process's peak grows by more than *budget_mib* in the block.
 
     Args:

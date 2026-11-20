@@ -127,22 +127,26 @@ def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
     """Instantiate the inbox BT, tick to completion, and return the status."""
     tree = create_inbox_bt(actor_config=actor_config)
     bt = py_trees.trees.BehaviourTree(root=tree)
-    bt.setup()
-
     tick_count = 0
     final_status = Status.INVALID
     try:
-        while tick_count < _MAX_TICKS:
-            tick_count += 1
-            bt.tick()
-            final_status = bt.root.status
-            if final_status in (Status.SUCCESS, Status.FAILURE):
-                break
-    except Exception:
-        logger.exception("process_payload: BT tick raised exception")
-        final_status = Status.FAILURE
+        # A setup() that raises still propagates, but the clients the tree
+        # attached when it was built, or in the setups before the one that
+        # raised, are released all the same (BT-25-004).
+        bt.setup()
+        try:
+            while tick_count < _MAX_TICKS:
+                tick_count += 1
+                bt.tick()
+                final_status = bt.root.status
+                if final_status in (Status.SUCCESS, Status.FAILURE):
+                    break
+        except Exception:
+            logger.exception("process_payload: BT tick raised exception")
+            final_status = Status.FAILURE
+        finally:
+            bt.shutdown()
     finally:
-        bt.shutdown()
         # The tree was built for this run; its nodes' clients end with it
         # rather than staying in py_trees' process-global registry (#6727).
         release_tree_clients(tree)

@@ -2225,6 +2225,7 @@ def test_execute_with_setup_leaves_no_blackboard_client_registered(
     assert not gained, gained.describe()
 
 
+@pytest.mark.spec("BT-25-004")
 def test_a_failed_setup_leaves_no_blackboard_client_registered(
     bridge, datalayer
 ):
@@ -2241,6 +2242,7 @@ def test_a_failed_setup_leaves_no_blackboard_client_registered(
     assert not gained, gained.describe()
 
 
+@pytest.mark.spec("BT-25-004")
 def test_releasing_the_run_keeps_the_storage_it_does_not_manage(
     bridge, test_actor_id
 ):
@@ -2255,6 +2257,7 @@ def test_releasing_the_run_keeps_the_storage_it_does_not_manage(
     assert storage["/actor_id"] == "an outer run's actor"
 
 
+@pytest.mark.spec("BT-25-004")
 def test_a_nested_run_leaves_the_outer_runs_clients_registered(
     bridge, test_actor_id
 ):
@@ -2287,6 +2290,7 @@ def test_a_nested_run_leaves_the_outer_runs_clients_registered(
     assert not gained, gained.describe()
 
 
+@pytest.mark.spec("BT-25-004")
 def test_a_leader_skip_releases_the_clients_the_tree_registered_at_build(
     bridge, test_actor_id
 ):
