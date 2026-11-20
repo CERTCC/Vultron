@@ -347,12 +347,12 @@ def test_bare_target_equal_to_the_case_uri_is_accepted():
 @pytest.mark.spec("CLP-07-006")
 @pytest.mark.spec("AKM-02-002")
 def test_bare_target_naming_a_held_object_is_recorded_as_received():
-    """``Add(ParticipantStatus)`` with a bare participant URI target is not refused.
+    """``Add(ParticipantStatus)`` with a bare status history target is not refused.
 
-    The participant a status is added to is an object the case's replicas
-    hold, so its sender may name it by URI (AKM-02-002).  The commit boundary
-    records the reference as it arrived; it neither inlines it nor refuses
-    it (CLP-07-006, ADR-0107).
+    The target is ``<participant>/statuses``, the history of a participant
+    the case's replicas hold (ADR-0204), so its sender may name it by URI
+    (AKM-02-002).  The commit boundary records the reference as it arrived;
+    it neither inlines it nor refuses it (CLP-07-006, ADR-0107).
     """
     snapshot = {
         "type": "Add",
@@ -362,7 +362,7 @@ def test_bare_target_naming_a_held_object_is_recorded_as_received():
             "type": "ParticipantStatus",
             "id": "https://example.org/statuses/status-1",
         },
-        "target": "https://example.org/actors/vendor#participant",
+        "target": "https://example.org/actors/vendor#participant/statuses",
         "context": CASE_ID,
     }
     _validate_canonical_entry(
@@ -520,7 +520,7 @@ def test_a_received_type_list_signs_as_the_type_it_names():
 @pytest.mark.spec("CLP-07-011")
 @pytest.mark.spec("VAM-07-003")
 def test_remove_note_snapshot_is_a_canonical_signature():
-    """``Remove(Note)[target=VulnerabilityCase]`` is accepted as a canonical payload."""
+    """``Remove(Note)[origin=VulnerabilityCase]`` is accepted as a canonical payload."""
     snapshot = {
         "type": "Remove",
         "actor": OWNER_ACTOR_ID,
@@ -529,7 +529,7 @@ def test_remove_note_snapshot_is_a_canonical_signature():
             "type": "Note",
             "id": "https://example.org/notes/note-prov",
         },
-        "target": CASE_ID,
+        "origin": CASE_ID,
         "context": CASE_ID,
     }
     _validate_canonical_entry(

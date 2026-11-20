@@ -273,12 +273,12 @@ def test_reject_tree_updates_replication_state_and_replays_entries(
     state = datalayer.read(state_id)
     assert state is not None
     assert state.last_acknowledged_hash == first_entry.entry_hash
-    sync_port.send_announce_log_entry.assert_called_once()
+    sync_port.send_add_log_entry.assert_called_once()
     assert isinstance(
         datalayer.read(ReceivedActivityRecord.build_id(event.activity_id)),
         ReceivedActivityRecord,
     )
-    call_kwargs = sync_port.send_announce_log_entry.call_args.kwargs
+    call_kwargs = sync_port.send_add_log_entry.call_args.kwargs
     assert call_kwargs["entry"].id_ == second_entry.id_
     # The CASE_MANAGER and the executing actor are necessarily the same id here:
     # the guarded announce gates on the *executing* actor holding the role, so a
@@ -315,7 +315,7 @@ def test_reject_tree_replays_all_entries_when_hash_not_found(
     )
 
     assert result.status == Status.SUCCESS
-    assert sync_port.send_announce_log_entry.call_count == 2
+    assert sync_port.send_add_log_entry.call_count == 2
 
 
 @pytest.mark.spec("SYNC-15-015")
@@ -535,7 +535,7 @@ def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
     Regression guard for the reject/replay amplification loop: a late-joining
     participant that cannot anchor its hash chain re-Rejects each replayed
     entry, and each Reject previously re-replayed the *entire* ledger.  With a
-    25-entry ledger this produced thousands of Announce activities, starving
+    25-entry ledger this produced thousands of Add activities, starving
     the container until unrelated DataLayer reads timed out.
 
     The first Reject at a given hash SHOULD replay; subsequent Rejects at the
@@ -568,7 +568,7 @@ def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
 
     # Without a guard this is 10 rounds × 24 missing entries = 240 announces.
     # With the guard only the first round replays.
-    assert sync_port.send_announce_log_entry.call_count == len(entries) - 1
+    assert sync_port.send_add_log_entry.call_count == len(entries) - 1
 
 
 @pytest.mark.spec("SYNC-15-010")
@@ -605,7 +605,7 @@ def test_reject_at_advanced_hash_replays_again(
         assert result.status == Status.SUCCESS
 
     # Progress at index 0, 1, 2 → 3 + 2 + 1 = 6 replayed entries.
-    assert sync_port.send_announce_log_entry.call_count == 6
+    assert sync_port.send_add_log_entry.call_count == 6
 
 
 @pytest.mark.spec("ID-04-005")
@@ -682,7 +682,7 @@ def test_reject_at_tail_then_growth_replays_the_new_suffix(
         sync_port=sync_port,
     )
     assert result.status == Status.SUCCESS
-    assert sync_port.send_announce_log_entry.call_count == 0
+    assert sync_port.send_add_log_entry.call_count == 0
 
     # The ledger grows by three entries.
     for index in range(4, 7):
@@ -703,7 +703,7 @@ def test_reject_at_tail_then_growth_replays_the_new_suffix(
         sync_port=sync_port,
     )
     assert result.status == Status.SUCCESS
-    assert sync_port.send_announce_log_entry.call_count == 3
+    assert sync_port.send_add_log_entry.call_count == 3
 
 
 # ---------------------------------------------------------------------------
@@ -802,12 +802,12 @@ def test_a_genesis_replay_is_recorded_and_judged_at_the_acts_instant(
 
     _receive_reject(bridge, sync_port, entries[0], tail_hash="", at=at)
     assert _replay_record(datalayer)[1] == at
-    assert sync_port.send_announce_log_entry.call_count == 5
+    assert sync_port.send_add_log_entry.call_count == 5
 
     later = at + timedelta(seconds=MAX_REPLAY_COOLDOWN_SECONDS)
     _receive_reject(bridge, sync_port, entries[2], tail_hash="", at=later)
 
-    assert sync_port.send_announce_log_entry.call_count > 5
+    assert sync_port.send_add_log_entry.call_count > 5
     assert _replay_record(datalayer)[1] == later
 
 
@@ -823,13 +823,13 @@ def test_genesis_reject_for_an_entry_the_last_genesis_replay_sent_is_declined(
 
     _set_clock(monkeypatch, 0)
     _receive_reject(bridge, sync_port, entries[0], tail_hash="")
-    assert sync_port.send_announce_log_entry.call_count == 5
+    assert sync_port.send_add_log_entry.call_count == 5
     trigger_activity.announce_vulnerability_case.assert_called_once()
 
     _set_clock(monkeypatch, 30)
     _receive_reject(bridge, sync_port, entries[2], tail_hash="")
 
-    assert sync_port.send_announce_log_entry.call_count == 5
+    assert sync_port.send_add_log_entry.call_count == 5
     trigger_activity.announce_vulnerability_case.assert_called_once()
 
 
@@ -869,7 +869,7 @@ def test_genesis_reject_for_an_entry_the_last_genesis_replay_did_not_send_replay
     _set_clock(monkeypatch, 30)
     _receive_reject(bridge, sync_port, newer, tail_hash="")
 
-    assert sync_port.send_announce_log_entry.call_count == 5 + 6
+    assert sync_port.send_add_log_entry.call_count == 5 + 6
     assert trigger_activity.announce_vulnerability_case.call_count == 2
     position, _, _ = _replay_record(datalayer)
     assert position == ""
@@ -910,7 +910,7 @@ def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
     )
 
     assert result.status == Status.FAILURE
-    assert sync_port.send_announce_log_entry.call_count == 3
+    assert sync_port.send_add_log_entry.call_count == 3
     state = datalayer.read(
         VultronReplicationState(
             case_id=CASE_ID, peer_id=PEER_ID, updated_at=ACT_AT
@@ -932,41 +932,6 @@ def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
 
 
 @pytest.mark.spec("SYNC-15-024")
-def test_genesis_reject_naming_no_entry_is_not_declined(
-    datalayer, case_manager_case, monkeypatch
-):
-    """The Reject that names no entry (SYNC-16-027) has no index to compare,
-    so it is answered under the cooldown alone."""
-    entries = _five_entry_ledger(datalayer)
-    bridge, sync_port, trigger_activity = _replay_bridge(datalayer)
-
-    _set_clock(monkeypatch, 0)
-    _receive_reject(bridge, sync_port, entries[0], tail_hash="")
-
-    _set_clock(monkeypatch, 30)
-    event = _make_event(entries[2], tail_hash="").model_copy(
-        update={"object_": None, "target": datalayer.read(CASE_ID)}
-    )
-    assert event.rejected_entry is None
-    py_trees.blackboard.Blackboard.storage.clear()
-    result = run_tree(
-        bridge,
-        tree=create_reject_log_entry_tree(
-            CASE_ID,
-            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
-        ),
-        actor_id=OWNER_ACTOR_ID,
-        activity=event,
-        sync_port=sync_port,
-        at=helpers_clock.now_utc(),
-    )
-
-    assert result.status == Status.SUCCESS
-    assert sync_port.send_announce_log_entry.call_count == 10
-    assert trigger_activity.announce_vulnerability_case.call_count == 2
-
-
-@pytest.mark.spec("SYNC-15-024")
 def test_genesis_reject_after_a_replay_from_another_position_is_not_declined(
     datalayer, case_manager_case, monkeypatch
 ):
@@ -980,14 +945,14 @@ def test_genesis_reject_after_a_replay_from_another_position_is_not_declined(
     _receive_reject(
         bridge, sync_port, entries[4], tail_hash=entries[2].entry_hash
     )
-    replayed = sync_port.send_announce_log_entry.call_count
+    replayed = sync_port.send_add_log_entry.call_count
     assert replayed == 5 + 2
 
     # The peer lost its copy: genesis again, for an entry already sent.
     _set_clock(monkeypatch, 60)
     _receive_reject(bridge, sync_port, entries[1], tail_hash="")
 
-    assert sync_port.send_announce_log_entry.call_count > replayed
+    assert sync_port.send_add_log_entry.call_count > replayed
 
 
 @pytest.mark.spec("SYNC-15-018")
@@ -1000,12 +965,12 @@ def test_genesis_reject_after_the_ceiling_replays_again(
 
     _set_clock(monkeypatch, 0)
     _receive_reject(bridge, sync_port, entries[0], tail_hash="")
-    assert sync_port.send_announce_log_entry.call_count == 5
+    assert sync_port.send_add_log_entry.call_count == 5
 
     _set_clock(monkeypatch, MAX_REPLAY_COOLDOWN_SECONDS + 1)
     _receive_reject(bridge, sync_port, entries[2], tail_hash="")
 
-    assert sync_port.send_announce_log_entry.call_count == 10
+    assert sync_port.send_add_log_entry.call_count == 10
 
 
 def _sender_refused(datalayer, event) -> Status:
@@ -1033,7 +998,7 @@ def _sender_refused(datalayer, event) -> Status:
             case_id=CASE_ID, peer_id=event.actor_id, updated_at=ACT_AT
         ).id_
         assert datalayer.read(state_id) is None
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     trigger_activity.announce_vulnerability_case.assert_not_called()
     return result.status
 
@@ -1158,7 +1123,7 @@ def test_undecidable_embargo_gate_fails_the_tree_at_the_case_manager(
         "embargo gate undecidable for the peer"
     )
     trigger_activity.announce_vulnerability_case.assert_not_called()
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
 
 
 @pytest.mark.spec("SYNC-03-005")
@@ -1201,7 +1166,7 @@ def test_reject_at_a_participant_replica_sends_and_records_nothing():
 
     assert result.status == Status.FAILURE
     trigger_activity.announce_vulnerability_case.assert_not_called()
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     state_id = VultronReplicationState(
         case_id=CASE_ID, peer_id=PEER_ID, updated_at=ACT_AT
     ).id_

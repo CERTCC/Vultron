@@ -206,9 +206,7 @@ def test_an_interrupted_run_is_finished_on_restart_with_nothing_twice(
         assert finished.outbox[: len(interrupted.outbox)] == interrupted.outbox
         added = finished.outbox[len(interrupted.outbox) :]
         assert added, "the restart sent nothing"
-        assert {_kind(row) for row in added} == {
-            ("Announce", "CaseLedgerEntry")
-        }
+        assert {_kind(row) for row in added} == {("Add", "CaseLedgerEntry")}
         sent = [json.dumps(b, sort_keys=True) for b, _ in emitter.sent]
         assert len(sent) == len(set(sent)), "a message was sent twice"
         assert (

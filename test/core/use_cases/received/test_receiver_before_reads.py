@@ -15,9 +15,9 @@
 
 """A received use case resolves its receiver before its first store read.
 
-Each handler here reads the DataLayer, in the builder it hands the runner
-(until #6476 moves the read into the tree) or through the tree's own doors
-(an unknown case is the path stage's refusal, HP-01-039).  The runner
+Each handler here reads the DataLayer through its tree's own nodes: a
+lookup node at the front of the tree (BT-25-009) or the tree's doors (an
+unknown case is the path stage's refusal, HP-01-039).  The runner
 resolves the receiver first, so with none to resolve the handler raises as a
 wiring fault before it touches the store.  A read's answer thus never turns
 our fault into a refusal of the sender (BT-17-009, ARCH-15-001).  The store
@@ -95,7 +95,11 @@ _CASES = [
     pytest.param(
         AddParticipantStatusToParticipantReceivedUseCase,
         _request(
-            status_id="s1", participant_id="p1", context_id=_CASE, status=None
+            status_id="s1",
+            participant_id="p1",
+            context_id=_CASE,
+            case_id=_CASE,
+            status=None,
         ),
         id="add-participant-status",
     ),

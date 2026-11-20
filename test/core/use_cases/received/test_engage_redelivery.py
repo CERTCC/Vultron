@@ -85,7 +85,7 @@ def _declare_accepted_body(net: LedgerNetwork, sender: str) -> dict[str, Any]:
                 attributed_to=sender,
                 rm=RmDimension(state=RM.ACCEPTED),
             ),
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=record.id_,
                 context=CASE_ID,
@@ -232,7 +232,7 @@ def test_an_engage_confirming_an_already_declared_move_announces_nothing():
 
     The participants still learn the move.  Every change the CASE_MANAGER
     makes to the case file is its own ledger entry and the fan-out carries it
-    as ``Announce(CaseLedgerEntry)`` (CM-06-001, CLP-07-013, SYNC-02-003);
+    as ``Add(CaseLedgerEntry)`` (CM-06-001, CLP-07-013, SYNC-02-003);
     the full-case copy is what the restatement does not repeat.
     """
     net = LedgerNetwork(CASE_ID)

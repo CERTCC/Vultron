@@ -171,7 +171,7 @@ def invite_to_embargo_on_case_tree(
     prototype's auto-accept bound; otherwise the owner holds its answer.
     No EM state and no consent state moves here: the replica learns the
     proposal, the relayed Invite and every answer from the CASE_MANAGER's
-    committed entries, which ``create_announce_log_entry_tree`` replays
+    committed entries, which ``create_add_log_entry_tree`` replays
     (EP-09-007, RSH-08-004).  An Invite that reached a store other than its
     addressee's is archived and left unanswered.
 

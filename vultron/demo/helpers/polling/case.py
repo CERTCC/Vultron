@@ -280,7 +280,7 @@ def wait_for_case_attributed_to(
     Observes the ownership transfer on *client*'s replica of the case.  The
     CaseActor's own store is the authority (CM-21-002, CM-21-004); every other
     replica — the old owner's included — learns the new owner only from the
-    ``Announce(CaseLedgerEntry)`` fan-out of the ``update_case_owner`` entry,
+    ``Add(CaseLedgerEntry)`` fan-out of the ``update_case_owner`` entry,
     applied by ``ApplyOwnershipTransferFromLedgerNode`` (CM-21-030,
     CLP-07-013).  So this reads the
     replica whose view is being asserted (EDF-06-002); to gate on the commit
@@ -416,7 +416,7 @@ def wait_for_pending_inbox_quiescent(
     more — i.e. the case seed has arrived and all buffered activities were
     processed.
 
-    A held out-of-order ``Announce(CaseLedgerEntry)`` (``HeldLedgerAnnounce``,
+    A held out-of-order ``Add(CaseLedgerEntry)`` (``HeldLedgerAnnounce``,
     SYNC-14) is intentionally excluded: it waits on a ledger predecessor, not
     on the case seed, so it is no signal that the seed has been processed.
 

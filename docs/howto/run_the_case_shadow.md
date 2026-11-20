@@ -115,11 +115,19 @@ The page shows the case as it stands at its last ledger entry, unless you pick a
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
   Below it, each of the two states is marked on a small map of its state machine, so you can see where the case could go next.
 - **Participants** lists each participant with its roles and its report state.
-  For a Vendor, it also shows the [Vendor Fix Path](../reference/glossary.md#cs-model-details) (vendor aware, fix ready, fix deployed) and a count of the desiderata met (✅), broken (❌), and still open (⏳), and of those it cannot know (❔) when the source cannot observe an event.
+  For a Vendor, it also shows the [Vendor Fix Path](../reference/glossary.md#cs-model-details) (vendor aware, fix ready, fix deployed) and a count of the desiderata met (✅), broken (❌), and still open (⏳).
+  The count also shows the desiderata it cannot know (❔) when the source cannot observe an event, and those it cannot score (▫️) when the Vendor's case stands in no state of the chance model.
+  For a Vendor with desiderata it cannot score, **Not scored because** names the rule of the chance model that the Vendor's case breaks.
   Below the table, one tab for each participant marks its report state and its vendor fix path on the maps of their state machines.
   Hover over a state or an arrow on a map to read it in words.
   When the source cannot observe an event, such as a fix being ready, the page reads it as unknown (❔) and marks every state the case could be in with a dashed border.
-- **Desiderata** lists each of the twelve desiderata in words, with one column for each Vendor.
+- **Desiderata** lists in words each desideratum that move advice weighs, with one column for each Vendor.
+  These are the twelve original desiderata, the report-handling desiderata, and the embargo desiderata of [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md).
+  Each group of equivalent desiderata shows once, under its first: Embargo Start before Public Awareness also stands for Embargo Start before Exploit Public and before Attacks Observed.
+  A desideratum that applies only on some paths shows as met when the case can no longer take such a path, as the case score counts it.
+  For example, Report Acceptance before Public Awareness applies only to a report that reaches Valid, so it shows as met for a report that the Vendor closes before it reaches Valid.
+  Of the multi-party desiderata, every Vendor's fix before public awareness is each Vendor's Fix Ready before Public Awareness row.
+  The table leaves out the other one, that every Vendor is aware before any fix is ready, because move advice does not use it.
 - **Move advice** puts each open move in one of three bands, by the method that [Move Bands Against Pathology Cases](../topics/measuring_cvd/move_bands.md) tests.
   A move's band is set by its end desiderata, or by its embargo desiderata when it changes no end desideratum.
   A **Harm-free** move raises at least one Vendor above the chance value and lowers none.

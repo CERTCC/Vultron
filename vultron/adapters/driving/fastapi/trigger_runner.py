@@ -18,17 +18,22 @@
 A trigger route validates its HTTP body, adds the path's ``actor_id`` to make
 the core request, and hands it to :func:`run_trigger`, which:
 
-1. calls the :class:`~vultron.core.ports.trigger_dispatcher.TriggerDispatcher`
+1. resolves a case-scoped request's ``case_id`` to the case's full id
+   (:func:`~vultron.adapters.driving.fastapi.case_reference.with_full_case_id`),
+   so the core never receives a short id and the tree's ``/case_id`` seed is
+   the full id (ADR-0032, BT-25-007); an unknown case is refused here, as
+   the structured 404 of a ``VultronNotFoundError`` for the case;
+2. calls the :class:`~vultron.core.ports.trigger_dispatcher.TriggerDispatcher`
    under ``domain_error_translation()``, so a domain failure becomes the
    structured 404/409/422 the trigger API promises (TRIG-01-003);
-2. schedules the outbox flush as a background task **only after**
+3. schedules the outbox flush as a background task **only after**
    ``trigger()`` has returned (TRIG-07-001), so the 202 does not wait on
    delivery (TRIG-01-004) and nothing is flushed for a trigger that raised;
-3. drains the outbox the trigger actually wrote to: the *emitting* actor's
+4. drains the outbox the trigger actually wrote to: the *emitting* actor's
    when the result names one (:class:`EmittingResult` — a delegated emit is
    queued in the CASE_MANAGER's outbox, CM-24-001), otherwise the requesting
    actor's (:func:`emitting_outbox`);
-4. returns the verb's typed result — the request binds it, so a route's
+5. returns the verb's typed result — the request binds it, so a route's
    ``response_model`` and its return annotation are the same class
    (UCORG-05-006).
 
@@ -45,6 +50,7 @@ them, so no route carries its own copy of those checks.
 
 from fastapi import BackgroundTasks
 
+from vultron.adapters.driving.fastapi.case_reference import with_full_case_id
 from vultron.adapters.driving.fastapi.deps import outbox_store
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
@@ -99,7 +105,8 @@ def run_trigger(
 
     Args:
         request: The core request the route built: its validated body plus
-            the path's ``actor_id``.
+            the path's ``actor_id``.  A case-scoped request may name its case
+            by short id; it is dispatched with the case's full id.
         dispatcher: The driving port, from ``Depends(get_trigger_dispatcher)``.
         dl: The addressed actor's store, from ``Depends(get_trigger_dl)``;
             the store the use case runs against, and the outbox flushed unless
@@ -111,11 +118,13 @@ def run_trigger(
         The verb's ``TriggerResult`` subtype, as bound by *request*.
 
     Raises:
-        HTTPException: A translated domain error (TRIG-01-003).
+        HTTPException: A translated domain error (TRIG-01-003), including
+            the 404 for a case-scoped request naming no case *dl* holds.
         VultronError: A domain error ``domain_error_translation()`` has no
             HTTP mapping for; it propagates for the route to decide.
     """
     with domain_error_translation():
+        request = with_full_case_id(request, dl)
         result = dispatcher.trigger(request, outbox_store(dl))
     flush_id, flush_dl = request.actor_id, dl
     if isinstance(result, EmittingResult):

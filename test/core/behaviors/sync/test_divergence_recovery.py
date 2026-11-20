@@ -71,7 +71,7 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
-from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
+from vultron.core.models.events.sync import ReadLedgerReceivedEvent
 from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
@@ -104,7 +104,7 @@ from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_processing_fault_activity,
-    genesis_replay_reject_activity,
+    read_ledger_position_activity,
 )
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
@@ -113,10 +113,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-#: The position of a chain that stores no entry (SYNC-16-027, CLP-08-004).
-_EMPTY_CHAIN = LedgerPosition(
-    log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash="00" * 32
-)
 _CASE_ID = "https://example.org/cases/case-diverged-001"
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _REPLICA_ID = "https://example.org/actors/replica"
@@ -308,7 +304,7 @@ def _chain(
         ledger.append(
             object_id=f"{_CASE_ID}/notes/{index}",
             semantic_type="add_note_to_case",
-            payload_snapshot=snapshot,
+            payload_snapshot={"id": f"{_CASE_ID}/notes/{index}", **snapshot},
             at=ACT_AT,
         )
     return [record.to_ledger_entry() for record in ledger.entries]
@@ -453,7 +449,10 @@ def _commit(
             log_index=index,
             object_id=f"{case.id_}/activities/{index}",
             semantic_type="test_event",
-            payload_snapshot={"log_index": index},
+            payload_snapshot={
+                "id": f"{case.id_}/activities/{index}",
+                "log_index": index,
+            },
             prev_log_hash=prev,
             received_at=ACT_AT,
         )
@@ -606,8 +605,8 @@ def test_a_backfill_without_a_sync_port_is_a_wiring_fault() -> None:
 @pytest.mark.spec("RF-08-004")
 def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     """With no stored entry there is nothing for a Reject to name, so the
-    replica sends the Reject that names none: the empty chain's position
-    and the case as its target, which parses back to the same request."""
+    replica states the empty chain's position in ``Read(<case>/ledger)``,
+    which parses back to a position statement asking for every entry."""
     dl = _replica_holding("empty replica")
 
     result = _announce(
@@ -622,63 +621,55 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert _case_name(dl) == "copy ahead"
     assert _position(dl) == LedgerPosition(log_index=3, entry_hash="ef" * 32)
-    (reject_id,) = dl.outbox_list()
-    body = read_sealed_body_dict(dl, reject_id)
+    (read_id,) = dl.outbox_list()
+    body = read_sealed_body_dict(dl, read_id)
     assert body is not None
-    assert body["type"] == "Reject"
-    assert "object" not in body
-    assert body["ledgerPosition"]["logIndex"] == EMPTY_LEDGER_LOG_INDEX
+    assert body["type"] == "Read"
+    assert body["object"] == {
+        "id": f"{_CASE_ID}/ledger",
+        "type": "OrderedCollection",
+    }
+    assert body["ledgerPosition"] == {
+        "logIndex": EMPTY_LEDGER_LOG_INDEX,
+        "entryHash": _owned_case("any").genesis_hash,
+    }
     assert body["context"] == _CASE_ID
-    assert body["target"] == _CASE_ID
+    assert "target" not in body
     assert body["to"] == [_CASE_ACTOR_ID]
     assert body["inReplyTo"] == _COPY_ANNOUNCE_ID  # RF-08-004
     event = cast(
-        RejectLogEntryReceivedEvent,
+        ReadLedgerReceivedEvent,
         received_event(parse_activity(body), at=dl),
     )
-    assert event.semantic_type is MessageSemantics.REJECT_CASE_LEDGER_ENTRY
-    assert event.rejected_entry is None
-    assert event.rejected_case_id == _CASE_ID
+    assert event.semantic_type is MessageSemantics.READ_CASE_LEDGER
+    assert event.replay_case_id == _CASE_ID
+    assert event.ledger_id == f"{_CASE_ID}/ledger"
     assert event.last_accepted_hash == ""
 
 
 @pytest.mark.spec("SYNC-16-028")
-def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
-    """Only a request for a replay from genesis may name no entry."""
-    body = genesis_replay_reject_activity(
-        _CASE_ID,
-        _EMPTY_CHAIN,
-        actor=_REPLICA_ID,
-        to=[_CASE_ACTOR_ID],
-        in_reply_to="https://example.org/activities/prompting-announce",
-        at=authored_at(),
-    ).model_dump(mode="json", by_alias=True, exclude_none=True)
-
-    named = {"logIndex": 0, "entryHash": "ab" * 32}
-    with pytest.raises(VultronParseValidationError, match="names no object"):
-        parse_activity({**body, "ledgerPosition": named})
-    unstated = {k: v for k, v in body.items() if k != "ledgerPosition"}
-    with pytest.raises(VultronParseValidationError, match="names no object"):
-        parse_activity(unstated)
-    untargeted = {k: v for k, v in body.items() if k != "target"}
-    with pytest.raises(VultronParseValidationError, match="names no object"):
-        parse_activity(untargeted)
-    with pytest.raises(VultronParseValidationError, match="names no object"):
-        parse_activity(
-            {
-                **body,
-                "type": "TentativeReject",
-                "published": "2026-01-01T00:00:00+00:00",
-            }
-        )
-    note = {
-        "type": "Note",
+def test_a_reject_naming_no_entry_is_refused_at_parse() -> None:
+    """No ``Reject`` may name no object, whatever position it states."""
+    body = {
+        "type": "Reject",
+        "id": "https://example.org/activities/objectless-reject",
+        "actor": _REPLICA_ID,
+        "to": [_CASE_ACTOR_ID],
+        "context": _CASE_ID,
+        "target": _CASE_ID,
+        "inReplyTo": "https://example.org/activities/prompting-announce",
         "published": "2026-01-01T00:00:00+00:00",
-        "id": f"{_CASE_ID}/notes/not-a-case",
-        "content": "not a case",
     }
-    with pytest.raises(VultronParseValidationError, match="names no object"):
-        parse_activity({**body, "target": note})
+    empty = {"logIndex": EMPTY_LEDGER_LOG_INDEX, "entryHash": "00" * 32}
+    named = {"logIndex": 0, "entryHash": "ab" * 32}
+    for position in (empty, named, None):
+        stated = (
+            body if position is None else {**body, "ledgerPosition": position}
+        )
+        with pytest.raises(VultronParseValidationError, match="object"):
+            parse_activity(stated)
+        with pytest.raises(VultronParseValidationError, match="object"):
+            parse_activity({**stated, "type": "TentativeReject"})
 
 
 @pytest.mark.spec("SYNC-16-024")
@@ -1035,9 +1026,11 @@ def test_the_case_managers_own_copy_is_skipped() -> None:
 
 
 @pytest.mark.spec("SYNC-16-027")
-def test_a_genesis_request_for_a_later_copy_is_its_own_activity() -> None:
-    """The genesis-replay Reject's id names the copy's position, so a request
-    after a later copy is not deduplicated as a repeat of the first."""
+def test_an_empty_chain_read_for_a_later_copy_is_its_own_activity() -> None:
+    """The ``Read`` answering a copy takes its id from the copy's position, so
+    a repeat of the same copy is the same request, queued once, while a
+    request after a later copy is not deduplicated as a repeat of the first
+    (ID-04-004)."""
     dl = _replica_holding("empty replica")
     _announce(
         _at(
@@ -1063,25 +1056,35 @@ def test_a_genesis_request_for_a_later_copy_is_its_own_activity() -> None:
         dl,
     )
 
-    assert len(set(dl.outbox_list())) == 2
+    reads = dl.outbox_list()
+    assert len(set(reads)) == 2
+    for read_id in reads:
+        body = read_sealed_body_dict(dl, read_id)
+        assert body is not None
+        assert body["type"] == "Read"
+        assert body["ledgerPosition"]["logIndex"] == EMPTY_LEDGER_LOG_INDEX
 
 
 @pytest.mark.spec("SYNC-16-027")
-def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
-    """The inbox rebuilds an activity's object before routing; the Reject
-    that names none has none to rebuild, and still reaches its handler,
-    whose sender guard refuses a stranger and records no replay state."""
+@pytest.mark.spec("SYNC-17-002")
+def test_the_empty_chain_read_survives_the_inbox_rebuild() -> None:
+    """The inbox rebuilds an activity's object before routing; the ledger a
+    ``Read`` names is identity only, and the ``Read`` still reaches its
+    handler, whose sender guard refuses a stranger and records no replay
+    state."""
     # The roster must name the receiver as CASE_MANAGER: the tree declares
     # that path alone, so the path door would otherwise refuse the delivery
     # before the sender guard this test is about ran (HP-01-038).
     dl = _replica_holding("manager case", actor_id=_CASE_ACTOR_ID)
     body = signed_body(
-        genesis_replay_reject_activity(
+        read_ledger_position_activity(
             _CASE_ID,
-            _EMPTY_CHAIN,
+            LedgerPosition(
+                log_index=EMPTY_LEDGER_LOG_INDEX,
+                entry_hash=_owned_case("any").genesis_hash,
+            ),
             actor=_STRANGER_ID,
             to=[_CASE_ACTOR_ID],
-            in_reply_to="https://example.org/activities/prompting-announce",
             at=authored_at(),
         ).model_dump(mode="json", by_alias=True, exclude_none=True)
     )
@@ -1098,11 +1101,11 @@ def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
     )
 
     # Routed and judged: the stranger is no participant, so the sender
-    # guard refuses it (SYNC-03-005); the rebuild did not drop it.
+    # guard refuses it; the rebuild did not drop it.
     assert outcome.status is InboxOutcomeStatus.REJECTED, outcome
     assert outcome.failure_reason is not None
-    assert "RejectLogEntryReceivedBT" in outcome.failure_reason
-    assert "not an active participant" in outcome.failure_reason
+    assert "ReadLedgerReceivedBT" in outcome.failure_reason
+    assert "is not a participant" in outcome.failure_reason
     assert list(dl.list_objects("ReplicationState")) == []
 
 

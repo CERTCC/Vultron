@@ -152,20 +152,23 @@ def test_the_invite_case_preview_survives_to_the_emitter(dl):
 
 @pytest.mark.spec("SYNC-02-004")
 def test_the_sync_adapter_seals_the_announce_it_queues(dl):
-    """Announce(CaseLedgerEntry) is sealed at emission and relayed whole."""
+    """Add(CaseLedgerEntry) is sealed at emission and relayed whole."""
     entry = _to_persistable_entry(
         HashChainLedgerRecord(
             case_id="https://example.org/cases/c-sync",
             log_index=0,
             object_id="https://example.org/activities/logged",
             semantic_type="log_entry_committed",
-            payload_snapshot={"state": "replicated"},
+            payload_snapshot={
+                "id": "https://example.org/activities/logged",
+                "state": "replicated",
+            },
             prev_log_hash=_ZERO_HASH,
             received_at=ACT_AT,
         )
     )
     dl.save(entry)
-    assert SyncActivityAdapter(dl).send_announce_log_entry(
+    assert SyncActivityAdapter(dl).send_add_log_entry(
         entry, actor_id=_ACTOR, to=[_INVITEE], at=authored_at()
     )
     (activity_id,) = dl.outbox_list()

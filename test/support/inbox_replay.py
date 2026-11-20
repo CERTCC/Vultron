@@ -16,7 +16,7 @@
 """A recording ``InboxReplayPort``, and a driver that delivers what it queued.
 
 Use-case tests construct a received use case directly, with no inbox in
-front of it, so a held ``Announce(CaseLedgerEntry)`` the tree replays
+front of it, so a held ``Add(CaseLedgerEntry)`` the tree replays
 (SYNC-14-009) goes nowhere unless the test delivers it.
 :class:`RecordingInboxReplay` records each replay and runs nothing, which is
 what lets a test assert that no second tree ran; :func:`deliver_replayed` then
@@ -35,7 +35,7 @@ from test.support.received import delivered_body, received_event
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
@@ -45,7 +45,7 @@ from vultron.core.services.held_ledger_announces import (
     hold_ledger_announce,
 )
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import add_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
@@ -53,13 +53,13 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
 def ledger_announce_event(
     entry: CaseLedgerEntry, *, actor: str, to: str
-) -> AnnounceLogEntryReceivedEvent:
-    """The received ``Announce`` of *entry* from *actor* to *to*, delivered.
+) -> AddLogEntryReceivedEvent:
+    """The received ``Add`` of *entry* from *actor* to *to*, delivered.
 
     It carries its body as received evidence, as the inbox hands it on, and
     names *to* as the receiving actor.
     """
-    activity = announce_log_entry_activity(
+    activity = add_log_entry_activity(
         as_CaseLedgerEntry.model_validate(
             with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
         ),
@@ -68,7 +68,7 @@ def ledger_announce_event(
         at=authored_at(),
     )
     return cast(
-        AnnounceLogEntryReceivedEvent,
+        AddLogEntryReceivedEvent,
         received_event(activity, receiving_actor_id=to),
     )
 
@@ -94,7 +94,7 @@ class RecordingInboxReplay:
 
 def replayed_event(
     dl: Any, activity_id: str, receiving_actor_id: str
-) -> AnnounceLogEntryReceivedEvent:
+) -> AddLogEntryReceivedEvent:
     """The event the inbox routes when it replays the held *activity_id*.
 
     Rebuilt from the body held for it, as the inbox replay does, so it
@@ -103,7 +103,7 @@ def replayed_event(
     """
     activity = InlineObjectStaging(dl).rehydrate_deferred(activity_id)
     assert activity is not None, f"nothing holds {activity_id}"
-    event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    event = cast(AddLogEntryReceivedEvent, extract_event(activity))
     return event.model_copy(update={"receiving_actor_id": receiving_actor_id})
 
 
@@ -111,7 +111,7 @@ def deliver_replayed(
     port: RecordingInboxReplay,
     dl: Any,
     receiving_actor_id: str,
-    deliver: Callable[[AnnounceLogEntryReceivedEvent], object],
+    deliver: Callable[[AddLogEntryReceivedEvent], object],
 ) -> int:
     """Deliver every pending replay, oldest first, as the inbox loop does.
 
@@ -125,7 +125,7 @@ def deliver_replayed(
     return count
 
 
-def archive_event(dl: Any, event: AnnounceLogEntryReceivedEvent) -> None:
+def archive_event(dl: Any, event: AddLogEntryReceivedEvent) -> None:
     """Record *event*'s ``Announce`` in *dl* as intake does (CLP-10-017).
 
     Intake writes a ``HELD`` record owing nothing; the outcome stage then
@@ -143,7 +143,7 @@ def archive_event(dl: Any, event: AnnounceLogEntryReceivedEvent) -> None:
     )
 
 
-def hold_received(dl: Any, event: AnnounceLogEntryReceivedEvent) -> None:
+def hold_received(dl: Any, event: AddLogEntryReceivedEvent) -> None:
     """Hold *event*'s ``Announce`` in *dl* as an earlier delivery would have.
 
     Records it as intake does, then holds it (SYNC-14-001).

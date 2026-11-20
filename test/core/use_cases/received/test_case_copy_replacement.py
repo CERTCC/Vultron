@@ -39,7 +39,10 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
@@ -47,10 +50,16 @@ from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
 )
-from vultron.wire.as2.factories import genesis_replay_reject_activity
+from vultron.wire.as2.factories import read_ledger_position_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BROADCAST,
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    LedgerNetwork,
+)
 
 _REFLECTED = "storing it as a no-op"
 
@@ -78,12 +87,12 @@ def _case_copy(net: LedgerNetwork, to: str = BYSTANDER) -> dict[str, Any]:
 
 
 def _deliver_entries(net: LedgerNetwork, replica: str) -> None:
-    """Deliver every queued ``Announce(CaseLedgerEntry)`` once, in order.
+    """Deliver every queued ``Add(CaseLedgerEntry)`` once, in order.
 
     A replay resends entries the fan-out already queued, so a repeat is
     stored once and answered as a repeat; nothing is refused.
     """
-    for _type, verdict in net.deliver(MANAGER, to=replica, type_="Announce"):
+    for _type, verdict in net.deliver(MANAGER, to=replica, type_=BROADCAST):
         assert verdict.disposition in {
             HandlerDisposition.APPLIED,
             HandlerDisposition.SKIPPED,
@@ -184,27 +193,27 @@ def test_a_late_copy_from_before_the_replicas_tail_changes_nothing() -> None:
 
 
 @pytest.mark.spec("SYNC-16-029")
-@pytest.mark.spec("SYNC-15-015")
+@pytest.mark.spec("SYNC-16-027")
 def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
     """A replica holding the case but no entry is replaced by a copy ahead
-    of it, asks for a replay from genesis with the Reject that names no
-    entry, and the CASE_MANAGER's genesis answer brings it to its tail."""
+    of it, states the empty chain's position with ``Read(<case>/ledger)``,
+    and the CASE_MANAGER's replay of every entry brings it to its tail."""
     net = LedgerNetwork("https://example.org/cases/copy-genesis")
     _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
     # The fan-out left the outbox and was lost in transit.
-    net.lose(MANAGER, to=BYSTANDER, type_="Announce")
+    net.lose(MANAGER, to=BYSTANDER, type_=BROADCAST)
     assert ledger_entries(net.stores[BYSTANDER], net.case_id) == []
 
     verdict = net.receive(BYSTANDER, _case_copy(net))
 
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
-    (request,) = net.queued(BYSTANDER, to=MANAGER, type_="Reject")
-    reject = read_sealed_body_dict(net.stores[BYSTANDER], request.id_)
-    assert reject is not None
-    assert "object" not in reject
-    assert reject["target"] == net.case_id
+    (request,) = net.queued(BYSTANDER, to=MANAGER, type_="Read")
+    read = read_sealed_body_dict(net.stores[BYSTANDER], request.id_)
+    assert read is not None
+    assert read["object"]["id"] == f"{net.case_id}/ledger"
+    assert read["ledgerPosition"]["logIndex"] == EMPTY_LEDGER_LOG_INDEX
 
-    for _type, answered in net.deliver(BYSTANDER, to=MANAGER, type_="Reject"):
+    for _type, answered in net.deliver(BYSTANDER, to=MANAGER, type_="Read"):
         assert answered.disposition is HandlerDisposition.APPLIED, (
             answered.reason
         )
@@ -212,29 +221,28 @@ def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
 
     assert _tail(net, BYSTANDER) == _tail(net, MANAGER)
     assert _statuses(net, BYSTANDER) == _statuses(net, MANAGER)
-    # The CASE_MANAGER's answer repeats the copy, which asks again for the
-    # same copy: the same request, re-queued under its id, never a new one.
-    assert {
-        a.id_ for a in net.queued(BYSTANDER, to=MANAGER, type_="Reject")
-    } <= {request.id_}
+    # The answer is the entries alone: the replica holds the case, so no
+    # copy is sent ahead of them and nothing asks again.
+    assert [
+        a.id_ for a in net.queued(BYSTANDER, to=MANAGER, type_="Read")
+    ] == [request.id_]
 
 
-def _genesis_request(case_id: str, sender: str) -> dict[str, Any]:
-    """The objectless genesis-replay Reject *sender* sends the CASE_MANAGER."""
-    return genesis_replay_reject_activity(
+def _empty_chain_read(case_id: str, sender: str) -> dict[str, Any]:
+    """The ``Read`` at index -1 *sender* sends the CASE_MANAGER."""
+    return read_ledger_position_activity(
         case_id,
         TEST_SENDER_POSITION,
         actor=sender,
         to=[MANAGER],
-        in_reply_to="https://example.org/activities/prompting-announce",
         at=authored_at(),
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
 @pytest.mark.spec("SYNC-16-029")
-@pytest.mark.spec("SYNC-03-005")
-def test_a_genesis_request_for_a_case_the_manager_lacks_is_refused() -> None:
-    """The Reject's target is the only case it names; one the CASE_MANAGER
+@pytest.mark.spec("SYNC-17-002")
+def test_an_empty_chain_read_for_a_case_the_manager_lacks_is_refused() -> None:
+    """The ``Read``'s context is the only case it names; one the CASE_MANAGER
     does not hold has nothing to replay and is refused."""
     net = LedgerNetwork("https://example.org/cases/copy-genesis-unknown")
     _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
@@ -242,7 +250,7 @@ def test_a_genesis_request_for_a_case_the_manager_lacks_is_refused() -> None:
 
     verdict = net.receive(
         MANAGER,
-        _genesis_request("https://example.org/cases/not-held", BYSTANDER),
+        _empty_chain_read("https://example.org/cases/not-held", BYSTANDER),
     )
 
     assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason

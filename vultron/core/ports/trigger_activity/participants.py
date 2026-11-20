@@ -86,7 +86,7 @@ class TriggerParticipantsPort(Protocol):
         recommended_id: str,
         case_id: str,
         actor: str,
-        origin: str | None = None,
+        in_reply_to: str | None = None,
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list[Any] | None = None,
@@ -99,10 +99,11 @@ class TriggerParticipantsPort(Protocol):
         Transforms the original ``Offer(Actor)[target=VulnerabilityCase]`` into an
         ``Offer(CaseParticipant)[target=VulnerabilityCase]`` naming the actor and
         its roles, addressed to the Case Owner.  ``roles`` defaults to
-        ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).  ``origin`` carries the
-        original recommender Offer ID so the Case Owner can trace the causal
-        chain (CM-16-004).  ``content`` carries the recommender's reason text
-        from its ``Offer(Actor)`` so the Case Owner can decide on the
+        ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).  ``in_reply_to`` names
+        the original recommender's Offer, the suggestion this forward answers,
+        so the Case Owner can trace the causal chain (CM-16-004).
+        ``content`` carries the recommender's reason text from its
+        ``Offer(Actor)`` so the Case Owner can decide on the
         suggestion with its evidence (CM-16-020).
         Returns ``(activity_id, activity_dict)``.
         """
@@ -157,12 +158,15 @@ class TriggerParticipantsPort(Protocol):
         attributed_to: str | None = None,
         *,
         at: datetime,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(CaseParticipant)[target=VulnerabilityCase]`` activity.
 
         The CASE_MANAGER's direct notice to a reinstated participant
-        (CM-31-011): ``actor`` is the CASE_MANAGER and ``attributed_to`` the
-        Case Owner who asked for the reinstatement (CM-24-001, CM-24-002).
+        (CM-31-011): ``actor`` is the CASE_MANAGER, ``attributed_to`` the
+        Case Owner who asked for the reinstatement (CM-24-001, CM-24-002)
+        and ``in_reply_to`` the Owner's request (CM-24-020); neither is set
+        when the Owner is the CASE_MANAGER.
         The notice is delivery, not a record, so the caller does not ledger
         it.
 
@@ -175,16 +179,19 @@ class TriggerParticipantsPort(Protocol):
         participant_id: str,
         case_id: str,
         actor: str,
-        attributed_to: str,
+        attributed_to: str | None,
         to: list[str],
         *,
         at: datetime,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(CaseParticipant)[target=VulnerabilityCase]`` notice.
 
         The CASE_MANAGER's direct notice to a removed participant (CM-31-006):
-        ``actor`` is the CASE_MANAGER and ``attributed_to`` the Case Owner who
-        asked for the removal (CM-24-001, CM-24-002).  The notice is delivery,
+        ``actor`` is the CASE_MANAGER, ``attributed_to`` the Case Owner who
+        asked for the removal (CM-24-001, CM-24-002) and ``in_reply_to`` the
+        Owner's request (CM-24-020); neither is set when the Owner is the
+        CASE_MANAGER.  The notice is delivery,
         not a record, so the caller does not ledger it.
 
         Returns ``(activity_id, activity_blob)``.
@@ -200,7 +207,8 @@ class TriggerParticipantsPort(Protocol):
         *,
         at: datetime,
     ) -> str:
-        """Create and persist an ``Add(ParticipantStatus)[target=CaseParticipant]`` activity.
+        """Create and persist an ``Add(ParticipantStatus,
+        target=<participant>/statuses)`` activity.
 
         Returns the activity ID (callers only need the ID for outbox queueing).
         """

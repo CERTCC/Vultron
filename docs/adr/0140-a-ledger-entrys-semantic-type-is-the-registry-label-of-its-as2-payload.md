@@ -1,5 +1,5 @@
 ---
-status: accepted-provisional
+status: accepted
 date: 2026-10-15
 created: 2026-10-15
 updated: 2026-10-22

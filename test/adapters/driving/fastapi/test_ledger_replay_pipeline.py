@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-r"""End-to-end: a held ledger Announce converges through the inbox replay.
+r"""End-to-end: a held ledger Add converges through the inbox replay.
 
-A held ``Announce(CaseLedgerEntry)`` that a commit or a case seed makes
+A held ``Add(CaseLedgerEntry)`` that a commit or a case seed makes
 appliable is replayed as its own delivery (SYNC-14-009, ADR-0135).  These
 tests drive the real chain: ``run_inbox_pipeline``, the FastAPI ingress and
 dispatch adapters, the real dispatcher and port factories, the received use
 cases and the ``InboxReplayAdapter``.  The only thing they assert about the
 mechanism is what reaches the store: every entry in the chain, and an
-archive that holds exactly the ``Announce``\ s that were delivered, each
+archive that holds exactly the ``Add``\ s that were delivered, each
 once, as they arrived, and nothing nobody sent.
 """
 
@@ -59,7 +59,7 @@ from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    announce_log_entry_activity,
+    add_log_entry_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
 )
@@ -109,7 +109,10 @@ def _chain(genesis_hash: str, length: int) -> list[CaseLedgerEntry]:
             log_index=index,
             object_id=f"https://example.org/activities/rp-{index}",
             semantic_type="test_event",
-            payload_snapshot={"index": index},
+            payload_snapshot={
+                "id": f"https://example.org/activities/rp-{index}",
+                "index": index,
+            },
             prev_log_hash=prev,
             received_at=ACT_AT,
         )
@@ -123,10 +126,10 @@ def _body(activity: as_Activity) -> dict[str, Any]:
     return delivered_body(activity)
 
 
-def _announce_entry(entry: CaseLedgerEntry) -> dict[str, Any]:
+def _add_entry(entry: CaseLedgerEntry) -> dict[str, Any]:
     """The CASE_MANAGER's fan-out of *entry* to the receiver."""
     return _body(
-        announce_log_entry_activity(
+        add_log_entry_activity(
             ledger_entry_to_wire(entry),
             actor=_CASE_MANAGER,
             to=[_RECEIVER],
@@ -156,7 +159,7 @@ def _assert_archive_is_what_was_delivered(
     dl: SqliteDataLayer, delivered: list[dict[str, Any]]
 ) -> None:
     """Intake archived each delivered body once, as it arrived, and nothing
-    else: no record of an Announce nobody sent (CLP-10-017, VM-08-002)."""
+    else: no record of an Add nobody sent (CLP-10-017, VM-08-002)."""
     records = [
         record
         for record in dl.list_objects("ReceivedActivityRecord")
@@ -188,22 +191,22 @@ def test_out_of_order_pair_converges_through_the_replay(dl, dispatcher):
     case = _case()
     add_case_manager_participant(dl, case, _CASE_MANAGER)
     e0, e1 = _chain(case.genesis_hash, 2)
-    announce_e0, announce_e1 = _announce_entry(e0), _announce_entry(e1)
+    add_e0, add_e1 = _add_entry(e0), _add_entry(e1)
 
-    # e1 arrives first: a forward gap, so its Announce is held as received
+    # e1 arrives first: a forward gap, so its Add is held as received
     # (SYNC-14-001).
-    _deliver(dl, dispatcher, announce_e1)
+    _deliver(dl, dispatcher, add_e1)
     assert _stored(dl, [e0, e1]) == [False, False]
     [held] = held_ledger_announces(dl, _CASE_ID)
-    assert held.activity_id == announce_e1["id"]
+    assert held.activity_id == add_e1["id"]
 
-    # e0 closes the gap; its delivery replays e1's Announce, and the same
+    # e0 closes the gap; its delivery replays e1's Add, and the same
     # inbox loop then runs it as a delivery of its own.
-    _deliver(dl, dispatcher, announce_e0)
+    _deliver(dl, dispatcher, add_e0)
 
     assert _stored(dl, [e0, e1]) == [True, True]
     assert dl.inbox_list() == []
-    _assert_archive_is_what_was_delivered(dl, [announce_e1, announce_e0])
+    _assert_archive_is_what_was_delivered(dl, [add_e1, add_e0])
 
 
 @pytest.mark.spec("SYNC-15-005")
@@ -238,14 +241,14 @@ def test_pre_genesis_entries_converge_through_the_replay(dl, dispatcher):
     )
 
     # Both entries arrive before the case is seeded (SYNC-15-004).
-    announces = [_announce_entry(entry) for entry in entries]
-    for body in announces:
+    adds = [_add_entry(entry) for entry in entries]
+    for body in adds:
         _deliver(dl, dispatcher, body)
     assert _stored(dl, entries) == [False, False]
     assert len(held_ledger_announces(dl, _CASE_ID)) == 2
 
     # The CASE_MANAGER's case Announce seeds the case; the seed replays the
-    # genesis entry's Announce, whose own commit replays the next.
+    # genesis entry's Add, whose own commit replays the next.
     seed = _body(
         announce_vulnerability_case_activity(
             case,
@@ -259,7 +262,7 @@ def test_pre_genesis_entries_converge_through_the_replay(dl, dispatcher):
 
     assert dl.read(_CASE_ID) is not None
     assert _stored(dl, entries) == [True, True]
-    _assert_archive_is_what_was_delivered(dl, [*announces, seed])
+    _assert_archive_is_what_was_delivered(dl, [*adds, seed])
 
 
 _REPORT_RECEIVER = "https://example.org/actors/report-receiver-rp"
@@ -323,8 +326,8 @@ def test_pre_genesis_entries_converge_on_the_report_receivers_introduction(
     )
 
     # The CASE_MANAGER's fan-out arrives before the introduction.
-    announces = [_announce_entry(entry) for entry in entries]
-    for body in announces:
+    adds = [_add_entry(entry) for entry in entries]
+    for body in adds:
         _deliver(dl, dispatcher, body)
     assert _stored(dl, entries) == [False, False]
     assert len(held_ledger_announces(dl, _CASE_ID)) == 2
@@ -338,4 +341,4 @@ def test_pre_genesis_entries_converge_on_the_report_receivers_introduction(
 
     assert dl.read(_CASE_ID) is not None
     assert _stored(dl, entries) == [True, True]
-    _assert_archive_is_what_was_delivered(dl, [*announces, introduction])
+    _assert_archive_is_what_was_delivered(dl, [*adds, introduction])

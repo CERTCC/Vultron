@@ -25,14 +25,6 @@ empty, and the close guard refuses a pull request that closes an owner still
 cited here (ARCH-18-012).
 """
 
-# owner: #6410
-KNOWN_EMBARGO_POLICY_TERM_VIOLATIONS = frozenset(
-    {
-        "EmbargoPolicy.actorId: VM-10-007",
-        "EmbargoPolicy.notes: VM-10-007",
-    }
-)
-
 # owner: #6411
 KNOWN_LEDGER_ENTRY_TERM_VIOLATIONS = frozenset(
     {"CaseLedgerEntry.caseId: VM-10-007"}
@@ -41,11 +33,6 @@ KNOWN_LEDGER_ENTRY_TERM_VIOLATIONS = frozenset(
 # owner: #6413
 KNOWN_ITEM_TITLE_TERM_VIOLATIONS = frozenset(
     {"VulnerabilityItem.title: VM-10-007"}
-)
-
-# owner: #6415
-KNOWN_PARTICIPANT_TERM_VIOLATIONS = frozenset(
-    {"CaseParticipant.participantCaseName: VM-10-007"}
 )
 
 # owner: #6416

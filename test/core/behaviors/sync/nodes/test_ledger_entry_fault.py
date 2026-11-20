@@ -120,7 +120,7 @@ def test_a_sender_that_is_not_the_case_manager_is_not_answered(
 
     Either the case names another CASE_MANAGER, or this store holds no case
     and no bootstrap record naming one, the window in which the announce
-    tree's sender guard lets the ``Announce`` through.
+    tree's sender guard lets the ``Add`` through.
     """
     dl = (
         managed

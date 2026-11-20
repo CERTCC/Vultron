@@ -39,7 +39,6 @@ only core models (ARCH-22-001).
 import hashlib
 import json
 import logging
-import re
 from collections.abc import Iterator, Sequence
 from datetime import datetime
 from typing import TypeGuard
@@ -64,8 +63,9 @@ from vultron.core.models.report_claims import (
     csaf_document_text,
 )
 from vultron.core.models.vulnerability_item import (
-    CVE_ID_PATTERN,
     NoteCategory,
+    is_cve_id,
+    is_malformed_cve_entry,
 )
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
 
@@ -85,7 +85,6 @@ _SSVC_EXPLOITATION_KEY = "E"
 _SUMMARY_NOTE_CATEGORIES = ("summary", "description")
 
 _AWARE_DATETIME: TypeAdapter[datetime] = TypeAdapter(AwareDatetime)
-_CVE_ID = re.compile(CVE_ID_PATTERN)
 _NOTE_CATEGORIES = frozenset(category.value for category in NoteCategory)
 
 
@@ -513,7 +512,7 @@ class _FieldReader:
         cve = self._text(vul, "cve", path)
         if cve is None:
             return None
-        if _CVE_ID.fullmatch(cve) is None:
+        if not is_cve_id(cve):
             self._skip(f"{path}.cve", "not a CVE ID (CM-05-019)")
             return None
         return cve
@@ -524,7 +523,8 @@ class _FieldReader:
         """The vulnerability's tracking IDs, each once, in document order.
 
         An entry needs both its ``system_name`` and its ``text``; one that
-        lacks either is skipped.  Neither value is parsed (CM-05-008).
+        lacks either is skipped.  Neither value is parsed (CM-05-008), but a
+        ``CVE`` entry whose text is not a CVE ID is skipped (CM-05-019).
         """
         ids: list[ClaimedVulnerabilityId] = []
         for here, item in self._items(vul, "ids", path):
@@ -534,6 +534,9 @@ class _FieldReader:
                 self._skip_missing(
                     here, item, ("system_name", "text"), "an id"
                 )
+                continue
+            if is_malformed_cve_entry(system_name, text):
+                self._skip(f"{here}.text", "not a CVE ID (CM-05-019)")
                 continue
             ids.append(
                 ClaimedVulnerabilityId(system_name=system_name, text=text)

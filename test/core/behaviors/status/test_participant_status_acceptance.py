@@ -15,10 +15,10 @@
 
 """Whole accept or reject of a received ParticipantStatus (RSH-09, ADR-0107).
 
-An inbound ``Add(ParticipantStatus)[target=CaseParticipant]`` states the sender's whole
-status.  The CASE_MANAGER records it exactly as received, or refuses all of it
-and tells the sender every reason; it never records a status nobody sent.  This
-replaced the per-dimension partial accept of RSH-05 (#3741).
+An inbound ``Add(ParticipantStatus, target=<participant>/statuses)`` states the
+sender's whole status. The CASE_MANAGER records it exactly as received, or
+refuses all of it and tells the sender every reason; it never records a status
+nobody sent. This replaced the per-dimension partial accept of RSH-05 (#3741).
 
 Per specs/received-status-handling.yaml RSH-09.
 """
@@ -78,7 +78,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
@@ -88,8 +88,8 @@ from vultron.core.use_cases.received.status import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
+    add_log_entry_activity,
     add_status_to_participant_activity,
-    announce_log_entry_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -261,7 +261,7 @@ def _run_tree(
     """
     activity = add_status_to_participant_activity(
         status=asserted,
-        target=make(
+        participant=make(
             as_CaseParticipant,
             id_=PARTICIPANT_ID,
             context=CASE_ID,
@@ -1058,6 +1058,7 @@ def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
             object_id="https://example.org/activities/add-status-2235",
             semantic_type="add_participant_status_to_participant",
             payload_snapshot={
+                "id": "https://example.org/activities/add-status-2235",
                 "object": {
                     "id": ASSERTED_STATUS_ID,
                     "type": "ParticipantStatus",
@@ -1066,7 +1067,9 @@ def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
                     "rmState": rm_state,
                     "vfState": vf_state,
                 },
-                "target": {"id": PARTICIPANT_ID},
+                # The participant's status history (ADR-0204).
+                "target": f"{PARTICIPANT_ID}/statuses",
+                "context": CASE_ID,
             },
             prev_log_hash=_ZERO_HASH,
             received_at=ACT_AT,
@@ -1076,14 +1079,14 @@ def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
 
 def _announce_event(
     entry: CaseLedgerEntry,
-) -> AnnounceLogEntryReceivedEvent:
+) -> AddLogEntryReceivedEvent:
     wire_entry = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
-    activity = announce_log_entry_activity(
+    activity = add_log_entry_activity(
         entry=wire_entry, actor=CASE_MANAGER_ID, at=authored_at()
     )
-    return cast(AnnounceLogEntryReceivedEvent, received_event(activity))
+    return cast(AddLogEntryReceivedEvent, received_event(activity))
 
 
 class TestLedgerApplyCopiesTheStatus:

@@ -23,8 +23,8 @@ from pydantic import Field, field_serializer, field_validator
 
 from vultron.core.models.base import (
     CoreObject,
-    NonEmptyString,
     PropertyValueKind,
+    UriString,
     vultron_property,
 )
 
@@ -82,18 +82,22 @@ class EmbargoPolicy(CoreObject):
     inviting an actor to a case.
 
     Fields:
-        actor_id: Full URI of the Actor to which the policy applies (required).
-        inbox: URL of the Actor's ActivityPub inbox (required).
+        attributed_to: Full URI of the Actor to which the policy applies
+            (required; AS2 ``attributedTo``, EP-01-002, EP-01-005).  The
+            policy carries no ``inbox``: AS2 defines it for actors only, so a
+            coordinator reads the inbox from the profile ``attributedTo``
+            names (ADR-0194).
         preferred_duration: Preferred embargo duration as a
             :class:`~datetime.timedelta` (required).
         minimum_duration: Minimum acceptable duration; the Actor SHOULD reject
             embargoes shorter than this value (optional).
         maximum_duration: Maximum acceptable duration; the Actor SHOULD reject
             embargoes longer than this value (optional).
-        notes: Free-text description of the Actor's embargo preferences
-            (optional).
+        content: Free-text description of the Actor's embargo preferences
+            (optional; AS2 ``content``, inherited from
+            :class:`~vultron.core.models.base.CoreObject`, EP-01-003).
 
-    Per specs/embargo-policy.yaml EP-01-001 through EP-01-004 and
+    Per specs/embargo-policy.yaml EP-01-001 through EP-01-005 and
     specs/duration.yaml DUR-01-001, DUR-05-001, DUR-05-002.
     """
 
@@ -107,13 +111,11 @@ class EmbargoPolicy(CoreObject):
         serialization_alias="type",
     )
 
-    actor_id: NonEmptyString = Field(
+    # Narrowed from the AS2 base's optional ``attributedTo``: a policy names
+    # the actor whose terms it states, by full URI (EP-01-002, EP-01-005).
+    attributed_to: UriString = Field(
         ...,
         description="Full URI of the Actor to which this policy applies",
-    )
-    inbox: NonEmptyString = Field(
-        ...,
-        description="URL of the Actor's ActivityPub inbox",
     )
     preferred_duration: timedelta = Field(
         ...,
@@ -144,10 +146,6 @@ class EmbargoPolicy(CoreObject):
             ),
             PropertyValueKind.PLAIN,
         ),
-    )
-    notes: NonEmptyString | None = Field(
-        default=None,
-        description="Free-text description of the Actor's embargo preferences",
     )
 
     @classmethod

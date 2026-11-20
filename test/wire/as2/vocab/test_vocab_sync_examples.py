@@ -15,18 +15,18 @@ import unittest
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Announce,
+    as_Add,
     as_Reject,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
 
 class TestVocabSyncExamples(unittest.TestCase):
-    def test_announce_case_ledger_entry(self):
-        activity = examples.announce_case_ledger_entry()
+    def test_add_case_ledger_entry(self):
+        activity = examples.add_case_ledger_entry()
         self.assertIsInstance(activity, as_Activity)
-        self.assertIsInstance(activity, as_Announce)
-        self.assertEqual(activity.type_, "Announce")
+        self.assertIsInstance(activity, as_Add)
+        self.assertEqual(activity.type_, "Add")
         self.assertIsInstance(activity.object_, as_CaseLedgerEntry)
         self.assertTrue(activity.actor)
 

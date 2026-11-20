@@ -20,6 +20,12 @@ from typing import ClassVar
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
@@ -80,12 +86,16 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
     replica, which takes the ownership change from the CASE_MANAGER alone
     (PCR-03-001).
 
-    The check that the CASE_MANAGER's own ``Announce(CaseLedgerEntry)``, echoed
+    The check that the CASE_MANAGER's own ``Add(CaseLedgerEntry)``, echoed
     back to it, came from itself is this check too: the identity compared is
     the one :func:`resolve_case_manager_id` resolves for the case (#4437).
 
-    Reads ``activity`` from the blackboard via INPUT_PORTS; the sender is its
-    ``actor_id`` unless ``sender_actor_id`` names it.
+    Reads ``activity`` from the blackboard via INPUT_PORTS.  The case is
+    read from ``/case_id``, and the sender from ``/sender_id``, when they
+    are seeded (BTND-01-008): the composed guard seeds both with the values
+    every other kind checks (HP-01-025).  For a ledger-entry activity,
+    which seeds neither, the case is the one the entry the activity carries
+    names, and the sender is the activity's ``actor_id``.
 
     Merged from ``VerifySenderIsCaseActorNode`` (ADR-0115, AC-2).
 
@@ -99,23 +109,19 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
         "activity": PortInformation(data_type=object, required=True),
+        **act_key_ports(CASE_ID, SENDER_ID),
     }
 
     def __init__(
         self,
-        case_id: str | None = None,
         name: str | None = None,
         *,
         anchored: bool = False,
         required: bool = False,
-        sender_actor_id: str | None = None,
     ) -> None:
         """Create the guard.
 
         Args:
-            case_id: The case whose CASE_MANAGER the sender must be.
-                Leave ``None`` for a ledger-entry activity, where the case is
-                read from the entry the activity carries.
             name: Optional node name.
             anchored: Match the sender against the CASE_MANAGER the
                 receiver's bootstrap recorded on a completed
@@ -124,15 +130,12 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
                 stub Invite's trust anchor names one (PCR-03-004).
             required: Refuse, rather than pass through, when this store holds
                 no case or the case names no CASE_MANAGER.
-            sender_actor_id: The sender to check.  ``None`` reads it from the
-                blackboard activity's ``actor_id``; the composed guard passes
-                the sender every other kind checks (HP-01-025).
         """
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
         self._anchored = anchored
         self._required = required
-        self._sender_actor_id = sender_actor_id
+        self._case_id: str | None = None
+        self._sender_actor_id: str | None = None
 
     def _recorded_anchor(self, case_id: str) -> str | None:
         """The CASE_MANAGER recorded when the receiver got the stub Invite.
@@ -176,11 +179,16 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
+        return {
+            "activity": "/activity",
+            **act_key_remappings(CASE_ID, SENDER_ID),
+        }
 
     def initialise(self) -> None:
         super().initialise()
         self.activity = self.get_input("activity")
+        self._case_id = optional_act_value(self, CASE_ID, str)
+        self._sender_actor_id = optional_act_value(self, SENDER_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

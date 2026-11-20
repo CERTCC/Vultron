@@ -1,0 +1,260 @@
+#!/usr/bin/env python
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Received use case for an announced case-ledger entry (LedgerFanout).
+
+The replica accepts the entry onto its chain, buffers it out of order, or
+rejects it with a hash-chain ``Reject`` (SYNC-02-003, SYNC-03-001 through
+SYNC-03-003).
+"""
+
+import logging
+from typing import ClassVar
+
+import py_trees
+
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    door_refusal,
+    node_succeeded,
+    received_path,
+    run_received_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlementKind,
+    SenderRule,
+)
+from vultron.core.behaviors.sender_guard import sender_guard_refused
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
+)
+from vultron.core.behaviors.sync.nodes import (
+    BufferOutOfOrderEntryNode,
+    BufferPreGenesisEntryNode,
+    CheckLedgerEntryAlreadyStoredNode,
+)
+from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
+    ApplyEmbargoChangeFromLedgerNode,
+)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.events.sync import (
+    AddLogEntryReceivedEvent,
+)
+from vultron.core.models.pending_assertion import (
+    PendingAssertionStore,
+    get_pending_assertion_store,
+)
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.inbox_replay import InboxReplayPort
+from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.ports.wire_render import WireRenderPort
+
+logger = logging.getLogger(__name__)
+
+
+def _announce_reading(entry: CaseLedgerEntry, sender_id: str) -> OutcomeReader:
+    """Classify a finished ``AddLogEntryReceivedBT`` run (HP-01-003).
+
+    A held entry is ``DEFERRED`` and a sender that is not the CASE_MANAGER
+    is refused with the entry named; an own announcement echoed back, and an
+    entry already stored, are ``SKIPPED``.  An entry the chain refuses (its
+    hash, its case position, a tail it does not extend, a case not seeded
+    here) is refused by the node that refused it, which declares the reason
+    (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`).  The
+    reading captures only the announced entry and its sender's id, never the
+    request.
+    """
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        tree = outcome.tree
+        if not outcome.succeeded:
+            return _held_or_not_manager(tree, sender_id, entry)
+        # Past the sender guard, an announcement the CASE_MANAGER admits is
+        # its own (SYNC-13-006).
+        if received_path(tree) is ReceivedPath.CASE_MANAGER:
+            return HandlerResult.skipped(
+                f"own announcement of ledger entry '{entry.id_}' echoed back;"
+                " delivery confirmed"
+            )
+        if node_succeeded(tree, CheckLedgerEntryAlreadyStoredNode):
+            return HandlerResult.skipped(
+                f"ledger entry '{entry.id_}' already stored"
+            )
+        return None
+
+    return read
+
+
+def _held_or_not_manager(
+    tree: py_trees.behaviour.Behaviour,
+    sender_id: str,
+    entry: CaseLedgerEntry,
+) -> HandlerResult | None:
+    """A failed run's hold or sender refusal, or ``None`` for the runner.
+
+    A hold is read off a node that succeeded inside the failed run, which
+    no node declaration expresses, so it stays here; the refusals the
+    entry's own checks declare are the runner's.
+    """
+    if node_succeeded(tree, BufferOutOfOrderEntryNode):
+        return HandlerResult.deferred(
+            f"ledger entry '{entry.id_}' (log_index={entry.log_index})"
+            " held in its Add until its predecessor arrives"
+            " (SYNC-14-001)"
+        )
+    if any(
+        isinstance(node, ApplyEmbargoChangeFromLedgerNode)
+        and node.refused_into_gap
+        for node in tree.iterate()
+    ):
+        return HandlerResult.deferred(
+            f"ledger entry '{entry.id_}' does not apply to this replica's"
+            f" case '{entry.case_id}'; its Add is held, never patched"
+            " over (ADR-0124)"
+        )
+    if node_succeeded(tree, BufferPreGenesisEntryNode):
+        return HandlerResult.deferred(
+            f"ledger entry '{entry.id_}' held in its Add until case"
+            f" '{entry.case_id}' is seeded (SYNC-15-004)"
+        )
+    if sender_guard_refused(tree):
+        return HandlerResult.refused(
+            f"sender '{sender_id}' is not the CASE_MANAGER of case"
+            f" '{entry.case_id}', so its announcement of ledger entry"
+            f" '{entry.id_}' is not accepted (SYNC-13-006, HP-01-006)"
+        )
+    return None
+
+
+class AddLedgerEntryReceivedUseCase:
+    """Process a received ``Add(CaseLedgerEntry)`` activity.
+
+    Refuses an entry whose content does not reproduce its own hash
+    (SYNC-03-006) and reports it to the CASE_MANAGER with a
+    ``LedgerEntryRefused/HashMismatch`` fault (SYNC-03-007), then validates
+    the incoming entry against the local hash-chain tail and persists it if
+    the chain is consistent.  On mismatch, sends a
+    ``Reject(CaseLedgerEntry)`` back to the CaseActor carrying the local
+    tail hash (SYNC-03-001).  An entry that extends the chain but does not
+    apply to this replica's case is held and reported with a
+    ``LedgerEntryRefused/CaseDiverged`` fault (SYNC-16-001).
+
+    When *pending_assertions* is provided (or resolved from the per-actor
+    registry), clears the matching pending assertion on receipt so that
+    future emits for the same ``(case_id, semantic_type, log_object_id)``
+    triple are no longer suppressed (SYNC-11-003).
+
+    Out-of-order delivery is tolerated: the received ``Add`` of an entry
+    whose predecessor has not yet arrived is held as it was received
+    (:mod:`~vultron.core.services.held_ledger_announces`) rather than
+    dropped.  Once the entry that closes the gap is committed, the tree
+    replays that held ``Add`` through this actor's inbox via the
+    injected :class:`~vultron.core.ports.inbox_replay.InboxReplayPort`, as a
+    delivery of its own; that delivery's tree replays the next one.  Nothing
+    is rebuilt or attributed to a sender who did not send it.  This makes
+    convergence independent of ``Add`` delivery order (issue #1556,
+    SYNC-10-004) while each delivery still runs exactly one tree
+    (SYNC-14-009, CLP-10-005).
+
+    Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-10-004,
+    SYNC-11-003, SYNC-12-001, SYNC-14-009.
+    """
+
+    # The tree declares the no-case path for the pre-genesis window
+    # (SYNC-15-001), which reads the outside-case side (HP-01-036): the
+    # announcing CASE_MANAGER is the sender there too.
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.on_every_path(
+        SenderEntitlementKind.CASE_MANAGER
+    )
+
+    def __init__(
+        self,
+        dl: CaseOutboxPersistence,
+        request: AddLogEntryReceivedEvent,
+        sync_port: SyncActivityPort | None = None,
+        pending_assertions: PendingAssertionStore | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        inbox_replay: InboxReplayPort | None = None,
+    ) -> None:
+        self._dl = dl
+        self._inbox_replay = inbox_replay
+        # Builds the replica's fault about an entry it refuses (RSH-09-013,
+        # SYNC-03-007, SYNC-16-001).
+        self._trigger_activity = trigger_activity
+        self._wire_render_port = wire_render_port
+        self._request = request
+        self._sync_port = sync_port
+        self._pending_assertions = pending_assertions
+
+    def execute(self) -> HandlerResult:
+        request = self._request
+        entry = request.log_entry
+
+        logger.info(
+            "sync: received log-entry announcement '%s' for case '%s' "
+            "from actor '%s' (log_index=%d)",
+            request.activity_id,
+            entry.case_id,
+            request.actor_id,
+            entry.log_index,
+        )
+        # The tree replays a held successor's ``Add`` through the inbox
+        # via *inbox_replay* rather than running it here (SYNC-14-009), and
+        # builds the replica's fault about a refused entry through the
+        # trigger port (RSH-09-006, SYNC-03-007, SYNC-16-001).
+        tree = create_add_log_entry_tree(sender_rule=self.sender_entitlement)
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="AddLogEntryReceivedBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            reader=_announce_reading(entry, request.actor_id),
+            inbox_replay=self._inbox_replay,
+        )
+        if verdict.disposition is HandlerDisposition.DEFERRED:
+            logger.info(
+                "sync: deferred log-entry announcement '%s': %s",
+                request.activity_id,
+                verdict.reason,
+            )
+        # A copy the door guards refused (an unaddressed one, HP-01-005, or a
+        # closed case, CM-23-013) acts on nothing: the pending assertion it
+        # does not confirm stays pending.
+        if door_refusal(tree) is not None:
+            return verdict
+
+        # Clear pending assertion for this entry whatever the tree decided
+        # past its door guards (SYNC-11-003): a canonical ledger entry
+        # confirms the assertion has been processed by the log authority.
+        store = self._pending_assertions
+        if store is None and request.receiving_actor_id:
+            store = get_pending_assertion_store(request.receiving_actor_id)
+        if store is not None:
+            store.clear(
+                entry.case_id,
+                entry.semantic_type,
+                entry.log_object_id,
+            )
+        return verdict

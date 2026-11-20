@@ -64,12 +64,12 @@ _FACTORY = "vultron/core/behaviors/case/receive_stages/decisions.py"
 # permanent: SYNC-18-007 (each entry is a recorded exemption decision)
 LEDGER_POSITION_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
-        # A Read(CaseLedgerEntry) is a position statement; its own tree
+        # A Read(<case>/ledger) is a position statement; its own tree
         # answers it, and a split one with nothing sent (SYNC-17-005).
         (
             "STATED_POSITION_ANSWERED_BY_TREE",
             "vultron/core/behaviors/sync/read_tree.py",
-            "create_read_log_entry_tree",
+            "create_read_ledger_tree",
         ),
     }
 )
@@ -153,7 +153,8 @@ def test_the_answer_follows_the_door_guards() -> None:
                 continue
             placed += 1
             index = names.index(LEDGER_POSITION_GATE_NAME)
-            doors = len(received.door_guards)
+            # A lookup ahead of the doors is no door (BT-25-009).
+            doors = len(received.door_guards) + len(received.input_stages)
             if index != doors + 1 or not isinstance(
                 received.children[index - 1], IntakeReceivedActivityNode
             ):

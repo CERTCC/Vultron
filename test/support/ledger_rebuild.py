@@ -72,7 +72,7 @@ from vultron.core.services.sender_sequence_order import (
     queue_due_sender_sequence_replays,
 )
 from vultron.semantic_registry import use_case_map
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import add_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -84,15 +84,16 @@ _CREATION_RECORDS: Mapping[str, tuple[str, type[CoreObject]]] = {
     "create_case": ("object", VulnerabilityCase),
     "add_report_to_case": ("object", VulnerabilityReport),
     "create_case_participant": ("object", CaseParticipant),
-    "add_participant_status_to_participant": ("target", CaseParticipant),
     "add_case_status_to_case": ("object", CaseStatus),
 }
 
 #: Creation entries the replay stores rather than the seed, so a rebuild
 #: drives each one through its replica slot (``ApplyCreatedEmbargoFromLedgerNode``
-#: for ``create_embargo_event``, #5122).
+#: for ``create_embargo_event``, #5122).  A participant status entry names its
+#: participant's status history, not the record (ADR-0204): the record comes
+#: from its ``create_case_participant`` entry and the replay appends the status.
 _REPLAYED_CREATION_ENTRIES: frozenset[str] = frozenset(
-    {"create_embargo_event"}
+    {"create_embargo_event", "add_participant_status_to_participant"}
 )
 
 
@@ -102,7 +103,7 @@ def run_use_case(
     """Run the use case for an extracted *event* against *dl*.
 
     It is composed with the ports it accepts, as the inbox composes it, minus
-    the ones named in *without*.  Then delivers each held ``Announce`` the
+    the ones named in *without*.  Then delivers each held ``Add`` the
     run replayed through the receiver's own inbox (SYNC-14-009), oldest
     first, as the inbox loop does after a delivery.  Each run first queues
     the held activities it made due, as the inbox's dispatch does
@@ -238,7 +239,7 @@ def rebuild_from_ledger(
     The store belongs to *as_actor*, a participant that is not the
     CASE_MANAGER.  It is seeded with *seed* when given (a ledger that starts on
     a case built outside it), otherwise with :func:`creation_records`.  Every
-    entry is then delivered as the CASE_MANAGER's ``Announce(CaseLedgerEntry)``
+    entry is then delivered as the CASE_MANAGER's ``Add(CaseLedgerEntry)``
     and must be applied; an entry the replica defers or refuses fails the
     rebuild, naming the entry.
     """
@@ -278,7 +279,7 @@ def _replay(
         wire_entry = as_CaseLedgerEntry.model_validate(
             with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
         )
-        announce = announce_log_entry_activity(
+        announce = add_log_entry_activity(
             entry=wire_entry, actor=manager_id, to=[as_actor], at=authored_at()
         )
         # Built here, not read from an outbox, so signed here (SIG-01-001).

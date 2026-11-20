@@ -64,7 +64,10 @@ parser, which is why the refusal exists. The shape is the test (ADR-0198): exact
 `id` and `type`, with or without `preview`, is a typed reference; any other key
 makes a whole object, validated in full and never completed by a default that
 creates state (#5265). A `preview` is refused unless it is its type's preview, and
-only the case has one: the stub, carried inline (MV-10-012, ADR-0205).
+only the case has one: the stub, carried inline (MV-10-012, ADR-0205). Inside the
+stub the rule differs: what a preview shows is read as its sender sent it, each
+nested object in a loose form of its class, so a cut-down object there is not
+refused (MV-12-006, [selective-disclosure.md](selective-disclosure.md)).
 
 ## Receiving a Stub
 

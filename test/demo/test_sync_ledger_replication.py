@@ -61,7 +61,7 @@ from vultron.demo.in_process import (
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
-    announce_log_entry_activity,
+    add_log_entry_activity,
     reject_log_entry_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -258,7 +258,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     payload = response.json()
 
     entry_id = payload["log_entry_id"]
-    # `peer_dl` above, not the app's default-slug `dl`: the Announce was delivered
+    # `peer_dl` above, not the app's default-slug `dl`: the Add was delivered
     # to `peer_actor_id`, so that is the replica that received the entry.
     peer_entry = peer_dl.read(entry_id)
     assert peer_entry is not None, (
@@ -367,7 +367,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     wire_entry2 = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry2.model_dump(mode="json"))
     )
-    out_of_chain_announce = announce_log_entry_activity(
+    out_of_chain_announce = add_log_entry_activity(
         entry=wire_entry2,
         actor=case_actor_id,
         to=[peer_actor_id],
@@ -452,9 +452,9 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
 def test_sync_duplicate_delivery_idempotency(
     two_app_setup, monkeypatch
 ) -> None:
-    """Duplicate delivery of Announce(CaseLedgerEntry) must produce one replica.
+    """Duplicate delivery of Add(CaseLedgerEntry) must produce one replica.
 
-    Delivers the same ``Announce(CaseLedgerEntry)`` twice to the peer actor
+    Delivers the same ``Add(CaseLedgerEntry)`` twice to the peer actor
     and verifies the peer replica contains exactly one copy of the entry
     (SYNC-03-003: replication MUST be idempotent; repeated delivery MUST NOT
     produce duplicate entries).
@@ -503,7 +503,7 @@ def test_sync_duplicate_delivery_idempotency(
     case.actor_participant_index[peer_actor_id] = peer_participant.id_
 
     # Peer needs the case and participants in its DataLayer to process inbound
-    # Announce(CaseLedgerEntry) as a participant, not as the CaseActor.
+    # Add(CaseLedgerEntry) as a participant, not as the CaseActor.
     peer_dl.save(case_actor_participant)
     peer_dl.save(peer_participant)
     peer_dl.save(case)
@@ -524,14 +524,14 @@ def test_sync_duplicate_delivery_idempotency(
     wire_entry = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
-    announce = announce_log_entry_activity(
+    announce = add_log_entry_activity(
         entry=wire_entry,
         actor=case_actor_id,
         to=[peer_actor_id],
         at=authored_at(),
     )
 
-    # Deliver the same Announce(CaseLedgerEntry) twice.
+    # Deliver the same Add(CaseLedgerEntry) twice.
     for _ in range(2):
         handle_inbox_item(
             actor_id=peer_actor_id,
@@ -564,12 +564,12 @@ def test_sync_duplicate_delivery_idempotency(
 def test_lost_last_entry_is_recovered_by_a_position_statement(
     two_app_setup,
 ) -> None:
-    """A dropped last Announce is recovered by the participant's own Read.
+    """A dropped last Add is recovered by the participant's own Read.
 
     The CASE_MANAGER holds three entries; the peer's replica received only
     the first two, and nothing further is committed, so no later entry
     arrives with a gap and the peer sends no ``Reject``.  Its
-    ``Read(CaseLedgerEntry)``, delivered through the CASE_MANAGER's inbox,
+    ``Read(<case>/ledger)``, delivered through the CASE_MANAGER's inbox,
     records its position and replays the lost entry, so the peer's tail
     reaches the CASE_MANAGER's (ADR-0155).
     """
@@ -624,7 +624,7 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
     )
     for entry in (entry0, entry1, entry2):
         case_actor_dl.save(entry)
-    # The peer's replica: the Announce of entry2 was lost (SYNC-16-005).
+    # The peer's replica: the Add of entry2 was lost (SYNC-16-005).
     peer_dl.save(
         case.model_copy(
             update={

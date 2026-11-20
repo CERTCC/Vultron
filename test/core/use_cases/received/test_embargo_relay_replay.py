@@ -16,7 +16,7 @@ Each actor has its own store (TB-06-007).  An activity crosses from one store
 to another only as the sealed body the sender's outbox would deliver, parsed
 and routed the way the inbox routes it.  A replica that never receives the
 proposal or the owner's answer directly still reaches the CASE_MANAGER's
-state, from the ``Announce(CaseLedgerEntry)`` broadcast alone (RSH-08-004,
+state, from the ``Add(CaseLedgerEntry)`` broadcast alone (RSH-08-004,
 ADR-0108, ADR-0113).
 """
 
@@ -80,6 +80,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._ledger_network import (
+    BROADCAST,
     BYSTANDER,
     MANAGER,
     OWNER,
@@ -143,7 +144,7 @@ def _owner_answers(net: _Network, embargo_id: str) -> None:
 
 def _replay_to_bystander(net: _Network) -> None:
     """The bystander receives the CASE_MANAGER's ledger broadcast only."""
-    delivered = net.deliver(MANAGER, to=BYSTANDER, type_="Announce")
+    delivered = net.deliver(MANAGER, to=BYSTANDER, type_=BROADCAST)
     assert delivered, "the CASE_MANAGER broadcast no ledger entry"
     for type_, verdict in delivered:
         assert verdict.disposition is HandlerDisposition.APPLIED, (
@@ -241,7 +242,7 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
 
     rejections = [
         activity
-        for activity in net.queued(MANAGER, to=OWNER, type_="Announce")
+        for activity in net.queued(MANAGER, to=OWNER, type_=BROADCAST)
         if (read_sealed_body_dict(net.stores[MANAGER], activity.id_) or {})
         .get("object", {})
         .get("semanticType")
@@ -249,7 +250,7 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
     ]
     assert len(rejections) == 1, "the Reject commit was not fanned out"
     # In chain order, so the Reject entry finds its predecessors (SYNC-14-001).
-    delivered = net.deliver(MANAGER, to=OWNER, type_="Announce")
+    delivered = net.deliver(MANAGER, to=OWNER, type_=BROADCAST)
     assert len(delivered) >= 2
     for type_, replayed in delivered:
         assert replayed.disposition is HandlerDisposition.APPLIED, (
@@ -796,7 +797,7 @@ def test_a_replica_follows_the_managing_owners_revision_by_trigger():
     """The owner is the CASE_MANAGER and decides by trigger (#4085).
 
     Its revision and its own acceptance are committed as ledger entries, so a
-    replica that receives nothing but the ``Announce(CaseLedgerEntry)``
+    replica that receives nothing but the ``Add(CaseLedgerEntry)``
     fan-out converges ``ACTIVE → REVISE → ACTIVE`` with it.  The revision is
     shorter than the initial terms, so the bystander stays a signatory
     (ADR-0093) and its stream is not paused (CM-10-005).
@@ -847,7 +848,7 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
     bystander lapses (derived, ADR-0093, ADR-0122).  The activation's own
     entry, committed before the activation is applied, is the last it is
     sent: the content gate then withholds every later
-    ``Announce(CaseLedgerEntry)`` from it (CM-10-005), while its relayed
+    ``Add(CaseLedgerEntry)`` from it (CM-10-005), while its relayed
     Invite, which is embargo meta-protocol traffic, still reaches it
     directly.  Once it accepts, the paused stream is backfilled in log order
     and its replica converges on the new terms (CM-10-006).
@@ -873,7 +874,7 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
     # CLP-07-013), as on the received path, so its entry reaches the
     # bystander while it is still a signatory of the prior terms; nothing
     # after it does.
-    ((_type, applied),) = net.deliver(MANAGER, to=BYSTANDER, type_="Announce")
+    ((_type, applied),) = net.deliver(MANAGER, to=BYSTANDER, type_=BROADCAST)
     assert applied.disposition is HandlerDisposition.APPLIED, applied.reason
     assert net.case(BYSTANDER).active_embargo_id == revision_id
     (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")

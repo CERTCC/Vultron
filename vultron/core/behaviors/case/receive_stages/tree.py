@@ -85,11 +85,17 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
         refusal_notice_exemption: RefusalNoticeExemption | None = None,
         one_act_exemption: OneActExemption | None = None,
         nested: bool = False,
+        input_stages: Sequence[py_trees.behaviour.Behaviour] = (),
     ) -> None:
         super().__init__(name=name, memory=False, children=children)
         self.door_guards: tuple[py_trees.behaviour.Behaviour, ...] = tuple(
             door_guards
         )
+        self.input_stages: tuple[py_trees.behaviour.Behaviour, ...] = tuple(
+            input_stages
+        )
+        """The lookups among the stages ahead of intake that publish the
+        tree's inputs (``case_lookup``, BT-25-009); they are no doors."""
         self.refusal_notice_exemption: RefusalNoticeExemption | None = (
             refusal_notice_exemption
         )

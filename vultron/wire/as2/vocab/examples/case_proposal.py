@@ -74,8 +74,7 @@ def vendor_profile() -> VultronOrganization:
         name=_VENDOR.name,
         embargo_policy=EmbargoPolicy(
             id_=EmbargoPolicy.build_id(_VENDOR.id_),
-            actor_id=_VENDOR.id_,
-            inbox=f"{_VENDOR.id_}/inbox",
+            attributed_to=_VENDOR.id_,
             preferred_duration=timedelta(days=45),
             **_example_stamp(),
         ),

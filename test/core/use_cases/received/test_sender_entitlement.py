@@ -964,7 +964,7 @@ def test_note_removal_by_stranger_is_refused(
             as_Remove,
             actor=_IMPOSTOR_ID,
             object_=note,
-            target=owned_case.id_,
+            origin=owned_case.id_,
             to=[_CASE_MANAGER_ID],
         ),
         at=cm_store,
@@ -1038,7 +1038,7 @@ def test_ledger_reject_from_non_participant_is_refused():
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
-    assert not dl.by_type("Announce")
+    assert not dl.by_type("Add")
     state_id = VultronReplicationState(
         case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID, updated_at=ACT_AT
     ).id_

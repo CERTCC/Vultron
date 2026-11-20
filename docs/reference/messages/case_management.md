@@ -180,6 +180,12 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   The stub names no case of its own: the reference's `id` names the case.
   The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, or when it is given a bare case URI instead of the case, and the receiver refuses a stub with an absent or blank `summary`.
   The receiver reads the reference as it arrived: it does not fetch the case, put its own copy of the case in the reference's place, or seed a replica from the preview ([MV-10-013](../vultron-spec/requirements/messages.md#mv-10-013)).
+  Any value inside the stub may be a `Redacted` marker, `{"type": "Redacted", "summary": "<reason>"}`: the sender has the value but does not show it to the invitee ([MV-12-001](../vultron-spec/requirements/messages.md#mv-12-001), [MV-12-003](../vultron-spec/requirements/messages.md#mv-12-003)).
+  The receiver reads the stub as the sender sent it, including a nested object cut down to a few fields ([MV-12-006](../vultron-spec/requirements/messages.md#mv-12-006)).
+  It decides on the Invite, not on what the stub leaves out.
+  A marker carries no field but `type` and `summary` ([MV-12-005](../vultron-spec/requirements/messages.md#mv-12-005)).
+  The receiver sets aside and reports any other field a received marker carries ([MV-11-003](../specs/project.md#mv-11-003)).
+  It refuses a marker anywhere outside a preview ([MV-12-002](../vultron-spec/requirements/messages.md#mv-12-002)).
   The `preview` of that reference is the only place a stub may appear, wherever the Invite travels inline: in its `Accept` or `Reject`, or in a refusal notice that quotes such a reply ([MV-10-002](../vultron-spec/requirements/messages.md#mv-10-002)).
   The receiver refuses an activity that carries a stub anywhere else, an Invite's `target` and an embargo Invite included.
   The Invite names at least one CVD role for the invitee, and the CASE_MANAGER refuses to send one with an empty role list ([CM-11-019](../vultron-spec/requirements/case-management.md#cm-11-019), [CM-11-048](../vultron-spec/requirements/case-management.md#cm-11-048)).
@@ -286,6 +292,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   It sends the entries in log order, so the participant's copy of the ledger has no gap.
   A participant that is not a signatory to the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and the catch-up waits until it accepts.
 - **Notice:** the CASE_MANAGER also sends the reinstated participant a direct `Add(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
+  Its `inReplyTo` names the Case Owner's `Add`.
   The notice is not ledgered.
 - **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
 
@@ -309,6 +316,7 @@ Only `caseRoles` on the attached object differs.
 - **Ledger:** the Case Owner's received `Remove` is the one ledger entry for the removal.
   Every replica applies the removal from that entry, the removed participant's own included.
 - **Notice:** the CASE_MANAGER then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
+  Its `inReplyTo` names the Case Owner's `Remove`.
   The notice is not ledgered.
 - **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
 - **Example artifact:** [remove_participant_from_case.json](../examples/remove_participant_from_case.json).

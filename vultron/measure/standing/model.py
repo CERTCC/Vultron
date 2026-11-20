@@ -14,17 +14,19 @@
 
 A :class:`StandingRecord` holds, for the case, its EM state and public state
 (:class:`CaseStanding`), and for each participant its report-management
-state and, for a vendor with a case-state sequence, its compound case state
-and that sequence's score (:class:`ParticipantStanding`).  EM is one state
+state and, for a vendor with a case-state sequence, its compound case state,
+that sequence's score and its extended desiderata's score
+(:class:`ParticipantStanding`).  EM is one state
 for the case, derived from its embargo register (ADR-0122); each
 participant stands in it.
 
 Everything that follows from the states is read from them, never stored
 beside them, so it cannot disagree: each desideratum's status is read from
-the score's completions (:class:`DesideratumStanding`), each allowed move
-from the states (:mod:`~vultron.measure.standing.moves`), and each CVD
-action a participant's case state makes possible from the action rules
-(:class:`ActionAdvice`, :mod:`~vultron.core.states.cs_actions`).
+the score, an original one's from the sequence's completions and an extended
+one's from the vendor's walk (:mod:`~vultron.measure.standing.desiderata`),
+each allowed move from the states (:mod:`~vultron.measure.standing.moves`),
+and each CVD action a participant's case state makes possible from the
+action rules (:class:`ActionAdvice`, :mod:`~vultron.core.states.cs_actions`).
 
 A ledger with a hole yields no reading at all, only the
 :class:`StandingGap` that names the hole: a measure over a history with a
@@ -33,7 +35,6 @@ hole is wrong, not imprecise (CEH-02-006).
 
 from __future__ import annotations
 
-from enum import StrEnum
 from fractions import Fraction
 from typing import Annotated
 
@@ -55,12 +56,6 @@ from vultron.core.states.cs_invariants import (
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.measure.baselines import (
-    ORIGINAL,
-    Desideratum,
-    case_state_query,
-    ordered_cs_events,
-)
 from vultron.measure.history import (
     BY_NAME,
     CaseEventHistory,
@@ -69,8 +64,16 @@ from vultron.measure.history import (
 )
 from vultron.measure.ledger import UnusableRow
 from vultron.measure.preferences import PathPreferences
-from vultron.measure.scoring import SequenceScore, met_desiderata
+from vultron.measure.scoring import (
+    ExtendedScore,
+    SequenceScore,
+    UnscoredScope,
+)
 from vultron.measure.sequences import UnprojectableParticipant
+from vultron.measure.standing.desiderata import (
+    DesideratumStanding,
+    desiderata_standing,
+)
 from vultron.measure.standing.moves import (
     CSMove,
     CSName,
@@ -81,82 +84,6 @@ from vultron.measure.standing.moves import (
     rm_moves,
 )
 from vultron.primitives import NonEmptyString
-
-
-class DesideratumStatus(StrEnum):
-    """Whether a vendor's case has met a desideratum (ADR-0190)."""
-
-    #: Every valid completion of the sequence meets it: nothing left can
-    #: break it.
-    MET = "met"
-    #: No valid completion meets it: it is already broken.
-    BROKEN = "broken"
-    #: Some completions meet it and some do not: the moves still to come
-    #: decide it.
-    OPEN = "open"
-    #: It orders an event the case's source cannot observe, so the case
-    #: cannot say whether it is met (CRD-02-005).
-    UNKNOWN = "unknown"
-
-
-class DesideratumStanding(BaseModel):
-    """One original desideratum and whether a vendor's case has met it.
-
-    Fields:
-        notation: The desideratum as the Measuring CVD pages print it.
-        before: The case-state event the desideratum wants first.
-        after: The case-state event it wants after *before*.
-        status: Met, broken, still open, or unknown when it orders an
-            event the source cannot observe.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    notation: NonEmptyString
-    before: CSEvent
-    after: CSEvent
-    status: DesideratumStatus
-
-
-def _status(meeting: int, met_by: list[set[Desideratum]]) -> DesideratumStatus:
-    """Met when every completion meets it, broken when none does, else
-    open."""
-    if meeting == len(met_by):
-        return DesideratumStatus.MET
-    if meeting == 0:
-        return DesideratumStatus.BROKEN
-    return DesideratumStatus.OPEN
-
-
-def desiderata_standing(
-    score: SequenceScore, unobservable: frozenset[CSEvent] = frozenset()
-) -> tuple[DesideratumStanding, ...]:
-    """Each original desideratum's status, read from *score*'s completions.
-
-    A desideratum that orders an event in *unobservable* is unknown: the
-    sequence reads that event as not yet happened, which the source cannot
-    say (CRD-02-005).  Of the rest, one every completion meets is met, one
-    none meets is broken, and any other is open, so the status agrees with
-    the score it is read from.  In the catalog order of
-    :data:`~vultron.measure.baselines.ORIGINAL`.
-    """
-    met_by = [set(met_desiderata(c.history)) for c in score.completions]
-    standings = []
-    for desideratum in ORIGINAL:
-        if ordered_cs_events(desideratum) & unobservable:
-            status = DesideratumStatus.UNKNOWN
-        else:
-            status = _status(sum(desideratum in met for met in met_by), met_by)
-        (ordering,) = case_state_query(desideratum.query).orderings
-        standings.append(
-            DesideratumStanding(
-                notation=desideratum.notation,
-                before=ordering.before,
-                after=ordering.after,
-                status=status,
-            )
-        )
-    return tuple(standings)
 
 
 class CaseStanding(BaseModel):
@@ -192,6 +119,9 @@ class ParticipantStanding(BaseModel):
         score: The score of its case-state sequence, for a vendor with one
             (:func:`~vultron.measure.scoring.score_sequence`).  The prefix
             scored is the history an allowed :class:`CSMove` extends.
+        extended: Its extended desiderata, scored on its one-vendor walk
+            (:func:`~vultron.measure.scoring.vendor_scope`), or why the walk
+            cannot go on from the case; set exactly when *score* is.
         unscored: Why it has no case-state sequence, for every other
             participant (CEH-05-007).  Exactly one of *score* and *unscored*
             is set.
@@ -205,6 +135,7 @@ class ParticipantStanding(BaseModel):
     rm: RM
     case: CaseStanding
     score: SequenceScore | None = None
+    extended: ExtendedScore | UnscoredScope | None = None
     unscored: UnprojectableParticipant | None = None
 
     @model_validator(mode="after")
@@ -213,6 +144,11 @@ class ParticipantStanding(BaseModel):
         if (self.score is None) == (self.unscored is None):
             problems.append(
                 "a participant has either a score or the reason it has none"
+            )
+        if (self.score is None) != (self.extended is None):
+            problems.append(
+                "a scored vendor's extended desiderata are scored with its"
+                " sequence, and an unscored participant has neither"
             )
         if (
             self.unscored is not None
@@ -238,11 +174,13 @@ class ParticipantStanding(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def desiderata(self) -> tuple[DesideratumStanding, ...]:
-        """Each original desideratum met, broken, open or unknown; none
-        unscored."""
-        if self.score is None:
+        """Each desideratum of its scope met, broken, open, unknown or
+        unscored; none for a participant with no score."""
+        if self.score is None or self.extended is None:
             return ()
-        return desiderata_standing(self.score, self.case.unobservable)
+        return desiderata_standing(
+            self.score, self.extended, self.case.unobservable
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -947,9 +947,10 @@ groups:
       A tree MUST declare the no-case path only for a message type the inbox
       delivers without its case being known, so every case-scoped type waits at the
       inbox's defer check instead of being refused at the HP-01-035 stage. A
-      report-scoped verdict built with no case for its report is such a type, and
-      its tree declares the no-case path alone, with a sender rule whose
-      `outside_case` side admits no sender.
+      report-scoped verdict is such a type: its tree finds the report's case at
+      run time (BT-25-009), so a receiver that holds none is on the no-case path.
+      A verdict the CASE_MANAGER applies (InvalidateReport) has a sender rule whose
+      `outside_case` side admits no sender there.
     rationale: >-
       A case-scoped message that arrives before its case is not an error: the inbox
       holds it until the case is known (IO-02-001). Declaring the no-case branch for
@@ -963,9 +964,9 @@ groups:
       `::test_the_type_that_precedes_its_case_declares_the_no_case_branch` asserts
       the Invite tree declares the no-case path and resolves it at an invitee with
       no replica.
-      `test/core/behaviors/test_declared_received_paths.py::test_a_conditional_site_with_no_case_judges_the_outside_case_side`
-      asserts the InvalidateReport tree with no case declares the no-case path
-      alone and composes the empty side, and
+      `test/core/behaviors/test_declared_received_paths.py::test_a_report_verdict_judges_the_outside_case_side_with_no_case`
+      asserts the InvalidateReport tree declares the manager and no-case paths
+      and composes the empty side for the no-case path, and
       `test/core/behaviors/case/test_received_path_stage.py::test_a_no_case_declaration_on_a_run_time_case_must_admit_no_sender`
       asserts the factory refuses that declaration with a side that admits a
       sender.
@@ -977,6 +978,9 @@ groups:
     see_also:
     - spec_id: HP-01-035
       reason: 'a rationale: the refusal the declaration keeps a case-scoped type from'
+    - spec_id: BT-25-009
+      reason: 'an example: how a report-scoped tree learns its case, which puts a
+        receiver without one on the no-case path'
   - id: HP-01-042
     priority: MUST
     kind: architecture
@@ -1455,8 +1459,9 @@ groups:
     kind: project
     statement: >-
       A received `Add(Note)` or `Add(CaseStatus)` whose object's `context` is not
-      the `Add`'s target case, or names no case, MUST be refused before the
-      commit. The object checked is the one the handler would attach: the record
+      the case the `Add` acts on, or names no case, MUST be refused before the
+      commit. That case is a note `Add`'s `target` and a case status `Add`'s
+      `context` (ADR-0204). The object checked is the one the handler would attach: the record
       stored under the object's id when one is held, else the carried copy.
     rationale: >-
       A note or status belongs to one case. If a handler attached an object of a

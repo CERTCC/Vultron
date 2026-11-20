@@ -94,12 +94,12 @@ def _fault_from(
 ) -> HandlerResult:
     """A new case-diverged fault from *sender* naming *announce_id*.
 
-    In production a repeat never names the same ``Announce``: the fault's id
-    is derived from the failed ``Announce`` (ID-04-004), so the inbox would
+    In production a repeat never names the same ``Add``: the fault's id
+    is derived from the failed ``Add`` (ID-04-004), so the inbox would
     drop it as a redelivery, and a repeat arrives only after a replay, which
-    mints a fresh ``Announce`` of the same entry.  The handler reads nothing
-    from the ``Announce`` but the entry it carried, so a fresh fault naming
-    the original ``Announce`` exercises the same path.  *published* is the
+    mints a fresh ``Add`` of the same entry.  The handler reads nothing
+    from the ``Add`` but the entry it carried, so a fresh fault naming
+    the original ``Add`` exercises the same path.  *published* is the
     time the sender claims, when the test pins one.
     """
     activity = create_processing_fault_activity(
@@ -476,7 +476,7 @@ def test_a_divergence_past_the_last_reseed_is_routine(
         [net.planned_consent_entry(change, _CAUSE)],
     )
     newer = net.sealed_bodies(
-        MANAGER, to=BYSTANDER, type_="Announce", object_type="CaseLedgerEntry"
+        MANAGER, to=BYSTANDER, type_="Add", object_type="CaseLedgerEntry"
     )[-1]
     assert newer["object"]["logIndex"] > (
         cast(
@@ -586,14 +586,14 @@ def test_a_fault_naming_an_announce_this_actor_did_not_send_is_refused() -> (
 ):
     """An Announce held here but sent by another actor names no copy this
     actor sent the peer, so it names no case either."""
-    from vultron.wire.as2.factories import announce_log_entry_activity
+    from vultron.wire.as2.factories import add_log_entry_activity
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         as_CaseLedgerEntry,
     )
 
     net, _ = _diverged("reseed-foreign-announce")
     (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
-    foreign = announce_log_entry_activity(
+    foreign = add_log_entry_activity(
         entry=as_CaseLedgerEntry.model_validate(
             with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
         ),

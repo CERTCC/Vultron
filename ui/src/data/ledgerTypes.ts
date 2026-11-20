@@ -227,7 +227,6 @@ export interface CaseParticipant {
   embargoConsents?: Array<EmbargoConsent>
   joined?: boolean
   removalActivity?: string | null
-  participantCaseName?: string | null
 }
 
 export interface EmbargoConsent {
@@ -438,7 +437,6 @@ export const LEDGER_SHAPES = {
       { key: "embargoConsents", required: false, nullable: false, shape: { kind: "array", items: { kind: "ref", type: "EmbargoConsent" } } },
       { key: "joined", required: false, nullable: false, shape: { kind: "boolean" } },
       { key: "removalActivity", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "participantCaseName", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
     ],
   },
   EmbargoConsent: {

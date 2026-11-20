@@ -2,7 +2,7 @@
 
 ## Offer case ownership transfer { #offer-case-ownership-transfer }
 
-Offers the case to the actor named by the target, on the Case Owner's behalf: `attributedTo` names the owner. This is the one offer of the transfer, the one the new owner accepts or rejects. It carries the proposal's `endTime`, if any.
+Offers the case to the actor named by the target, on the Case Owner's behalf: `attributedTo` names the owner and `inReplyTo` the owner's proposal. This is the one offer of the transfer, the one the new owner accepts or rejects. It carries the proposal's `endTime`, if any.
 
 === "Details"
 

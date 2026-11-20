@@ -48,6 +48,7 @@ import py_trees
 from vultron.core.behaviors.call_out.bundles.develop_fix import (
     DEVELOP_FIX_DETERMINISTIC,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
 )
@@ -107,7 +108,7 @@ def create_develop_fix_tree(
         name="_CreateFixForAcceptedReports",
         memory=False,
         children=[
-            CheckRMStateAccepted(case_id=case_id, actor_id=actor_id),
+            with_case_id(CheckRMStateAccepted(), case_id),
             bundle.create_fix_factory("CreateFix"),
             TransitionCStoFixReady(
                 case_id=case_id, actor_id=actor_id, result_out=result_out

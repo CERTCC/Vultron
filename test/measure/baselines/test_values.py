@@ -24,7 +24,6 @@ from vultron.measure.baselines import (
     ONE_VENDOR_MODEL,
     ORIGINAL,
     TWO_VENDOR_MODEL,
-    Desideratum,
     Event,
     EventKind,
     JointModel,
@@ -33,6 +32,7 @@ from vultron.measure.baselines import (
     WalkPrefix,
     baseline,
     desiderata_values,
+    desideratum_by_notation,
     expected_change,
     expected_outcomes,
     outcome_change,
@@ -52,15 +52,10 @@ from vultron.measure.baselines.walk import difference
 _K = EventKind
 
 
-def _desideratum(notation: str) -> Desideratum:
-    (found,) = [d for d in (*ORIGINAL, *EXTENDED) if d.notation == notation]
-    return found
-
-
-_F_BEFORE_P = _desideratum(r"$\evF_i \prec \evP$")
-_V_BEFORE_F_J = _desideratum(r"$\evV_i \prec \evF_j$")
-_V_BEFORE_P = _desideratum(r"$\evV \prec \evP$")
-_E_BEFORE_P = _desideratum(r"$\evE \prec \evP$")
+_F_BEFORE_P = desideratum_by_notation(r"$\evF_i \prec \evP$")
+_V_BEFORE_F_J = desideratum_by_notation(r"$\evV_i \prec \evF_j$")
+_V_BEFORE_P = desideratum_by_notation(r"$\evV \prec \evP$")
+_E_BEFORE_P = desideratum_by_notation(r"$\evE \prec \evP$")
 
 
 def _active_start(
@@ -179,7 +174,7 @@ def test_an_ended_case_has_its_own_outcomes():
     assert values[VendorDesideratum(_V_BEFORE_P, 1)] == 1
     assert values[VendorDesideratum(_F_BEFORE_P, 1)] == 0
     # Scoped to vendors whose report reaches Valid, which this one never did.
-    accepted_first = _desideratum(r"$\evAc_i \prec \evP$")
+    accepted_first = desideratum_by_notation(r"$\evAc_i \prec \evP$")
     assert values[VendorDesideratum(accepted_first, 1)] is None
     assert set(values.values()) <= {0, 1, None}
 
@@ -187,7 +182,7 @@ def test_an_ended_case_has_its_own_outcomes():
 def test_a_change_is_none_where_the_scope_can_no_longer_be_met():
     prefix = _walk(ONE_VENDOR_MODEL, _UNVALIDATED_TO_THE_END[:-1])
     change = expected_change(prefix, Event(_K.D, 1))
-    accepted_first = _desideratum(r"$\evAc_i \prec \evP$")
+    accepted_first = desideratum_by_notation(r"$\evAc_i \prec \evP$")
     assert change[VendorDesideratum(accepted_first, 1)] is None
 
 
@@ -296,7 +291,7 @@ def test_accepting_an_embargo_is_valued_by_the_step_it_takes():
     assert any(value for value in change.values())
 
 
-_VA_BEFORE_P = _desideratum(r"$\evVa_i \prec \evP$")
+_VA_BEFORE_P = desideratum_by_notation(r"$\evVa_i \prec \evP$")
 _INVALID = [Event(_K.V, 1), Event(_K.INVALIDATED, 1)]
 
 

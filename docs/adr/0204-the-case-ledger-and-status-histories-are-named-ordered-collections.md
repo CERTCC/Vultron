@@ -1,8 +1,8 @@
 ---
-status: proposed
+status: accepted-provisional
 date: 2026-11-16
 created: 2026-11-16
-updated: 2026-11-16
+updated: 2026-11-19
 revision: 1
 deciders: Allen D. Householder
 consulted: >-

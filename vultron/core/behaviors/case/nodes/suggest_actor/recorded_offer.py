@@ -57,9 +57,9 @@ class RecordedOfferAnswer:
     """What the CASE_MANAGER recorded about the Offer an answer names.
 
     Attributes:
-        recommendation_id: The original ``Offer(Actor)[target=VulnerabilityCase]``,
-        carried as
-            the answered Offer's ``origin`` (CM-16-004).
+        recommendation_id: The original
+            ``Offer(Actor)[target=VulnerabilityCase]``, named by the answered
+            Offer's ``in_reply_to`` (CM-16-004).
         recommender_id: The participant that made the recommendation, from
             the CASE_MANAGER's :class:`ActorRecommendationRecord`.
         invitee_id: The recommended actor, from the recorded Offer.
@@ -159,21 +159,21 @@ def recorded_recommendation(
 ) -> tuple[str, str]:
     """``(recommendation_id, recommender_id)`` for an answered Offer.
 
-    The answered Offer carries the original ``Offer(Actor)`` id as
-    ``origin`` (CM-16-004), and the recommender is whatever
+    The answered Offer names the original ``Offer(Actor)`` in its
+    ``in_reply_to`` (CM-16-004), and the recommender is whatever
     :class:`ActorRecommendationRecord` this CASE_MANAGER kept for the case
     when that recommendation arrived (case bookkeeping, CLP-07-014).
     CM-16-006/007 step 3 sends the decision to that recommender, so an
-    answer whose Offer names no ``origin``, or an ``origin`` with no such
-    record, has nobody to notify.
+    answer whose Offer names no ``in_reply_to``, or an ``in_reply_to``
+    with no such record, has nobody to notify.
 
     Raises:
-        UnrecordedOfferAnswerError: no ``origin``, or no record of it.
+        UnrecordedOfferAnswerError: no ``in_reply_to``, or no record of it.
     """
-    recommendation_id = _ref_id(getattr(inner_offer, "origin", None))
+    recommendation_id = _ref_id(getattr(inner_offer, "in_reply_to", None))
     if not isinstance(recommendation_id, str) or not recommendation_id:
         raise UnrecordedOfferAnswerError(
-            "no recommendation (its inner Offer has no origin)"
+            "no recommendation (its inner Offer has no inReplyTo)"
         )
     record = dl.read(
         ActorRecommendationRecord.build_id(case_id, recommendation_id)

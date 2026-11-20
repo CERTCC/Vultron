@@ -80,16 +80,16 @@ Read it field by field.
 | Field | What it carries | Where the guides rely on it |
 |---|---|---|
 | `type` | The AS2 verb | Every guide names its activities by verb and object |
-| `actor` | The actor performing the activity | Case-management handshakes are sent by the CASE_MANAGER, with the requesting participant in `attributedTo` |
+| `actor` | The actor performing the activity | Case-management handshakes are sent by the CASE_MANAGER, with the requesting participant in `attributedTo` and the request in `inReplyTo` |
 | `object` | The thing acted on: a Vultron object, or an earlier activity being answered | `Accept`, `Reject`, `TentativeReject`, and `Read` carry the activity they answer, not the object inside it |
-| `target` | Where the object goes | `Add` names the case here, as do `Remove(Note)` and `Remove(CaseParticipant)`; `Offer(CaseParticipantRole)` names the actor being offered the role |
-| `origin` | Where the object comes from | `Remove(EmbargoEvent)`, which terminates an embargo, names the case here rather than in `target` |
+| `target` | Where the object goes | `Add` names the case here, as does `Remove(CaseParticipant)`; `Offer(CaseParticipantRole)` names the actor being offered the role |
+| `origin` | Where the object comes from | `Remove(Note)` and `Remove(EmbargoEvent)`, which terminates an embargo, name the case here rather than in `target` |
 | `context` | The case an activity belongs to | `Invite(EmbargoEvent)` names the case here, and so does the `Note` an `Add(Note)` carries |
-| `inReplyTo` | The earlier activity this one answers, when the verb alone does not say so | `Accept(Offer(Actor)[target=VulnerabilityCase])` names, in `inReplyTo`, the actor recommendation it accepts |
+| `inReplyTo` | The earlier activity this one answers, when the verb alone does not say so | `Accept(Offer(Actor)[target=VulnerabilityCase])` names, in `inReplyTo`, the actor recommendation it accepts, and so does the CASE_MANAGER's forward of that recommendation, `Offer(CaseParticipant)` |
 | `to` | The recipient inboxes | A report is offered to each recipient separately; case traffic goes to the CASE_MANAGER |
 
 Whether the case sits in `target` or `context` is not a matter of style.
-A receiver tells activities apart by these fields, so an `Add(CaseStatus)` that names its case in `context` instead of `target` is not recognized as a status update.
+A receiver tells activities apart by these fields, so an `Add(Note)` that names its case in `context` instead of `target` is not recognized as a note.
 Each guide states which field its activities use, and [Message Types](../../reference/messages/index.md) records the discriminator for every activity.
 
 ## The Vultron vocabulary

@@ -16,7 +16,6 @@ from vultron.wire.as2.enums import (
 from vultron.wire.as2.extractor._pattern import (
     ActivityPattern,
     InlineActivityObjectPattern,
-    LedgerEntryRejectPattern,
     LedgerPositionReadPattern,
     ObjectForm,
 )
@@ -465,13 +464,17 @@ CloseCasePattern = ActivityPattern(
 # Case log / announcement patterns
 # ---------------------------------------------------------------------------
 
-AnnounceLogEntryPattern = ActivityPattern(
+AddLogEntryToLedgerPattern = ActivityPattern(
     description=(
-        "Announce a canonical CaseLedgerEntry to a participant for log "
-        "replication. The object is a CaseLedgerEntry object."
+        "The CASE_MANAGER adds a committed CaseLedgerEntry to the case's "
+        "ledger, <case>/ledger, for log replication (ADR-0204). The object is "
+        "a CaseLedgerEntry object; the target is the ledger's id."
     ),
-    activity_=TAtype.ANNOUNCE,
+    activity_=TAtype.ADD,
     object_=VOtype.CASE_LEDGER_ENTRY,
+    # No target_ constraint: the ledger is an identity only, a bare IRI no
+    # vocabulary type describes, and no other Add carries a CaseLedgerEntry.
+    # The event checks the target names the entry's own ledger (SYNC-02-006).
 )
 AnnounceVulnerabilityCasePattern = ActivityPattern(
     description=(
@@ -481,25 +484,25 @@ AnnounceVulnerabilityCasePattern = ActivityPattern(
     activity_=TAtype.ANNOUNCE,
     object_=VOtype.VULNERABILITY_CASE,
 )
-RejectLogEntryPattern = LedgerEntryRejectPattern(
+RejectLogEntryPattern = ActivityPattern(
     description=(
         "Participant rejects a CaseLedgerEntry announcement due to "
-        "hash-chain mismatch. The object is the rejected CaseLedgerEntry, or "
-        "absent when the participant holds no entry and asks for a replay "
-        "from genesis, naming the case as its target (SYNC-16-027)."
+        "hash-chain mismatch: the object is the rejected CaseLedgerEntry, and "
+        "inReplyTo names the Add that carried it (SYNC-03-001, ADR-0204)."
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_LEDGER_ENTRY,
 )
-ReadLogEntryPattern = LedgerPositionReadPattern(
+ReadLedgerPattern = LedgerPositionReadPattern(
     description=(
         "Participant states its ledger position: a Read whose object is the "
-        "last CaseLedgerEntry it has applied, by reference, whose context is "
-        "the case and whose ledgerPosition is the entry's position "
-        "(SYNC-17-001)."
+        "case's ledger, the OrderedCollection <case>/ledger, whose context is "
+        "the case and whose ledgerPosition is the sender's tail, at index -1 "
+        "when it holds no entry (SYNC-17-001, ADR-0204)."
     ),
     activity_=TAtype.READ,
-    object_=VOtype.CASE_LEDGER_ENTRY,
+    object_=AOtype.ORDERED_COLLECTION,
+    context_=VOtype.VULNERABILITY_CASE,
 )
 RefusalNoticePattern = InlineActivityObjectPattern(
     description=(
@@ -521,9 +524,14 @@ AddNoteToCaseActivityPattern = ActivityPattern(
     target_=VOtype.VULNERABILITY_CASE,
 )
 RemoveNoteFromCasePattern = ActivityPattern(
+    description=(
+        "Remove a note from a vulnerability case. A Remove names the "
+        "collection it takes its object from in origin, so the case is the "
+        "activity's origin, not its target."
+    ),
     activity_=TAtype.REMOVE,
     object_=AOtype.NOTE,
-    target_=VOtype.VULNERABILITY_CASE,
+    origin_=VOtype.VULNERABILITY_CASE,
 )
 
 # ---------------------------------------------------------------------------
@@ -576,9 +584,16 @@ CreateProcessingFaultPattern = ActivityPattern(
 # ---------------------------------------------------------------------------
 
 AddCaseStatusToCasePattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER adds a case status to the case's status history: "
+        "an ADD whose target is <case>/statuses, an ordered collection whose "
+        "newest item is the current status, and whose context is the case "
+        "(ADR-0204)."
+    ),
     activity_=TAtype.ADD,
     object_=VOtype.CASE_STATUS,
-    target_=VOtype.VULNERABILITY_CASE,
+    target_=AOtype.ORDERED_COLLECTION,
+    context_=VOtype.VULNERABILITY_CASE,
 )
 AddVulnerabilityItemToCasePattern = ActivityPattern(
     description=(
@@ -601,7 +616,14 @@ AddCaseReferenceToCasePattern = ActivityPattern(
     target_=VOtype.VULNERABILITY_CASE,
 )
 AddParticipantStatusToParticipantPattern = ActivityPattern(
+    description=(
+        "A participant status is added to the participant's status history: "
+        "an ADD whose target is <participant>/statuses, an ordered collection "
+        "whose newest item is the current status, and whose context is the "
+        "case (ADR-0204)."
+    ),
     activity_=TAtype.ADD,
     object_=VOtype.PARTICIPANT_STATUS,
-    target_=VOtype.CASE_PARTICIPANT,
+    target_=AOtype.ORDERED_COLLECTION,
+    context_=VOtype.VULNERABILITY_CASE,
 )

@@ -31,6 +31,7 @@ from vultron.measure.advice.bands import (
     advise,
     band,
     deciding_parts,
+    deepest_layer,
     dominates,
     harms,
     layers,
@@ -51,6 +52,7 @@ from vultron.measure.advice.case import (
     VendorHarm,
     VendorShift,
     case_advice,
+    unbanded_reason,
 )
 from vultron.measure.advice.hindsight import (
     HindsightMark,
@@ -59,7 +61,6 @@ from vultron.measure.advice.hindsight import (
 )
 from vultron.measure.advice.shifts import (
     CHANCE_EVENTS,
-    SCOPE_GROUPS,
     ScopeParts,
     ScopeShift,
     chance_values,
@@ -68,6 +69,7 @@ from vultron.measure.advice.shifts import (
     outcome_shift,
     scope_shift,
 )
+from vultron.measure.baselines import SCOPE_GROUPS
 
 __all__ = [
     "BAND_COLOUR_MAPS",
@@ -100,6 +102,7 @@ __all__ = [
     "case_advice",
     "chance_values",
     "deciding_parts",
+    "deepest_layer",
     "dominates",
     "harms",
     "hindsight_mark",
@@ -108,4 +111,5 @@ __all__ = [
     "open_moves",
     "outcome_shift",
     "scope_shift",
+    "unbanded_reason",
 ]

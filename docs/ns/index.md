@@ -33,7 +33,7 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `EmbargoPolicy` | — | Actor-level declaration of embargo preferences |
 | `ParticipantStatus` | — | Per-participant snapshot: Report Management (RM) state, the vendor fix (vf) and deployment (d) dimensions of the CS, and roles |
 | `ProcessingFault` | — | Negative acknowledgment returned when a received activity could not be processed |
-| `Redacted` | — | Marker in a preview's field: the field has a value the sender withholds from the recipient, with an optional `summary` giving the reason |
+| `Redacted` | — | Marker anywhere inside a preview, such as a case preview: a value the sender has but does not show the recipient, with an optional `summary` giving the reason |
 | `Refuse` | `as:Reject` | The CASE_MANAGER's refusal of an activity a precondition did not admit, sent as `"type": ["Refuse", "Reject"]`; a participant's decline of a request stays a `Reject` |
 | `VulnerabilityCase` | — | Coordination container for a vulnerability disclosure case |
 | `VulnerabilityItem` | — | The case's entry for one vulnerability, in the identity fields of a CSAF 2.1 vulnerability entry |
@@ -54,7 +54,6 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `activeEmbargo` | iri | The embargo active on a case, as its case preview carries it: an EmbargoEvent or its id |
 | `activeParticipants` | set of iri | The ids of the participants a case finds active |
 | `actorParticipantIndex` | index of iri | A map from the id of each actor in a case to the id of its CaseParticipant |
-| `caseActivity` | set of iri | The ids of activities about a case |
 | `caseEngagement` | plain | Whether a participant reports itself engaged in a case |
 | `caseParticipants` | set of iri | The participants of a case, each a CaseParticipant or its id |
 | `caseReferences` | set of iri | The external references of a case, each a CaseReference or its id |
@@ -65,7 +64,6 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `cause` | plain | Why an embargo ended early: an object whose kind names the cause |
 | `childCases` | set of iri | The ids of a case's child cases |
 | `cvdRole` | set | The CVD roles a participant status reports its participant holding in the case |
-| `cve` | plain | The CVE ID of a vulnerability |
 | `dState` | plain | A deployer participant's fix-deployed (D) dimension of the Case State (CS) |
 | `emState` | plain | The Embargo Management (EM) state of a case: NONE, PROPOSED, ACTIVE, REVISE or EXITED |
 | `embargo` | iri | The embargo an embargo-register entry records: an EmbargoEvent or its id |

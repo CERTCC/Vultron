@@ -34,7 +34,7 @@ class AddNoteToCaseReceivedUseCase:
     ``VulnerabilityCase.notes`` and commits a ``CaseLedgerEntry``.  Other
     receivers MUST NOT update their case replica directly from
     ``Add(Note)[target=VulnerabilityCase]`` messages — they receive note attachment notifications
-    exclusively via ``Announce(CaseLedgerEntry)`` fan-out from the
+    exclusively via ``Add(CaseLedgerEntry)`` fan-out from the
     CASE_MANAGER (SYNC-02-001, SYNC-02-003).
 
     The tree declares the manager path alone, so its path stage refuses
@@ -84,7 +84,7 @@ class AddNoteToCaseReceivedUseCase:
         # A redelivered Add fails the note-id guard as a repeat, which the
         # runner reports SKIPPED (HP-01-003, HP-08-006).
         # Only the CASE_MANAGER attaches; the path stage refuses any other
-        # receiver, which learns of the note through Announce(CaseLedgerEntry)
+        # receiver, which learns of the note through Add(CaseLedgerEntry)
         # fan-out (SYNC-02-001, SYNC-02-003, HP-01-005).
         return run_received_tree(
             tree,
@@ -98,7 +98,7 @@ class AddNoteToCaseReceivedUseCase:
 
 
 class RemoveNoteFromCaseReceivedUseCase:
-    """Refuse a received ``Remove(Note)[target=VulnerabilityCase]``.
+    """Refuse a received ``Remove(Note)[origin=VulnerabilityCase]``.
 
     Removing a note is not supported: the case ledger is append-only, and
     the protocol does not yet define what removing ledgered content means

@@ -58,13 +58,13 @@ from vultron.wire.as2 import factories as factories_package
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     add_case_reference_to_case_activity,
+    add_log_entry_activity,
     add_note_to_case_activity,
     add_participant_to_case_activity,
     add_report_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
     add_vulnerability_item_to_case_activity,
-    announce_log_entry_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
     create_embargo_consent_activity,
@@ -174,13 +174,13 @@ INTRODUCES: dict[
     ),
     "add_status_to_case_activity": (
         lambda o: add_status_to_case_activity(
-            o, target=_CASE, actor=_ACTOR, at=authored_at()
+            o, case=_CASE, actor=_ACTOR, at=authored_at()
         ),
         _example_object("add_status_to_case"),
     ),
     "add_status_to_participant_activity": (
         lambda o: add_status_to_participant_activity(
-            o, target=_PARTICIPANT, actor=_ACTOR, at=authored_at()
+            o, participant=_PARTICIPANT, actor=_ACTOR, at=authored_at()
         ),
         _example_object("add_status_to_participant"),
     ),
@@ -209,11 +209,11 @@ INTRODUCES: dict[
         ),
         _example_object("announce_case"),
     ),
-    "announce_log_entry_activity": (
-        lambda o: announce_log_entry_activity(
+    "add_log_entry_activity": (
+        lambda o: add_log_entry_activity(
             o, actor=_ACTOR, to=[_PEER], at=authored_at()
         ),
-        _example_object("announce_case_ledger_entry"),
+        _example_object("add_case_ledger_entry"),
     ),
 }
 
@@ -322,18 +322,14 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "rm_close_report_activity": _answers("offer"),
     # The entry it refuses is one the CASE_MANAGER holds.
     "reject_log_entry_activity": _held("entry"),
-    # Names, by reference, the entry it states it applied last: one the
-    # CASE_MANAGER holds (SYNC-17-001).
-    "read_ledger_entry_activity": _held("entry"),
-    # Names, by reference, the entry at the position it states, one the
-    # CASE_MANAGER holds; it takes only the case id and the position.
+    # Reads the case's ledger, an identity only, at the position of the
+    # entry it states it applied last: one the CASE_MANAGER holds
+    # (SYNC-17-001, ADR-0204).
+    "read_ledger_at_entry_activity": _held("entry"),
+    # Reads the case's ledger, an identity only, at a position; it takes
+    # only the case id and the position (SYNC-17-001, ADR-0204).
     "read_ledger_position_activity": NoIntroduction(
-        "names, by its ledger coordinates, an entry the receiver holds"
-    ),
-    # Names no entry at all, only the case the CASE_MANAGER holds, as the
-    # target of a request for a replay from genesis (SYNC-16-027).
-    "genesis_replay_reject_activity": NoIntroduction(
-        "names no object, only the case the receiver holds as its target"
+        "reads the case's ledger, an identity the receiver holds the case of"
     ),
     "refusal_notice_activity": _answers("refused"),
     "update_case_activity": _held("case"),

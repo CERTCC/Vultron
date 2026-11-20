@@ -252,7 +252,8 @@ groups:
     statement: >-
       This rule covers an inline object whose `type` resolves to a known wire vocabulary
       class but fails validation against that class. A receiver MUST reject the
-      enclosing activity as malformed, not substitute a less specific type.
+      enclosing activity as malformed, not substitute a less specific type. Inside a
+      preview, the class is the loose form the field declares (MV-12-006).
     rationale: >-
       If the parser uses a weaker type in place of the correct one, it loses data
       silently: an `Accept(Invite(...))` with one corrupt inner field can parse as a
@@ -261,6 +262,8 @@ groups:
       Unit tests in `test/wire/as2/test_parser.py` confirm that an
       `Accept(Invite(...))` whose inner object carries an unparseable timestamp is
       rejected rather than parsed as an `as_Link`.
+      `test/wire/as2/test_redaction_marker.py::test_a_preview_shows_a_nested_object_cut_down_as_sent`
+      asserts the preview exception.
     adr:
     - ADR-0090
   - id: MV-04-004
@@ -298,12 +301,10 @@ groups:
       and its content would be lost without a trace (#5715). With the `href` required,
       such an object is refused instead.
     verification: >-
-      Tests marked `MV-04-005` in `test/wire/as2/vocab/base/test_links.py`,
-      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` and
-      `test/wire/as2/test_parser_case_stub.py` confirm that a Link or Mention with no
-      `href` is refused, that an untyped `attributedTo` and an untyped stub
-      `caseStatus` that fail their object class are refused, and that a Link with an
-      `href` still parses.
+      Tests marked `MV-04-005` in `test/wire/as2/vocab/base/test_links.py` and
+      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` confirm that a Link or
+      Mention with no `href` is refused, that an untyped `attributedTo` that fails its
+      object class is refused, and that a Link with an `href` still parses.
     relationships:
     - rel_type: extends
       spec_id: MV-04-003
@@ -516,7 +517,8 @@ groups:
       This rule covers an object type other than a case, when the sender does not inline
       the full object. The sender MUST reference the object by URI, by an
       ActivityStreams `Link` or by a typed reference (MV-10-011), not by a partial
-      inline object.
+      inline object. An object inside a preview is exempt: the preview shows as much
+      of it as the sender chooses (MV-12-006).
     rationale: >-
       Only a case has a stub form (MV-10-008). A partial inline object of another type
       claims to be the object while it lacks fields, so the receiver cannot tell what
@@ -549,7 +551,9 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST read an inline object with exactly an `id`, a `type` and an
-      optional `preview` as a typed reference of that type. It
+      optional `preview` as a typed reference of that type, unless the object sits
+      inside a preview in a field that declares a loose form, which reads it as that
+      form (MV-12-006). It
       routes the activity by the reference's `type`. It never reads the reference as
       the object: a handler uses the object the receiver holds, or fetches it
       (AKM-05-007), unless the reference carries a preview, which the receiver reads
@@ -1083,33 +1087,37 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST read a `Redacted` marker in a field its preview type opens to the
-      marker as that field's value withheld from the recipient, never as an absent or
-      empty value. A preview is a limited view of an object for a recipient not yet
-      entitled to the whole object, such as the case stub (MV-10-001).
+      A receiver MUST read a `Redacted` marker anywhere inside a preview as a value the
+      sender has but does not show, never as a missing or empty value. A preview is a
+      partial view of an object for a recipient who may not see all of it yet, such as
+      the case stub (MV-10-001).
     rationale: >-
       An invitee decides whether to join a case from the invitation alone
       (MV-10-005), so it gains from telling "this case has no score yet" from "this
       case has a score you cannot see yet". Read as `None`, the marker would say the
       first when the sender meant the second.
     verification: >-
-      `test/wire/as2/test_redaction_marker.py::test_a_marker_in_a_case_preview_field_parses_as_the_marker`
-      parses a case stub whose `name` is a marker and requires the parsed field to be
-      the marker; it is a strict `xfail` until #6372 opens a case preview field to the
-      marker.
+      `test/wire/as2/test_redaction_marker.py::test_a_marker_in_a_case_preview_parses_as_the_marker`
+      parses a case stub with a marker in a top-level field, a case field, a list
+      item, a nested object's field and a nested value's field, and requires each to
+      read back as the marker; `test_a_preview_carrying_markers_round_trips_unchanged`
+      in the same file requires a preview with markers to dump back unchanged; and
+      `test/core/models/test_preview_object.py::test_every_case_field_of_the_preview_holds_a_marker`
+      requires every case field of the preview to hold one.
     relationships:
     - rel_type: extends
       spec_id: MV-10-001
     adr:
     - ADR-0193
+    - ADR-0217
     stories:
     - story_2026_054
   - id: MV-12-002
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST refuse an activity that carries a `Redacted` marker anywhere other
-      than a field its preview type opens to the marker, naming the position.
+      A receiver MUST refuse an activity that carries a `Redacted` marker outside a
+      preview, naming where the marker is.
     rationale: >-
       A full object validates its required fields at construction, and the
       CASE_MANAGER's stored case is the authority every replica copies. A marker in a
@@ -1121,18 +1129,19 @@ groups:
       `test/wire/as2/test_redaction_marker.py::test_a_marker_in_a_full_case_field_is_refused`
       requires a marker in each of several declared fields of an inline case to be
       refused, the reason naming the field;
-      `test_a_marker_in_a_case_stub_identifying_field_is_refused` requires the same of
-      the stub's `id`; `test_a_marker_in_an_activity_slot_is_refused` in the same
-      file requires a marker in each free-form activity slot to be refused, with a
-      `summary`, with an `id`, and with only `id` and `type`; and
-      `test_a_marker_in_a_full_case_free_form_field_is_refused` and
-      `test_a_marker_in_a_case_preview_free_form_field_is_refused` require a marker
-      in a field that admits any embedded object to be refused, naming its path.
+      `test_a_marker_in_an_activity_slot_is_refused` in the same file requires a marker
+      in each free-form activity slot to be refused, with a `summary`, with an `id`,
+      and with only `id` and `type`; `test_a_marker_in_a_full_case_free_form_field_is_refused`
+      requires a marker in a full case's field that admits any embedded object to be
+      refused, naming its path; and
+      `test_the_walk_admits_a_preview_whole_and_refuses_a_marker_beside_it` requires a
+      marker beside a preview to be refused while those inside it are not.
     relationships:
     - rel_type: constrains
       spec_id: MV-12-001
     adr:
     - ADR-0193
+    - ADR-0217
     stories:
     - story_2026_054
   - id: MV-12-003
@@ -1147,12 +1156,9 @@ groups:
       marker needs no new property.
     verification: >-
       `test/core/models/test_redacted.py::test_a_marker_carrying_the_withheld_value_is_refused`
-      requires the marker type to refuse a marker carrying `content`, `id` or `name`.
-      `test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
-      requires a case stub with a clean marker to parse and one whose marker carries the
-      withheld value to be refused; it is a strict `xfail`, held for #6372,
-      which moves the leaky-marker rule to the sender and keeps the receiver's
-      MV-11-003 unknown-key handling.
+      requires the marker type to refuse a marker carrying `content`, `id` or `name`,
+      and `test_a_marker_reads_its_type_and_summary_from_the_wire_form` in the same
+      file requires it to read `type` and `summary`.
     relationships:
     - rel_type: refines
       spec_id: MV-12-001
@@ -1183,24 +1189,74 @@ groups:
     stories:
     - story_2026_054
   - id: MV-12-005
-    priority: MUST
+    priority: MUST_NOT
     kind: protocol
     statement: >-
-      A receiver MUST refuse a `Redacted` marker that carries a field other than `type`
-      and `summary`.
+      A sender MUST NOT put any field other than `type` and `summary` in a `Redacted`
+      marker.
     rationale: >-
-      A marker that arrives carrying more than MV-12-003 allows may hold the value it
-      claims to withhold. Refusing it keeps the leak from being stored or relayed.
+      A marker with more fields may carry the very value it stands in for. Only the
+      sender can keep that value out: by the time a receiver sees the marker, the value
+      has already been sent.
+    note: >-
+      A receiver treats any other field a received marker carries as it treats any
+      unknown key (MV-11-003): it sets the field aside, reports it, and reads the
+      marker without it. Refusing the activity would not undo the leak.
     verification: >-
-      `test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
-      requires a case stub with a clean marker to parse and one whose marker carries the
-      withheld value to be refused; it is a strict `xfail`, held for #6372,
-      which moves the leaky-marker rule to the sender and keeps the receiver's
-      MV-11-003 unknown-key handling.
+      `test/core/models/test_redacted.py::test_a_marker_carrying_the_withheld_value_is_refused`
+      requires the marker type, which every marker this codebase sends is built from,
+      to refuse a marker carrying `content`, `id` or `name`; and
+      `test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_has_it_set_aside`
+      requires a received marker carrying one of them to read as a clean marker, with
+      the extra key reported.
     relationships:
     - rel_type: constrains
       spec_id: MV-12-003
     adr:
     - ADR-0193
+    - ADR-0217
+    stories:
+    - story_2026_054
+  - id: MV-12-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT refuse an activity because an object inside a preview lacks a
+      field that a full object of its type requires.
+    rationale: >-
+      A preview shows what its sender chose to show. The recipient reads it and decides
+      on the invitation that carries it; what the preview leaves out of an object it
+      shows is not a fault in the message. A vul item shown by its identifiers alone,
+      with no `id` or `published` of its own, is read as shown.
+    note: >-
+      The receiver still refuses a marker outside a preview (MV-12-002) and a preview
+      in the wrong place (MV-10-002), and a case preview without its own `id`, `type`
+      or `summary` (MV-10-001, MV-10-007). OID-01-013 and CLP-15-011 do not reach an
+      object inside a preview.
+    verification: >-
+      `test/wire/as2/test_redaction_marker.py::test_a_preview_shows_a_nested_object_cut_down_as_sent`
+      parses a case stub carrying a vul item, a participant and a status, each cut
+      down to a few fields, and requires each to read back as sent;
+      `test/wire/as2/test_typed_references.py::test_an_embargo_in_a_case_preview_without_published_is_read_as_shown`
+      requires the same of an embargo without `published`; and
+      `test/core/models/test_preview_object.py::test_a_loose_form_is_received_without_an_id_or_a_published`
+      requires a nested object received with neither to read with neither.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-12-001
+    - rel_type: supersedes
+      spec_id: OID-01-013
+    - rel_type: supersedes
+      spec_id: CLP-15-011
+    - rel_type: supersedes
+      spec_id: MV-04-003
+    - rel_type: supersedes
+      spec_id: CLP-15-010
+    - rel_type: supersedes
+      spec_id: MV-10-011
+    - rel_type: supersedes
+      spec_id: MV-10-009
+    adr:
+    - ADR-0217
     stories:
     - story_2026_054

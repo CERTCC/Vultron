@@ -326,7 +326,6 @@ def submit_report_received_effects(
                 report_id,
                 request.report,
                 "VulnerabilityReport",
-                request.activity_id,
                 name="StoreReceivedReport",
             )
         )

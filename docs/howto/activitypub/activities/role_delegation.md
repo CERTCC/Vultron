@@ -54,8 +54,8 @@ sequenceDiagram
         T -->> M: Reject(Offer(CaseParticipantRole))
         note over M: Check the sender is the target of an open offer<br/>Record the refusal in the ledger<br/>Roles unchanged
     end
-    M -->> O: Announce(CaseLedgerEntry)
-    M -->> T: Announce(CaseLedgerEntry)
+    M -->> O: Add(CaseLedgerEntry)
+    M -->> T: Add(CaseLedgerEntry)
     note over O,T: Replay the entry<br/>On an Accept, the target now holds the role
 ```
 

@@ -34,9 +34,10 @@ from vultron.measure.advice import (
     Band,
     case_advice,
 )
-from vultron.measure.standing import case_standing
+from vultron.measure.baselines import scope_desiderata
+from vultron.measure.standing import DesideratumStatus, case_standing
 from vultron.shadow.analysis import analyse, point_analysis
-from vultron.shadow.dashboard import marks as marks_view, minimap, view
+from vultron.shadow.dashboard import minimap, view
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
     END_UNCONFIRMED_NOTE,
@@ -52,6 +53,8 @@ from vultron.shadow.dashboard.page import (
 )
 from vultron.shadow.dashboard.view import (
     BAND_EMPTY,
+    DESIDERATA_NOTE,
+    DESIDERATUM_BADGES,
     EM_BADGES,
     LATEST_POINT,
     LEADING_MARK,
@@ -101,7 +104,7 @@ _ADVICE_PAGE = """
 from test.measure.history.builders import two_vendors_ledger
 from vultron.measure.advice import case_advice
 from vultron.measure.standing import case_standing
-from vultron.shadow.dashboard.page import _show_advice
+from vultron.shadow.dashboard.page.advice import _show_advice
 
 _show_advice(case_advice(case_standing(two_vendors_ledger().case_ledger())), {})
 """
@@ -303,8 +306,10 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
     assert "Vendor" in participants["Participant"].tolist()
     assert set(participants["Report"]) <= set(RM_BADGES.values())
     desiderata = _table(at, "Desiderata")
-    assert len(desiderata) == 12
+    assert len(desiderata) == len(scope_desiderata())
     assert {"Vendor", "Vendor2"} <= set(desiderata.columns)
+    # The pair desideratum move advice leaves out is named, not just absent.
+    assert DESIDERATA_NOTE in _texts(at.caption)
     moves = _table(at, "Harm-free")
     assert len(moves) > 0
     assert set(moves["Machine"]) <= {"RM", "CS", "EM"}
@@ -320,6 +325,19 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
     assert _texts(unhelpful.caption) == [BAND_EMPTY[Band.UNHELPFUL]]
     # The recording ends on the CASE_MANAGER's closure: nothing follows.
     assert not any("moved on" in c for c in _texts(at.caption))
+
+
+def test_a_case_with_no_scored_vendor_names_no_left_out_desideratum(
+    recordings_app,
+):
+    """rcv-reject's only vendor refuses its invitation: the table is empty,
+    so there is nothing to say about what it leaves out."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rcv-reject/case-actor.jsonl").run()
+    assert not at.exception
+    captions = _texts(at.caption)
+    assert "No vendor has a case-state history to score yet." in captions
+    assert DESIDERATA_NOTE not in captions
 
 
 def test_each_state_is_shown_on_its_machines_map(recordings_app):
@@ -352,7 +370,7 @@ def test_each_state_is_shown_on_its_machines_map(recordings_app):
 
 
 _NO_PARTICIPANTS_PAGE = """
-from vultron.shadow.dashboard.page import _show_participant_minimaps
+from vultron.shadow.dashboard.page.scoreboard import _show_participant_minimaps
 
 _show_participant_minimaps([], {})
 """
@@ -368,7 +386,7 @@ from vultron.measure.sequences import (
     UnprojectableReason,
 )
 from vultron.measure.standing import CaseStanding, ParticipantStanding
-from vultron.shadow.dashboard.page import _show_participant_minimaps
+from vultron.shadow.dashboard.page.scoreboard import _show_participant_minimaps
 
 VENDOR = "https://vendor.example/actors/vendor"
 _show_participant_minimaps(
@@ -479,13 +497,11 @@ def test_each_narrative_line_carries_its_hindsight_mark_in_its_shade(
     assert not at.exception
     assert HINDSIGHT_NOTE in _texts(at.caption)
     narrative = _table(at, "Case narrative")
-    marks = narrative[marks_view.HINDSIGHT_COLUMN].tolist()
-    labels = {
-        f"{icon} {mark}" for mark, icon in marks_view.HINDSIGHT_ICONS.items()
-    }
+    marks = narrative[view.HINDSIGHT_COLUMN].tolist()
+    labels = {f"{icon} {mark}" for mark, icon in view.HINDSIGHT_ICONS.items()}
     assert set(marks) <= labels
     assert "⭐ best" in marks and "💬 not a move" in marks
-    notes = narrative[marks_view.HINDSIGHT_NOTE_COLUMN].tolist()
+    notes = narrative[view.HINDSIGHT_NOTE_COLUMN].tolist()
     assert all(
         note for mark, note in zip(marks, notes, strict=True) if "💬" in mark
     )
@@ -580,6 +596,39 @@ def test_picking_a_narrative_line_shows_the_case_just_after_it(
     assert at_point == _scoreboard(_cut_page(tmp_path, _RCVV, log_index + 1))
     entries = recording_rows(_RCVV)
     assert len(_table(at, "Case narrative")) == len(entries)
+
+
+def _vendor_status(board: dict[str, object], events: str) -> str:
+    """The first vendor's status for the desideratum *events* names."""
+    table = board["Desideratum"]
+    assert isinstance(table, dict)
+    return str(table["Vendor"][table["Events"].index(events)])
+
+
+def test_the_full_desiderata_table_follows_the_picked_point(recordings_app):
+    """#6669 with #6671: at a picked point the desiderata table still holds
+    every desideratum move advice sums, under its caption, and an embargo
+    desideratum reads as it stood then: ExOwn ≺ P is open just after entry
+    #30 of this recording and broken at its end."""
+    log_index = 30
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    now = _scoreboard(at)
+    _point_picker(at).select(log_index).run()
+    assert not at.exception
+    at_point = _scoreboard(at)
+    table = at_point["Desideratum"]
+    assert isinstance(table, dict)
+    assert len(table["Desideratum"]) == len(scope_desiderata())
+    captions = at_point["captions"]
+    assert isinstance(captions, list)
+    assert DESIDERATA_NOTE in captions
+    open_, broken = (
+        DESIDERATUM_BADGES[DesideratumStatus.OPEN],
+        DESIDERATUM_BADGES[DesideratumStatus.BROKEN],
+    )
+    assert _vendor_status(at_point, "ExOwn ≺ P") == open_
+    assert _vendor_status(now, "ExOwn ≺ P") == broken
 
 
 def _legend_cells(at: AppTest) -> dict[str, list[str]]:

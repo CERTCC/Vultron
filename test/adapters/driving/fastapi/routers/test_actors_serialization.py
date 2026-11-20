@@ -123,8 +123,7 @@ def _embargo_policy(actor_id: str) -> as_EmbargoPolicy:
 
     return make(
         as_EmbargoPolicy,
-        actor_id=actor_id,
-        inbox=f"{actor_id}/inbox",
+        attributed_to=actor_id,
         preferred_duration=timedelta(days=90),
     )
 

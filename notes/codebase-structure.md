@@ -2,12 +2,13 @@
 title: Codebase Structure Notes
 status: active
 kind: guidance
-tags: [architecture, codebase, circular-imports, fastapi, docker, health-check, actor-ids]
+tags: [architecture, codebase, circular-imports, fastapi, docker, health-check,
+  actor-ids, module-splits, logging]
 description: >
   Module layout rules and recurring pitfalls: enum placement, the legacy
   simulator boundary, demo lifecycle helpers, FastAPI routing and serialization,
-  actor-ID normalization, surrogate-key lookup, module splits, formatter and
-  type-checker interplay, and small coding habits.
+  actor-ID normalization, surrogate-key lookup, module splits and the logger
+  names they keep, formatter and type-checker interplay, and small coding habits.
 related_specs:
   - specs/prototype-shortcuts.yaml
   - specs/object-ids.yaml
@@ -199,7 +200,9 @@ that names an object by its UUID maps the segment with
 `vultron/adapters/utils.py:full_object_id` before the read. A store-level fallback
 gives one object two keys (#5737). A case or actor key may instead resolve through
 `find_case_by_short_id` / `find_actor_by_short_id`, the named surrogate-key query
-(AKM-05-006), which reports an ambiguous key as not found.
+(AKM-05-006), which reports an ambiguous key as not found. A driving route
+resolves a case key through `adapters/driving/fastapi/case_reference.py:find_case`,
+never a hand-written copy of that lookup (CS-22-001).
 
 ---
 
@@ -215,6 +218,9 @@ Routes accept short-ID surrogate keys beside canonical URIs
 - **A non-case hit does not end case-key resolution.** When `dl.read(key)` returns a
   non-case object, continue to the short-key fallback, or non-case IDs shadow valid case
   keys with false 404s.
+- **A trigger request reaches the core with the full case id.** `run_trigger` resolves
+  a short case id at the edge (`case_reference.with_full_case_id`, ADR-0032), so the
+  `/case_id` seed is the full id (BT-25-007).
 
 When asserting a mock's positional arguments, use `call_args.args`, not `call_args[0]`:
 the named attribute fails clearly if the call moves to kwargs.
@@ -242,13 +248,16 @@ calls `dispose_actor_engines()`; in in-memory mode that also destroys the databa
 
 ---
 
-## Cross-Actor TestClient Router: Keep Blocking `post()` off the Portal Loop
+## Cross-Actor TestClient Router: Each Blocking Hop Gets Its Own Thread
 
-In the multi-actor demo harness (`test/demo/conftest.py`), the router's `emit()` runs
-on the sending app's `TestClient` portal loop, while `TestClient.post()` blocks and
-drives the target through its own portal. Calling it inline blocks the sender and can
-deadlock the two portals, so the harness runs the post through
-`anyio.to_thread.run_sync`. It posts the sealed body as-is (`content=`, not `json=`),
+In the multi-actor demo harness (`vultron/demo/in_process.py`), every blocking
+`TestClient` hop (the router's `POST`, the fetcher's `GET`) runs off the portal loop
+through `_call_off_loop`, on a thread of its own (a one-token limiter), never one from
+the loop's shared AnyIO pool. Off the loop, because co-hosted actors share one
+`TestClient` and a hop made on its loop waits on itself. Its own thread, because a
+`TestClient` call returns only after the target's background tasks, which deliver
+onward, so a chain holds one thread per hop and can run a shared pool dry (#6190).
+The router posts the sealed body as-is (`content=`, not `json=`),
 never re-serializing what the ledger recorded (VM-08-003).
 
 ---
@@ -312,6 +321,10 @@ descriptions, so keep those accurate and put new endpoints on the right router.
   (`# noqa: F401`) only when it is a `monkeypatch` target; a FastAPI router package
   re-exports the names used as `dependency_overrides` keys (#972). Anything else is
   a shim (PROTO-08-001): move the callers.
+- **A split keeps each moved logger's name.** `logging.getLogger(__name__)` in a
+  submodule logs under the submodule's path, so the split renames the logger, and log
+  settings, filters and logging tests on the old name stop matching. Pass the old
+  module's name explicitly, `logging.getLogger("old.module.path")` (#6729).
 - **Deleting a module instead of re-exporting needs importer proof**: no live importers
   in `vultron/` or `test/`.
 

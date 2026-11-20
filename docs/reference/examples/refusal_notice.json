@@ -9,7 +9,7 @@
     "Reject"
   ],
   "id": "urn:uuid:7bdceebd-59f8-4a2b-bfb7-322e3f51180d",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Refuse https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Refuse https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor/statuses",
   "context": "https://vultron.example/cases/1",
   "inReplyTo": "urn:uuid:2987701c-3c95-4077-8e97-5ce4c02fa016",
   "published": "2026-06-01T19:12:00.000000+00:00",
@@ -26,11 +26,12 @@
     ],
     "type": "Add",
     "id": "urn:uuid:2987701c-3c95-4077-8e97-5ce4c02fa016",
-    "name": "https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor",
+    "name": "https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor/statuses",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "actor": "https://vultron.example/organizations/vendor",
-    "target": "https://vultron.example/cases/1/participants/vendor",
+    "target": "https://vultron.example/cases/1/participants/vendor/statuses",
     "object": {
       "id": "https://vultron.example/cases/1/participants/vendor/status/3",
       "type": "ParticipantStatus",
@@ -49,7 +50,7 @@
         "id": "https://vultron.example/cases/1/status/1",
         "type": "CaseStatus",
         "name": "NONE pxa",
-        "context": "https://vultron.example/cases/1",
+        "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
         "published": "2026-06-01T19:12:00.000000+00:00",
         "emState": "NONE",
         "pxaState": "pxa"
@@ -67,6 +68,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "zaejYrQyPXvA5XwxcoPTyAX9P63zkjeJMH6ssgCsbfB41B141rTjc3JNeVizNGLaUFgk8kAUCrBF4EGT5WKbyQsH"
+    "proofValue": "z5eU9BJCd95pFShYVtRie2pf3RphCCnhpDc2z7prbACS9hrg8RJXvErAm5pYivKEXdRubzE9YgRe5uqFbpFkJUK6z"
   }
 }

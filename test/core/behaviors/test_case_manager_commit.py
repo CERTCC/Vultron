@@ -33,10 +33,12 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors import act_keys
 from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.proposal_ledger import (
     CommitNativeLedgerEntriesNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
@@ -57,14 +59,19 @@ def _unreachable(to: list[str] | None) -> tuple[str, str]:
 
 
 NODES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
-    "embargo decision": lambda: CommitEmbargoDecisionNode(
-        case_id=_CASE, semantic_type="accept_embargo", builder=_unreachable
+    "embargo decision": lambda: with_case_id(
+        CommitEmbargoDecisionNode(
+            semantic_type="accept_embargo", builder=_unreachable
+        ),
+        _CASE,
     ),
     "demo log entry": lambda: with_act_keys(
         CommitDemoLogEntryNode(),
         {act_keys.CASE_ID: _CASE, act_keys.OBJECT_ID: _CASE},
     ),
-    "case status snapshot": lambda: EmitCaseStatusUpdateNode(case_id=_CASE),
+    "case status snapshot": lambda: with_act_keys(
+        EmitCaseStatusUpdateNode(), {CASE_KEY: _CASE}
+    ),
     "case creation entries": lambda: CommitNativeLedgerEntriesNode(
         report_id=None
     ),

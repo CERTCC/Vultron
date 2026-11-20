@@ -27,7 +27,8 @@ from vultron.measure.advice import (
 from vultron.measure.advice.hindsight import DID_AS_WELL, NO_STATE_CHANGE
 from vultron.measure.history import NarrativeLine
 from vultron.measure.standing import CSMove, RMMove
-from vultron.shadow.dashboard import marks, view
+from vultron.shadow.dashboard import view
+from vultron.shadow.dashboard.view import marks
 
 VENDOR = "https://vendor.example/actors/vendor"
 NAMES = {VENDOR: "Vendor"}

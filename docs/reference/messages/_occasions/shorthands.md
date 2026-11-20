@@ -19,14 +19,14 @@
 | `ET` | Embargo Termination | EM | [`Remove(EmbargoEvent)`](../em.md#embargo-termination) |
 | `EK` | Embargo Acknowledgment | EM | [none](../em.md#formal-messages-with-no-dedicated-wire-activity) |
 | `EE` | Embargo Error | EM | [none](../em.md#formal-messages-with-no-dedicated-wire-activity) |
-| `CV` | Vendor Awareness | CS | [`Add(ParticipantStatus)[target=CaseParticipant]`](../cs.md#vendor-awareness) |
-| `CF` | Fix Readiness | CS | [`Add(ParticipantStatus)[target=CaseParticipant]`](../cs.md#fix-readiness) |
-| `CD` | Fix Deployed | CS | [`Add(ParticipantStatus)[target=CaseParticipant]`](../cs.md#fix-deployed) |
-| `CP` | Public Awareness | CS | [`Add(CaseStatus)[target=VulnerabilityCase]`](../cs.md#public-awareness), [`Add(ParticipantStatus)[target=CaseParticipant]`](../cs.md#participant-public-awareness) |
-| `CX` | Exploit Public | CS | [`Add(CaseStatus)[target=VulnerabilityCase]`](../cs.md#exploit-public), [`Add(ParticipantStatus)[target=CaseParticipant]`](../cs.md#participant-exploit-public) |
-| `CA` | Attacks Observed | CS | [`Add(CaseStatus)[target=VulnerabilityCase]`](../cs.md#attacks-observed), [`Add(ParticipantStatus)[target=CaseParticipant]`](../cs.md#participant-attacks-observed) |
+| `CV` | Vendor Awareness | CS | [`Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`](../cs.md#vendor-awareness) |
+| `CF` | Fix Readiness | CS | [`Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`](../cs.md#fix-readiness) |
+| `CD` | Fix Deployed | CS | [`Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`](../cs.md#fix-deployed) |
+| `CP` | Public Awareness | CS | [`Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]`](../cs.md#public-awareness), [`Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`](../cs.md#participant-public-awareness) |
+| `CX` | Exploit Public | CS | [`Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]`](../cs.md#exploit-public), [`Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`](../cs.md#participant-exploit-public) |
+| `CA` | Attacks Observed | CS | [`Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]`](../cs.md#attacks-observed), [`Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`](../cs.md#participant-attacks-observed) |
 | `CK` | CS Acknowledgment | CS | [none](../cs.md#formal-messages-with-no-dedicated-wire-activity) |
 | `CE` | CS Error | CS | [none](../cs.md#formal-messages-with-no-dedicated-wire-activity) |
-| `GI` | General Inquiry | General | [`Offer(Actor)[target=VulnerabilityCase]`](../general.md#suggest-actor-to-case), [`Offer(CaseParticipant)[target=VulnerabilityCase]`](../general.md#offer-case-participant), [`Accept(Offer(CaseParticipant)[target=VulnerabilityCase])`](../general.md#accept-case-participant-offer), [`Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`](../general.md#reject-case-participant-offer), [`Accept(Offer(Actor)[target=VulnerabilityCase])`](../general.md#accept-actor-recommendation), [`Reject(Offer(Actor)[target=VulnerabilityCase])`](../general.md#reject-actor-recommendation), [`Add(Note)[target=VulnerabilityCase]`](../general.md#add-note-to-case), [`Remove(Note)[target=VulnerabilityCase]`](../general.md#remove-note-from-case) |
+| `GI` | General Inquiry | General | [`Offer(Actor)[target=VulnerabilityCase]`](../general.md#suggest-actor-to-case), [`Offer(CaseParticipant)[target=VulnerabilityCase]`](../general.md#offer-case-participant), [`Accept(Offer(CaseParticipant)[target=VulnerabilityCase])`](../general.md#accept-case-participant-offer), [`Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`](../general.md#reject-case-participant-offer), [`Accept(Offer(Actor)[target=VulnerabilityCase])`](../general.md#accept-actor-recommendation), [`Reject(Offer(Actor)[target=VulnerabilityCase])`](../general.md#reject-actor-recommendation), [`Add(Note)[target=VulnerabilityCase]`](../general.md#add-note-to-case), [`Remove(Note)[origin=VulnerabilityCase]`](../general.md#remove-note-from-case) |
 | `GK` | General Acknowledgment | General | [none](../general.md#formal-messages-with-no-dedicated-wire-activity) |
 | `GE` | General Error | General | [none](../general.md#formal-messages-with-no-dedicated-wire-activity) |

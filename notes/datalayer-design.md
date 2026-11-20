@@ -192,7 +192,7 @@ what they contained at receipt time. Do not change this, for two reasons:
 
 1. **Technical**: inline Activities may have no DataLayer record of their own
    (a received `Offer`, held only as received under DL-06-006, or a
-   `CaseLedgerEntry` inside an `Announce`), so collapsing them to an ID
+   `CaseLedgerEntry` inside an `Add`), so collapsing them to an ID
    makes read-back rehydration impossible. A stub
    Invite is recognised by its `object`'s form, a case reference carrying a
    preview (ADR-0205), so dehydration keeps that reference whole too.

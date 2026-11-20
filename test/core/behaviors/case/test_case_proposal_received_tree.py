@@ -56,6 +56,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_KEY,
+    SENDER_ID as SENDER_KEY,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     EmitCreateVulnerabilityCaseNode,
@@ -64,7 +69,6 @@ from vultron.core.behaviors.case.nodes import (
 from vultron.core.behaviors.case.nodes.proposal_announcement import (
     create_case_activity_id,
 )
-from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
@@ -75,6 +79,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.models.vulnerability_item import VulnerabilityItemId
 from vultron.core.states.em import EM
 from vultron.errors import (
     VultronActivityConstructionError,
@@ -111,8 +116,7 @@ def _vendor_profile(policy_duration: timedelta | None = None) -> CoreActor:
         id_=_VENDOR_URI,
         embargo_policy=make(
             EmbargoPolicy,
-            actor_id=_VENDOR_URI,
-            inbox=f"{_VENDOR_URI}/inbox",
+            attributed_to=_VENDOR_URI,
             preferred_duration=policy_duration,
         ),
     )
@@ -419,7 +423,9 @@ class TestEmitCreateVulnerabilityCaseNode:
         from vultron.core.models.vulnerability_item import VulnerabilityItem
 
         dl = self._dl()
-        item = make(VulnerabilityItem, cve="CVE-2026-0001")
+        item = make(
+            VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2026-0001")]
+        )
         ref = make(CaseReference, url={"href": "https://example.org/a"})
         dl.save(item)
         dl.save(ref)
@@ -436,7 +442,7 @@ class TestEmitCreateVulnerabilityCaseNode:
         carried = _queued_create(dl)["object"]
         [carried_item] = carried["vulnerabilityItems"]
         [carried_ref] = carried["caseReferences"]
-        assert (carried_item["id"], carried_item["cve"]) == (
+        assert (carried_item["id"], carried_item["ids"][0]["text"]) == (
             item.id_,
             "CVE-2026-0001",
         )
@@ -1427,8 +1433,9 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
 
         result = scenario.run(
-            with_case_id(
-                SenderIsCaseOwnerNode(sender_actor_id=sender), case.id_
+            with_act_keys(
+                SenderIsCaseOwnerNode(),
+                {CASE_KEY: case.id_, SENDER_KEY: sender},
             )
         )
 
@@ -1702,8 +1709,7 @@ class TestADR0041EmbargoInit:
             id_=_VENDOR_URI,
             embargo_policy=make(
                 EmbargoPolicy,
-                actor_id=_VENDOR_URI,
-                inbox=f"{_VENDOR_URI}/inbox",
+                attributed_to=_VENDOR_URI,
                 preferred_duration=policy_duration,
             ),
         )
@@ -3876,8 +3882,7 @@ class TestEP04SenderProposalAtCaseCreation:
                 id_=_CASE_ACTOR_URI,
                 embargo_policy=make(
                     EmbargoPolicy,
-                    actor_id=_CASE_ACTOR_URI,
-                    inbox=f"{_CASE_ACTOR_URI}/inbox",
+                    attributed_to=_CASE_ACTOR_URI,
                     preferred_duration=timedelta(days=5),
                 ),
             )
@@ -4418,7 +4423,7 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
 
     The outbox is FIFO (OX-01-002), so enqueue order is wire order.  If the
     native ledger commits fan out first, every recipient receives
-    ``Announce(CaseLedgerEntry)`` for a case it does not hold yet, enters the
+    ``Add(CaseLedgerEntry)`` for a case it does not hold yet, enters the
     pre-genesis path (SYNC-15), sends a ``Reject``, and the CASE_MANAGER
     replays the whole ledger — while ``Create(VulnerabilityCase)`` waits at
     the back of the queue.  That queue position is what timed out the rv and
@@ -4447,7 +4452,7 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
     )
 
     labels = _outbox_labels(dl)
-    announces = [lbl for lbl in labels if lbl.startswith("Announce(")]
+    announces = [lbl for lbl in labels if lbl == "Add(CaseLedgerEntry)"]
 
     # Not vacuous: without an injected sync port the fan-out is skipped and
     # any order assertion would pass trivially.
@@ -4459,7 +4464,7 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
         "Create(VulnerabilityCase)",
     ], f"Accept and Create must head the outbox, got {labels}"
     assert labels[2:] == announces, (
-        "every Announce(CaseLedgerEntry) must follow Create(VulnerabilityCase),"
+        "every Add(CaseLedgerEntry) must follow Create(VulnerabilityCase),"
         f" got {labels}"
     )
 

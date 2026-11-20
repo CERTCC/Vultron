@@ -21,7 +21,7 @@ The behavioral requirements for these trees are specified in the
 
 ## Add Case Status Tree
 
-Handles receipt of an `Add(CaseStatus)[target=VulnerabilityCase]` activity, which a participant replica admits from the case's CASE_MANAGER alone (RSH-04-005).
+Handles receipt of an `Add(CaseStatus, target=<case>/statuses)` activity, which a participant replica admits from the case's CASE_MANAGER alone (RSH-04-005).
 It runs the idempotency check, ephemeral-state guard, history-prefix guard and a whole accept-or-reject check of EM and P/X/A, and writes nothing: the replica takes the status from the ledger.
 Constructed from
 `vultron.core.behaviors.status.add_case_status_tree.add_case_status_tree`.
@@ -54,7 +54,7 @@ print("```")
 
 ## Add Participant Status Tree
 
-Handles receipt of an `Add(ParticipantStatus)[target=CaseParticipant]` activity at the CASE_MANAGER, the only receiver it is sent to.
+Handles receipt of an `Add(ParticipantStatus, target=<participant>/statuses)` activity at the CASE_MANAGER, the only receiver it is sent to.
 A participant replica refuses it at the path stage, because a replica takes participant status from the case ledger (PCR-03-001, RSH-08-003).
 The tree is built on the case the status's own `context` names.
 A door refuses a target participant the receiver holds no record of (HP-08-014), or one recorded in another case than the status names (HP-08-013), before the sender guard runs.

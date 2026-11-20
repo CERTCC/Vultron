@@ -19,9 +19,9 @@ Every activity about a case whose ledger its sender holds states the sender's
 ledger tail for that case as ``ledgerPosition``.  This module is the one place
 the property is put on an outbound activity (SYNC-18-008): a factory that
 takes a position as an argument (the full-case Invite and its replies, the
-genesis-replay ``Reject``) passes it to the activity's constructor, and every
-other case activity is stamped by :func:`stamp_ledger_position` when the
-sender builds it.
+position statement ``Read(<case>/ledger)``) passes it to the activity's
+constructor, and every other case activity is stamped by
+:func:`stamp_ledger_position` when the sender builds it.
 
 The wire layer holds no ledger, so it cannot read the tail itself.  The
 adapter that builds the activity asks :func:`ledger_position_case_ids` which
@@ -49,7 +49,7 @@ _Activity = TypeVar("_Activity", bound=as_Activity)
 #: are stamped.
 _STATES_ITS_OWN_POSITION: frozenset[tuple[str, str]] = frozenset(
     {
-        ("Announce", "CaseLedgerEntry"),
+        ("Add", "CaseLedgerEntry"),
         ("Announce", "VulnerabilityCase"),
         ("Create", "VulnerabilityCase"),
         ("Update", "VulnerabilityCase"),
@@ -65,7 +65,7 @@ def _type_name(value: object) -> str | None:
 def object_states_its_own_position(activity: as_Activity) -> bool:
     """Whether *activity*'s object already states a ledger position.
 
-    True for ``Announce(CaseLedgerEntry)``, ``Announce(VulnerabilityCase)``,
+    True for ``Add(CaseLedgerEntry)``, ``Announce(VulnerabilityCase)``,
     ``Create(VulnerabilityCase)`` and ``Update(VulnerabilityCase)`` with the
     object carried inline.
     """
@@ -77,13 +77,16 @@ def object_states_its_own_position(activity: as_Activity) -> bool:
 def _named_cases(activity: as_Activity) -> list[object]:
     """The slots of *activity* that may name its case, most direct first.
 
-    Its ``context``, ``target`` and ``object``, and the ``context`` of its
-    object (an ``Add(ParticipantStatus)`` names the case only on the status).
+    Its ``context``, ``target``, ``origin`` and ``object``, and the
+    ``context`` of its object (an ``Add(ParticipantStatus)`` names the case
+    only on the status; a ``Remove`` names the case it takes from in
+    ``origin``).
     """
     obj = getattr(activity, "object_", None)
     return [
         activity.context,
         activity.target,
+        activity.origin,
         obj,
         getattr(obj, "context", None),
     ]

@@ -238,8 +238,8 @@ A participant reports them as a claim in a `ParticipantStatus`, and the CASE_MAN
 {% include-markdown "../messages/_occasions/lookup-cs.md" %}
 
 !!! warning "Several case state occasions share one activity"
-    Every claim a participant makes, whichever fact it reports, is `Add(ParticipantStatus)[target=CaseParticipant]`.
-    Every fact the CASE_MANAGER records about the world is `Add(CaseStatus)[target=VulnerabilityCase]`.
+    Every claim a participant makes, whichever fact it reports, is `Add(ParticipantStatus, target=<participant>/statuses)`.
+    Every fact the CASE_MANAGER records about the world is `Add(CaseStatus, target=<case>/statuses)`.
     The fact travels in the status record's fields, as the "Distinguished by" column states, so an implementation that dispatches on the activity alone cannot tell Fix Readiness (`CF`) from Attacks Observed (`CA`).
 
     The two activities differ by the sender's authority, not by the fact.
@@ -258,7 +258,7 @@ That claim becomes canonical case state only if the CASE_MANAGER adopts it ([§1
 These messages carry narrative and actor suggestions.
 Together they realize the formal General Inquiry (`GI`), which spans two exchanges:
 
-- the note lifecycle, `Add(Note)[target=VulnerabilityCase]` and `Remove(Note)[target=VulnerabilityCase]`;
+- the note lifecycle, `Add(Note)[target=VulnerabilityCase]` and `Remove(Note)[origin=VulnerabilityCase]`;
 - the actor-suggestion exchange, in which a participant suggests an actor, the CASE_MANAGER presents the suggestion to the Case Owner, and the CASE_MANAGER tells the recommender the Case Owner's decision.
 
 {% include-markdown "../messages/_occasions/lookup-general.md" %}
@@ -333,7 +333,7 @@ These messages keep every active participant's replica of the case ledger in ste
 Acknowledgment of the ledger is cumulative and implicit.
 A participant whose local tail matches a received entry's previous-entry hash sends nothing, because the match is the acknowledgment.
 On a mismatch it sends `Reject(CaseLedgerEntry)`, and the CASE_MANAGER replays every entry after the last one the participant accepted.
-A participant that wants to check its replica is current, after a restart for example, states its position with `Read(CaseLedgerEntry)` naming the last entry it applied, and the CASE_MANAGER answers a lag the same way.
+A participant that wants to check its replica is current, after a restart for example, states its position with `Read(<case>/ledger)`, a `Read` of the case's ledger stating the last entry it applied, and the CASE_MANAGER answers a lag the same way.
 Whenever a participant states a position, the CASE_MANAGER also resends each Invite that participant still owes an answer to, as first sent, so an Invite lost before the participant could answer it reaches it again.
 
 ```python exec="true" idprefix=""

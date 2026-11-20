@@ -90,7 +90,7 @@ from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
@@ -149,7 +149,7 @@ class _RemovalCase:
 
     def route(self, activity: Any) -> HandlerResult:
         # A real sync port, so the ledger fan-out leaves its
-        # ``Announce(CaseLedgerEntry)`` activities in the store (CM-31-006).
+        # ``Add(CaseLedgerEntry)`` activities in the store (CM-31-006).
         return route_received(
             self.dl,
             activity,
@@ -177,13 +177,38 @@ class _RemovalCase:
         ]
 
     def activities_to(self, type_: str, actor_id: str) -> list[Any]:
-        """Activities of *type_* the manager authored and addressed to *actor_id*."""
+        """Activities of *type_* the manager authored and addressed to *actor_id*.
+
+        A ledger ``Add(CaseLedgerEntry)`` is not counted as an ``Add``: it is
+        replication, read through :meth:`ledger_adds_to`.
+        """
+        return [
+            obj
+            for obj in self._authored_to(type_, actor_id)
+            if not (type_ == "Add" and self._is_ledger_add(obj))
+        ]
+
+    def ledger_adds_to(self, actor_id: str) -> list[Any]:
+        """The ledger ``Add(CaseLedgerEntry)``\\ s the manager sent *actor_id*."""
+        return [
+            obj
+            for obj in self._authored_to("Add", actor_id)
+            if self._is_ledger_add(obj)
+        ]
+
+    def _authored_to(self, type_: str, actor_id: str) -> list[Any]:
         return [
             obj
             for obj in self.dl.list_objects(type_)
             if _as_id(getattr(obj, "actor", None)) == MANAGER
             and actor_id in [_as_id(t) for t in getattr(obj, "to", None) or []]
         ]
+
+    def _is_ledger_add(self, activity: Any) -> bool:
+        entry = getattr(activity, "object_", None)
+        return isinstance(entry, CaseLedgerEntry) or isinstance(
+            self.dl.read(_as_id(entry) or ""), CaseLedgerEntry
+        )
 
     def carried_case(self) -> as_VulnerabilityCase:
         """The stored case with its participant records carried inline.
@@ -489,27 +514,27 @@ def test_removal_entry_fans_out_to_the_removed_participant(
 
     announced = [
         _as_id(getattr(a, "object_", None))
-        for a in removal_case.activities_to("Announce", VENDOR)
+        for a in removal_case.ledger_adds_to(VENDOR)
     ]
     assert added[0].id_ in announced
 
 
 @pytest.mark.spec("CM-31-007")
-def test_announce_tree_has_a_removal_replay_node() -> None:
+def test_add_log_entry_tree_has_a_removal_replay_node() -> None:
     """A replica applies removal from the ledger entry, not the direct notice.
 
     Structural goal: the replay slot's node names carry ``Remove`` and
     ``Participant`` (for example ``IsRemoveCaseParticipantEventNode``); the
     implementation may rename it and update this test.
     """
-    from vultron.core.behaviors.sync.announce_tree import (
-        create_announce_log_entry_tree,
+    from vultron.core.behaviors.sync.add_log_entry_tree import (
+        create_add_log_entry_tree,
     )
 
     names = [
         type(node).__name__
-        for node in create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        for node in create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         ).iterate()
     ]
     assert any("Remove" in n and "Participant" in n for n in names), names

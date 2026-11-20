@@ -244,7 +244,7 @@ def create_case_from_proposal_act(
             # rcv-reject (#3033) and congested the CaseActor outbox in rcvcv
             # (#2898).  CM-14-011 states the rule and its rationale: the
             # receiver's system must hold the case object before any
-            # Announce(CaseLedgerEntry) fan-out that references it.
+            # Add(CaseLedgerEntry) fan-out that references it.
             CommitNativeLedgerEntriesNode(
                 report_id=report_id,
                 offer_id=offer_id,

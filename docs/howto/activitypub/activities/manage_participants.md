@@ -78,6 +78,7 @@ flowchart TB
 
 1. Trigger the invitation.
    The CASE_MANAGER sends `Invite(VulnerabilityCase preview)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-019, PCR-08-008).
+   Its `inReplyTo` names your request.
 2. Wait for the invitee's reply, addressed to the CASE_MANAGER.
 3. If the reply is `Accept(Invite(VulnerabilityCase preview))`, the CASE_MANAGER makes the actor an active participant — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
    The CASE_MANAGER ledgers the record's creation when it sends the Invite.
@@ -132,7 +133,7 @@ A later `Join` or `Ignore` moves the participant to `ACCEPTED` or `DEFERRED` as 
 {% include-markdown "./_vfd_one_activity.md" trailing-newlines=false %}
 See [How to Post a Status Update or a Case Note](status_updates.md) for the field that selects each.
 
-Send `Add(ParticipantStatus)`, targeting the participant record, with the new status inline as its `object`.
+Send `Add(ParticipantStatus)`, targeting the participant's status history `<participant>/statuses` and naming the case in `context`, with the new status inline as its `object` ([ADR-0204](../../../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md)).
 The status carries the participant's `rmState` and, for a Vendor or Deployer, its `vfState` and `dState`.
 The protocol names `Add(ParticipantStatus)` as the one form; a received `Create(ParticipantStatus)` is not a protocol message (VAM-01-019), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-017).
 
@@ -151,9 +152,9 @@ If you are both the Case Owner and the CASE_MANAGER, send it to your own inbox.
 
 !!! warning "Name the case in `target`, not `origin`"
 
-    `origin` looks like the right field for a removal, but the receiver does not read it.
-    Dispatch discriminates on `target`.
-    A `Remove` that names the case only in `origin` matches no pattern, and the participant is never removed (#3438).
+    `origin` looks like the right field for a removal, but the participant `Remove` does not use it yet.
+    Its pattern discriminates on `target`.
+    A `Remove(CaseParticipant)` that names the case only in `origin` matches no pattern, and the participant is never removed (#3438).
 
 Removal withdraws the participant's entitlement to case content.
 It does not take the participant off the roster: its record, its status history and its [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md) stay, and the record carries a removal fact.
@@ -161,7 +162,7 @@ The CASE_MANAGER refuses a removal of the CASE_MANAGER or of the Case Owner, and
 A second removal of the same participant changes nothing.
 
 The CASE_MANAGER records your `Remove` as one ledger entry and sends that entry to every active participant, the removed one included.
-It then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `attributedTo` set to you.
+It then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `attributedTo` set to you and `inReplyTo` set to your `Remove`.
 The removed participant receives no later ledger entries, and no Invite of any kind.
 
 The CASE_MANAGER also refuses a recommendation that names the removed participant, and your acceptance of an earlier one.
@@ -192,7 +193,7 @@ The CASE_MANAGER refuses an `Add` from anyone other than the Case Owner, and an 
 
 The CASE_MANAGER records your `Add` as one ledger entry.
 When the participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order.
-Then it sends a direct `Add(CaseParticipant)` that names the participant, with `attributedTo` set to you.
+Then it sends a direct `Add(CaseParticipant)` that names the participant, with `attributedTo` set to you and `inReplyTo` set to your `Add`.
 A participant that has not accepted the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and its catch-up waits until it accepts.
 
 ---
@@ -203,7 +204,7 @@ A participant that has not accepted the active embargo stays inert: the CASE_MAN
 |---|---|
 | `Invite(VulnerabilityCase preview)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
 | `Accept(Invite(VulnerabilityCase preview))` | The roster holds the participant with its roles. |
-| `Add(ParticipantStatus)` | The participant record carries the new status. |
+| `Add(ParticipantStatus)` | The participant's status history carries the new status. |
 | `Remove(CaseParticipant)` | The roster still lists the participant, and its record names your `Remove` as its `removalActivity`. |
 | `Add(CaseParticipant)` | The participant's record has no `removalActivity`, and the participant holds the ledger entries it missed. |
 | `Accept`, `TentativeReject` or `Reject` of the full-case Invite | The CASE_MANAGER's record of the participant shows RM `VALID`, `INVALID` or `CLOSED`. |

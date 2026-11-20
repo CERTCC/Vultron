@@ -608,6 +608,10 @@ class TestAddParticipantToCase:
         assert dl.read(activity_id) is not None
 
 
+#: The Case Owner's request a delegated notice carries out (CM-24-020).
+_REQUEST = "https://example.org/activities/owner-remove"
+
+
 class TestRemoveParticipantFromCase:
     """The CASE_MANAGER's removal notice (CM-31-006, CM-24)."""
 
@@ -622,6 +626,7 @@ class TestRemoveParticipantFromCase:
             case_id=case.id_,
             actor=_ACTOR,
             attributed_to=_INVITEE,
+            in_reply_to=_REQUEST,
             to=[_INVITEE],
             at=authored_at(),
         )
@@ -631,11 +636,30 @@ class TestRemoveParticipantFromCase:
         assert body["type"] == "Remove"
         assert body["actor"] == _ACTOR
         assert body["attributedTo"] == _INVITEE
+        assert body["inReplyTo"] == _REQUEST
         assert body["to"] == [_INVITEE]
         assert body["object"]["id"] == participant.id_
         assert body["target"] == case.id_
         assert body["context"] == case.id_
         assert dl.read(activity_id) is not None
+
+    @pytest.mark.spec("CM-24-021")
+    def test_the_managers_own_notice_carries_neither_field(self, adapter, dl):
+        case = _make_case(dl)
+        participant = _make_participant(dl, case.id_)
+
+        _, blob = adapter.remove_participant_from_case(
+            participant_id=participant.id_,
+            case_id=case.id_,
+            actor=_ACTOR,
+            attributed_to=None,
+            to=[_INVITEE],
+            at=authored_at(),
+        )
+
+        body = json.loads(blob)
+        assert "attributedTo" not in body
+        assert "inReplyTo" not in body
 
     def test_unknown_participant_raises(self, adapter, dl):
         case = _make_case(dl)

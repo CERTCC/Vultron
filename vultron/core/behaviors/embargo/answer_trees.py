@@ -22,7 +22,7 @@ owner's decision for the case has activities of its own
 (``owner_decision_tree``).  Every answer routes through the CASE_MANAGER
 (PCR-08, ADR-0113), so the effects of both trees write shared case state
 behind the factory's gate (BT-17-001, BT-17-008, RSH-08-003): a participant
-replica learns the answer from the ``Announce(CaseLedgerEntry)`` broadcast
+replica learns the answer from the ``Add(CaseLedgerEntry)`` broadcast
 (EP-09-007), never from the activity itself.
 
 The two declare different paths all the same (HP-01-038).  An ``Accept`` is
@@ -375,7 +375,7 @@ def reject_invite_to_embargo_tree(
                     invite_id=invite_id,
                     rejecting_actor_id=rejecting_actor_id,
                 ),
-                ReplicaRefusalNode(case_id),
+                with_case_id(ReplicaRefusalNode(), case_id),
             ),
             IsAnswerableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
             # A repeat of a Reject already recorded commits nothing and

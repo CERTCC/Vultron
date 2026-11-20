@@ -43,6 +43,7 @@ class TriggerEmbargoPort(Protocol):
         *,
         at: datetime,
         invitee: str | None = None,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an
         ``Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]``.
@@ -56,7 +57,9 @@ class TriggerEmbargoPort(Protocol):
         ``attributed_to`` carries the proposer when the CASE_MANAGER relays a
         proposal on a participant's behalf (CM-24-002, EP-09-002): ``actor`` is
         then the CASE_MANAGER and ``attributed_to`` the participant whose terms
-        these are.
+        these are, and ``in_reply_to`` the request the relay carries out
+        (CM-24-020): the two are given together, from the shared
+        delegated-authorship helper.
         ``activity_id`` is the Invite's id when the caller recorded it before
         the emission — the creation-time revision is indexed under its
         Invite's id at registration and relayed only after the initialization
@@ -222,12 +225,13 @@ class TriggerEmbargoPort(Protocol):
         attributed_to: str | None = None,
         *,
         at: datetime,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Announce(EmbargoEvent)`` activity.
 
         *attributed_to*, when given, names the actor whose request the
         CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
-        of a shorter revision.
+        of a shorter revision, and *in_reply_to* that request (CM-24-020).
 
         Returns ``(activity_id, activity_dict)``.
         """
@@ -244,6 +248,7 @@ class TriggerEmbargoPort(Protocol):
         to: list[str] | None = None,
         attributed_to: str | None = None,
         at: datetime,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(EmbargoEvent)`` ET activity.
 
@@ -254,7 +259,8 @@ class TriggerEmbargoPort(Protocol):
         records on its own ``TERMINATED`` entry.
         *attributed_to*, when given, names the actor whose request the
         CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
-        to a bound signatory the ledger no longer reaches.
+        to a bound signatory the ledger no longer reaches, and *in_reply_to*
+        that request (CM-24-020).
         Returns ``(activity_id, activity_dict)``.
         """
         ...

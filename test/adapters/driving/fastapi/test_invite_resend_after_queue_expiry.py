@@ -12,7 +12,7 @@ sealed bodies each outbox delivers:
 3. Before the copy arrives the owner activates the proposal, so the joiner,
    which has not agreed to it, is now inert (CM-10-004).
 4. The case copy seeds the joiner's replica, and the joiner states its
-   position in ``Read(CaseLedgerEntry)`` (SYNC-17-008).
+   position in ``Read(<case>/ledger)`` (SYNC-17-008).
 5. The CASE_MANAGER refuses the inert joiner's statement (SYNC-17-002) but
    resends both Invites as first sent (SYNC-20-001, SYNC-20-003).
 6. The joiner receives the resent embargo Invite and accepts it before its

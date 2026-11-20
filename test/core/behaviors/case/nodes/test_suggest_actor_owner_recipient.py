@@ -31,6 +31,7 @@ failures starting at "Offer(CaseParticipant) for V2 arrived in C1's DataLayer"
 and ending with a 422 from ``accept-actor-recommendation``.
 """
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -47,6 +48,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitNoteDuplicateRecommendationToOwnerNode,
     EmitOfferCaseParticipantToOwnerNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -146,6 +148,11 @@ def _queued_recipients(dl: SqliteDataLayer, type_: str) -> list[str]:
     return recipients
 
 
+def _ref_id(value: object) -> object:
+    """The id of *value*, inline or a bare id."""
+    return getattr(value, "id_", value)
+
+
 def _offer_node() -> EmitOfferCaseParticipantToOwnerNode:
     return EmitOfferCaseParticipantToOwnerNode(
         recommendation_id=RECOMMENDATION_ID,
@@ -155,12 +162,14 @@ def _offer_node() -> EmitOfferCaseParticipantToOwnerNode:
     )
 
 
-def _note_node() -> EmitNoteDuplicateRecommendationToOwnerNode:
-    return EmitNoteDuplicateRecommendationToOwnerNode(
-        recommendation_id=RECOMMENDATION_ID,
-        recommender_id=RECOMMENDER_ID,
-        recommended_id=RECOMMENDED_ID,
-        case_id=CASE_ID,
+def _note_node() -> py_trees.behaviour.Behaviour:
+    return with_case_id(
+        EmitNoteDuplicateRecommendationToOwnerNode(
+            recommendation_id=RECOMMENDATION_ID,
+            recommender_id=RECOMMENDER_ID,
+            recommended_id=RECOMMENDED_ID,
+        ),
+        CASE_ID,
     )
 
 
@@ -189,6 +198,31 @@ class TestOfferCaseParticipantAddressesTheCaseOwner:
             "the CaseActor must not DM itself — the Case Owner would never"
             " receive the membership decision it is required to make"
         )
+
+    @pytest.mark.spec("CM-16-004")
+    def test_offer_names_the_recommendation_in_in_reply_to_not_origin(
+        self, case_actor_dl
+    ):
+        """The forward answers the recommender's ``Offer(Actor)``, so it names
+        that Offer in ``inReplyTo`` and sets no ``origin``: ``origin`` says
+        where something comes from, not what a message answers."""
+        _seed_case_actor_store(case_actor_dl)
+
+        assert _run(case_actor_dl, _offer_node()) == Status.SUCCESS
+
+        offers = [
+            activity
+            for activity_id in case_actor_dl.outbox_list()
+            if getattr(
+                activity := case_actor_dl.read(activity_id), "type_", None
+            )
+            == "Offer"
+        ]
+        assert len(offers) == 1
+        assert _ref_id(getattr(offers[0], "in_reply_to", None)) == (
+            RECOMMENDATION_ID
+        )
+        assert getattr(offers[0], "origin", None) is None
 
     @pytest.mark.spec("CM-16-004")
     def test_falls_back_to_attributed_to_when_no_owner_participant(
@@ -238,7 +272,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
         """The CaseActor records the note for the owner, never DMs itself.
 
         The note is its own ``add_note_to_case`` entry, so the Case Owner
-        learns of it from the entry's ``Announce`` (SYNC-02-001, SYNC-02-003); a direct
+        learns of it from the entry's ``Add`` (SYNC-02-001, SYNC-02-003); a direct
         ``Add(Note)`` would be refused at the owner (HP-01-005, #4829).
         """
         _seed_case_actor_store(case_actor_dl)
@@ -248,7 +282,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
         assert status == Status.SUCCESS
         note = assert_case_manager_note_recorded(case_actor_dl, CASE_ID)
         assert OWNER_ID in note["content"]
-        recipients = _queued_recipients(case_actor_dl, "Announce")
+        recipients = _queued_recipients(case_actor_dl, "Add")
         assert OWNER_ID in recipients, recipients
         assert CASE_ACTOR_ID not in recipients, recipients
 

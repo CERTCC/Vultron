@@ -28,7 +28,7 @@ groups:
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CV MUST
       update their model of the sending Participant's CS state to Vendor Aware
       (q^cs ∈ Vfd···). No CK message is emitted (MSM-03-008). The CASE_MANAGER's
-      commit of the received activity, fanned out as `Announce(CaseLedgerEntry)`,
+      commit of the received activity, fanned out as `Add(CaseLedgerEntry)`,
       records it. Each replica acknowledges that entry by its unbroken hash chain
       (MSM-05-002).
     rationale: >-
@@ -93,7 +93,7 @@ groups:
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CF MUST
       update their model of the sending Participant's CS state to Fix Ready
       (q^cs ∈ VFd···). No CK message is emitted (MSM-03-008). The CASE_MANAGER's
-      commit of the received activity, fanned out as `Announce(CaseLedgerEntry)`,
+      commit of the received activity, fanned out as `Add(CaseLedgerEntry)`,
       records it. Each replica acknowledges that entry by its unbroken hash chain
       (MSM-05-002).
     rationale: >-
@@ -158,7 +158,7 @@ groups:
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CD MUST
       update their model of the sending Participant's CS state to Fix Deployed
       (q^cs ∈ VFD···). No CK message is emitted (MSM-03-008). The CASE_MANAGER's
-      commit of the received activity, fanned out as `Announce(CaseLedgerEntry)`,
+      commit of the received activity, fanned out as `Add(CaseLedgerEntry)`,
       records it. Each replica acknowledges that entry by its unbroken hash chain
       (MSM-05-002).
     rationale: >-
@@ -225,7 +225,7 @@ groups:
       transition their local CS to Public Aware (q^cs ···p·· → ···P··).
       "Emit CK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      `Add(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       CP is a global (participant-agnostic) CS transition. All receivers must
       update their own CS state. When EM is None or Exited, no embargo teardown
@@ -370,7 +370,7 @@ groups:
       Aware (q^cs ∈ ···P··) receiving a duplicate CP MUST make no CS or EM
       state transition. "Emit CK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      `Add(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       Duplicate CP does not re-trigger CS or EM transitions.
     verification: >-
@@ -476,7 +476,7 @@ groups:
       Public Aware and Exploit Public (q^cs ···px· → ···PX·).
       "Emit CK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      `Add(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       CX in state ···px· implies the pX→PX invariant (constraint C-15): exploit
       public without prior public awareness is an ephemeral state that
@@ -622,7 +622,7 @@ groups:
       their local CS exploit bit to X (q^cs ···Px· → ···PX·).
       "Emit CK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      `Add(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       When public awareness already exists, CX transitions only the exploit bit.
       No new embargo teardown is triggered since the embargo should already have
@@ -669,7 +669,7 @@ groups:
       exploit-public (q^cs ∈ ···PX·) receiving a duplicate CX MUST make no CS
       or EM state transition. "Emit CK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      `Add(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       Duplicate CX does not re-trigger CS or EM transitions.
     verification: >-
@@ -795,7 +795,7 @@ groups:
       to A (q^cs ···p·a → ···p·A).
       "Emit CK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      `Add(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       An observed attack is evidence of exploitation, not public information
       about the vulnerability: an attack can be seen on one network while
@@ -955,7 +955,7 @@ groups:
       transition their local CS attacks bit to A (q^cs ···P·a → ···P·A).
       "Emit CK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      `Add(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       When public awareness already exists, CA transitions only the attacks bit.
       The public bit is already set; no new P transition is needed.
@@ -1000,7 +1000,7 @@ groups:
       observed (q^cs ∈ ·····A) receiving a duplicate CA MUST make no CS or EM
       state transition. "Emit CK" is discharged by the
       CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      `Add(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       Duplicate CA does not re-trigger CS or EM transitions, whether or not the
       case is public: ···p·A is a resting state (CSB-17-003).
@@ -1172,7 +1172,7 @@ groups:
   description: >-
     Behaviors triggered when a participant receives the acknowledgment (CK) of a CS
     activity it sent. No CK message exists (MSM-03-008): the acknowledgment is the
-    CASE_MANAGER's commit of the activity, fanned out as `Announce(CaseLedgerEntry)`.
+    CASE_MANAGER's commit of the activity, fanned out as `Add(CaseLedgerEntry)`.
   trigger:
     type: message_received
     value: CK
@@ -1181,7 +1181,7 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A Participant that receives the CASE_MANAGER's `Announce(CaseLedgerEntry)` for a
+      A Participant that receives the CASE_MANAGER's `Add(CaseLedgerEntry)` for a
       CS activity it sent MAY treat that entry as the acknowledgment (CK) of the
       activity, with no further state transition and no required response. No CK
       message exists (MSM-03-008, MSM-05-002).
@@ -3120,14 +3120,14 @@ groups:
     statement: >-
       CS ordering invariants (ephemeral-state guard, history-prefix validity,
       CP-before-ET ordering) MUST be evaluated at drain time — that is,
-      against the causal-order replay of the held Announces (ADR-0037,
+      against the causal-order replay of the held Adds (ADR-0037,
       SYNC-14-009) — not at the time of original out-of-order receipt.
     rationale: >-
-      An out-of-order `Announce(CaseLedgerEntry)` carrying a CS update is
+      An out-of-order `Add(CaseLedgerEntry)` carrying a CS update is
       held by `BufferOutOfOrderEntryNode` before any domain effects are
       applied; the CS state machine is not touched at hold time.
-      When the gap fills, the drain replays each held Announce through the
-      full announce receive BT in log_index order (ADR-0037, CLP-14-001),
+      When the gap fills, the drain replays each held Add through the
+      full add-log-entry receive BT in log_index order (ADR-0037, CLP-14-001),
       so CS guards see the entries in correct causal sequence. Evaluating
       guards at original receipt would produce false violations whenever the
       predecessor CS entry has not yet arrived.

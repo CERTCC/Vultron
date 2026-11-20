@@ -32,11 +32,11 @@ the number and stamps it here.
 from collections.abc import Iterator
 from typing import TypeVar
 
-from vultron.core.models.case_ledger_entry import ledger_entry_id
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case_ledger_entry import case_ledger_id
 from vultron.core.models.sender_sequence import is_sender_sequence
 from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.factories._ledger_position import named_case_ids
-from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Read,
@@ -48,41 +48,38 @@ _Activity = TypeVar("_Activity", bound=as_Activity)
 _LEDGER_ENTRY_TYPE = "CaseLedgerEntry"
 
 
-def _ledger_entry_prefix(case_id: str) -> str:
-    """The id prefix every entry of *case_id*'s ledger shares."""
-    return ledger_entry_id(case_id, 0).removesuffix("0")
-
-
 def _names_a_ledger_entry(activity: as_Activity) -> bool:
-    """Whether *activity*'s object is a ledger entry, inline or by id.
-
-    A ``Read(CaseLedgerEntry)`` names its entry by reference (SYNC-17-001),
-    and an entry's id is ``{case_id}/log/{index}``, so a bare id under one
-    of the cases the activity names is an entry's.
-    """
-    obj = getattr(activity, "object_", None)
-    if isinstance(obj, str):
-        return any(
-            obj.startswith(_ledger_entry_prefix(case_id))
-            for case_id in named_case_ids(activity)
-        )
-    type_ = getattr(obj, "type_", None)
+    """Whether *activity*'s object is a ledger entry (``Reject``, SYNC-03-001)."""
+    type_ = getattr(getattr(activity, "object_", None), "type_", None)
     return type_ is not None and str(type_) == _LEDGER_ENTRY_TYPE
 
 
+def _names_a_case_ledger(activity: as_Activity) -> bool:
+    """Whether *activity*'s object is the ledger of a case it names.
+
+    A position statement is ``Read(<case>/ledger)`` (SYNC-17-001,
+    ADR-0204): its object is the case's ledger, an ``OrderedCollection``
+    whose id is :func:`case_ledger_id` of the case in its ``context``.
+    """
+    ledger_id = _as_id(getattr(activity, "object_", None))
+    return bool(ledger_id) and any(
+        ledger_id == case_ledger_id(case_id)
+        for case_id in named_case_ids(activity)
+    )
+
+
 def is_ledger_request(activity: as_Activity) -> bool:
-    """Whether *activity* is a ``Read`` or ``Reject`` of a ledger entry.
+    """Whether *activity* is a ``Read`` of a case's ledger or a ``Reject`` of an entry.
 
     The two ask about the ledger and are not case events (CLP-02-013), so
     they carry no number (SYNC-21-001): a request for a missed entry must
-    not wait behind the gap it reports.  The objectless genesis-replay
-    ``Reject`` is one (SYNC-16-027).
+    not wait behind the gap it reports.
     """
-    if not isinstance(activity, (as_Read, as_Reject)):
-        return False
-    if is_genesis_replay_reject(activity):
-        return True
-    return _names_a_ledger_entry(activity)
+    if isinstance(activity, as_Read):
+        return _names_a_case_ledger(activity)
+    if isinstance(activity, as_Reject):
+        return _names_a_ledger_entry(activity)
+    return False
 
 
 def sender_sequence_case_ids(activity: as_Activity) -> Iterator[str]:

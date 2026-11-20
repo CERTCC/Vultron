@@ -59,6 +59,16 @@ import py_trees
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    REFUSED_ACTIVITY_ID,
+    SENDER_ID,
+)
 from vultron.core.behaviors.case.nodes.case_lookup import (
     CaseIdInputPortMixin,
 )
@@ -129,6 +139,8 @@ def refusal_effects_with_notice(
     guards: Sequence[py_trees.behaviour.Behaviour | Diversion | OnPaths],
     refusal_effects: list[py_trees.behaviour.Behaviour],
     exemption: RefusalNoticeExemption | None,
+    *,
+    run_time_case: bool = False,
 ) -> list[py_trees.behaviour.Behaviour]:
     """A received tree's refusal effects, the refusal notice first (CLP-02-005).
 
@@ -150,8 +162,11 @@ def refusal_effects_with_notice(
     """
     where = f"create_receive_activity_tree({name})"
     guarded = bool(guards)
+    # A case the tree's lookup publishes is the tree's case too; the notice
+    # then reads it from ``/case_id`` (BT-25-009).
+    commits = case_id is not None or run_time_case
     if exemption is None:
-        if case_id is None or not guarded:
+        if not commits or not guarded:
             return refusal_effects
         return [refusal_notice(case_id), *refusal_effects]
     require_registered(
@@ -162,7 +177,7 @@ def refusal_effects_with_notice(
         registry_name="REFUSAL_NOTICE_EXEMPTIONS",
         spec_id="CLP-02-005",
     )
-    if case_id is None or not guarded:
+    if not commits or not guarded:
         raise VultronWiringError(
             f"{where}: refusal-notice exemption {exemption.name!r} exempts"
             " nothing — the tree has no precondition guards or no case to"
@@ -344,23 +359,37 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
 
     Pending-assertion state is this actor's own in-memory record, not case
     state (CLP-06-002), so the node is not a state writer.
+
+    The case, the refused activity and the notice's sender are read from
+    ``/case_id``, ``/refused_activity_id`` and ``/sender_id`` (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, REFUSED_ACTIVITY_ID, SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, REFUSED_ACTIVITY_ID, SENDER_ID)
 
     def __init__(
         self,
-        case_id: str,
-        refused_activity_id: str,
         reason: str | None,
-        sender_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.refused_activity_id = refused_activity_id
         self.reason = reason
-        self.sender_id = sender_id
         self.cleared: list[PendingAssertion] = []
         """The pending entries the last run cleared."""
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self.refused_activity_id: str = act_value(
+            self, REFUSED_ACTIVITY_ID, str
+        )
+        self.sender_id: str = act_value(self, SENDER_ID, str)
 
     def update(self) -> Status:
         self.cleared = []
@@ -406,21 +435,34 @@ class ResumeOutboundSequenceNode(DataLayerActionWithPorts):
 
     The counter is this actor's own bookkeeping (SYNC-21-020), not case
     state, so the node is not a state writer.
+
+    The case and the notice's sender are read from ``/case_id`` and
+    ``/sender_id`` (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, SENDER_ID)
 
     def __init__(
         self,
-        case_id: str,
         expected: int,
-        sender_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
         self.expected = expected
-        self.sender_id = sender_id
         self.moved = False
         """Whether the last run moved the counter."""
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self.sender_id: str = act_value(self, SENDER_ID, str)
 
     def update(self) -> Status:
         self.moved = False

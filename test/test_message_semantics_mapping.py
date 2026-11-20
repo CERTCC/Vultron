@@ -96,7 +96,9 @@ def test_vfd_dimensions_ride_participant_status_not_case_status():
     pattern = _pattern(MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT)
     assert pattern.activity_ is TAtype.ADD
     assert pattern.object_ == "ParticipantStatus"
-    assert pattern.target_ == "CaseParticipant"
+    # The status history, with the case in context (ADR-0204).
+    assert pattern.target_ == "OrderedCollection"
+    assert pattern.context_ == "VulnerabilityCase"
 
     # V and F ride the VF dimension; D rides the D dimension. Both are
     # participant-scoped.  They used to be flat ``vf_state``/``d_state`` *fields*;
@@ -133,7 +135,9 @@ def test_pxa_dimensions_ride_case_status():
     pattern = _pattern(MessageSemantics.ADD_CASE_STATUS_TO_CASE)
     assert pattern.activity_ is TAtype.ADD
     assert pattern.object_ == "CaseStatus"
-    assert pattern.target_ == "VulnerabilityCase"
+    # The status history, with the case in context (ADR-0204).
+    assert pattern.target_ == "OrderedCollection"
+    assert pattern.context_ == "VulnerabilityCase"
     assert as_CaseStatus.model_fields["pxa"].serialization_alias == "pxaState"
 
 
@@ -146,7 +150,9 @@ def test_pxa_also_rides_a_participant_status_embedded_case_status():
     pattern = _pattern(MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT)
     assert pattern.activity_ is TAtype.ADD
     assert pattern.object_ == "ParticipantStatus"
-    assert pattern.target_ == "CaseParticipant"
+    # The status history, with the case in context (ADR-0204).
+    assert pattern.target_ == "OrderedCollection"
+    assert pattern.context_ == "VulnerabilityCase"
     assert (
         as_ParticipantStatus.model_fields["case_status"].serialization_alias
         == "caseStatus"
@@ -353,6 +359,7 @@ def test_faults_are_partitioned_by_failure_mode_not_state_machine():
 
 @pytest.mark.spec("MSM-05-002")
 @pytest.mark.spec("MSM-05-007")
+@pytest.mark.spec("MSM-05-010")
 @pytest.mark.spec("MSM-02-009")
 @pytest.mark.spec("MSM-03-008")
 def test_ledger_acknowledgement_is_negative_and_cumulative():
@@ -366,7 +373,7 @@ def test_ledger_acknowledgement_is_negative_and_cumulative():
     # The NAK path is a registered wire activity ...
     assert MessageSemantics.REJECT_CASE_LEDGER_ENTRY in registered
     # ... paired with the announcement it can reject.
-    assert MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY in registered
+    assert MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER in registered
 
     # `RK` (ACK_REPORT) is the *only* acknowledgement semantic, under any
     # spelling. EK/CK/GK deliberately have none, because hash-chain continuity
@@ -413,13 +420,13 @@ def test_report_submission_is_the_only_non_ledger_wire_activity():
     """RK / ACK_REPORT is the only ack semantic because RS is not ledger-replicated.
 
     Every other protocol-significant activity reaches participants via
-    Announce(CaseLedgerEntry) — there is no second category of activities that
+    Add(CaseLedgerEntry) — there is no second category of activities that
     bypasses the ledger and would need its own ack mechanism.
     """
     registered = _registered()
 
     # The ledger fan-out semantic exists ...
-    assert MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY in registered
+    assert MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER in registered
     # ... and the only explicit ack is the one for report submission.
     assert _members_matching(_ACK_TOKENS) == _SANCTIONED_ACK_SEMANTICS
 
@@ -428,7 +435,7 @@ def test_report_submission_is_the_only_non_ledger_wire_activity():
 def test_no_heartbeat_semantic_exists_in_registry():
     """Liveness inference relies solely on Announce deliveries; no heartbeat is mandated.
 
-    MSM-05-006 records that implementations MAY rely on Announce(CaseLedgerEntry)
+    MSM-05-006 records that implementations MAY rely on Add(CaseLedgerEntry)
     for liveness without emitting a dedicated heartbeat. The absence of a
     HEARTBEAT-named semantic in the current registry is the observable correlate.
     """

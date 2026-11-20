@@ -35,7 +35,6 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from fractions import Fraction
-from functools import cache
 
 from pydantic import BaseModel, ConfigDict, computed_field, model_validator
 
@@ -57,11 +56,9 @@ from vultron.measure.advice.shifts import (
     scope_shift,
 )
 from vultron.measure.baselines import (
-    EXTENDED,
-    ORIGINAL,
-    Desideratum,
     EventKind,
     VendorDesideratum,
+    desideratum_by_notation,
 )
 from vultron.measure.standing import (
     CSMove,
@@ -382,31 +379,6 @@ class CaseAdvice(BaseModel):
         """Every open move, band by band."""
         return tuple(m for b in self.bands for m in b.moves)
 
-    @property
-    def deepest_layer(self) -> int:
-        """The deepest layer of any harm-free or trade-off move, which every
-        shaded band's legend runs to; 1 when no move has a layer."""
-        return max(
-            (m.layer for m in self.moves if m.layer is not None), default=1
-        )
-
-
-@cache
-def _desiderata_by_notation() -> dict[str, Desideratum]:
-    found: dict[str, Desideratum] = {}
-    for desideratum in (*ORIGINAL, *EXTENDED):
-        if desideratum.notation in found:
-            raise ValueError(f"two desiderata print as {desideratum.notation}")
-        found[desideratum.notation] = desideratum
-    return found
-
-
-def _desideratum(notation: str) -> Desideratum:
-    try:
-        return _desiderata_by_notation()[notation]
-    except KeyError:
-        raise ValueError(f"no desideratum prints as {notation}") from None
-
 
 def _shift(scored: ScoredMove, numbers: Mapping[str, int]) -> ScopeShift:
     """*scored*'s changes summed into each vendor's scope.
@@ -429,13 +401,16 @@ def _shift(scored: ScoredMove, numbers: Mapping[str, int]) -> ScopeShift:
             raise ValueError(
                 f"{exc.args[0]} is not a vendor of the case"
             ) from None
-        key = VendorDesideratum(_desideratum(change.notation), vendor, other)
+        key = VendorDesideratum(
+            desideratum_by_notation(change.notation), vendor, other
+        )
         readings[key] = change.change
     return scope_shift(readings, len(numbers))
 
 
-def _unbanded_reason(scored: ScoredMove) -> str | None:
-    """Why *scored* is not an open move; ``None`` for an open move."""
+def unbanded_reason(scored: ScoredMove) -> str | None:
+    """Why *scored* is not an open move, so it has no band; ``None`` for an
+    open move."""
     if scored.advice:
         return KEEPS_EVERY_STATE
     if scored.unscored is not None:
@@ -506,7 +481,7 @@ def case_advice(record: StandingRecord) -> CaseAdvice:
     unbanded: list[UnbandedMove] = []
     open_moves: list[ScoredMove] = []
     for scored in record.moves:
-        reason = _unbanded_reason(scored)
+        reason = unbanded_reason(scored)
         if reason is None:
             open_moves.append(scored)
         else:

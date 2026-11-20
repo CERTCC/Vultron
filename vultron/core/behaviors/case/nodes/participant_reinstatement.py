@@ -51,6 +51,8 @@ from vultron.core.behaviors.case.nodes.ledgered_repeat import (
     ActivityNotYetLedgeredNode,
 )
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case_id_scope import with_case_id
+from vultron.core.behaviors.delegated_authorship import DelegatedAuthorship
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -109,7 +111,7 @@ def case_manager_admits_reinstatement_guard(
     """
     return OnPaths.at_case_manager(
         "ReinstatementAdmissibleIfCaseManager",
-        ActivityNotYetLedgeredNode(case_id=case_id),
+        with_case_id(ActivityNotYetLedgeredNode(), case_id),
         MoveNamesCaseParticipantNode(
             participant_id=participant_id,
             case_id=case_id,
@@ -173,15 +175,15 @@ class EmitParticipantReinstatementNoticeNode(EmitParticipantMoveNoticeNode):
     def _send(
         self,
         trigger_activity: TriggerActivityPort,
-        actor: str,
-        attributed_to: str,
+        authorship: DelegatedAuthorship,
         to: list[str],
     ) -> tuple[str, str]:
         return trigger_activity.add_participant_to_case(
             participant_id=self.participant_id,
             case_id=self.case_id,
-            actor=actor,
-            attributed_to=attributed_to,
+            actor=authorship.actor,
+            attributed_to=authorship.attributed_to,
+            in_reply_to=authorship.in_reply_to,
             to=to,
             at=self._require_act_instant(),
         )

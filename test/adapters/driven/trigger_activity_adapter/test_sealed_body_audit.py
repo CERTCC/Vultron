@@ -66,7 +66,10 @@ from vultron.core.models.fault_classes import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.type_terms import names_type
-from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItem,
+    VulnerabilityItemId,
+)
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
@@ -289,7 +292,7 @@ class _World:
             recommended_id=_PEER,
             case_id=self.case_id,
             actor=_ACTOR,
-            origin=self.recommendation_id(),
+            in_reply_to=self.recommendation_id(),
             to=[_ACTOR],
             at=authored_at(),
         )
@@ -507,7 +510,9 @@ RECIPES: dict[str, Recipe] = {
     "record_vulnerability_item_added": lambda w: w.adapter_as(
         _CASE_ACTOR
     ).record_vulnerability_item_added(
-        item=make(VulnerabilityItem, cve="CVE-2026-0001"),
+        item=make(
+            VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2026-0001")]
+        ),
         case_id=w.case_id,
         actor=_CASE_ACTOR,
         at=authored_at(),
@@ -708,7 +713,7 @@ RECIPES: dict[str, Recipe] = {
         recommended_id=_PEER,
         case_id=w.case_id,
         actor=_ACTOR,
-        origin=w.recommendation_id(),
+        in_reply_to=w.recommendation_id(),
         to=[_ACTOR],
         at=authored_at(),
     ),

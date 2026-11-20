@@ -58,7 +58,7 @@ replica but failed to queue the introduction, the CASE_MANAGER's redelivery
 of its ``Create`` is the only later trigger for it.
 
 Seeding the replica anchors the case's genesis hash, so an
-``Announce(CaseLedgerEntry)`` the CASE_MANAGER's fan-out delivered before the
+``Add(CaseLedgerEntry)`` the CASE_MANAGER's fan-out delivered before the
 case is now appliable.  The introduction to the reporter comes from the
 report receiver, a different sender than the CASE_MANAGER, so nothing orders
 it before that fan-out.  Once the seed is stored the trusted arm replays

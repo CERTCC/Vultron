@@ -38,7 +38,7 @@ from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 def create_processing_fault() -> as_Create:
     """A Vendor's replica refuses a ledger entry naming an impossible state.
 
-    The Vendor cannot apply the ``Announce(CaseLedgerEntry)`` the Case
+    The Vendor cannot apply the ``Add(CaseLedgerEntry)`` the Case
     Manager sent, because the participant status it records violates the
     composite-state entailments, so it reports the fault to the Case Manager
     (RSH-09-013).  The fault points at the failed activity by ``inReplyTo``

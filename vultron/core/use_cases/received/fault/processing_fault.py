@@ -81,7 +81,7 @@ class CreateProcessingFaultReceivedUseCase:
     class (CLP-10-005).
 
     A fault carries no case (ASK-07-006).  When its ``inReplyTo`` names an
-    ``Announce(CaseLedgerEntry)`` this actor sent, the entry that announce
+    ``Add(CaseLedgerEntry)`` this actor sent, the entry that announce
     carried is read from this store and handed to the response, so the case
     is the entry's.
 
@@ -147,7 +147,7 @@ class CreateProcessingFaultReceivedUseCase:
         def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
             # The entry is read for the receiver the runner resolved: only an
             # Announce it sent counts.  The read moves into the tree with
-            # the run-time case id (#6476).
+            # the run-time case id (#6499).
             refused_entry = (
                 self._refused_entry(receiving_actor_id)
                 if response.reads_refused_entry

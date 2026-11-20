@@ -166,9 +166,8 @@
       "https://www.w3.org/ns/activitystreams",
       "https://certcc.github.io/Vultron/ns/context.jsonld"
     ],
-    "actorId": "urn:test:actor_id:1",
+    "attributedTo": "urn:test:attributed_to:1",
     "id": "urn:test:embargopolicy:golden",
-    "inbox": "urn:test:inbox:1",
     "preferredDuration": "P90D",
     "published": "2026-01-02T03:04:05.000000+00:00",
     "type": "EmbargoPolicy",
@@ -210,7 +209,6 @@
     "activeParticipants": [],
     "actorParticipantIndex": {},
     "attributedTo": "urn:test:attributed_to:1",
-    "caseActivity": [],
     "caseParticipants": [],
     "caseReferences": [],
     "caseStatuses": [

@@ -113,6 +113,12 @@ Reason: `E ≺ P`, `E ≺ X` and `E ≺ A` hold together, and so do the three `E
 ones, so counting each adds the same skill three times (`process_model_desiderata.md`
 § "The desiderata are not independent").
 
+Read a vendor's scope list from `vultron.measure.baselines.scope_desiderata()`, not
+from a filter of the catalog in the consumer: move advice sums it, the case score's
+parts are cut from it, and the case shadow tool's Desiderata table shows it. Reason:
+two lists built apart drift, and the table then shows a different set from the one
+the advice weighs (#6669).
+
 Score a case term whose scope the case never enters as met: it adds its full
 `1 − f_d`, and an open term adds `1 − f_d` times its `ChanceReading.outcome`. Reason:
 the move-advice rule below, and one combining function, `expected_outcome`, serves
@@ -158,6 +164,12 @@ position, never pattern by pattern; show each rule disagreement and leave both t
 as they are. Reason: the generated rules are the evidence an authored rule is checked
 against, so a second scorer could drift from the advice, and a disagreement marks a
 wrong rule or a chance-model blind spot only a person can tell apart (ADR-0216).
+
+Read a one-vendor position's verdict once for each set of desiderata a history can
+leave open there, and state a band that differs between those sets as a conditional
+verdict, never one history's band. Reason: a desideratum already met or broken changes
+by nothing, so accepting a report deferred straight away is harm-free and accepting one
+accepted before is not, at the same states (user decision on #6676, D6; SHD-05-029).
 
 Score a complete history with `vultron.measure.scoring.history_score`, never
 `CVDmodel.score_hist`: it is the same `Σ (1 − f_d)` over the twelve original

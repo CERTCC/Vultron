@@ -241,7 +241,7 @@ Two shapes look like a second tree and are not:
 - **A CASE_MANAGER clock decision** (an expiry) is a stage of the one tree,
   between the door guards and the precondition guards (CLP-10-025).
 - **A drained out-of-order entry** is another delivery: replay the held
-  `Announce` that carried it through the receiving actor's inbox, never run its
+  `Add` that carried it through the receiving actor's inbox, never run its
   tree inline or from a node — a bridge run nested in a node hides the inner
   tree's internal error (SYNC-14-009). `ReplayHeldSuccessorNode` does this
   through `InboxReplayPort`, passed to the bridge as the `inbox_replay` context
@@ -281,6 +281,13 @@ leaves subtrees no walk can reach.
   `published_act_keys()` so the BT-25-011 check counts it, as `ActKeyScope` does.
   Bind ports only through the `PortRemappingHooks` hooks, never in `setup()`:
   the publisher check and the vocabulary ratchet read the hooks, not setup.
+- **A received tree whose case only the store holds names it at run time**
+  (BT-25-009, BT-25-011). Pass `case_lookup` to `create_receive_activity_tree`
+  with `case_id=None`: the factory builds every case-scoped stage (commit,
+  CASE_MANAGER gates, ledger position, sender sequence, clock decisions,
+  refusal notice) to read `/case_id`, declares it published by the lookup,
+  and refuses a lookup beside a build-time case. Reason: one shape whatever
+  case the act is about, and no store read in the use case (ADR-0195).
 - **Declare a key only once the composed tree has one source for it**
   (BT-25-011). The check counts every publisher in the tree, scopes included.
   So a case trigger cannot declare `/case_id` seeded while the clock-decision
@@ -305,9 +312,11 @@ leaves subtrees no walk can reach.
   in `initialise()` and keep it on the node, since the seeding scope has ended by
   then (`ClassifySequenceNumberNode`). An optional read sees any `/case_id` on the
   blackboard, a seed or an earlier node's write, before it falls back.
-- **A case trigger tree declares `/case_id` seeded only once #6678 has landed.**
-  Reason: until the trigger adapter resolves a short case id to the full id at
-  the edge (ADR-0032), the request's `case_id` may be a short id.
+- **A case trigger tree may declare `/case_id` seeded.** Reason: `run_trigger`
+  resolves a short case id to the full id at the edge and refuses an unknown
+  case there (ADR-0032, `adapters/driving/fastapi/case_reference.py`), so a
+  request's `case_id` is a stored case's full id. Pinned by
+  `test_trigger_routes_contract.py`.
 - **Review every attribute-name seed.** `test/architecture/_act_seeding_table.py`
   records each act type's seeds, so a new property that matches a key is a
   reviewed diff. Withhold a match whose value means something else with
@@ -448,7 +457,7 @@ nothing is written before the last one admits the message (ADR-0214).
    beside the no-case one. Each declared path is judged by its own side of the
    sender rule — `at_case_manager`, `at_participant`, `outside_case` — so a
    widened declaration states that side in the rule too (`SenderRule.on_every_path`
-   for the stub Invite and the first `Announce`), or the path refuses every
+   for the stub Invite and the first `Add`), or the path refuses every
    sender (HP-01-036). Every declaration in the
    migrated areas, and the disposition each gives a non-manager receiver, is
    pinned in `test/core/behaviors/test_declared_received_paths.py`.
@@ -569,10 +578,18 @@ nothing is written before the last one admits the message (ADR-0214).
    When the case the sender is checked against is resolved at run time, the
    guard still comes from the factory (HP-01-025). Pass the read-only
    `CaseResolving` steps that resolve it as `case_resolution`; they run just
-   before the guard, so an unknown case is refused as such (#2255). The report
-   verdicts pass `RequireCaseForReport`. A ledger activity's tree passes a
+   before the guard, so an unknown case is refused as such (#2255). A tree
+   whose case only the store holds passes `case_lookup` too (the report
+   verdicts' `FindCaseForReport`): it runs ahead of the path stage, publishes
+   `/case_id` and never refuses, so the path stage reads the role in the case
+   it found, and the tree's miss guard (`CaseFoundForReport`) declares the
+   refusal where the declaration puts it (BT-25-009, BT-25-010). Reason: the
+   path stage needs the case, and a lookup that refused would replace the
+   path stage's and the sender guard's reasons. The lookup is no door
+   (ADR-0154): it decides nothing, so handling nodes may read its key. A
+   ledger activity's tree passes a
    `LedgerActivityContext` instead: its nodes read the case from the entry the
-   activity carries (`Announce` and `Reject` of a `CaseLedgerEntry`). Never
+   activity carries (`Add` and `Reject` of a `CaseLedgerEntry`). Never
    place a sender check after a write: a snapshot an activity carries is
    stored only once its sender is admitted (HP-01-006). Nor store it among the
    guards: a guard checks what the activity carries and writes nothing, and the

@@ -92,7 +92,7 @@ def _note(sender: str, position: LedgerPosition) -> AddNoteToCaseReceivedEvent:
 
 def _ports() -> tuple[MagicMock, MagicMock]:
     sync_port = MagicMock(spec=SyncActivityPort)
-    sync_port.send_announce_log_entry.return_value = True
+    sync_port.send_add_log_entry.return_value = True
     trigger = MagicMock(spec=TriggerActivityPort)
     trigger.announce_vulnerability_case.return_value = _COPY_ID
     return sync_port, trigger
@@ -129,7 +129,7 @@ def _state(
 def _sent_indices(sync_port: MagicMock) -> list[int]:
     return [
         call.kwargs["entry"].log_index
-        for call in sync_port.send_announce_log_entry.call_args_list
+        for call in sync_port.send_add_log_entry.call_args_list
     ]
 
 
@@ -185,7 +185,7 @@ def test_a_stamp_at_the_tail_is_recorded_and_sends_nothing(dl, caplog) -> None:
     state = _state(dl, SIGNATORY_ID)
     assert state is not None
     assert state.last_acknowledged_hash == entries[-1].entry_hash
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     assert _reseeded(trigger) == []
     assert not any("behind" in r.getMessage() for r in caplog.records)
 
@@ -206,7 +206,7 @@ def test_an_inert_senders_lag_is_neither_recorded_nor_answered(dl) -> None:
 
     assert result.status == Status.SUCCESS
     assert _state(dl, NON_SIGNATORY_ID) is None
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     assert dl.outbox_list() == []
 
 
@@ -271,7 +271,7 @@ def test_a_split_is_logged_at_error_and_the_sender_reseeded(
     )
     assert _reseeded(trigger) == [[SIGNATORY_ID]]
     assert dl.outbox_list() == [_COPY_ID]
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     state = _state(dl, SIGNATORY_ID)
     assert state is not None
     assert state.last_acknowledged_hash == ""
@@ -326,7 +326,7 @@ def test_an_inert_senders_split_is_logged_and_reseeds_nothing(
 def _untouched(
     dl: SqliteDataLayer, sync_port: MagicMock, trigger: MagicMock
 ) -> None:
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     assert _reseeded(trigger) == []
     assert list(dl.list_objects("ReplicationState")) == []
 
@@ -335,13 +335,13 @@ def _untouched(
 def test_an_activity_outside_the_scope_states_nothing_to_answer(dl) -> None:
     """A ``Reject(CaseLedgerEntry)`` is no ``LedgerPositionedEvent``: its
     own tree answers the position it reports (SYNC-03-002)."""
-    seed_ledger(dl, 2)
+    entries = seed_ledger(dl, 2)
     sync_port, trigger = _ports()
     reject = RejectLogEntryReceivedEvent(
         activity_id="https://example.org/activities/reject",
         actor_id=SIGNATORY_ID,
         ledger_position=LedgerPosition(log_index=1, entry_hash="0" * 64),
-        target=named_case(CASE_ID),
+        object_=entries[1],
     )
 
     result = _answer(dl, reject, sync_port, trigger)

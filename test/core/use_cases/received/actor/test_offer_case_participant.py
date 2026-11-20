@@ -85,6 +85,7 @@ from vultron.wire.as2.factories import (
     reject_case_participant_offer_activity,
     rm_accept_invite_to_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -99,7 +100,7 @@ CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 RECOMMENDER_ID = "https://example.org/actors/finder"
 RECOMMENDED_ID = "https://example.org/actors/vendor-new"
 BYSTANDER_ID = "https://example.org/actors/bystander"
-#: The original ``Offer(Actor)`` the transformed Offer carries as ``origin``.
+#: The original ``Offer(Actor)`` the transformed Offer names in ``inReplyTo``.
 RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
 #: The ``Offer(CaseParticipant)`` the CASE_MANAGER recorded and the Case Owner
 #: answers; replies name it by this id.
@@ -262,13 +263,15 @@ def _build_offer_activity(
     actor: str = CASE_ACTOR_ID,
     to: list[str] | None = None,
     cc: list[str] | None = None,
-    origin: str | None = RECOMMENDATION_ID,
+    in_reply_to: str | None = RECOMMENDATION_ID,
     roles: list | None = None,
     recommended_id: str = RECOMMENDED_ID,
     offer_id: str = OFFER_ID,
 ):
     recommended = make(as_Actor, id_=recommended_id)
-    extra: dict[str, Any] = {"origin": origin} if origin is not None else {}
+    extra: dict[str, Any] = (
+        {"in_reply_to": in_reply_to} if in_reply_to is not None else {}
+    )
     return offer_case_participant_activity(
         recommended,
         target=_case_ref(CASE_ID),
@@ -437,10 +440,10 @@ class TestOfferCaseParticipantReceivedUseCase:
 class TestAcceptOfferCaseParticipantReceivedUseCase:
     def _event(
         self,
-        origin: str | None = RECOMMENDATION_ID,
+        in_reply_to: str | None = RECOMMENDATION_ID,
         at: SqliteDataLayer | None = None,
     ) -> AcceptOfferCaseParticipantReceivedEvent:
-        offer = _build_offer_activity(origin=origin)
+        offer = _build_offer_activity(in_reply_to=in_reply_to)
         accept = accept_case_participant_offer_activity(
             offer,
             target=_case_ref(CASE_ID),
@@ -456,7 +459,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
     def _event_with_stored_offer(
         self,
         dl: SqliteDataLayer,
-        origin: str | None = RECOMMENDATION_ID,
+        in_reply_to: str | None = RECOMMENDATION_ID,
     ) -> AcceptOfferCaseParticipantReceivedEvent:
         """Build Accept(Offer(CaseParticipant)) and store offer + participant in DL.
 
@@ -474,7 +477,9 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             as_CaseParticipant,
         )
 
-        offer = _build_offer_activity(origin=origin, roles=[CVDRole.VENDOR])
+        offer = _build_offer_activity(
+            in_reply_to=in_reply_to, roles=[CVDRole.VENDOR]
+        )
         # Store the CaseParticipant object so the IRI follow-up in the use
         # case (AKM-03-003) succeeds and returns the roles.
         # dl.save() is used instead of dl.create() because _record_offer
@@ -572,14 +577,14 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
     @pytest.mark.spec("CM-16-006")
     @pytest.mark.spec("CS-08-001")
     def test_refuses_an_offer_that_names_no_recommendation(self):
-        """An inner Offer without ``origin`` names no recommendation at all.
+        """An inner Offer without ``inReplyTo`` names no recommendation.
 
-        CM-16-004 puts the original recommender's Offer id in ``origin``; with
-        no ``origin`` there is nothing to look the recommender up by.  Before
+        CM-16-004 names the original recommender's Offer in ``inReplyTo``;
+        with none there is nothing to look the recommender up by.  Before
         #3877 the absent id travelled into the BT as ``""``.
         """
         dl, _ = _seed_dl_for_case_actor()
-        event = self._event(origin=None, at=dl)
+        event = self._event(in_reply_to=None, at=dl)
         result = run_in_act(
             AcceptOfferCaseParticipantReceivedUseCase(
                 dl,
@@ -638,6 +643,39 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             for i in invites
         }
         assert invitees == {RECOMMENDED_ID}
+
+    @pytest.mark.spec("CM-16-006")
+    @pytest.mark.spec("CM-24-002")
+    @pytest.mark.spec("CM-24-020")
+    def test_the_invite_credits_the_owner_and_answers_its_accept(self):
+        """The Owner's Accept is its decision to invite (ADR-0199).
+
+        The CASE_MANAGER's stub Invite names the Owner in ``attributedTo``
+        and the Owner's ``Accept`` in ``inReplyTo``.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        event = self._event_with_stored_offer(dl)
+
+        result = run_in_act(
+            AcceptOfferCaseParticipantReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        (invite,) = [
+            obj
+            for obj in (dl.read(a) for a in dl.outbox_list())
+            if str(getattr(obj, "type_", "")) == "Invite"
+        ]
+        assert isinstance(invite, as_Invite)
+        assert invite.actor == CASE_ACTOR_ID
+        assert invite.attributed_to == CASE_OWNER_ID
+        assert invite.in_reply_to == event.activity_id
 
     @pytest.mark.spec("CM-16-019")
     def test_offer_archived_from_a_stranger_is_not_a_record(self):
@@ -942,10 +980,10 @@ class TestAcceptRefusesAnInviteeThatCannotBeInvited:
 class TestRejectOfferCaseParticipantReceivedUseCase:
     def _event(
         self,
-        origin: str | None = RECOMMENDATION_ID,
+        in_reply_to: str | None = RECOMMENDATION_ID,
         at: SqliteDataLayer | None = None,
     ) -> RejectOfferCaseParticipantReceivedEvent:
-        offer = _build_offer_activity(origin=origin)
+        offer = _build_offer_activity(in_reply_to=in_reply_to)
         reject = reject_case_participant_offer_activity(
             offer,
             target=_case_ref(CASE_ID),
@@ -1001,14 +1039,14 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
     @pytest.mark.spec("CM-16-007")
     @pytest.mark.spec("CS-08-001")
     def test_refuses_an_offer_that_names_no_recommendation(self):
-        """An inner Offer without ``origin`` names no recommendation at all.
+        """An inner Offer without ``inReplyTo`` names no recommendation.
 
-        CM-16-004 puts the original recommender's Offer id in ``origin``; with
-        no ``origin`` there is nothing to look the recommender up by.  Before
+        CM-16-004 names the original recommender's Offer in ``inReplyTo``;
+        with none there is nothing to look the recommender up by.  Before
         #3877 the absent id travelled into the BT as ``""``.
         """
         dl, _ = _seed_dl_for_case_actor()
-        event = self._event(origin=None, at=dl)
+        event = self._event(in_reply_to=None, at=dl)
         result = run_in_act(
             RejectOfferCaseParticipantReceivedUseCase(
                 dl,
@@ -1328,7 +1366,7 @@ class TestRolesFromStoredOffer:
             case_id=AC1_CASE_ID,
             actor=AC1_CASE_ACTOR_ID,
             to=[AC1_CASE_OWNER_ID],
-            origin=RECOMMENDATION_ID,
+            in_reply_to=RECOMMENDATION_ID,
             roles=roles,
             at=authored_at(),
         )
@@ -1553,7 +1591,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             id_=OFFER_ID,
             # CM-16-004: the transformed Offer names the recommendation it
             # answers; without it the CASE_MANAGER has nobody to notify.
-            origin=RECOMMENDATION_ID,
+            in_reply_to=RECOMMENDATION_ID,
             **extra,
             at=authored_at(),
         )
@@ -1643,7 +1681,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             actor=AC1_CASE_ACTOR_ID,
             to=[AC1_CASE_OWNER_ID],
             id_=OFFER_ID,
-            origin=RECOMMENDATION_ID,
+            in_reply_to=RECOMMENDATION_ID,
             roles=[],
             at=authored_at(),
         )

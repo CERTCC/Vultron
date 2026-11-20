@@ -24,8 +24,16 @@ Per specs/received-status-handling.yaml RSH-06-004, RSH-06-005.
 
 import logging
 
+import py_trees
 from py_trees.ports import NoDataAvailable
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.helpers import PortInformation
 from vultron.core.behaviors.note.case_manager_note import (
     CaseManagerNote,
@@ -44,8 +52,9 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
     (a gap or a regression) or
     :class:`~vultron.core.behaviors.status.nodes.rm_validation.ValidateRMTransitionNode`
     (backward regression on the standalone path).  When the key is ``None``
-    (no anomaly), or the tree has no case context, returns SUCCESS without
-    doing anything.
+    (no anomaly), or the tree has no case context (no ``/case_id``,
+    BTND-01-008), returns SUCCESS without doing anything.  The sender the
+    note names is read from ``/sender_id``.
 
     When an anomaly is present, the CASE_MANAGER records a note asking the
     sender to clarify the anomaly as its own ``add_note_to_case`` entry and
@@ -62,20 +71,14 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
     _BEST_EFFORT = True
     _NOTE_KIND = "rm-anomaly"
 
-    def __init__(
-        self,
-        sender_actor_id: str,
-        case_id: str | None,
-        name: str | None = None,
-    ):
-        # No case context is a no-op (``_compose``), never a commit.
-        super().__init__(case_id=case_id or "", name=name)
-        self.sender_actor_id = sender_actor_id
-        self.case_id = case_id
+    def __init__(self, name: str | None = None):
+        super().__init__(name=name)
+        self.sender_actor_id = ""
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_CommitCaseManagerNoteBase.INPUT_PORTS,
         BB_RM_ANOMALY: PortInformation(data_type=object, required=False),
+        **act_key_ports(SENDER_ID),
     }
 
     @classmethod
@@ -83,6 +86,7 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
         return {
             **super()._domain_port_remappings(),
             BB_RM_ANOMALY: f"/{BB_RM_ANOMALY}",
+            **act_key_remappings(SENDER_ID),
         }
 
     def initialise(self) -> None:
@@ -91,10 +95,12 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
             self.rm_anomaly = self.get_input(BB_RM_ANOMALY)
         except NoDataAvailable, NotImplementedError:
             self.rm_anomaly = None
+        self.sender_actor_id = act_value(self, SENDER_ID, str)
 
     def _compose(self) -> CaseManagerNote | None:
         anomaly = self.rm_anomaly
-        if not self.case_id or anomaly is None:
+        # No case context is a no-op, never a commit.
+        if not self._case_id or anomaly is None:
             return None
 
         anomaly_type = anomaly.get("anomaly_type", "unknown")
@@ -125,15 +131,17 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
 
 def rm_gap_note(
     sender_actor_id: str, case_id: str | None
-) -> EmitRMGapNoteNode:
+) -> py_trees.behaviour.Behaviour:
     """Return the RSH-06-004 note emitter for the sender's RM declaration.
 
     The one construction every received RM path uses, whether the note
     follows an accepted gap (an effect) or a refused regression (a refusal
     effect, CLP-10-022).
     """
-    return EmitRMGapNoteNode(
-        sender_actor_id=sender_actor_id,
-        case_id=case_id,
-        name="EmitRMGapNote",
+    # The node reads the sender and the case from their keys, seeded here
+    # with the values the factory holds (BTND-01-008); a case of ``None``
+    # leaves ``/case_id`` to the tree's lookup.
+    return with_act_keys(
+        EmitRMGapNoteNode(name="EmitRMGapNote"),
+        {SENDER_ID: sender_actor_id, CASE_ID: case_id},
     )

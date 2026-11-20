@@ -78,7 +78,7 @@ PROPOSED_EMBARGO_DAYS = 90
 REVISED_EMBARGO_DAYS = 120
 #: Budgets reuse the shared constants (EDF-06-008).  An Invite bounds proposal
 #: trigger -> CASE_MANAGER commit -> relay -> invitee inbox, the invitation-chain
-#: budget; a commit showing in a store adds the ``Announce(CaseLedgerEntry)``
+#: budget; a commit showing in a store adds the ``Add(CaseLedgerEntry)``
 #: hop, the ledger-coverage budget.
 INVITE_TIMEOUT_SECONDS = PARTICIPANT_JOIN_TIMEOUT
 COMMIT_TIMEOUT_SECONDS = LEDGER_COVERAGE_TIMEOUT

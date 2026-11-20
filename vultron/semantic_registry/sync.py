@@ -21,14 +21,14 @@ from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import (
-    AnnounceLogEntryReceivedEvent,
-    ReadLogEntryReceivedEvent,
+    AddLogEntryReceivedEvent,
+    ReadLedgerReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
 from vultron.core.use_cases.received.case import CloseCaseReceivedUseCase
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
-    ReadLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
+    ReadLedgerReceivedUseCase,
     RejectLedgerEntryReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
@@ -38,15 +38,15 @@ from vultron.semantic_registry._occasion import (
     Occasion,
 )
 from vultron.wire.as2.extractor import (
-    AnnounceLogEntryPattern,
+    AddLogEntryToLedgerPattern,
     CloseCasePattern,
-    ReadLogEntryPattern,
+    ReadLedgerPattern,
     RejectLogEntryPattern,
 )
 from vultron.wire.as2.vocab.activities.case.rm import _RmCloseCaseActivity
 from vultron.wire.as2.vocab.activities.sync import (
-    _AnnounceLogEntryActivity,
-    _ReadLogEntryActivity,
+    _AddLogEntryActivity,
+    _ReadLedgerActivity,
     _RejectLogEntryActivity,
 )
 
@@ -77,12 +77,12 @@ ENTRIES: list[SemanticEntry] = [
         page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
-        semantics=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
-        pattern=AnnounceLogEntryPattern,
-        event_class=AnnounceLogEntryReceivedEvent,
-        use_case_class=AnnounceLedgerEntryReceivedUseCase,
-        phrase="{actor} announced a ledger entry",
-        wire_activity_class=_AnnounceLogEntryActivity,
+        semantics=MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
+        pattern=AddLogEntryToLedgerPattern,
+        event_class=AddLogEntryReceivedEvent,
+        use_case_class=AddLedgerEntryReceivedUseCase,
+        phrase="{actor} added an entry to the case ledger",
+        wire_activity_class=_AddLogEntryActivity,
         # Its `to` is what the addressee door guard reads (HP-01-005).
         include_activity=True,
         occasions=(
@@ -91,14 +91,16 @@ ENTRIES: list[SemanticEntry] = [
                     "the CASE_MANAGER has committed a case event to the case "
                     "ledger"
                 ),
-                anchor="announce-case-ledger-entry",
+                anchor="add-case-ledger-entry",
                 addressee=AddresseeSide.PARTICIPANT,
-                heading="Announce case ledger entry",
+                heading="Add case ledger entry",
                 description=(
                     "Fans out the newly committed ledger entry to each active "
-                    "participant."
+                    "participant, as an Add to the case's ledger that names "
+                    "the committed act in inReplyTo: the positive "
+                    "acknowledgment of that act."
                 ),
-                example="announce_case_ledger_entry",
+                example="add_case_ledger_entry",
             ),
         ),
         page=MessagePage.LEDGER_REPLICATION,
@@ -135,31 +137,33 @@ ENTRIES: list[SemanticEntry] = [
         page=MessagePage.LEDGER_REPLICATION,
     ),
     SemanticEntry(
-        semantics=MessageSemantics.READ_CASE_LEDGER_ENTRY,
-        pattern=ReadLogEntryPattern,
-        event_class=ReadLogEntryReceivedEvent,
-        use_case_class=ReadLedgerEntryReceivedUseCase,
+        semantics=MessageSemantics.READ_CASE_LEDGER,
+        pattern=ReadLedgerPattern,
+        event_class=ReadLedgerReceivedEvent,
+        use_case_class=ReadLedgerReceivedUseCase,
         phrase="{actor} stated its ledger position",
-        wire_activity_class=_ReadLogEntryActivity,
+        wire_activity_class=_ReadLedgerActivity,
         # Its `to` is what the addressee door guard reads (HP-01-005).
         include_activity=True,
         occasions=(
             Occasion(
                 when=(
                     "a Participant checks that its ledger is current, such as"
-                    " after a restart"
+                    " after a restart, or holds a case but none of its entries"
                 ),
-                anchor="read-case-ledger-entry",
+                anchor="read-case-ledger",
                 addressee=AddresseeSide.CASE_MANAGER,
-                heading="Read case ledger entry",
+                heading="Read case ledger",
                 description=(
-                    "States the last ledger entry the sender has applied. The "
+                    "States the sender's position in the case's ledger: its "
+                    "last entry, or index -1 when it holds none. The "
                     "CASE_MANAGER resends every Invite the sender has not "
                     "answered and, for an active participant, records the "
                     "position as the sender's acknowledged position and "
-                    "replays every entry after it."
+                    "replays every entry after it, the whole ledger for "
+                    "index -1."
                 ),
-                example="read_case_ledger_entry",
+                example="read_case_ledger",
             ),
         ),
         page=MessagePage.LEDGER_REPLICATION,

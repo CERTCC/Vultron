@@ -27,6 +27,8 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender.nodes.actions import (
     ConstructActivitiesNode,
@@ -110,7 +112,7 @@ class TestResolveCaseManagerNode:
     def test_success_when_case_manager_found(self, dl, bridge):
         store, actor = dl
         case, _ = _make_case_with_case_manager(store, actor.id_, CASE_ACTOR_ID)
-        node = ResolveCaseManagerNode(case_id=case.id_)
+        node = with_act_keys(ResolveCaseManagerNode(), {CASE_KEY: case.id_})
         result = run_tree(bridge, tree=node, actor_id=actor.id_)
         assert result.status == Status.SUCCESS
 
@@ -121,7 +123,8 @@ class TestResolveCaseManagerNode:
         store, actor = dl
         case, _ = _make_case_with_case_manager(store, actor.id_, CASE_ACTOR_ID)
         tree, probe = BlackboardKeyProbe.after(
-            ResolveCaseManagerNode(case_id=case.id_), "case_manager_id"
+            with_act_keys(ResolveCaseManagerNode(), {CASE_KEY: case.id_}),
+            "case_manager_id",
         )
         result = run_tree(bridge, tree=tree, actor_id=actor.id_)
         assert result.status == Status.SUCCESS
@@ -130,7 +133,10 @@ class TestResolveCaseManagerNode:
 
     def test_failure_when_case_not_found(self, dl, bridge):
         _, actor = dl
-        node = ResolveCaseManagerNode(case_id="https://missing.example/case")
+        node = with_act_keys(
+            ResolveCaseManagerNode(),
+            {CASE_KEY: "https://missing.example/case"},
+        )
         result = run_tree(bridge, tree=node, actor_id=actor.id_)
         assert result.status == Status.FAILURE
 
@@ -152,7 +158,7 @@ class TestResolveCaseManagerNode:
         )
         store.create(case)
         store.create(participant)
-        node = ResolveCaseManagerNode(case_id=case.id_)
+        node = with_act_keys(ResolveCaseManagerNode(), {CASE_KEY: case.id_})
         result = run_tree(bridge, tree=node, actor_id=actor.id_)
         assert result.status == Status.FAILURE
         assert "CASE_MANAGER" in node.feedback_message
@@ -172,7 +178,7 @@ class TestConstructActivitiesNode:
             name="test-seq",
             memory=False,
             children=[
-                ResolveCaseManagerNode(case_id=case.id_),
+                with_act_keys(ResolveCaseManagerNode(), {CASE_KEY: case.id_}),
                 ConstructActivitiesNode(activity_builder=_builder),
             ],
         )
@@ -191,7 +197,7 @@ class TestConstructActivitiesNode:
             name="test-seq",
             memory=False,
             children=[
-                ResolveCaseManagerNode(case_id=case.id_),
+                with_act_keys(ResolveCaseManagerNode(), {CASE_KEY: case.id_}),
                 ConstructActivitiesNode(activity_builder=_failing_builder),
             ],
         )
@@ -218,7 +224,7 @@ class TestQueueToOutboxNode:
             name="test-seq",
             memory=False,
             children=[
-                ResolveCaseManagerNode(case_id=case.id_),
+                with_act_keys(ResolveCaseManagerNode(), {CASE_KEY: case.id_}),
                 ConstructActivitiesNode(activity_builder=_builder),
                 QueueToOutboxNode(),
             ],

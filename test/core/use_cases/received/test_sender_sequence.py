@@ -87,7 +87,13 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BROADCAST,
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    LedgerNetwork,
+)
 from .test_embargo_answer_idempotency import _answer_body, _invited
 
 #: The default hold wait and per-sender cap (SYNC-21-021, ADR-0178).
@@ -213,8 +219,8 @@ def test_each_activity_to_the_case_manager_is_numbered_one_up() -> None:
     dl = net.stores[OWNER]
     first = _note_body(net, "first")
     net.receive(MANAGER, first)
-    net.deliver(MANAGER, to=OWNER, type_="Announce")
-    SyncActivityAdapter(dl).send_read_ledger_entry(
+    net.deliver(MANAGER, to=OWNER, type_=BROADCAST)
+    SyncActivityAdapter(dl).send_read_ledger(
         net.case_id,
         ledger_tail_position(net.case_id, dl),
         OWNER,

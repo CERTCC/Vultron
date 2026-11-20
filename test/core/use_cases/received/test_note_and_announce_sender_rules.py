@@ -525,7 +525,7 @@ def test_announce_from_a_stranger_to_a_bootstrapped_replica_is_refused() -> (
 
 
 @pytest.mark.spec("CLP-10-025")
-def test_announce_tree_takes_no_clock_decision() -> None:
+def test_add_log_entry_tree_takes_no_clock_decision() -> None:
     """Only a participant replica receives the Announce, and a replica takes
     no clock decision: the tree names no case for the CASE_MANAGER gate."""
     case = make(

@@ -5,7 +5,7 @@
     Announces, in the sender's own participant status, evidence that attackers are exploiting the vulnerability.
 
     - **When…** a Participant observes attacks that exploit the vulnerability
-    - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+    - **Send:** `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the CASE_MANAGER or the Case Owner or the participant status's author
     - **Distinguished by:** `caseStatus.pxaState` = `pxA`

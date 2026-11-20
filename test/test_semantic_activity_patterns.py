@@ -6,6 +6,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make, with_times
+from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
@@ -19,10 +20,13 @@ from vultron.wire.as2.extractor import (
     ProposeCaseOwnershipTransferActivityPattern,
     UndoCaseOwnershipTransferActivityPattern,
 )
-from vultron.wire.as2.extractor._instances import RefusalNoticePattern
+from vultron.wire.as2.extractor._instances import (
+    ReadLedgerPattern,
+    RefusalNoticePattern,
+    RemoveNoteFromCasePattern,
+)
 from vultron.wire.as2.extractor._pattern import (
     InlineActivityObjectPattern,
-    LedgerPositionReadPattern,
     bare_object_id,
 )
 from vultron.wire.as2.factories import (
@@ -44,6 +48,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
+    as_Offer,
 )
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,
@@ -948,41 +953,172 @@ def test_a_scalar_object_constraint_refuses_a_bare_uri_by_default():
 
 
 @pytest.mark.spec("VAM-01-012")
-def test_a_pattern_that_accepts_a_bare_object_matches_one():
-    """``accepts_bare_object`` is the one opt-in to a bare ``object``."""
-    pattern = _offer_case_pattern(accepts_bare_object=True)
-    assert pattern.match(_offer_of_bare_case())
+@pytest.mark.spec("SE-01-006")
+def test_no_pattern_may_opt_in_to_a_bare_object():
+    """No pattern opts out of the bare-URI rule: the opt-in is refused."""
+    with pytest.raises(ValueError, match="accepts_bare_object"):
+        _offer_case_pattern(accepts_bare_object=True)
+
+
+def _offer_pattern(**fields: Any) -> ActivityPattern:
+    """An ``Offer`` pattern with no ``object_`` constraint, carrying *fields*."""
+    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
+
+    return ActivityPattern(activity_=TAtype.OFFER, **fields)
 
 
 @pytest.mark.spec("VAM-01-013")
 @pytest.mark.spec("SE-01-007")
-def test_strict_governs_target_alone():
+def test_strict_governs_target_and_origin_alone():
     """``strict`` tightens ``target_`` and leaves ``object_`` as it was."""
     from vultron.wire.as2.enums import as_ObjectType as AOtype
 
     bare_target = "https://example.org/actors/alice"
-    lenient = _offer_case_pattern(
-        target_=AOtype.ACTOR, accepts_bare_object=True
-    )
-    strict = _offer_case_pattern(
-        target_=AOtype.ACTOR, accepts_bare_object=True, strict=True
-    )
+    lenient = _offer_pattern(target_=AOtype.ACTOR)
+    strict = _offer_pattern(target_=AOtype.ACTOR, strict=True)
 
     assert lenient.match(_offer_of_bare_case(target=bare_target))
     assert not strict.match(_offer_of_bare_case(target=bare_target))
+    lenient_origin = _offer_pattern(origin_=AOtype.ACTOR)
+    strict_origin = _offer_pattern(origin_=AOtype.ACTOR, strict=True)
+    assert lenient_origin.match(_offer_of_bare_case(origin=bare_target))
+    assert not strict_origin.match(_offer_of_bare_case(origin=bare_target))
     # A strict pattern's object_ is no stricter than a lenient one's.
-    assert strict.matches_object("https://example.org/cases/unresolved")
-    assert not _offer_case_pattern().matches_object(
-        "https://example.org/cases/unresolved"
+    unresolved = "https://example.org/cases/unresolved"
+    strict_case = _offer_case_pattern(target_=AOtype.ACTOR, strict=True)
+    lenient_case = _offer_case_pattern(target_=AOtype.ACTOR)
+    assert strict_case.matches_object(unresolved) is (
+        lenient_case.matches_object(unresolved)
     )
+    case = make(as_VulnerabilityCase, attributed_to=_VENDOR_URI)
+    assert strict_case.matches_object(case)
+    assert lenient_case.matches_object(case)
 
 
 @pytest.mark.spec("VAM-01-013")
 @pytest.mark.spec("SE-08-004")
-def test_strict_without_a_target_constraint_is_refused():
-    """``strict`` on a pattern with no ``target_`` would tighten nothing."""
-    with pytest.raises(ValueError, match="strict governs target_ alone"):
+def test_strict_without_a_target_or_origin_constraint_is_refused():
+    """``strict`` on a pattern with no ``target_`` or ``origin_`` would
+    tighten nothing."""
+    with pytest.raises(
+        ValueError, match="strict governs target_ and origin_ alone"
+    ):
         _offer_case_pattern(strict=True)
+
+
+@pytest.mark.spec("VAM-01-013")
+@pytest.mark.spec("SE-08-004")
+def test_strict_with_only_an_origin_constraint_is_allowed():
+    """An ``origin_`` constraint is one ``strict`` can tighten."""
+    from vultron.wire.as2.enums import as_ObjectType as AOtype
+
+    pattern = _offer_case_pattern(origin_=AOtype.ACTOR, strict=True)
+    assert pattern.strict
+
+
+# ---------------------------------------------------------------------------
+# origin_: where the object comes from, matched as target_ is
+# ---------------------------------------------------------------------------
+
+
+def _remove_note_pattern(**fields: Any) -> ActivityPattern:
+    """A ``Remove(Note)`` pattern that asks for a case in ``origin``."""
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
+
+    return ActivityPattern(
+        activity_=TAtype.REMOVE,
+        object_=AOtype.NOTE,
+        origin_=VOtype.VULNERABILITY_CASE,
+        **fields,
+    )
+
+
+def _remove_note(**fields: Any) -> as_Activity:
+    """A ``Remove`` of an inline note, its case placed as *fields* say."""
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Remove,
+    )
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note = make(as_Note, id_="https://example.org/notes/n1", content="x")
+    return make(as_Remove, actor=_VENDOR_URI, object_=note, **fields)
+
+
+def _held_case() -> as_VulnerabilityCase:
+    return make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/origin-test",
+        name="O-001",
+    )
+
+
+@pytest.mark.spec("SE-01-007")
+def test_origin_constraint_matches_a_case_in_origin():
+    """A case in ``origin``, inline or as its bare URI, satisfies ``origin_``."""
+    case = _held_case()
+    pattern = _remove_note_pattern()
+
+    assert pattern.match(_remove_note(origin=case))
+    assert pattern.match(_remove_note(origin=case.id_))
+
+
+@pytest.mark.spec("SE-01-001")
+@pytest.mark.spec("SE-01-007")
+@pytest.mark.spec("VAM-07-003")
+def test_origin_constraint_refuses_a_case_only_in_target():
+    """A pattern that requires ``origin_`` does not read the case from
+    ``target``: an activity whose case is only there does not match."""
+    case = _held_case()
+    pattern = _remove_note_pattern()
+
+    assert not pattern.match(_remove_note(target=case))
+    assert not pattern.match(_remove_note(target=case.id_))
+    # The registered Remove(Note) pattern asks for its case in origin.
+    assert RemoveNoteFromCasePattern.match(_remove_note(origin=case.id_))
+    assert not RemoveNoteFromCasePattern.match(_remove_note(target=case.id_))
+
+
+@pytest.mark.spec("SE-01-001")
+def test_origin_constraint_refuses_an_origin_of_another_type():
+    """An ``origin`` whose type is not the constraint's does not match."""
+    actor = make(as_Actor, id_="https://example.org/actors/alice")
+    assert not _remove_note_pattern().match(_remove_note(origin=actor))
+
+
+@pytest.mark.spec("VAM-01-013")
+@pytest.mark.spec("SE-08-004")
+def test_strict_refuses_a_bare_origin_and_admits_a_typed_one():
+    """``strict`` tightens ``origin_`` as it tightens ``target_``."""
+    case = _held_case()
+    strict = _remove_note_pattern(strict=True)
+
+    assert not strict.match(_remove_note(origin=case.id_))
+    assert strict.match(_remove_note(origin=case))
+
+
+def test_a_nested_origin_pattern_matches_an_inline_activity_only():
+    """An ``origin_`` that is itself a pattern needs an inline activity."""
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
+
+    inner = ActivityPattern(activity_=TAtype.OFFER, object_=AOtype.ACTOR)
+    pattern = ActivityPattern(
+        activity_=TAtype.REMOVE, object_=AOtype.NOTE, origin_=inner
+    )
+    offer = make(
+        as_Offer,
+        actor=_VENDOR_URI,
+        object_=make(as_Actor, id_="https://example.org/actors/alice"),
+    )
+
+    assert pattern.match(_remove_note(origin=offer))
+    assert not pattern.match(_remove_note(origin="https://example.org/o/1"))
 
 
 # ---------------------------------------------------------------------------
@@ -1561,11 +1697,10 @@ def _object_check_admits_bare_uri(pattern: ActivityPattern) -> bool:
 
 @pytest.mark.spec("SE-01-006")
 def test_bare_object_satisfies_no_object_type_constraint() -> None:
-    """Only a pattern told apart by another field admits a bare ``object``.
+    """No pattern admits a bare ``object``.
 
-    ``Read(CaseLedgerEntry)`` is told apart by its ``ledgerPosition``
-    (``LedgerPositionReadPattern``); every other pattern whose ``object_``
-    is a type must refuse a bare, unresolved URI there (SE-01-006).
+    Every pattern whose ``object_`` is a type refuses a bare, unresolved URI
+    there (SE-01-006): the set of patterns that admit one is empty.
     """
     admitting = sorted(
         {
@@ -1573,7 +1708,6 @@ def test_bare_object_satisfies_no_object_type_constraint() -> None:
             for entry in SEMANTIC_REGISTRY
             if entry.pattern is not None
             and entry.pattern.object_ is not None
-            and not isinstance(entry.pattern, LedgerPositionReadPattern)
             and _object_check_admits_bare_uri(entry.pattern)
         }
     )
@@ -1593,25 +1727,25 @@ def _bare_object_body(verb: str, **fields: Any) -> dict[str, Any]:
 
 
 @pytest.mark.spec("SE-01-006")
-def test_only_read_case_ledger_entry_accepts_a_bare_object() -> None:
-    """The opted-in set is pinned, and each member needs a discriminator.
+def test_the_position_statement_refuses_a_bare_object() -> None:
+    """A ``Read`` carrying a position and a bare object is no position statement.
 
-    A pattern that opts in to a bare ``object`` must be told apart from its
-    verb's other patterns by a field other than the object's type
-    (SE-01-006): an activity of its verb that carries nothing but a bare
-    ``object`` must not match it.
+    The position statement is ``Read(<case>/ledger)`` (ADR-0204), so no
+    pattern needs a bare ``object``: one that names an entry by id, as the
+    old form did, matches nothing.
     """
-    opted_in = {
-        entry.semantics: entry.pattern
-        for entry in SEMANTIC_REGISTRY
-        if entry.pattern is not None and entry.pattern.accepts_bare_object
-    }
-    assert set(opted_in) == {MessageSemantics.READ_CASE_LEDGER_ENTRY}
-    for semantics, pattern in opted_in.items():
-        bare = parse_activity(_bare_object_body(str(pattern.activity_)))
-        assert not pattern.match(bare), (
-            f"{semantics} accepts a bare object with no other discriminator"
+    bare = parse_activity(
+        _bare_object_body(
+            "Read",
+            context=_CASE_URI,
+            ledgerPosition={"logIndex": 0, "entryHash": "ab" * 32},
         )
+    )
+    assert not ReadLedgerPattern.match(bare)
+    assert (
+        find_matching_semantics(bare)
+        is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    )
 
 
 _CASE_URI = "https://example.org/cases/bare-object"

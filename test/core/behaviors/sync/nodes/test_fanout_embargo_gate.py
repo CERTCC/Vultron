@@ -13,7 +13,7 @@
 """Ledger fan-out and replay apply the CM-10-004 embargo content gate (CM-10-005).
 
 A participant that has not accepted the active embargo is sent no
-``Announce(CaseLedgerEntry)`` -- neither by fan-out nor by a Reject-driven
+``Add(CaseLedgerEntry)`` -- neither by fan-out nor by a Reject-driven
 replay -- and its stream is paused from the first entry withheld, so that the
 backfill which admits it starts there (CM-10-006). Embargo Invites are not
 ledger fan-out and still reach it (CM-10-005).
@@ -144,7 +144,7 @@ def test_replay_sends_nothing_to_non_signatory(bridge, datalayer) -> None:
     )
 
     assert result.status == Status.SUCCESS
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     assert (
         embargo_paused_from_index(
             datalayer, case_id=CASE_ID, peer_id=NON_SIGNATORY_ID
@@ -311,7 +311,7 @@ def test_replay_for_an_unknown_case_fails_without_sending(
     )
 
     assert result.status == Status.FAILURE
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
 
 
 @pytest.mark.spec("CM-10-004")
@@ -354,7 +354,7 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
     # written or sent, so the withheld peer gets nothing.
     assert result.status == Status.FAILURE
     trigger_activity.announce_vulnerability_case.assert_not_called()
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
 
 
 @pytest.mark.spec("CM-10-004")
@@ -477,7 +477,7 @@ def test_replay_sends_nothing_to_a_removed_signatory(
     )
 
     assert result.status == Status.SUCCESS
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     assert paused_from(datalayer, SIGNATORY_ID) == 1
 
 
@@ -498,7 +498,11 @@ def _closure_status_entry(datalayer, actor_id: str, log_index: int, prev):
             log_index=log_index,
             object_id=status_id,
             semantic_type="add_participant_status_to_participant",
-            payload_snapshot={"type": "Add", "actor": MANAGER_ID},
+            payload_snapshot={
+                "id": status_id,
+                "type": "Add",
+                "actor": MANAGER_ID,
+            },
             prev_log_hash=prev.entry_hash,
             received_at=ACT_AT,
         )

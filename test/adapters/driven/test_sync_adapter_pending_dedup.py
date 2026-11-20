@@ -13,9 +13,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``SyncActivityAdapter.send_announce_log_entry`` does not queue a row it holds.
+"""``SyncActivityAdapter.send_add_log_entry`` does not queue a row it holds.
 
-SYNC-15-012: an ``Announce(CaseLedgerEntry)`` for an (entry, peer) pair that is
+SYNC-15-012: an ``Add(CaseLedgerEntry)`` for an (entry, peer) pair that is
 still pending in this actor's outbox is not queued a second time, and the
 caller is told so.  A row already popped for delivery is no longer pending, so
 a later request for the same pair queues again — the guard is against
@@ -56,7 +56,10 @@ def _entry(index: int) -> CaseLedgerEntry:
             log_index=index,
             object_id=f"urn:test:activity-{index}",
             semantic_type="add_note",
-            payload_snapshot={"log_index": index},
+            payload_snapshot={
+                "id": f"urn:test:activity-{index}",
+                "log_index": index,
+            },
             prev_log_hash="0" * 64,
             received_at=ACT_AT,
         )
@@ -74,15 +77,11 @@ def test_same_entry_same_peer_is_queued_once_while_pending(dl):
     entry = _entry(1)
 
     assert (
-        adapter.send_announce_log_entry(
-            entry, OWNER, [PEER_A], at=authored_at()
-        )
+        adapter.send_add_log_entry(entry, OWNER, [PEER_A], at=authored_at())
         is True
     )
     assert (
-        adapter.send_announce_log_entry(
-            entry, OWNER, [PEER_A], at=authored_at()
-        )
+        adapter.send_add_log_entry(entry, OWNER, [PEER_A], at=authored_at())
         is False
     )
 
@@ -95,15 +94,11 @@ def test_same_entry_to_another_peer_is_still_queued(dl):
     entry = _entry(1)
 
     assert (
-        adapter.send_announce_log_entry(
-            entry, OWNER, [PEER_A], at=authored_at()
-        )
+        adapter.send_add_log_entry(entry, OWNER, [PEER_A], at=authored_at())
         is True
     )
     assert (
-        adapter.send_announce_log_entry(
-            entry, OWNER, [PEER_B], at=authored_at()
-        )
+        adapter.send_add_log_entry(entry, OWNER, [PEER_B], at=authored_at())
         is True
     )
 
@@ -114,13 +109,11 @@ def test_same_entry_to_another_peer_is_still_queued(dl):
 def test_once_popped_for_delivery_the_pair_can_be_queued_again(dl):
     adapter = SyncActivityAdapter(dl)
     entry = _entry(1)
-    adapter.send_announce_log_entry(entry, OWNER, [PEER_A], at=authored_at())
+    adapter.send_add_log_entry(entry, OWNER, [PEER_A], at=authored_at())
     assert dl.outbox_pop() is not None  # the drain took it
 
     assert (
-        adapter.send_announce_log_entry(
-            entry, OWNER, [PEER_A], at=authored_at()
-        )
+        adapter.send_add_log_entry(entry, OWNER, [PEER_A], at=authored_at())
         is True
     )
     assert len(dl.outbox_list()) == 1
@@ -166,8 +159,8 @@ def test_same_mismatching_entry_is_rejected_under_one_id(dl):
 @pytest.mark.spec("RF-08-004")
 def test_a_repeat_prompted_by_a_later_announce_names_the_first(dl):
     """``inReplyTo`` does not key the Reject's id, so a repeat for the same
-    entry under another Announce sends the stored body, which names the
-    first Announce."""
+    entry under another Add sends the stored body, which names the
+    first Add."""
     adapter = SyncActivityAdapter(dl)
     entry = _entry(2)
     first_announce = "https://example.org/activities/first-announce"
@@ -308,8 +301,8 @@ def test_a_genesis_reject_asked_at_another_time_is_a_new_activity(dl):
 
 
 def _queue_announce(dl: SqliteDataLayer, entry: CaseLedgerEntry, to: str):
-    """Queue an ``Announce`` of *entry* to *to*, as a fresh adapter would."""
-    assert SyncActivityAdapter(dl).send_announce_log_entry(
+    """Queue an ``Add`` of *entry* to *to*, as a fresh adapter would."""
+    assert SyncActivityAdapter(dl).send_add_log_entry(
         entry, OWNER, [to], at=authored_at()
     )
 
@@ -321,7 +314,7 @@ def test_the_pending_index_reads_sealed_bodies_not_activity_records(
     """A fresh adapter indexes the queue without rehydrating its activities.
 
     The index is rebuilt by every adapter, and one is composed per received
-    activity, so a hydrating read of every queued ``Announce`` made each
+    activity, so a hydrating read of every queued ``Add`` made each
     fan-out cost O(queue) model validations (#4906).  The sealed body is what
     the outbox delivers (VM-08-003), so it is what the index reads.
     """
@@ -339,7 +332,7 @@ def test_the_pending_index_reads_sealed_bodies_not_activity_records(
 
     adapter = SyncActivityAdapter(dl)
     assert (
-        adapter.send_announce_log_entry(
+        adapter.send_add_log_entry(
             _entry(1), OWNER, [PEER_A], at=authored_at()
         )
         is False
@@ -356,13 +349,13 @@ def test_a_fresh_adapter_sees_the_rows_another_adapter_queued(dl):
     adapter = SyncActivityAdapter(dl)
 
     assert (
-        adapter.send_announce_log_entry(
+        adapter.send_add_log_entry(
             _entry(1), OWNER, [PEER_A], at=authored_at()
         )
         is False
     )
     assert (
-        adapter.send_announce_log_entry(
+        adapter.send_add_log_entry(
             _entry(1), OWNER, [PEER_B], at=authored_at()
         )
         is True
@@ -375,7 +368,7 @@ def test_a_queued_row_with_no_sealed_body_is_not_pending(dl):
     """A row the outbox cannot deliver does not stand in for a real one.
 
     The outbox delivers only the sealed body (OX-07-001); a queued id with
-    none is never delivered (OX-07-005), so it must not suppress the Announce that would
+    none is never delivered (OX-07-005), so it must not suppress the Add that would
     be (SYNC-15-012).
     """
     dl.outbox_append("urn:test:unsealed-announce")
@@ -383,7 +376,7 @@ def test_a_queued_row_with_no_sealed_body_is_not_pending(dl):
     adapter = SyncActivityAdapter(dl)
 
     assert (
-        adapter.send_announce_log_entry(
+        adapter.send_add_log_entry(
             _entry(1), OWNER, [PEER_A], at=authored_at()
         )
         is True
@@ -392,7 +385,7 @@ def test_a_queued_row_with_no_sealed_body_is_not_pending(dl):
 
 @pytest.mark.spec("SYNC-15-012")
 def test_each_send_reads_only_the_rows_queued_since_the_last(dl, monkeypatch):
-    """A fan-out does not re-read the whole queue for every Announce.
+    """A fan-out does not re-read the whole queue for every Add.
 
     Every send queues a row, so the queue changes between any two sends; a
     rebuild that re-read every row made *n* sends cost O(n × queue) reads
@@ -400,7 +393,7 @@ def test_each_send_reads_only_the_rows_queued_since_the_last(dl, monkeypatch):
     """
     adapter = SyncActivityAdapter(dl)
     for index in range(4):
-        assert adapter.send_announce_log_entry(
+        assert adapter.send_add_log_entry(
             _entry(index), OWNER, [PEER_A], at=authored_at()
         )
     read_ids: list[str] = []
@@ -413,7 +406,7 @@ def test_each_send_reads_only_the_rows_queued_since_the_last(dl, monkeypatch):
     monkeypatch.setattr(dl, "read", _spy)
     newest = dl.outbox_list()[-1]
 
-    assert adapter.send_announce_log_entry(
+    assert adapter.send_add_log_entry(
         _entry(9), OWNER, [PEER_A], at=authored_at()
     )
 
@@ -447,38 +440,44 @@ _ENTRY = {"type": "CaseLedgerEntry", "id": "urn:test:entry"}
     ("body", "entry_id", "recipients"),
     [
         (
-            {"type": "Announce", "object": _ENTRY, "to": [PEER_A, PEER_B]},
+            {"type": "Add", "object": _ENTRY, "to": [PEER_A, PEER_B]},
             "urn:test:entry",
             {PEER_A, PEER_B},
         ),
         (
-            {"type": "Announce", "object": _ENTRY, "to": PEER_A},
+            {"type": "Add", "object": _ENTRY, "to": PEER_A},
             "urn:test:entry",
             {PEER_A},
         ),
         (
-            {"type": "Announce", "object": _ENTRY, "to": [{"id": PEER_A}]},
+            {"type": "Add", "object": _ENTRY, "to": [{"id": PEER_A}]},
             "urn:test:entry",
             {PEER_A},
         ),
         ({"type": "Reject", "object": _ENTRY, "to": [PEER_A]}, None, set()),
-        ({"type": "Announce", "object": "urn:test:entry"}, None, set()),
         (
-            {"type": "Announce", "object": {"type": "Note", "id": "urn:n"}},
+            {"type": "Announce", "object": _ENTRY, "to": [PEER_A]},
+            None,
+            set(),
+        ),
+        ({"type": "Add", "object": "urn:test:entry"}, None, set()),
+        (
+            {"type": "Add", "object": {"type": "Note", "id": "urn:n"}},
             None,
             set(),
         ),
         (
-            {"type": "Announce", "object": {"type": "CaseLedgerEntry"}},
+            {"type": "Add", "object": {"type": "CaseLedgerEntry"}},
             None,
             set(),
         ),
     ],
     ids=[
-        "announce",
+        "add",
         "bare-recipient",
         "recipient-object",
-        "not-an-announce",
+        "not-an-add",
+        "an-announce",
         "entry-by-reference",
         "not-a-ledger-entry",
         "entry-without-id",
@@ -487,7 +486,7 @@ _ENTRY = {"type": "CaseLedgerEntry", "id": "urn:test:entry"}
 def test_a_queued_row_is_read_from_its_sealed_body(
     dl, body, entry_id, recipients
 ):
-    """Only an ``Announce`` carrying an identified entry is indexed."""
+    """Only an ``Add`` carrying an identified entry is indexed."""
     _seal_raw(dl, "urn:test:row", body)
 
     row = _read_queued_row(dl, "urn:test:row")
@@ -503,7 +502,7 @@ def test_a_row_sealed_after_it_was_read_is_indexed_then(dl):
     entry = _entry(1)
     dl.outbox_append("urn:test:late-seal")
     adapter = SyncActivityAdapter(dl)
-    assert adapter.send_announce_log_entry(
+    assert adapter.send_add_log_entry(
         _entry(2), OWNER, [PEER_A], at=authored_at()
     )
 
@@ -511,15 +510,13 @@ def test_a_row_sealed_after_it_was_read_is_indexed_then(dl):
         dl,
         "urn:test:late-seal",
         {
-            "type": "Announce",
+            "type": "Add",
             "object": {"type": "CaseLedgerEntry", "id": entry.id_},
             "to": [PEER_B],
         },
     )
 
     assert (
-        adapter.send_announce_log_entry(
-            entry, OWNER, [PEER_B], at=authored_at()
-        )
+        adapter.send_add_log_entry(entry, OWNER, [PEER_B], at=authored_at())
         is False
     )

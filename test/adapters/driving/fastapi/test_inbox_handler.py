@@ -1132,7 +1132,7 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
 def test_make_dispatcher_gives_ledger_replay_semantics_the_inbox_port(
     monkeypatch,
 ):
-    """The received paths that can make a held Announce appliable get an
+    """The received paths that can make a held Add appliable get an
     ``InboxReplayPort`` queueing to the receiving actor's own store, and no
     other semantic does: the port is not part of every use case's signature
     (SYNC-14-009, SYNC-15-005)."""
@@ -1160,7 +1160,7 @@ def test_make_dispatcher_gives_ledger_replay_semantics_the_inbox_port(
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
     replay_semantics = {
-        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        MessageSemantics.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
         MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
         # The report receiver's introduction seeds the reporter's case too
         # (CBT-01-001, #5521).

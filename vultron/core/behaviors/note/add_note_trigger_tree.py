@@ -42,6 +42,7 @@ from collections.abc import Callable
 
 import py_trees
 
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.note.case_manager_note import (
     CaseManagerNote,
     CommitRequestedCaseManagerNoteNode,
@@ -127,14 +128,16 @@ def case_manager_add_note_trigger_bt(
         name="CaseManagerAddNoteToCaseTriggerBT",
         memory=False,
         children=[
-            CommitRequestedCaseManagerNoteNode(
-                case_id=case_id,
-                note=CaseManagerNote(
-                    name=note_name,
-                    content=note_content,
-                    in_reply_to=in_reply_to,
+            with_case_id(
+                CommitRequestedCaseManagerNoteNode(
+                    note=CaseManagerNote(
+                        name=note_name,
+                        content=note_content,
+                        in_reply_to=in_reply_to,
+                    ),
+                    result_out=result_out,
                 ),
-                result_out=result_out,
+                case_id,
             ),
         ],
     )

@@ -128,7 +128,10 @@ def _ledger_entry() -> Any:
         log_index=0,
         object_id="https://example.org/activities/slot-entry",
         semantic_type="test_event",
-        payload_snapshot={"key": "value"},
+        payload_snapshot={
+            "id": "https://example.org/activities/slot-entry",
+            "key": "value",
+        },
         prev_log_hash="0" * 64,
         received_at=authored_at(),
     ).to_ledger_entry()
@@ -237,13 +240,13 @@ BUILDERS: dict[str, Callable[[], as_Activity]] = {
             **_answered(),
         )
     ),
-    "Announce(CaseLedgerEntry)": lambda: F.announce_log_entry_activity(
+    "Add(CaseLedgerEntry)": lambda: F.add_log_entry_activity(
         _ledger_entry(), **_sent()
     ),
-    "Reject(CaseLedgerEntry)": lambda: F.genesis_replay_reject_activity(
-        CASE_ID, _TAIL, "https://example.org/announces/slot", **_sent()
+    "Reject(CaseLedgerEntry)": lambda: F.reject_log_entry_activity(
+        _ledger_entry(), "https://example.org/adds/slot", **_sent()
     ),
-    "Read(CaseLedgerEntry)": lambda: F.read_ledger_position_activity(
+    "Read(<case>/ledger)": lambda: F.read_ledger_position_activity(
         CASE_ID, _HELD_TAIL, **_sent()
     ),
 }
@@ -409,9 +412,7 @@ CASES: tuple[SlotCase, ...] = (
                 "Reject(EmbargoEvent)",
                 _S.REJECT_EMBARGO_PROPOSAL_ON_CASE,
                 "target",
-                # A Reject naming a case and no object is the genesis
-                # replay request (SYNC-16-027).
-                _S.REJECT_CASE_LEDGER_ENTRY,
+                _S.UNKNOWN,
             ),
             (
                 "Leave(EmbargoEvent)",
@@ -483,23 +484,44 @@ CASES: tuple[SlotCase, ...] = (
         (("object_", "object_"),),
     ),
     SlotCase(
-        "Announce(CaseLedgerEntry)",
-        _S.ANNOUNCE_CASE_LEDGER_ENTRY,
+        "Add(CaseLedgerEntry)",
+        _S.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
         "log_entry",
         (_OBJ,),
+    ),
+    # The ledger and the committed act are not in the pattern (SYNC-02-006,
+    # SYNC-02-007), so the cut message still matches and its event refuses it.
+    SlotCase(
+        "Add(CaseLedgerEntry)",
+        _S.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
+        "ledger_id",
+        (("target",),),
+        cut_matches=_S.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
+    ),
+    SlotCase(
+        "Add(CaseLedgerEntry)",
+        _S.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
+        "acknowledged_act_id",
+        (("in_reply_to",),),
+        cut_matches=_S.ADD_CASE_LEDGER_ENTRY_TO_LEDGER,
     ),
     SlotCase(
         "Reject(CaseLedgerEntry)",
         _S.REJECT_CASE_LEDGER_ENTRY,
-        "rejected_case_id",
-        (("target",),),
+        "rejected_entry",
+        (("object_",),),
     ),
     SlotCase(
-        "Read(CaseLedgerEntry)",
-        _S.READ_CASE_LEDGER_ENTRY,
+        "Read(<case>/ledger)",
+        _S.READ_CASE_LEDGER,
         "replay_case_id",
         (("context",),),
-        cut_matches=_S.READ_CASE_LEDGER_ENTRY,
+    ),
+    SlotCase(
+        "Read(<case>/ledger)",
+        _S.READ_CASE_LEDGER,
+        "ledger_id",
+        (("object_",),),
     ),
 )
 

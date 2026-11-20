@@ -55,6 +55,7 @@ from vultron.core.behaviors.case.nodes.invite_actor_emit import (
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitOfferCaseParticipantToOwnerNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
@@ -77,9 +78,8 @@ class _AddressedCaseManagerNote(_CommitCaseManagerActivityBase):
     (``notify_participants=True``): queued, then committed.
     """
 
-    def __init__(self, case_id: str) -> None:
+    def __init__(self) -> None:
         super().__init__(
-            case_id=case_id,
             semantic_type=MessageSemantics.ADD_NOTE_TO_CASE.value,
             notify_participants=True,
         )
@@ -90,13 +90,13 @@ class _AddressedCaseManagerNote(_CommitCaseManagerActivityBase):
         note_id, _ = factory.create_note(
             name="addressed note",
             content="sent to every other participant",
-            context_id=self._case_id,
+            context_id=self._act_case_id(),
             attributed_to=self.actor_id,
             at=authored_at(),
         )
         return factory.add_note_to_case(
             note_id=note_id,
-            case_id=self._case_id,
+            case_id=self._act_case_id(),
             actor=self.actor_id,
             to=to,
             at=authored_at(),
@@ -120,7 +120,7 @@ def _case_manager_act() -> _Setup:
         dl=dl,
         actor_id=CASE_MANAGER_ACTOR,
         case_id=case.id_,
-        node=lambda: _AddressedCaseManagerNote(case.id_),
+        node=lambda: with_case_id(_AddressedCaseManagerNote(), case.id_),
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE.value,
     )
 
@@ -208,7 +208,7 @@ class _EagerDrain:
 
     It takes each pending activity the moment it is woken and records, for
     each, whether the act's *semantic_type* entry was committed when it was
-    taken.  The act's ``Announce(CaseLedgerEntry)`` fan-out is queued by the
+    taken.  The act's ``Add(CaseLedgerEntry)`` fan-out is queued by the
     commit itself (SYNC-09-002), so it is taken with the entry committed.
     """
 

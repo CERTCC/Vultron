@@ -203,7 +203,7 @@ class EmbargoEndTimePassedNode(DataLayerConditionWithPorts):
 
 def end_embargo_at_end_time_bt(
     *,
-    case_id: str,
+    case_id: str | None,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -232,7 +232,9 @@ def end_embargo_at_end_time_bt(
     )
 
 
-def end_time_clock_decision(*, case_id: str) -> py_trees.behaviour.Behaviour:
+def end_time_clock_decision(
+    *, case_id: str | None
+) -> py_trees.behaviour.Behaviour:
     """The CASE_MANAGER's lazy end-time check for *case_id* (ADR-0122).
 
     A clock decision (CLP-10-025): runs :func:`end_embargo_at_end_time_bt`

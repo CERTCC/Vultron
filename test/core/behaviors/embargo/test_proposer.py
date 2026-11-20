@@ -11,14 +11,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``embargo_proposer_id``: who proposed an embargo, from the ledger (CM-24)."""
+"""``embargo_proposal``: who proposed an embargo, and its request (CM-24).
+
+Both are read from the case ledger.
+"""
 
 from typing import Any
 
 import pytest
 
 from test.support.act_clock import ACT_AT
-from vultron.core.behaviors.embargo.proposer import embargo_proposer_id
+from vultron.core.behaviors.embargo.proposer import (
+    EmbargoProposal,
+    embargo_proposal,
+)
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -45,7 +51,11 @@ def _entry(
     )
 
 
-def _invite(actor: str, attributed_to: str | None = None) -> dict[str, Any]:
+def _invite(
+    actor: str,
+    attributed_to: str | None = None,
+    in_reply_to: str | None = None,
+) -> dict[str, Any]:
     snapshot: dict[str, Any] = {
         "type": "Invite",
         "actor": actor,
@@ -53,6 +63,8 @@ def _invite(actor: str, attributed_to: str | None = None) -> dict[str, Any]:
     }
     if attributed_to is not None:
         snapshot["attributedTo"] = attributed_to
+    if in_reply_to is not None:
+        snapshot["inReplyTo"] = in_reply_to
     return snapshot
 
 
@@ -62,16 +74,26 @@ def test_a_proposal_names_its_sender():
         _entry(0, "invite_to_embargo_on_case", _invite(VENDOR)),
         _entry(1, "invite_to_embargo_on_case", _invite(MANAGER, VENDOR)),
     ]
-    assert embargo_proposer_id(entries, EMBARGO_ID) == VENDOR
+    # The request is the proposer's own Invite, the entry's object (CM-24-020).
+    assert embargo_proposal(entries, EMBARGO_ID) == EmbargoProposal(
+        VENDOR, "urn:entry:0"
+    )
 
 
 @pytest.mark.spec("EMB-17-003")
 def test_a_relay_names_the_proposer_in_attributed_to():
     """A creation-time revision has only its relay (EP-04-011)."""
     entries = [
-        _entry(0, "invite_to_embargo_on_case", _invite(MANAGER, VENDOR))
+        _entry(
+            0,
+            "invite_to_embargo_on_case",
+            _invite(MANAGER, VENDOR, in_reply_to="urn:proposal"),
+        )
     ]
-    assert embargo_proposer_id(entries, EMBARGO_ID) == VENDOR
+    # A relay names the request it carried out, which is the proposal's.
+    assert embargo_proposal(entries, EMBARGO_ID) == EmbargoProposal(
+        VENDOR, "urn:proposal"
+    )
 
 
 @pytest.mark.spec("EMB-17-003")
@@ -86,4 +108,4 @@ def test_an_embargo_no_invite_carries_has_no_proposer():
             {**_invite(VENDOR), "object": "urn:other-embargo"},
         ),
     ]
-    assert embargo_proposer_id(entries, EMBARGO_ID) is None
+    assert embargo_proposal(entries, EMBARGO_ID) is None

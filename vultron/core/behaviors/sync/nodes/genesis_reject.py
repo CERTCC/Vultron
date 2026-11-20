@@ -38,7 +38,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
     """Ask for a missing case once per interval, not once per early entry.
 
     Runs when the participant does not hold the entry's case (CLP-08-005),
-    after :class:`BufferPreGenesisEntryNode` has held the ``Announce``.  It
+    after :class:`BufferPreGenesisEntryNode` has held the ``Add``.  It
     sends the genesis Reject, a ``Reject(CaseLedgerEntry)`` with
     ``last_accepted_hash=""`` asking for the case and its whole ledger
     (SYNC-15-001), unless it sent one for the same case less than
@@ -85,7 +85,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
         sync_port: SyncActivityPort,
         actor_id: str,
         sender_id: str,
-        announce_id: str,
+        add_id: str,
     ) -> None:
         if self.datalayer is None:
             raise VultronWiringError(
@@ -131,7 +131,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
                 tail_hash=self.tail_hash,
                 actor_id=actor_id,
                 to=[sender_id],
-                in_reply_to=announce_id,
+                in_reply_to=add_id,
                 asked_at=asked_at,
                 at=self._require_act_instant(),
             )

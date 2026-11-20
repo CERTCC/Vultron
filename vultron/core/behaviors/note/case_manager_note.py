@@ -25,7 +25,7 @@ ledger (CLP-07-013), and its own handler refuses an ``Add(Note)`` whose note
 it already holds (HP-08-006).  It records the note as its own act instead
 (CLP-10-001): it builds the ``Add(Note)`` carrying the note inline,
 addressed to nobody, commits its sealed blob as an ``add_note_to_case``
-entry, then attaches the note to its case.  The ``Announce(CaseLedgerEntry)``
+entry, then attaches the note to its case.  The ``Add(CaseLedgerEntry)``
 fan-out is the delivery, and each replica attaches the note from the entry
 (``ApplyNoteFromLedgerNode``, SYNC-02-001, SYNC-02-003).
 
@@ -108,9 +108,8 @@ class _CommitCaseManagerNoteBase(
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {**super()._domain_port_remappings(), "activity": "/activity"}
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(
-            case_id=case_id,
             semantic_type=MessageSemantics.ADD_NOTE_TO_CASE.value,
             notify_participants=False,
             name=name,
@@ -183,7 +182,7 @@ class _CommitCaseManagerNoteBase(
             "%s: note '%s' not recorded on case '%s': %s",
             self.name,
             self._composed.name,
-            self._case_id,
+            self._act_case_id(),
             reason,
         )
         return Status.SUCCESS
@@ -196,7 +195,7 @@ class _CommitCaseManagerNoteBase(
         note_id, note_blob = self.trigger_activity_factory.create_note(
             name=self._composed.name,
             content=self._composed.content,
-            context_id=self._case_id,
+            context_id=self._act_case_id(),
             attributed_to=self.actor_id,
             in_reply_to=self._composed.in_reply_to,
             note_id=self._derived_note_id(actor_id),
@@ -206,7 +205,7 @@ class _CommitCaseManagerNoteBase(
         self._note_blob = note_blob
         return self.trigger_activity_factory.add_note_to_case(
             note_id=note_id,
-            case_id=self._case_id,
+            case_id=self._act_case_id(),
             actor=actor_id,
             to=to,
             at=self._require_act_instant(),
@@ -220,10 +219,10 @@ class _CommitCaseManagerNoteBase(
         send_and_commit()
         self._entry_committed = True
         assert self.datalayer is not None
-        case, failure = self._require_case(self._case_id)
+        case, failure = self._require_case(self._act_case_id())
         if failure is not None:
             raise RuntimeError(
-                f"{self.name}: case '{self._case_id}' vanished after its"
+                f"{self.name}: case '{self._act_case_id()}' vanished after its"
                 f" '{self._semantic_type}' entry committed"
             )
         attach_note(self.datalayer, case, cast(str, self._note_id))
@@ -232,7 +231,7 @@ class _CommitCaseManagerNoteBase(
             self.name,
             self._note_id,
             self._composed.name if self._composed else "",
-            self._case_id,
+            self._act_case_id(),
             self._semantic_type,
         )
 
@@ -250,12 +249,11 @@ class CommitRequestedCaseManagerNoteNode(_CommitCaseManagerNoteBase):
 
     def __init__(
         self,
-        case_id: str,
         note: CaseManagerNote,
         result_out: dict,
         name: str | None = None,
     ) -> None:
-        super().__init__(case_id=case_id, name=name)
+        super().__init__(name=name)
         self._note = note
         self.result_out = result_out
 

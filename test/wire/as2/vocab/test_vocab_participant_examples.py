@@ -98,10 +98,13 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Add")
 
         self.assertEqual(activity.actor, vendor.id_)
+        # The participant's status history, with the case in context
+        # (ADR-0204).
         self.assertEqual(
             activity.target,
-            "https://vultron.example/cases/1/participants/vendor",
+            "https://vultron.example/cases/1/participants/vendor/statuses",
         )
+        self.assertEqual(activity.context, examples.case().id_)
         # The status names its case, not the participant (HP-08-008).
         self.assertEqual(status.context, examples.case().id_)
         self.assertEqual(activity.object_, status)
@@ -264,7 +267,10 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(attr_id, coordinator.id_)
         self.assertEqual(activity.target, c.id_)
         self.assertEqual(activity.context, c.id_)
-        self.assertIsNotNone(activity.origin)
+        # CM-16-004: the forward answers the recommendation, so it names it
+        # in inReplyTo and sets no origin.
+        self.assertIsNotNone(activity.in_reply_to)
+        self.assertIsNone(activity.origin)
 
     def test_accept_case_participant_offer(self):
         activity = examples.accept_case_participant_offer()
@@ -320,8 +326,8 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(participant.name, coord_p.name)
         self.assertEqual(participant.context, case.id_)
         # `target`, not `origin`: RemoveCaseParticipantFromCasePattern
-        # discriminates on target_ and ActivityPattern has no origin_ field, so an
-        # origin-only Remove matches no pattern and never dispatches. This
+        # discriminates on target_, so an origin-only Remove(CaseParticipant)
+        # matches no pattern and never dispatches. This
         # assertion previously required `origin` and so locked in the defect
         # (#3438); test_vocab_examples_dispatchable.py is the ratchet now.
         self.assertEqual(activity.target, case.id_)

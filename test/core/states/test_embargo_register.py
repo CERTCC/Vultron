@@ -61,13 +61,18 @@ def test_each_step_of_an_entry_is_one_triggers(
     source: S | None, status: S
 ) -> None:
     """The trigger between two statuses is the one the table moves the
-    entry by, and none moves it between statuses the table does not join."""
+    entry by; between statuses the table does not join, none is, and the
+    question is refused."""
     expected = [
         t for (s, t), d in LEGAL.items() if s is source and d is status
     ]
-    assert register_trigger_between(source, status) is (
-        expected[0] if expected else None
-    )
+    if expected:
+        assert register_trigger_between(source, status) is expected[0]
+    else:
+        with pytest.raises(
+            VultronInvalidStateTransitionError, match="no trigger moves"
+        ):
+            register_trigger_between(source, status)
 
 
 @pytest.mark.parametrize("status", sorted(FINAL_REGISTER_STATUSES))

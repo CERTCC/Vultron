@@ -70,7 +70,13 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.parser import parse_activity
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BROADCAST,
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    LedgerNetwork,
+)
 from .test_embargo_relay_replay import _owner_answers, _propose
 
 ACCEPT_EVENT = "accept_invite_to_embargo_on_case"
@@ -439,7 +445,7 @@ def test_a_repeat_at_a_replica_is_refused_not_skipped():
     embargo_id, invite_id = _invited(net, BYSTANDER, "repeat-replica")
     first = _answer(net, BYSTANDER, invite_id, accept=True, tag="1")
     assert first.disposition is HandlerDisposition.APPLIED, first.reason
-    net.deliver(MANAGER, to=OWNER, type_="Announce")
+    net.deliver(MANAGER, to=OWNER, type_=BROADCAST)
     assert (
         _consent(net, BYSTANDER, embargo_id, store=OWNER)
         == EmbargoConsentState.AGREED

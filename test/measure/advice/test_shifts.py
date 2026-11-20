@@ -26,7 +26,6 @@ from vultron.measure.advice import (
     open_moves,
     outcome_shift,
 )
-from vultron.measure.advice.shifts import scope_desiderata
 from vultron.measure.baselines import (
     EXTENDED,
     ORIGINAL,
@@ -37,6 +36,7 @@ from vultron.measure.baselines import (
     expected_outcomes,
     outcome_change,
     scope_chances,
+    scope_desiderata,
 )
 
 _K = EventKind
@@ -54,14 +54,14 @@ def _case(name: str) -> Case:
 
 
 def test_a_scope_holds_the_twelve_report_handling_and_embargo_desiderata():
-    scope = scope_desiderata()
+    scope = set(scope_desiderata())
     assert set(ORIGINAL) <= scope
     assert {d for d in EXTENDED if d.group is Group.REPORT_HANDLING} <= scope
     assert not {d for d in scope if d.group is Group.MULTI_PARTY}
 
 
 def test_a_scope_counts_each_group_of_equivalent_desiderata_once():
-    scope = scope_desiderata()
+    scope = set(scope_desiderata())
     assert _named(r"$\evE \prec \evP$") in scope
     assert _named(r"$\evExOwn \prec \evP$") in scope
     assert _named(r"$\evF_i \prec \evExOwn$") in scope

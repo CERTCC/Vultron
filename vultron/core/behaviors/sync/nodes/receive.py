@@ -117,7 +117,7 @@ class CheckEntryHashIntactNode(
     stored.  No ``Reject(CaseLedgerEntry)`` is sent:
     a replay would resend the same entry, and the replica's unmoved tail
     already makes the next entry ask for one (SYNC-03-006, SYNC-08-001).
-    The announce tree pairs it with an
+    The add-log-entry tree pairs it with an
     :class:`~vultron.core.behaviors.sync.nodes.ledger_entry_fault.EmitLedgerEntryFaultNode`
     fallback, which reports the refusal to the CASE_MANAGER with a
     ``LedgerEntryRefused/HashMismatch`` fault (SYNC-03-007).  The failure is
@@ -184,18 +184,18 @@ class CheckHashMatchesNode(DataLayerConditionWithPorts):
 
 
 class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
-    """Hold the ``Announce`` of a forward-gap entry so it is not dropped.
+    """Hold the ``Add`` of a forward-gap entry so it is not dropped.
 
     When a received entry's ``prev_log_hash`` does not match the local tail
     *and* the entry sits ahead of the tail (``log_index > tail_index + 1``),
     it is a genuine forward gap: a predecessor has not yet been delivered.
     Because delivery is not ordered (and Vultron may not be the only
     implementation on the wire), dropping such an entry can lose it
-    permanently.  This node holds the received ``Announce(CaseLedgerEntry)``
+    permanently.  This node holds the received ``Add(CaseLedgerEntry)``
     as it arrived, keyed on its entry's ``prev_log_hash``, so the drain
     replays it once its predecessor commits (SYNC-14-001, SYNC-14-009).
 
-    Returns SUCCESS when the ``Announce`` is held, FAILURE otherwise (a
+    Returns SUCCESS when the ``Add`` is held, FAILURE otherwise (a
     stale/duplicate entry at-or-behind the tail, no tail, or the size bound
     dropped it).  Its status only structures the enclosing tree — a
     ``Reject(CaseLedgerEntry)`` is sent on **every** mismatch regardless of
@@ -253,7 +253,7 @@ class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
             self.name, self.datalayer, self.activity, self.actor_id
         ):
             self.logger.info(
-                "%s: holding the Announce '%s' of out-of-order entry '%s'"
+                "%s: holding the Add '%s' of out-of-order entry '%s'"
                 " (index=%d) for actor '%s' pending predecessor",
                 self.name,
                 getattr(self.activity, "activity_id", None),
@@ -266,7 +266,7 @@ class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
 
 
 class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
-    """Hold the ``Announce`` of an entry that arrived before its case seed.
+    """Hold the ``Add`` of an entry that arrived before its case seed.
 
     This is the *pre-genesis* companion to :class:`BufferOutOfOrderEntryNode`.
     When ``ReconstructChainTail`` cannot derive the per-case genesis hash
@@ -275,9 +275,9 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
     ``Reject(CaseLedgerEntry)`` and *drop* the entry, leaving convergence to the
     reject → replay round-trip (which can itself reorder and churn — #2169).
 
-    Because delivery is unordered, an ``Announce(CaseLedgerEntry)`` can precede
+    Because delivery is unordered, an ``Add(CaseLedgerEntry)`` can precede
     the ``Create``/``Announce(VulnerabilityCase)`` that seeds the case.  This
-    node holds the received ``Announce`` as it arrived, keyed on its entry's
+    node holds the received ``Add`` as it arrived, keyed on its entry's
     ``prev_log_hash``, so the case-seed path replays it once the genesis
     anchor is known (SYNC-15-004, SYNC-15-005).
 
@@ -287,7 +287,7 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
     (``log_index == 0``), whose ``prev_log_hash`` equals the per-case genesis
     hash and therefore replays first once the case is seeded.
 
-    Returns SUCCESS when the ``Announce`` is held, FAILURE when the size bound
+    Returns SUCCESS when the ``Add`` is held, FAILURE when the size bound
     dropped it.  Its status only structures the enclosing tree —
     :class:`~.genesis_reject.SendGenesisRejectOnMissingCaseNode` runs either
     way, and asks for the case unless it already asked within the interval,
@@ -321,7 +321,7 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
             self.name, self.datalayer, self.activity, self.actor_id
         ):
             self.logger.info(
-                "%s: holding the Announce '%s' of pre-genesis entry '%s'"
+                "%s: holding the Add '%s' of pre-genesis entry '%s'"
                 " (index=%d) for case '%s', actor '%s', pending"
                 " VulnerabilityCase seed",
                 self.name,
@@ -392,16 +392,14 @@ class SendRejectLogEntryNode(DeclaredRefusalMixin, DataLayerActionWithPorts):
             raise VultronError(
                 f"{self.name}: activity.actor_id missing for rejection target"
             )
-        announce_id = getattr(self.activity, "activity_id", None)
-        if not announce_id:
+        add_id = getattr(self.activity, "activity_id", None)
+        if not add_id:
             raise VultronError(
                 f"{self.name}: activity.activity_id missing for the"
                 " rejection's inReplyTo (RF-08-004)"
             )
 
-        self._reject(
-            entry, self._sync_port, self.actor_id, sender_id, announce_id
-        )
+        self._reject(entry, self._sync_port, self.actor_id, sender_id, add_id)
         return self._refuse(self._refusal_of(entry))
 
     def _refusal_of(self, entry: CaseLedgerEntry) -> str:
@@ -417,11 +415,11 @@ class SendRejectLogEntryNode(DeclaredRefusalMixin, DataLayerActionWithPorts):
         sync_port: SyncActivityPort,
         actor_id: str,
         sender_id: str,
-        announce_id: str,
+        add_id: str,
     ) -> None:
         """Queue the ``Reject(CaseLedgerEntry)`` of *entry* to *sender_id*.
 
-        The Reject names *announce_id*, the ``Announce(CaseLedgerEntry)``
+        The Reject names *add_id*, the ``Add(CaseLedgerEntry)``
         that carried *entry*, in ``inReplyTo`` (RF-08-004).
         """
         self.logger.warning(
@@ -437,7 +435,7 @@ class SendRejectLogEntryNode(DeclaredRefusalMixin, DataLayerActionWithPorts):
             tail_hash=self.tail_hash,
             actor_id=actor_id,
             to=[sender_id],
-            in_reply_to=announce_id,
+            in_reply_to=add_id,
             at=self._require_act_instant(),
         )
 

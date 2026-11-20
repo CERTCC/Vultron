@@ -104,8 +104,7 @@ def _with_policy(owner: VultronService, days: int) -> VultronService:
         update={
             "embargo_policy": make(
                 EmbargoPolicy,
-                actor_id=owner.id_,
-                inbox=f"{owner.id_}/inbox",
+                attributed_to=owner.id_,
                 preferred_duration=timedelta(days=days),
             )
         }
@@ -138,8 +137,7 @@ def test_a_policy_record_beside_the_profile_is_not_the_actor_default(
     dl.create(
         make(
             EmbargoPolicy,
-            actor_id=owner.id_,
-            inbox=f"{owner.id_}/inbox",
+            attributed_to=owner.id_,
             preferred_duration=timedelta(days=30),
         )
     )

@@ -49,12 +49,12 @@ The routing rule below follows from it.
 Once a case exists, every case-scoped message follows this path:
 
 ```text
-Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
+Participant → CASE_MANAGER → CaseLedgerEntry → Add(CaseLedgerEntry) → all Participants
 ```
 
 - A participant addresses a case-scoped Activity to the CASE_MANAGER alone, never to the other participants.
 - The CASE_MANAGER records the message in the case ledger, and the ledger entry is what it sends on to the other participants.
-- `Announce` of a `CaseLedgerEntry` is the **only** way a participant learns of an admitted change to shared case state.
+- `Add` of a `CaseLedgerEntry` to the case's ledger is the **only** way a participant learns of an admitted change to shared case state.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("PCR-08-001", "PCR-08-005", "PCR-08-003", "PCR-08-002"))
@@ -145,7 +145,7 @@ The CASE_MANAGER keeps every active participant's replica in step with the case 
 
 | Operation | What the CASE_MANAGER does |
 |---|---|
-| Ledger replication | Sends each committed ledger entry to every active participant, as `Announce(CaseLedgerEntry)`. This is the only way a participant learns of an admitted change to shared case state ([§10.2 Routing Topology](interactions.md#102-routing-topology)) |
+| Ledger replication | Sends each committed ledger entry to every active participant, as `Add(CaseLedgerEntry)`. This is the only way a participant learns of an admitted change to shared case state ([§10.2 Routing Topology](interactions.md#102-routing-topology)) |
 | Case delivery | Sends a participant the full case once it is an active participant ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)), then the ledger entries committed before it joined, oldest first ([§11.1 Admitting a Participant](interactions.md#111-admitting-a-participant)) |
 
 Their wire activities are given at [§4.12 Ledger Replication Messages](layers.md#412-ledger-replication-messages) and [§4.7 Case and Participant Messages](layers.md#47-case-and-participant-messages).
@@ -194,7 +194,7 @@ The six case state shorthands ([§4.9 Case State Messages](layers.md#49-case-sta
 
 - A **participant** reporting its own VFD progress, or an observation about the world, sends `Add` of a **`ParticipantStatus`**.
   This is a claim.
-- The **CASE_MANAGER**, having adopted a claim, sends `Add` of a **`CaseStatus`** targeting the case.
+- The **CASE_MANAGER**, having adopted a claim, sends `Add` of a **`CaseStatus`** targeting the case's status history, `<case>/statuses`.
   This is the canonical write.
 
 A participant never sends `Add` of a `CaseStatus`, and a receiver refuses one from any sender other than the CASE_MANAGER.

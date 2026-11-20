@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.core.models.case_reference import CaseReferenceLink
+from vultron.core.models.vulnerability_item import VulnerabilityItemId
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
@@ -209,8 +210,9 @@ def propose_case_ownership_transfer() -> as_Offer:
 def offer_case_ownership_transfer() -> as_Offer:
     """The Case Manager's Offer, made from the owner's proposal (ADR-0148).
 
-    ``actor`` is the Case Manager and ``attributedTo`` the Case Owner whose
-    proposal it carries out (CM-24-001, CM-24-002).
+    ``actor`` is the Case Manager, ``attributedTo`` the Case Owner whose
+    proposal it carries out and ``inReplyTo`` that proposal (CM-24-001,
+    CM-24-002, CM-24-020).
     """
     _vendor = vendor()
     _case = case()
@@ -219,6 +221,7 @@ def offer_case_ownership_transfer() -> as_Offer:
         _case,
         actor=case_actor().id_,
         attributed_to=_vendor.id_,
+        in_reply_to=propose_case_ownership_transfer().id_,
         target=_coordinator.id_,
         to=[_coordinator.id_],
         content=f"We're offering to transfer ownership of case {_case.name} to you.",
@@ -298,7 +301,7 @@ def add_vulnerability_item_to_case() -> as_Add:
     _case = case()
     item = as_VulnerabilityItem(
         id_=f"{_case.id_}/items/1",
-        cve="CVE-2026-0001",
+        ids=[VulnerabilityItemId.cve("CVE-2026-0001")],
         title="Buffer overflow in the widget parser",
         context=_case.id_,
         **_example_stamp(),

@@ -32,12 +32,13 @@ _BASE_FIELDS = {
     "description",
     "activity_",
     "strict",
-    "accepts_bare_object",
     # The form of the object as received, never its sender (SE-01-009).
     "object_form",
     "to_",
     "object_",
     "target_",
+    # Where the object comes from, never who sent it (VAM-07-003).
+    "origin_",
     "context_",
 }
 

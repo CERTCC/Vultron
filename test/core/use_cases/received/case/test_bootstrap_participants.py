@@ -365,7 +365,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         )
         activity = add_status_to_participant_activity(
             status,
-            target=vendor_p,
+            participant=vendor_p,
             actor=_VENDOR_ID,
             to=[_CASE_ACTOR_ID],
             at=authored_at(),

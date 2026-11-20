@@ -622,8 +622,8 @@ def seed_case_replica_for_actor(
     Note on why that delivery does not happen: *not* because nested delivery is
     blocked.  Several comments in this suite claim loopback delivery is "blocked
     at depth > 0 to prevent deadlocks", but nothing implements such a guard —
-    ``InProcessRouter`` dispatches each POST via ``anyio.to_thread.run_sync``
-    precisely so nested sends do not deadlock, and multi-hop deliveries are
+    ``InProcessRouter`` posts each delivery off the loop on a thread of its own
+    so nested sends do not deadlock (#6190), and multi-hop deliveries are
     observably completing with 202s.  The seeding here compensates for the
     *sender* never queueing the message, not for the transport dropping it.
 
@@ -679,7 +679,7 @@ def seed_replicas_for_case_participants(
     """Replicate *case_id* into the store of every actor participating in it.
 
     Stands in for the CaseActor's ``Create(VulnerabilityCase)`` /
-    ``Announce(CaseLedgerEntry)`` fan-out, which seeds each participant's replica
+    ``Add(CaseLedgerEntry)`` fan-out, which seeds each participant's replica
     in a real deployment.
 
     The CaseActor's own replica matters as much as the participants':

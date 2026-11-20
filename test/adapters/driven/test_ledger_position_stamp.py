@@ -157,78 +157,102 @@ def test_the_stored_activity_and_its_sealed_body_carry_one_position(
 
 
 @pytest.mark.spec("SYNC-16-027")
-def test_a_genesis_replay_request_needs_the_case_it_names(dl) -> None:
-    """The objectless Reject states the empty chain's position, which only a
-    store holding the case can state: one that does not raises before it
-    writes or queues anything (SYNC-18-001)."""
-    with pytest.raises(VultronValidationError):
-        SyncActivityAdapter(dl).send_genesis_replay_reject(
-            case_id=_CASE,
-            copy_tail_hash="ab" * 32,
-            actor_id=_ACTOR,
-            to=["https://example.org/users/manager"],
-            in_reply_to="https://example.org/activities/prompting-announce",
-            at=authored_at(),
-        )
-
-    assert list(dl.outbox_list()) == []
-
-
-@pytest.mark.spec("SYNC-16-027")
-def test_a_genesis_replay_request_states_the_empty_chain(dl) -> None:
+def test_a_read_at_the_empty_chain_states_index_minus_one(dl) -> None:
+    """A replica that holds no entry states the empty ledger's position in a
+    ``Read`` of the case's ledger, naming what prompted it (ADR-0204)."""
     case = make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR)
     dl.create(case)
+    announce = "https://example.org/activities/prompting-announce"
 
-    SyncActivityAdapter(dl).send_genesis_replay_reject(
+    SyncActivityAdapter(dl).send_empty_chain_read(
         case_id=_CASE,
-        copy_tail_hash="ab" * 32,
+        copy_tail_hash="ef" * 32,
         actor_id=_ACTOR,
         to=["https://example.org/users/manager"],
-        in_reply_to="https://example.org/activities/prompting-announce",
+        in_reply_to=announce,
         at=authored_at(),
     )
 
-    (reject_id,) = dl.outbox_list()
-    body = read_sealed_body_dict(dl, reject_id)
+    (read_id,) = dl.outbox_list()
+    body = read_sealed_body_dict(dl, read_id)
     assert body is not None
+    assert body["type"] == "Read"
+    assert body["object"] == {
+        "id": f"{_CASE}/ledger",
+        "type": "OrderedCollection",
+    }
+    assert body["context"] == _CASE
+    assert body["inReplyTo"] == announce
     assert body["ledgerPosition"] == {
         "logIndex": EMPTY_LEDGER_LOG_INDEX,
         "entryHash": case.genesis_hash,
     }
 
 
-@pytest.mark.spec("ID-04-004")
-@pytest.mark.spec("RF-08-004")
-def test_a_genesis_replay_repeat_under_another_announce_names_the_first(
+@pytest.mark.spec("SYNC-16-027")
+def test_an_empty_chain_read_repeat_under_another_announce_names_the_first(
     dl,
 ) -> None:
-    """``inReplyTo`` does not key the genesis-replay Reject's id, so a repeat
-    for the same copy under another Announce sends the stored body, which
-    names the first Announce."""
+    """The ``Read`` answering a copy takes its id from the case and the
+    copy's position, not from the Announce: a repeat for the same copy under
+    another Announce queues the stored body, which names the first one, and
+    a later copy's request is its own (ID-04-004)."""
     dl.create(make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR))
     adapter = SyncActivityAdapter(dl)
-    first_announce = "https://example.org/activities/first-copy-announce"
+    first = "https://example.org/activities/first-announce"
 
-    adapter.send_genesis_replay_reject(
+    def ask(copy_tail_hash: str, announce: str) -> None:
+        adapter.send_empty_chain_read(
+            case_id=_CASE,
+            copy_tail_hash=copy_tail_hash,
+            actor_id=_ACTOR,
+            to=["https://example.org/users/manager"],
+            in_reply_to=announce,
+            at=authored_at(),
+        )
+
+    ask("ef" * 32, first)
+    ask("ef" * 32, "https://example.org/activities/second-announce")
+
+    (read_id,) = dl.outbox_list()
+    body = read_sealed_body_dict(dl, read_id)
+    assert body is not None and body["inReplyTo"] == first
+
+    ask("cd" * 32, "https://example.org/activities/later-announce")
+
+    assert len(set(dl.outbox_list())) == 2
+
+
+@pytest.mark.spec("SYNC-16-027")
+def test_an_empty_chain_read_needs_the_case_it_names(dl) -> None:
+    """Its position is read from the stored case: a store that does not hold
+    it raises before it writes or queues anything (SYNC-18-001)."""
+    with pytest.raises(VultronValidationError):
+        SyncActivityAdapter(dl).send_empty_chain_read(
+            case_id=_CASE,
+            copy_tail_hash="ef" * 32,
+            actor_id=_ACTOR,
+            to=["https://example.org/users/manager"],
+            in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
+        )
+
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("SYNC-17-001")
+def test_a_read_of_its_own_accord_names_no_cause(dl) -> None:
+    dl.create(make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR))
+
+    SyncActivityAdapter(dl).send_read_ledger(
         case_id=_CASE,
-        copy_tail_hash="ab" * 32,
+        ledger_position=LedgerPosition(log_index=0, entry_hash="ab" * 32),
         actor_id=_ACTOR,
         to=["https://example.org/users/manager"],
-        in_reply_to=first_announce,
-        at=authored_at(),
-    )
-    (reject_id,) = dl.outbox_list()
-    assert dl.outbox_pop() == reject_id  # the drain took it
-    adapter.send_genesis_replay_reject(
-        case_id=_CASE,
-        copy_tail_hash="ab" * 32,
-        actor_id=_ACTOR,
-        to=["https://example.org/users/manager"],
-        in_reply_to="https://example.org/activities/later-copy-announce",
         at=authored_at(),
     )
 
-    assert list(dl.outbox_list()) == [reject_id]
-    body = read_sealed_body_dict(dl, reject_id)
+    (read_id,) = dl.outbox_list()
+    body = read_sealed_body_dict(dl, read_id)
     assert body is not None
-    assert body["inReplyTo"] == first_announce
+    assert "inReplyTo" not in body

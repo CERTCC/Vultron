@@ -349,7 +349,7 @@ receiver_engages_case(...)
 
 ### Demo Devlog Race: Wait for Replica Before Dumping
 
-A devlog dump misses entries still in `Announce(CaseLedgerEntry)` fan-out. After
+A devlog dump misses entries still in `Add(CaseLedgerEntry)` fan-out. After
 any phase that commits a new canonical entry, wait for the replicas before the
 dump:
 

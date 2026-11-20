@@ -124,7 +124,7 @@ def offer_case_participant() -> as_Offer:
         actor=_CASE_ACTOR.id_,
         to=[_vendor.id_],
         context=_case.id_,
-        origin=_recommendation.id_,
+        in_reply_to=_recommendation.id_,
         # The recommender's reason travels as ``content`` (CM-16-020).
         content=_recommendation.content,
         at=EXAMPLE_TIMESTAMP,

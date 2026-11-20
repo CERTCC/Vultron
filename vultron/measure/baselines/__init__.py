@@ -29,7 +29,9 @@ the protocol, and writes nothing (CEH-01-001, CEH-01-002).
   joint models, built from the RM, CS and EM tables and the composite
   invariants.
 * :mod:`~vultron.measure.baselines.desiderata` — every desideratum with its
-  model, its baseline, and the implication pairs.
+  model, its baseline, and the implication pairs; and the desiderata of a
+  vendor's scope (:func:`scope_desiderata`), the one list move advice, the
+  case scores and the case shadow tool all read.
 * :mod:`~vultron.measure.baselines.values` — each vendor's desiderata
   values from any point of a joint walk (:func:`desiderata_values`), and a
   step's expected change (:func:`expected_change`); the chance each scope is
@@ -52,14 +54,17 @@ from vultron.measure.baselines.desiderata import (
     EXTENDED,
     NEAR_EQUAL_RATIO,
     ORIGINAL,
+    SCOPE_GROUPS,
     Desideratum,
     Group,
     Implication,
     ModelName,
     baseline,
     case_state_query,
+    desideratum_by_notation,
     implications,
     ordered_cs_events,
+    scope_desiderata,
 )
 from vultron.measure.baselines.joint import (
     ONE_VENDOR_MODEL,
@@ -109,6 +114,7 @@ __all__ = [
     "ONE_VENDOR_MODEL",
     "ORIGINAL",
     "RM_EVENTS",
+    "SCOPE_GROUPS",
     "TWO_VENDOR_MODEL",
     "CaseStateModel",
     "ChanceModel",
@@ -136,6 +142,7 @@ __all__ = [
     "case_state_query",
     "completion_probabilities",
     "desiderata_values",
+    "desideratum_by_notation",
     "expected_change",
     "expected_outcome",
     "expected_outcomes",
@@ -151,6 +158,7 @@ __all__ = [
     "prefix_probability",
     "replay",
     "scope_chances",
+    "scope_desiderata",
     "step_probability",
     "take_step",
     "vendor_desiderata",
