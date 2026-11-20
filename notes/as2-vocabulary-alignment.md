@@ -24,7 +24,6 @@ tracks:
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
   - "#6418"   # profile cites Controlled Identifiers context
-  - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
   - "#6481"   # embargo stores its status; register is a list (slice of #6246)
@@ -272,14 +271,11 @@ which this object is considered a response".
 
 **Today.** `Remove(Note)` and `Remove(EmbargoEvent)` name the case in `origin`,
 and `ActivityPattern.origin_` matches it as `target_` matches `target` (#6463);
-`Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`; `offerId` /
-`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`.
+`Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`;
+`Add(VulnerabilityReport)` and `CaseProposal` name the report Offer in `inReplyTo`
+(#6419).
 
-**Term-check owner.** #6419 owns `offerId`/`offerActorId` in the #6253 term-check
-ratchet, so the entry keeps an open owner. Planning this section adopts #6419
-for that field rather than filing a second Task.
-
-**Touches.** CM-16-004, CP-01-007, CM-24-002, CM-24-012, the delegated-authorship
+**Touches.** CM-16-004, CM-24-002, CM-24-012, the delegated-authorship
 helper `vultron/core/behaviors/delegated_authorship.py`. The Owner's
 `Remove(<Actor>, origin=<case>)` (§ "The Owner Sends Its Removal or
 Reinstatement") matches on `origin_`; `notes/case-joining.md` shows
@@ -604,12 +600,11 @@ them.
 | `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
 | `roles` (`as_Invite`), `suggestedRoles` (`as_Offer`) | two names, one meaning | one name | #6417 |
-| `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
 Every other field is a Vultron term. `state`, `status` and `kind` are each used once
-on the wire, and `caseStatus` is one meaning in two shapes (an object or a link), so
-none of them is a clash.
+on the wire, and `caseStatus` is declared once, on a participant status, so none of
+them is a clash.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
 EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context
@@ -745,7 +740,7 @@ types are URIs. CORE §4.2: Link properties are hints about the referenced resou
 type, and only `related` is IANA-registered, so it stays a bare name. The wire
 `as_Link.rel` takes one value or a list, because `rel` is not functional.
 
-**Touches.** CM-05-004, CM-05-005, CM-05-010, CM-05-012, CM-34-003, CSAF-03-009, and
+**Touches.** CM-05-004, CM-05-005, CM-05-012, CM-34-003, CSAF-03-009, and
 a future FIRST VRDX-SIG vxref Idea (`FIRSTdotorg/vrdx-sig-vxref-wip`), which may
 supply more `rel` values. A new value joins `CVE_REFERENCE_TAG_RELS` (or the
 vocabulary beside it) and the `docs/ns/` relation table together.

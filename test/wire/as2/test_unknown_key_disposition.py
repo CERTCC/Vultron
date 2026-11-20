@@ -30,9 +30,17 @@ from test.support.case_owner import INBOUND_CASE_OWNERSHIP
 from test.support.objects import make
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_preview import preview_em_state
+from vultron.core.models.case_preview import (
+    preview_current_status,
+    preview_em_state,
+)
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.preview_object import is_loose_form_of, to_loose
+from vultron.core.models.embargo_register import EmbargoRegisterEntry
+from vultron.core.models.preview_object import (
+    is_loose_form_of,
+    loose_form,
+    to_loose,
+)
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.wire.as2.errors import (
     VultronParseMissingTypeError,
@@ -844,14 +852,13 @@ def test_no_core_module_names_a_retired_key() -> None:
 def test_embargoed_invite_stub_is_judged_as_the_stub(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The informed-consent stub keeps its ``caseStatus`` (CM-17-013).
+    """The informed-consent stub keeps its ``caseStatuses`` (CM-17-013).
 
     An embargoed Invite's stub, the preview its case reference carries
-    (ADR-0205), carries ``activeEmbargo`` and ``caseStatus``.  Judged
-    against the full case, which has no ``caseStatus``,
-    the key would be set aside and the invitee would lose the embargo state it
-    consents on; the stub is selected on its own key set (#2624) even when a
-    foreign key rides along, which the partition sets aside.
+    (ADR-0205), carries ``embargoRegister`` and ``caseStatuses``.  The stub
+    is judged on its own type, the case preview (#2624), so each is read
+    into its loose form and the invitee keeps the embargo state it consents
+    on, even when a foreign key rides along, which the partition sets aside.
     """
     from vultron.core.models.dimensions import EmDimension
     from vultron.core.states.em import EM
@@ -860,10 +867,24 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
     case_id = "https://example.org/cases/1"
     stub = as_CasePreview(
         summary="Security issue — embargo active, details after acceptance",
-        active_embargo="https://example.org/embargoes/1",
-        case_status=to_loose(
-            make(CaseStatus, context=case_id, em=EmDimension(state=EM.ACTIVE))
-        ),
+        attributed_to="https://example.org/actors/vendor",
+        embargo_register=[
+            loose_form(EmbargoRegisterEntry).model_validate(
+                {
+                    "embargo": "https://example.org/embargoes/1",
+                    "status": "ACTIVE",
+                }
+            )
+        ],
+        case_statuses=[
+            to_loose(
+                make(
+                    CaseStatus,
+                    context=case_id,
+                    em=EmDimension(state=EM.ACTIVE),
+                )
+            )
+        ],
     )
     preview = stub.model_dump(by_alias=True, mode="json", exclude_none=True)
     preview[FOREIGN_KEY] = 1
@@ -881,20 +902,20 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
     assert isinstance(invited, as_TypedReference)
     parsed = invited.preview
     assert type(parsed) is as_CasePreview
-    assert is_loose_form_of(parsed.case_status, CaseStatus)
+    assert is_loose_form_of(preview_current_status(parsed), CaseStatus)
     assert preview_em_state(parsed) is EM.ACTIVE
     records = _info_records_naming(caplog, FOREIGN_KEY)
     assert len(records) == 1 and "'object.preview'" in records[0].getMessage()
-    assert not _info_records_naming(caplog, "caseStatus")
+    assert not _info_records_naming(caplog, "caseStatuses")
 
 
 @pytest.mark.spec("MV-11-002")
-@pytest.mark.parametrize("misspelled", ["CaseStatus", "case-status"])
+@pytest.mark.parametrize("misspelled", ["CaseStatuses", "case-statuses"])
 def test_near_miss_of_a_stub_key_is_refused(misspelled: str) -> None:
-    """A misspelled ``caseStatus`` on a stub refuses; it is not set aside.
+    """A misspelled ``caseStatuses`` on a stub refuses; it is not set aside.
 
     The stub's ``type`` selects the stub (CM-11-013), and the stub's partition
-    refuses the near miss naming ``caseStatus`` (MV-11-002) rather than
+    refuses the near miss naming ``caseStatuses`` (MV-11-002) rather than
     setting it aside and losing the embargo state the invitee consents on.
     """
     body = _envelope(
@@ -904,13 +925,16 @@ def test_near_miss_of_a_stub_key_is_refused(misspelled: str) -> None:
             "id": "https://example.org/cases/1",
             "preview": {
                 "type": "CasePreview",
+                "attributedTo": "https://example.org/actors/vendor",
                 "id": "https://example.org/previews/1",
                 "summary": "A case to join",
-                misspelled: {
-                    "type": "CaseStatus",
-                    "published": PUBLISHED,
-                    "context": "x",
-                },
+                misspelled: [
+                    {
+                        "type": "CaseStatus",
+                        "published": PUBLISHED,
+                        "context": "x",
+                    }
+                ],
             },
         },
         target=INVITEE,
@@ -918,7 +942,7 @@ def test_near_miss_of_a_stub_key_is_refused(misspelled: str) -> None:
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(body)
     message = str(exc_info.value)
-    assert repr(misspelled) in message and "'caseStatus'" in message
+    assert repr(misspelled) in message and "'caseStatuses'" in message
 
 
 @pytest.mark.spec("MV-10-001")
@@ -1036,6 +1060,7 @@ def test_a_stub_without_a_summary_is_refused(summary: str | None) -> None:
     """
     preview: dict[str, Any] = {
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "id": "https://example.org/previews/1",
     }
     if summary is not None:

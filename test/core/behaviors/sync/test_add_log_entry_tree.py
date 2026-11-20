@@ -1324,6 +1324,7 @@ def _reply_entry(
                 "id": CASE_ID,
                 "preview": {
                     "type": "CasePreview",
+                    "attributedTo": "https://example.org/actors/vendor",
                     "id": "https://example.org/previews/1",
                     "summary": "A case to join",
                 },

@@ -138,16 +138,25 @@ groups:
     kind: project
     statement: >-
       This codebase MUST use a bare reference only for an object that its recipient
-      already holds, such as the case it participates in.
+      already holds, such as the case it participates in. An `inReplyTo` that only
+      records provenance the recipient does not need to act on is exempt.
     rationale: >-
-      How this codebase meets AKM-02-002, beside AKM-02-004. A bare reference to an
-      object the recipient holds can be matched to that object, so the recipient can
-      read what the activity acts on without a fetch.
+      How this codebase meets AKM-02-002, beside AKM-02-004: a held object can be
+      matched to its reference without a fetch. The exemption covers the report Offer
+      an `add_report_to_case` entry answers. The ledger never holds that Offer, as
+      intake precedes the case (CLP-02-013), and participants must not answer it
+      (CM-11-020). A planned retrieve-on-demand interface would dereference it
+      (#3258); decided on #6419.
     verification: >-
       `test/architecture/test_introduced_objects_inline.py` classifies every outbound
       activity factory: each one carrying an object the recipient already holds takes
       it through a parameter typed to refuse a bare id, and each one introducing an
-      object refuses it as a bare id.
+      object refuses it as a bare id. In
+      `test/core/behaviors/case/test_offer_provenance_on_proposal.py`,
+      `test_the_snapshot_names_the_offer_the_proposal_carried` and
+      `test_the_snapshot_names_an_inline_offer_by_its_id` pin the exemption's use: the
+      `add_report_to_case` entry names the Offer by id, whether the proposal named it
+      by id or carried it inline.
     relationships:
     - rel_type: implements
       spec_id: AKM-02-002

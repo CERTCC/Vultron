@@ -12,7 +12,6 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.core.models.case_reference import CaseReferenceLink
-from vultron.core.models.vulnerability_item import VulnerabilityItemId
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
@@ -56,6 +55,7 @@ from vultron.wire.as2.vocab.examples._base import (
     case_actor,
     gen_report,
     vendor,
+    vulnerability_item,
 )
 from vultron.wire.as2.vocab.examples.participant import (
     finder_participant,
@@ -65,9 +65,6 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_reference import as_CaseReference
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_item import (
-    as_VulnerabilityItem,
 )
 
 
@@ -299,13 +296,7 @@ def add_vulnerability_item_to_case() -> as_Add:
     the item from the ledger.
     """
     _case = case()
-    item = as_VulnerabilityItem(
-        id_=f"{_case.id_}/items/1",
-        ids=[VulnerabilityItemId.cve("CVE-2026-0001")],
-        name="Buffer overflow in the widget parser",
-        context=_case.id_,
-        **_example_stamp(),
-    )
+    item = vulnerability_item()
     return add_vulnerability_item_to_case_activity(
         item,
         target=_case.id_,

@@ -32,6 +32,9 @@ from vultron.wire.as2.inline_class import (
     reads_inside_preview,
     slot_classes,
 )
+from vultron.wire.as2.invitation_preview_envelope import (
+    refuse_unenveloped_invitation_previews,
+)
 from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.unknown_keys import (
     OPAQUE_PAYLOAD_KEYS,
@@ -421,6 +424,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # case preview stands for the case only in a stub Invite (MV-10-002), and
     # a marker withholds a value only in a preview's field (MV-12-002).
     refuse_misplaced_forms(activity)
+    # A stub Invite's preview shows what the invitee decides on (MV-10-007).
+    refuse_unenveloped_invitation_previews(activity)
     # An activity and the objects it carries name one case (HP-08-015).
     refuse_context_disagreement(activity)
 

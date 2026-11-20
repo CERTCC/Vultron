@@ -25,6 +25,11 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_preview import (
+    current_em_state,
+    in_force_embargo,
+    wire_preview,
+)
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -955,13 +960,11 @@ class TestOwnerDirectInviteAtCaseManager:
 
         self._deliver(dl, make_payload, roles=["vendor"])
 
-        target = self._sealed_invite(dl)["object"]["preview"]
-        assert isinstance(target.get("activeEmbargo"), dict)
-        assert "endTime" in target["activeEmbargo"]
-        assert target.get("caseStatus", {}).get("emState") in (
-            "active",
-            "ACTIVE",
-        )
+        preview = wire_preview(self._sealed_invite(dl))
+        embargo = in_force_embargo(preview)
+        assert embargo is not None
+        assert "endTime" in embargo
+        assert current_em_state(preview) == "ACTIVE"
 
     @pytest.mark.spec("CM-17-018")
     def test_owner_is_not_asked_to_decide(

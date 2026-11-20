@@ -155,7 +155,6 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
             case_id=CASE_ID,
             actor=CASE_ACTOR_ID,
             offer_id=OFFER_ID,
-            offer_actor_id=VENDOR_ID,
             at=authored_at(),
         ),
         "record_participant_status_added": lambda a: (
@@ -431,10 +430,10 @@ def test_a_case_list_member_is_added_with_the_case_as_target(
 
 
 @pytest.mark.spec("CP-01-007")
-def test_the_report_record_carries_its_offer_provenance(adapter, recipes):
+def test_the_report_record_names_its_offer_in_reply_to(adapter, recipes):
     snapshot = _snapshot(recipes["record_report_added_to_case"], adapter)
-    assert snapshot["offerId"] == OFFER_ID
-    assert snapshot["offerActorId"] == VENDOR_ID
+    assert snapshot["inReplyTo"] == OFFER_ID
+    assert not {"offerId", "offerActorId"} & set(snapshot)
 
 
 def test_the_report_record_omits_absent_offer_provenance(adapter, case):
@@ -444,7 +443,7 @@ def test_the_report_record_omits_absent_offer_provenance(adapter, case):
         actor=CASE_ACTOR_ID,
         at=authored_at(),
     )
-    assert not {"offerId", "offerActorId"} & set(json.loads(blob))
+    assert "inReplyTo" not in json.loads(blob)
 
 
 def test_participant_status_carries_no_consent_keys(adapter, recipes):

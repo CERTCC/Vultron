@@ -4771,14 +4771,14 @@ groups:
       received object's time a check of whether its type is one a decision needs, and
       lets core declare the time required (ADR-0032). An actor profile or a collection
       is not an act made at a moment, and many servers serve profiles without one.
-      A case preview, a projection of the case it names, and a consent row are kept
-      without a time by CM-17-010 and CM-23-044.
+      A case preview, a projection of the case it names, shows a time only when its
+      sender chooses (CM-17-010), and a consent row is kept without one (CM-23-044).
     note: >-
       The objects nested in a ledger entry's `payloadSnapshot` are kept as received
       JSON and are not validated into objects (CLP-07-011), so this rule does not
-      reach them. A case preview carries exactly the keys CM-17-010 names, none of them
-      `published`; an object it carries is read as its sender shows it, with or without
-      a `published` (MV-12-006). An `EmbargoConsent` row carries no time because a
+      reach them. A case preview need not carry `published`: CM-17-010 does not require
+      it, and an object it carries is read as its sender shows it, with or without a
+      `published` (MV-12-006). An `EmbargoConsent` row carries no time because a
       replica copies it without reading a clock (CM-23-044). The vocabulary does not
       model a collection page (`CollectionPage`, `OrderedCollectionPage`), since
       Vultron sends no paged collection, so a page received with content is read as
