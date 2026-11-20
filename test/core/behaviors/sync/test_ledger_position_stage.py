@@ -335,13 +335,13 @@ def _untouched(
 def test_an_activity_outside_the_scope_states_nothing_to_answer(dl) -> None:
     """A ``Reject(CaseLedgerEntry)`` is no ``LedgerPositionedEvent``: its
     own tree answers the position it reports (SYNC-03-002)."""
-    seed_ledger(dl, 2)
+    entries = seed_ledger(dl, 2)
     sync_port, trigger = _ports()
     reject = RejectLogEntryReceivedEvent(
         activity_id="https://example.org/activities/reject",
         actor_id=SIGNATORY_ID,
         ledger_position=LedgerPosition(log_index=1, entry_hash="0" * 64),
-        target=named_case(CASE_ID),
+        object_=entries[1],
     )
 
     result = _answer(dl, reject, sync_port, trigger)

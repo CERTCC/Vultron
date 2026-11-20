@@ -30,11 +30,6 @@ KNOWN_LEDGER_ENTRY_TERM_VIOLATIONS = frozenset(
     {"CaseLedgerEntry.caseId: VM-10-007"}
 )
 
-# owner: #6415
-KNOWN_PARTICIPANT_TERM_VIOLATIONS = frozenset(
-    {"CaseParticipant.participantCaseName: VM-10-007"}
-)
-
 # owner: #6416
 KNOWN_ITEM_NAME_CLASH_TERM_VIOLATIONS = frozenset(
     {

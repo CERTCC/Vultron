@@ -341,7 +341,7 @@ _PUBLISHED = "2026-01-02T03:04:05+00:00"
                 "id": "https://example.org/activities/objectless-reject",
                 "published": _PUBLISHED,
             },
-            "SYNC-16-028",
+            "Field required",
             id="reject-with-no-object",
         ),
     ],
@@ -353,8 +353,8 @@ def test_an_activity_not_in_its_types_form_is_refused_before_processing(
 
     Both bodies name a known activity type and are valid JSON, but break a rule
     of that type's form: a ``Question`` offers ``anyOf`` or ``oneOf``, never
-    both (AS2 §4.1), and only a genesis-replay ``Reject`` may name no object
-    (SYNC-16-028). Each is refused with 422 and never scheduled for processing.
+    both (AS2 §4.1), and no ``Reject`` may name no object (SYNC-16-028). Each
+    is refused with 422 and never scheduled for processing.
     """
     scheduled = _record_scheduled_pipelines(monkeypatch)
     actor = created_actors[0]

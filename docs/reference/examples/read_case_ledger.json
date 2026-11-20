@@ -5,8 +5,8 @@
     "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Read",
-  "id": "urn:uuid:ec3ff70e-77ca-485a-bb62-34dd745c5591",
-  "name": "https://vultron.example/organizations/vendorco Read urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/1",
+  "id": "urn:uuid:a825bad4-89cc-4d3b-bff2-f727dc12f21a",
+  "name": "https://vultron.example/organizations/vendorco Read urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/ledger",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
@@ -18,7 +18,10 @@
     "logIndex": 1,
     "entryHash": "6d51c69e0b6e2ce33c464ece5ff0ec4b486b29f62734ba6123dead2a3f577633"
   },
-  "object": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/1",
+  "object": {
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/ledger",
+    "type": "OrderedCollection"
+  },
   "proof": {
     "@context": [
       "https://www.w3.org/ns/activitystreams",
@@ -30,6 +33,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2ofKAyrrnqt25WRA7jF6ykqNZa6bnyjX6NjmahqgkYpEmqBHLqvrg3BUo95we6ckpBanVeNagWNtwnm5zHEDziTV"
+    "proofValue": "z3hpLmw8SCTV5wNcr9yN4fJ6Q85cBG2qFsnffDurk4jBTmzLFcEmgboGf63dftWzBYZob3Yeii6s7AGguYEotikbv"
   }
 }
