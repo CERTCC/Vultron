@@ -1141,7 +1141,7 @@ class TestSubmitReportProposedEmbargo:
 
         proposed = offer["proposedEmbargo"]
         report_id = offer["object"]["id"]
-        assert proposed["type"] == "EmbargoEvent"
+        assert proposed["type"] == ["EmbargoEvent", "Event"]
         assert proposed["context"] == report_id
         stored = self.dl.read(proposed["id"])
         assert isinstance(stored, EmbargoEvent)

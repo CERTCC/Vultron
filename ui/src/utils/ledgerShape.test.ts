@@ -213,6 +213,14 @@ describe('ledgerLineProblems', () => {
     ])
   })
 
+  it('checks an object sent with a type list by its own type, the first term', () => {
+    const status: Record<string, unknown> = { ...participantStatus(), type: ['ParticipantStatus', 'Object'] }
+    delete status.context
+    expect(ledgerLineProblems(entry(status))).toContain(
+      'payloadSnapshot.object.context: missing (ParticipantStatus requires it)',
+    )
+  })
+
   it('requires the sender time of a received CaseStatus', () => {
     const status = caseStatus()
     delete status.published

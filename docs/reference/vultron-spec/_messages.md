@@ -114,8 +114,9 @@ classDiagram
 | `ProcessingFault` | A receiver's report that it could not process a message ([§4.11 Faults and Acknowledgments](layers.md#411-faults-and-acknowledgments)) |
 | `Note` | The AS2 `Note` type, used unchanged for narrative posted to the case |
 
-**An embargo is sent as `type: EmbargoEvent`.**
-A sender gives an embargo the `type` value `EmbargoEvent`, not the plain AS2 `Event` it extends, and the occasion tables name it that way ([Wire Activity Notation](annex-c-notation.md#wire-activity-notation)).
+**An embargo is sent as `type: ["EmbargoEvent", "Event"]`.**
+A sender gives an embargo the `type` value `["EmbargoEvent", "Event"]`: the Vultron type first, then the plain AS2 `Event` it extends.
+The occasion tables name it by its Vultron type, `EmbargoEvent` ([Wire Activity Notation](annex-c-notation.md#wire-activity-notation)).
 
 ### 4.4 Message Tables
 

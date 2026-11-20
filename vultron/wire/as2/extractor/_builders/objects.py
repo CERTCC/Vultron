@@ -5,7 +5,6 @@ returns the domain-field kwargs ``extract_intent`` passes to the event.
 """
 
 import logging
-from datetime import datetime
 from typing import Any, TypeVar
 
 from vultron.core.models.case import VulnerabilityCase
@@ -29,7 +28,6 @@ from vultron.wire.as2.extractor._builders.fields import (
     _required_published,
 )
 from vultron.wire.as2.typed_reference import as_TypedReference
-from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 
 logger = logging.getLogger(__name__)
 
@@ -222,34 +220,17 @@ def _build_case_object(obj: object) -> dict[str, Any]:
     return {}
 
 
-def _build_embargo_event_object(
-    obj: as_Event | EmbargoEvent, context: object, target: object
-) -> dict[str, Any]:
-    end_time = getattr(obj, "end_time", None)
-    object_id = _get_id(obj)
-    embargo_context = (
-        _get_id(getattr(obj, "context", None))
-        or _get_id(context)
-        or _get_id(target)
-    )
-    if isinstance(end_time, datetime) and embargo_context and object_id:
-        if isinstance(obj, EmbargoEvent):
-            # Already the core type (ADR-0099): keep every field it carries,
-            # so the CASE_MANAGER stores the embargo its committed entry
-            # carries and replicas that copy the entry match it (CM-23-016).
-            return {"object_": obj.model_copy(deep=True)}
-        return {
-            "object_": EmbargoEvent(
-                id_=object_id,
-                name=getattr(obj, "name", None),
-                start_time=_get_timestamp(obj, "start_time"),
-                end_time=end_time,
-                published=_required_published(obj),
-                updated=_get_timestamp(obj, "updated"),
-                context=embargo_context,
-            )
-        }
-    return {}
+def _build_embargo_event_object(obj: EmbargoEvent) -> dict[str, Any]:
+    """The received embargo *obj*, kept whole.
+
+    Only an ``EmbargoEvent`` is an embargo; a plain AS2 ``Event`` is not
+    read as one (ADR-0201).  The parsed object is already the core type
+    (ADR-0099), whose ``id`` and ``context`` validated at construction, so
+    every field it carries is kept: the CASE_MANAGER stores the embargo its
+    committed entry carries, and replicas that copy the entry match it
+    (CM-23-016).
+    """
+    return {"object_": obj.model_copy(deep=True)}
 
 
 def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
@@ -259,8 +240,9 @@ def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
     EP-04-004) or a ``CaseProposal`` (the same field on the Offer it carries in
     ``in_reply_to``, CP-01-008).  The parser has already expanded an inline
     ``EmbargoEvent`` dict to the core class, so an ``EmbargoEvent`` is passed
-    through; an ``as_Event``-shaped object is projected the same way an
-    ``Invite(EmbargoEvent)``'s object is.  A bare reference is *not* a
+    through.  Anything else is not one: a plain AS2 ``Event`` is no embargo
+    (ADR-0201), so it is logged and read as no proposal.  A bare reference
+    is *not* a
     proposal: the sender inlines what it introduces (ADR-0107), and a
     receiver that fetched terms nobody sent would be inventing them — so a
     string, or a typed reference, is logged and read as absent (receive
@@ -286,10 +268,13 @@ def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
             raw,
         )
         return None
-    built = _build_embargo_event_object(
-        raw, getattr(raw, "context", None), None
+    logger.warning(
+        "extract_intent: activity '%s' carries a proposed embargo of type"
+        " %r, not an EmbargoEvent; read as no proposal (EP-04-004, ADR-0201)",
+        activity_id,
+        getattr(raw, "type_", type(raw).__name__),
     )
-    return built.get("object_")
+    return None
 
 
 def _build_participant_object(obj: object) -> dict[str, Any]:
