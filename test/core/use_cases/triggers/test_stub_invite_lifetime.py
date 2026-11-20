@@ -45,10 +45,12 @@ from test.core.use_cases.triggers.test_case_joining_trigger import (
 )
 from test.support.act_clock import clock_at
 from test.support.act_runner import FixedClock, run_in_act, run_tree
+from test.support.case_preview import in_force_embargo, wire_preview
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import (
     activate,
     propose,
+    register,
     reject,
     terminate as terminate_register,
     write_consent_rows,
@@ -70,6 +72,7 @@ from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     RecordedStubInvite,
+    current_preview_embargo_end,
     outstanding_stale_stubs,
     recorded_stub_invites,
     replacement_for,
@@ -77,6 +80,8 @@ from vultron.core.behaviors.case.stub_invite_lifetime import (
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_preview import preview_embargo_id
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.actor import OfferActorToCaseReceivedEvent
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.protocol_pair import (
@@ -266,7 +271,8 @@ def test_a_revise_stub_deadline_is_capped_by_the_embargo_in_force(
 
     invite = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
 
-    assert invite["object"]["preview"]["activeEmbargo"]["id"] == in_force.id_
+    shown = in_force_embargo(wire_preview(invite))
+    assert shown is not None and shown["id"] == in_force.id_
     assert _deadline(invite) == in_force.end_time
 
 
@@ -588,7 +594,7 @@ def test_a_replacement_carries_a_new_deadline_and_current_terms_and_roles(
     dl.create(invitee)
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
     original = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
-    assert original["object"]["preview"].get("activeEmbargo") is not None
+    assert in_force_embargo(wire_preview(original)) is not None
     roster_before = dl.read_case(case.id_)
     assert roster_before is not None
 
@@ -804,7 +810,8 @@ def _send_stub_invite_during_revision(
     invite = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
 
     # The stub carries the embargo in force, not the open revision (CM-17-002, CM-17-014).
-    assert invite["object"]["preview"]["activeEmbargo"]["id"] == in_force
+    shown = in_force_embargo(wire_preview(invite))
+    assert shown is not None and shown["id"] == in_force
     stored = dl.read_case(case.id_)
     assert stored is not None
     return owner, invitee, dl, stored, revision.id_, invite
@@ -878,10 +885,8 @@ def test_an_activated_revision_reissues_a_stub_sent_in_revise(
         i for i in _invites_to(dl, invitee.id_) if i.id_ != invite["id"]
     ]
     assert replacement.in_reply_to == invite["id"]
-    carried = getattr(
-        getattr(replacement.object_, "preview", None), "active_embargo", None
-    )
-    assert getattr(carried, "id_", carried) == revision_id
+    carried = preview_embargo_id(getattr(replacement.object_, "preview", None))
+    assert carried == revision_id
 
 
 @pytest.mark.spec("CM-11-016")
@@ -1156,3 +1161,34 @@ def test_a_re_issue_credits_the_asker_and_names_the_stub_it_supersedes(
     else:
         assert authorship.attributed_to is None
         assert authorship.in_reply_to is None
+
+
+@pytest.mark.spec("CM-11-014")
+@pytest.mark.parametrize("held_inline", [True, False], ids=["inline", "by-id"])
+def test_the_deadline_cap_reads_the_in_force_embargo_however_it_is_held(
+    held_inline: bool,
+) -> None:
+    """The cap is the end of the embargo the stub carries: read from the
+    register when it holds the embargo whole, else from the store; a case
+    with no embargo in force has no cap."""
+    case_id = "https://example.org/cases/deadline-cap"
+    embargo = make(EmbargoEvent, context=case_id, end_time=days_from_now(3))
+    case = make(
+        VulnerabilityCase,
+        id_=case_id,
+        attributed_to="https://example.org/actors/owner",
+        embargo_register=register(
+            active=embargo if held_inline else embargo.id_
+        ),
+    )
+    store = MagicMock()
+    store.read.return_value = embargo
+
+    assert current_preview_embargo_end(store, case) == embargo.end_time
+    assert store.read.called is not held_inline
+    bare = make(
+        VulnerabilityCase,
+        id_=case_id,
+        attributed_to="https://example.org/actors/owner",
+    )
+    assert current_preview_embargo_end(store, bare) is None

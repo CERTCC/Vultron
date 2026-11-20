@@ -113,7 +113,7 @@ def _misplaced(
     # and a misplaced form inside one is as misplaced as anywhere else.
     if not isinstance(value, BaseModel):
         return
-    for field_name, child, child_path in _fields_at(value, path):
+    for field_name, child, child_path in fields_at(value, path):
         if not admits(value, field_name, child):
             yield from _misplaced(child, child_path, is_form, admits, inside)
             continue
@@ -133,11 +133,11 @@ def _fields_misplaced(
 ) -> Iterator[str]:
     """The paths in *value*'s fields, not *value* itself, that hold the form
     in a slot *admits* refuses."""
-    for _, child, child_path in _fields_at(value, path):
+    for _, child, child_path in fields_at(value, path):
         yield from _misplaced(child, child_path, is_form, admits, inside)
 
 
-def _fields_at(
+def fields_at(
     value: BaseModel, path: str
 ) -> Iterator[tuple[str, object, str]]:
     """Each field of *value*: its name, what it holds, and its path below
@@ -296,4 +296,4 @@ def refuse_misplaced_forms(activity: as_Activity) -> None:
         )
 
 
-__all__ = ["refuse_misplaced_forms"]
+__all__ = ["fields_at", "refuse_misplaced_forms"]

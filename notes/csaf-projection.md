@@ -36,7 +36,7 @@ relevant_packages:
 A participant produces a CSAF 2.1 document from its replica in two steps: its call
 site's profile cuts the case into a preview, then a renderer translates the
 preview into CSAF (ADR-0219). The cut uses the four operations and the per-field
-profile of ADR-0217, which `notes/selective-disclosure.md` describes for the
+profile of ADR-0217, which `notes/stub-objects.md` describes for the
 invitation preview. Nothing here is built yet.
 
 ## The Renderer Reads Only the Preview
