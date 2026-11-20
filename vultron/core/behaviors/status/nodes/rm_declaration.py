@@ -37,6 +37,13 @@ import logging
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
@@ -66,7 +73,8 @@ class AdjudicateRMDeclarationNode(DataLayerConditionWithPorts):
     into this one (BT-17-003).
 
     The subject is the sender, never the executing actor (RSH-08-001): the
-    sender's participant is the one whose state is compared.
+    sender's participant is the one whose state is compared.  The sender is
+    read from ``/sender_id`` and the case from ``/case_id`` (BTND-01-008).
 
     Returns:
         SUCCESS when the declaration confirms, advances, or jumps forward
@@ -78,28 +86,35 @@ class AdjudicateRMDeclarationNode(DataLayerConditionWithPorts):
 
     def __init__(
         self,
-        sender_actor_id: str,
         declared_rm: RM,
-        case_id: str | None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.sender_actor_id = sender_actor_id
         self.declared_rm = declared_rm
-        self.case_id = case_id
+        self.sender_actor_id = ""
+        self.case_id: str | None = None
         self.verdict: RMDeclaration | None = None
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, SENDER_ID),
+    }
     OUTPUT_PORTS: dict[str, PortInformation] = {
         BB_RM_ANOMALY: PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {BB_RM_ANOMALY: f"/{BB_RM_ANOMALY}"}
+        return {
+            BB_RM_ANOMALY: f"/{BB_RM_ANOMALY}",
+            **act_key_remappings(CASE_ID, SENDER_ID),
+        }
 
     def initialise(self) -> None:
         super().initialise()
         self.verdict = None
+        self.sender_actor_id = act_value(self, SENDER_ID, str)
+        self.case_id = optional_act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         # Clear first: the failure paths below must not inherit a previous

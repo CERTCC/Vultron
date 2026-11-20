@@ -24,6 +24,12 @@ raises when the state cannot be read.  EM state writes are owned by
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -238,20 +244,29 @@ class ReadEmbargoIdNode(DataLayerActionWithPorts):
 
     Returns FAILURE when the case is not found, has no active embargo, or
     the DataLayer is unavailable.  Returns SUCCESS and writes ``embargo_id``
-    to the blackboard on success.
+    to the blackboard on success.  The case is read from ``/case_id``
+    (BTND-01-008).
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+        self._case_id = ""
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "embargo_id": PortInformation(data_type=str, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"embargo_id": "/embargo_id"}
+        return {"embargo_id": "/embargo_id", **act_key_remappings(CASE_ID)}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

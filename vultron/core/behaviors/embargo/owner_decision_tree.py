@@ -174,7 +174,9 @@ def activate_embargo_on_case_tree(
             with_case_id(BackfillAdmittedParticipantsNode(), case_id),
             # The owner's activation of a revision changes the active embargo
             # under any stub Invite still outstanding (CM-11-016).
-            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
+            with_case_id(
+                ReissueStubInvitesNode(actor_config=actor_config), case_id
+            ),
         ],
         manager_case_id=case_id,
     )

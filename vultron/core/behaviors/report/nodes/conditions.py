@@ -17,6 +17,13 @@
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.case.nodes.case_lookup import (
     CaseIdInputPortMixin,
 )
@@ -25,6 +32,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
+    PortInformation,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.predicates.embargo import pxa_is_embargo_eligible
@@ -127,26 +135,44 @@ class CheckRMStateReceivedOrInvalid(_CheckReportPhaseRMStateBase):
 class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
     """Shared update() skeleton for case-participant RM state guard nodes.
 
-    Reads the actor's latest RM state and returns SUCCESS when it equals
-    ``_target_rm``.  Subclasses set ``_target_rm`` as a class attribute.
+    Reads an actor's latest RM state in the case on ``/case_id``
+    (BTND-01-008) and returns SUCCESS when it equals ``_target_rm``.
+    Subclasses set ``_target_rm`` as a class attribute.  The actor is the
+    executing one, whose own state a trigger tree checks before it acts;
+    :class:`CheckParticipantRMState` checks the sender's instead
+    (RSH-08-001).
     """
 
     _target_rm: RM
 
-    def __init__(
-        self,
-        case_id: str | None,
-        actor_id: str,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID)
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._actor_id = actor_id
+        self._case_id: str | None = None
+        self._actor_id: str | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id = optional_act_value(self, CASE_ID, str)
+        self._actor_id = self._subject_actor_id()
+
+    def _subject_actor_id(self) -> str | None:
+        """The actor whose RM state is checked: the executing actor."""
+        return self.actor_id
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
+        assert self._actor_id is not None
 
         case, failure = self._require_case(self._case_id)
         if failure is not None:
@@ -196,7 +222,9 @@ class CheckRMStateAccepted(_CheckParticipantRMStateBase):
 
 
 class CheckParticipantRMState(_CheckParticipantRMStateBase):
-    """Guard: actor RM is already *target_rm*; a restated move is recorded once.
+    """Guard: sender RM is already *target_rm*; a restated move is recorded once.
+
+    The sender is read from ``/sender_id`` (BTND-01-008).
 
     It is the first child of the repeat Selector
     :func:`~vultron.core.behaviors.report.rm_declaration_tree.unless_rm_already_recorded`
@@ -207,15 +235,22 @@ class CheckParticipantRMState(_CheckParticipantRMStateBase):
     ID-05-003, #5006).
     """
 
-    def __init__(
-        self,
-        case_id: str | None,
-        actor_id: str,
-        target_rm: RM,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(case_id=case_id, actor_id=actor_id, name=name)
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_CheckParticipantRMStateBase.INPUT_PORTS,
+        **act_key_ports(SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, SENDER_ID)
+
+    def __init__(self, target_rm: RM, name: str | None = None) -> None:
+        super().__init__(name=name)
         self._target_rm = target_rm
+
+    def _subject_actor_id(self) -> str | None:
+        """The sender, whose declared RM state is checked (RSH-08-001)."""
+        return act_value(self, SENDER_ID, str)
 
     @property
     def succeeded_without_change(self) -> bool:

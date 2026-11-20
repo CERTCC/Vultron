@@ -95,7 +95,9 @@ def _misplaced(tree: ReceivedActivityTree) -> list[str]:
     seen = _index(tree, ActivityNotSeenBeforeNode)
     intake = _index(tree, IntakeReceivedActivityNode)
     addressee = _index(tree, ActivityAddressedToReceiverNode)
-    doors = len(tree.door_guards)
+    # A lookup that publishes the tree's inputs runs among the doors and is
+    # none of them (BT-25-009, ADR-0154).
+    doors = len(tree.door_guards) + len(tree.input_stages)
     if tree.nested:
         if seen or intake:
             problems.append(

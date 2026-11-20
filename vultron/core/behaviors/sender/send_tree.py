@@ -35,6 +35,7 @@ from collections.abc import Callable
 
 import py_trees
 
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sender.nodes import (
     ConstructActivitiesNode,
     QueueToOutboxNode,
@@ -73,7 +74,7 @@ def sender_side_bt(
         name="SenderSideBT",
         memory=False,
         children=[
-            ResolveCaseManagerNode(case_id=case_id),
+            with_case_id(ResolveCaseManagerNode(), case_id),
             ConstructActivitiesNode(activity_builder=activity_builder),
             QueueToOutboxNode(),
         ],
