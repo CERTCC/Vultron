@@ -44,9 +44,11 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.blackboard_scope import (
+    release_tree_clients,
     restore_keys,
     snapshot_keys,
 )
+from vultron.core.behaviors.call_out.guard import call_out_written_keys
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
     VultronConflictingActInstantError,
@@ -277,6 +279,10 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                     " leader"
                 )
                 self.logger.warning("%s", msg)
+                # Nothing ticks, but a node may have registered its client
+                # when the tree was built (a call-out seam does); the tree
+                # ends here all the same (#6727).
+                release_tree_clients(tree)
                 return BTExecutionResult(
                     status=Status.FAILURE,
                     feedback_message=msg,
@@ -448,7 +454,18 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
             # overwrites the outer execution's value and, without this, never
             # puts it back.  The outer tree then resumes ticking against the
             # inner call's activity or case_id (#3161).
-            managed_keys += ["activity", *context_data.keys()]
+            #
+            # Every key a call-out seam in the tree may write (BT-17-020).  A
+            # seam writes its answer through its own blackboard client, not
+            # an output port, and a later sibling reads it, so the seam leaves
+            # it in place when its tick ends and only the run's end can
+            # restore it.  The keys come from each seam's contract, so a new
+            # contract needs no entry here.
+            managed_keys += [
+                "activity",
+                *context_data.keys(),
+                *call_out_written_keys(tree),
+            ]
             storage = py_trees.blackboard.Blackboard.storage
             # Both spellings of every key, and "absent" kept distinct from
             # "None" — see blackboard_scope for why each matters.  Shared with
@@ -529,3 +546,11 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # state, so the inner call restores exactly what the outer
                 # call wrote.
                 restore_keys(storage, previous_values)
+                #  3. Registry release.  Every node's setup() registers a
+                #     blackboard client in py_trees' process-global registry,
+                #     which keeps it until it is unregistered, collected or
+                #     not.  The tree was built for this run, so its clients
+                #     end here; left registered, each run grew the registry by
+                #     one client per node for the life of the process (#6727).
+                #     A nested run releases only its own tree.
+                release_tree_clients(tree)

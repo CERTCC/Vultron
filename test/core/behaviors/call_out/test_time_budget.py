@@ -38,8 +38,10 @@ import pytest
 from py_trees.common import Access, Status
 from pydantic import ValidationError
 
-from test.support.call_out import FixedAnswerBackend
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from test.support.call_out import (
+    CALL_OUT_ACTOR_ID as ACTOR_ID,
+    FixedAnswerBackend,
+)
 from vultron.config.actor import DEFAULT_CALL_OUT_TIME_BUDGET, ActorConfig
 from vultron.config.app import config_override
 from vultron.core.behaviors.bridge import BTBridge
@@ -67,7 +69,6 @@ from vultron.core.behaviors.stopwatch import SystemStopwatch
 from vultron.core.ports.clock import StopwatchPort
 from vultron.errors import VultronError
 
-ACTOR_ID = "https://example.org/actors/test-actor"
 BUDGET = timedelta(milliseconds=100)
 _YES = CallOutAnswer.yes({"probe_verdict": "ok"})
 
@@ -139,13 +140,6 @@ def _clean_blackboard():
     py_trees.blackboard.Blackboard.clear()
     yield
     py_trees.blackboard.Blackboard.clear()
-
-
-@pytest.fixture
-def bridge() -> BTBridge:
-    return BTBridge(
-        datalayer=SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
-    )
 
 
 # ---------------------------------------------------------------------------

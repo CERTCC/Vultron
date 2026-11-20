@@ -194,7 +194,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         tree = create_offer_case_participant_role_received_tree(
             offer_id=offer.id_,
             case_id=None,
-            role=CVDRole.COORDINATOR,
+            offered_role=CVDRole.COORDINATOR,
             target_actor_id=self._TARGET_URI,
             sender_id=self._VENDOR_URI,
             sender_rule=OfferCaseParticipantRoleReceivedUseCase.sender_entitlement,

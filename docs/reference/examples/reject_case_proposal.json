@@ -14,8 +14,8 @@
   ],
   "actor": "https://example.org/case-actors/alpha",
   "object": {
-    "type": "CaseProposal",
     "id": "urn:uuid:653760f5-776e-4047-a522-1174526ad048",
+    "type": "CaseProposal",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "summary": "Request case initialization for a new vulnerability.",

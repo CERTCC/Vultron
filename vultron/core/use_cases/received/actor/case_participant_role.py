@@ -100,7 +100,7 @@ class OfferCaseParticipantRoleReceivedUseCase:
         tree = create_offer_case_participant_role_received_tree(
             offer_id=offer_id,
             case_id=case_id,
-            role=role,
+            offered_role=role,
             target_actor_id=target_actor_id,
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,

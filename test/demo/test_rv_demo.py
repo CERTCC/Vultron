@@ -50,6 +50,7 @@ acceptance test runnable via::
 import contextlib
 import json
 import logging
+from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
@@ -74,6 +75,7 @@ from test.demo._helpers import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make, with_times
+from test.support.peak_memory import peak_rss_growth_within
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.em import EM
@@ -171,6 +173,32 @@ _PREFIX_LEN = len(REPORTER_TELLS_THE_VENDOR.items)
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+#: How far this module may raise its worker's peak memory, in MiB (#6727).
+#: Run alone, it rose at least 253 MiB while every tree run left its
+#: blackboard clients registered, and 165 MiB once they were released.
+_PEAK_RSS_GROWTH_BUDGET_MIB = 210
+
+
+@pytest.fixture(scope="module", autouse=True)
+def peak_memory_stays_within_budget() -> Iterator[None]:
+    """This module's runs raise the worker's peak by a bounded amount (#6727).
+
+    Defined first, so it wraps the module's app and its every test.  The
+    in-process demo grows its worker as it runs; a loaded gate's memory
+    killer took the worker running this module three times when each run's
+    blackboard clients stayed registered.
+
+    A single-file guard: it holds exactly when this module runs alone in its
+    process.  Under ``-n`` the module is not pinned to one worker
+    (``--dist loadgroup``, no ``xdist_group``), so each worker sees only part
+    of it, after other modules may have raised the peak, and the guard reads
+    low.  The per-test ``no_blackboard_client_outlives_the_test`` guard is the
+    one that catches the leak under load.
+    """
+    with peak_rss_growth_within(_PEAK_RSS_GROWTH_BUDGET_MIB, __name__):
+        yield
 
 
 @pytest.fixture(scope="module")

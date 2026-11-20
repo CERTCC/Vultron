@@ -54,8 +54,8 @@ from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.report_case_inputs import (
     ReportCaseInputs,
-    case_reference_from_claim,
-    vulnerability_item_from_claims,
+    case_reference_from_link,
+    vulnerability_item_from_proposed,
 )
 from vultron.core.states.cs.dimensions import (
     AttackObservation,
@@ -249,12 +249,12 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         # act's instant, so no clock is read below its edge (ADR-0176).
         published = self._require_act_instant()
         items = [
-            vulnerability_item_from_claims(vul, published=published)
-            for vul in inputs.item_vulnerabilities
+            vulnerability_item_from_proposed(item, published=published)
+            for item in inputs.proposed_items
         ]
         references = [
-            case_reference_from_claim(ref, published=published)
-            for ref in inputs.references
+            case_reference_from_link(link, published=published)
+            for link in inputs.reference_links
         ]
         case = self._new_case(
             inputs, published=published, items=items, references=references
@@ -293,16 +293,17 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         """The new case, starting from its report's inputs.
 
         ``report_case_inputs`` (``ResolveReportCaseInputsNode``) gives the
-        report's name and summary, else its CSAF document's (CSAF-03-006,
-        CSAF-03-007), and the P/X/A the document states (CSAF-03-003 to
-        CSAF-03-005).  P, X and A are the case's first status, not a
-        transition: no status precedes it.  An exploit made public makes the
-        public aware (the pX to PX invariant), so X starts with P.
+        name, summary and P/X/A: those the proposal's ``caseInputs`` state
+        (CP-01-024), else the report's name and summary and what its CSAF
+        document states (CSAF-03-003 to CSAF-03-007).  P, X and A are the
+        case's first status, not a transition: no status precedes it.  An
+        exploit made public makes the public aware (the pX to PX invariant),
+        so X starts with P.
 
-        The case lists its report, and the document's vulnerability items
-        and case references (CSAF-03-008, CSAF-03-009), by id: each is an
-        object of its own, as its reports are (CM-05-021).  :meth:`update`
-        builds and stores them.
+        The case lists its report, and the vulnerability items and case
+        references from the same inputs (CSAF-03-008, CSAF-03-009), by id:
+        each is an object of its own, as its reports are (CM-05-021).
+        :meth:`update` builds and stores them.
         """
         case_id = new_object_id()
         pxa = CS_pxa(

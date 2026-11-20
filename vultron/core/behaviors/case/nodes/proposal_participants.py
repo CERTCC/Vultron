@@ -213,7 +213,7 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
     them as CASE_OWNER at RM.RECEIVED in its own DataLayer.
 
     The receiver's additional CVD roles are the ones it stated on its proposal
-    (*case_roles*, CP-09-007, ADR-0133), which it copied from its own
+    (*proposer_case_roles*, CP-09-007, ADR-0133), which it copied from its own
     ``ActorConfig.default_case_roles`` (CFG-07-002, CP-01-013).  This node never
     reads its own configuration for them: the CaseActor may run in another
     container (DEMOMA-06-004), and its configuration says nothing about the
@@ -233,13 +233,13 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
         self,
         owner_uri: str,
         report_id: str | None,
-        case_roles: Sequence[CVDRole] = (),
+        proposer_case_roles: Sequence[CVDRole] = (),
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._owner_uri = owner_uri
         self._report_id = report_id
-        self._case_roles = tuple(case_roles)
+        self._case_roles = tuple(proposer_case_roles)
         # Pre-build the initial status node (BTND-10-004, ADR-0089).
         # actor_id is set here so execute_with_setup can use actor_id=self.actor_id
         # (the CaseActor's store) without BTBridge cloning an empty owner store.

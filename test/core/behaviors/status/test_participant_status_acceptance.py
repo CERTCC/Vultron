@@ -314,7 +314,7 @@ def _refused(
     return [
         r.dimension
         for r in participant_status_refusals(
-            [*history, current], asserted, roles=list(roles)
+            [*history, current], asserted, recorded_roles=list(roles)
         )
     ]
 

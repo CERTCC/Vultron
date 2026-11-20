@@ -77,6 +77,7 @@ from vultron.core.behaviors.case.nodes.proposal_participants import (
 from vultron.core.behaviors.case.nodes.proposal_reporter import (
     AddReporterParticipantNode,
 )
+from vultron.core.models.case_proposal import ProposedCaseInputs
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_claims import ClaimsReading
 from vultron.core.services.report_case_inputs import StatedReportFields
@@ -111,6 +112,7 @@ def create_case_from_proposal_act(
     offer_id: str | None,
     claims_readings: Sequence[ClaimsReading] = (),
     stated_report_fields: StatedReportFields | None = None,
+    case_inputs: ProposedCaseInputs | None = None,
     activity_id: str | None = None,
 ) -> ActTransaction:
     """Build ``CreateCaseFromProposalAct``, the accept arm, as one act (ADR-0146).
@@ -119,10 +121,15 @@ def create_case_from_proposal_act(
     report states and what its CSAF documents claim; only the new-case arm
     reads them, so a proposal that resolves to an existing case changes
     nothing from the document (CSAF-02-001, CSAF-02-002, EP-04-029).
+    *case_inputs*, the proposal's ``caseInputs``, replaces the readings
+    whole: given, no document is read and no claims record is written
+    (CP-01-024).
     """
-    # The new case starts from its report's inputs, filled from the CSAF
-    # document the carried Offer's report holds (CSAF-03); what became of
-    # each claimed value is recorded with the case (CSAF-04-004).
+    # The new case starts from the proposal's caseInputs when it carries
+    # them (CP-01-024), else from the CSAF document the carried Offer's
+    # report holds (CSAF-03, CP-01-025); what became of each claimed value of
+    # a document read is recorded with the case (CSAF-04-004).
+    readings = () if case_inputs is not None else claims_readings
     new_case = py_trees.composites.Sequence(
         name="CreateCaseFromReportSequence",
         memory=False,
@@ -130,8 +137,9 @@ def create_case_from_proposal_act(
             ResolveReportCaseInputsNode(
                 report_id=report_id,
                 proposal_id=proposal_id,
-                readings=claims_readings,
+                readings=readings,
                 stated=stated_report_fields or StatedReportFields(),
+                proposed=case_inputs,
             ),
             CreateCaseFromProposalNode(
                 report_id=report_id, owner_id=proposer_uri
@@ -139,7 +147,7 @@ def create_case_from_proposal_act(
             StoreCaseInputClaimsRecordsNode(
                 report_id=report_id,
                 activity_id=activity_id or proposal_id,
-                readings=claims_readings,
+                readings=readings,
             ),
         ],
     )
@@ -191,7 +199,7 @@ def create_case_from_proposal_act(
             AddOwnerParticipantNode(
                 owner_uri=proposer_uri,
                 report_id=report_id,
-                case_roles=proposer_case_roles,
+                proposer_case_roles=proposer_case_roles,
             ),
             # ADR-0041 AC-2: add reporter at RM.ACCEPTED
             AddReporterParticipantNode(report_id=report_id),

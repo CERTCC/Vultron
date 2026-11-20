@@ -90,9 +90,11 @@ def reset_blackboard() -> None:
     the client registry, the metadata and the activity stream, which is what
     a run that starts from nothing wants.
 
-    The registered clients do no harm across runs: py_trees names each one
-    by a ``uuid.uuid4()`` draw, which :func:`deterministic_run` leaves random,
-    so a second recording in one process draws no id the registry holds.
+    A tree run releases the clients it registered (BT-25-004), so the
+    registry this drops holds only what was built outside a run.  py_trees
+    names each client by a ``uuid.uuid4()`` draw, which
+    :func:`deterministic_run` leaves random, so a second recording in one
+    process draws no id the registry holds either way.
     """
     py_trees.blackboard.Blackboard.clear()
 

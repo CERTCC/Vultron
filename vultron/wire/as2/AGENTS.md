@@ -19,8 +19,8 @@
     `as_VulnerabilityCaseRef`, `as_CaseParticipantRef`, etc. See ARCH-14-003.
   - **IMPORTANT — this changed with ADR-0211 (ARCH-25-003).** For a *domain* type
     there is now only one class, and `as_X` is a `TypeAlias` onto it:
-    `as_VulnerabilityCase is VulnerabilityCase` is `True`. All 27 paired
-    classes were collapsed (#3487, #3488), so an `as_` prefix on a domain name
+    `as_VulnerabilityCase is VulnerabilityCase` is `True`. Every paired
+    class is collapsed (#3487, #3488), so an `as_` prefix on a domain name
     no longer means "the wire twin" — it means the same class under its
     historical name, kept so existing imports resolve.
     - Consequence worth knowing before you debug something: `isinstance(x,

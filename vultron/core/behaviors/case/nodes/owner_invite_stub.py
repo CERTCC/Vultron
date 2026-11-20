@@ -132,7 +132,7 @@ class EmitOwnerDecidedStubInviteNode(
 
     def __init__(
         self,
-        roles: list[str],
+        offered_roles: list[str],
         *,
         credits_sender: bool,
         replaces_previous_stub: bool = False,
@@ -148,7 +148,7 @@ class EmitOwnerDecidedStubInviteNode(
             replaces_previous_stub=replaces_previous_stub,
             actor_config=actor_config,
         )
-        self._roles = list(roles)
+        self._roles = list(offered_roles)
         self._credits_sender = credits_sender
 
     def initialise(self) -> None:
@@ -175,10 +175,12 @@ class SeatOwnerInvitedInviteeNode(_InviteKeysMixin, _SeatInertInviteeBase):
     See :class:`~vultron.core.behaviors.case.nodes.invite_inert_participant._SeatInertInviteeBase`.
     """
 
-    def __init__(self, roles: list[str], name: str | None = None) -> None:
+    def __init__(
+        self, offered_roles: list[str], name: str | None = None
+    ) -> None:
         # The case is the act's, read in ``initialise()`` (BTND-01-008).
         super().__init__(case_id="", name=name)
-        self._roles = list(roles)
+        self._roles = list(offered_roles)
 
     def initialise(self) -> None:
         super().initialise()
@@ -192,7 +194,7 @@ class SeatOwnerInvitedInviteeNode(_InviteKeysMixin, _SeatInertInviteeBase):
 
 
 def owner_decided_stub_invite(
-    roles: list[str],
+    offered_roles: list[str],
     *,
     credits_sender: bool,
     actor_config: ActorConfig | None = None,
@@ -218,7 +220,7 @@ def owner_decided_stub_invite(
     (CM-17-006).
 
     Args:
-        roles: The roles the Owner named; never empty (CM-11-019): the
+        offered_roles: The roles the Owner named; never empty (CM-11-019): the
             caller has refused an Invite without one.
         credits_sender: The stub carries out the received Owner's Invite
             (``attributedTo``, ``inReplyTo``); ``False`` when the Owner is
@@ -233,7 +235,7 @@ def owner_decided_stub_invite(
         *, replaces_previous_stub: bool
     ) -> EmitOwnerDecidedStubInviteNode:
         return EmitOwnerDecidedStubInviteNode(
-            roles,
+            offered_roles,
             credits_sender=credits_sender,
             replaces_previous_stub=replaces_previous_stub,
             actor_config=actor_config,
@@ -263,7 +265,7 @@ def owner_decided_stub_invite(
                 child=InviteeAwaitsReplyNode(name="InviteeAwaitsReplyCheck"),
             ),
             _emit(replaces_previous_stub=False),
-            SeatOwnerInvitedInviteeNode(roles),
+            SeatOwnerInvitedInviteeNode(offered_roles),
         ],
     )
     return py_trees.composites.Selector(

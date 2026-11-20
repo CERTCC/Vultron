@@ -30,7 +30,9 @@
         "@type": "@id",
         "@container": "@index"
       },
+      "attacksObserved": "vultron:attacksObserved",
       "caseEngagement": "vultron:caseEngagement",
+      "caseInputs": "vultron:caseInputs",
       "caseParticipants": {
         "@id": "vultron:caseParticipants",
         "@type": "@id",
@@ -66,6 +68,7 @@
         "@container": "@set"
       },
       "dState": "vultron:dState",
+      "disclosureDate": "vultron:disclosureDate",
       "emState": "vultron:emState",
       "embargo": {
         "@id": "vultron:embargo",
@@ -86,6 +89,7 @@
       },
       "entryHash": "vultron:entryHash",
       "expectedSenderSequence": "vultron:expectedSenderSequence",
+      "exploitPublic": "vultron:exploitPublic",
       "failureClass": {
         "@id": "vultron:failureClass",
         "@type": "@id"
@@ -140,12 +144,21 @@
         "@id": "vultron:proposedEmbargo",
         "@type": "@id"
       },
+      "proposedItems": {
+        "@id": "vultron:proposedItems",
+        "@container": "@list"
+      },
       "proposerCaseRoles": {
         "@id": "vultron:proposerCaseRoles",
         "@container": "@set"
       },
       "pxaState": "vultron:pxaState",
       "receivedAt": "vultron:receivedAt",
+      "referenceLinks": {
+        "@id": "vultron:referenceLinks",
+        "@type": "@id",
+        "@container": "@set"
+      },
       "references": {
         "@id": "vultron:references",
         "@type": "@id",

@@ -91,9 +91,9 @@ def grant_role_to_target(
     datalayer: CasePersistence,
     case: VulnerabilityCase,
     target_actor_id: str,
-    role: CVDRole,
+    granted_role: CVDRole,
 ) -> bool:
-    """Grant *role* to *target_actor_id*'s participant on this replica.
+    """Grant *granted_role* to *target_actor_id*'s participant on this replica.
 
     Idempotent (via :meth:`CaseParticipant.add_role`): a role already held is a
     no-op.  Returns ``True`` when the target holds the role afterwards, ``False``
@@ -108,8 +108,8 @@ def grant_role_to_target(
     participant = datalayer.read(participant_id) if participant_id else None
     if not isinstance(participant, CaseParticipant):
         return False
-    if not participant.has_role(role):
-        participant.add_role(role)
+    if not participant.has_role(granted_role):
+        participant.add_role(granted_role)
         datalayer.save(participant)
     return True
 

@@ -53,7 +53,9 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 |---------------|------------|-------------|
 | `activeParticipants` | set of iri | The ids of the participants a case finds active |
 | `actorParticipantIndex` | index of iri | A map from the id of each actor in a case to the id of its CaseParticipant |
+| `attacksObserved` | plain | Whether a case proposer states that attacks are observed |
 | `caseEngagement` | plain | Whether a participant reports itself engaged in a case |
+| `caseInputs` | plain | The starting content a case proposer states for the case it proposes; present, it speaks for every input |
 | `caseParticipants` | set of iri | The participants of a case, each a CaseParticipant or its id |
 | `caseReferences` | set of iri | The external references of a case, each a CaseReference or its id |
 | `caseRoles` | set | The CVD roles a participant holds in a case |
@@ -64,6 +66,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `childCases` | set of iri | The ids of a case's child cases |
 | `cvdRole` | set | The CVD roles a participant status reports its participant holding in the case |
 | `dState` | plain | A deployer participant's fix-deployed (D) dimension of the Case State (CS) |
+| `disclosureDate` | plain | The earliest disclosure date a case proposer's CSAF document states, as the document states it |
 | `emState` | plain | The Embargo Management (EM) state of a case: NONE, PROPOSED, ACTIVE, REVISE or EXITED |
 | `embargo` | iri | The embargo an embargo-register entry records: an EmbargoEvent or its id |
 | `embargoConsents` | set | A participant's consent rows, one for each embargo in its case's embargo register |
@@ -72,6 +75,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `embargoRegister` | list | Every embargo ever proposed on a case, in the order proposed, each an entry that gives its status |
 | `entryHash` | plain | The SHA-256 hash, in hex, of a case ledger entry's canonical content; the case's genesis hash in a ledger position that names no entry |
 | `expectedSenderSequence` | plain | On a refusal notice for an activity's senderSequence: the positive integer the CASE_MANAGER expects next from that sender, so the sender numbers its next activity for the case no lower |
+| `exploitPublic` | plain | Whether a case proposer states that an exploit is public |
 | `failureClass` | iri | The URI of the class of failure that stopped a received activity from being processed |
 | `genesisHash` | plain | The hash that starts a case's ledger chain, computed from its owner; the first ledger entry's prevLogHash |
 | `identifier` | plain | The identifier a system gives a vulnerability, as opaque text in the namespace of that system |
@@ -93,9 +97,11 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `preferredDuration` | plain | The embargo duration an actor prefers, as an ISO 8601 duration |
 | `prevLogHash` | plain | The SHA-256 hash, in hex, of the case ledger entry before this one, or the case's genesis hash for the first entry |
 | `proposedEmbargo` | iri | The embargo a reporter proposes for a report, on its Offer of the report: an EmbargoEvent or its id |
+| `proposedItems` | list | The vulnerability items a case proposer states for a new case, each with no id of its own |
 | `proposerCaseRoles` | set | The CVD roles a case proposer holds in a case it owns |
 | `pxaState` | plain | The public-awareness, exploit and attack (P, X, A) dimensions of a case's Case State (CS), as one state name |
 | `receivedAt` | plain | When the CASE_MANAGER received the activity a case ledger entry records, as a UTC date-time |
+| `referenceLinks` | set of iri | The external references a case proposer states, each a Link to the referenced resource |
 | `references` | set of iri | The external references about a vulnerability, each a CaseReference or its id |
 | `removalActivity` | iri | The id of the Remove activity that took a participant out of active participation in its case; absent while it is not removed |
 | `replaces` | iri | The id of the embargo that an activated revision replaced |

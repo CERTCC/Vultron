@@ -55,8 +55,9 @@ property. A fractal subtree:
   report");
 - can be triggered independently through a use-case entry point;
 - can be composed as a child of a larger tree;
-- takes its role as a constructor parameter and reads each identity from a
-  named blackboard key (BTND-01-008, BTND-01-009), never hard-coded constants.
+- takes the role it is built to check as a constructor parameter and reads
+  each identity, and each role the act carries, from a named blackboard key
+  (BTND-01-008, BTND-01-009), never hard-coded constants.
 
 ---
 
@@ -121,9 +122,10 @@ with structure:
 
 ## Reusability Anti-Patterns
 
-1. **Hard-coded actor roles or identities** — pass the role as a constructor
-   parameter and read `actor_id` from its key, so one node serves coordinator,
-   vendor, and reporter (BTND-01-008, BTND-01-009).
+1. **Hard-coded actor roles or identities** — pass the role the node checks as
+   a constructor parameter and read `actor_id`, and any role the act carries,
+   from its key, so one node serves coordinator, vendor, and reporter
+   (BTND-01-008, BTND-01-009).
    A factory such as `create_vendor_participant_node()` with the role in its
    name and body is the smell.
 2. **Demo-specific logic in reusable nodes** — BT nodes MUST NOT import from
