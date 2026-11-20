@@ -168,17 +168,37 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [undo_case_ownership_transfer.json](../examples/undo_case_ownership_transfer.json).
 
+{% include-markdown "./_occasions/sections/owner-invite-actor-to-case.md" %}
+
+- **Who decides:** the Case Owner decides whom to invite, and sends that decision as its own Invite ([CM-17-007](../specs/project.md#cm-17-007), [ADR-0199](../../adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md)).
+  It has the Stub Invite's shape, and goes to the CASE_MANAGER only.
+  The CASE_MANAGER reads an Invite addressed to it whose `target` names another actor as the Case Owner's decision.
+- **Effects:** the CASE_MANAGER records the Invite as one ledger entry, then sends its own Stub Invite to the invitee with the same `object`, `target` and roles ([CM-17-018](../specs/project.md#cm-17-018), [CM-17-019](../specs/project.md#cm-17-019)).
+  The Stub Invite credits the Case Owner in `attributedTo` and names this Invite in `inReplyTo`.
+  A re-invite of an invitee that has not answered names the Stub Invite it replaces in `inReplyTo` instead ([CM-11-044](../vultron-spec/requirements/case-management.md#cm-11-044)).
+- **Refusals:** the CASE_MANAGER answers with a refusal notice and records nothing when the sender is not the Case Owner, the `target` is the CASE_MANAGER or the Case Owner, or the invitee has joined, closed or been removed ([CM-17-026](../specs/project.md#cm-17-026)).
+  It refuses the same way an Invite with no role or an authority role ([CM-11-050](../vultron-spec/requirements/case-management.md#cm-11-050), [CM-20-008](../vultron-spec/requirements/case-management.md#cm-20-008)).
+  An `Offer(Actor)` from the Case Owner is refused too: the decision has one wire form ([CM-17-027](../specs/project.md#cm-17-027)).
+- **Case Owner that is the CASE_MANAGER:** it sends the Stub Invite straight to the invitee, with neither `attributedTo` nor `inReplyTo` ([CM-17-017](../specs/project.md#cm-17-017)).
+- **Trigger:** `POST /actors/{actor_id}/trigger/invite-actor-to-case`, whose body names the `invitee_id` and the `roles` ([Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Example artifact:** [owner_invite_actor_to_case.json](../examples/owner_invite_actor_to_case.json).
+
 {% include-markdown "./_occasions/sections/invite-actor-to-case.md" %}
 
-- **Who decides:** the Case Owner decides whom to invite.
+- **Who decides:** the Case Owner decides whom to invite ([Case Owner invites an actor](#owner-invite-actor-to-case)).
   A participant that wants a third party brought in sends a recommendation instead ([Suggest actor to case](general.md#suggest-actor-to-case)).
   See [§12.2 Invitation and Acceptance](../vultron-spec/interactions.md#122-invitation-and-acceptance-n).
 - **Triggering transition:** none — roster action.
 - **Object and target:** the `object` is the case, and the `target` is the actor being invited, as ActivityStreams 2.0 puts them ([ADR-0205](../../adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md)).
   The invitee may not see the case yet, so the `object` is a typed reference to the case: its `id` is the case's identifier, its `type` is `VulnerabilityCase`, and its `preview` is the case stub.
-  The stub, of type `CasePreview`, carries a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../vultron-spec/requirements/case-management.md#cm-11-013), [CM-17-010](../vultron-spec/requirements/case-management.md#cm-17-010), [MV-10-001](../vultron-spec/requirements/messages.md#mv-10-001)).
+  The stub, of type `CasePreview`, is cut from the case field by field, under the case's field names ([CM-11-013](../vultron-spec/requirements/case-management.md#cm-11-013), [CM-17-010](../vultron-spec/requirements/case-management.md#cm-17-010)).
+  It always shows its `summary`, the owner-chosen description the invitee reads before deciding whether to accept ([MV-10-001](../vultron-spec/requirements/messages.md#mv-10-001)), and the Case Owner in `attributedTo`.
+  While an embargo is in force it also shows the embargo terms as `embargoRegister`, the case's register reduced to the entry in force, and the embargo state in `caseStatuses`, reduced to the current status ([CM-17-002](../vultron-spec/requirements/case-management.md#cm-17-002), [CM-17-013](../vultron-spec/requirements/case-management.md#cm-17-013)).
+  It never carries an open embargo proposal or the case's bookkeeping ([CM-17-014](../vultron-spec/requirements/case-management.md#cm-17-014), [CM-17-025](../vultron-spec/requirements/case-management.md#cm-17-025)).
+  The reference implementation also shows the case name and times, and each vul item cut to its `ids`, and marks the case's content, participants, reports, notes and references `Redacted`.
   The stub names no case of its own: the reference's `id` names the case.
-  The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, or when it is given a bare case URI instead of the case, and the receiver refuses a stub with an absent or blank `summary`.
+  The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, when the embargo in force cannot be embedded whole, or when it is given a bare case URI instead of the case.
+  The receiver refuses a stub that lacks or marks an item it must show, or carries an open proposal, naming where the fault is ([MV-10-007](../vultron-spec/requirements/messages.md#mv-10-007)).
   The receiver reads the reference as it arrived: it does not fetch the case, put its own copy of the case in the reference's place, or seed a replica from the preview ([MV-10-013](../vultron-spec/requirements/messages.md#mv-10-013)).
   Any value inside the stub may be a `Redacted` marker, `{"type": "Redacted", "summary": "<reason>"}`: the sender has the value but does not show it to the invitee ([MV-12-001](../vultron-spec/requirements/messages.md#mv-12-001), [MV-12-003](../vultron-spec/requirements/messages.md#mv-12-003)).
   The receiver reads the stub as the sender sent it, including a nested object cut down to a few fields ([MV-12-006](../vultron-spec/requirements/messages.md#mv-12-006)).

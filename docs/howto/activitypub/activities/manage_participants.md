@@ -77,8 +77,9 @@ flowchart TB
 ## Admit an actor
 
 1. Trigger the invitation.
-   The CASE_MANAGER sends `Invite(VulnerabilityCase preview)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-019, PCR-08-008).
-   Its `inReplyTo` names your request.
+   Your container sends your own `Invite(VulnerabilityCase preview)` to the CASE_MANAGER (CM-17-007).
+   The CASE_MANAGER then sends the invitee its own `Invite(VulnerabilityCase preview)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-019).
+   Its `inReplyTo` names your `Invite`.
 2. Wait for the invitee's reply, addressed to the CASE_MANAGER.
 3. If the reply is `Accept(Invite(VulnerabilityCase preview))`, the CASE_MANAGER makes the actor an active participant — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
    The CASE_MANAGER ledgers the record's creation when it sends the Invite.

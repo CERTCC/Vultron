@@ -18,6 +18,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_SEMANTIC_TYPE
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
@@ -108,6 +109,47 @@ def test_manager_revision_relays_an_invite_to_each_other_participant(
     assert EMBARGO_INVITE_SEMANTIC_TYPE in committed_semantic_types(
         dl, case.id_
     )
+
+
+@pytest.mark.spec("CM-28-012", "EP-07-001")
+def test_the_relayed_invite_takes_the_managers_configured_rsvp_window(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The trigger hands the CASE_MANAGER's ``ActorConfig`` to its relay.
+
+    Each relayed Invite's deadline is its ``published`` plus the configured
+    window, as a relay the CASE_MANAGER makes for a received proposal is
+    (CM-28-012), not the ``ActorConfig`` default.
+    """
+    actor, dl = finder_actor_and_dl
+    case = _build_active_embargo_case_with_case_manager(dl, actor.id_)
+    _add_participant(dl, case.id_, "https://example.org/actors/other-vendor")
+    window = timedelta(days=4)
+    assert window != ActorConfig().default_rsvp_window
+
+    run_in_act(
+        SvcProposeEmbargoRevisionUseCase(
+            dl,
+            ProposeEmbargoRevisionTriggerRequest(
+                actor_id=actor.id_,
+                case_id=case.id_,
+                end_time=datetime.now(tz=UTC) + timedelta(days=14),
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+            actor_config=ActorConfig(
+                min_rsvp_window=timedelta(hours=1), default_rsvp_window=window
+            ),
+        )
+    )
+
+    queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
+    (relayed,) = [a for a in queued if a.type_ == "Invite"]
+    assert relayed.published is not None
+    assert relayed.end_time is not None
+    assert relayed.end_time - relayed.published == window
 
 
 @pytest.mark.spec("CLP-07-015")

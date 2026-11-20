@@ -8,7 +8,8 @@ description: >
   broadcast; which resolver to use; "active participant" excludes closed
   participants (ADR-0172); Invite/Accept routing; the embargo relay
   (EP-09, ADR-0113), where ledger entries carry state but never ask; the
-  delegated-message pattern; and identity-spoofing antipatterns, including
+  delegated-message pattern; case-content entitlement is derived, not a
+  self-reported flag (CM-31-018); and identity-spoofing antipatterns, including
   reading the CASE_MANAGER gate as a sender check (HP-01-006, ADR-0115).
 related_specs:
   - specs/architecture.yaml
@@ -117,6 +118,16 @@ meaning. Reason: while "active" included closed participants, a rule that said o
 "active" let a closed participant be offered the case (CM-21-021, #5189). Until #5661
 lands, CM-10-004 and the code still carry the broad meaning and the combined test.
 
+## Who Is Sent Case Content Is Derived, Not Reported
+
+Do not add a flag a participant sets about itself to say whether it is still sent
+case content. Every replica derives that from the participant record and the case:
+joined, not removed, a signatory of the active embargo when one is in force, and not
+at RM `CLOSED`. The messages a closed participant still gets are the exceptions the
+section above names. Reason: the answer turns on the Case Owner's removal and on one
+consent row per embargo, so a self-reported boolean can only repeat or contradict
+those facts (CM-31-018).
+
 ---
 
 ## Implementation: Resolving the CASE_MANAGER ID
@@ -161,17 +172,19 @@ ADR-0121).
 
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
-  → Case Owner sends its own Offer(Actor)[target=VulnerabilityCase],
-    carrying the suggested roles
-    → CASE_MANAGER's inbox (CM-17-007, ADR-0109)
-  → CASE_MANAGER's recommend-actor tree takes the owner-direct branch, since
-    the recommender holds CVDRole.CASE_OWNER (it does not forward the Offer)
+  → Case Owner sends its own Invite(VulnerabilityCase preview)[target=Actor],
+    carrying the roles
+    → CASE_MANAGER's inbox only (CM-17-007, ADR-0109, ADR-0199)
+  → CASE_MANAGER refuses it with a refusal notice unless the sender holds
+    CVDRole.CASE_OWNER and the invitee is invitable (CM-17-026); else it
+    commits the Owner's Invite as one entry (CM-17-018)
+  → CASE_MANAGER sends its own Invite(VulnerabilityCase preview)[target=Actor]
+    (sent by case_actor_id, attributedTo case_owner_id, inReplyTo the Owner's
+    Invite), commits it in the emitting tree, no cc: (CM-17-006, CM-17-015)
+    → invitee's inbox
   → CASE_MANAGER creates the invitee's CaseParticipant (inert: RM.RECEIVED,
     VF v for a vendor, consent INVITED if an embargo is active) and commits
     the creation to the ledger (CM-11-006)
-  → CASE_MANAGER sends Invite(VulnerabilityCase preview)[target=Actor]
-    (sent by case_actor_id, attributedTo case_owner_id), commits it in the
-    emitting tree, no cc: (CM-17-006, CM-17-015) → invitee's inbox
 
 Invitee sends Accept(Invite(VulnerabilityCase preview)[target=Actor])
   (sent by invitee_id, addressed to case_actor_id)

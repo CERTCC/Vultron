@@ -42,6 +42,7 @@ from vultron.core.models.case_preview import (
     preview_em_state,
     preview_embargo_id,
 )
+from vultron.core.models.case_preview_profile import INVITATION_PROFILE
 from vultron.core.models.case_reference import CaseReference, CaseReferenceLink
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
@@ -69,12 +70,7 @@ CASE_ID = "https://example.org/cases/1"
 #: means nothing outside the case, and open embargo proposals, relayed after
 #: joining (ADR-0217's omit-only rows).
 OMIT_ONLY = {
-    "actor_participant_index",
-    "pending_embargo_proposal_index",
-    "case_activity",
-    "genesis_hash",
-    "ledger_position",
-    "stub_summary",
+    name for name, rule in INVITATION_PROFILE.items() if rule.omit_only
 }
 
 
@@ -161,10 +157,10 @@ def test_a_nested_object_takes_its_own_loose_form() -> None:
 @pytest.mark.spec("MV-12-001")
 def test_a_loose_form_holds_a_marker_in_a_field_and_a_list_item() -> None:
     item: Any = loose_form(VulnerabilityItem).model_validate(
-        {"title": Redacted(), "ids": [Redacted(summary="withheld")]}
+        {"name": Redacted(), "ids": [Redacted(summary="withheld")]}
     )
 
-    assert item.title == Redacted()
+    assert item.name == Redacted()
     assert item.ids == [Redacted(summary="withheld")]
 
 
@@ -239,20 +235,39 @@ def test_to_loose_shows_only_the_fields_named() -> None:
     }
 
 
+def test_the_profile_names_the_known_bookkeeping_as_omit_only() -> None:
+    """The omit-only rows are the case's bookkeeping and its open-proposal
+    index, so the drift test below is not vacuous."""
+    assert {
+        "actor_participant_index",
+        "pending_embargo_proposal_index",
+        "genesis_hash",
+        "ledger_position",
+        "stub_summary",
+    } == OMIT_ONLY
+
+
 @pytest.mark.spec("MV-12-001")
-def test_the_case_preview_has_every_case_field_but_its_bookkeeping() -> None:
-    """The preview is the case's fields under the case's names (ADR-0217);
-    the omit-only rows are not declared, so a received one is set aside."""
-    case_fields = set(VulnerabilityCase.model_fields) - OMIT_ONLY
+def test_every_preview_field_is_a_case_field() -> None:
+    """The preview carries no field of its own: the embargo in force travels
+    as the case's ``embargoRegister`` and the status as its ``caseStatuses``,
+    so no ``activeEmbargo`` or ``caseStatus`` remains (ADR-0217)."""
+    assert set(CasePreview.model_fields) <= set(VulnerabilityCase.model_fields)
+    assert not {"active_embargo", "case_status"} & set(
+        CasePreview.model_fields
+    )
 
-    assert case_fields <= set(CasePreview.model_fields)
-    assert not OMIT_ONLY & set(CasePreview.model_fields)
 
+@pytest.mark.spec("MV-12-001")
+def test_every_case_field_is_a_preview_field_or_an_omit_only_row() -> None:
+    """A case field is shown in the preview's field of the same name, or it
+    is a profile row that permits only omit, which the preview does not
+    declare, so a received one is set aside (MV-11-003).  A new case field
+    fails here until it is classified."""
+    case_fields = set(VulnerabilityCase.model_fields)
 
-def test_the_case_preview_still_carries_todays_embargo_terms() -> None:
-    """``activeEmbargo`` and ``caseStatus`` stay until #6692 moves the terms
-    into the case's own fields."""
-    assert {"active_embargo", "case_status"} <= set(CasePreview.model_fields)
+    assert case_fields - OMIT_ONLY == set(CasePreview.model_fields)
+    assert case_fields >= OMIT_ONLY
 
 
 #: The case fields of the preview a marker may not stand in: the preview's
@@ -281,35 +296,74 @@ def test_the_preview_identity_and_summary_hold_no_marker(field: str) -> None:
         CasePreview.model_validate(data)
 
 
-def test_the_preview_status_and_embargo_readers_skip_a_marker() -> None:
-    preview = CasePreview(
-        summary="a case", case_status=Redacted(), active_embargo=Redacted()
+def _in_force(embargo: object) -> PreviewValue:
+    """A preview's register entry for *embargo*, in force."""
+    return loose_form(EmbargoRegisterEntry).model_validate(
+        {"embargo": embargo, "status": "ACTIVE"}
     )
 
+
+@pytest.mark.parametrize(
+    "preview",
+    [
+        CasePreview(
+            summary="a case",
+            case_statuses=Redacted(),
+            embargo_register=Redacted(),
+        ),
+        CasePreview(
+            summary="a case",
+            case_statuses=[Redacted()],
+            embargo_register=[Redacted()],
+        ),
+    ],
+    ids=["list marked", "item marked"],
+)
+def test_the_preview_status_and_embargo_readers_skip_a_marker(
+    preview: CasePreview,
+) -> None:
     assert preview_em_state(preview) is None
     assert preview_embargo_id(preview) is None
 
 
 def test_the_preview_embargo_reader_reads_an_id_or_a_shown_embargo() -> None:
     embargo_form = loose_form(EmbargoEvent)
-    by_id = CasePreview(summary="a case", active_embargo="urn:uuid:e1")
+    by_id = CasePreview(
+        summary="a case", embargo_register=[_in_force("urn:uuid:e1")]
+    )
     shown = CasePreview(
         summary="a case",
-        active_embargo=embargo_form.model_validate({"id": "urn:uuid:e2"}),
+        embargo_register=[
+            _in_force(embargo_form.model_validate({"id": "urn:uuid:e2"}))
+        ],
     )
     without_id = CasePreview(
-        summary="a case", active_embargo=embargo_form.model_validate({})
+        summary="a case",
+        embargo_register=[_in_force(embargo_form.model_validate({}))],
+    )
+    proposed_only = CasePreview(
+        summary="a case",
+        embargo_register=[
+            loose_form(EmbargoRegisterEntry).model_validate(
+                {"embargo": "urn:uuid:e3", "status": "PROPOSED"}
+            )
+        ],
     )
 
     assert preview_embargo_id(by_id) == "urn:uuid:e1"
     assert preview_embargo_id(shown) == "urn:uuid:e2"
     assert preview_embargo_id(without_id) is None
+    assert preview_embargo_id(proposed_only) is None
     assert preview_embargo_id(object()) is None
 
 
-def test_the_preview_em_reader_reads_a_shown_status() -> None:
+def test_the_preview_em_reader_reads_the_current_status() -> None:
+    """The EM state is the last shown status's, as the case's own current
+    status is its last (CM-29-001)."""
+    earlier = make(CaseStatus, context=CASE_ID, em=EmDimension(state=EM.NONE))
     preview = CasePreview(
-        summary="a case", case_status=to_loose(_status(), ("em",))
+        summary="a case",
+        case_statuses=[to_loose(earlier), to_loose(_status(), ("em",))],
     )
 
     assert preview_em_state(preview) is EM.ACTIVE

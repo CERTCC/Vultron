@@ -25,6 +25,11 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_preview import (
+    current_em_state,
+    in_force_embargo,
+    wire_preview,
+)
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -41,10 +46,16 @@ from vultron.core.models.actor_recommendation_record import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.use_cases.received.actor.invite import (
+    InviteActorToCaseReceivedUseCase,
+)
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
-from vultron.wire.as2.factories import recommend_actor_activity
+from vultron.wire.as2.factories import (
+    recommend_actor_activity,
+    rm_invite_to_case_activity,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -132,7 +143,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=recommender_id,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -184,7 +195,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -252,7 +263,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["coordinator", authority_role],
+            roles=["coordinator", authority_role],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -295,7 +306,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -417,7 +428,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             **reason_fields,
             at=authored_at(),
         )
@@ -471,7 +482,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -749,18 +760,19 @@ class TestOfferActorToCaseAtNonCaseManager:
         )
 
 
-class TestOwnerDirectInviteAtCaseManager:
-    """The Case Owner's Offer(Actor)[target=VulnerabilityCase] at the CASE_MANAGER (CM-17-007).
+class TestOwnersInviteAtCaseManager:
+    """The Case Owner's own Invite at the CASE_MANAGER (CM-17-007, ADR-0199).
 
-    When the recommender holds ``CVDRole.CASE_OWNER``, the recommendation is
-    already the owner's decision, so the CASE_MANAGER emits the ``Invite``
-    itself — from its own identity and outbox, committed to its ledger, and
-    with no ``cc`` (ADR-0109) — instead of asking the owner to decide.
+    The Owner's decision is its ``Invite(<case preview>)[target=<invitee>]``,
+    so the CASE_MANAGER sends its own stub Invite from it — from its own
+    identity and outbox, committed to its ledger, and with no ``cc``
+    (ADR-0109) — and asks the Owner nothing.  The Owner's
+    ``Offer(Actor)`` is refused: the decision has one wire form.
     """
 
     _OWNER_ID = "https://example.org/actors/case-owner"
     _INVITEE_ID = "https://example.org/actors/invitee"
-    _CASE_ID = "https://example.org/cases/owner-direct-invite-case"
+    _CASE_ID = "https://example.org/cases/owner-invite-case"
 
     def _setup_dl(self, seed_case_manager, with_active_embargo=False):
         from test.support.future_dates import FAR_FUTURE
@@ -808,13 +820,21 @@ class TestOwnerDirectInviteAtCaseManager:
             agree_to_active_embargo(dl, case, self._OWNER_ID)
         return dl
 
-    def _event(self, dl, make_payload, roles=None):
-        activity = recommend_actor_activity(
-            make(as_Actor, id_=self._INVITEE_ID),
-            target=_case_ref(self._CASE_ID),
+    def _event(self, dl, make_payload, roles=None, invitee_id=None):
+        """The Owner's Invite, as its own store would build it."""
+        case = dl.read_case(self._CASE_ID)
+        assert case is not None
+        activity = rm_invite_to_case_activity(
+            make(as_Actor, id_=invitee_id or self._INVITEE_ID),
+            case=case,
+            roles=roles,
+            embargo_obj=(
+                dl.read(case.active_embargo_id)
+                if case.active_embargo_id
+                else None
+            ),
             actor=self._OWNER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=roles,
             at=authored_at(),
         )
         return make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -822,7 +842,7 @@ class TestOwnerDirectInviteAtCaseManager:
     def _deliver(self, dl, make_payload, roles=None, event=None):
         event = event or self._event(dl, make_payload, roles=roles)
         return run_in_act(
-            OfferActorToCaseReceivedUseCase(
+            InviteActorToCaseReceivedUseCase(
                 dl,
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
@@ -878,7 +898,7 @@ class TestOwnerDirectInviteAtCaseManager:
         assert invite["type"] == "Invite"
         assert invite["actor"] == TEST_ACTOR_ID
         assert invite.get("attributedTo") == self._OWNER_ID
-        # The Invite names the Owner's Offer(Actor) it carries out (ADR-0199).
+        # The stub names the Owner's Invite it carries out (ADR-0199).
         assert invite.get("inReplyTo") == event.activity_id
         assert invite.get("to") == [self._INVITEE_ID]
         assert "cc" not in invite
@@ -900,7 +920,7 @@ class TestOwnerDirectInviteAtCaseManager:
     def test_an_owner_invite_naming_an_authority_role_is_refused(
         self, make_payload, seed_case_manager, authority_role
     ):
-        """The owner's own Offer gets no authority role for the invitee.
+        """The owner's own Invite gets no authority role for the invitee.
 
         Ownership moves by transfer and the CASE_MANAGER role by delegation,
         never by an invitation (CM-20-008, CM-33-003): the CASE_MANAGER
@@ -955,12 +975,50 @@ class TestOwnerDirectInviteAtCaseManager:
 
         self._deliver(dl, make_payload, roles=["vendor"])
 
-        target = self._sealed_invite(dl)["object"]["preview"]
-        assert isinstance(target.get("activeEmbargo"), dict)
-        assert "endTime" in target["activeEmbargo"]
-        assert target.get("caseStatus", {}).get("emState") in (
-            "active",
-            "ACTIVE",
+        preview = wire_preview(self._sealed_invite(dl))
+        embargo = in_force_embargo(preview)
+        assert embargo is not None
+        assert "endTime" in embargo
+        assert current_em_state(preview) == "ACTIVE"
+
+    @pytest.mark.spec("CM-17-027")
+    def test_the_owners_offer_actor_is_refused(
+        self, make_payload, seed_case_manager
+    ):
+        """The Owner's recommendation is refused with the refusal notice."""
+        from test.support.refusal_notice import assert_refusal_notice
+
+        dl = self._setup_dl(seed_case_manager)
+        activity = recommend_actor_activity(
+            make(as_Actor, id_=self._INVITEE_ID),
+            target=_case_ref(self._CASE_ID),
+            actor=self._OWNER_ID,
+            to=[TEST_ACTOR_ID],
+            roles=["vendor"],
+            at=authored_at(),
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
+
+        result = run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
+        assert "Invite" not in [b.get("type") for b in self._sealed_bodies(dl)]
+        assert_refusal_notice(
+            dl,
+            manager=TEST_ACTOR_ID,
+            refused_id=event.activity_id,
+            asserter=self._OWNER_ID,
+            reason="CM-17-007",
+            case_id=self._CASE_ID,
         )
 
     @pytest.mark.spec("CM-17-018")
@@ -983,28 +1041,17 @@ class TestOwnerDirectInviteAtCaseManager:
     def test_a_slash_spelled_invitee_is_invited_and_stored_canonically(
         self, make_payload, seed_case_manager
     ):
-        """The recommended actor's id is extracted without its trailing
-        slash: the Invite and the invitee's participant name one spelling."""
+        """The invitee's id is extracted without its trailing slash: the
+        stub Invite and the invitee's participant name one spelling."""
         dl = self._setup_dl(seed_case_manager)
-        activity = recommend_actor_activity(
-            make(as_Actor, id_=self._INVITEE_ID + "/"),
-            target=_case_ref(self._CASE_ID),
-            actor=self._OWNER_ID,
-            to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
-            at=authored_at(),
+        event = self._event(
+            dl,
+            make_payload,
+            roles=["vendor"],
+            invitee_id=self._INVITEE_ID + "/",
         )
-        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
-        result = run_in_act(
-            OfferActorToCaseReceivedUseCase(
-                dl,
-                event,
-                trigger_activity=TriggerActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            )
-        )
+        result = self._deliver(dl, make_payload, event=event)
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
         assert self._sealed_invite(dl).get("to") == [self._INVITEE_ID]

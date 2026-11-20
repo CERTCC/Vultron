@@ -135,6 +135,26 @@ def register_trigger_is_legal(
     return current in _TRANSITIONS[trigger]
 
 
+def register_trigger_between(
+    current: EmbargoRegisterStatus | None, status: EmbargoRegisterStatus
+) -> RegisterTrigger:
+    """The trigger that moves an entry from *current* to *status*.  Each
+    step of an entry is one trigger's.
+
+    Raises:
+        VultronInvalidStateTransitionError: no trigger moves an entry from
+            *current* to *status*.
+    """
+    for trigger, steps in _TRANSITIONS.items():
+        if current in steps and steps[current] is status:
+            return trigger
+    raise VultronInvalidStateTransitionError(
+        "Embargo register: no trigger moves an entry from"
+        f" {current.name if current is not None else 'no entry'} to"
+        f" {status.name}."
+    )
+
+
 def register_status_after(
     current: EmbargoRegisterStatus | None, trigger: RegisterTrigger
 ) -> EmbargoRegisterStatus:

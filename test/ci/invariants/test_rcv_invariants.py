@@ -8,8 +8,9 @@ Actor set: ``reporter``, ``coordinator``, ``vendor``, ``case-actor``.
 
 RCV-specific invariants (DEMOMA-12-008/009):
 - ``validate_report`` semantic type is present (Coordinator validates Reporter's report).
-- ``invite_actor_to_case`` appears exactly once (the Vendor's invitation; the
-  Reporter is seated at case creation, CP-09-002, and is never invited).
+- the Vendor is invited exactly once: one Case Owner's Invite and the one
+  stub Invite answering it, both ``invite_actor_to_case`` (the Reporter is
+  seated at case creation, CP-09-002, and is never invited).
 - ``close_case`` semantic type is present.
 - CS transition VFd observed in Vendor's add_participant_status entries
   (the Vendor stops at VFd, CSB-15-002).
@@ -27,8 +28,8 @@ from __future__ import annotations
 import pytest
 
 from test.ci.invariants.common import (
+    check_case_invitations,
     check_late_joiner_has_full_history,
-    check_semantic_type_count,
     check_semantic_type_present,
     cs_observations_from_snap,
     load_devlogs,
@@ -112,10 +113,10 @@ def test_rcv_validate_report_present(
 
 
 @pytest.mark.case_ledger_invariants
-def test_rcv_invite_actor_to_case_exactly_once(
+def test_rcv_vendor_invited_exactly_once(
     rcv_replicas: dict[str, list[dict]],
 ) -> None:
-    """``invite_actor_to_case`` appears exactly once (the Vendor's invitation).
+    """The Vendor is invited exactly once: one Owner's Invite, one stub Invite.
 
     The Reporter submitted the report, so the CASE_MANAGER seats it as a signatory
     participant (an ``AGREED`` consent row) when it creates the case (CP-09-002,
@@ -127,9 +128,7 @@ def test_rcv_invite_actor_to_case_exactly_once(
     Spec: DEMOMA-12-003 (Reporter seated, not invited), DEMOMA-12-004
     (Coordinator invites Vendor directly), DEMOMA-12-009(2).
     """
-    violations = check_semantic_type_count(
-        rcv_replicas, "invite_actor_to_case", min_count=1, max_count=1
-    )
+    violations = check_case_invitations(rcv_replicas, invitee_count=1)
     assert not violations, violations[0] if violations else ""
 
 

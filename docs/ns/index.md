@@ -24,7 +24,7 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `CaseLedgerEntry` | — | Entry in the canonical append-only case ledger |
 | `CaseParticipant` | — | Actor-in-role binding within a specific case |
 | `CaseParticipantRole` | — | A CVD role being offered to an actor in a case context |
-| `CasePreview` | — | The case's preview, sent as the `preview` of the case reference a stub Invite carries as its `object`, so the invitee can give informed consent before it holds the case |
+| `CasePreview` | — | The case's preview, sent as the `preview` of the case reference a stub Invite carries as its `object`, so the invitee can give informed consent before it holds the case: the case's own fields, cut down, showing its summary and Case Owner and, while an embargo is in force, `embargoRegister` reduced to the embargo in force and `caseStatuses` reduced to the current status, with other values withheld as `Redacted` markers |
 | `CaseProposal` | — | Request to a Case Actor Service to initialize a new case |
 | `CaseReference` | — | Typed external URL reference attached to a case |
 | `CaseStatus` | — | Case-level status snapshot: the Embargo Management (EM) state and the public (pxa) dimensions of the Case State (CS) |
@@ -51,14 +51,13 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 
 | Property name | Value kind | Description |
 |---------------|------------|-------------|
-| `activeEmbargo` | iri | The embargo active on a case, as its case preview carries it: an EmbargoEvent or its id |
 | `activeParticipants` | set of iri | The ids of the participants a case finds active |
 | `actorParticipantIndex` | index of iri | A map from the id of each actor in a case to the id of its CaseParticipant |
 | `caseEngagement` | plain | Whether a participant reports itself engaged in a case |
 | `caseParticipants` | set of iri | The participants of a case, each a CaseParticipant or its id |
 | `caseReferences` | set of iri | The external references of a case, each a CaseReference or its id |
 | `caseRoles` | set | The CVD roles a participant holds in a case |
-| `caseStatus` | iri | The case status a participant status or a case preview reports: a CaseStatus object or its id |
+| `caseStatus` | iri | The case status a participant status reports, as a CaseStatus object |
 | `caseStatuses` | list of iri | The statuses of a case, oldest first, each a CaseStatus or its id; the last is its current status |
 | `category` | plain | The CSAF category of a vulnerability note, such as description or summary |
 | `cause` | plain | Why an embargo ended early: an object whose kind names the cause |
@@ -99,7 +98,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `replaces` | iri | The id of the embargo that an activated revision replaced |
 | `rmState` | plain | A participant's Report Management (RM) state in a case |
 | `role` | plain | The CVD role offered to an actor in a case |
-| `roles` | set | The CVD roles an Invite to a case offers the invitee |
+| `roles` | set | The CVD roles an Offer or Invite proposes for the actor it names, to hold in the case |
 | `rsvpDeadline` | plain | The time by which an invited participant is to answer an embargo invitation, as a UTC date-time |
 | `semanticType` | plain | The Vultron message-semantics label of the act a case ledger entry records |
 | `senderSequence` | plain | A participant's number for a case activity it sends the CASE_MANAGER: a positive integer, 1 for its first on the case and one more for each next one, kept by a resend |
@@ -108,7 +107,6 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `state` | plain | A participant's consent to one embargo: UNINVITED, INVITED, AGREED, DECLINED or TIMED_OUT |
 | `status` | plain | The status of an embargo in its case's embargo register, such as PROPOSED, ACTIVE or TERMINATED |
 | `stubSummary` | plain | The summary a case owner chose for the case stub it sends to invitees, which may say less than the case's name |
-| `suggestedRoles` | set | The CVD roles an Offer that recommends an actor suggests it take in a case |
 | `systemName` | plain | The name of the system that issued a vulnerability identifier |
 | `term` | plain | The cluster term in which the CASE_MANAGER committed a case ledger entry; absent on a single-node deployment |
 | `termination` | plain | How a terminated embargo ended: an object that gives the reason and, when recorded, its cause |

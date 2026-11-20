@@ -33,6 +33,7 @@ Each test asserts observable behaviour.  See ``notes/case-joining.md``.
 """
 
 import json
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -49,11 +50,9 @@ from test.core.use_cases.triggers.embargo.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     activate,
-    agree_to_active_embargo,
 )
 from test.support.future_dates import days_from_now
 from test.support.objects import authored_at, make
-from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -65,11 +64,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.config.actor import ActorConfig
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.events.actor import OfferActorToCaseReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -84,9 +83,6 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
-from vultron.core.use_cases.received.actor.suggest import (
-    OfferActorToCaseReceivedUseCase,
-)
 from vultron.core.use_cases.triggers.actor import SvcInviteActorToCaseUseCase
 from vultron.core.use_cases.triggers.case import (
     AddOnBehalfStatusTriggerRequest,
@@ -102,7 +98,6 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
 from vultron.wire.as2.factories import rm_submit_report_activity
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
@@ -131,10 +126,9 @@ def _participant_of(
 def _hold_case_owner(dl: SqliteDataLayer, case_id: str, actor_id: str) -> None:
     """Give *actor_id*'s participant record ``CVDRole.CASE_OWNER``.
 
-    The invite trigger is the Case Owner's action, and the CASE_MANAGER emits
-    the Invite directly only for an Offer whose sender holds CASE_OWNER on the
-    roster (CM-17-007).  The store-owner seeds here name the CASE_MANAGER;
-    this adds the ownership the trigger presumes.
+    The invite trigger is the Case Owner's action, refused for anyone else
+    (CM-17-007).  The store-owner seeds here name the CASE_MANAGER; this adds
+    the ownership the trigger presumes.
     """
     case = dl.read_case(case_id)
     assert case is not None
@@ -152,20 +146,13 @@ def _send_stub_invite(
 ) -> dict[str, Any]:
     """Invite *invitee_id* as the owner *actor_id*; return the Invite emitted.
 
-    The owner's trigger sends its own ``Offer(Actor)[target=VulnerabilityCase]`` to the
-    CASE_MANAGER; the CASE_MANAGER emits the Invite (CM-17-007, ADR-0109).
-    *actor_id* is both here — the store's owner holds CASE_MANAGER — so the
-    Offer is delivered to the same store, as ADR-0109 lets an owner that is
-    also the CASE_MANAGER address it to itself.
+    *actor_id* is the store's owner and holds CASE_MANAGER, so its trigger
+    sends the stub Invite straight to the invitee, as its own act, with no
+    message to itself (CM-17-017, CM-24-021, ADR-0199).  The sealed body is
+    the wire form the outbox relays (OX-07-001).
     """
     _hold_case_owner(dl, case_id, actor_id)
-    case = dl.read_case(case_id)
-    assert case is not None
-    if case.embargo_in_force:
-        # The owner recommends, so it must be an active participant: a
-        # signatory to the embargo in force (CM-10-004, CM-23-018).
-        agree_to_active_embargo(dl, case, actor_id)
-    offer = activity_of(
+    invite = activity_of(
         run_in_act(
             SvcInviteActorToCaseUseCase(
                 dl,
@@ -182,33 +169,11 @@ def _send_stub_invite(
             )
         )
     )
-    already_queued = set(dl.outbox_list())
-    stored_offer = dl.read(offer["id"])
-    assert isinstance(stored_offer, as_Activity)
-    event = received_event(stored_offer, at=dl).model_copy(
-        update={"receiving_actor_id": actor_id}
-    )
-    assert isinstance(event, OfferActorToCaseReceivedEvent)
-    result = run_in_act(
-        OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        )
-    )
-    assert result.disposition is HandlerDisposition.APPLIED, result
-    for item in dl.outbox_list():
-        if item in already_queued:
-            continue
-        sealed = read_sealed_body(dl, item)
-        if sealed is None:
-            continue
-        body: dict[str, Any] = json.loads(sealed.body)
-        if body["type"] == "Invite":
-            return body
-    raise AssertionError("the CASE_MANAGER emitted no Invite")
+    assert invite["type"] == "Invite"
+    sealed = read_sealed_body(dl, invite["id"])
+    assert sealed is not None, "the stub Invite was not sealed"
+    body: dict[str, Any] = json.loads(sealed.body)
+    return body
 
 
 def _vendor_participant(
@@ -516,10 +481,8 @@ def test_reinvite_reuses_the_invitee_record_with_a_new_deadline(
 ) -> None:
     """Re-inviting an unanswered invitee adds no second record.
 
-    Today no re-invite goes out at all: the CASE_MANAGER's recommend-actor
-    tree finds the invitee already on the roster and answers the owner's
-    Offer from its already-participant branch, ahead of the owner-direct
-    branch that emits the Invite (#3821).
+    The fresh stub Invite goes out on the existing inert record, with a new
+    deadline (CM-11-015, ADR-0199).
     """
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
@@ -542,9 +505,8 @@ def test_reinvite_reuses_the_invitee_record_with_a_new_deadline(
 def test_reinvite_to_closed_participant_is_refused(actor_store) -> None:
     """``CLOSED`` is terminal with no rejoin; the trigger refuses the Invite.
 
-    Today the trigger accepts the request and queues the owner's Offer; the
-    CASE_MANAGER then answers it from its already-participant branch and
-    sends no Invite (#3821), so nothing refuses it.
+    The trigger refuses it before anything is queued (CM-11-043), and the
+    CASE_MANAGER refuses an Owner's Invite for it that arrives (CM-17-026).
     """
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
@@ -626,6 +588,55 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
     assert result.disposition is HandlerDisposition.REFUSED
     assert result.reason is not None
     assert any(r.id_ in result.reason for r in replacements), result.reason
+
+
+@pytest.mark.spec("CM-11-016", "CM-11-014", "CM-28-012")
+def test_a_reissued_stub_invite_takes_the_managers_configured_rsvp_window(
+    actor_store,
+) -> None:
+    """The embargo trigger hands the CASE_MANAGER's ``ActorConfig`` down.
+
+    The replacement stub Invite a termination re-issues carries the
+    configured reply window, not the ``ActorConfig`` default.
+    """
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
+    dl.create(invitee)
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    original_id = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)["id"]
+    window = timedelta(days=2)
+    assert window != ActorConfig().default_rsvp_window
+
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+            actor_config=ActorConfig(
+                min_rsvp_window=timedelta(hours=1), default_rsvp_window=window
+            ),
+        )
+    )
+
+    (replacement,) = [
+        invite
+        for invite in _invites_to(dl, invitee.id_)
+        if invite.id_ != original_id
+        and getattr(invite.object_, "type_", None) == "VulnerabilityCase"
+        and invite.end_time is not None
+        and original_id
+        in invite.model_dump_json(by_alias=True, exclude={"id_"})
+    ]
+    assert replacement.published is not None
+    assert replacement.end_time is not None
+    assert replacement.end_time - replacement.published == window
 
 
 def _accept_stub_invite(

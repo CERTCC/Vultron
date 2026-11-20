@@ -129,7 +129,7 @@ groups:
     statement: >-
       A receiver MUST NOT change case data from a CSAF document other than the one
       that CSAF-02-001 names: a document on another activity, on a report that
-      already belongs to a case, in a vulnerability item, or of another category.
+      already belongs to a case, or of another category.
     rationale: >-
       Participants produce CSAF documents from their copies of a case and share
       draft advisories in CSAF. Such a document is a result of the case, so
@@ -455,8 +455,7 @@ groups:
       `::test_a_vulnerability_with_no_cve_and_no_ids_makes_no_item` checks that an
       entry that names no vulnerability makes no item.
       `test/core/services/test_report_case_inputs.py::test_a_csaf_entrys_title_arrives_as_the_items_name`
-      checks that the entry's `title` becomes the item's `name`; it is a strict `xfail`
-      until #6413 moves the title.
+      checks that the entry's `title` becomes the item's `name`.
     adr:
     - ADR-0184
     - ADR-0187

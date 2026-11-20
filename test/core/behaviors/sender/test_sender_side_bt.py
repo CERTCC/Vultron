@@ -197,13 +197,13 @@ class TestSenderSideStaleKeyRegression:
     def test_stale_case_manager_id_not_present_after_execution(
         self, dl, bridge
     ):
-        """``/case_manager_id`` is absent after a successful and a failed
+        """``/case_actor_id`` is absent after a successful and a failed
         run alike: the bridge scopes it to its execution (#5803).
         """
         store, actor = dl
         storage = py_trees.blackboard.Blackboard.storage
 
-        # Run 1: succeeds — /case_manager_id is cleaned up afterwards.
+        # Run 1: succeeds — /case_actor_id is cleaned up afterwards.
         case1 = _make_case_with_case_manager(store, actor.id_)
         tree1 = sender_side_bt(
             case_id=case1.id_,
@@ -211,7 +211,7 @@ class TestSenderSideStaleKeyRegression:
         )
         result1 = run_tree(bridge, tree=tree1, actor_id=actor.id_)
         assert result1.status == Status.SUCCESS
-        assert "/case_manager_id" not in storage
+        assert "/case_actor_id" not in storage
 
         # Run 2 (no blackboard clear between runs): fails — case has no
         # CASE_MANAGER participant.  The key is still absent afterwards.
@@ -223,7 +223,7 @@ class TestSenderSideStaleKeyRegression:
         )
         result2 = run_tree(bridge, tree=tree2, actor_id=actor.id_)
         assert result2.status == Status.FAILURE
-        assert "/case_manager_id" not in storage
+        assert "/case_actor_id" not in storage
 
     @pytest.mark.parametrize("case_kind", ["missing", "no_case_manager"])
     def test_resolve_failure_overwrites_a_stale_case_manager_id_with_none(
@@ -243,7 +243,7 @@ class TestSenderSideStaleKeyRegression:
             if case_kind == "missing"
             else _make_case_without_case_manager(store, actor.id_).id_
         )
-        probe = BlackboardKeyProbe("case_manager_id")
+        probe = BlackboardKeyProbe("case_actor_id")
         tree = py_trees.composites.Selector(
             name="ResolveOrProbe",
             memory=False,
@@ -252,11 +252,11 @@ class TestSenderSideStaleKeyRegression:
                 probe,
             ],
         )
-        storage["/case_manager_id"] = "https://example.org/actors/stale"
+        storage["/case_actor_id"] = "https://example.org/actors/stale"
         try:
             run_tree(bridge, tree=tree, actor_id=actor.id_)
         finally:
-            storage.pop("/case_manager_id", None)
+            storage.pop("/case_actor_id", None)
 
         assert probe.ran
         assert probe.value is None

@@ -37,6 +37,10 @@ from test.support.received import TEST_SENDER_POSITION
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_preview import (
+    CasePreview,
+    preview_in_force_entry,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
@@ -247,9 +251,19 @@ def _stub(**extra: Any) -> dict[str, Any]:
     """A case preview (ADR-0205), as a stub Invite's case reference carries it."""
     return {
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "id": "https://example.org/previews/1",
         "summary": "A remote code execution vulnerability in widget.",
         **extra,
+    }
+
+
+def _in_force(embargo: dict[str, Any]) -> dict[str, Any]:
+    """A preview's fields showing *embargo* in force, with its EM state, as
+    a stub Invite's preview must (CM-17-002, CM-17-013)."""
+    return {
+        "embargoRegister": [{"embargo": embargo, "status": "ACTIVE"}],
+        "caseStatuses": [{"type": "CaseStatus", "emState": "ACTIVE"}],
     }
 
 
@@ -271,7 +285,7 @@ def test_a_case_preview_carries_no_time_of_its_own() -> None:
     ``published``, is a projection of the case it names, so neither the
     reference nor it is refused for one; the embargo it carries is a whole
     object and has its own."""
-    stub = _stub(activeEmbargo=_stub_embargo(published=PUBLISHED))
+    stub = _stub(**_in_force(_stub_embargo(published=PUBLISHED)))
 
     parsed = parse_activity(_stub_invite(stub))
 
@@ -287,12 +301,13 @@ def test_an_embargo_in_a_case_preview_without_published_is_read_as_shown() -> (
 ):
     """A preview's contents are read as its sender showed them (ADR-0217),
     so the rule does not reach an object inside a preview."""
-    stub = _stub(activeEmbargo=_stub_embargo())
+    stub = _stub(**_in_force(_stub_embargo()))
 
     activity = parse_activity(_stub_invite(stub))
 
     preview = getattr(_object_of(activity), "preview", None)
-    embargo = getattr(preview, "active_embargo", None)
+    assert isinstance(preview, CasePreview)
+    embargo = getattr(preview_in_force_entry(preview), "embargo", None)
     assert is_loose_form_of(embargo, EmbargoEvent)
     assert getattr(embargo, "published", None) is None
 
@@ -594,6 +609,7 @@ def test_a_case_reference_carrying_a_preview_is_no_case_reference() -> None:
             "type": "VulnerabilityCase",
             "preview": {
                 "type": "CasePreview",
+                "attributedTo": "https://example.org/actors/vendor",
                 "id": "https://example.org/previews/1",
                 "summary": "A remote code execution vulnerability.",
             },

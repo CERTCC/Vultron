@@ -57,21 +57,18 @@ class _AddReportToCaseActivity(as_Add):
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
-    # The report's Offer provenance, carried on the CASE_MANAGER's
-    # ``add_report_to_case`` entry for the case's participants, who were never
-    # sent the Offer (CP-01-007, CM-11-020).  The same pair, and the same
-    # wire keys, as ``as_CaseProposal.offer_id``/``offer_actor_id``.
-    offer_id: NonEmptyString | None = Field(
+    # The id of the Offer(VulnerabilityReport) the report arrived in, carried
+    # on the CASE_MANAGER's ``add_report_to_case`` entry for the case's
+    # participants, who were never sent the Offer (CP-01-007, CM-11-020).
+    # By id only: the entry fans out to every participant, and the Offer is
+    # the Reporter's message to its receiver.  The Offer's sender is the
+    # report's ``attributedTo``.  AS2's ``inReplyTo`` names it, as on
+    # ``as_CaseProposal`` (#6419).
+    in_reply_to: NonEmptyString | None = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
         default=None,
-        validation_alias="offerId",
-        serialization_alias="offerId",
-        description="URI of the Offer(VulnerabilityReport) the report arrived in.",
-    )
-    offer_actor_id: NonEmptyString | None = Field(
-        default=None,
-        validation_alias="offerActorId",
-        serialization_alias="offerActorId",
-        description="URI of the actor that sent the Offer named by offer_id.",
+        validation_alias="inReplyTo",
+        serialization_alias="inReplyTo",
+        description="Id of the Offer(VulnerabilityReport) the report arrived in.",
     )
 
 

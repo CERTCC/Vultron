@@ -148,9 +148,11 @@ class TestInviteActorToCaseWithInlineEmbargo:
         preview = reference["preview"]
         assert preview["type"] == "CasePreview"
         assert "caseId" not in preview
-        assert preview["activeEmbargo"]["id"] == embargo.id_
-        assert preview["activeEmbargo"]["endTime"]
-        assert preview["caseStatus"]["emState"] == "ACTIVE"
+        (entry,) = preview["embargoRegister"]
+        assert entry["embargo"]["id"] == embargo.id_
+        assert entry["embargo"]["endTime"]
+        (status,) = preview["caseStatuses"]
+        assert status["emState"] == "ACTIVE"
 
 
 class TestInviteActorToCaseWithEmbargoHeldById:
@@ -213,9 +215,8 @@ class TestInviteActorToCaseWithEmbargoHeldById:
         )
         # Nested, it does not restate the activity's ``@context`` (VM-10-004).
         del expected["@context"]
-        assert json.loads(blob)["object"]["preview"]["activeEmbargo"] == (
-            expected
-        )
+        (entry,) = json.loads(blob)["object"]["preview"]["embargoRegister"]
+        assert entry["embargo"] == expected
 
     @pytest.mark.spec("CM-17-024")
     def test_invite_is_refused_when_the_embargo_is_not_in_the_store(
@@ -294,6 +295,51 @@ class TestInviteActorToCase:
         assert body["object"]["id"] == _CASE_ID
         assert body["object"]["preview"]["summary"] == "A case to join"
         assert body["target"] == _INVITEE or body["target"]["id"] == _INVITEE
+
+
+@pytest.mark.spec("CM-17-010")
+def test_invite_stub_shows_the_ids_of_each_stored_vul_item(adapter, dl):
+    """A case names its vul items by id in the store, so the adapter reads
+    each one for the preview, which shows it cut to its ``ids``
+    (ADR-0217).  An item the store does not hold has no ``ids`` to show and
+    is marked ``Redacted``; the stored case keeps its ids."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.vulnerability_item import (
+        VulnerabilityItem,
+        VulnerabilityItemId,
+    )
+
+    case_id = "https://example.org/cases/case-with-items"
+    item = make(
+        VulnerabilityItem,
+        context=case_id,
+        name="Buffer overflow in the parser",
+        ids=[VulnerabilityItemId.cve("CVE-2026-0042")],
+    )
+    dl.create(item)
+    missing = "https://example.org/items/not-held"
+    dl.create(
+        make(
+            VulnerabilityCase,
+            id_=case_id,
+            attributed_to=_ACTOR,
+            stub_summary="A case with vul items",
+            vulnerability_items=[item.id_, missing],
+        )
+    )
+
+    _, blob = adapter.invite_actor_to_case(
+        invitee_id=_INVITEE, case_id=case_id, actor=_ACTOR, at=authored_at()
+    )
+
+    shown, marked = json.loads(blob)["object"]["preview"]["vulnerabilityItems"]
+    assert shown == {
+        "type": "VulnerabilityItem",
+        "ids": [{"systemName": "CVE", "text": "CVE-2026-0042"}],
+    }
+    assert marked == {"type": "Redacted"}
+    stored = dl.read(case_id)
+    assert stored.vulnerability_items == [item.id_, missing]
 
 
 @pytest.mark.spec("CM-17-010")

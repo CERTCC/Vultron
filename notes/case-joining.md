@@ -173,14 +173,27 @@ from its role (CLP-09).
   participant record (CM-11-018, CM-11-021) — never a silent no-op, never creates a
   participant; a full-case Invite reply from a participant that has not joined
   (CM-11-012).
-- **No roles means refuse, never default to VENDOR (CM-11-048, CM-11-050).**
-  `EvaluateDefaultRolesNode` returns `[]`, which the trigger turns into REFUSED;
-  `CreateInertInviteeParticipantNode` enforces the same rule.
+- **No roles means refuse, never default to VENDOR (CM-11-048, CM-11-050).** The
+  trigger refuses an Owner's Invite with none, the CASE_MANAGER refuses one that
+  arrives (`OwnerInviteRolesAreGrantableNode`), and
+  the seating node (`_SeatInertInviteeBase`) enforces the same rule.
+- **The Owner's Invite is the decision; the stub Invite is the ask (ADR-0199).** The
+  Case Owner sends its own `Invite(<case preview>)[target=<invitee>]` to the
+  CASE_MANAGER only (CM-17-007). Both share one wire shape, so the received tree tells
+  them apart by path: at the CASE_MANAGER an Invite is the Owner's; anywhere else it is
+  the stub. The CASE_MANAGER ledgers the Owner's Invite and makes the stub with
+  `attributedTo` = the Owner and `inReplyTo` = the Owner's Invite (CM-17-018), through
+  `owner_decided_stub_invite`, which an Owner holding the CASE_MANAGER role runs from
+  its trigger with neither field (CM-17-017). Refused with a notice: a sender without
+  `CASE_OWNER`, a `target` that is the CASE_MANAGER or the Owner, a removed, joined or
+  closed invitee, or no role (CM-17-026). The Owner's `Offer(Actor)` is refused too
+  (CM-17-027), so a recommendation is only ever a suggestion.
 - **Re-invite.** Same record, fresh stub Invite and deadline, `inReplyTo` the earlier
-  stub. Refused for a `CLOSED` participant (no rejoin, ADR-0085) and for one already
-  joined, before anything is queued or committed (`SuggestedActorIsInvitableNode`,
-  CM-16-006). The re-invite arm sits ahead of the duplicate arms, because an inert
-  record is on the roster and its stub is "in flight".
+  stub (CM-11-044 wins over CM-24-020). Refused for a `CLOSED` participant (no rejoin,
+  ADR-0085) and for one already joined, before anything is queued or committed
+  (`not_invitable_refusal`, CM-11-043). The re-invite arm comes first in
+  `owner_decided_stub_invite`, because an inert record is on the roster and needs no
+  second one.
 - **Embargo changes during the invitation window (CM-11-016).** The CASE_MANAGER
   re-issues an *outstanding* stub (unanswered, unexpired) with current terms, naming
   the one it supersedes. `Accept` of a superseded stub is refused with the replacement
@@ -258,7 +271,8 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 
 | What happens | Entry | A replica |
 |---|---|---|
-| the CASE_MANAGER sends the stub Invite | `invite_actor_to_case` | applies nothing |
+| the CASE_MANAGER admits the Case Owner's Invite | `invite_actor_to_case`, the Owner's Invite | applies nothing |
+| the CASE_MANAGER sends the stub Invite | `invite_actor_to_case`, its own Invite | applies nothing |
 | the CASE_MANAGER creates the inert record and adds it to the case | `add_case_participant_to_case`, `Add(CaseParticipant)` with the case as `target` | stores the record carried in the case `target` names |
 | the invitee sends `Accept(Invite(VulnerabilityCase preview)[target=Actor])`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
 | VF to `Vf` (VENDOR role only) | `add_participant_status_to_participant` | stores the status |

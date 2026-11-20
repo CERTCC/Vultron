@@ -4,16 +4,15 @@
     "https://certcc.github.io/Vultron/ns/context.jsonld",
     "https://w3id.org/security/data-integrity/v2"
   ],
-  "type": "Offer",
-  "id": "urn:uuid:05b9f13a-6eae-479e-b129-638c3fb1fd59",
-  "name": "https://vultron.example/organizations/vendorco Offer Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "type": "Invite",
+  "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/owner-invitation/1",
+  "name": "https://vultron.example/organizations/vendorco Invite urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to Coordinator LLC",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
   "to": "https://vultron.example/case-actors/vendorco-case-actor",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
-  "object": {
+  "target": {
     "type": "Organization",
     "id": "https://vultron.example/organizations/coordinator",
     "name": "Coordinator LLC",
@@ -30,7 +29,32 @@
       "items": []
     }
   },
-  "suggestedRoles": [
+  "object": {
+    "type": "VulnerabilityCase",
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "preview": {
+      "id": "urn:uuid:43b52653-5106-4d95-a435-deecdd2d43f4",
+      "type": "CasePreview",
+      "name": "VendorCo Case #20260601",
+      "published": "2026-06-01T19:12:00.000000+00:00",
+      "updated": "2026-06-01T19:12:00.000000+00:00",
+      "summary": "A memory-corruption vulnerability in widget — details shared after acceptance.",
+      "attributedTo": "https://vultron.example/organizations/vendorco",
+      "caseStatuses": [
+        {
+          "id": "urn:uuid:7022c752-7f53-40e6-851b-b6a178f88184",
+          "type": "CaseStatus",
+          "name": "NONE pxa",
+          "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+          "published": "2026-06-01T19:12:00.000000+00:00",
+          "attributedTo": "https://vultron.example/organizations/vendorco",
+          "emState": "NONE",
+          "pxaState": "pxa"
+        }
+      ]
+    }
+  },
+  "roles": [
     "coordinator"
   ],
   "proof": {
@@ -44,6 +68,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2sZJBkuM2GEnwcYCdvW9DMJf8Ukr9TKdemHMGpDuj4ubBEj7mvap9Cdx1wfwGHKrNX3VGCC8pULLBqugBUnJidMJ"
+    "proofValue": "z3UDNBzuG6yLKSBgCAnq1P4NUWR4J1k8fNjw7FsFfm4YL15ftNGWVBxweFwa524kTp3gdfNAjSvjigNFy1cn8S4nx"
   }
 }

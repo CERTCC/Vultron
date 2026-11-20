@@ -266,8 +266,11 @@ class Ledger:
                 "preview": {
                     "id": f"urn:uuid:preview-{invitee}",
                     "type": "CasePreview",
+                    "attributedTo": "https://example.org/actors/vendor",
                     "summary": "A case to join",
-                    "activeEmbargo": embargo(),
+                    "embargoRegister": [
+                        {"embargo": embargo(), "status": "ACTIVE"}
+                    ],
                 },
             },
             "target": {"id": invitee, "type": "Organization"},

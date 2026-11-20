@@ -79,6 +79,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi import inbox_port_factories
 from vultron.adapters.driving.fastapi.ledger_stream import SHUTDOWN_STATE_KEY
 from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -357,4 +358,5 @@ def get_trigger_dispatcher(
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(cop),
         clock=clock,
+        actor_config=inbox_port_factories._resolve_actor_config(),
     )

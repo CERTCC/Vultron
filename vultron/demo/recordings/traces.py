@@ -188,7 +188,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "preferredDuration",
         "preferredUsername",
         # The case and who takes part in it.
-        "activeEmbargo",
         "activeParticipants",
         "caseParticipants",
         "caseReferences",
@@ -207,7 +206,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "proposerCaseRoles",
         "role",
         "roles",
-        "suggestedRoles",
         # States.
         "caseEngagement",
         "caseStatus",
@@ -231,8 +229,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "embargoId",
         "embargoRegister",
         "kind",
-        "offerActorId",
-        "offerId",
         "proposedEmbargo",
         "reason",
         "replaces",

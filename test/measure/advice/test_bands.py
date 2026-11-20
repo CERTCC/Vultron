@@ -29,6 +29,7 @@ from vultron.measure.advice import (
     advise,
     band,
     deciding_parts,
+    deepest_layer,
     dominates,
     harms,
     layers,
@@ -123,6 +124,17 @@ def test_a_layer_is_the_depth_in_the_dominance_order():
         "d": _shift((0, 0), (0, 0)),
     }
     assert layers(shifts) == {"a": 1, "c": 1, "b": 2, "d": 3}
+
+
+@pytest.mark.parametrize(
+    ("depths", "deepest"),
+    [([1, 3, None, 2], 3), ([None, None], 1), ([], 1)],
+    ids=["the deepest layer", "only unhelpful moves", "no move"],
+)
+def test_the_deepest_layer_skips_moves_with_none(depths, deepest):
+    """Every shaded legend runs to the deepest layer of any open move; an
+    unhelpful move has no layer, and a case with none runs to layer 1."""
+    assert deepest_layer(depths) == deepest
 
 
 def test_every_negative_part_is_a_harm_with_its_vendor_and_size():

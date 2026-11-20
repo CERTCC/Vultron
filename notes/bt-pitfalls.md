@@ -186,7 +186,7 @@ the node names (`test_engage_tree_node_names`).
 active path MUST clear it on every no-op path (`None` for a scalar, the empty
 collection for a collection port), or the next execution reads a stale value
 (BT-17-003). Example: `ResolveCaseManagerNode`
-(`sender/nodes/actions.py`) writes `case_manager_id` as `None` on every path
+(`sender/nodes/actions.py`) writes `case_actor_id` as `None` on every path
 that finds no CASE_MANAGER.
 
 - A key the *caller* passes as a `context_data` kwarg is managed and restored; a
@@ -262,8 +262,8 @@ no-case path alone, resolved a leaked case the reporter held a replica of and
 was refused at the path stage as a replica of a case it never named
 (RMB-08-003, HP-01-040). In a single-process run — every demo, every in-process
 integration test — the writer can be a *different actor's* execution, so the
-leak crosses the actor isolation BT-09 asks for. `case_manager_id` and
-`case_actor_id` share the shape and are scoped the same way (#5803). Guards:
+leak crosses the actor isolation BT-09 asks for. `case_actor_id` shares the
+shape and is scoped the same way (#5803). Guards:
 `test_execute_with_setup_does_not_leak_a_published_output_port_key` and
 `test_execute_with_setup_restores_a_preexisting_output_port_key` in
 `test_bridge.py`, one case per scoped key.

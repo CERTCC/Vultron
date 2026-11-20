@@ -27,6 +27,7 @@ argument to :func:`get_datalayer` to override the config value, e.g. for
 """
 
 import logging
+import threading
 
 from vultron.config import get_config
 
@@ -34,9 +35,11 @@ from .datalayer import SqliteDataLayer
 from .engine import (
     dispose_actor_engines,
     fresh_memory_url,
+    get_actor_engine,
     reset_store_claimants,
 )
 from .schema import QueueEntry, VultronObjectRecord
+from .transaction import open_transaction
 
 __all__ = [
     "SqliteDataLayer",
@@ -64,6 +67,21 @@ logger = logging.getLogger(__name__)
 #: after any earlier call for the same actor got the previously-cached on-disk
 #: instance back, silently, and then wrote its fixtures into the real database.
 _actor_instances: dict[tuple[str, str], SqliteDataLayer] = {}
+
+#: Guards ``_actor_instances`` and ``_open_locks``: every read that iterates
+#: the cache and every insert or removal takes it.  Held only for the dict
+#: operation itself, never while a store opens.
+_instances_lock = threading.Lock()
+
+#: One lock per ``_actor_instances`` key, held while that store opens, so a
+#: request thread and a background timer that open one new store at once
+#: open it once (#5999, #6761).  Per key, not one lock for all stores: a
+#: thread inside one store's transaction may open another's store while a
+#: second thread waits on the first store's session lock to open it.
+#: :func:`reset_datalayer` keeps these locks (one small lock per key ever
+#: opened), so an opener still running across a reset and a caller after it
+#: wait on the same lock rather than open the store twice.
+_open_locks: dict[tuple[str, str], threading.Lock] = {}
 
 
 def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
@@ -97,9 +115,40 @@ def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
         )
     _url = db_url if db_url is not None else get_config().database.db_url
     key = (actor_id, _url)
-    if key not in _actor_instances:
-        _actor_instances[key] = SqliteDataLayer(db_url=_url, actor_id=actor_id)
-    return _actor_instances[key]
+    with _instances_lock:
+        found = _actor_instances.get(key)
+        if found is not None:
+            return found
+        open_lock = _open_locks.setdefault(key, threading.Lock())
+    if open_transaction(get_actor_engine(_url, actor_id)) is not None:
+        # This thread holds a transaction on the store, so its open skips
+        # the schema step and needs no open lock.  Waiting on one could
+        # deadlock: another opener holding it may be waiting on the session
+        # lock this thread's transaction holds.
+        return _cache_first(
+            key, SqliteDataLayer(db_url=_url, actor_id=actor_id)
+        )
+    with open_lock:
+        with _instances_lock:
+            found = _actor_instances.get(key)
+        if found is not None:
+            return found
+        return _cache_first(
+            key, SqliteDataLayer(db_url=_url, actor_id=actor_id)
+        )
+
+
+def _cache_first(
+    key: tuple[str, str], opened: SqliteDataLayer
+) -> SqliteDataLayer:
+    """Cache *opened* under *key* unless another opener cached one first.
+
+    Returns the cached instance, so every caller gets the one store instance
+    for *key* (DL-07-015).  A discarded *opened* shares the engine of the one
+    kept, so it is not closed: closing it would dispose that engine.
+    """
+    with _instances_lock:
+        return _actor_instances.setdefault(key, opened)
 
 
 def get_all_actor_datalayers() -> dict[str, SqliteDataLayer]:
@@ -125,8 +174,10 @@ def get_all_actor_datalayers() -> dict[str, SqliteDataLayer]:
     node's own template (DL-07-011).  The last one registered wins and the
     collision is logged rather than passed over.
     """
+    with _instances_lock:
+        cached = list(_actor_instances.items())
     collapsed: dict[str, SqliteDataLayer] = {}
-    for (actor_id, url), instance in _actor_instances.items():
+    for (actor_id, url), instance in cached:
         if actor_id in collapsed:
             logger.warning(
                 "Actor %r has cached DataLayers under more than one db_url;"
@@ -162,14 +213,16 @@ def reset_datalayer(actor_id: str | None = None) -> None:
     """
     instances_to_close: list[SqliteDataLayer] = []
 
-    if actor_id is None:
-        instances_to_close.extend(_actor_instances.values())
-        _actor_instances.clear()
-    else:
-        # Every ``db_url`` this actor was cached under, not just the configured
-        # one: a reset that left one behind would hand the stale store back.
-        for key in [k for k in _actor_instances if k[0] == actor_id]:
-            instances_to_close.append(_actor_instances.pop(key))
+    with _instances_lock:
+        if actor_id is None:
+            instances_to_close.extend(_actor_instances.values())
+            _actor_instances.clear()
+        else:
+            # Every ``db_url`` this actor was cached under, not just the
+            # configured one: a reset that left one behind would hand the
+            # stale store back.
+            for key in [k for k in _actor_instances if k[0] == actor_id]:
+                instances_to_close.append(_actor_instances.pop(key))
 
     for inst in instances_to_close:
         inst.close()

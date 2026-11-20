@@ -13,10 +13,11 @@
 """Every CASE_MANAGER commit made through the inbox is fanned out (#4113).
 
 The inbox dispatcher builds each received use case with the ports its port
-factory returns.  ``OFFER_ACTOR_TO_CASE`` got no ``SyncActivityPort``, so the
-receipt commit (``offer_actor_to_case``) and the owner-direct ``Invite`` it
-commits (``invite_actor_to_case``) were persisted but never announced to the
-participants (SYNC-02-003).  Replicas learned of them only through
+factory returns.  ``OFFER_ACTOR_TO_CASE`` once got no ``SyncActivityPort``, so
+the receipt commit and the stub ``Invite`` the CASE_MANAGER commits for the
+Case Owner's direct invite (now ``INVITE_ACTOR_TO_CASE``, ADR-0199) were
+persisted but never announced to the participants (SYNC-02-003).
+Replicas learned of them only through
 ``Reject(CaseLedgerEntry)`` catch-up, which made the ``rcv-reject`` demo's
 ledger-coverage gate time out.
 
@@ -30,7 +31,6 @@ from typing import Any
 import pytest
 
 from test.support.act_runner import run_dispatch
-from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -40,7 +40,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import recommend_actor_activity
+from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -108,30 +108,28 @@ def _announced(dl: SqliteDataLayer) -> dict[str, set[str]]:
 
 
 @pytest.mark.spec("SYNC-02-003")
-def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
+def test_owner_invite_dispatched_by_inbox_fans_out_every_commit(
     monkeypatch,
 ):
-    """Both commits the owner's Offer(Actor)[target=VulnerabilityCase] makes reach the finder.
+    """Every commit the owner's own Invite makes reaches the finder.
 
-    The finder is a participant that neither sent the Offer nor holds the
-    CASE_MANAGER role, so every entry the CASE_MANAGER commits is announced to
-    it (SYNC-02-003, CM-10-004).
+    The CASE_MANAGER ledgers the Owner's Invite and its own stub Invite
+    (CM-17-018, ADR-0199).  The finder is a participant that neither sent the
+    Invite nor holds the CASE_MANAGER role, so every entry the CASE_MANAGER
+    commits is announced to it (SYNC-02-003, CM-10-004).
     """
     monkeypatch.setattr(
         ih.inbox_port_factories, "_resolve_actor_config", lambda: None
     )
     dl = _case_manager_store()
-    activity = recommend_actor_activity(
+    case = dl.read_case(_CASE_ID)
+    assert case is not None
+    activity = rm_invite_to_case_activity(
         make(as_Actor, id_=_INVITEE_ID),
-        target=make(
-            as_VulnerabilityCase,
-            attributed_to=CASE_OWNER_ID,
-            id_=_CASE_ID,
-            name="FanOutWiring",
-        ),
+        case=case,
+        roles=["vendor"],
         actor=_OWNER_ID,
         to=[_MANAGER_ID],
-        suggested_roles=["vendor"],
         at=authored_at(),
     )
     event = received_event(activity).model_copy(
@@ -147,7 +145,8 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
         if isinstance(obj, CaseLedgerEntry)
     ]
     semantic_types = {entry.semantic_type for entry in entries}
-    assert {"offer_actor_to_case", "invite_actor_to_case"} <= semantic_types
+    assert "invite_actor_to_case" in semantic_types
+    assert len(entries) >= 3, [e.semantic_type for e in entries]
 
     announced = _announced(dl)
     for entry in entries:

@@ -21,11 +21,9 @@ tracks:
   - "#6408"   # PR may not close a ratchet's open owner
   - "#6409"   # typed term for every Vultron field
   - "#6422"   # term check and owned ratchets
-  - "#6413"   # vulnerability item title -> name
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
   - "#6418"   # profile cites Controlled Identifiers context
-  - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
   - "#6481"   # embargo stores its status; register is a list (slice of #6246)
@@ -273,14 +271,11 @@ which this object is considered a response".
 
 **Today.** `Remove(Note)` and `Remove(EmbargoEvent)` name the case in `origin`,
 and `ActivityPattern.origin_` matches it as `target_` matches `target` (#6463);
-`Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`; `offerId` /
-`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`.
+`Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`;
+`Add(VulnerabilityReport)` and `CaseProposal` name the report Offer in `inReplyTo`
+(#6419).
 
-**Term-check owner.** #6419 owns `offerId`/`offerActorId` in the #6253 term-check
-ratchet, so the entry keeps an open owner. Planning this section adopts #6419
-for that field rather than filing a second Task.
-
-**Touches.** CM-16-004, CP-01-007, CM-24-002, CM-24-012, the delegated-authorship
+**Touches.** CM-16-004, CM-24-002, CM-24-012, the delegated-authorship
 helper `vultron/core/behaviors/delegated_authorship.py`. The Owner's
 `Remove(<Actor>, origin=<case>)` (§ "The Owner Sends Its Removal or
 Reinstatement") matches on `origin_`.
@@ -524,10 +519,12 @@ the CASE_MANAGER would keep its record under the Owner's id; the CASE_MANAGER's 
 Offer answers both.
 
 **Today.** `Offer(Offer(VulnerabilityCase))` and `notes/ownership-transfer.md`; the
-direct invite trigger is `vultron/core/use_cases/triggers/actor/recommendation.py`,
-and the Owner-recommender branch is
-`vultron/core/behaviors/case/suggest_actor_tree/recommend.py` (CM-17-018). The
-embargo relay is `vultron/core/behaviors/embargo/invite_received_tree.py`.
+direct invite is built (#6697): the trigger in
+`vultron/core/use_cases/triggers/actor/recommendation.py` sends the Owner's Invite,
+the CASE_MANAGER's tree is `invite_actor_to_case_received_tree.py` with its nodes in
+`vultron/core/behaviors/case/nodes/owner_invite.py` (CM-17-018, CM-17-026), and the
+Owner-recommender branch is retired (CM-17-027). The embargo relay is
+`vultron/core/behaviors/embargo/invite_received_tree.py`.
 `inReplyTo` on every delegated emit is #6464.
 
 **Touches.** CM-21 (014 to 021, 025 to 029, 036, 037, 044), CM-17 (007, 017, 018,
@@ -583,30 +580,25 @@ data-integrity v2 and Multikey v1. CID v1 is pinned but not cited, so the
 profile's `assertionMethod` has no term until #6418 cites it. Each field the check
 refuses today is an entry in its owner's ratchet in
 `test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
-resolves to the marked one's meaning until its owner renames it: the item `title`
-takes the note's (#6413), and the item's `notes` takes the case's list of Note
-ids (#6416). The check walks computed fields too, so the case's
-derived `activeParticipants` is marked.
+resolves to the marked one's meaning until its owner renames it: the item's `notes`
+takes the case's list of Note ids (#6416). The check walks computed fields too, so
+the case's derived `activeParticipants` is marked.
 
 **Field review.** Each row names the Task that fixes it. A row is a ratchet entry
-only when a rule refuses the field. The note's `audience` and
-`roles`/`suggestedRoles` break no rule (the first is an AS2 term, the last a
-judgment no check can make), so their owners' own acceptance criteria track
-them.
+only when a rule refuses the field. The note's `audience` breaks no rule (it is
+an AS2 term), so its owner's own acceptance criteria track it. An Offer and an
+Invite carry the roles they propose in one field, `roles`, declared on
+`as_Offer` and inherited by `as_Invite` (#6417).
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
-| `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
 | `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
-| `roles` (`as_Invite`), `suggestedRoles` (`as_Offer`) | two names, one meaning | one name | #6417 |
-| `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
-Every other field is a Vultron term. `title` is a clash only until #6413 renames the
-item's. `state`, `status` and `kind` are each used once on the wire, and
-`caseStatus` is one meaning in two shapes (an object or a link), so none of them is
-a clash.
+Every other field is a Vultron term. `state`, `status` and `kind` are each used once
+on the wire, and `caseStatus` is declared once, on a participant status, so none of
+them is a clash.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
 EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context
@@ -742,7 +734,7 @@ types are URIs. CORE §4.2: Link properties are hints about the referenced resou
 type, and only `related` is IANA-registered, so it stays a bare name. The wire
 `as_Link.rel` takes one value or a list, because `rel` is not functional.
 
-**Touches.** CM-05-004, CM-05-005, CM-05-010, CM-05-012, CM-34-003, CSAF-03-009, and
+**Touches.** CM-05-004, CM-05-005, CM-05-012, CM-34-003, CSAF-03-009, and
 a future FIRST VRDX-SIG vxref Idea (`FIRSTdotorg/vrdx-sig-vxref-wip`), which may
 supply more `rel` values. A new value joins `CVE_REFERENCE_TAG_RELS` (or the
 vocabulary beside it) and the `docs/ns/` relation table together.

@@ -46,8 +46,12 @@ _PREVIEWED_CASE = {
     "preview": {
         "id": "urn:uuid:preview",
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "summary": "A case to join",
-        "caseStatus": _STATUS,
+        "caseStatuses": [_STATUS],
+        "embargoRegister": [
+            {"embargo": "https://example.org/embargoes/e1", "status": "ACTIVE"}
+        ],
     },
 }
 

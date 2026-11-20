@@ -117,6 +117,7 @@ def _full_case(**fields: Any) -> dict[str, Any]:
 def _stub_invite(**stub_fields: Any) -> dict[str, Any]:
     stub = {
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "id": "urn:uuid:case-1-preview",
         "summary": "Security issue — details after acceptance",
         **stub_fields,
@@ -182,6 +183,7 @@ def test_one_refusal_names_every_misplaced_form() -> None:
     (EH-07-001), not the first one alone."""
     preview = {
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "id": "urn:uuid:misplaced-preview",
         "summary": "a case",
     }
@@ -223,10 +225,10 @@ MARKED_PREVIEW_FIELDS: dict[str, tuple[dict[str, Any], Any]] = {
     "nested object field": (
         {
             "vulnerabilityItems": [
-                {"type": "VulnerabilityItem", "title": MARKER}
+                {"type": "VulnerabilityItem", "name": MARKER}
             ]
         },
-        lambda preview: preview.vulnerability_items[0].title,
+        lambda preview: preview.vulnerability_items[0].name,
     ),
     "nested value field": (
         {
@@ -235,7 +237,9 @@ MARKED_PREVIEW_FIELDS: dict[str, tuple[dict[str, Any], Any]] = {
                     "status": "ACTIVE",
                     "embargo": {"type": "EmbargoEvent", "endTime": MARKER},
                 }
-            ]
+            ],
+            # An embargo in force is shown with its EM state (CM-17-013).
+            "caseStatuses": [{"type": "CaseStatus", "emState": "ACTIVE"}],
         },
         lambda preview: preview.embargo_register[0].embargo.end_time,
     ),
@@ -290,7 +294,7 @@ CUT_DOWN_OBJECTS: dict[str, dict[str, Any]] = {
         ]
     },
     "status cut to its EM state": {
-        "caseStatuses": [{"type": "CaseStatus", "emState": "ACTIVE"}]
+        "caseStatuses": [{"type": "CaseStatus", "emState": "EXITED"}]
     },
     "case reference shown whole": {
         "caseReferences": [
@@ -525,6 +529,16 @@ CUT_PREVIEW: dict[str, Any] = {
             "emState": "ACTIVE",
         }
     ],
+    "embargoRegister": [
+        {
+            "embargo": {
+                "type": "EmbargoEvent",
+                "id": "urn:uuid:embargo-1",
+                "endTime": "2026-12-01T00:00:00.000000+00:00",
+            },
+            "status": "ACTIVE",
+        }
+    ],
     "vulnerabilityItems": [
         {
             "type": "VulnerabilityItem",
@@ -590,7 +604,8 @@ TYPELESS_EXTRAS: dict[str, tuple[dict[str, Any], str, str]] = {
                     "status": "ACTIVE",
                     "embargo": {"type": "EmbargoEvent", "id": "urn:uuid:e1"},
                 }
-            ]
+            ],
+            "caseStatuses": [{"type": "CaseStatus", "emState": "ACTIVE"}],
         },
         "summary",
         "object.preview.embargoRegister[0]",
@@ -642,6 +657,7 @@ def test_a_case_preview_inside_a_preview_is_refused() -> None:
     preview nested inside it is misplaced, naming its path."""
     nested = {
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "id": "urn:uuid:another-preview",
         "summary": "another case",
     }
@@ -659,9 +675,11 @@ def test_a_typeless_status_is_written_back_with_its_type() -> None:
     """A dict a field reads as its loose form takes that form's ``type``, so
     the preview dumps it with one: the content survives, and the type is the
     one the field already implied."""
-    status = {"emState": "ACTIVE"}
+    status = {"emState": "NONE"}
 
-    preview = _preview_of(parse_activity(_stub_invite(caseStatus=status)))
+    preview = _preview_of(parse_activity(_stub_invite(caseStatuses=[status])))
 
     dumped = preview.model_dump(by_alias=True, exclude_none=True, mode="json")
-    assert dumped["caseStatus"] == {"type": "CaseStatus", "emState": "ACTIVE"}
+    assert dumped["caseStatuses"] == [
+        {"type": "CaseStatus", "emState": "NONE"}
+    ]

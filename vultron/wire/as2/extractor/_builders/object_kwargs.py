@@ -128,7 +128,6 @@ def _build_activity_snapshot(
         expected_sender_sequence=getattr(
             activity, "expected_sender_sequence", None
         ),
-        suggested_roles=getattr(activity, "suggested_roles", None) or None,
         roles=getattr(activity, "roles", None) or None,
         termination_cause=getattr(activity, "termination_cause", None),
         end_time=end_time,

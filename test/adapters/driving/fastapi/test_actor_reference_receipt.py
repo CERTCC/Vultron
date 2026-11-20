@@ -31,6 +31,7 @@ import pytest
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
+    seed_case_participant,
 )
 from test.support.objects import authored_at, make
 from test.support.received import delivered_body
@@ -52,6 +53,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor-ref"
 _VENDOR_ID = "https://example.org/users/vendor-ref"
 _PEER_ID = "https://example.org/users/peer-ref"
+#: The participant that suggests the peer: not the Case Owner, which invites
+#: with its own Invite instead (CM-17-007, ADR-0199).
+_SUGGESTER_ID = "https://example.org/users/finder-ref"
 _CASE_ID = "https://example.org/cases/case-ref"
 
 
@@ -78,6 +82,7 @@ def case_actor_dl() -> Iterator[SqliteDataLayer]:
     )
     seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
     seed_case_owner_participant(dl, case, _VENDOR_ID)
+    seed_case_participant(dl, case, _SUGGESTER_ID)
     dl.create(case)
     dl.create(make(as_Organization, id_=_PEER_ID, name="Peer Co"))
     yield dl
@@ -90,9 +95,9 @@ def _recommendation_with_reference() -> dict[str, Any]:
     offer = recommend_actor_activity(
         recommended=_PEER_ID,
         target=_CASE_ID,
-        actor=_VENDOR_ID,
+        actor=_SUGGESTER_ID,
         to=[_CASE_ACTOR_ID],
-        suggested_roles=["vendor"],
+        roles=["vendor"],
         at=authored_at(),
     )
     # The reference replaces the full profile the factory inlines, so the
