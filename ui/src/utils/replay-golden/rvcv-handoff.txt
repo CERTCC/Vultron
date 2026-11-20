@@ -36,8 +36,8 @@ Case          EM ACTIVE → EXITED; PXA pxa → Pxa
 06  Vendor        Vendor added a note to the case
       Add(Note)[target=VulnerabilityCase] · Note: "Vendor Response" · Yes, disabling the affected module is an effective interim workaround.
       → Reporter, Case Manager
-07  Vendor        Vendor suggested Coordinator for the case
-      Offer(Actor)[target=VulnerabilityCase]
+07  Vendor        Vendor invited Coordinator to the case
+      Invite(VulnerabilityCase preview)[target=Actor]
       → Reporter, Case Manager
 08  Vendor        Vendor invited Coordinator to the case
       Invite(VulnerabilityCase preview)[target=Actor]
@@ -54,8 +54,8 @@ Case          EM ACTIVE → EXITED; PXA pxa → Pxa
 12  Coordinator   Coordinator accepted case ownership
       Accept(Offer(VulnerabilityCase))
       → Reporter, Vendor, Case Manager
-13  Coordinator   Coordinator suggested Vendor 2 for the case
-      Offer(Actor)[target=VulnerabilityCase]
+13  Coordinator   Coordinator invited Vendor 2 to the case
+      Invite(VulnerabilityCase preview)[target=Actor]
       → Reporter, Vendor, Case Manager
 14  Coordinator   Coordinator invited Vendor 2 to the case
       Invite(VulnerabilityCase preview)[target=Actor]
