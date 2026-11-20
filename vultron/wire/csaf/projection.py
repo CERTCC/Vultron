@@ -52,7 +52,8 @@ value the preview shows because CSAF cannot express it.
   ``confirmation`` by the invitee, and a participant in RM ``DEFERRED`` gives
   a ``deferred`` ``assessment``, or a ``coordination`` once it had accepted
   the report.  A participant that has left, removed or in RM ``CLOSED``,
-  answers nothing more, so each of its open actions is ``discontinued``.
+  answers nothing more, so each of its open actions is ``discontinued``,
+  a deferral it closed the report from included.
 
 The document is built with the generated models (CSAF-05-002).  This module
 imports only core models (ARCH-22-001).
@@ -621,22 +622,39 @@ def _unanswered_invitations(
             yield status
 
 
+def _run_start(
+    history: Sequence[tuple[object, object]], end: int, state: RM
+) -> int:
+    """The index at which the run of *state* that ends just before *end*
+    starts: *end* itself when ``history[end - 1]`` is not *state*."""
+    while end > 0 and history[end - 1][0] == state:
+        end -= 1
+    return end
+
+
 def _deferral(
     history: Sequence[tuple[object, object]],
 ) -> tuple[str, object] | None:
     """The category and start time of the deferral *history* ends in, or
-    ``None`` when its current RM state is not ``DEFERRED``.
+    that the participant closed the report from; ``None`` when there is
+    none.
 
     A participant that had accepted the report defers its coordination;
     one that had not, its assessment of what to do with the valid report.
     """
-    run = len(history)
-    while run > 0 and history[run - 1][0] == RM.DEFERRED:
-        run -= 1
-    if run == len(history):
+    closed = _run_start(history, len(history), RM.CLOSED)
+    run = _run_start(history, closed, RM.DEFERRED)
+    if run == closed:
         return None
     accepted = any(state == RM.ACCEPTED for state, _ in history[:run])
     return ("coordination" if accepted else "assessment"), history[run][1]
+
+
+def _closed_at(history: Sequence[tuple[object, object]]) -> object:
+    """The time of the status that closed the report, when *history* ends
+    in RM ``CLOSED``; ``None`` otherwise."""
+    closed = _run_start(history, len(history), RM.CLOSED)
+    return history[closed][1] if closed < len(history) else None
 
 
 def _state_actions(
@@ -647,8 +665,10 @@ def _state_actions(
     participants.
 
     An action's date is when the state it derives from began, when the
-    preview shows that time, else the commit time of the position: a
-    consent row carries no time.  No clock is read (ADR-0176).
+    preview shows that time, else the commit time of the position.  A
+    deferral began with its first ``DEFERRED`` status; a ``discontinued``
+    action, when its participant closed the report.  A consent row and the
+    removal fact carry no time.  No clock is read (ADR-0176).
     """
     answerable = _answerable_embargoes(preview)
     actions: list[_StateAction] = []
@@ -659,13 +679,14 @@ def _state_actions(
         history = _rm_history(participant)
         current = history[-1][0] if history else None
         left = _has_left(participant, current)
+        left_date = _act_date(_closed_at(history), None) or position_date
         for embargo in _unanswered_invitations(participant, answerable):
             actions.append(
                 _StateAction(
                     actor=actor,
                     category="confirmation",
                     status="discontinued" if left else "outstanding",
-                    date=position_date,
+                    date=left_date if left else position_date,
                     embargo=embargo,
                 )
             )
@@ -677,7 +698,11 @@ def _state_actions(
                     actor=actor,
                     category=category,
                     status="discontinued" if left else "deferred",
-                    date=_act_date(began, None) or position_date,
+                    date=(
+                        left_date
+                        if left
+                        else _act_date(began, None) or position_date
+                    ),
                 )
             )
     return actions

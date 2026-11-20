@@ -334,10 +334,10 @@ def test_a_removed_participant_discontinues_its_open_actions() -> None:
         ),
         STATE_ACTION_SUMMARIES[("coordination", "discontinued")],
     ]
-    # The deferral keeps its own time; the invitation, the position's.
+    # The removal fact carries no time, so both are dated at the position.
     assert [datetime.fromisoformat(a["date"]) for a in actions] == [
         COMMITTED_AT,
-        _at(3),
+        COMMITTED_AT,
     ]
     assert csaf_schema_validator().is_valid(rendered)
 
@@ -357,6 +357,36 @@ def test_a_closed_participant_discontinues_its_open_invitation() -> None:
         "confirmation",
         "discontinued",
     )
+    # Dated when the participant closed the report: the third status.
+    assert datetime.fromisoformat(action["date"]) == _at(3)
+
+
+@pytest.mark.spec("CSAF-06-010")
+@pytest.mark.parametrize(
+    ("rm", "category"),
+    [
+        ((RM.VALID, RM.DEFERRED, RM.CLOSED), "assessment"),
+        ((RM.ACCEPTED, RM.DEFERRED, RM.DEFERRED, RM.CLOSED), "coordination"),
+    ],
+    ids=["before-accepting", "after-accepting"],
+)
+def test_closing_the_report_from_a_deferral_discontinues_it(
+    rm: tuple[RM, ...], category: str
+) -> None:
+    rendered = _render(_vendor(rm=rm))
+
+    (action,) = _state_actions(rendered)
+    assert (action["category"], action["status"]) == (
+        category,
+        "discontinued",
+    )
+    assert datetime.fromisoformat(action["date"]) == _at(len(rm))
+
+
+def test_closing_the_report_after_accepting_gives_no_action() -> None:
+    rendered = _render(_vendor(rm=(RM.VALID, RM.ACCEPTED, RM.CLOSED)))
+
+    assert _state_actions(rendered) == []
 
 
 def test_a_removed_participant_with_nothing_open_gives_no_action() -> None:
@@ -528,3 +558,38 @@ def test_a_shown_deferral_with_a_withheld_time_is_dated_at_the_position() -> (
     (action,) = _state_actions(_rendered(preview))
     assert action["status"] == "deferred"
     assert datetime.fromisoformat(action["date"]) == COMMITTED_AT
+
+
+def _with_register(entry: dict[str, Any]) -> CasePreview:
+    preview = _parsed_participant()
+    data = preview.model_dump(mode="json", by_alias=True, exclude_none=True)
+    data["embargoRegister"] = [entry]
+    return CasePreview.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"embargo": _EMBARGO.id_, "status": {"type": "Redacted"}},
+        {"embargo": {"type": "Redacted"}, "status": "ACTIVE"},
+    ],
+    ids=["status", "embargo"],
+)
+def test_a_withheld_register_value_opens_no_invitation(
+    entry: dict[str, Any],
+) -> None:
+    assert _state_actions(_rendered(_with_register(entry))) == []
+
+
+def test_a_withheld_row_embargo_opens_no_invitation() -> None:
+    preview = _parsed_participant(
+        embargoConsents=[
+            {
+                "type": "EmbargoConsent",
+                "embargoId": {"type": "Redacted"},
+                "state": "INVITED",
+            }
+        ]
+    )
+
+    assert _state_actions(_rendered(preview)) == []

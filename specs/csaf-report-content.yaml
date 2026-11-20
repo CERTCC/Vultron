@@ -1000,14 +1000,14 @@ groups:
     kind: project
     statement: >-
       The status of each `document.involvement` action of a CSAF projection MUST
-      be `completed` for a ledger fact. For the state at the preview's ledger
-      position it MUST be `outstanding` on a `confirmation` by an invitee that
-      has not answered an invitation to an embargo the register shows as
-      proposed or in force, and `deferred` on an `assessment` by a participant
-      in RM `DEFERRED`, or on a `coordination` once it had accepted the report;
-      each such action MUST be `discontinued` instead when its participant has
-      left the case, removed or in RM `CLOSED`. An action MUST NOT be
-      `attempted` or `planned`.
+      be `completed` for a ledger fact. An invitee's unanswered invitation to an
+      embargo that the register shows as proposed or in force MUST give an
+      `outstanding` `confirmation`. A participant in RM `DEFERRED` MUST give a
+      `deferred` `assessment`, or a `deferred` `coordination` once it had
+      accepted the report. Each such action MUST be `discontinued` instead when
+      its participant has left the case, by removal or RM `CLOSED`. A deferral
+      that the participant closed the report from MUST also be `discontinued`.
+      An action MUST NOT be `attempted` or `planned`.
     rationale: >-
       A ledger entry records a completed act, and the open work at the position
       is read from the participants the preview shows: their consent rows,
@@ -1034,8 +1034,9 @@ groups:
       to a rejected, cancelled or replaced version gives no action;
       `::test_a_deferred_participant_gives_a_deferred_action` checks the
       category before and after accepting the report;
-      `::test_a_removed_participant_discontinues_its_open_actions` and
-      `::test_a_closed_participant_discontinues_its_open_invitation` check
+      `::test_a_removed_participant_discontinues_its_open_actions`,
+      `::test_a_closed_participant_discontinues_its_open_invitation` and
+      `::test_closing_the_report_from_a_deferral_discontinues_it` check
       `discontinued`; and `::test_no_action_is_attempted_or_planned` checks
       every status of a projection with open and left work.
   - id: CSAF-06-011
