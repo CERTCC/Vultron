@@ -201,6 +201,15 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "trackingId",
         "vulnerabilityItems",
         "vulnerabilityReports",
+        # The case inputs a proposal states (CP-01-022).  A stated
+        # disclosure date is the proposer's, not the clock's, so it is
+        # compared; its value reads as a placeholder like any timestamp.
+        "attacksObserved",
+        "caseInputs",
+        "disclosureDate",
+        "exploitPublic",
+        "proposedItems",
+        "referenceLinks",
         # Roles.
         "caseRoles",
         "cvdRole",
