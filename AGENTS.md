@@ -74,8 +74,8 @@ Streamlit, shadow tool only: ADR-0192).
 - Wire-layer naming (as\_ prefix, trailing underscore, pattern objects) →
   see [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
   **Critical**: for a *domain* type, `as_VulnerabilityCase` and
-  `VulnerabilityCase` are the same class — ARCH-25-003 (ADR-0211) aliased all 27
-  paired names onto core. The prefix still marks a real wire class for
+  `VulnerabilityCase` are the same class — ARCH-25-003 (ADR-0211) aliases every
+  paired name onto core. The prefix still marks a real wire class for
   unpaired AS2 vocabulary (`as_Link`, …). See ARCH-14-001.
 - Use-case / handler naming (Received suffix, Svc prefix, \_trigger suffix)
   → see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)

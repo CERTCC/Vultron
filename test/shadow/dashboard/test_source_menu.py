@@ -11,6 +11,7 @@ from collections.abc import Iterator
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from test.shadow.dashboard._support import TIMEOUT, texts
 from test.support.case_reader import (
     FAKE_CASE,
     FakeCaseReader,
@@ -35,9 +36,6 @@ from vultron.shadow.dashboard.source_menu import (
 )
 from vultron.shadow.readers import CaseSource, selection
 
-#: Seconds one script run may take; the first run imports the measures.
-_TIMEOUT = 60
-
 #: The settings the Compose service runs with when the shell sets none.
 _COMPOSE = {"VULTRON_SHADOW__LEDGER_DIR": str(RECORDINGS_DIR)}
 
@@ -47,13 +45,9 @@ _VINCE = {
 }
 
 
-def _texts(elements) -> list[str]:
-    return [str(element.value) for element in elements]
-
-
 def _app(**env: str) -> Iterator[AppTest]:
     with config_override(**{**_COMPOSE, **env}):
-        yield AppTest.from_file(str(APP_PATH), default_timeout=_TIMEOUT)
+        yield AppTest.from_file(str(APP_PATH), default_timeout=TIMEOUT)
 
 
 @pytest.fixture(autouse=True)
@@ -101,7 +95,7 @@ def test_the_page_opens_on_the_recorded_demo_cases(app):
     assert "rv/case-actor.jsonl" in case_box.options
     case_box.select("rv/case-actor.jsonl").run()
     assert not at.exception
-    assert "Participants" in _texts(at.subheader)
+    assert "Participants" in texts(at.subheader)
 
 
 def test_the_menu_lists_the_recordings_vince_and_a_running_node(vince_app):
@@ -132,7 +126,7 @@ def test_choosing_a_node_reads_through_the_live_reader(app, monkeypatch):
     at.text_input(key=CASE_KEY).input(FAKE_CASE).run()
     assert not at.exception
     assert built == [("http://menu-test:7999/api/v2", "case-actor")]
-    assert "Participants" in _texts(at.subheader)
+    assert "Participants" in texts(at.subheader)
 
 
 def test_switching_sources_drops_the_case_and_its_kept_reading(app):
@@ -140,16 +134,16 @@ def test_switching_sources_drops_the_case_and_its_kept_reading(app):
     at a point picked in it (#6671)."""
     at = app.run()
     at.selectbox[0].select("rv/case-actor.jsonl").run()
-    assert "Participants" in _texts(at.subheader)
+    assert "Participants" in texts(at.subheader)
     at.session_state[LAST_READING_KEY] = ("rv/case-actor.jsonl", None)
     at.session_state[POINT_KEY] = ("rv/case-actor.jsonl", 2)
     _choose(at, CaseSource.NODE)
     assert LAST_READING_KEY not in at.session_state
     assert POINT_KEY not in at.session_state
-    assert "Participants" not in _texts(at.subheader)
+    assert "Participants" not in texts(at.subheader)
     _choose(at, CaseSource.RECORDINGS)
     assert at.selectbox[0].value is None
-    assert "Enter a case to see where it stands." in _texts(at.info)
+    assert "Enter a case to see where it stands." in texts(at.info)
 
 
 @pytest.mark.spec("SHD-02-003")
@@ -158,8 +152,8 @@ def test_vince_cannot_be_chosen_without_its_url_and_credential(app):
     at = app.run()
     assert _menu(at).options[1].endswith("(not set up)")
     _choose(at, CaseSource.OUTSIDE)
-    assert VINCE_NOT_SET_UP in _texts(at.sidebar.info)
-    assert NO_SOURCE_NOTE in _texts(at.info)
+    assert VINCE_NOT_SET_UP in texts(at.sidebar.info)
+    assert NO_SOURCE_NOTE in texts(at.info)
     assert not at.selectbox and not at.text_input
 
 
@@ -237,10 +231,10 @@ def test_a_typed_node_the_settings_refuse_is_refused_unread(
     at.text_input(key=NODE_URL_KEY).input(url)
     at.text_input(key=NODE_ACTOR_KEY).input(actor_id).run()
     assert not at.exception
-    (error,) = _texts(at.sidebar.error)
+    (error,) = texts(at.sidebar.error)
     assert reason in error
     assert "secret" not in error
-    assert NO_SOURCE_NOTE in _texts(at.info)
+    assert NO_SOURCE_NOTE in texts(at.info)
     assert CASE_KEY not in {box.key for box in at.text_input}
 
 
@@ -257,13 +251,13 @@ def test_switching_nodes_drops_the_reading_kept_for_the_first(
     at.text_input(key=NODE_URL_KEY).input("http://node-one:7999/api/v2")
     at.text_input(key=NODE_ACTOR_KEY).input("case-actor").run()
     at.text_input(key=CASE_KEY).input(FAKE_CASE).run()
-    assert "Participants" in _texts(at.subheader)
+    assert "Participants" in texts(at.subheader)
     at.session_state[LAST_READING_KEY] = (FAKE_CASE, None)
     at.text_input(key=NODE_URL_KEY).input("http://node-two:7999/api/v2").run()
     assert not at.exception
     assert LAST_READING_KEY not in at.session_state
     assert at.text_input(key=CASE_KEY).value == ""
-    assert "Participants" not in _texts(at.subheader)
+    assert "Participants" not in texts(at.subheader)
 
 
 def test_another_connector_is_offered_by_its_name():

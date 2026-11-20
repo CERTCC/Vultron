@@ -3,7 +3,6 @@ title: "The Report Receiver States a CSAF Report's Case Inputs on Its Proposal"
 status: draft
 kind: plan
 tracks:
-  - "#6722"
   - "#6723"
   - "#6725"
   - "#5130"
@@ -15,12 +14,13 @@ description: >
   own reading of the document kept as the fallback; the CASE_MANAGER judges every
   embargo date when it builds the case, and records a passed one as an embargo
   that was in force and has ended. Holds the requirement text the implementation
-  adds to specs/case-proposal.yaml and specs/embargo-policy.yaml (ADR-0184).
+  adds to specs/embargo-policy.yaml (ADR-0184).
 related_specs:
   - specs/case-proposal.yaml
   - specs/csaf-report-content.yaml
   - specs/embargo-policy.yaml
 related_notes:
+  - notes/affected-products.md
   - notes/csaf-report-content.md
   - notes/case-proposal.md
   - notes/embargo-default-semantics.md
@@ -35,16 +35,19 @@ relevant_packages:
 # The Report Receiver States a CSAF Report's Case Inputs on Its Proposal
 
 The report receiver converts the CSAF report it received into the case inputs of
-its `CaseProposal`, and the CASE_MANAGER applies them (ADR-0184). Nothing here
-is built yet.
+its `CaseProposal`, and the CASE_MANAGER applies them (ADR-0184). The
+CASE_MANAGER's side is built; the receiver's conversion (#6723) and a passed
+end recorded as an ended embargo (#6725) are not.
 
 ## Who Computes What
 
 - **The receiver converts once, and the owner may edit.** One core function takes
   the stored claims reading, the report and the Offer, and returns a core
-  `CaseProposal` whose `caseInputs` are filled by `case_inputs_from_claims`. The
-  receiver may change that proposal before the adapter renders it. Core builds no
-  `as_CaseProposal` (ARCH-01-001); the core model pairs with it (ARCH-25-003).
+  `CaseProposal` whose `caseInputs` are filled by
+  `proposed_case_inputs_from_claims`, the half of the mapping that judges no date.
+  The receiver may change that proposal before the adapter renders it. Core builds
+  no wire object (ARCH-01-001); `as_CaseProposal` is the core `CaseProposal`
+  (ARCH-25-003), and `caseInputs` is its `ProposedCaseInputs`.
 - **The receiver passes dates along unjudged.** `caseInputs` carries the earliest
   `vulnerabilities[].disclosure_date` as the document states it, and no P. Whether
   the date has passed is decided when the case is built, which can be well after
@@ -93,25 +96,8 @@ These land with the code that tests them, so no requirement states a rule a test
 does not check. Each cites ADR-0184. The IDs are the next free ones at planning
 time; re-check them against `origin/main` before landing.
 
-In `specs/case-proposal.yaml`, group CP-01 (#6722, #6723):
-
-- CP-01-022, MAY, `protocol`: A `CaseProposal` MAY carry, as `caseInputs`, the
-  starting content its proposer states for the case: its name, summary, whether
-  an exploit is public (X), whether attacks are observed (A), its vulnerability
-  items, its case references and the earliest CSAF disclosure date.
-- CP-01-023, MUST, `protocol`: A proposer MUST carry the CSAF disclosure date in
-  `caseInputs` as the document states it, and MUST NOT state in `caseInputs`
-  whether the vulnerability is public.
-- CP-01-024, MUST, `protocol`: When a proposal carries `caseInputs`, the
-  CASE_MANAGER MUST build the new case from them and MUST NOT read a CSAF
-  document on the proposal's carried Offer.
-- CP-01-025, MAY, `protocol`: When a proposal carries no `caseInputs`, the
-  CASE_MANAGER MAY fill the case inputs from the CSAF document on the carried
-  Offer (CSAF-02-001, CSAF-03).
-- CP-01-026, MUST, `project`: In this implementation, a report receiver MUST send
-  `caseInputs` on a proposal whose initial report carries a CSAF document of
-  category `csaf_vulnerability_report`, and the CASE_MANAGER MUST apply
-  CP-01-025 to a proposal that carries none.
+CP-01-022 to CP-01-029 are in `specs/case-proposal.yaml`; CP-01-026, the
+receiver sending `caseInputs`, is held by a strict `xfail` until #6723 builds it.
 
 Issue #6723 also rewrites the CSAF-02-001 note in
 `specs/csaf-report-content.yaml`. It says the proposer's own record keeps every

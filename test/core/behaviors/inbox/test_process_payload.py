@@ -18,16 +18,20 @@ BT node helpers (IO-04-002).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import contextlib
 import logging
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, cast
 
+import py_trees
 import pytest
+from py_trees.common import Access, Status
 from pydantic import ValidationError
 
 from test.support import stub_invite_arrival
 from test.support.act_clock import tree_lock_held
+from test.support.blackboard_registry import registry_snapshot
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
 from test.support.received import case_stub, delivered_body, stamped
@@ -52,6 +56,7 @@ from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.inbox import (
     InboxOutcome,
     InboxOutcomeStatus,
+    _process_payload as _process_payload_module,
     process_payload,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -365,6 +370,94 @@ class TestProcessPayloadHappyPath:
         assert outcome.status == "processed"
         assert outcome.failure_reason is None
         assert len(dispatch.dispatched) == 1
+
+    @pytest.mark.spec("BT-25-004")
+    @pytest.mark.parametrize(
+        ("fail_parse", "dispatch_raises"),
+        [(False, False), (True, False), (False, True)],
+        ids=["processed", "rejected", "dispatch-raises"],
+    )
+    def test_leaves_no_blackboard_client_registered(
+        self, report_activity, fail_parse, dispatch_raises
+    ):
+        """The pipeline releases every client its run registered (#6727).
+
+        Its input and outcome clients and each node's client stay in
+        py_trees' process-global registry otherwise, one set per delivery,
+        for the life of the process.
+        """
+        ingress = _StubIngressAdapter(
+            activity=None if fail_parse else report_activity,
+            fail_parse=fail_parse,
+        )
+        before = registry_snapshot()
+
+        process_payload(
+            {},
+            ingress,
+            _StubDispatchAdapter(should_fail=dispatch_raises),
+            arrived_at=SystemClock().now(),
+        )
+
+        gained = registry_snapshot().gained_since(before)
+        assert not gained, gained.describe()
+
+    @pytest.mark.spec("BT-25-004")
+    @pytest.mark.parametrize("raises_in", ["update", "setup"])
+    def test_a_run_that_raises_leaves_no_blackboard_client_registered(
+        self, monkeypatch, report_activity, raises_in
+    ):
+        """A tree that raises out of a tick or a setup still releases (#6727).
+
+        ``DispatchNode`` turns a raising dispatch into a rejection, so the
+        raise here comes from the tree itself: one node holds a client it
+        attached when it was built, the next raises.  A tick's raise is the
+        run's FAILURE; a setup's raise propagates, as it did before.
+        """
+
+        class _AttachesWhenBuilt(py_trees.behaviour.Behaviour):
+            def __init__(self) -> None:
+                super().__init__(name="AttachesWhenBuilt")
+                client = self.attach_blackboard_client(name=self.name)
+                client.register_key("raises_probe", Access.READ)
+
+            def update(self) -> Status:
+                return Status.SUCCESS
+
+        class _Raises(py_trees.behaviour.Behaviour):
+            def setup(self, **kwargs: Any) -> None:
+                if raises_in == "setup":
+                    raise RuntimeError("setup raised")
+
+            def update(self) -> Status:
+                raise RuntimeError("tick raised")
+
+        monkeypatch.setattr(
+            _process_payload_module,
+            "create_inbox_bt",
+            lambda actor_config=None: py_trees.composites.Sequence(
+                name="RaisingInbox",
+                memory=False,
+                children=[_AttachesWhenBuilt(), _Raises(name="Raises")],
+            ),
+        )
+        before = registry_snapshot()
+
+        with (
+            pytest.raises(RuntimeError, match="setup raised")
+            if raises_in == "setup"
+            else contextlib.nullcontext()
+        ):
+            outcome = process_payload(
+                {},
+                _StubIngressAdapter(activity=report_activity),
+                _StubDispatchAdapter(),
+                arrived_at=SystemClock().now(),
+            )
+            assert outcome.status == "rejected"
+
+        gained = registry_snapshot().gained_since(before)
+        assert not gained, gained.describe()
 
     @pytest.mark.spec("SL-02-001")
     def test_outcome_names_the_dispatched_activity(self, report_activity):

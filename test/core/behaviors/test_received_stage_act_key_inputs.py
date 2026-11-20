@@ -35,6 +35,7 @@ from test.support.act_key_inputs import (
 )
 from vultron.core.behaviors.act_keys import (
     CASE_ID,
+    EXPECTED_SENDER_SEQUENCE,
     NOTE_ID,
     PARTICIPANT_ID,
     PROPOSAL_ID,
@@ -82,10 +83,13 @@ _NODES: list[tuple[NodeBuild, tuple[ActKey, ...]]] = [
     (ActivityNotYetLedgeredNode, (CASE_ID,)),
     (ReplicaRefusalNode, (CASE_ID,)),
     (
-        lambda: ClearRefusedAssertionNode(reason=None),
+        ClearRefusedAssertionNode,
         (CASE_ID, REFUSED_ACTIVITY_ID, SENDER_ID),
     ),
-    (lambda: ResumeOutboundSequenceNode(expected=1), (CASE_ID, SENDER_ID)),
+    (
+        ResumeOutboundSequenceNode,
+        (CASE_ID, SENDER_ID, EXPECTED_SENDER_SEQUENCE),
+    ),
     (SenderIsExpectedCaseCreatorNode, (SENDER_ID, CASE_ID)),
     (SenderIsOfferAddresseeNode, (SENDER_ID,)),
     (SenderIsProposalAddresseeNode, (SENDER_ID, REPORT_ID)),

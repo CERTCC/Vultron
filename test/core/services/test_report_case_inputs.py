@@ -16,6 +16,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from vultron.core.models.case_proposal import (
+    ProposedCaseInputs,
+    ProposedVulnerabilityItem,
+)
+from vultron.core.models.case_reference import CaseReferenceLink
 from vultron.core.models.report_claims import (
     CaseSplitDifference,
     ClaimedNote,
@@ -29,9 +34,14 @@ from vultron.core.models.vulnerability_item import NoteCategory
 from vultron.core.services.report_case_inputs import (
     StatedReportFields,
     case_inputs_from_claims,
+    case_inputs_from_proposal,
     case_reference_from_claim,
+    case_reference_from_link,
     claims_signals,
+    proposed_case_inputs_from_claims,
+    proposed_item_from_claims,
     vulnerability_item_from_claims,
+    vulnerability_item_from_proposed,
 )
 
 _NOW = datetime(2026, 11, 1, 12, tzinfo=UTC)
@@ -182,7 +192,7 @@ def test_another_category_makes_no_items_or_references() -> None:
         vulnerabilities=[VulnerabilityClaims(cve="CVE-2026-0001")],
     )
     inputs = case_inputs_from_claims(claims, reference_time=_NOW)
-    assert (inputs.item_vulnerabilities, inputs.references) == ([], [])
+    assert (inputs.proposed_items, inputs.reference_links) == ([], [])
     assert inputs.outcomes == {}
 
 
@@ -199,8 +209,10 @@ def test_named_vulnerabilities_and_document_references_are_kept() -> None:
         vulnerabilities=[unnamed, named],
     )
     inputs = case_inputs_from_claims(claims, reference_time=_NOW)
-    assert inputs.item_vulnerabilities == [named]
-    assert inputs.references == [reference]
+    assert inputs.proposed_items == [proposed_item_from_claims(named)]
+    assert inputs.reference_links == [
+        CaseReferenceLink(href="https://example.org/a")
+    ]
     assert inputs.outcomes == {
         "references[0]": ClaimOutcome.APPLIED,
         "vulnerabilities[1].ids[0]": ClaimOutcome.APPLIED,
@@ -226,12 +238,17 @@ def test_a_vulnerability_item_copies_the_identity_fields() -> None:
     )
     item = vulnerability_item_from_claims(vul, published=_NOW)
     assert item.name == "Overflow"
-    assert [(i.system_name, i.text) for i in item.ids] == [
+    assert [(i.system_name, i.identifier) for i in item.ids] == [
         ("CVE", "CVE-2026-0001"),
         ("VU#", "VU#1"),
     ]
-    [note] = item.notes
-    assert (note.category, note.text, note.title, note.audience) == (
+    [note] = item.vul_notes
+    assert (
+        note.category,
+        note.content,
+        note.name,
+        note.intended_audience,
+    ) == (
         NoteCategory.SUMMARY,
         "It overflows.",
         None,
@@ -363,3 +380,138 @@ def test_a_csaf_entrys_title_arrives_as_the_items_name() -> None:
 def test_a_csaf_entry_with_no_title_makes_an_unnamed_item() -> None:
     vul = VulnerabilityClaims(cve="CVE-2026-0001")
     assert vulnerability_item_from_claims(vul, published=_NOW).name is None
+
+
+# --- The date-free half and the date step (CP-01-023, CP-01-024) ---
+
+
+@pytest.mark.spec("CP-01-023")
+def test_the_date_free_half_keeps_the_earliest_date_as_stated() -> None:
+    """A past date stays a date: the half that judges no date states no P."""
+    claims = _claims(
+        VulnerabilityClaims(cve="CVE-2026-0001", disclosure_date=_LATER),
+        VulnerabilityClaims(cve="CVE-2026-0002", disclosure_date=_EARLIER),
+    )
+    proposed = proposed_case_inputs_from_claims(claims)
+    assert proposed.disclosure_date == _EARLIER
+    assert "public" not in ProposedCaseInputs.model_fields
+    assert [i.ids[0].identifier for i in proposed.proposed_items] == [
+        "CVE-2026-0001",
+        "CVE-2026-0002",
+    ]
+
+
+@pytest.mark.spec("CP-01-023", "CSAF-02-003")
+def test_the_date_free_half_takes_stated_name_and_x_a() -> None:
+    claims = _claims(
+        VulnerabilityClaims(cve="CVE-2026-0001", exploitation="P"),
+        VulnerabilityClaims(
+            cve="CVE-2026-0002", first_known_exploitation_dates=[_EARLIER]
+        ),
+    )
+    proposed = proposed_case_inputs_from_claims(
+        claims, stated=StatedReportFields(name="Stated")
+    )
+    assert proposed.name == "Stated"
+    assert proposed.summary == "A crafted file overflows the parser."
+    assert (proposed.exploit_public, proposed.attacks_observed) == (
+        True,
+        True,
+    )
+
+
+@pytest.mark.spec("CSAF-02-002")
+def test_the_date_free_half_of_another_category_is_the_stated_values() -> None:
+    claims = _claims(
+        VulnerabilityClaims(cve="CVE-2026-0001", disclosure_date=_LATER),
+        category="csaf_security_advisory",
+    )
+    proposed = proposed_case_inputs_from_claims(
+        claims, stated=StatedReportFields(name="Stated")
+    )
+    assert proposed == ProposedCaseInputs(name="Stated")
+
+
+@pytest.mark.spec("CSAF-03-001", "CP-01-024")
+def test_the_date_step_takes_a_future_date_as_the_end() -> None:
+    inputs = case_inputs_from_proposal(
+        ProposedCaseInputs(disclosure_date=_LATER), reference_time=_NOW
+    )
+    assert (inputs.public, inputs.proposed_embargo_end) == (False, _LATER)
+    assert not inputs.filled_from_document
+    assert inputs.outcomes == {}
+
+
+@pytest.mark.spec("CSAF-03-003", "EP-04-020")
+def test_the_date_step_reads_a_date_at_the_instant_as_public() -> None:
+    inputs = case_inputs_from_proposal(
+        ProposedCaseInputs(disclosure_date=_NOW),
+        reference_time=_NOW,
+        proposed_embargo_end=_LATER,
+    )
+    assert inputs.public
+    assert inputs.proposed_embargo_end is None
+
+
+@pytest.mark.spec("CSAF-02-003", "CSAF-03-001")
+@pytest.mark.parametrize(
+    ("date", "offer_end"), [(_LATER, _SOONER), (_SOONER, _LATER)]
+)
+def test_the_date_step_lets_the_offer_end_beat_the_date(
+    date: datetime, offer_end: datetime
+) -> None:
+    """The Offer's end wins whether it is earlier or later than the date."""
+    inputs = case_inputs_from_proposal(
+        ProposedCaseInputs(disclosure_date=date),
+        reference_time=_NOW,
+        proposed_embargo_end=offer_end,
+    )
+    assert inputs.proposed_embargo_end == offer_end
+
+
+@pytest.mark.spec("EP-04-020")
+def test_the_date_step_gives_no_end_when_x_or_a_is_stated() -> None:
+    for proposed in (
+        ProposedCaseInputs(disclosure_date=_LATER, exploit_public=True),
+        ProposedCaseInputs(disclosure_date=_LATER, attacks_observed=True),
+    ):
+        inputs = case_inputs_from_proposal(
+            proposed, reference_time=_NOW, proposed_embargo_end=_SOONER
+        )
+        assert inputs.proposed_embargo_end is None
+        assert not inputs.public
+
+
+def test_the_date_step_refuses_a_naive_reference_time() -> None:
+    with pytest.raises(ValueError, match="time zone"):
+        case_inputs_from_proposal(
+            ProposedCaseInputs(), reference_time=_NOW.replace(tzinfo=None)
+        )
+
+
+@pytest.mark.spec("CSAF-03-009")
+def test_a_stated_link_becomes_a_reference_named_by_it() -> None:
+    link = CaseReferenceLink(
+        href="https://example.org/a", name="Advisory", rel=["related"]
+    )
+    ref = case_reference_from_link(link, published=_NOW)
+    assert ref.name == "Advisory"
+    assert ref.url == CaseReferenceLink(
+        href="https://example.org/a", rel=["related"]
+    )
+
+
+@pytest.mark.spec("CSAF-03-008")
+def test_a_stated_item_becomes_an_item_with_its_own_id() -> None:
+    item = ProposedVulnerabilityItem(
+        name="Overflow",
+        reference_links=[CaseReferenceLink(href="https://example.org/a")],
+    )
+    built = vulnerability_item_from_proposed(item, published=_NOW)
+    again = vulnerability_item_from_proposed(item, published=_NOW)
+    assert built.name == "Overflow"
+    assert built.published == _NOW
+    assert built.id_ != again.id_
+    assert [
+        r.url.href for r in built.references if not isinstance(r, str)
+    ] == ["https://example.org/a"]

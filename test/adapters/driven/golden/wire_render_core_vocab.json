@@ -95,6 +95,20 @@
     "type": "CasePreview",
     "updated": "2026-01-02T03:04:05.000000+00:00"
   },
+  "CaseProposal": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ],
+    "attributedTo": "urn:test:attributed_to:1",
+    "id": "urn:test:caseproposal:golden",
+    "object": "urn:test:object_:1",
+    "proposerCaseRoles": [],
+    "published": "2026-01-02T03:04:05.000000+00:00",
+    "target": "urn:test:target:1",
+    "type": "CaseProposal",
+    "updated": "2026-01-02T03:04:05.000000+00:00"
+  },
   "CaseReference": {
     "@context": [
       "https://www.w3.org/ns/activitystreams",
@@ -252,11 +266,11 @@
     ],
     "id": "urn:test:vulnerabilityitem:golden",
     "ids": [],
-    "notes": [],
     "published": "2026-01-02T03:04:05.000000+00:00",
     "references": [],
     "type": "VulnerabilityItem",
-    "updated": "2026-01-02T03:04:05.000000+00:00"
+    "updated": "2026-01-02T03:04:05.000000+00:00",
+    "vulNotes": []
   },
   "VulnerabilityReport": {
     "@context": [

@@ -16,11 +16,19 @@ groups:
   - id: CP-01-001
     priority: MUST
     kind: project
-    statement: The wire layer MUST define an `as_CaseProposal` object type that extends `as_VultronObject`.
+    statement: >-
+      The core layer MUST define a `CaseProposal` object type, a `CoreObject` whose
+      wire name `as_CaseProposal` is an alias of it (ARCH-25-003).
     rationale: A dedicated object type enables pattern-discriminated routing in the semantic extractor and preserves AS2 semantics
       by separating the proposal object from the eventual `VulnerabilityCase`.
-    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `as_CaseProposal` is declared as
-      a class that extends `as_VultronObject`.
+    verification: >-
+      `test_the_wire_name_is_the_core_class` in `test/core/models/test_case_proposal.py`
+      confirms `as_CaseProposal is CaseProposal`, the `CoreObject` declared in
+      `vultron/core/models/case_proposal.py`.
+    see_also:
+    - spec_id: ARCH-25-003
+      reason: 'the one class a domain type has'
+
     adr:
     - ADR-0023
   - id: CP-01-002
@@ -33,8 +41,9 @@ groups:
       (CP-05-010). A full URI names one object across all actors, so proposals from
       different proposers do not share a key by accident. CP-05-010 refuses a sender
       that reuses another proposer's identifier.
-    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `id_` is inherited from
-      `as_VultronObject` as a required URI field on every `as_CaseProposal` instance.
+    verification: >-
+      Inspection of `vultron/core/models/case_proposal.py` confirms `id_` is
+      inherited from `CoreObject` as a URI field on every `CaseProposal` instance.
     adr:
     - ADR-0023
   - id: CP-01-003
@@ -46,20 +55,25 @@ groups:
       The CASE_MANAGER seats the actor this field names as the Case Owner of the new
       case (CP-09-001), and it checks that the `actor` of the `Create` names the same
       actor (CP-01-015). Without the field, the case would have no owner to record.
-    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `attributed_to` is a required
-      `NonEmptyString` field on `as_CaseProposal`.
+    verification: >-
+      Inspection of `vultron/core/models/case_proposal.py` confirms `attributed_to`
+      is a required `NonEmptyString` field on `CaseProposal`.
     adr:
     - ADR-0023
   - id: CP-01-004
     priority: MUST
     kind: project
-    statement: '`as_CaseProposal` MUST include an `object_` field containing a fully inline `as_VulnerabilityReport` around
-      which the case is to be created. URI references to the report are NOT permitted (see AKM-03-003).'
+    statement: >-
+      `as_CaseProposal` MUST include an `object_` field containing a fully inline
+      `VulnerabilityReport` around which the case is to be created. URI references to
+      the report are NOT permitted (see AKM-03-003).
     rationale: The case-actor service needs the vulnerability report to initialize the case. URI references are prohibited
       because the receiver may not have the referenced object, and this codebase
       fetches only the objects the note on AKM-05-007 lists (AKM-03-003).
-    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `object_` is typed as
-      `ActivityStreamRequiredRef[as_VulnerabilityReport]`, enforcing an inline report and rejecting bare URI references.
+    verification: >-
+      Inspection of `vultron/core/models/case_proposal.py` confirms `object_` is typed
+      as `VulnerabilityReport | NonEmptyString` and named in `inline_required_refs`,
+      so persistence keeps the report inline (#2482).
     adr:
     - ADR-0023
     see_also:
@@ -75,8 +89,9 @@ groups:
       itself which service the report receiver asked to create the case, so the request
       names its addressee wherever it is stored or read, not only in the delivery's
       `to`.
-    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `target` is a required
-      `NonEmptyString` field on `as_CaseProposal`.
+    verification: >-
+      Inspection of `vultron/core/models/case_proposal.py` confirms `target` is a
+      required `NonEmptyString` field on `CaseProposal`.
     adr:
     - ADR-0023
   - id: CP-01-006
@@ -197,6 +212,161 @@ groups:
     adr:
     - ADR-0096
     - ADR-0107
+    - ADR-0184
+  - id: CP-01-022
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A `CaseProposal` MAY carry, as `caseInputs`, the starting content its proposer
+      states for the case: its name, summary, whether an exploit is public (X), whether
+      attacks are observed (A), its vulnerability items, its case references and the
+      earliest CSAF disclosure date.
+    rationale: >-
+      The proposer is the case owner, and it may review what a CSAF report says before
+      the case exists. Stating the inputs on the proposal lets the CASE_MANAGER build the
+      case the owner reviewed, rather than reading the document again on its own.
+    verification: >-
+      `test/core/models/test_case_proposal.py` round-trips a proposal carrying
+      `caseInputs` through its AS2 form and the wire parser.
+    stories:
+    - story_2026_099
+    adr:
+    - ADR-0184
+  - id: CP-01-023
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A proposer MUST carry the CSAF disclosure date in `caseInputs` as the document
+      states it.
+    rationale: >-
+      Whether the date has passed is decided when the case is built, which can be well
+      after the proposer's receipt when delivery retries. A P flag judged at the
+      proposer's receipt would be stale by then.
+    verification: >-
+      `test/core/services/test_report_case_inputs.py` checks that
+      `proposed_case_inputs_from_claims` keeps a past date as the document states it,
+      and `test_the_stated_date_is_judged_when_the_case_is_created` in
+      `test/core/use_cases/received/test_case_from_csaf_report.py` judges it at case
+      creation.
+    stories:
+    - story_2026_099
+    adr:
+    - ADR-0184
+  - id: CP-01-024
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a proposal carries `caseInputs`, the CASE_MANAGER MUST build the new case from
+      them.
+    rationale: >-
+      The inputs are all or nothing: their presence means the owner spoke for every
+      input. A per-field fallback to the document would refill a list the owner emptied,
+      and cannot tell an unset X or A from one the owner cleared. So `caseInputs` that
+      state no name give an unnamed case, even when the report has a name.
+    verification: >-
+      `test_a_case_is_built_from_the_case_inputs_a_proposal_states`,
+      `test_emptied_inputs_are_never_refilled_from_the_document` and
+      `test_empty_case_inputs_give_a_case_with_nothing_the_owner_left_out` in
+      `test/core/use_cases/received/test_case_from_csaf_report.py` build a case from
+      `caseInputs` that differ from the carried Offer's CSAF document.
+    stories:
+    - story_2026_099
+    adr:
+    - ADR-0184
+  - id: CP-01-025
+    priority: MAY
+    kind: protocol
+    statement: >-
+      When a proposal carries no `caseInputs`, the CASE_MANAGER MAY fill the case inputs
+      from the CSAF document on the carried Offer (CSAF-02-001, CSAF-03).
+    rationale: >-
+      A proposer that does not convert the document still reaches a case filled from it,
+      since the carried Offer is the initial report reaching the coordinating function
+      (ADR-0184).
+    verification: >-
+      `test/core/use_cases/received/test_case_from_csaf_report.py` fills a case from the
+      carried Offer's CSAF document when the proposal carries no `caseInputs`.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CSAF-02-001
+    stories:
+    - story_2026_099
+    adr:
+    - ADR-0184
+  - id: CP-01-026
+    priority: MUST
+    kind: project
+    statement: >-
+      In this implementation, a report receiver MUST send `caseInputs` on a proposal
+      whose initial report carries a CSAF document of category
+      `csaf_vulnerability_report`.
+    rationale: >-
+      The receiver's conversion is what lets the owner review the inputs before it
+      sends. The CASE_MANAGER's own reading stays as the fallback for a proposer that
+      sends none.
+    verification: >-
+      `test_the_receiver_states_the_case_inputs_of_a_csaf_report` in
+      `test/core/use_cases/received/test_case_from_csaf_report.py` is a strict `xfail`
+      until #6723 builds it.
+    adr:
+    - ADR-0184
+  - id: CP-01-027
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A proposer MUST NOT state in `caseInputs` whether the vulnerability is public.
+    rationale: >-
+      Whether the vulnerability is public follows from the disclosure date and the
+      instant the case is built (CP-01-023). A flag the proposer judged at its own
+      receipt would be stale when delivery retries.
+    verification: >-
+      `test_case_inputs_state_no_public_flag` in `test/core/models/test_case_proposal.py`
+      refuses a `caseInputs` with a public field.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-023
+    stories:
+    - story_2026_099
+    adr:
+    - ADR-0184
+  - id: CP-01-028
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When a proposal carries `caseInputs`, the CASE_MANAGER MUST NOT read a CSAF
+      document on the proposal's carried Offer.
+    rationale: >-
+      The inputs are all or nothing (CP-01-024). Reading the document beside them
+      would let a value the owner removed or cleared come back.
+    verification: >-
+      `test_case_inputs_survive_the_parser_and_reach_the_event` in
+      `test/core/models/test_case_proposal.py` confirms the edge reads no document,
+      and `test_a_case_is_built_from_the_case_inputs_a_proposal_states` in
+      `test/core/use_cases/received/test_case_from_csaf_report.py` that no claims record
+      is written.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-024
+    stories:
+    - story_2026_099
+    adr:
+    - ADR-0184
+  - id: CP-01-029
+    priority: MUST
+    kind: project
+    statement: >-
+      In this implementation, the CASE_MANAGER MUST apply CP-01-025 to a proposal that
+      carries no `caseInputs`.
+    rationale: >-
+      The CASE_MANAGER's own reading of the document stays as the fallback for a
+      proposer that sends none, so a CSAF report still fills the case it starts.
+    verification: >-
+      `test_a_proposal_with_no_case_inputs_is_filled_from_the_document` in
+      `test/core/use_cases/received/test_case_from_csaf_report.py`.
+    relationships:
+    - rel_type: implements
+      spec_id: CP-01-025
+    adr:
     - ADR-0184
   - id: CP-01-009
     priority: MAY

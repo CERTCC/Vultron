@@ -108,7 +108,7 @@ class RefusalNoticeReceivedUseCase:
         tree = refusal_notice_received_tree(
             case_id=request.case_id,
             refused_activity_id=request.refused_activity_id,
-            reason=request.reason,
+            refusal_reason=request.reason,
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
             expected_sender_sequence=request.expected_sender_sequence,

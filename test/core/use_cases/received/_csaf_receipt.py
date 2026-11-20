@@ -96,6 +96,7 @@ class Receipt:
         report = make(
             VulnerabilityReport,
             id_=report_id,
+            attributed_to=FINDER,
             name=report_name,
             summary=report_summary,
             content="The widget overflows its buffer.",

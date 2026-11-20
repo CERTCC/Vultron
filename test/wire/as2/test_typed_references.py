@@ -631,6 +631,12 @@ def test_a_reference_in_a_slot_needing_the_whole_object_says_so() -> None:
         "type": "CaseProposal",
         "published": PUBLISHED,
         "attributedTo": ACTOR,
+        "object": {
+            "id": "https://example.org/reports/1",
+            "type": "VulnerabilityReport",
+            "published": PUBLISHED,
+        },
+        "target": "https://example.org/case-actors/alpha",
         "inReplyTo": {"id": "https://example.org/offers/1", "type": "Offer"},
     }
 

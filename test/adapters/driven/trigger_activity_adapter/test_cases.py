@@ -1027,7 +1027,7 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
         assert body is not None
         [carried_item] = body["object"]["vulnerabilityItems"]
         [carried_ref] = body["object"]["caseReferences"]
-        assert (carried_item["id"], carried_item["ids"][0]["text"]) == (
+        assert (carried_item["id"], carried_item["ids"][0]["identifier"]) == (
             item.id_,
             "CVE-2026-0001",
         )

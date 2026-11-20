@@ -30,6 +30,7 @@ from vultron.core.behaviors.act_keys import (
     CASE_ID,
     EMBARGO_ID,
     TERMINATED_AT,
+    TERMINATION,
 )
 from vultron.core.behaviors.embargo.copy_commit import (
     read_embargo_case_file,
@@ -98,23 +99,19 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     one in force changes nothing (ADR-0122); both return SUCCESS, and
     :attr:`applied` tells a caller which happened.
 
-    The case is read from ``/case_id`` and *embargo_id* from
-    ``/embargo_id`` (BTND-01-008); *terminated_at* from ``/terminated_at``,
-    which a ``Remove`` that claims no time leaves unset.
+    The case is read from ``/case_id``, *embargo_id* from ``/embargo_id``
+    and *termination* from ``/termination`` (BTND-01-008); *terminated_at*
+    from ``/terminated_at``, which a ``Remove`` that claims no time leaves
+    unset.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        **act_key_ports(CASE_ID, EMBARGO_ID, TERMINATED_AT),
+        **act_key_ports(CASE_ID, EMBARGO_ID, TERMINATED_AT, TERMINATION),
     }
 
-    def __init__(
-        self,
-        termination: EmbargoTermination,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._termination = termination
         #: True only when this tick terminated an embargo.
         self.applied = False
         #: True when this tick's termination was refused (ADR-0122).
@@ -122,13 +119,16 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return act_key_remappings(CASE_ID, EMBARGO_ID, TERMINATED_AT)
+        return act_key_remappings(
+            CASE_ID, EMBARGO_ID, TERMINATED_AT, TERMINATION
+        )
 
     def initialise(self) -> None:
         super().initialise()
         self.case_id: str = act_value(self, CASE_ID, str)
         self._embargo_id: str = act_value(self, EMBARGO_ID, str)
         self._terminated_at = optional_act_value(self, TERMINATED_AT, datetime)
+        self._termination = act_value(self, TERMINATION, EmbargoTermination)
 
     def _refuse(self, exc: VultronError) -> Status:
         self.refused = True

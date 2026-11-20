@@ -39,6 +39,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import (
     CASE_ID as CASE_KEY,
+    REFUSAL_REASON,
     REFUSED_ACTIVITY_ID,
     SENDER_ID,
 )
@@ -366,8 +367,9 @@ def test_the_received_refusal_notice_line_drops_the_group(
     """The asserter logs the CASE_MANAGER's refusal as a fact the notice
     carried; that refusal is the CASE_MANAGER's runner line, not this one."""
     node = with_act_keys(
-        ClearRefusedAssertionNode(reason="stale — REFUSED (HP-01-006)"),
+        ClearRefusedAssertionNode(),
         {
+            REFUSAL_REASON: "stale — REFUSED (HP-01-006)",
             CASE_KEY: _CASE,
             REFUSED_ACTIVITY_ID: "urn:refused",
             SENDER_ID: "urn:manager",

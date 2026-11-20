@@ -82,12 +82,12 @@ def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
         tree=with_act_keys(
             CreateLogEntryNode(
                 semantic_type="note_added",
-                payload_snapshot=_canonical_note_snapshot(
-                    PARTICIPANT_ACTOR_ID
-                ),
                 name="CreateLogEntry",
             ),
             {
+                act_keys.PAYLOAD_SNAPSHOT: _canonical_note_snapshot(
+                    PARTICIPANT_ACTOR_ID
+                ),
                 act_keys.CASE_ID: CASE_ID,
                 act_keys.OBJECT_ID: "https://example.org/activities/act-1",
             },
@@ -184,10 +184,10 @@ def test_create_log_entry_node_rejects_non_canonical_snapshots(
         tree=with_act_keys(
             CreateLogEntryNode(
                 semantic_type="note_added",
-                payload_snapshot=snapshot,
                 name="CreateLogEntry",
             ),
             {
+                act_keys.PAYLOAD_SNAPSHOT: snapshot,
                 act_keys.CASE_ID: CASE_ID,
                 act_keys.OBJECT_ID: "https://example.org/activities/act-invalid",
             },
@@ -208,10 +208,13 @@ def test_create_log_entry_node_allows_case_authored_announce(bridge):
         tree=with_act_keys(
             CreateLogEntryNode(
                 semantic_type="case_announced",
-                payload_snapshot=_canonical_case_announce_snapshot(),
                 name="CreateLogEntry",
             ),
-            {act_keys.CASE_ID: CASE_ID, act_keys.OBJECT_ID: CASE_ID},
+            {
+                act_keys.PAYLOAD_SNAPSHOT: _canonical_case_announce_snapshot(),
+                act_keys.CASE_ID: CASE_ID,
+                act_keys.OBJECT_ID: CASE_ID,
+            },
         ),
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,
@@ -590,12 +593,12 @@ def test_create_log_entry_node_entry_carries_hashed_received_at(bridge):
         tree=with_act_keys(
             CreateLogEntryNode(
                 semantic_type="note_added",
-                payload_snapshot=_canonical_note_snapshot(
-                    PARTICIPANT_ACTOR_ID
-                ),
                 name="CreateLogEntry",
             ),
             {
+                act_keys.PAYLOAD_SNAPSHOT: _canonical_note_snapshot(
+                    PARTICIPANT_ACTOR_ID
+                ),
                 act_keys.CASE_ID: CASE_ID,
                 act_keys.OBJECT_ID: "https://example.org/activities/act-1",
             },
@@ -640,10 +643,10 @@ def test_create_log_entry_node_stamps_the_envelope_and_keeps_the_claimed_time(
         tree=with_act_keys(
             CreateLogEntryNode(
                 semantic_type="note_added",
-                payload_snapshot=snapshot,
                 name="CreateLogEntry",
             ),
             {
+                act_keys.PAYLOAD_SNAPSHOT: snapshot,
                 act_keys.CASE_ID: CASE_ID,
                 act_keys.OBJECT_ID: "https://example.org/activities/act-claimed",
             },

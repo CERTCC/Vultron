@@ -38,9 +38,10 @@ Tree structure::
       terminate_embargo_bt(case_id, ...)   # existing mechanism (BT-19-001)
 
 The reason Sequence that succeeds records its cause in the tree's
-:class:`~vultron.core.behaviors.embargo.nodes.chosen_cause.ChosenTermination`,
-which ``terminate_embargo_bt`` reads at the write, so the ``Remove`` and
-the ``TERMINATED`` entry carry the chosen cause (EMB-13-004).
+:class:`~vultron.core.behaviors.chosen_termination.ChosenTermination`,
+which ``terminate_embargo_bt`` seeds on ``/termination`` and its nodes read at
+the write, so the ``Remove`` and the ``TERMINATED`` entry carry the chosen
+cause (EMB-13-004).
 
 References
 ----------

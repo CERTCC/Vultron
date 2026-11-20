@@ -44,7 +44,7 @@ class TriggerProposalsPort(Protocol):
     ) -> tuple[str, str]:
         """Create and persist a ``Create(CaseProposal)`` activity.
 
-        Builds an ``as_CaseProposal`` from the ``VulnerabilityReport``
+        Builds an ``CaseProposal`` from the ``VulnerabilityReport``
         identified by ``report_id``, addressed to the case-actor service at
         ``case_actor_id``, and persists ``Create(CaseProposal)`` to the
         DataLayer.
@@ -53,7 +53,7 @@ class TriggerProposalsPort(Protocol):
         report, which the proposal's ``inReplyTo`` carries: inline when this
         store holds the Offer (CP-01-008), else by id (CP-01-007).  The
         CaseActor cannot recover it on its own; see
-        ``as_CaseProposal.in_reply_to`` for why it has to travel on the wire.
+        ``CaseProposal.in_reply_to`` for why it has to travel on the wire.
 
         The Create's ``actor`` is ``actor``'s own full profile, read from this
         DataLayer with its ``embargo_policy``: the CASE_MANAGER reads the
@@ -86,7 +86,7 @@ class TriggerProposalsPort(Protocol):
 
         The case actor service sends this when it declines to open and manage a
         case for the proposal (CP-05-004).  *proposal* is the wire-serialised
-        ``as_CaseProposal`` from the inbound ``Create``; it is embedded inline so
+        ``CaseProposal`` from the inbound ``Create``; it is embedded inline so
         the vendor has full context without reading anything from the case actor
         service's store (AKM-03-003).
 
@@ -112,7 +112,7 @@ class TriggerProposalsPort(Protocol):
 
         The CASE_MANAGER sends this to acknowledge that it will open (or has
         already opened) a case for the proposal (CP-05-002).  *proposal* is the
-        wire-serialised ``as_CaseProposal`` the inbound ``Create`` carried,
+        wire-serialised ``CaseProposal`` the inbound ``Create`` carried,
         embedded inline (AKM-03-003); *result* is the URI of the case the
         Accept ties to (CP-05-006).
 

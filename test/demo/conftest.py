@@ -28,6 +28,7 @@ from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
 from test.support.app_configs import own_app_config
+from test.support.blackboard_registry import registry_snapshot
 from test.support.hold_timers import stop_hold_timer_from_another_thread
 from test.support.store_sharing import no_store_shared_across_authorities
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
@@ -613,6 +614,36 @@ def single_node_opens_no_store_under_a_second_authority(
         return
     with no_store_shared_across_authorities():
         yield
+
+
+#: The fuzzer's tests build and tick its nodes directly, outside any tree
+#: runner, so the clients those nodes attach have no run to release them.
+_TICKS_NODES_WITHOUT_A_RUNNER = Path(__file__).parent / "fuzzer"
+
+
+@pytest.fixture(autouse=True)
+def no_blackboard_client_outlives_the_test(
+    request: pytest.FixtureRequest,
+) -> Iterator[None]:
+    """A demo test leaves py_trees' client registry as it found it (#6727).
+
+    py_trees keeps every blackboard ``Client`` in process-global maps until it
+    is unregistered; collecting the ``Client`` does not remove it.  Each tree
+    run releases its own (BT-25-004), and a run path that does not grows the
+    registry by one client per node for the life of the worker.  The
+    in-process demo tests ran about 5,000 such clients per test, which grew a
+    loaded worker until the kernel killed it.
+    """
+    if request.path.is_relative_to(_TICKS_NODES_WITHOUT_A_RUNNER):
+        yield
+        return
+    before = registry_snapshot()
+    yield
+    gained = registry_snapshot().gained_since(before)
+    assert not gained, (
+        "blackboard clients outlived the test's tree runs: "
+        + gained.describe()
+    )
 
 
 @pytest.fixture(autouse=True)

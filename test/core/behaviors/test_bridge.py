@@ -23,6 +23,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BlackboardKeyProbe
+from test.support.blackboard_registry import registry_snapshot
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -31,6 +32,7 @@ from vultron.core.behaviors.bridge.tree_setup import _BridgeSetup
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
+    DataLayerCondition,
 )
 from vultron.core.behaviors.node_logger import PORT_WIRING_LOGGER_NAME
 from vultron.core.behaviors.store_scope import same_authority
@@ -2161,3 +2163,171 @@ def test_port_wiring_is_logged_on_the_port_wiring_logger(
     ]
     assert wiring, "expected py_trees to log the port registrations"
     assert {r.name for r in wiring} == {PORT_WIRING_LOGGER_NAME}
+
+
+# A run releases every blackboard client it registered (#6727)
+
+
+class _ReadsTheStore(DataLayerCondition):
+    """Registers its client in ``setup()``, as the project's nodes do."""
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+class _RegistersAtBuild(py_trees.behaviour.Behaviour):
+    """Registers its client when the tree is built, as a call-out seam does."""
+
+    def __init__(self, name: str = "RegistersAtBuild") -> None:
+        super().__init__(name=name)
+        self.bb = self.attach_blackboard_client(name=name)
+        self.bb.register_key(
+            key="actor_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+def _tree_registering_clients() -> py_trees.behaviour.Behaviour:
+    return py_trees.composites.Sequence(
+        name="Root",
+        memory=False,
+        children=[
+            _ReadsTheStore("ReadsTheStore"),
+            _PortedNode("Ported"),
+            _RegistersAtBuild(),
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "outcome_tree",
+    [_tree_registering_clients, AlwaysFail],
+    ids=["success", "failure"],
+)
+@pytest.mark.spec("BT-25-004")
+def test_execute_with_setup_leaves_no_blackboard_client_registered(
+    bridge, test_actor_id, outcome_tree
+):
+    """The registry holds nothing of the run's once it returns (#6727).
+
+    py_trees keeps every ``Client`` in process-global maps until something
+    unregisters it, and collecting the ``Client`` does not.  Left there, each
+    run grew the registry by one entry per node, about 5,000 entries per demo
+    test, for the life of the process.
+    """
+    before = registry_snapshot()
+
+    bridge.execute_with_setup(tree=outcome_tree(), actor_id=test_actor_id)
+
+    gained = registry_snapshot().gained_since(before)
+    assert not gained, gained.describe()
+
+
+@pytest.mark.spec("BT-25-004")
+def test_a_failed_setup_leaves_no_blackboard_client_registered(
+    bridge, datalayer
+):
+    """The bridge's own client is released when the store lookup refuses."""
+    foreign_actor_id = "https://example.org/actors/test-actor"
+    before = registry_snapshot()
+
+    result = bridge.execute_with_setup(
+        tree=_tree_registering_clients(), actor_id=foreign_actor_id
+    )
+
+    assert result.internal_error is True
+    gained = registry_snapshot().gained_since(before)
+    assert not gained, gained.describe()
+
+
+@pytest.mark.spec("BT-25-004")
+def test_releasing_the_run_keeps_the_storage_it_does_not_manage(
+    bridge, test_actor_id
+):
+    """Release unregisters clients only; storage is BT-17-007's to restore."""
+    storage = py_trees.blackboard.Blackboard.storage
+    storage["/actor_id"] = "an outer run's actor"
+
+    bridge.execute_with_setup(
+        tree=_tree_registering_clients(), actor_id=test_actor_id
+    )
+
+    assert storage["/actor_id"] == "an outer run's actor"
+
+
+@pytest.mark.spec("BT-25-004")
+def test_a_nested_run_leaves_the_outer_runs_clients_registered(
+    bridge, test_actor_id
+):
+    """An inner run releases only its own tree's clients."""
+    outer_node = _RegistersAtBuild("Outer")
+    seen: list[bool] = []
+
+    class _RunsAnInnerTree(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            bridge.execute_with_setup(
+                tree=_tree_registering_clients(), actor_id=test_actor_id
+            )
+            seen.append(
+                outer_node.bb.id() in py_trees.blackboard.Blackboard.clients
+            )
+            return Status.SUCCESS
+
+    before = registry_snapshot()
+    bridge.execute_with_setup(
+        tree=py_trees.composites.Sequence(
+            name="Outer",
+            memory=False,
+            children=[outer_node, _RunsAnInnerTree(name="Inner")],
+        ),
+        actor_id=test_actor_id,
+    )
+
+    assert seen == [True]
+    gained = registry_snapshot().gained_since(before)
+    assert not gained, gained.describe()
+
+
+@pytest.mark.spec("BT-25-004")
+def test_a_leader_skip_releases_the_clients_the_tree_registered_at_build(
+    bridge, test_actor_id
+):
+    """Nothing ticks, but a client registered at build ends with the tree."""
+    bridge.is_leader = lambda: False
+    tree = _tree_registering_clients()
+    before = registry_snapshot()
+
+    result = bridge.execute_with_setup(tree=tree, actor_id=test_actor_id)
+
+    assert result.leader_skipped is True
+    assert before.clients - registry_snapshot().clients
+    assert not registry_snapshot().gained_since(before)
+
+
+@pytest.mark.spec("BT-25-004")
+def test_a_tree_run_again_by_its_owner_registers_its_clients_afresh(
+    bridge, test_actor_id
+):
+    """A held writer re-run through the bridge still reads its keys.
+
+    Some nodes still hold a writer subtree and run it more than once
+    (``rm_closure``'s one writer per rung).  Its nodes attach their clients in
+    ``setup()``, so the second run's setup attaches fresh ones in place of the
+    released ones.
+    """
+    writer = py_trees.composites.Sequence(
+        name="Writer",
+        memory=False,
+        children=[_ReadsTheStore("ReadsTheStore"), _PortedNode("Ported")],
+    )
+    before = registry_snapshot()
+
+    first = bridge.execute_with_setup(tree=writer, actor_id=test_actor_id)
+    second = bridge.execute_with_setup(tree=writer, actor_id=test_actor_id)
+
+    assert (first.status, second.status) == (Status.SUCCESS, Status.SUCCESS)
+    assert second.internal_error is False
+    gained = registry_snapshot().gained_since(before)
+    assert not gained, gained.describe()

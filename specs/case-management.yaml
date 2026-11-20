@@ -1031,26 +1031,35 @@ groups:
     kind: protocol
     statement: >-
       A vulnerability item MUST carry the identity fields of a CSAF 2.1 vulnerability
-      entry: a list of `ids` that each pair a `system_name` with a `text`, an optional
-      `name` that holds the entry's `title`, a list of `notes`, and a list of
-      `references`. A CVE ID is an `ids` entry whose `system_name` is `CVE`; the item
-      has no `cve` field of its own.
+      entry: a list of `ids` that each pair a `system_name` with an `identifier` that
+      holds the entry's `text`, an optional `name` that holds the entry's `title`, a
+      list of `vul_notes` that holds the entry's `notes`, and a list of `references`.
+      Each of the `vul_notes` carries the note's `category`, a `content` that holds its
+      `text`, an optional `name` that holds its `title`, and an optional
+      `intended_audience` that holds its `audience`. A CVE ID is an `ids` entry whose
+      `system_name` is `CVE`; the item has no `cve` field of its own.
     rationale: >-
       Shaped like a CSAF vulnerability entry, the item maps a CSAF report's
-      vulnerabilities in and out field by field. Pairing each identifier with
-      its tracking system names its namespace without parsing its value (CM-05-008,
-      ADR-0187). A reader finds all of a vul's identifiers in one list; CSAF's own
-      `cve` field maps to and from the `CVE` entry (CSAF-03-008). The `title` travels
-      as AS2 `name`, which means the same, because a Vultron term never duplicates an
-      AS2 term (VM-10-009, ADR-0194).
+      vulnerabilities in and out field by field. Pairing each identifier with its
+      system names its namespace without parsing it (CM-05-008, ADR-0187). A `title`
+      and a note's `text` travel as AS2 `name` and `content`, which mean the same
+      (VM-10-009). The other renames give each wire name one meaning (VM-10-012): a
+      case's `notes` are Note ids, and AS2 `audience` is an object, not free text.
     verification: >-
       A test marked `CM-05-018` builds a vulnerability item from each field, asserts it
       refuses a `cve` key, and asserts a CSAF 2.1 vulnerability entry's `cve`, `ids`,
-      `title` (as the item's `name`), `notes` and `references` round-trip through it.
+      `title` (as the item's `name`), `notes` (as its `vul_notes`) and `references`
+      round-trip through it, each identifier's `text` as its `identifier` and each
+      note's `text`, `title` and `audience` as its `content`, `name` and
+      `intended_audience`.
       `test/wire/as2/vocab/test_vulnerability_item.py::test_a_csaf_entrys_title_is_the_items_name`
       requires the item to declare no `title` and to hold it as `name`, and
       `::test_an_item_with_a_title_key_is_refused` checks that core validation refuses
       an item with a `title` key (MV-11-004).
+      `::test_an_items_notes_and_ids_send_their_own_wire_names` checks the wire names
+      `vulNotes`, `content`, `name`, `intendedAudience` and `identifier`, and
+      `::test_a_former_note_or_id_key_is_refused` checks that core validation refuses
+      each former CSAF-named key.
     adr:
     - ADR-0187
     - ADR-0194
@@ -1060,16 +1069,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `text` of a vulnerability item's `ids` entry whose `system_name` is `CVE` MUST
-      match the CVE ID format that CSAF 2.1 gives its `cve` field.
+      The `identifier` of a vulnerability item's `ids` entry whose `system_name` is
+      `CVE` MUST match the CVE ID format that CSAF 2.1 gives its `cve` field.
     rationale: >-
       The CSAF translation maps the `CVE` entry to CSAF's CVE-typed `cve` field, so a
       value that passes this check also passes CSAF. This is the one exception to
       CM-05-008: the identifier of every other system stays opaque (ADR-0187).
     verification: >-
       A test marked `CM-05-019` builds a vulnerability item with a well-formed and with a
-      malformed `CVE` entry and asserts the second is refused, and that a malformed text
-      under any other system is kept.
+      malformed `CVE` entry and asserts the second is refused, and that a malformed
+      identifier under any other system is kept.
     adr:
     - ADR-0187
     stories:
@@ -12554,7 +12563,7 @@ groups:
       different identifier, in both orders, and asserts the item ends with its original
       identifiers in their order followed by both new ones; admits an update whose
       `ids` hold one held identifier and one new one, and asserts the held one appears
-      once; and admits an update whose `notes` hold only a new note, and asserts the
+      once; and admits an update whose `vul_notes` hold only a new note, and asserts the
       item keeps its held note and gains the new one.
     adr:
     - ADR-0187

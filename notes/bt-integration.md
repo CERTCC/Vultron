@@ -344,6 +344,11 @@ leaves subtrees no walk can reach.
   tree carries node attributes across acts; py_trees releases no blackboard
   client, so the runner unregisters every client the tree registered with
   `clear=False`, leaving key restore to the bridge (BT-17-007).
+- **A subtree a node re-runs attaches its clients in `setup()`** (BT-25-004,
+  until BT-25-001 lands). Reason: the release ends every client the run held,
+  and `setup()` re-attaches only its own, so a build-time client (a call-out
+  seam, a `Capability`, an `Actuator`) reads as released on the second run.
+  See `release_tree_clients` in `core/behaviors/blackboard_scope.py`.
 
 ### The Received-Side Stages (ADR-0214)
 

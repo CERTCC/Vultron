@@ -50,7 +50,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-import py_trees
 import pytest
 
 import vultron
@@ -693,14 +692,12 @@ def test_removed_participant_is_not_invited_to_an_embargo_revision() -> None:
     removal.remove(VENDOR)
     assert VENDOR in removal.read_case().actor_participant_index
 
-    scenario.run(
+    _, captured = scenario.run_capturing(
         CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
+        "/embargo_invite_recipients",
         embargo_proposer_id=OWNER,
     )
 
-    recipients = cast(
-        list[str],
-        py_trees.blackboard.Blackboard.storage["/embargo_invite_recipients"],
-    )
+    recipients = cast(list[str], captured)
     assert OTHER in recipients
     assert VENDOR not in recipients

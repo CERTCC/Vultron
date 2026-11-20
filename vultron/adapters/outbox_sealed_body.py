@@ -78,8 +78,8 @@ class SealStore(Protocol):
 #: ``serialize_as_any=True`` is load bearing, not cosmetic. Without it Pydantic
 #: serialises each field by its *declared* type, so an inline nested object held
 #: in a field typed as a reference union is flattened — for
-#: ``as_CaseProposal.object_`` (declared ``ActivityStreamRequiredRef[
-#: as_VulnerabilityReport]``) the report came out as ``null``, putting a proposal
+#: ``CaseProposal.object_`` (a reference union of ``VulnerabilityReport`` and
+#: an IRI) the report came out as ``null``, putting a proposal
 #: on the wire with no report at all in breach of CP-01-004. The receiver then had
 #: nothing to store, and everything derived from the report — the reporter
 #: participant, its ledger entry, the signatory seed — skipped "best-effort", so

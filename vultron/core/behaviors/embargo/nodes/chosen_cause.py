@@ -18,9 +18,10 @@
 ``create_terminate_active_embargo_tree`` asks three reason call-outs why the
 actor ends the embargo.  The one that returns SUCCESS is followed by a
 :class:`ChooseTerminationCauseNode`, which records the matching cause in the
-tree's :class:`ChosenTermination`.  ``terminate_embargo_bt`` is given that
-same :class:`ChosenTermination` and reads the cause at the write, so the
-``Remove`` and the ``TERMINATED`` entry carry it (EMB-13-004).
+tree's :class:`ChosenTermination`.  ``terminate_embargo_bt`` seeds that same
+:class:`ChosenTermination` on ``/termination``, and its nodes read the cause
+at the write (:func:`act_termination`), so the ``Remove`` and the
+``TERMINATED`` entry carry it (EMB-13-004).
 
 The slot belongs to one tree instance, so nothing outlives the run, and the
 choice and the termination it causes are one act.
@@ -31,18 +32,19 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.act_key_ports import (
+    ReadsOptionalPorts,
     act_key_ports,
     act_key_remappings,
     act_value,
 )
-from vultron.core.behaviors.act_keys import CASE_ID
+from vultron.core.behaviors.act_keys import CASE_ID, TERMINATION
+from vultron.core.behaviors.chosen_termination import ChosenTermination
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_termination import (
-    EmbargoTermination,
     FixDeployedCause,
     FixReadyCause,
     OtherCause,
@@ -60,44 +62,27 @@ from vultron.errors import VultronWiringError
 from vultron.primitives import NormalisedActorId
 
 
-class ChosenTermination:
-    """The termination a reason call-out chooses, read at the write.
+def act_termination(node: ReadsOptionalPorts) -> TerminationRequest:
+    """The termination on *node*'s ``/termination`` port, read when it runs.
 
-    Every chosen cause ends the embargo early.  It is set by
-    :class:`ChooseTerminationCauseNode` and read by the termination's commit
-    and ask nodes in the same run.
+    A :class:`ChosenTermination` is resolved to the termination its reason
+    call-out chose earlier in the same run (EMB-14-001); a received or
+    requested termination comes back as it is.
+
+    Raises:
+        VultronWiringError: nothing seeded ``/termination`` for this tick, it
+            holds a value :data:`~vultron.core.behaviors.act_keys.TERMINATION`
+            does not admit, or no reason call-out has chosen a cause yet.
     """
-
-    def __init__(self) -> None:
-        self._termination: EmbargoTermination | None = None
-
-    def choose(self, cause: TerminationCause) -> None:
-        """Record *cause* as the termination's why."""
-        self._termination = EmbargoTermination(cause=cause)
-
-    @property
-    def termination(self) -> EmbargoTermination:
-        """The chosen termination.
-
-        Raises:
-            VultronWiringError: no reason call-out chose a cause before the
-                termination ran, so the tree is composed wrongly.
-        """
-        if self._termination is None:
-            raise VultronWiringError(
-                "the termination ran before a reason call-out chose its"
-                " cause (EMB-14-001)"
-            )
-        return self._termination
-
-
-def resolve_chosen(
-    termination: TerminationRequest | ChosenTermination,
-) -> TerminationRequest:
-    """*termination*, with a :class:`ChosenTermination` read at the write."""
-    if isinstance(termination, ChosenTermination):
-        return termination.termination
-    return termination
+    value = act_value(node, TERMINATION, object)
+    if not TERMINATION.admits(value):
+        raise VultronWiringError(
+            f"{node.name}: '{TERMINATION.path}' holds a"
+            f" {type(value).__name__}, not a termination (BTND-03-022)"
+        )
+    if isinstance(value, ChosenTermination):
+        return value.termination
+    return cast(TerminationRequest, value)
 
 
 def fix_ready_vendors(
@@ -201,6 +186,6 @@ class ChooseTerminationCauseNode(DataLayerActionWithPorts):
 __all__ = [
     "ChooseTerminationCauseNode",
     "ChosenTermination",
+    "act_termination",
     "fix_ready_vendors",
-    "resolve_chosen",
 ]

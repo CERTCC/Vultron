@@ -133,12 +133,12 @@ default embargo and the canonical ledger entries natively — no back-fill, no p
 - The receiver's `receive_report_case_tree.py` creates no case, participants or
   embargo: it writes a pending `VultronReportCaseLink` and sends the proposal. Do not
   re-add the receiver-side creation nodes ADR-0041 removed.
-- A new case starts from its report: name, summary and P/X/A, filled from a CSAF
-  document on the carried Offer's report where the report is silent, and a CSAF
-  disclosure date as the sender's proposed end when the Offer proposes none
-  (CSAF-02, CSAF-03). The CASE_MANAGER reads it only on the new-case arm, against
-  its own receipt of the proposal; see
-  [csaf-report-content](csaf-report-content.md) § "Filling the case".
+- A new case starts from the proposal's `caseInputs` when it carries them, whole,
+  with no CSAF document read (CP-01-024); else from its report, filled from a CSAF
+  document on the carried Offer's report where the report is silent (CP-01-025,
+  CSAF-02, CSAF-03). Either way a disclosure date is the sender's proposed end when
+  the Offer proposes none, judged at case creation, and only on the new-case arm;
+  see [csaf-case-inputs-on-proposal](csaf-case-inputs-on-proposal.md).
 
 ---
 

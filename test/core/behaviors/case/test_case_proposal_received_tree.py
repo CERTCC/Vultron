@@ -442,7 +442,7 @@ class TestEmitCreateVulnerabilityCaseNode:
         carried = _queued_create(dl)["object"]
         [carried_item] = carried["vulnerabilityItems"]
         [carried_ref] = carried["caseReferences"]
-        assert (carried_item["id"], carried_item["ids"][0]["text"]) == (
+        assert (carried_item["id"], carried_item["ids"][0]["identifier"]) == (
             item.id_,
             "CVE-2026-0001",
         )
@@ -3668,8 +3668,6 @@ class TestEP04SenderProposalAtCaseCreation:
             attributed_to=_VENDOR_URI,
             object_=report,
             target=_CASE_ACTOR_URI,
-            offer_id=offer.id_,
-            offer_actor_id=_REPORTER_URI,
             in_reply_to=offer,
         )
         activity = make(

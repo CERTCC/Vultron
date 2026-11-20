@@ -42,6 +42,7 @@ from vultron.core.models.preview_object import (
     to_loose,
 )
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.wire.as2.errors import (
     VultronParseMissingTypeError,
     VultronParseValidationError,
@@ -506,19 +507,23 @@ def test_an_offers_former_suggested_roles_key_is_set_aside_and_reported(
 @pytest.mark.spec("MV-11-003", "CM-05-018")
 @pytest.mark.parametrize(
     "key,value",
-    [("cve", "CVE-2026-0001"), ("title", "Buffer overflow")],
+    [
+        ("cve", "CVE-2026-0001"),
+        ("title", "Buffer overflow"),
+        ("notes", [{"category": "summary", "content": "A summary."}]),
+    ],
 )
 def test_a_vulnerability_items_former_key_is_set_aside_and_reported(
-    key: str, value: str, caplog: pytest.LogCaptureFixture
+    key: str, value: object, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An item's former ``cve`` and ``title`` keys are unknown keys.
+    """An item's former ``cve``, ``title`` and ``notes`` keys are unknown keys.
 
-    Its CVE ID is an ``ids`` entry, and its title is the AS2 ``name``
-    (CM-05-018), so a peer's item with either key is set aside and reported,
-    not refused (MV-11-003); only stored or in-process data is refused
-    (MV-11-004, ADR-0175).  Kept out of :data:`FORMER_NAME_POSITIONS`: core
-    still spells ``cve`` and ``title`` as CSAF fields, which the retired-key
-    guard would flag.
+    Its CVE ID is an ``ids`` entry, its title is the AS2 ``name`` and its
+    notes are its ``vulNotes`` (CM-05-018), so a peer's item with any of
+    those keys has it set aside and reported, not refused (MV-11-003); only
+    stored or in-process data is refused (MV-11-004, ADR-0175).  Kept out of
+    :data:`FORMER_NAME_POSITIONS`: core still spells ``cve``, ``title`` and
+    ``notes`` as CSAF fields, which the retired-key guard would flag.
     """
     body = _with_inline_object(
         {
@@ -530,6 +535,70 @@ def test_a_vulnerability_items_former_key_is_set_aside_and_reported(
         }
     )
     _assert_set_aside_and_reported(body, key, "object", caplog)
+
+
+@pytest.mark.spec("MV-11-003", "CM-05-018")
+@pytest.mark.parametrize(
+    "slot,entry,key",
+    [
+        (
+            "vulNotes",
+            {"category": "summary", "content": "A summary.", "text": "old"},
+            "text",
+        ),
+        (
+            "vulNotes",
+            {"category": "summary", "content": "A summary.", "title": "Sum"},
+            "title",
+        ),
+        (
+            "vulNotes",
+            {
+                "category": "summary",
+                "content": "A summary.",
+                "audience": "all",
+            },
+            "audience",
+        ),
+        (
+            "ids",
+            {"systemName": "GHSA", "identifier": "GHSA-x", "text": "GHSA-x"},
+            "text",
+        ),
+    ],
+)
+def test_a_former_key_in_an_items_note_or_id_is_set_aside_and_reported(
+    slot: str,
+    entry: dict[str, str],
+    key: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A note's former ``text``, ``title`` and ``audience``, and an id's
+    former ``text``, are unknown keys of the entry (CM-05-018).
+
+    The parse edge sets each aside and reports it with the entry's path, and
+    the entry keeps its declared fields (MV-11-003).
+    """
+    caplog.set_level(logging.INFO)
+    body = _with_inline_object(
+        {
+            "type": "VulnerabilityItem",
+            "id": "https://example.org/items/1",
+            "published": PUBLISHED,
+            "updated": PUBLISHED,
+            slot: [entry],
+        }
+    )
+    activity = parse_activity(body)
+
+    assert isinstance(activity, as_TransitiveActivity)
+    item = activity.object_
+    assert isinstance(item, VulnerabilityItem)
+    kept = {k: v for k, v in entry.items() if k != key}
+    assert item.model_dump(by_alias=True, exclude_none=True)[slot] == [kept]
+    records = _info_records_naming(caplog, key)
+    assert len(records) == 1, [r.getMessage() for r in caplog.records]
+    assert f"'object.{slot}[0]'" in records[0].getMessage()
 
 
 def test_the_parse_edge_keeps_no_retired_name_list() -> None:

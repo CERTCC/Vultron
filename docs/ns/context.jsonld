@@ -30,7 +30,9 @@
         "@type": "@id",
         "@container": "@index"
       },
+      "attacksObserved": "vultron:attacksObserved",
       "caseEngagement": "vultron:caseEngagement",
+      "caseInputs": "vultron:caseInputs",
       "caseParticipants": {
         "@id": "vultron:caseParticipants",
         "@type": "@id",
@@ -70,6 +72,7 @@
         "@container": "@set"
       },
       "dState": "vultron:dState",
+      "disclosureDate": "vultron:disclosureDate",
       "emState": "vultron:emState",
       "embargoConsents": {
         "@id": "vultron:embargoConsents",
@@ -86,15 +89,18 @@
       },
       "entryHash": "vultron:entryHash",
       "expectedSenderSequence": "vultron:expectedSenderSequence",
+      "exploitPublic": "vultron:exploitPublic",
       "failureClass": {
         "@id": "vultron:failureClass",
         "@type": "@id"
       },
       "genesisHash": "vultron:genesisHash",
+      "identifier": "vultron:identifier",
       "ids": {
         "@id": "vultron:ids",
         "@container": "@set"
       },
+      "intendedAudience": "vultron:intendedAudience",
       "joined": "vultron:joined",
       "kind": "vultron:kind",
       "ledgerPosition": "vultron:ledgerPosition",
@@ -134,12 +140,21 @@
         "@id": "vultron:proposedEmbargo",
         "@type": "@id"
       },
+      "proposedItems": {
+        "@id": "vultron:proposedItems",
+        "@container": "@list"
+      },
       "proposerCaseRoles": {
         "@id": "vultron:proposerCaseRoles",
         "@container": "@set"
       },
       "pxaState": "vultron:pxaState",
       "receivedAt": "vultron:receivedAt",
+      "referenceLinks": {
+        "@id": "vultron:referenceLinks",
+        "@type": "@id",
+        "@container": "@set"
+      },
       "references": {
         "@id": "vultron:references",
         "@type": "@id",
@@ -178,7 +193,6 @@
       "term": "vultron:term",
       "termination": "vultron:termination",
       "terminationCause": "vultron:terminationCause",
-      "title": "vultron:title",
       "trackingId": "vultron:trackingId",
       "vendors": {
         "@id": "vultron:vendors",
@@ -186,6 +200,10 @@
         "@container": "@set"
       },
       "vfState": "vultron:vfState",
+      "vulNotes": {
+        "@id": "vultron:vulNotes",
+        "@container": "@list"
+      },
       "vulnerabilityItems": {
         "@id": "vultron:vulnerabilityItems",
         "@type": "@id",

@@ -53,7 +53,9 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 |---------------|------------|-------------|
 | `activeParticipants` | set of iri | The ids of the participants a case finds active |
 | `actorParticipantIndex` | index of iri | A map from the id of each actor in a case to the id of its CaseParticipant |
+| `attacksObserved` | plain | Whether a case proposer states that attacks are observed |
 | `caseEngagement` | plain | Whether a participant reports itself engaged in a case |
+| `caseInputs` | plain | The starting content a case proposer states for the case it proposes; present, it speaks for every input |
 | `caseParticipants` | set of iri | The participants of a case, each a CaseParticipant or its id |
 | `caseReferences` | set of iri | The external references of a case, each a CaseReference or its id |
 | `caseRoles` | set | The CVD roles a participant holds in a case |
@@ -65,6 +67,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `childCases` | set of iri | The ids of a case's child cases |
 | `cvdRole` | set | The CVD roles a participant status reports its participant holding in the case |
 | `dState` | plain | A deployer participant's fix-deployed (D) dimension of the Case State (CS) |
+| `disclosureDate` | plain | The earliest disclosure date a case proposer's CSAF document states, as the document states it |
 | `emState` | plain | The Embargo Management (EM) state of a case: NONE, PROPOSED, ACTIVE, REVISE or EXITED |
 | `embargoConsents` | set | A participant's consent rows, one for each embargo in its case's embargo register |
 | `embargoId` | iri | The id of the embargo a consent row records an answer to |
@@ -72,9 +75,12 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `embargoRegister` | list | Every embargo ever proposed on a case, in the order proposed, each an EmbargoEvent that gives its own status |
 | `entryHash` | plain | The SHA-256 hash, in hex, of a case ledger entry's canonical content; the case's genesis hash in a ledger position that names no entry |
 | `expectedSenderSequence` | plain | On a refusal notice for an activity's senderSequence: the positive integer the CASE_MANAGER expects next from that sender, so the sender numbers its next activity for the case no lower |
+| `exploitPublic` | plain | Whether a case proposer states that an exploit is public |
 | `failureClass` | iri | The URI of the class of failure that stopped a received activity from being processed |
 | `genesisHash` | plain | The hash that starts a case's ledger chain, computed from its owner; the first ledger entry's prevLogHash |
-| `ids` | set | The identifiers other systems give a vulnerability, each an object with a systemName and a text |
+| `identifier` | plain | The identifier a system gives a vulnerability, as opaque text in the namespace of that system |
+| `ids` | set | The identifiers other systems give a vulnerability, each an object with a systemName and an identifier |
+| `intendedAudience` | plain | Free text that says who a vulnerability note is intended for, such as executives or system administrators |
 | `joined` | plain | Whether a participant has joined its case: it was seated when the case was created, or it accepted its case invitation |
 | `kind` | plain | The kind of an embargo's termination cause: END_TIME_REACHED, THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
 | `ledgerPosition` | plain | The last entry of a case's ledger that a case file, or the sender of an activity about the case, holds: an object whose logIndex and entryHash name that entry, or logIndex -1 with the case's genesis hash when it holds none |
@@ -90,9 +96,11 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `preferredDuration` | plain | The embargo duration an actor prefers, as an ISO 8601 duration |
 | `prevLogHash` | plain | The SHA-256 hash, in hex, of the case ledger entry before this one, or the case's genesis hash for the first entry |
 | `proposedEmbargo` | iri | The embargo a reporter proposes for a report, on its Offer of the report: an EmbargoEvent or its id |
+| `proposedItems` | list | The vulnerability items a case proposer states for a new case, each with no id of its own |
 | `proposerCaseRoles` | set | The CVD roles a case proposer holds in a case it owns |
 | `pxaState` | plain | The public-awareness, exploit and attack (P, X, A) dimensions of a case's Case State (CS), as one state name |
 | `receivedAt` | plain | When the CASE_MANAGER received the activity a case ledger entry records, as a UTC date-time |
+| `referenceLinks` | set of iri | The external references a case proposer states, each a Link to the referenced resource |
 | `references` | set of iri | The external references about a vulnerability, each a CaseReference or its id |
 | `removalActivity` | iri | The id of the Remove activity that took a participant out of active participation in its case; absent while it is not removed |
 | `replaces` | iri | The id of the embargo that an activated revision replaced |
@@ -111,10 +119,10 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `term` | plain | The cluster term in which the CASE_MANAGER committed a case ledger entry; absent on a single-node deployment |
 | `termination` | plain | How a terminated embargo ended: its cause, END_TIME_REACHED included, the act that caused it when known, and a reason |
 | `terminationCause` | plain | Why an embargo ended, on the Remove that terminates it: an object whose kind is END_TIME_REACHED, THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
-| `title` | plain | The title of a vulnerability note |
 | `trackingId` | plain | A participant's own tracking identifier for a case, such as its internal ticket number |
 | `vendors` | set of iri | The ids of the vendors whose readiness to fix made the quorum that ended an embargo |
 | `vfState` | plain | A vendor participant's vendor-awareness and fix-readiness (V, F) dimensions of the Case State (CS), as one state name |
+| `vulNotes` | list | The text notes about a vulnerability, each an object in the note shape of CSAF 2.1, in the order the author gave them |
 | `vulnerabilityItems` | set of iri | The vulnerabilities a case covers, each a VulnerabilityItem or its id |
 | `vulnerabilityReports` | set of iri | The vulnerability reports of a case, each a VulnerabilityReport or its id |
 

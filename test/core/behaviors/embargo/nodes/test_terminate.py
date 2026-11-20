@@ -34,10 +34,12 @@ from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors import act_keys
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
-from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes.chosen_cause import (
     ChosenTermination,
+    act_termination,
 )
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
@@ -212,9 +214,12 @@ class TestSendTerminateEmbargoActivityNodePorts:
         which builds its own bridge (CONCERN-3019).
         """
         result = bt_scenario.run(
-            with_case_id(
+            with_act_keys(
                 SendTerminateEmbargoActivityNode(),
-                CASE_ID,
+                {
+                    act_keys.CASE_ID: CASE_ID,
+                    act_keys.TERMINATION: EmbargoTermination.other(),
+                },
             ),
             actor_id=ACTOR_ID,
             embargo_id="https://example.org/embargoes/emb-001",
@@ -226,9 +231,12 @@ class TestSendTerminateEmbargoActivityNodePorts:
     def test_failure_when_factory_unavailable(self) -> None:
         """No trigger-activity port: FAILURE, nothing queued or recorded."""
         dl, result = _run(
-            with_case_id(
+            with_act_keys(
                 SendTerminateEmbargoActivityNode(),
-                CASE_ID,
+                {
+                    act_keys.CASE_ID: CASE_ID,
+                    act_keys.TERMINATION: EmbargoTermination.other(),
+                },
             ),
             _VENDOR_ID,
             factory=None,
@@ -247,9 +255,12 @@ class TestTeardownAsk:
         factory = _factory()
 
         _run(
-            with_case_id(
+            with_act_keys(
                 SendTerminateEmbargoActivityNode(),
-                CASE_ID,
+                {
+                    act_keys.CASE_ID: CASE_ID,
+                    act_keys.TERMINATION: EmbargoTermination.other(),
+                },
             ),
             _VENDOR_ID,
             factory,
@@ -265,9 +276,12 @@ class TestTeardownAsk:
     @pytest.mark.spec("SYNC-11-002")
     def test_queued_ask_is_recorded_keyed_by_the_ended_embargo(self) -> None:
         dl, result = _run(
-            with_case_id(
+            with_act_keys(
                 SendTerminateEmbargoActivityNode(),
-                CASE_ID,
+                {
+                    act_keys.CASE_ID: CASE_ID,
+                    act_keys.TERMINATION: EmbargoTermination.other(),
+                },
             ),
             _VENDOR_ID,
             _factory(),
@@ -296,9 +310,12 @@ class TestTeardownAsk:
             _boom,
         )
         _, result = _run(
-            with_case_id(
+            with_act_keys(
                 SendTerminateEmbargoActivityNode(),
-                CASE_ID,
+                {
+                    act_keys.CASE_ID: CASE_ID,
+                    act_keys.TERMINATION: EmbargoTermination.other(),
+                },
             ),
             _VENDOR_ID,
             _factory(),
@@ -324,9 +341,12 @@ class TestTeardownAsk:
             _boom,
         )
         dl, result = _run(
-            with_case_id(
+            with_act_keys(
                 SendTerminateEmbargoActivityNode(),
-                CASE_ID,
+                {
+                    act_keys.CASE_ID: CASE_ID,
+                    act_keys.TERMINATION: EmbargoTermination.other(),
+                },
             ),
             _VENDOR_ID,
             _factory(),
@@ -344,9 +364,12 @@ class TestTeardownAsk:
         factory = _factory()
 
         dl, result = _run(
-            with_case_id(
+            with_act_keys(
                 SendTerminateEmbargoActivityNode(),
-                CASE_ID,
+                {
+                    act_keys.CASE_ID: CASE_ID,
+                    act_keys.TERMINATION: EmbargoTermination.other(),
+                },
             ),
             _MANAGER_ID,
             factory,
@@ -368,7 +391,9 @@ class TestAskCaseManagerToTerminateOnce:
         factory = _factory()
 
         dl, result = _run(
-            ask_case_manager_to_terminate_once(CASE_ID),
+            ask_case_manager_to_terminate_once(
+                CASE_ID, EmbargoTermination.other()
+            ),
             _VENDOR_ID,
             factory,
         )
@@ -382,7 +407,9 @@ class TestAskCaseManagerToTerminateOnce:
         _record_earlier_ask(subject_id="https://example.org/embargoes/other")
 
         dl, _ = _run(
-            ask_case_manager_to_terminate_once(CASE_ID),
+            ask_case_manager_to_terminate_once(
+                CASE_ID, EmbargoTermination.other()
+            ),
             _VENDOR_ID,
             _factory(),
         )
@@ -397,7 +424,9 @@ class TestAskCaseManagerToTerminateOnce:
         )
 
         dl, _ = _run(
-            ask_case_manager_to_terminate_once(CASE_ID),
+            ask_case_manager_to_terminate_once(
+                CASE_ID, EmbargoTermination.other()
+            ),
             _VENDOR_ID,
             _factory(),
         )
@@ -410,7 +439,9 @@ class TestAskCaseManagerToTerminateOnce:
         _record_earlier_ask()
 
         dl, _ = _run(
-            ask_case_manager_to_terminate_once(CASE_ID),
+            ask_case_manager_to_terminate_once(
+                CASE_ID, EmbargoTermination.other()
+            ),
             _VENDOR_ID,
             _factory(),
         )
@@ -423,7 +454,9 @@ class TestAskCaseManagerToTerminateOnce:
         factory.terminate_embargo.side_effect = RuntimeError("factory down")
 
         _, result = _run(
-            ask_case_manager_to_terminate_once(CASE_ID),
+            ask_case_manager_to_terminate_once(
+                CASE_ID, EmbargoTermination.other()
+            ),
             _VENDOR_ID,
             factory,
         )
@@ -451,7 +484,10 @@ class TestTheAskCarriesTheParticipantCause:
         cause = FixDeployedCause()
 
         _run(
-            ask_case_manager_to_terminate_once(CASE_ID, cause),
+            ask_case_manager_to_terminate_once(
+                CASE_ID,
+                EmbargoTermination(cause=cause),
+            ),
             _VENDOR_ID,
             factory,
         )
@@ -508,3 +544,42 @@ class TestParticipantCause:
     def test_any_other_cause_passes_through(self) -> None:
         cause = FixReadyCause(vendors=[_VENDOR_ID])
         assert EmbargoTermination(cause=cause).participant_cause == cause
+
+
+class _Ports:
+    """A stand-in node whose ``/termination`` port holds *value*."""
+
+    name = "Stand-in"
+
+    def __init__(self, value: object) -> None:
+        self._value = value
+
+    def _try_get_input(self, key: str) -> object | None:
+        return self._value if key == act_keys.TERMINATION.name else None
+
+
+class TestActTermination:
+    """The one read of ``/termination`` (BTND-01-008, EMB-14-001)."""
+
+    @pytest.mark.spec("BTND-01-008")
+    def test_a_termination_comes_back_as_it_is(self) -> None:
+        termination = EmbargoTermination.other()
+        assert act_termination(_Ports(termination)) is termination
+
+    @pytest.mark.spec("EMB-14-001")
+    def test_a_chosen_termination_is_read_now(self) -> None:
+        chosen = ChosenTermination()
+        chosen.choose(FixDeployedCause())
+        assert act_termination(_Ports(chosen)) == EmbargoTermination(
+            cause=FixDeployedCause()
+        )
+
+    @pytest.mark.spec("BTND-03-022")
+    def test_a_value_the_key_does_not_admit_is_a_wiring_fault(self) -> None:
+        with pytest.raises(VultronWiringError, match="/termination"):
+            act_termination(_Ports("EARLY"))
+
+    @pytest.mark.spec("BTND-01-008")
+    def test_an_unseeded_key_is_a_wiring_fault(self) -> None:
+        with pytest.raises(VultronWiringError, match="/termination"):
+            act_termination(_Ports(None))

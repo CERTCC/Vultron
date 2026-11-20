@@ -81,9 +81,16 @@ def _tick(node, dl, at: datetime | None = None) -> Status:
 
 def test_timely_guard_has_nothing_to_check_for_an_early_termination() -> None:
     dl, case = _store()
-    node = TerminationIsTimelyNode(termination=EmbargoTermination.other())
+    node = TerminationIsTimelyNode()
+    seeded = with_act_keys(
+        node,
+        {
+            act_keys.CASE_ID: case.id_,
+            act_keys.TERMINATION: EmbargoTermination.other(),
+        },
+    )
 
-    assert _tick(with_case_id(node, case.id_), dl) == Status.SUCCESS
+    assert _tick(seeded, dl) == Status.SUCCESS
 
 
 @pytest.mark.spec("EMB-13-003")
@@ -136,9 +143,10 @@ def test_timely_guard_trial_applies_the_step_the_remove_names(
 
     dl, case = _store(end_time=now_utc() + timedelta(days=1))
     node = with_act_keys(
-        TerminationIsTimelyNode(termination=EmbargoTermination.other()),
+        TerminationIsTimelyNode(),
         {
             act_keys.CASE_ID: case.id_,
+            act_keys.TERMINATION: EmbargoTermination.other(),
             act_keys.EMBARGO_ID: f"{case.id_}/embargo_events/e1",
         },
     )
