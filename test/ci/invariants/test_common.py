@@ -19,6 +19,7 @@ from _pytest.outcomes import Failed, Skipped
 
 from test.ci.invariants import common
 from test.ci.invariants.common import (
+    check_case_invitations,
     check_cross_actor_hash_agreement,
     check_cross_actor_payload_actor_agreement,
     check_cs_state_transitions_observed,
@@ -329,6 +330,69 @@ def test_check_semantic_type_count_has_no_upper_bound_by_default() -> None:
         _invite_replicas(5), "invite_actor_to_case", 1
     )
     assert violations == []
+
+
+def _invitation_replicas(*payloads: dict) -> dict[str, list[dict]]:
+    """A case-actor log of ``invite_actor_to_case`` entries, one per payload."""
+    entries, prev = [], GENESIS_HASH
+    for i, snap in enumerate(payloads):
+        h = _SHA256(f"invitation:{i}")
+        entries.append(_entry(i, h, prev, "invite_actor_to_case", snap))
+        prev = h
+    return {"case-actor": entries}
+
+
+_OWNER = "https://example.org/actors/owner"
+_OWNERS_INVITE = {"id": "urn:uuid:owner-invite", "actor": _OWNER}
+_STUB = {
+    "id": "urn:uuid:stub",
+    "actor": "https://example.org/actors/case-actor",
+    "attributedTo": _OWNER,
+    "inReplyTo": "urn:uuid:owner-invite",
+}
+
+
+def test_check_case_invitations_passes_on_one_owner_invite_and_its_stub() -> (
+    None
+):
+    """One invitation is the Owner's Invite plus the stub answering it."""
+    replicas = _invitation_replicas(_OWNERS_INVITE, _STUB)
+    assert check_case_invitations(replicas, invitee_count=1) == []
+
+
+@pytest.mark.parametrize(
+    "payloads",
+    [
+        pytest.param((_STUB,), id="stub-without-owners-invite"),
+        pytest.param((_OWNERS_INVITE,), id="owners-invite-without-stub"),
+        pytest.param(
+            (_OWNERS_INVITE, _STUB, {**_STUB, "id": "urn:uuid:stub-2"}),
+            id="second-stub",
+        ),
+    ],
+)
+def test_check_case_invitations_reports_a_count_off_by_one(
+    payloads: tuple[dict, ...],
+) -> None:
+    """Each half is counted exactly, so a missing or extra Invite is reported."""
+    violations = check_case_invitations(
+        _invitation_replicas(*payloads), invitee_count=1
+    )
+    assert violations
+
+
+def test_check_case_invitations_reports_a_stub_naming_no_owners_invite() -> (
+    None
+):
+    """A stub whose ``inReplyTo`` names no Owner's Invite in the log is a fault."""
+    stray = {**_STUB, "inReplyTo": "urn:uuid:elsewhere"}
+    violations = check_case_invitations(
+        _invitation_replicas(_OWNERS_INVITE, stray), invitee_count=1
+    )
+    assert violations == [
+        "Stub Invite 'urn:uuid:stub' names 'urn:uuid:elsewhere' in inReplyTo,"
+        " which is no Case Owner's Invite in case-actor log."
+    ]
 
 
 def test_check_semantic_type_count_rejects_max_below_min() -> None:

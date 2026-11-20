@@ -132,7 +132,7 @@ def run_case_invite_chain(
         )
 
     if case_manager_client is not None:
-        _seed_stub_summary(case_manager_client, case)
+        _seed_stub_summary(case_manager_client, case, inviter)
 
     if inviter is None:
         answer(
@@ -186,7 +186,7 @@ def invite_and_await_delivery(
         ``demo_gate``, never raised (DEMOCI-01-003).
     """
     if case_manager_client is not None:
-        _seed_stub_summary(case_manager_client, case)
+        _seed_stub_summary(case_manager_client, case, inviter)
 
     delivered: str | None = None
     with demo_step(_invite_step_label(inviter, invitee_name)):

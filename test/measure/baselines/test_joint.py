@@ -13,6 +13,10 @@
 
 """The joint models follow the state tables and composite invariants (#6067 AC-1)."""
 
+import os
+import subprocess
+import sys
+
 import pytest
 
 from vultron.core.states.composite_state_invariants import (
@@ -250,3 +254,39 @@ def test_accepting_one_of_several_proposals_starts_the_embargo():
     assert starts == {EM.ACTIVE, EM.REVISE}
     with pytest.raises(VultronInvalidStateTransitionError, match="ambiguous"):
         ONE_VENDOR_MODEL.apply(before, Event(K.EMBARGO_START))
+
+
+#: Each step of every state the one-vendor model reaches, breadth first, as
+#: text: the walk order a generated table reads.
+_WALK_ORDER = """
+from collections import deque
+from vultron.measure.baselines import ONE_VENDOR_MODEL as m
+seen, queue = {m.initial}, deque([m.initial])
+while queue:
+    state = queue.popleft()
+    steps = m.steps(state)
+    print(repr(state), [str(s.event) for s in steps])
+    for s in steps:
+        if s.state not in seen:
+            seen.add(s.state)
+            queue.append(s.state)
+"""
+
+
+def test_the_step_order_does_not_follow_the_string_hash_seed():
+    """The walk order is the same whatever ``PYTHONHASHSEED`` is: the
+    generated action rule docs are compared byte for byte with a fresh
+    build (SHD-05-009), so a set's iteration order must not reach them."""
+    outputs = set()
+    for seed in ("1", "2"):
+        done = subprocess.run(
+            [sys.executable, "-c", _WALK_ORDER],
+            capture_output=True,
+            text=True,
+            check=True,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            timeout=25,
+        )
+        outputs.add(done.stdout)
+    assert len(outputs) == 1
+    assert next(iter(outputs))

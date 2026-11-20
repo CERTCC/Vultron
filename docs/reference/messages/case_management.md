@@ -168,9 +168,24 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [undo_case_ownership_transfer.json](../examples/undo_case_ownership_transfer.json).
 
+{% include-markdown "./_occasions/sections/owner-invite-actor-to-case.md" %}
+
+- **Who decides:** the Case Owner decides whom to invite, and sends that decision as its own Invite ([CM-17-007](../specs/project.md#cm-17-007), [ADR-0199](../../adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md)).
+  It has the Stub Invite's shape, and goes to the CASE_MANAGER only.
+  The CASE_MANAGER reads an Invite addressed to it whose `target` names another actor as the Case Owner's decision.
+- **Effects:** the CASE_MANAGER records the Invite as one ledger entry, then sends its own Stub Invite to the invitee with the same `object`, `target` and roles ([CM-17-018](../specs/project.md#cm-17-018), [CM-17-019](../specs/project.md#cm-17-019)).
+  The Stub Invite credits the Case Owner in `attributedTo` and names this Invite in `inReplyTo`.
+  A re-invite of an invitee that has not answered names the Stub Invite it replaces in `inReplyTo` instead ([CM-11-044](../vultron-spec/requirements/case-management.md#cm-11-044)).
+- **Refusals:** the CASE_MANAGER answers with a refusal notice and records nothing when the sender is not the Case Owner, the `target` is the CASE_MANAGER or the Case Owner, or the invitee has joined, closed or been removed ([CM-17-026](../specs/project.md#cm-17-026)).
+  It refuses the same way an Invite with no role or an authority role ([CM-11-050](../vultron-spec/requirements/case-management.md#cm-11-050), [CM-20-008](../vultron-spec/requirements/case-management.md#cm-20-008)).
+  An `Offer(Actor)` from the Case Owner is refused too: the decision has one wire form ([CM-17-027](../specs/project.md#cm-17-027)).
+- **Case Owner that is the CASE_MANAGER:** it sends the Stub Invite straight to the invitee, with neither `attributedTo` nor `inReplyTo` ([CM-17-017](../specs/project.md#cm-17-017)).
+- **Trigger:** `POST /actors/{actor_id}/trigger/invite-actor-to-case`, whose body names the `invitee_id` and the `roles` ([Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Example artifact:** [owner_invite_actor_to_case.json](../examples/owner_invite_actor_to_case.json).
+
 {% include-markdown "./_occasions/sections/invite-actor-to-case.md" %}
 
-- **Who decides:** the Case Owner decides whom to invite.
+- **Who decides:** the Case Owner decides whom to invite ([Case Owner invites an actor](#owner-invite-actor-to-case)).
   A participant that wants a third party brought in sends a recommendation instead ([Suggest actor to case](general.md#suggest-actor-to-case)).
   See [§12.2 Invitation and Acceptance](../vultron-spec/interactions.md#122-invitation-and-acceptance-n).
 - **Triggering transition:** none — roster action.

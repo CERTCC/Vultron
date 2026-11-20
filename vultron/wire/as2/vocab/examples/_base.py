@@ -342,7 +342,7 @@ def vulnerability_item() -> as_VulnerabilityItem:
     return as_VulnerabilityItem(
         id_=f"{_case.id_}/items/1",
         ids=[VulnerabilityItemId.cve("CVE-2026-0001")],
-        title="Buffer overflow in the widget parser",
+        name="Buffer overflow in the widget parser",
         context=_case.id_,
         **_example_stamp(),
     )

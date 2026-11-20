@@ -370,22 +370,25 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # single-process run the writer can even be a different
                 # actor's execution (BT-09).
                 "case_id",
-                # The CASE_MANAGER actor for the case a trigger acts on.
-                # ``ResolveCaseManagerNode`` publishes it, ``None`` on each of
-                # its failure arms (BT-17-003).  ``ConstructActivitiesNode``
-                # and ``SendTerminateEmbargoActivityNode`` read it strictly,
-                # and ``EmitCloseCaseNode`` reads it if present.  Strict does
-                # not help against a stale value, which is present: a previous
-                # execution's manager would address this execution's
-                # activities to another case's manager (BT-09, BTND-03-009).
-                "case_manager_id",
-                # The CASE_MANAGER's actor id, published by
-                # ``FindCaseActorNode`` (replay), ``ReceivedPathNode`` (path
-                # stage) and ``CheckIsCaseManagerNode`` (manager-role guard),
-                # and read by ``AnnounceCaseOnGenesisRejectNode`` and
-                # ``SendMissingEntriesNode``.  A previous execution's value,
-                # possibly another actor's, would address a genesis Announce
-                # or a replay to the wrong actor (BT-09, BTND-03-009).
+                # Published, with ``/case_id``, by ``FindRefusedLedgerEntry``
+                # as an output port (BT-25-009).  A later fault that names no
+                # entry must find none, or the miss guard would admit it and
+                # its refusal would lose its BT-25-010 reason.
+                "refused_entry",
+                "announce_id",
+                # The CASE_MANAGER's actor id, the one key for it
+                # (BTND-03-022).  Published by ``FindCaseActorNode`` (replay),
+                # ``ReceivedPathNode`` (path stage), ``CheckIsCaseManagerNode``
+                # (manager-role guard) and ``ResolveCaseManagerNode`` (a
+                # trigger's routing guard, ``None`` on each of its failure
+                # arms, BT-17-003).  Read by ``AnnounceCaseOnGenesisRejectNode``,
+                # ``SendMissingEntriesNode``, ``ConstructActivitiesNode`` and
+                # ``SendTerminateEmbargoActivityNode`` strictly, and by
+                # ``EmitCloseCaseNode`` if present.  Strict does not help
+                # against a stale value, which is present: a previous
+                # execution's value, possibly another actor's, would address a
+                # genesis Announce, a replay or a trigger's activities to
+                # another case's manager (BT-09, BTND-03-009).
                 "case_actor_id",
                 # The Reporter's proposed embargo terms, read by
                 # InitializeCreationEmbargoNode and

@@ -133,10 +133,12 @@ for _answer in (
 class InviteActorToCaseTriggerRequest(
     TriggerRequest[ActivityResult], InviteActorToCaseRequest
 ):
-    """Trigger request for the case owner to directly invite an actor.
+    """Trigger request for the case owner to invite an actor.
 
-    Emits an RmInviteToCaseActivity addressed to the invitee, queued in the
-    actor's outbox for delivery.
+    Emits the Case Owner's own ``Invite(<case preview>)[target=<invitee>]``
+    addressed to the CASE_MANAGER, which sends the stub Invite to the invitee
+    (CM-17-007, ADR-0199); an Owner that is the CASE_MANAGER sends the stub
+    Invite itself.
     """
 
 

@@ -35,7 +35,7 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.measure.action_rules import (
     ANY_ROLE,
-    FORCED_AWARENESS,
+    FORCED_STEP,
     NO_STATE_CHANGE,
     NOT_MEASURED,
     AuthoredRule,
@@ -382,7 +382,7 @@ def test_a_misplaced_rule_is_misplaced_even_with_no_desideratum():
     assert result.kind is _K.MISPLACED_RULE
 
 
-# --- SHD-05-030: the public's awareness is not a publication ---
+# --- SHD-05-030: a rule joined to a forced step is not measured (D19) ---
 
 
 @pytest.mark.spec("SHD-05-030")
@@ -394,7 +394,68 @@ def test_a_publication_where_an_exploit_forces_awareness_is_not_joined():
     result = _only(compare_point(point, [rule]), rule)
     assert result.kind is _K.UNSCORED_RULE
     assert result.move is None
-    assert result.reason == FORCED_AWARENESS
+    assert result.reason == FORCED_STEP
+
+
+@pytest.mark.spec("SHD-05-028", "SHD-05-030")
+def test_a_forced_step_rule_with_no_desideratum_says_not_measured_once():
+    rule = _rule(
+        action=Actions.PUBLISH_VULNERABILITY, reason="Defense", desiderata=()
+    )
+    point = _point(RM.ACCEPTED, CS.VFdpXa, EM.NONE)
+    result = _only(compare_point(point, [rule]), rule)
+    assert result.kind is _K.UNSCORED_RULE
+    assert result.reason == f"{FORCED_STEP}; its reason: Defense"
+
+
+#: The vendor not yet aware while the public is: ``vfdP..`` forces V next.
+_PUBLIC_FIRST = (RM.START, CS.vfdPxa, EM.NONE)
+
+
+@pytest.mark.spec("SHD-05-030")
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {
+            "action": "cs.vendor_becomes_aware",
+            "roles": frozenset({CVDRole.VENDOR}),
+        },
+        {
+            "action": Actions.NOTIFY_VENDOR,
+            "roles": frozenset({CVDRole.REPORTER}),
+        },
+        {"action": Actions.PAY_ATTENTION_TO_PUBLIC_REPORTS},
+    ],
+    ids=["named-move", "notify-vendor", "pay-attention"],
+)
+def test_a_rule_joined_to_a_step_the_model_forces_is_not_measured(fields):
+    """At ``vfdP..`` the vendor becomes aware next whatever anyone does, so
+    a rule for that step is not measured, never a rule disagreement."""
+    rule = _rule(desiderata=("V≺X",), **fields)
+    point = _point(*_PUBLIC_FIRST)
+    forced = [v for v in point.verdicts if v.forced]
+    assert [v.move.name for v in forced] == ["cs.vendor_becomes_aware"]
+    assert all(v.score is not None for v in forced)
+    result = _only(compare_point(point, [rule]), rule)
+    assert result.kind is _K.UNSCORED_RULE
+    assert result.reason == FORCED_STEP
+    assert result.band is None
+
+
+@pytest.mark.spec("SHD-05-030")
+def test_no_authored_rule_is_scored_on_a_forced_step():
+    """D19 across the table: no authored rule gets a band on a step its
+    position forces, and the ones joined to such a step say why."""
+    rules = authored_rules()
+    not_measured = 0
+    for point in vendor_points():
+        forced = {v.move.name for v in point.verdicts if v.forced}
+        for result in compare_point(point, rules).results:
+            if result.rule is None:
+                continue
+            assert result.band is None or result.move not in forced
+            not_measured += result.reason == FORCED_STEP
+    assert not_measured
 
 
 # --- SHD-05-013: the comparison changes neither table ---

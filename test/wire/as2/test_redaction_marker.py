@@ -225,10 +225,10 @@ MARKED_PREVIEW_FIELDS: dict[str, tuple[dict[str, Any], Any]] = {
     "nested object field": (
         {
             "vulnerabilityItems": [
-                {"type": "VulnerabilityItem", "title": MARKER}
+                {"type": "VulnerabilityItem", "name": MARKER}
             ]
         },
-        lambda preview: preview.vulnerability_items[0].title,
+        lambda preview: preview.vulnerability_items[0].name,
     ),
     "nested value field": (
         {

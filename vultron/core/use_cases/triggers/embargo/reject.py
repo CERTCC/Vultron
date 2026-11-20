@@ -118,6 +118,7 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
                 embargo_id=self._embargo_id,
                 result_out=self._result_out,
                 activity_builder=_build_activity,
+                actor_config=self._actor_config,
             )
         # A participant sends its Reject(Invite); a non-owner CASE_MANAGER
         # instead commits its Update(EmbargoConsent) of the row, which the
@@ -128,6 +129,7 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
             result_out=self._result_out,
             activity_builder=_build_activity,
             own_consent_out=self._captured,
+            actor_config=self._actor_config,
         )
 
     def _log_lifecycle_result(self) -> None:

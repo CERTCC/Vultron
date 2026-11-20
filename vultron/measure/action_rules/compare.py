@@ -21,7 +21,8 @@ verdict at it, :func:`compare_point` gives one result:
 * a **misplaced rule**: the state machines do not allow the rule's move
   here, or the rule's roles may not make it;
 * an **unscored rule**: the rule's action is allowed but has no band, as a
-  CVD action that changes no state, or a move move advice does not score;
+  CVD action that changes no state, a step the state model forces next, or
+  a move move advice does not score;
 * an **unclaimed move**: a move harm-free for the vendor that no matching
   rule names.
 
@@ -44,7 +45,6 @@ from fractions import Fraction
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from vultron.core.states.cs_invariants import (
-    CSEvent,
     cs_happened_events,
     required_next_cs_events,
 )
@@ -78,18 +78,23 @@ class ResultKind(StrEnum):
     UNCLAIMED_MOVE = "unclaimed move"
 
 
+#: The results the case shadow tool and the docs page flag: an authoring
+#: error, or a claim the bands contradict (SHD-06-003).
+FLAGGED: frozenset[ResultKind] = frozenset(
+    {ResultKind.RULE_DISAGREEMENT, ResultKind.MISPLACED_RULE}
+)
+
 #: The results that carry a band, the deciding part and the named changes.
 _BANDED = frozenset({ResultKind.AGREEMENT, ResultKind.RULE_DISAGREEMENT})
 
 NO_STATE_CHANGE = "the action changes no state here"
 """Why a rule whose action changes no state at a position is unscored."""
 
-FORCED_AWARENESS = (
-    "a public exploit makes the public aware next, whatever is published;"
-    " a publication does not cause it"
-)
-"""Why a publication beside a public exploit and an unaware public is
-unscored (SHD-05-030)."""
+FORCED_STEP = "not measured: this step happens anyway"
+"""Why a rule joined to a step the state model forces next is unscored, such
+as notifying a vendor that public awareness forces to become aware, or a
+publication beside a public exploit and an unaware public (#6676, D19;
+SHD-05-030)."""
 
 NOT_MEASURED = "not measured: the rule names no desideratum"
 """Why a rule whose reason is not a desideratum is unscored (SHD-05-028)."""
@@ -118,7 +123,8 @@ class RuleResult(BaseModel):
         rule: The authored rule; ``None`` only for an unclaimed move.
         proposal: The open proposal a rule with a proposal part matched.
         move: The move joined: the rule's move, or the move its action is
-            here; ``None`` for an action that changes no state.
+            here; ``None`` for an action that changes no state, or one
+            whose step the state model forces next.
         participant: The participant who makes the joined move.
         band: The move's band for the vendor, for an agreement, a rule
             disagreement and an unclaimed move.
@@ -200,7 +206,24 @@ class PointComparison(BaseModel):
 def _not_measured(rule: AuthoredRule) -> str:
     """Why a rule that names no desideratum gets no band, with its reason
     (SHD-05-028)."""
-    return f"{NOT_MEASURED}; its reason: {rule.reason}"
+    return f"{NOT_MEASURED}; {_its_reason(rule)}"
+
+
+def _its_reason(rule: AuthoredRule) -> str:
+    return f"its reason: {rule.reason}"
+
+
+def _unscored_reason(rule: AuthoredRule, why: str | None) -> str | None:
+    """Why *rule* is unscored: *why*, and for a rule that names no
+    desideratum also the rule's reason (SHD-05-028), saying "not measured"
+    once where the step is forced (SHD-05-030)."""
+    if rule.measured:
+        return why
+    if why is None:
+        return _not_measured(rule)
+    if why == FORCED_STEP:
+        return f"{why}; {_its_reason(rule)}"
+    return f"{why}; {_not_measured(rule)}"
 
 
 def rule_move(rule: AuthoredRule, position: Position) -> str | None:
@@ -217,23 +240,28 @@ def resolve_action(
 
     A rule that names a move is that move.  An action of ``Actions`` is the
     move :data:`ACTION_MOVES` gives it, except where the CS event it causes
-    has already happened (SHD-05-024), and except a publication where a
-    public exploit forces the public's awareness next: the public then
-    learns of the vul from the exploit, not from the publication
-    (SHD-05-030).
+    has already happened (SHD-05-024).  Either is joined to no move where
+    the state model forces its CS event next, whatever anyone does: the
+    step happens anyway, so no band can say whether the rule's action
+    serves it (#6676, D19; SHD-05-030).  At ``vfdP..`` the vendor becomes
+    aware next, notified or not; beside a public exploit the public learns
+    of the vul from the exploit, not from a publication.
     """
-    if isinstance(rule.action, str):
-        return rule.action, None
-    move = ACTION_MOVES.get(rule.action)
+    named = isinstance(rule.action, str)
+    move = (
+        rule.action
+        if isinstance(rule.action, str)
+        else ACTION_MOVES.get(rule.action)
+    )
     if move is None:
         return None, NO_STATE_CHANGE
     event = CS_MOVE_EVENTS.get(move)
-    if event is not None and event in cs_happened_events(position.cs):
+    if event is None:
+        return move, None
+    if not named and event in cs_happened_events(position.cs):
         return None, NO_STATE_CHANGE
-    if event is CSEvent.P and CSEvent.P in required_next_cs_events(
-        position.cs
-    ):
-        return None, FORCED_AWARENESS
+    if event in required_next_cs_events(position.cs):
+        return None, FORCED_STEP
     return move, None
 
 
@@ -289,15 +317,12 @@ def _rule_result(
         )
 
     def unscored(why: str | None, **fields: object) -> RuleResult:
-        """An unscored-rule result; one for a rule that names no
-        desideratum also carries the rule's reason (SHD-05-028)."""
-        if not rule.measured:
-            why = (
-                _not_measured(rule)
-                if why is None
-                else (f"{why}; {_not_measured(rule)}")
-            )
-        return result(ResultKind.UNSCORED_RULE, reason=why, **fields)
+        """An unscored-rule result (:func:`_unscored_reason`)."""
+        return result(
+            ResultKind.UNSCORED_RULE,
+            reason=_unscored_reason(rule, why),
+            **fields,
+        )
 
     if move is None:
         return unscored(no_state)

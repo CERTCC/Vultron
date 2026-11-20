@@ -133,7 +133,7 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
 def _seed_ask_blackboard() -> None:
     py_trees.blackboard.Blackboard.storage.clear()
     py_trees.blackboard.Blackboard.storage["/embargo_id"] = _EMBARGO_ID
-    py_trees.blackboard.Blackboard.storage["/case_manager_id"] = _MANAGER_ID
+    py_trees.blackboard.Blackboard.storage["/case_actor_id"] = _MANAGER_ID
 
 
 def _factory() -> MagicMock:
@@ -197,7 +197,7 @@ class TestSendTerminateEmbargoActivityNodePorts:
         node = SendTerminateEmbargoActivityNode(reason=TerminationReason.EARLY)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
-            node.get_input("case_manager_id")
+            node.get_input("case_actor_id")
 
     def test_failure_when_embargo_absent(
         self, bt_scenario: BTTestScenario
@@ -220,7 +220,7 @@ class TestSendTerminateEmbargoActivityNodePorts:
             ),
             actor_id=ACTOR_ID,
             embargo_id="https://example.org/embargoes/emb-001",
-            case_manager_id=_MANAGER_ID,
+            case_actor_id=_MANAGER_ID,
         )
         bt_scenario.assert_failure(result, reason="EmbargoEvent")
 

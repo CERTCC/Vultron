@@ -25,11 +25,17 @@ from typing import ClassVar
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.embargo.embargo_clock_decisions import (
     embargo_clock_decisions,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import ActivityResult
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.clock import ClockPort
+from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycleResult
 from vultron.core.use_cases.triggers._base.activity import (
     SvcActivityTriggerBase,
@@ -62,6 +68,31 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
     _assertion_semantic_type: ClassVar[str]
 
     _case: VulnerabilityCase
+
+    def __init__(
+        self,
+        dl: CaseOutboxPersistence,
+        request: object,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        *,
+        clock: ClockPort,
+        actor_config: ActorConfig | None = None,
+    ) -> None:
+        super().__init__(
+            dl,
+            request,
+            trigger_activity,
+            wire_render_port,
+            sync_port,
+            clock=clock,
+        )
+        # The CASE_MANAGER's RSVP window, for the embargo Invites it relays
+        # and the stub Invites it re-issues when the embargo under them
+        # changes (CM-11-014, CM-11-016, CM-28-012); ``None`` leaves the
+        # ``ActorConfig`` defaults.
+        self._actor_config = actor_config
 
     def _clock_decisions(
         self, case_id: str

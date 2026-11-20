@@ -183,9 +183,7 @@ def test_every_vul_and_post_with_a_counterpart_is_translated(stem):
     reading = translate(stem)
     raw = reads(stem)
     items = records(reading, "VulnerabilityItem")
-    assert [item["title"] for item in items] == [
-        v["name"] for v in raw["vuls"]
-    ]
+    assert [item["name"] for item in items] == [v["name"] for v in raw["vuls"]]
     # A VINCE cve is the item's ``CVE`` ids entry (CM-05-018).
     assert [cve_of(item) for item in items] == [v["cve"] for v in raw["vuls"]]
     # The CVE entry, when there is one, comes before the VINCE id.

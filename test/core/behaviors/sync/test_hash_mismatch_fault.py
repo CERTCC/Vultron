@@ -470,8 +470,8 @@ def test_a_hash_mismatch_fault_at_a_participant_is_refused(caplog) -> None:
 
 @pytest.mark.spec("SYNC-03-008")
 def test_a_hash_mismatch_fault_naming_no_announce_is_refused(caplog) -> None:
-    """A fault with no ``inReplyTo`` names no case: it is only archived and
-    refused, with no report and no self-check."""
+    """A fault with no ``inReplyTo`` names no case: the tree's miss guard
+    refuses it (BT-25-010), with no report and no self-check."""
     dl, _, _ = _manager()
 
     with caplog.at_level(logging.ERROR, logger="vultron"):

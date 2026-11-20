@@ -8,6 +8,10 @@ The standing at an earlier point is the same computation over a prefix of
 the reading: it equals the standing of a reading that holds only those
 entries, read from a file cut after them (#6671).
 
+Each narrative line's hindsight mark grades its step by the advice for the
+entries before it, worked out only for a line whose entry changes a state
+(#6672).
+
 Spec: CRD-01-003, CRD-02-005 (strict xfail, #6563).
 """
 
@@ -29,7 +33,12 @@ from vultron.core.models.case_reading import (
 )
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.demo.recordings.layout import RECORDINGS_DIR
-from vultron.measure.advice import case_advice
+from vultron.measure.advice import HindsightMark, case_advice
+from vultron.measure.advice.hindsight import (
+    NO_ADVICE,
+    NO_KNOWN_PUBLISHER,
+    NO_STATE_CHANGE,
+)
 from vultron.measure.baselines import EventKind
 from vultron.measure.history import case_narrative
 from vultron.measure.ledger import read_case_ledgers
@@ -38,6 +47,8 @@ from vultron.shadow.analysis import (
     analyse,
     analyse_prefix,
     count_through,
+    ledger_advice,
+    narrative_marks,
     point_analysis,
     prefix_advice,
     reading_ledger,
@@ -329,3 +340,92 @@ def test_a_point_reads_its_prefix_and_keeps_the_whole_readings_names():
     assert at_point.actor_names == whole.actor_names
     with pytest.raises(ValueError, match="no ledger entry at 9999"):
         point_analysis(whole, 9999)
+
+
+# -- hindsight marks (#6672) ----------------------------------------------
+
+_RV = RECORDINGS_DIR / "rv" / "case-actor.jsonl"
+
+
+def _rv() -> CaseReading:
+    return VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RV))
+
+
+def test_each_line_is_graded_by_the_advice_for_the_entries_before_it():
+    """#6672 AC-1: one mark per narrative line, each read from the advice
+    for the ledger prefix before its entry, asked only where the entry
+    changes a state."""
+    reading = _rv()
+    asked: list[int] = []
+
+    def advice_of(entries, unobservable):
+        assert entries == reading.ledger[: len(entries)]
+        assert unobservable == reading.unobservable_events
+        asked.append(len(entries))
+        return ledger_advice(entries, unobservable)
+
+    marks = narrative_marks(reading, advice_of)
+    narrative = analyse(reading).narrative
+    assert [m.log_index for m in marks] == [n.log_index for n in narrative]
+    changed = [i for i, line in enumerate(narrative) if line.changes]
+    # The case's publication is chance whatever the advice, so it asks none.
+    unasked_changes = [i for i in changed if i not in asked]
+    assert asked == [i for i in changed if i not in unasked_changes]
+    assert [marks[i].note for i in unasked_changes] == [NO_KNOWN_PUBLISHER]
+    assert marks[0].note == NO_ADVICE
+    assert all(
+        marks[i].note == NO_STATE_CHANGE
+        for i in range(len(marks))
+        if i not in changed
+    )
+    assert marks == narrative_marks(reading)
+
+
+def test_the_advice_for_a_prefix_reads_its_entries_alone():
+    reading = _rv()
+    assert ledger_advice(reading.ledger[:12]) == prefix_advice(reading, 12)
+    assert ledger_advice(()) is None
+
+
+def test_the_case_made_public_before_its_embargo_ended_is_chance():
+    """The user's rulings for #6672: P means the public is aware, not that
+    anyone published, and the ledger cannot tell a publication from a leak
+    (#6732).  This case goes public while its embargo is still in force, so
+    its line is chance; only after an embargo that ended on its own terms
+    is the vul becoming public graded as a publication
+    (``test/measure/advice/test_hindsight.py``)."""
+    reading = _rv()
+    narrative = analyse(reading).narrative
+    marks = narrative_marks(reading)
+    (public,) = [
+        mark
+        for line, mark in zip(narrative, marks, strict=True)
+        if any(c.machine == "PXA" for c in line.changes)
+    ]
+    assert (public.mark, public.note) == (
+        HindsightMark.CHANCE,
+        NO_KNOWN_PUBLISHER,
+    )
+
+
+def test_a_consent_answer_is_not_a_move():
+    """PEC moves are not in the move advice yet (#6677), so an embargo
+    consent answer changes no state the advice weighs."""
+    reading = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RECORDING))
+    narrative = analyse(reading).narrative
+    marks = narrative_marks(reading, lambda entries, unobservable: None)
+    answers = [
+        mark
+        for line, mark in zip(narrative, marks, strict=True)
+        if line.semantic_type == "accept_invite_to_embargo_on_case"
+    ]
+    assert answers
+    assert all(
+        (m.mark, m.note) == (HindsightMark.NOT_A_MOVE, NO_STATE_CHANGE)
+        for m in answers
+    )
+
+
+def test_a_reading_with_no_entry_has_no_marks():
+    reading = CaseReading(ledger=(), citations=())
+    assert narrative_marks(reading) == ()

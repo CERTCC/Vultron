@@ -653,9 +653,9 @@ def stub_summary_seed():
     """
     real = invite_links._seed_stub_summary
 
-    def seed(client, case):
+    def seed(client, case, inviter=None):
         if not isinstance(client, Mock):
-            real(client, case)
+            real(client, case, inviter)
 
     with patch.object(invite_runs, "_seed_stub_summary", seed):
         yield

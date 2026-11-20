@@ -19,7 +19,7 @@ Every function here reads only the outcome shifts
 label in a test.
 """
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from enum import StrEnum
 from fractions import Fraction
 from typing import NamedTuple
@@ -140,6 +140,13 @@ def layers[M](shifts: Mapping[M, ScopeShift]) -> dict[M, int]:
             found[move] = depth
             del remaining[move]
     return found
+
+
+def deepest_layer(depths: Iterable[int | None]) -> int:
+    """The deepest of *depths*, the layers of a case's open moves, which
+    every shaded band's legend runs to; 1 when none has a layer.  A move
+    with no layer, an unhelpful one, is skipped."""
+    return max((d for d in depths if d is not None), default=1)
 
 
 class Harm(NamedTuple):

@@ -107,8 +107,8 @@ def seat_participant_through_stub_invite(
 ) -> as_CaseParticipant:
     """Seat *invitee* on *case* the one way a member joins: the stub Invite.
 
-    *owner*, the Case Owner, asks the CASE_MANAGER to invite *invitee*
-    (``Offer(Actor)``, CM-17-007); the CASE_MANAGER sends the stub Invite,
+    *owner*, the Case Owner, sends the CASE_MANAGER its Invite of *invitee*
+    (CM-17-007, ADR-0199); the CASE_MANAGER sends the stub Invite,
     creates the inert record, and seats *invitee* when its ``Accept``
     arrives (ADR-0114, CM-17-004).  The chain is
     :func:`~vultron.demo.helpers.invite_chain.run_case_invite_chain`, driven

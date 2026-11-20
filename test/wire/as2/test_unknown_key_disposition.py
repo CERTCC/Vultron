@@ -504,13 +504,21 @@ def test_an_offers_former_suggested_roles_key_is_set_aside_and_reported(
 
 
 @pytest.mark.spec("MV-11-003", "CM-05-018")
-def test_a_vulnerability_items_cve_key_is_set_aside_and_reported(
-    caplog: pytest.LogCaptureFixture,
+@pytest.mark.parametrize(
+    "key,value",
+    [("cve", "CVE-2026-0001"), ("title", "Buffer overflow")],
+)
+def test_a_vulnerability_items_former_key_is_set_aside_and_reported(
+    key: str, value: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An item's CVE ID is an ``ids`` entry, so ``cve`` is an unknown key.
+    """An item's former ``cve`` and ``title`` keys are unknown keys.
 
-    Kept out of :data:`FORMER_NAME_POSITIONS`: core still spells ``cve`` as
-    the CSAF document's field, which the retired-key guard would flag.
+    Its CVE ID is an ``ids`` entry, and its title is the AS2 ``name``
+    (CM-05-018), so a peer's item with either key is set aside and reported,
+    not refused (MV-11-003); only stored or in-process data is refused
+    (MV-11-004, ADR-0175).  Kept out of :data:`FORMER_NAME_POSITIONS`: core
+    still spells ``cve`` and ``title`` as CSAF fields, which the retired-key
+    guard would flag.
     """
     body = _with_inline_object(
         {
@@ -518,10 +526,10 @@ def test_a_vulnerability_items_cve_key_is_set_aside_and_reported(
             "id": "https://example.org/items/1",
             "published": PUBLISHED,
             "updated": PUBLISHED,
-            "cve": "CVE-2026-0001",
+            key: value,
         }
     )
-    _assert_set_aside_and_reported(body, "cve", "object", caplog)
+    _assert_set_aside_and_reported(body, key, "object", caplog)
 
 
 def test_the_parse_edge_keeps_no_retired_name_list() -> None:
