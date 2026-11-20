@@ -29,10 +29,10 @@ that makes the same change, and grades that move by its band and layer:
 Two marks grade nothing.  **Chance** marks an event no participant chooses,
 whatever the advice: an exploit made public or attacks observed (X, A), and
 the public becoming aware of the vul, unless an embargo ended on its own
-terms before it.  **Not a move** marks every other entry: one that changes no state the advice weighs, such as a
-note or a consent answer (PEC moves are not advised yet), one whose change no
-advised move makes, one whose move has no band, and an entry with no advice
-before it.
+terms before it.  **Not a move** marks every other entry: one that changes
+no state the advice weighs, such as a note or a consent answer (PEC moves
+are not advised yet), one whose change no advised move makes, one whose move
+has no band, and an entry with no advice before it.
 
 The case public state P means the public is aware the vul exists, not that
 anyone published: a public exploit forces it, and so may a leak.  The ledger

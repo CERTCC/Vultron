@@ -72,7 +72,8 @@ def made_public(before: ReachedState, after: ReachedState) -> bool:
 
 def made_chance(before: ReachedState, after: ReachedState) -> bool:
     """Whether the entry made an exploit public or attacks observed: the
-    events no participant chooses (:data:`~vultron.measure.advice.shifts.CHANCE_EVENTS`)."""
+    events no participant chooses
+    (:data:`~vultron.measure.advice.shifts.CHANCE_EVENTS`)."""
     return _entered(
         before,
         after,
