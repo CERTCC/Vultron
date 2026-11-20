@@ -56,11 +56,12 @@ built yet.
 
 ## The Product
 
-- **CSAF's full product name, held on the vendor's record.** A name, its branch
-  path below the vendor (`product_name`, `product_version`, `product_version_range`
-  and the other branch categories) and the identification helpers (`cpe`, `purls`
-  and the rest of `product_identification_helper`), copied field by field from the
-  pinned schema in `third_party/csaf/` (CSAF-05-002). The vendor branch is the
+- **CSAF's full product name is the record format, held on the vendor's record.**
+  A product is a CSAF full product name with its branch path below the vendor
+  (`product_name`, `product_version`, `product_version_range` and the other branch
+  categories) and its `product_identification_helper` (`cpe`, `purls` and the
+  rest), in the structure of the pinned schema in `third_party/csaf/`
+  (CSAF-05-002); Vultron adds only the object's id. The vendor branch is the
   record's own vendor, so the product does not repeat it.
 - **Its own id, so statements meet on one object.** "X 2.1" stated by the vendor
   and "X v2.1" stated by a coordinator are one product once the CASE_MANAGER has
@@ -87,25 +88,35 @@ built yet.
 - **`attributed_to` is always set, the vendor's own included.** An empty author
   meaning "the vendor said it" would be a state stored as an absence, and the
   projection's vendor-only filter would read meaning into it.
-- **Two dimensions, each a named enum.**
-
-  | Dimension | Values | CSAF |
-  |---|---|---|
-  | Affectedness | `UNKNOWN`, `UNDER_INVESTIGATION`, `AFFECTED`, `NOT_AFFECTED` (+ justification), `FIXED` | the matching `product_status` list; the justification is a `flags[].label` |
-  | Fix plan (only when `AFFECTED`) | `NONE_AVAILABLE`, `FIX_PLANNED`, `FIX_AVAILABLE` (+ the fixed product), `NO_FIX_PLANNED` (+ reason `END_OF_LIFE` or `OTHER`, and text) | `remediations[]` of category `none_available`, `fix_planned`, `vendor_fix`, `no_fix_planned` |
-
-  `first_affected`, `last_affected`, `first_fixed` and `recommended` mark version
-  ranges and the version to pick; the renderer derives them, they are not states.
-  `workaround` and `mitigation` remediations are additions to a status, not
-  fix-plan values. CSAF has no end-of-life value: the renderer writes the reason
-  into the `no_fix_planned` remediation's `details`.
+- **The record format is CSAF's, adopted, not mirrored.** A product status is the
+  per-product slice of a CSAF vulnerability entry, in CSAF's own structure, field
+  names and values; Vultron adds only the author, the product and the
+  vulnerability item it is about (ADR-0220). There is no Vultron record that CSAF
+  values are copied into, so a CSAF document maps in and out with no translation
+  table. Its parts:
+  - `product_status`: the CSAF status lists this product is in, from the nine
+    (`known_affected`, `known_not_affected`, `under_investigation`, `unknown`,
+    `fixed`, `first_affected`, `last_affected`, `first_fixed`, `recommended`).
+    One product may be in several lists, as in CSAF, but not in lists that
+    contradict each other (CSAF mandatory test 6.1.6).
+  - `remediations`: CSAF remediation objects (`category` such as `vendor_fix`,
+    `fix_planned`, `no_fix_planned`, `none_available`, `workaround`, `mitigation`,
+    `optional_patch`, with `details`, `url`, `date` and the other CSAF fields), less
+    `product_ids` and `group_ids`, which the status's own product replaces.
+  - `flags`: CSAF flag objects (`label` such as `vulnerable_code_not_present`), the
+    justification of a `known_not_affected` product.
+- **No Vultron-only enum beside them.** End of life is a `no_fix_planned`
+  remediation whose `details` says so; a fixed version is a product of its own in
+  `fixed`. Generate the types from the pinned schema's definitions
+  (`vultron/wire/csaf/models/`) or import them, so a draft change is one regeneration
+  (CSAF-05-002).
 - **Declared, not offered.** `Add(ProductStatus, target=<participant>)` to the
   CASE_MANAGER, admitted whole or refused whole on checks alone, as a participant
   status is (RSH-09-001, RSH-09-002): the sender is an active participant (CM-10-004),
   or the CASE_MANAGER or Case Owner for a vendor that is not active; the target
   holds `VENDOR`; the product is held on that record; the vulnerability item is held
-  by the case; a fix plan appears only with `AFFECTED`; a `FIX_AVAILABLE` names a
-  held product of the same vendor. The ledger entry and the replica copy follow
+  by the case; the status lists do not contradict each other (CSAF test 6.1.6).
+  The ledger entry and the replica copy follow
   `notes/case-ledger-authority.md`.
 - **No truth check.** The CASE_MANAGER does not judge whether a status is right; a
   disagreement is two statuses, both kept.
@@ -140,25 +151,27 @@ built yet.
 ## Fix Readiness Reads Product Statuses
 
 - **Fix readiness stays `vf`, `Vf` or `VF`.** `VF` means every planned fix is ready.
+- **Affected means a CSAF affected list.** A product is affected for these checks
+  when the vendor's own current status puts it in `known_affected`,
+  `first_affected` or `last_affected`.
 - **The agreement check runs at both ends.** The vendor's fix-readiness trigger and
   the CASE_MANAGER's received-status acceptance refuse `VF` when the vendor's own
-  current statuses hold an `AFFECTED` product whose fix plan is neither
-  `FIX_AVAILABLE` nor `NO_FIX_PLANNED`. The CASE_MANAGER holds both records, so the
-  check is local; extend the received-status refusal list (RSH-09-003) rather than
-  adding a second path, and name the blocking products in the refusal notice
-  (RSH-09-011).
+  current statuses hold an affected product with neither a `vendor_fix` nor a
+  `no_fix_planned` remediation. The CASE_MANAGER holds both records, so the check is
+  local; extend the received-status refusal list (RSH-09-003) rather than adding a
+  second path, and name the blocking products in the refusal notice (RSH-09-011).
 - **The check runs only when `VF` is declared.** A status admitted after `VF` is
   not refused and does not move fix readiness back (ADR-0220).
-- **Fix coverage is a derived read.** Over a vendor's own current statuses:
-  `UNSTATED` (none), `NOT_AFFECTED` (no product `AFFECTED`, none unknown or under
-  investigation), `NONE_READY`, `PARTIAL`, `COMPLETE` (every planned fix available,
-  at least one) and `NO_FIX` (every affected product `NO_FIX_PLANNED`). Compute it
-  where read; do not store it. A case-level read lists each vendor's coverage.
+- **No roll-up enum.** Partial readiness has no named values: each reader asks its
+  own question of the vendor's statements in CSAF terms, where it decides. A
+  summary for a person, such as the Case Owner weighing an early embargo end, is a
+  tally of each vendor's own current statuses by CSAF status list and remediation
+  category; compute it where read and do not store it.
 - **The deployer gate also accepts a product-level fix.** CSB-15-004 lets a deployer
   move d→D when some vendor is at `VF`; it also passes when a vendor's own current
-  status is `FIX_AVAILABLE` for some product. Change the predicate
-  (`vultron/core/predicates/participants.py`, `some_vendor_at_vf`), not the node
-  that calls it.
+  status gives some affected product a `vendor_fix` remediation. Change the
+  predicate (`vultron/core/predicates/participants.py`, `some_vendor_at_vf`), not
+  the node that calls it.
 
 ### Which Reading Each Decision Point Uses
 
@@ -168,16 +181,16 @@ changes them.
 
 | Decision point | Reads | "Some fixes ready" counts as |
 |---|---|---|
-| Deployer d→D gate (CSB-15-004) | `VF`, or a vendor's own `FIX_AVAILABLE` | F |
+| Deployer d→D gate (CSB-15-004) | `VF`, or a vendor's own `vendor_fix` remediation | F |
 | Vendor-and-deployer D guard (CSB-17-001; `vultron/core/behaviors/report/nodes/deploy_fix.py`) | its own `VF` | F for its fixed products; D per product is #5140 |
 | No new embargo, reject a pending proposal (VP-14-007, CSB-10-001) | case at `VF` | f |
 | Prepare to end an embargo (VP-14-008) | case at `VF` | f |
 | Extensions for trailing vendors (VP-14-009, VP-14-014) | vendors not at `VF` | f: a partly fixed vendor is trailing |
-| Fix-ready embargo end and its quorum (VP-09-007, EMB-13-010, EMB-13-013; `vultron/core/behaviors/embargo/nodes/chosen_cause.py`) | vendors at `VF` | policy: list `PARTIAL` vendors apart for the Case Owner |
+| Fix-ready embargo end and its quorum (VP-09-007, EMB-13-010, EMB-13-013; `vultron/core/behaviors/embargo/nodes/chosen_cause.py`) | vendors at `VF` | policy: show the Case Owner each vendor's tally of statuses and remediations |
 | Develop-fix short-circuit (`vultron/core/behaviors/report/nodes/develop_fix_conditions.py`) | own `VF` | f: work remains |
 | Embargo ended on its own terms (`vultron/measure/standing/joint.py`) | every vendor `VF` | f |
 | F≺P, F≺X, F≺A desiderata and event history (CEH-04-003) | the vendor's `VF` event | f: the full-F time |
-| Action rules (`vultron/core/states/cs_actions.py`) | the CS position | f; a `PARTIAL` pattern is future work |
+| Action rules (`vultron/core/states/cs_actions.py`) | the CS position | f; a partial-fix pattern is future work |
 
 ## The Projection
 
@@ -220,24 +233,28 @@ Each lands with the code that tests it, citing ADR-0220.
   from the CASE_MANAGER or Case Owner for a vendor that is not active, when its
   target, product, vulnerability item and values pass the checks, and refuse it
   whole otherwise.
-- MUST_NOT: A product status MUST NOT carry a fix plan unless its affectedness is
-  `AFFECTED`.
+- MUST: A product and a product status MUST use the CSAF 2.1 record format for
+  their content: a product is a CSAF full product name, and a product status holds
+  CSAF product status lists, remediations and flags, with CSAF's field names and
+  values.
+- MUST_NOT: A product status MUST NOT put its product in CSAF status lists that
+  contradict each other.
 - MUST_NOT: The case MUST NOT hold a product or product status of a vendor that is
   not a participant.
 - MAY: An actor MAY read a case's original report again when its information
   becomes relevant, and take the sender's statements in it as that sender's
   (replaces CSAF-02-002's clause on a report that already belongs to a case).
 - MUST_NOT: A vendor participant MUST NOT declare `VF` while its own current product
-  statuses hold an affected product whose fix plan is neither fix available nor no
-  fix planned.
+  statuses hold an affected product with neither a `vendor_fix` nor a
+  `no_fix_planned` remediation.
 - MUST: The CASE_MANAGER MUST refuse a received `VF` while the vendor's own current
-  product statuses hold an affected product whose fix plan is neither fix available
-  nor no fix planned.
+  product statuses hold an affected product with neither a `vendor_fix` nor a
+  `no_fix_planned` remediation.
 - MUST_NOT: The CASE_MANAGER MUST NOT refuse a product status because its vendor is
   at `VF`.
 - MUST: A deployer that does not hold the VENDOR role MUST be permitted d→D when a
-  vendor is at `VF` or a vendor's own current product status states a fix available
-  (extends CSB-15-004).
+  vendor is at `VF` or a vendor's own current product status gives an affected
+  product a `vendor_fix` remediation (extends CSB-15-004).
 - MUST: A CSAF projection MUST give a product one status per vulnerability, from
   the vendor's own statement, else the projecting actor's, else the most recent
   shown, and render every other shown statement as a note naming its author.
@@ -250,5 +267,5 @@ Each lands with the code that tests it, citing ADR-0220.
   its own Idea (#6786).
 - **Removing a product or withdrawing a status.** No message does either yet; an
   author supersedes its own status with a later one.
-- **A third fix-readiness value.** Rejected in ADR-0220; partial readiness is the
-  derived fix coverage read.
+- **A third fix-readiness value, or a named roll-up.** Rejected in ADR-0220;
+  partial readiness is each reader's own question over the CSAF statuses.

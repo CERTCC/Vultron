@@ -38,6 +38,7 @@ A vendor with several affected products can have a fix ready for some and not fo
 - The six-event case-state model, the event history derived from the ledger, and the action rules all read fix readiness as two values.
 - Readers of fix readiness ask two different questions: whether someone can act on a fix that exists, and whether a vendor is done.
 - A CSAF document must give each product one status per vulnerability, and it is its publisher's statement.
+- CSAF already has a record format for products, product statuses, remediations and not-affected justifications; a parallel Vultron format would need a translation table kept in step with it.
 
 ## Considered Options
 
@@ -62,7 +63,8 @@ The second is the only option that answers both reader questions without changin
 The decision has seven parts.
 
 1. **A product is a shared object held on its vendor's participant record.**
-   A product has the shape of a CSAF full product name: a name, its place in the vendor's product hierarchy, and identification helpers such as CPE and PURL values.
+   Vultron adopts CSAF's record format for products and their status, rather than defining its own records and copying CSAF values into them.
+   A product is a CSAF full product name: a name, its place in the vendor's product hierarchy, and identification helpers such as CPE and PURL values.
    It has an identity of its own, so statements by different authors about the same product name the same object.
    A participant offers a new product or an update of a held one, and the CASE_MANAGER admits or declines the offer, as for vulnerability items (ADR-0187).
    An admitted update merges identification helpers and does not shrink a list.
@@ -72,10 +74,11 @@ The decision has seven parts.
    Statements by different authors about the same product and vulnerability sit side by side, and none replaces another.
    An author's later statement about the same pair supersedes its own earlier one, which stays in its history.
    The CASE_MANAGER or the Case Owner may state product statuses on the record of a vendor that is on the case but is not an active participant.
-3. **A product status has two named dimensions.**
-   Affectedness is one of unknown, under investigation, affected, not affected with a justification, or fixed (this product contains the fix).
-   For an affected product, the fix plan is one of none available, fix planned, fix available with the fixed product it points at, or no fix planned with a reason, such as the product's end of life.
-   A version that contains a fix is a product of its own, so an affected version does not become fixed.
+3. **A product status is in CSAF's record format.**
+   A product status is the part of a CSAF vulnerability entry that concerns one product, in CSAF's own structure, with Vultron adding only its author, its product and its vulnerability item: the CSAF product status lists the product is in, such as known affected, known not affected, under investigation or fixed, which do not contradict each other, with CSAF's remediations and, for a product known not to be affected, CSAF's justification label.
+   Each value is spelled as CSAF spells it, so a CSAF document maps in and out without a translation table.
+   A reason that CSAF holds as text stays text: a product past its end of life has a "no fix planned" remediation whose details say so.
+   A version that contains a fix is a product of its own with the status fixed, so an affected version does not become fixed.
 4. **A combined product is a configuration, not a dependency claim.**
    A product may be a combination of held products, including another vendor's, joined by the relationship categories of a CSAF product path, such as "installed on" or "default component of".
    A status of the combination says nothing about any of its parts, as in CSAF, where a product path is declared when a product is vulnerable only when installed together with another.
@@ -88,12 +91,11 @@ The decision has seven parts.
    When the Case Owner invites an actor, it may say which vendor names in the original report that actor is, and the report's statements about those names then join the new participant's record, authored by the reporter.
    This reads only the first report's statement, the one occasion when a CSAF document speaks for its sender ([ADR-0184](0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)), and no vendor name is matched to an invitee by its spelling alone.
 6. **Fix readiness stays binary and means every planned fix is ready.**
-   A vendor declares fix ready only when every product it states as affected has a fix available or no fix planned, and the CASE_MANAGER refuses a declaration that disagrees with the vendor's own statements.
+   A vendor declares fix ready only when every product it states as affected has a vendor fix or a "no fix planned" remediation, and the CASE_MANAGER refuses a declaration that disagrees with the vendor's own statements.
    A vendor that states no product status declares fix readiness as before.
-   Partial readiness is a reading derived from the vendor's own statements, not a stored state, with named values for no statements, no product affected, no fix ready, some fixes ready, every planned fix ready, and no fix planned for any product.
-   A statement made after the vendor reached fix ready is admitted, the vendor's fix readiness does not move back, and the derived reading shows partial readiness again.
-   Each reader that needs to decide whether "some fixes ready" is enough chooses its reading where it decides.
-   A reader asking whether someone can act on an existing fix counts a vendor's own fix-available statement for that product, and a reader asking whether a vendor is done counts only every planned fix.
+   Partial readiness is not a stored state and has no named values of its own: a reader that needs it asks its question of the vendor's own statements, in CSAF's terms, where it decides.
+   A reader asking whether someone can act on an existing fix asks whether some affected product has a vendor fix, and a reader asking whether a vendor is done asks whether every affected product has a vendor fix or no fix planned.
+   A statement made after the vendor reached fix ready is admitted, and the vendor's fix readiness does not move back; its statements show the affected product without a fix.
 7. **A projection gives each product one status.**
    The profile of the call site chooses whether the projection shows only the vendor's and the projecting actor's own statements, or the statements of every author.
    Where several statements are shown, the status of a product takes the vendor's own statement, else the projecting actor's own, else the most recent one.
@@ -109,7 +111,7 @@ Deployment status per product and deployer is not decided here, and neither is s
 - Good, because the case-state model, the event history and the action rules keep their two-valued fix readiness.
 - Good, because "some fixes ready" stays visible to readers such as the Case Owner deciding whether to end an embargo early.
 - Bad, because a vendor can state "some fixes ready" only by naming its products.
-- Bad, because a vendor at fix ready can again have an affected product with no fix, and only the derived reading shows it.
+- Bad, because a vendor at fix ready can again have an affected product with no fix, and only its product statements show it.
 - Bad, because each reader of fix readiness must say which reading it uses.
 - Neutral, because every admitted product and statement is a ledger entry like any other case-file change.
 
