@@ -92,7 +92,6 @@ from vultron.core.models.protocol_pair import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -693,7 +692,6 @@ def test_a_received_embargo_removal_re_issues_the_outstanding_stub(
             context=case.id_,
             actor=owner.id_,
             to=[owner.id_],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         ),
         receiving_actor_id=owner.id_,
@@ -734,7 +732,6 @@ def test_a_re_issued_stub_uses_the_managers_configured_rsvp_window(
             context=case.id_,
             actor=owner.id_,
             to=[owner.id_],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         ),
         receiving_actor_id=owner.id_,

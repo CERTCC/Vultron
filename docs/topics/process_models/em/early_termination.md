@@ -79,22 +79,20 @@ So the case cannot be put under a new embargo.
 
 ## Recording Why an Embargo Ended
 
-Every termination records what ended the embargo.
-Either the embargo reached its end time (`END_TIME_REACHED`), or it ended early (`EARLY`).
-The termination message carries that reason, and every Participant records it.
-An early termination may also record why the embargo ended, as one of four kinds of cause:
+Every termination records why the embargo ended, when the reason is known, as one of five kinds of cause:
 
 | Cause | Detail | Who may name it |
 |---|---|---|
+| `END_TIME_REACHED` | None; the embargo reached its end time | The Case Owner or the CASE_MANAGER |
 | `THREAT_SIGNAL` | The signals that ended it: public awareness (`P`), a public exploit (`X`) or observed attacks (`A`) | The CASE_MANAGER only |
 | `FIX_READY` | The Vendors whose readiness made the quorum | The Case Owner or the CASE_MANAGER |
 | `FIX_DEPLOYED` | None | The Case Owner or the CASE_MANAGER |
 | `OTHER` | None; the termination message's human-readable summary gives the account | The Case Owner or the CASE_MANAGER |
 
-An embargo that reached its end time has no cause.
-An early termination with no cause is valid.
-The termination message carries the cause beside the reason.
-The CASE_MANAGER records both on the entry of the ended embargo in the embargo register of the case.
+Every cause except `END_TIME_REACHED` means that the embargo ended early.
+A termination with no cause is valid, and it also means that the embargo ended early.
+The termination message carries the cause, and every Participant records it.
+The CASE_MANAGER records the cause on the entry of the ended embargo in the embargo register of the case.
 
 When the Case Owner names `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, the CASE_MANAGER records that cause as the Case Owner gave it.
 The CASE_MANAGER does not check it, because the decision to end early on a quorum of Vendors is the judgment of the Case Owner.
@@ -105,7 +103,7 @@ The CASE_MANAGER then ends the embargo with the signals that the case carries.
 ## When the End Time Passes
 
 An embargo does not end by itself when its end time passes.
-The CASE_MANAGER ends it with the reason `END_TIME_REACHED`.
+The CASE_MANAGER ends it with the cause `END_TIME_REACHED`.
 This termination runs the same steps as all other terminations.
 The CASE_MANAGER cancels open proposals, the case leaves the embargo, and the CASE_MANAGER tells every Participant.
 
@@ -115,7 +113,7 @@ So no scheduler is necessary.
 The CASE_MANAGER checks only after it confirms that the sender of the message may send it.
 So a message from someone with no standing in the case never causes the CASE_MANAGER to end the embargo.
 A request to end the embargo early can arrive after its end time.
-The CASE_MANAGER records that request as `END_TIME_REACHED`, because the embargo had already reached its end.
+The CASE_MANAGER records that request with the cause `END_TIME_REACHED`, because the embargo had already reached its end.
 
 An outside service can also ask the CASE_MANAGER to end the embargo at its end time.
 An example is a [Sentinel](../../../reference/glossary.md) that watches embargo timers.

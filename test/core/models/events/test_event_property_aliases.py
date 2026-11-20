@@ -86,7 +86,6 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.preview_object import is_loose_form_of
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
@@ -394,7 +393,6 @@ _CASES = [
         {
             "object_": _embargo,
             "origin": _case,
-            "termination_reason": TerminationReason.EARLY,
         },
         [
             ("embargo_id", "object_id"),

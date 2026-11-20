@@ -21,8 +21,10 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 
 from datetime import datetime
 
-from vultron.core.models.embargo_termination import TerminationCause
-from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.models.embargo_termination import (
+    TerminationCause,
+    TerminationCauseKind,
+)
 from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
@@ -203,11 +205,21 @@ def announce_embargo_activity(
     )
 
 
-#: The human-readable ``summary`` of a termination ``Remove``, by reason.
-#: The protocol reads ``content``, never this (ADR-0122).
-_TERMINATION_SUMMARY: dict[TerminationReason, str] = {
-    TerminationReason.END_TIME_REACHED: "The embargo reached its end time.",
-    TerminationReason.EARLY: "The embargo ended before its end time.",
+#: The human-readable ``summary`` of a termination ``Remove``, by cause
+#: kind.  The protocol reads ``terminationCause``, never this (EMB-13-004).
+_TERMINATION_SUMMARY: dict[TerminationCauseKind, str] = {
+    TerminationCauseKind.END_TIME_REACHED: "The embargo reached its end time.",
+    TerminationCauseKind.THREAT_SIGNAL: (
+        "The embargo ended early: the vulnerability is public, an exploit is"
+        " public, or attacks have been observed."
+    ),
+    TerminationCauseKind.FIX_READY: (
+        "The embargo ended early: enough vendors have a fix ready."
+    ),
+    TerminationCauseKind.FIX_DEPLOYED: (
+        "The embargo ended early: the fix is deployed."
+    ),
+    TerminationCauseKind.OTHER: "The embargo ended before its end time.",
 }
 
 
@@ -215,7 +227,6 @@ def remove_embargo_from_case_activity(
     embargo: as_EmbargoEvent,
     origin: as_VulnerabilityCaseRef | None = None,
     *,
-    reason: TerminationReason,
     cause: TerminationCause | None = None,
     at: datetime,
     **kwargs,
@@ -227,12 +238,12 @@ def remove_embargo_from_case_activity(
     with it (MSM-07-006, ADR-0122).  This MUST only be performed by the case
     owner, or by the CASE_MANAGER.
 
-    *reason* is the termination's what, carried as ``content``: exactly
-    ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122).  *cause* is its why, when
-    the sender names one, carried as ``terminationCause`` (EMB-13-005); an
-    ``END_TIME_REACHED`` termination has none.  ``summary`` defaults to a
-    human-readable account the protocol does not read; pass ``summary`` to
-    override it, as an ``OTHER`` cause does to give its account.
+    *cause* is why the embargo ended, ``END_TIME_REACHED`` included,
+    carried as ``terminationCause`` (EMB-13-005, ADR-0203), or ``None`` for
+    an early end whose sender names no cause.  ``summary``
+    defaults to a human-readable account of the cause the protocol does not
+    read; pass ``summary`` to override it, as an ``OTHER`` cause does to give
+    its account.
 
     Note: this activity uses ``origin`` (not ``target``) for the case
     reference, following the ActivityStreams convention for Remove.
@@ -241,8 +252,8 @@ def remove_embargo_from_case_activity(
         embargo: The ``as_EmbargoEvent`` to remove.
         origin: The ``VulnerabilityCase`` (or its URI) from which
             the embargo is removed.
-        reason: What ended the embargo; required.
-        cause: Why it ended, or ``None`` when the sender names no cause.
+        cause: Why the embargo ended, or ``None`` when the sender names no
+            cause.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
@@ -251,10 +262,14 @@ def remove_embargo_from_case_activity(
         ``origin`` is the case reference.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails,
-            including a *cause* on an ``END_TIME_REACHED`` termination.
+        VultronActivityConstructionError: If Pydantic validation fails.
     """
-    kwargs.setdefault("summary", _TERMINATION_SUMMARY[reason])
+    kwargs.setdefault(
+        "summary",
+        _TERMINATION_SUMMARY[
+            cause.kind if cause is not None else TerminationCauseKind.OTHER
+        ],
+    )
     return build_activity(
         "remove_embargo_from_case_activity",
         _RemoveEmbargoFromCaseActivity,
@@ -262,7 +277,6 @@ def remove_embargo_from_case_activity(
         lambda: {
             "object_": embargo,
             "origin": origin,
-            "content": reason.value,
             "termination_cause": cause,
             **kwargs,
         },

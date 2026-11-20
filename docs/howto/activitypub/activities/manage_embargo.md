@@ -130,29 +130,28 @@ Embargo Termination (ET) is implemented in ActivityStreams as `Remove(EmbargoEve
 Send `Remove(EmbargoEvent)`.
 The case moves to `EM.EXITED`, with immediate effect.
 
-Set `content` to the reason that the embargo ends.
-Use `EARLY` to end the embargo before its end time.
-Use `END_TIME_REACHED` after its end time has passed.
-A receiver refuses a `Remove(EmbargoEvent)` whose `content` has any other value.
-A receiver also refuses an `END_TIME_REACHED` that is sent before the end time.
-If you want a human-readable account, put it in `summary`.
-The protocol does not read `summary`.
-
-With `EARLY`, you may also use `terminationCause` to say why the embargo ends.
+Use `terminationCause` to say why the embargo ends.
 Set its `kind` to one of these:
 
+- `END_TIME_REACHED`, with no detail, after its end time has passed.
+  A receiver refuses an `END_TIME_REACHED` that is sent before the end time.
 - `FIX_READY`, with `vendors` listing the actor IDs of the Vendors whose readiness made the quorum, each once.
 - `FIX_DEPLOYED`, with no detail.
 - `OTHER`, with no detail.
   Give the account in `summary`.
 
+Every cause except `END_TIME_REACHED` ends the embargo before its end time.
+A `Remove(EmbargoEvent)` with no `terminationCause` also ends the embargo early.
+Do not put a reason in `content`: the protocol does not read it.
+If you want a human-readable account, put it in `summary`.
+The protocol does not read `summary`.
+
 The CASE_MANAGER records the cause as you give it.
 If you end the embargo with the `terminate-embargo` trigger, give the cause as `cause` in the request body.
 Use the same `kind` and detail.
-An `EARLY` request with no `cause` is sent with an `OTHER` cause.
-The trigger refuses a `THREAT_SIGNAL` cause, and any cause with `END_TIME_REACHED`.
-Do not send `terminationCause` with `END_TIME_REACHED`.
-A receiver refuses a `Remove(EmbargoEvent)` with an unknown `kind`, a missing or malformed detail, or a cause on `END_TIME_REACHED`.
+A request with no `cause` is sent with an `OTHER` cause.
+The trigger refuses a `THREAT_SIGNAL` cause.
+A receiver refuses a `Remove(EmbargoEvent)` with an unknown `kind` or a missing or malformed detail.
 
 Do not use `THREAT_SIGNAL`.
 The CASE_MANAGER refuses `THREAT_SIGNAL` on every `Remove(EmbargoEvent)` except its own.
@@ -191,8 +190,8 @@ See [Early Termination](../../../topics/process_models/em/early_termination.md).
 ### End the embargo at its end time
 
 You do not need to send anything when the end time passes.
-The CASE_MANAGER ends the embargo with `END_TIME_REACHED` the next time it handles the case.
-To end the embargo on time without that wait, have the CASE_MANAGER call the `terminate-embargo` trigger with `reason` set to `END_TIME_REACHED`, for example from a [Sentinel](../../../reference/glossary.md) that watches embargo timers.
+The CASE_MANAGER ends the embargo with the cause `END_TIME_REACHED` the next time it handles the case.
+To end the embargo on time without that wait, have the CASE_MANAGER call the `terminate-embargo` trigger with `cause` set to `{"kind": "END_TIME_REACHED"}`, for example from a [Sentinel](../../../reference/glossary.md) that watches embargo timers.
 If the embargo has already ended, the trigger answers with no activity and commits nothing.
 
 ---

@@ -40,7 +40,6 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
@@ -281,7 +280,6 @@ class TestFailedTeardownIsRefused:
             ),
             actor=_VENDOR,
             to=[_COORD],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=_COORD, at=dl)

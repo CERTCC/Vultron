@@ -75,7 +75,7 @@ class RegisterStep(ValidatedAssignmentMixin, BaseModel):
     ``TERMINATE`` ends that embargo and refuses a register whose embargo in
     force is another one, so a replica never ends "whatever is active
     locally".  ``termination`` is required on ``TERMINATE`` and refused
-    otherwise: the what and, when recorded, the why the ``TERMINATED`` entry
+    otherwise: the cause, when recorded, that the ``TERMINATED`` entry
     stores.
     """
 

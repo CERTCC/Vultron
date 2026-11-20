@@ -1,12 +1,12 @@
-"""The termination reason a received ``Remove(EmbargoEvent)`` carries (#4293).
+"""Whether a received ``Remove(EmbargoEvent)`` ended at the end time (#4293).
 
-ADR-0122: the ``Remove``'s ``content`` is the termination's what, exactly
-``END_TIME_REACHED`` or ``EARLY``, checked at the parse edge.  The receiver
-records it on the ``TERMINATED`` register entry, and refuses an
+ADR-0203: end time reached is a cause like the others, carried in the
+``Remove``'s ``terminationCause``; no separate ``END_TIME_REACHED``/``EARLY``
+what travels in ``content``, and ``content`` is not read.  The receiver
+records the cause on the ``TERMINATED`` register entry, and refuses an
 ``END_TIME_REACHED`` published before the embargo's end time — at the
-CASE_MANAGER before the commit, at a replica on replay.  The why the
-``Remove`` carries beside it, ``terminationCause``, is covered in
-``test_termination_cause.py`` (EMB-13-005).
+CASE_MANAGER before the commit, at a replica on replay.  The other cause
+kinds are covered in ``test_termination_cause.py`` (EMB-13-005).
 """
 
 import json
@@ -34,11 +34,11 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
+    EndTimeReachedCause,
     ThreatSignal,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
@@ -98,11 +98,13 @@ def _ledger(dl, case_id: str) -> list[CaseLedgerEntry]:
 
 
 @pytest.mark.spec("EMB-13-004")
-@pytest.mark.parametrize("content", [None, "THREAT_SIGNAL", "early"])
+@pytest.mark.parametrize("content", ["END_TIME_REACHED", "EARLY", "early"])
 @pytest.mark.spec("EMB-13-009")
-def test_parse_edge_refuses_a_remove_without_a_termination_reason(
+def test_parse_edge_reads_no_termination_reason_from_content(
     make_payload, content
 ) -> None:
+    """``content`` carries no what: a ``Remove`` naming no cause ends the
+    embargo early, whatever its ``content`` says (ADR-0203)."""
     _dl, case, embargo = _case_with_embargo(
         "https://example.org/cases/tr-parse", ended=False
     )
@@ -110,20 +112,19 @@ def test_parse_edge_refuses_a_remove_without_a_termination_reason(
         embargo,
         origin=case.id_,
         actor=OWNER,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
-    # Bypass the factory's validation to model a sender that got it wrong.
-    tampered = activity.model_copy(update={"content": content})
+    # Model a sender that still writes the retired what in ``content``.
+    stale = activity.model_copy(update={"content": content})
 
-    with pytest.raises(VultronParseValidationError, match="END_TIME_REACHED"):
-        make_payload(tampered)
+    event = make_payload(stale)
+
+    assert event.termination_cause is None
 
 
-@pytest.mark.spec("EMB-13-004")
 @pytest.mark.spec("CS-08-001")
 def test_parse_edge_refuses_a_remove_with_a_blank_content() -> None:
-    """A blank ``content`` is refused as blank before the reason check.
+    """A blank ``content`` is refused as blank, as on any activity.
 
     ``model_copy`` cannot model this sender: a blank never reaches the
     extractor, because ``parse_activity`` refuses it (VM-07-005), so the body
@@ -136,7 +137,6 @@ def test_parse_edge_refuses_a_remove_with_a_blank_content() -> None:
         embargo,
         origin=case.id_,
         actor=OWNER,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
     body = json.loads(
@@ -149,25 +149,30 @@ def test_parse_edge_refuses_a_remove_with_a_blank_content() -> None:
 
 
 @pytest.mark.spec("EMB-13-004")
-@pytest.mark.parametrize("reason", list(TerminationReason))
-def test_parse_edge_promotes_the_reason_onto_the_event(
-    make_payload, reason
+@pytest.mark.parametrize(
+    "cause",
+    [EndTimeReachedCause(), None],
+    ids=["end-time", "no-cause"],
+)
+def test_parse_edge_promotes_the_end_time_cause_onto_the_event(
+    make_payload, cause
 ) -> None:
     _dl, case, embargo = _case_with_embargo(
         "https://example.org/cases/tr-promote", ended=False
     )
     activity = remove_embargo_from_case_activity(
-        embargo, origin=case.id_, actor=OWNER, reason=reason, at=authored_at()
+        embargo, origin=case.id_, actor=OWNER, cause=cause, at=authored_at()
     )
 
     event = make_payload(activity)
 
-    assert event.termination_reason is reason
+    assert event.termination_cause == cause
     assert activity.summary  # human-readable; the protocol ignores it
+    assert activity.content is None
 
 
 # ---------------------------------------------------------------------------
-# AC-2: the received termination records its reason
+# AC-2: the received termination records its cause
 # ---------------------------------------------------------------------------
 
 
@@ -181,7 +186,6 @@ def test_case_manager_records_an_early_remove_as_early(make_payload) -> None:
         embargo,
         origin=case.id_,
         actor=OWNER,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
 
@@ -206,7 +210,7 @@ def test_case_manager_records_an_end_time_remove_after_the_end_time(
         embargo,
         origin=case.id_,
         actor=OWNER,
-        reason=TerminationReason.END_TIME_REACHED,
+        cause=EndTimeReachedCause(),
         at=authored_at(),
     )
 
@@ -231,7 +235,7 @@ def test_case_manager_refuses_an_end_time_remove_before_the_end_time(
         embargo,
         origin=case.id_,
         actor=OWNER,
-        reason=TerminationReason.END_TIME_REACHED,
+        cause=EndTimeReachedCause(),
         at=authored_at(),
     )
 
@@ -269,7 +273,7 @@ def test_case_manager_judges_an_end_time_remove_by_the_embargo_in_force(
         expired,
         origin=case.id_,
         actor=OWNER,
-        reason=TerminationReason.END_TIME_REACHED,
+        cause=EndTimeReachedCause(),
         at=authored_at(),
     )
 
@@ -284,21 +288,26 @@ def test_case_manager_judges_an_end_time_remove_by_the_embargo_in_force(
 
 
 # ---------------------------------------------------------------------------
-# AC-2: a replica's replay learns the what
+# AC-2: a replica's replay learns the cause
 # ---------------------------------------------------------------------------
 
+#: The cause an end-time entry carries.
+_END_TIME_CAUSE = {"kind": "END_TIME_REACHED"}
 
-def _teardown_entry(case_id: str, content: object, published) -> dict:
-    return {
+
+def _teardown_entry(case_id: str, cause: object, published) -> dict:
+    snapshot = {
         "type": "Remove",
         "object": {
             "id": f"{case_id}/embargo_events/e1",
             "type": "EmbargoEvent",
         },
-        "content": content,
         "published": published.isoformat(),
         "context": case_id,
     }
+    if cause is not None:
+        snapshot["terminationCause"] = cause
+    return snapshot
 
 
 def _replay(dl, case_id: str, snapshot: dict) -> Status:
@@ -321,7 +330,7 @@ def _replay(dl, case_id: str, snapshot: dict) -> Status:
 
 
 @pytest.mark.spec("EMB-13-003")
-def test_replica_replay_records_the_what_the_remove_carries() -> None:
+def test_replica_replay_records_the_end_time_the_remove_carries() -> None:
     dl, case, _ = _case_with_embargo(
         "https://example.org/cases/tr-replica", ended=True
     )
@@ -329,12 +338,11 @@ def test_replica_replay_records_the_what_the_remove_carries() -> None:
     status = _replay(
         dl,
         case.id_,
-        _teardown_entry(case.id_, "END_TIME_REACHED", now_utc()),
+        _teardown_entry(case.id_, _END_TIME_CAUSE, now_utc()),
     )
 
     assert status == Status.SUCCESS
     ended = cast(VulnerabilityCase, dl.read(case.id_))
-    # The entry names no cause, so the replica records the what alone.
     assert ended.embargo_termination == EmbargoTermination.end_time_reached()
 
 
@@ -350,23 +358,25 @@ def test_replica_replay_refuses_an_end_time_entry_before_the_end_time() -> (
     status = _replay(
         dl,
         case.id_,
-        _teardown_entry(case.id_, "END_TIME_REACHED", now_utc()),
+        _teardown_entry(case.id_, _END_TIME_CAUSE, now_utc()),
     )
 
     assert status == Status.FAILURE
     assert cast(VulnerabilityCase, dl.read(case.id_)).em_state is EM.ACTIVE
 
 
-@pytest.mark.spec("EMB-13-004")
-def test_replica_replay_refuses_an_entry_without_a_reason() -> None:
+@pytest.mark.spec("EMB-13-011")
+def test_replica_replay_records_an_entry_with_no_cause_as_early() -> None:
     dl, case, _ = _case_with_embargo(
-        "https://example.org/cases/tr-replica-bad", ended=False
+        "https://example.org/cases/tr-replica-early-end", ended=False
     )
 
     status = _replay(dl, case.id_, _teardown_entry(case.id_, None, now_utc()))
 
-    assert status == Status.FAILURE
-    assert cast(VulnerabilityCase, dl.read(case.id_)).em_state is EM.ACTIVE
+    assert status == Status.SUCCESS
+    ended = cast(VulnerabilityCase, dl.read(case.id_))
+    assert ended.em_state is EM.EXITED
+    assert ended.embargo_termination == EmbargoTermination.early()
 
 
 @pytest.mark.spec("EMB-13-005")
@@ -377,8 +387,9 @@ def test_replica_replay_copies_the_cause_the_entry_carries() -> None:
     dl, case, _ = _case_with_embargo(
         "https://example.org/cases/tr-replica-cause", ended=False
     )
-    snapshot = _teardown_entry(case.id_, "EARLY", now_utc())
-    snapshot["terminationCause"] = {"kind": "THREAT_SIGNAL", "signals": ["X"]}
+    snapshot = _teardown_entry(
+        case.id_, {"kind": "THREAT_SIGNAL", "signals": ["X"]}, now_utc()
+    )
 
     status = _replay(dl, case.id_, snapshot)
 
@@ -389,29 +400,26 @@ def test_replica_replay_copies_the_cause_the_entry_carries() -> None:
     )
 
 
-@pytest.mark.spec("EMB-13-004")
 @pytest.mark.spec("EMB-13-005")
 @pytest.mark.parametrize(
-    "content, cause",
+    "cause",
     [
-        ("EARLY", {"kind": "LEAK"}),
-        ("EARLY", {"kind": "FIX_READY"}),
-        ("EARLY", "FIX_DEPLOYED"),
-        ("END_TIME_REACHED", {"kind": "OTHER"}),
+        {"kind": "LEAK"},
+        {"kind": "FIX_READY"},
+        "FIX_DEPLOYED",
+        "END_TIME_REACHED",
     ],
-    ids=["unknown-kind", "missing-detail", "not-an-object", "end-time"],
+    ids=["unknown-kind", "missing-detail", "not-an-object", "bare-end-time"],
 )
 def test_replica_replay_refuses_an_entry_with_a_bad_cause(
-    content: str, cause: object
+    cause: object,
 ) -> None:
-    """A cause that is malformed, or that its reason cannot have, is
-    refused: nothing is applied, so the entry is not persisted, and its
-    redelivery is refused again."""
+    """A malformed cause is refused: nothing is applied, so the entry is not
+    persisted, and its redelivery is refused again."""
     dl, case, _ = _case_with_embargo(
         "https://example.org/cases/tr-replica-bad-cause", ended=True
     )
-    snapshot = _teardown_entry(case.id_, content, now_utc())
-    snapshot["terminationCause"] = cause
+    snapshot = _teardown_entry(case.id_, cause, now_utc())
 
     assert _replay(dl, case.id_, snapshot) == Status.FAILURE
     assert _replay(dl, case.id_, snapshot) == Status.FAILURE
@@ -438,7 +446,6 @@ def test_an_owner_remove_after_the_end_time_termination_changes_nothing(
         embargo,
         origin=case.id_,
         actor=OWNER,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
 

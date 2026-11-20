@@ -440,7 +440,7 @@ def _pxa_case_payload(em_state: str = "EXITED") -> dict:
         "status": register_status,
     }
     if register_status == "TERMINATED":
-        entry["termination"] = {"reason": "EARLY"}
+        entry["termination"] = {"cause": {"kind": "OTHER"}}
     return {
         **INBOUND_CASE_OWNERSHIP,
         "id": _PXA_CASE_ID,

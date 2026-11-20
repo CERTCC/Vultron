@@ -46,13 +46,11 @@ from typing import Any
 
 from pydantic import JsonValue
 
+from vultron.core.models.embargo_termination import TerminationCauseKind
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import CSEvent
-from vultron.core.states.embargo_register import (
-    EmbargoRegisterStatus,
-    TerminationReason,
-)
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -161,7 +159,6 @@ class _Entry:
         rsvp_deadline: datetime | None = None,
         embargo_id: str | None = None,
         replaces_embargo_id: str | None = None,
-        exit_reason: TerminationReason | None = None,
         exit_cause: dict[str, JsonValue] | None = None,
     ) -> CaseEvent:
         """Build the event of *kind* this entry records."""
@@ -180,7 +177,6 @@ class _Entry:
             rsvp_deadline=rsvp_deadline,
             embargo_id=embargo_id,
             replaces_embargo_id=replaces_embargo_id,
-            exit_reason=exit_reason,
             exit_cause=exit_cause,
         )
 
@@ -509,8 +505,10 @@ class _Deriver:
     def _exit(self, context: _Entry, embargo: object) -> None:
         """A termination ``Remove(EmbargoEvent)`` (CEH-04-006, CEH-04-007).
 
-        The reason is the ``content`` (EMB-13-004) and the cause the
-        ``terminationCause``, carried as recorded.  An exit at the end time
+        The cause is the ``terminationCause``, carried as recorded; its kind
+        ``END_TIME_REACHED`` says the embargo reached its end time, and any
+        other kind, or none, that it ended early (EMB-13-005, ADR-0203).
+        An exit at the end time
         carries the end time as its bounding deadline (CEH-03-015), and,
         when the CASE_MANAGER committed it, the stamped-when-next-handled
         label (CEH-03-013), whichever path reached it: the ledger records the
@@ -525,25 +523,29 @@ class _Deriver:
             return
         if embargo_id in self.exited:
             return
-        reason = member_of(TerminationReason, context.payload.get("content"))
-        if reason is None:
+        cause = first_present(
+            context.payload, "terminationCause", "termination_cause"
+        )
+        if cause is not None and not (
+            isinstance(cause, dict) and isinstance(cause.get("kind"), str)
+        ):
             self._unreadable(
-                context.log_index, "embargo exit carries no termination reason"
+                context.log_index,
+                "embargo exit carries a termination cause with no kind",
             )
             return
         self.exited.add(embargo_id)
         self.register.terminate(embargo_id)
-        cause = first_present(
-            context.payload, "terminationCause", "termination_cause"
+        at_end_time = (
+            cause is not None
+            and cause["kind"] == TerminationCauseKind.END_TIME_REACHED.value
         )
-        at_end_time = reason is TerminationReason.END_TIME_REACHED
         lazy = at_end_time and context.actor in self.case_managers
         self.events.append(
             context.event(
                 EventKind.EMBARGO_EXIT,
                 embargo_id=embargo_id,
-                exit_reason=reason,
-                exit_cause=cause if isinstance(cause, dict) else None,
+                exit_cause=cause,
                 deadline=self.end_times.get(embargo_id)
                 if at_end_time
                 else None,

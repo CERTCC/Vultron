@@ -35,6 +35,7 @@ from vultron.core.models.case_reference import (
     CaseReferenceLink,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import EndTimeReachedCause
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.status_history import status_history_id
@@ -42,12 +43,6 @@ from vultron.core.models.status_history import status_history_id
 #: The link relation of the case's reference to its VINCE page
 #: (VINCE-CA-02, CRD-03-002).
 ISSUE_TRACKING_REL = CVE_REFERENCE_TAG_RELS["issue-tracking"]
-
-#: The termination reason a ``Remove(EmbargoEvent)`` carries as its
-#: ``content`` when an embargo reaches its end time (EMB-13-004).  A
-#: connector may not import ``vultron.core.states`` (ARCH-05-002), so the
-#: value is named here, and a test pins it to ``TerminationReason``.
-END_TIME_REACHED = "END_TIME_REACHED"
 
 #: The roles VINCE-PA-01 gives CERT/CC.
 COORDINATOR_ROLES = ("coordinator", "case_owner", "case_manager")
@@ -257,7 +252,7 @@ def embargo_exit(t: CaseTranslation) -> None:
             label="embargo-exit",
             rules=["VINCE-EM-03"],
             target=t.case_id,
-            content=END_TIME_REACHED,
+            termination_cause=EndTimeReachedCause(),
         )
     )
 
@@ -346,7 +341,6 @@ def note(t: CaseTranslation) -> None:
 
 __all__ = [
     "COORDINATOR_ROLES",
-    "END_TIME_REACHED",
     "ISSUE_TRACKING_REL",
     "case_status",
     "closure",
