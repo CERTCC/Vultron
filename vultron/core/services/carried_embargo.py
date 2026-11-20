@@ -94,9 +94,10 @@ def hold_embargo_for_case(
     """Hold *embargo* in *store* as *case*'s, and return the held record.
 
     An inline ``EmbargoEvent`` is stored, as its terms with no register
-    state, when *store* lacks it; a bare id must already resolve.  The inline copy and the held record must both be
-    *case*'s, about *case* or one of its reports (EMB-18-004), and the inline
-    copy is checked before anything is written.
+    state, when *store* lacks it; a bare id must already resolve.  The
+    inline copy and the held record must both be *case*'s, about *case* or
+    one of its reports (EMB-18-004), and the inline copy is checked before
+    anything is written.
 
     Raises:
         VultronNotFoundError: *embargo* is a bare id *store* does not hold.

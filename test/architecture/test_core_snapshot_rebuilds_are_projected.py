@@ -66,9 +66,9 @@ _NOT_A_SNAPSHOT_EXEMPTIONS: dict[tuple[str, str], str] = {
         "to_loose",
     ): "revalidates an object's own dump into its loose form (ADR-0217)",
     (
-        "vultron/core/models/embargo_register/step.py",
-        "_entry_after",
-    ): "revalidates this entry's own dump with the change applied",
+        "vultron/core/models/embargo_event.py",
+        "with_register_state",
+    ): "revalidates this embargo's own dump with its register state set",
     (
         "vultron/core/models/case_ledger/record.py",
         "_compute_entry_hash",

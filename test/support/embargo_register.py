@@ -54,7 +54,8 @@ def stand_in(embargo: EmbargoRef, context: str | None = None) -> EmbargoEvent:
     """*embargo* itself, or a stand-in ``EmbargoEvent`` under the id it is.
 
     The stand-in starts, is published and updated at
-    :data:`STAND_IN_PUBLISHED` and ends at :data:`STAND_IN_END_TIME`, its context *context* (else a fixed one).
+    :data:`STAND_IN_PUBLISHED` and ends at :data:`STAND_IN_END_TIME`; its
+    context is *context*, else a fixed one.
     """
     if isinstance(embargo, EmbargoEvent):
         return embargo
