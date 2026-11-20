@@ -733,17 +733,20 @@ def test_a_vul_items_own_references_render_on_its_vulnerability() -> None:
 
 
 def test_a_vul_item_with_nothing_shown_is_left_out() -> None:
-    preview = _preview(PUBLIC_PROFILE).model_copy(
-        update={
-            "vulnerability_items": [
-                Redacted(),
-                "https://example.org/items/by-id",
-                {"ids": [Redacted()], "vulNotes": [{"content": Redacted()}]},
-            ]
-        }
-    )
     preview = CasePreview.model_validate(
-        preview.model_dump(by_alias=True, exclude_none=True)
+        {
+            "id": CASE_ID,
+            "ledgerPosition": {"logIndex": 0, "entryHash": "ef"},
+            "vulnerabilityItems": [
+                {"type": "Redacted"},
+                "https://example.org/items/by-id",
+                {
+                    "type": "VulnerabilityItem",
+                    "ids": [{"type": "Redacted"}],
+                    "vulNotes": [{"content": {"type": "Redacted"}}],
+                },
+            ],
+        }
     )
 
     assert "vulnerabilities" not in _csaf(preview, _inputs(PUBLIC_PROFILE))
