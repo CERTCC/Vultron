@@ -490,7 +490,10 @@ def schema_guard(engine: Engine) -> threading.Lock:
     #6761).  :func:`session_guard` does not prevent it: on a file-backed
     engine it is a no-op.  This lock is per engine on both pool kinds, and
     engines are shared per store by :func:`get_actor_engine`, so one store's
-    openers create its schema one at a time.
+    openers create its schema one at a time.  It is a thread lock: it does
+    not serialise another process, or another engine built outside
+    :func:`get_actor_engine`, opening the same file.  A deployment runs one
+    process per store volume, so neither arises.
 
     Take it *inside* :func:`session_guard`, never around it, so the two
     locks are always taken in one order.

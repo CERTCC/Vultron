@@ -38,8 +38,12 @@ from typing import Any
 import pytest
 from sqlalchemy.dialects.sqlite.base import SQLiteDialect
 
+import vultron.adapters.driven.datalayer_sqlite as datalayer_package
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
+    datalayer as datalayer_module,
+    engine as engine_module,
+    fresh_memory_url,
     get_datalayer,
     reset_datalayer,
 )
@@ -146,3 +150,158 @@ def test_concurrent_store_open_on_new_file_both_succeed(
     finally:
         for store in stores:
             store.close()
+
+
+@pytest.mark.parametrize("kind", ["file", "memory"])
+def test_get_actor_engine_concurrent_first_call_returns_one_engine(
+    kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Two in-memory engines for one URL are two databases; two file engines
+    # would hold two schema locks.  Each caller's engine build waits for the
+    # other's, so without the cache lock both build one.
+    template = (
+        f"sqlite:///{tmp_path / 'vultron.db'}"
+        if kind == "file"
+        else fresh_memory_url("engine-race")
+    )
+    barrier = threading.Barrier(OPENERS, timeout=BARRIER_WAIT_SECONDS)
+    original = engine_module.make_engine
+
+    def make_engine(db_url: str) -> Any:
+        try:
+            barrier.wait()
+        except threading.BrokenBarrierError:
+            pass  # serialised: the other caller cannot reach the build
+        return original(db_url)
+
+    monkeypatch.setattr(engine_module, "make_engine", make_engine)
+    engines: list[Any] = []
+    lock = threading.Lock()
+
+    def caller() -> None:
+        found = engine_module.get_actor_engine(template, ACTOR_ID)
+        with lock:
+            engines.append(found)
+
+    threads = [threading.Thread(target=caller) for _ in range(OPENERS)]
+    try:
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+        assert not any(t.is_alive() for t in threads), "a caller hung"
+        assert len(engines) == OPENERS
+        assert all(found is engines[0] for found in engines)
+    finally:
+        engine_module.dispose_actor_engines(template, ACTOR_ID)
+
+
+def test_transaction_holder_opening_its_store_does_not_wait_on_an_opener(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The holder has a transaction open on an in-memory store it opened
+    # directly, so the store is not cached.  An opener calls get_datalayer,
+    # takes the store's open lock and waits on the session lock the holder's
+    # transaction holds.  The holder then calls get_datalayer for the same
+    # store: it must not wait on the opener's open lock.
+    template = fresh_memory_url("tx-open")
+    opener_waiting = threading.Event()
+    real_session_guard = datalayer_module.session_guard
+
+    def session_guard(engine: Any) -> Any:
+        if threading.current_thread().name == "opener":
+            opener_waiting.set()
+        return real_session_guard(engine)
+
+    monkeypatch.setattr(datalayer_module, "session_guard", session_guard)
+    holder = SqliteDataLayer(db_url=template, actor_id=ACTOR_ID)
+    in_transaction = threading.Event()
+    results: dict[str, SqliteDataLayer] = {}
+
+    def hold() -> None:
+        with holder.transaction():
+            in_transaction.set()
+            assert opener_waiting.wait(timeout=10)
+            results["holder"] = get_datalayer(ACTOR_ID, db_url=template)
+
+    def open_store() -> None:
+        assert in_transaction.wait(timeout=10)
+        results["opener"] = get_datalayer(ACTOR_ID, db_url=template)
+
+    threads = [
+        threading.Thread(target=hold, name="holder", daemon=True),
+        threading.Thread(target=open_store, name="opener", daemon=True),
+    ]
+    try:
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+        assert not any(t.is_alive() for t in threads), "deadlocked"
+        assert results["holder"] is results["opener"]
+    finally:
+        holder.close()
+
+
+def test_reset_during_an_open_does_not_open_the_store_twice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A reset that runs while a store is opening must not let the next
+    # caller open the same store beside the opener still running.
+    template = f"sqlite:///{tmp_path / 'vultron.db'}"
+    entered = threading.Event()
+    release = threading.Event()
+    seen = threading.local()
+    original = SQLiteDialect.has_table
+
+    def has_table(
+        self: SQLiteDialect,
+        connection: Any,
+        table_name: str,
+        schema: str | None = None,
+        **kw: Any,
+    ) -> bool:
+        if threading.current_thread().name == "first" and not getattr(
+            seen, "waited", False
+        ):
+            seen.waited = True
+            entered.set()
+            release.wait(timeout=10)
+        return bool(
+            original(self, connection, table_name, schema=schema, **kw)
+        )
+
+    monkeypatch.setattr(SQLiteDialect, "has_table", has_table)
+    opens: list[str] = []
+
+    class CountingDataLayer(SqliteDataLayer):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            opens.append(threading.current_thread().name)
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(
+        datalayer_package, "SqliteDataLayer", CountingDataLayer
+    )
+    results: dict[str, SqliteDataLayer] = {}
+
+    def open_as(name: str) -> threading.Thread:
+        def run() -> None:
+            results[name] = get_datalayer(ACTOR_ID, db_url=template)
+
+        thread = threading.Thread(target=run, name=name, daemon=True)
+        thread.start()
+        return thread
+
+    first = open_as("first")
+    assert entered.wait(timeout=10)
+    reset_datalayer()
+    second = open_as("second")
+    # Give the second caller time to reach the open lock; arriving late
+    # finds the store cached, which can only hide a regression.
+    second.join(timeout=0.2)
+    release.set()
+    for thread in (first, second):
+        thread.join(timeout=30)
+    assert not first.is_alive() and not second.is_alive(), "an opener hung"
+    assert opens == ["first"]
+    assert results["first"] is results["second"]
