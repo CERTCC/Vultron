@@ -1417,9 +1417,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Every absolute blackboard key that a tree node publishes MUST be restored when
-      its run ends, by `BTBridge.execute_with_setup` or by the publisher itself, unless
-      a recorded exemption states why no reader can see an earlier run's value.
+      Every absolute key a tree node publishes MUST be restored when its run ends,
+      unless an exemption records why no later run can read it. The
+      tree's runner restores the key, or the publisher does. The runner is
+      `BTBridge.execute_with_setup`, or the inbox pipeline for its own nodes.
     rationale: >-
       A published key that nothing restores outlives its run. A later act whose
       writer does not tick reads the earlier act's value, and nothing ties a new
@@ -1430,6 +1431,8 @@ groups:
       `test/architecture/test_bridge_managed_keys_cover_published_keys.py` fail on a
       published key that is neither restored nor exempt; the probes there show that
       they can fail.
+      `test_every_key_an_inbox_node_publishes_is_restored_by_the_pipeline` there
+      holds the inbox nodes to `ALL_INBOX_KEYS`.
     relationships:
     - rel_type: extends
       spec_id: BT-17-013

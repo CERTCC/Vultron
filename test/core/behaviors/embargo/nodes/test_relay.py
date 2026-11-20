@@ -31,7 +31,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.core.behaviors.bt_harness import BTTestScenario
+from test.core.behaviors.bt_harness import BlackboardKeyWatch, BTTestScenario
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose, terminate
 from test.support.future_dates import days_from_now
@@ -371,13 +371,15 @@ class TestPublishEmbargoProposerNode:
         """The collect node never guesses the proposer: no publisher, an
         internal error, and no recipients."""
         _seed_case(bt_scenario, participants={OTHER_A: None})
-        result, recipients = bt_scenario.run_capturing(
+        watch = BlackboardKeyWatch(
             CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
             _RECIPIENTS_KEY,
         )
+        result = bt_scenario.run(watch)
         assert result.status == Status.FAILURE
         assert result.internal_error is True
-        assert not recipients
+        assert watch.ran
+        assert watch.value == []
 
 
 class TestCollectEmbargoInviteRecipientsNode:

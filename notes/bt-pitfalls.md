@@ -247,9 +247,9 @@ is whether any **node** re-reads it, and when. Guards:
 `managed_keys` picks up every `context_data` key automatically, so a key a use
 case *passes in* is scoped for free. A key a **node publishes through an output
 port** is not `context_data` and gets no entry, so its value outlives the
-execution that wrote it. Ask of any shared port key: does a node write it, and
-does another execution read it? If both, it belongs in the fixed `managed_keys`
-list.
+execution that wrote it. Every key a node publishes therefore goes in the fixed
+`managed_keys` list by default, and an architecture test fails on one that is in
+neither that list nor the exemption list below (BT-17-020).
 
 `case_id` is the worked example. Six nodes declare it as an output port
 (`CaseLookupNode`, the two `proposal_case_resolution` resolvers, the replay node
