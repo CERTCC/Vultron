@@ -314,6 +314,7 @@ class TestCaseActorCommitsTheProvenance:
         assert snapshot["inReplyTo"] == _OFFER_URI
         assert not {"offerId", "offerActorId"} & set(snapshot)
 
+    @pytest.mark.spec("AKM-02-007")
     def test_the_snapshot_names_an_inline_offer_by_its_id(self):
         """An inline Offer reaches the entry as its id only: the entry fans
         out to every participant, and the Offer is the Reporter's message to
