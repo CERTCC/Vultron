@@ -73,8 +73,8 @@ def _revising_case(dl: SqliteDataLayer, *, revision_days: int):
     case, participants = _make_case(dl, owner.id_, [signatory.id_])
     active = _make_embargo(dl, case.id_, days=60)
     revision = _make_embargo(dl, case.id_, days=revision_days)
-    activate(case, active.id_)
-    propose(case, revision.id_)
+    activate(case, active)
+    propose(case, revision)
     dl.save(case)
     write_consent_rows(dl, case)
     for participant in participants:

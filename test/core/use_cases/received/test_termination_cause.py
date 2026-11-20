@@ -170,10 +170,11 @@ def test_a_malformed_cause_is_refused(cause: dict[str, object]) -> None:
 
 @pytest.mark.spec("EMB-13-011")
 def test_a_termination_with_no_cause_ended_early() -> None:
-    recorded = EmbargoTermination.model_validate({})
+    """A ``Remove`` naming no cause is stored as ``OTHER`` (ADR-0202)."""
+    recorded = EmbargoTermination.from_cause(None)
 
     assert recorded == EmbargoTermination.other()
-    assert recorded.cause is None
+    assert recorded.cause == OtherCause()
     assert not recorded.is_end_time_reached
 
 
@@ -551,9 +552,9 @@ def test_the_threat_cascade_remove_carries_the_signals_it_records() -> None:
 
 
 @pytest.mark.spec("EMB-13-005")
-def test_an_uncaused_remove_carries_no_termination_cause() -> None:
-    """An early end with no cause is valid (EMB-13-004), and its ``Remove``
-    says so by leaving ``terminationCause`` out."""
+def test_an_other_end_carries_its_cause() -> None:
+    """The stored termination always names its cause (ADR-0202), so the
+    CASE_MANAGER's ``Remove`` for an ``OTHER`` end carries it too."""
     net = LedgerNetwork("https://example.org/cases/tc-uncaused")
 
     result = run_tree(
@@ -568,7 +569,9 @@ def test_an_uncaused_remove_carries_no_termination_cause() -> None:
 
     assert result.status == py_trees.common.Status.SUCCESS
     sent = _sent_removes(net)
-    assert sent and all("terminationCause" not in body for body in sent)
+    assert sent and all(
+        body["terminationCause"] == {"kind": "OTHER"} for body in sent
+    )
 
 
 def _owner_ask(

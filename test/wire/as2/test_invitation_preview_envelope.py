@@ -135,7 +135,7 @@ def _register_marked(preview: dict[str, Any]) -> None:
 
 
 def _embargo_marked(preview: dict[str, Any]) -> None:
-    preview["embargoRegister"][0]["embargo"] = {"type": "Redacted"}
+    preview["embargoRegister"][0] = {"type": "Redacted"}
 
 
 def _em_state_marked(preview: dict[str, Any]) -> None:
@@ -165,7 +165,7 @@ def _open_proposal_added(preview: dict[str, Any]) -> None:
     [
         (_without_register, "lacks the in-force entry in 'embargoRegister'"),
         (_register_marked, "marks 'embargoRegister' Redacted"),
-        (_embargo_marked, "lacks or marks the in-force embargo"),
+        (_embargo_marked, "lacks the in-force entry in 'embargoRegister'"),
         (_em_state_marked, "lacks or marks the EM state"),
         (_statuses_absent, "lacks or marks the EM state"),
         (
@@ -286,7 +286,7 @@ def _variant(
     registers = {
         "none": [],
         "active": register(active=embargo),
-        "active-by-id": register(active=embargo.id_),
+        "active-by-id": register(active=embargo),
         "revise": register(active=embargo, proposed=[revision]),
         "proposed": register(proposed=[embargo]),
         "ended": register(terminated=embargo),

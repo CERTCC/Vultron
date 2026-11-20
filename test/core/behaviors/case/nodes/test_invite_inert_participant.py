@@ -176,7 +176,7 @@ class TestSeating:
         )
         scenario.dl.create(embargo)
         case = _case(scenario)
-        activate(case, embargo.id_)
+        activate(case, embargo)
         scenario.dl.save(case)
 
         scenario.assert_success(_run(scenario, ["VENDOR"]))
@@ -277,7 +277,7 @@ class TestIdempotency:
         )
         scenario.dl.create(embargo)
         case = _case(scenario)
-        activate(case, embargo.id_)
+        activate(case, embargo)
         scenario.dl.save(case)
 
         scenario.assert_success(_run(scenario, ["VENDOR"]))
@@ -307,7 +307,7 @@ class TestIdempotency:
         )
         scenario.dl.create(embargo)
         case = _case(scenario)
-        activate(case, embargo.id_)
+        activate(case, embargo)
         scenario.dl.save(case)
 
         result = _run(scenario, ["VENDOR"])

@@ -173,7 +173,7 @@ class TestEmbargoProposalLifecycle:
             at=authored_at(),
         )
         # Start from PROPOSED — the standard pre-condition for activation.
-        propose(case, embargo.id_)
+        propose(case, embargo)
         # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
@@ -340,7 +340,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em5/embargo_proposals/1",
             at=authored_at(),
         )
-        propose(case, embargo.id_)
+        propose(case, embargo)
         # Attached after the proposal, so it holds the proposal's row.
         case.add_participant(participant)
         dl.create(case)
@@ -401,7 +401,7 @@ class TestEmbargoProposalLifecycle:
             context=case.id_,
             end_time=days_from_now(45),
         )
-        propose(case, embargo.id_)
+        propose(case, embargo)
         seed_store_owner_as_case_manager(dl, case)
         seed_case_owner_participant(dl, case, owner_id)
         dl.create(case)
@@ -619,7 +619,7 @@ def _make_pxa_case(
     # The register derives *em_state*: PROPOSED holds the embargo as an open
     # proposal, NONE holds no entry.
     if em_state == EM.PROPOSED:
-        propose(case, embargo.id_)
+        propose(case, embargo)
     assert case.em_state == em_state
     proposal = em_propose_embargo_activity(
         embargo,
@@ -995,7 +995,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             context=case_id,
             end_time=days_from_now(45),
         )
-        propose(case, embargo.id_)
+        propose(case, embargo)
         dl.create(case)
         dl.create(embargo)
         write_consent_rows(dl, case)
@@ -1227,7 +1227,7 @@ class _AnsweredInvite:
             id_="https://example.org/cases/case_em_dup/embargo_proposals/1",
             at=authored_at(),
         )
-        propose(case, embargo.id_)
+        propose(case, embargo)
         # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005); the
         # sender joins after the proposal, so it holds the proposal's row.
         seed_store_owner_as_case_manager(self.dl, case)
@@ -1382,7 +1382,7 @@ def _closed_invitee_store(closed: bool) -> tuple[Any, Any, Any, str]:
         id_=f"{_CLOSED_CASE}/embargo_proposals/1",
         at=authored_at(),
     )
-    propose(case, embargo.id_)
+    propose(case, embargo)
     case.add_participant(manager)
     case.add_participant(vendor)
     for record in (case, embargo, manager, vendor, invite):

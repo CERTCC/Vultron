@@ -100,7 +100,7 @@ class _GateScenario:
         for participant_id in stored.actor_participant_index.values():
             if participant_id not in stored.case_participants:
                 stored.case_participants.append(participant_id)
-        activate(stored, embargo.id_)
+        activate(stored, embargo)
         self.dl.save(stored)
         write_consent_rows(self.dl, stored)
         self.embargo = embargo
@@ -173,7 +173,7 @@ class _GateScenario:
         )
         self.dl.create(revision)
         stored = cast(VulnerabilityCase, self.dl.read(CASE_ID))
-        propose(stored, revision.id_)
+        propose(stored, revision)
         assert stored.em_state == EM.REVISE
         self.dl.save(stored)
         write_consent_rows(self.dl, stored)

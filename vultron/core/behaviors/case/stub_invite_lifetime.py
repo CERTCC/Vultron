@@ -49,7 +49,6 @@ from vultron.core.models.case_preview import (
     preview_embargo_id,
     previewed_case_id,
 )
-from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.states.em import EM
@@ -217,18 +216,14 @@ def current_preview_embargo_id(case: VulnerabilityCase) -> str | None:
     return case.active_embargo_id
 
 
-def current_preview_embargo_end(
-    dl: CasePersistence, case: VulnerabilityCase
-) -> datetime | None:
+def current_preview_embargo_end(case: VulnerabilityCase) -> datetime | None:
     """The end of the embargo a stub sent now would carry; caps its deadline.
 
-    Read from the in-force entry's embargo when the register holds it whole,
-    as the preview carries it, else from the store.
+    Read from the registered embargo in force, which the register holds
+    whole (ADR-0202), as the preview carries it.
     """
-    embargo: object = case.active_embargo
-    if isinstance(embargo, str):
-        embargo = dl.read(embargo)
-    return embargo.end_time if isinstance(embargo, EmbargoEvent) else None
+    embargo = case.active_embargo
+    return embargo.end_time if embargo is not None else None
 
 
 def invitee_record(

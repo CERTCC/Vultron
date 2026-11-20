@@ -34,7 +34,8 @@ not restate (VM-10-001, VM-10-004, #6006), a case reference's ``url`` is
 an ``as:Link`` (#6249), and a seeded first status takes its object's own
 ``published`` rather than the clock (ADR-0176, #5758), and an embargo
 policy names its actor in ``attributedTo`` and carries no ``inbox``
-(ADR-0194, #6410).
+(ADR-0194, #6410), and an embargo carries its own
+``status`` (ADR-0202, #6481).
 
 Two value classes are generated afresh on every construction by nested
 defaults and are normalised before comparison: minted ``urn:uuid:`` ids and

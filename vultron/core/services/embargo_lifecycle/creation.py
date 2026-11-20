@@ -261,6 +261,7 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
                 case_id=case_id,
                 embargo_id=revision.embargo.id_,
                 actor_id=revision.proposer_id,
+                embargo=revision.embargo,
             ).em_after
         staged.flush()
 

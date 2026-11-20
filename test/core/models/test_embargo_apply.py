@@ -249,7 +249,9 @@ class TestRegisterSteps:
 
     def test_a_proposal_carries_its_embargo_inline(self):
         after = apply_embargo_change(_case_file(), _step(_K.PROPOSE, E1))
-        assert _entry(after, E1).embargo == E1
+        registered = _entry(after, E1)
+        assert registered.with_register_state() == E1
+        assert registered.status is EmbargoRegisterStatus.PROPOSED
 
     def test_terminate_ends_only_the_embargo_it_names(self):
         """Never "whatever is active locally" (#4294 AC-3)."""

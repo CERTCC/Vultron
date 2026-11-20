@@ -78,7 +78,7 @@ class TestEmbargoTermRevise:
             end_time=days_from_now(45),
         )
         if proposed:
-            propose(case, embargo.id_)
+            propose(case, embargo)
         seed_case_manager_participant(dl, case, _COORD)
         seed_case_owner_participant(dl, case, _OWNER)
         dl.create(case)
@@ -186,7 +186,7 @@ class TestEmbargoTermRevise:
             context=case.id_,
             end_time=days_from_now(45),
         )
-        propose(case, embargo.id_)
+        propose(case, embargo)
         seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
 
@@ -248,7 +248,7 @@ class TestEmbargoTermRevise:
             context=case.id_,
             end_time=days_from_now(45),
         )
-        activate(case, embargo.id_)
+        activate(case, embargo)
         seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
         dl.create(embargo)
@@ -314,7 +314,7 @@ class TestEmbargoTermRevise:
             context=case.id_,
             end_time=days_from_now(45),
         )
-        activate(case, embargo.id_)
+        activate(case, embargo)
         revision_id = "https://example.org/cases/case_rem3/embargo_events/e4"
         propose(case, revision_id)
         assert case.em_state == EM.REVISE

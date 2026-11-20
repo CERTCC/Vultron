@@ -99,7 +99,7 @@ def test_propose_embargo_idempotent_repropse(
     embargo = _make_embargo(dl, case.id_)
 
     # Seed the case as already having this embargo proposed
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -142,7 +142,7 @@ def test_propose_embargo_active_to_revise_lapses_nobody(
         dl, owner.id_, extra_participant_ids=[finder.id_]
     )
     active = _make_embargo(dl, case.id_)
-    activate(case, active.id_)
+    activate(case, active)
     dl.save(case)
     write_consent_rows(dl, case)
     for p in participants:
@@ -200,8 +200,8 @@ def test_propose_embargo_revise_to_revise_lapses_nobody(
     owner_p, finder_p, invitee_p = participants
     active = _make_embargo(dl, case.id_)
     first_revision = _make_embargo(dl, case.id_, days=90)
-    activate(case, active.id_)
-    propose(case, first_revision.id_)
+    activate(case, active)
+    propose(case, first_revision)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
@@ -297,7 +297,7 @@ def test_propose_embargo_invalid_state_raises(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
     ended = _make_embargo(dl, case.id_)
-    activate(case, ended.id_)
+    activate(case, ended)
     terminate(case)
     dl.save(case)
     write_consent_rows(dl, case)
@@ -328,7 +328,7 @@ def test_propose_embargo_observed_mode_skips_a_refused_proposal(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
     ended = _make_embargo(dl, case.id_)
-    activate(case, ended.id_)
+    activate(case, ended)
     terminate(case)
     dl.save(case)
     write_consent_rows(dl, case)
@@ -481,7 +481,7 @@ def test_proposing_writes_an_uninvited_row_for_every_current_participant(
     )
     owner_p, finder_p, vendor_p = participants
     active = _make_embargo(dl, case.id_)
-    activate(case, active.id_)
+    activate(case, active)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, vendor_p.id_, active.id_, ECS.AGREED)

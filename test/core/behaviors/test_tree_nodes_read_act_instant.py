@@ -191,13 +191,12 @@ def _manager_store(end_time: datetime):
     dl, _, case, embargo = make_embargo_case_with_actor(
         _CASE, _OWNER, case_manager_actor_id=_OWNER
     )
-    dl.save(
-        make(
-            as_EmbargoEvent, id_=embargo.id_, context=_CASE, end_time=end_time
-        )
+    ending = make(
+        as_EmbargoEvent, id_=embargo.id_, context=_CASE, end_time=end_time
     )
+    dl.save(ending)
     stored = cast(VulnerabilityCase, dl.read(case.id_))
-    activate(stored, embargo.id_)
+    activate(stored, ending)
     dl.save(stored)
     return dl
 

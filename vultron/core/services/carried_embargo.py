@@ -51,8 +51,8 @@ def store_carried_embargo(
 ) -> None:
     """Make the embargo *case_obj* names readable in *store*, or raise.
 
-    An inline ``EmbargoEvent`` is stored as its own record when *store* does
-    not hold it yet; a bare reference must already resolve.  Either way the
+    The embargo in force, which the register holds whole (ADR-0202), is
+    stored as its own record when *store* does not hold it yet.  The
     named embargo is read back through :func:`read_embargo_event`, so a
     caller that saves the case afterwards never writes a dangling
     ``active_embargo``.  A case with no active embargo needs nothing.
@@ -60,16 +60,13 @@ def store_carried_embargo(
     An inline embargo whose ``context`` is not *case_obj* is refused before
     anything is written: a first write wins, so a sender must not be able to
     plant another case's embargo under an id that case will later name.  The
-    record *store* already holds under the named id is checked the same way,
-    whether the case carries the embargo inline or names it by bare id.  An
+    record *store* already holds under the named id is checked the same way.  An
     embargo about one of *case_obj*'s reports counts as the case's: a
     Reporter's proposal names its report until the case exists (EP-04-009,
     EMB-18-004).
 
     Raises:
-        VultronNotFoundError: If the case names, by bare reference, an
-            embargo *store* does not hold.
-        VultronValidationError: If the named record is not an
+        VultronValidationError: If the held record is not an
             ``EmbargoEvent``, or the inline embargo or the held record
             belongs to another case.
     """
@@ -77,20 +74,16 @@ def store_carried_embargo(
         hold_embargo_for_case(store, case_obj, named)
 
 
-def _named_embargo(case_obj: object) -> EmbargoEvent | str | None:
-    """The embargo *case_obj* names, inline or by id, or ``None``."""
+def _named_embargo(case_obj: object) -> EmbargoEvent | None:
+    """The embargo in force *case_obj*'s register holds, or ``None``.
+
+    The register holds each embargo whole (ADR-0202).
+    """
     # A received event's ``case`` property is a cast, so the object handed
     # in may be a bare reference stub with no case fields.
     if not isinstance(case_obj, VulnerabilityCase):
         return None
-    embargo_ref = case_obj.active_embargo
-    if embargo_ref is None:
-        return None
-    return (
-        embargo_ref
-        if isinstance(embargo_ref, EmbargoEvent)
-        else str(embargo_ref)
-    )
+    return case_obj.active_embargo
 
 
 def hold_embargo_for_case(
@@ -100,8 +93,8 @@ def hold_embargo_for_case(
 ) -> EmbargoEvent:
     """Hold *embargo* in *store* as *case*'s, and return the held record.
 
-    An inline ``EmbargoEvent`` is stored when *store* lacks it; a bare id
-    must already resolve.  The inline copy and the held record must both be
+    An inline ``EmbargoEvent`` is stored, as its terms with no register
+    state, when *store* lacks it; a bare id must already resolve.  The inline copy and the held record must both be
     *case*'s, about *case* or one of its reports (EMB-18-004), and the inline
     copy is checked before anything is written.
 
@@ -113,7 +106,9 @@ def hold_embargo_for_case(
     record, held = _vet_embargo_for_case(store, case, embargo)
     if held:
         return record
-    store.save(record)
+    # The held record is the embargo's terms; its state lives on the
+    # register's copy (ADR-0202), so every store holds the same record.
+    store.save(record.with_register_state())
     return _held_embargo(store, _case_subjects(case), case.id_, record.id_)
 
 

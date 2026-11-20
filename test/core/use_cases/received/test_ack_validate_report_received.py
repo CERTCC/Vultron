@@ -246,7 +246,7 @@ class TestFullReportFlow:
             name="Flow test case",
             vulnerability_reports=[self.REPORT_ID],
             case_participants=[case_manager, vendor_participant],
-            embargo_register=register(active=embargo.id_),
+            embargo_register=register(active=embargo),
             # The index travels on the wire alongside the inline participants
             # (CM-19-003): participants are resolved through it, never by
             # scanning inline snapshots.

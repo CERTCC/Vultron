@@ -350,7 +350,7 @@ class TestReferencesToFetch:
         dl = _replica()
         case = make_case_with_case_manager(dl)
         replaced = _embargo(case.id_)
-        activate(case, replaced.id_)
+        activate(case, replaced)
         dl.save(case)
         revision = _embargo(case.id_, days=10)
 
@@ -395,7 +395,7 @@ class TestReferencesToFetch:
         dl = _replica()
         case = make_case_with_case_manager(dl)
         active = _embargo(case.id_)
-        activate(case, active.id_)
+        activate(case, active)
         dl.save(case)
 
         refs = references_to_fetch(_announce(case, active), dl, _PARTICIPANT)

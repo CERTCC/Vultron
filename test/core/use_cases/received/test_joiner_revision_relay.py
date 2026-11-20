@@ -600,8 +600,8 @@ def test_a_late_joiner_holds_an_uninvited_row_for_every_final_entry(
     )
     for embargo in (d1, d2):
         dl.create(embargo)
-    activate(case, d1.id_)
-    propose(case, d2.id_)
+    activate(case, d1)
+    propose(case, d2)
     reject(case, d2.id_)
     dl.save(case)
     write_consent_rows(dl, case)

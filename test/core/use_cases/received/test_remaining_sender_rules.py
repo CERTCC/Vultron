@@ -179,7 +179,7 @@ class _World:
             self.finder.id_: finder_p.id_,
             self.deployer.id_: deployer_p.id_,
         }
-        activate(case, self.embargo.id_)
+        activate(case, self.embargo)
         self.case_id = case.id_
         self.finder_participant_id = finder_p.id_
         for obj in (case, self.embargo, manager_p, finder_p, deployer_p):

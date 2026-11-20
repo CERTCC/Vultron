@@ -811,7 +811,7 @@ class TestOwnersInviteAtCaseManager:
                 context=case.id_,
             )
             dl.create(embargo)
-            activate(case, embargo.id_)
+            activate(case, embargo)
         dl.create(case)
         write_consent_rows(dl, case)
         if with_active_embargo:

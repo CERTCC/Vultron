@@ -118,7 +118,7 @@ def _seed_revision(dl: SqliteDataLayer, case: VulnerabilityCase) -> str:
         end_time=days_from_now(30),
     )
     dl.create(revision)
-    propose(case, revision.id_)
+    propose(case, revision)
     dl.save(case)
     return revision.id_
 

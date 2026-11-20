@@ -30,7 +30,7 @@ def wire_preview(invite: dict[str, Any]) -> dict[str, Any]:
 
 
 def in_force_embargo(preview: dict[str, Any]) -> dict[str, Any] | None:
-    """The embargo of *preview*'s in-force register entry, or ``None``.
+    """*preview*'s in-force registered embargo, or ``None`` (ADR-0202).
 
     The register a preview carries holds that entry alone (CM-17-014), so a
     second entry is a failure, not a choice.
@@ -38,12 +38,11 @@ def in_force_embargo(preview: dict[str, Any]) -> dict[str, Any] | None:
     register = preview.get("embargoRegister")
     if register is None:
         return None
-    (entry,) = register
-    assert entry["status"] == "ACTIVE", entry
-    embargo = entry["embargo"]
+    (embargo,) = register
     assert isinstance(embargo, dict), (
         "the preview carries the embargo whole (CM-17-011)"
     )
+    assert embargo["status"] == "ACTIVE", embargo
     return embargo
 
 

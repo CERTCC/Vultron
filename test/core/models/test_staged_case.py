@@ -262,7 +262,7 @@ class TestEmbargoedCase:
         ec = EmbargoedCase.model_validate(
             with_times(EmbargoedCase, _embargoed_case_data())
         )
-        assert ec.active_embargo == _EMBARGO_ID
+        assert ec.active_embargo_id == _EMBARGO_ID
         assert ec.current_status.em.state == EM.ACTIVE
 
     def test_valid_with_revise_em_state(self):
@@ -365,7 +365,7 @@ class TestDataLayerRoundTrip:
         )
         assert isinstance(vc, VulnerabilityCase)
         assert vc.type_ == "VulnerabilityCase"
-        assert vc.active_embargo == _EMBARGO_ID
+        assert vc.active_embargo_id == _EMBARGO_ID
 
         # Re-narrowing succeeds
         ec2 = EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
@@ -425,7 +425,7 @@ class TestDataLayerRoundTrip:
             with_times(EmbargoedCase, stored)
         )
         assert isinstance(promoted, EmbargoedCase)
-        assert promoted.active_embargo == _EMBARGO_ID
+        assert promoted.active_embargo_id == _EMBARGO_ID
 
 
 # ---------------------------------------------------------------------------

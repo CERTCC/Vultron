@@ -515,45 +515,17 @@ class TestEmitCreateVulnerabilityCaseNode:
                 VulnerabilityCase,
                 id_=case_id,
                 attributed_to=_CASE_ACTOR_URI,
-                embargo_register=register(active=embargo.id_),
+                embargo_register=register(active=embargo),
             )
         )
 
         status = self._run_node(dl, case_id=case_id, seed=False)
 
         assert status == py_trees.common.Status.SUCCESS
-        (entry,) = _queued_create(dl)["object"]["embargoRegister"]
-        carried = entry["embargo"]
+        (carried,) = _queued_create(dl)["object"]["embargoRegister"]
         assert isinstance(carried, dict), carried
         assert carried["id"] == embargo.id_
-        assert entry["status"] == "ACTIVE"
-
-    @pytest.mark.spec("EMB-18-003")
-    def test_unreadable_active_embargo_fails_and_queues_nothing(self, caplog):
-        """A case naming an embargo this store lacks is never sent."""
-        dl = self._dl()
-        case_id = "https://example.org/cases/c-unheld"
-        dl.save(
-            make(
-                VulnerabilityCase,
-                id_=case_id,
-                attributed_to=_CASE_ACTOR_URI,
-                embargo_register=register(
-                    active=f"{case_id}/embargo_events/unheld"
-                ),
-            )
-        )
-
-        with caplog.at_level(logging.ERROR):
-            status = self._run_node(dl, case_id=case_id, seed=False)
-
-        assert status == py_trees.common.Status.FAILURE
-        assert dl.outbox_list() == []
-        messages = [r.getMessage() for r in caplog.records]
-        assert any(
-            "names active embargo" in m and "EMB-18-003" in m for m in messages
-        )
-        assert not any("CP-09-004" in m for m in messages)
+        assert carried["status"] == "ACTIVE"
 
     @pytest.mark.spec("CP-09-004")
     def test_unreadable_participant_fails_and_queues_nothing(self, caplog):
@@ -1348,7 +1320,7 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
 
         stored = dl.read(case.id_)
         assert isinstance(stored, VulnerabilityCase)
-        assert stored.active_embargo == revision_id
+        assert stored.active_embargo_id == revision_id
         assert stored.current_status.em.state == EM.ACTIVE
         from vultron.core.models.case_participant import CaseParticipant
 
@@ -1360,14 +1332,14 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 
         dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
-        prior = case.active_embargo
+        prior = case.active_embargo_id
         EmbargoLifecycle(persistence=dl).accept_embargo_invite(
             case_id=case.id_, embargo_id=revision_id, actor_id=_CASE_ACTOR_URI
         )
 
         stored = dl.read(case.id_)
         assert isinstance(stored, VulnerabilityCase)
-        assert stored.active_embargo == prior
+        assert stored.active_embargo_id == prior
         assert stored.current_status.em.state == EM.REVISE
 
     @pytest.mark.spec("MSM-07-037")
@@ -2924,47 +2896,6 @@ class TestADR0041GenesisCommitFailure:
         assert node.update() == Status.FAILURE
         assert missing in node.feedback_message
         assert "create_case_participant" not in attempted
-
-    @pytest.mark.spec("CLP-07-013")
-    def test_an_embargo_missing_from_the_store_stops_the_sequence(
-        self, make_payload, monkeypatch
-    ):
-        """An embargo the register names but the store lacks has no entry.
-
-        No replica could read its times, so the creation entries stop at its
-        ``create_embargo_event`` and the node fails (#5122).
-        """
-        from py_trees.common import Status
-
-        from vultron.core.behaviors.case.nodes import (
-            CommitNativeLedgerEntriesNode,
-            proposal_ledger,
-        )
-
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
-        _seed_report(dl)
-        case = self._case_with_no_entries(make_payload, dl, monkeypatch)
-        missing = case.embargo_register[0].embargo_id
-        dl.delete("EmbargoEvent", missing)
-        attempted: list[str] = []
-
-        def _accept(*_args, **kwargs):
-            attempted.append(kwargs["semantic_type"])
-            return py_trees.behaviours.Success(name="AcceptedCommit")
-
-        monkeypatch.setattr(
-            proposal_ledger, "create_commit_log_entry_tree", _accept
-        )
-        node = CommitNativeLedgerEntriesNode(report_id=_REPORT_URI)
-        node.datalayer = dl
-        node.actor_id = _CASE_ACTOR_URI
-        node.trigger_activity_factory = TriggerActivityAdapter(dl)
-        node._case_id_bb = case.id_
-        node._create_activity_id_bb = _CREATE_ID
-
-        assert node.update() == Status.FAILURE
-        assert missing in node.feedback_message
-        assert attempted == ["create_case"]
 
     def test_case_not_found_is_best_effort_success(self, make_payload):
         """case-not-found in the ledger node is best-effort SUCCESS."""

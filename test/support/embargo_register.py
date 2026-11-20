@@ -17,6 +17,7 @@ code under test reads the embargo's terms passes the ``EmbargoEvent``.
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
+from test.support.objects import make
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -52,17 +53,18 @@ def _id(embargo: EmbargoRef) -> str:
 def stand_in(embargo: EmbargoRef, context: str | None = None) -> EmbargoEvent:
     """*embargo* itself, or a stand-in ``EmbargoEvent`` under the id it is.
 
-    The stand-in's terms are :data:`STAND_IN_PUBLISHED` and
-    :data:`STAND_IN_END_TIME`, its context *context* (else a fixed one).
+    The stand-in starts, is published and updated at
+    :data:`STAND_IN_PUBLISHED` and ends at :data:`STAND_IN_END_TIME`, its context *context* (else a fixed one).
     """
     if isinstance(embargo, EmbargoEvent):
         return embargo
-    return EmbargoEvent(
+    return make(
+        EmbargoEvent,
         id_=embargo,
         context=context or _STAND_IN_CONTEXT,
         published=STAND_IN_PUBLISHED,
-        updated=None,
-        start_time=None,
+        updated=STAND_IN_PUBLISHED,
+        start_time=STAND_IN_PUBLISHED,
         end_time=STAND_IN_END_TIME,
     )
 
@@ -159,14 +161,34 @@ def registered(
     """
     if status == EmbargoRegisterStatus.TERMINATED and termination is None:
         termination = EmbargoTermination.other()
-    return EmbargoEvent.model_validate(
-        {
-            **stand_in(embargo).model_dump(),
-            "status": status,
-            "replaces": replaces,
-            "termination": termination,
-        }
+    return stand_in(embargo).with_register_state(
+        status, replaces=replaces, termination=termination
     )
+
+
+def retime(
+    dl: CasePersistence, case_id: str, embargo_id: str, end_time: datetime
+) -> None:
+    """Move *embargo_id*'s end time to *end_time* wherever *dl* holds it.
+
+    The stored record, when there is one, and the case's registered copy,
+    which the protocol reads (ADR-0202), so a fixture never holds two end
+    times for one embargo.
+    """
+    stored = dl.read(embargo_id)
+    if isinstance(stored, EmbargoEvent):
+        dl.save(stored.model_copy(update={"end_time": end_time}))
+    case = dl.read(case_id)
+    assert isinstance(case, VulnerabilityCase), case_id
+    case.embargo_register = [
+        (
+            embargo.model_copy(update={"end_time": end_time})
+            if embargo.id_ == embargo_id
+            else embargo
+        )
+        for embargo in case.embargo_register
+    ]
+    dl.save(case)
 
 
 def write_consent_rows(dl: CasePersistence, case: VulnerabilityCase) -> None:
@@ -228,6 +250,7 @@ __all__ = [
     "register",
     "registered",
     "reject",
+    "retime",
     "stand_in",
     "terminate",
     "write_consent_rows",

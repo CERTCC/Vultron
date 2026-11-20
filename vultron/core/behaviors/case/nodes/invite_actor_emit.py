@@ -100,7 +100,7 @@ def build_stub_invite(
     # embargo Invite (CM-11-014, CM-28-012, ASK-03-004); the cap is the end of
     # the embargo the stub carries, when it carries one.
     stamp = stamp_rsvp_deadline(
-        current_preview_embargo_end(datalayer, case), at, actor_config
+        current_preview_embargo_end(case), at, actor_config
     )
     # ``None`` is the manager's own invitation; otherwise the participant who
     # asked for it is the attributed author (PCR-08-007, CM-24-005), and a

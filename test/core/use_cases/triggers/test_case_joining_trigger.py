@@ -249,7 +249,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
         end_time=days_from_now(45),
     )
     dl.create(embargo)
-    activate(case, embargo.id_)
+    activate(case, embargo)
     seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
 
@@ -327,7 +327,7 @@ def test_joined_participant_never_answers_the_original_report_offer(
     case = make(
         VulnerabilityCase, name="Joined Case", attributed_to=case_actor.id_
     )
-    activate(case, embargo.id_)
+    activate(case, embargo)
     case.vulnerability_reports.append(report.id_)
     manager = make(
         CaseParticipant,

@@ -172,7 +172,7 @@ def _store(
         context=_CASE_ID,
         end_time=days_from_now(30),
     )
-    propose(case, embargo.id_)
+    propose(case, embargo)
     seed_case_manager_participant(dl, case, _MANAGER)
     if owner != _MANAGER:
         seed_case_owner_participant(dl, case, owner)
@@ -393,7 +393,7 @@ class TestSweepScope:
     def test_a_row_of_the_embargo_in_force_is_swept(self):
         dl, embargo = _store()
         case = cast(VulnerabilityCase, dl.read(_CASE_ID))
-        activate(case, embargo.id_)
+        activate(case, embargo)
         dl.save(case)
 
         _sweep(dl)

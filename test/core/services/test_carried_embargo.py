@@ -119,63 +119,6 @@ def test_an_inline_embargo_of_another_case_is_refused_unstored(
 
 
 @pytest.mark.spec("EMB-18-003")
-def test_a_bare_reference_the_store_holds_passes(dl: SqliteDataLayer) -> None:
-    embargo = _embargo()
-    dl.create(embargo)
-    case = make(
-        VulnerabilityCase,
-        attributed_to=CASE_OWNER_ID,
-        id_=_CASE,
-        name="c",
-        embargo_register=register(active=embargo.id_),
-    )
-
-    store_carried_embargo(case, dl)
-
-
-@pytest.mark.spec("EMB-18-003")
-def test_a_bare_reference_the_store_lacks_is_refused(
-    dl: SqliteDataLayer,
-) -> None:
-    missing = f"{_CASE}/embargo_events/missing"
-    case = make(
-        VulnerabilityCase,
-        attributed_to=CASE_OWNER_ID,
-        id_=_CASE,
-        name="c",
-        embargo_register=register(active=missing),
-    )
-
-    with pytest.raises(VultronNotFoundError) as excinfo:
-        store_carried_embargo(case, dl)
-
-    assert excinfo.value.resource_id == missing
-
-
-@pytest.mark.spec("EMB-18-003")
-def test_a_reference_to_a_non_embargo_record_is_refused(
-    dl: SqliteDataLayer,
-) -> None:
-    report = make(
-        VulnerabilityReport,
-        id_="https://example.org/reports/r1",
-        name="r",
-        content="c",
-    )
-    dl.create(report)
-    case = make(
-        VulnerabilityCase,
-        attributed_to=CASE_OWNER_ID,
-        id_=_CASE,
-        name="c",
-        embargo_register=register(active=report.id_),
-    )
-
-    with pytest.raises(VultronValidationError):
-        store_carried_embargo(case, dl)
-
-
-@pytest.mark.spec("EMB-18-003")
 def test_read_embargo_event_returns_the_held_record(
     dl: SqliteDataLayer,
 ) -> None:
@@ -347,14 +290,13 @@ def _held_for_other_case(dl: SqliteDataLayer) -> EmbargoEvent:
 
 
 @pytest.mark.spec("EMB-18-004")
-@pytest.mark.parametrize("as_reference", [True, False])
 @pytest.mark.spec("EMB-18-012")
 def test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten(
-    dl: SqliteDataLayer, as_reference: bool
+    dl: SqliteDataLayer,
 ) -> None:
-    """A bare id, or an inline copy, whose held record is another case's."""
+    """A registered embargo whose held record is another case's."""
     foreign = _held_for_other_case(dl)
-    active: EmbargoEvent | str = foreign.id_ if as_reference else _embargo()
+    active = _embargo()
     case = make(
         VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
@@ -433,16 +375,15 @@ def _case_with_report(
 @pytest.mark.spec("EP-04-009")
 @pytest.mark.spec("EP-04-021")
 @pytest.mark.parametrize("inline_report", [False, True])
-@pytest.mark.parametrize("as_reference", [True, False])
 def test_a_held_proposal_about_the_cases_own_report_is_accepted(
-    dl: SqliteDataLayer, as_reference: bool, inline_report: bool
+    dl: SqliteDataLayer, inline_report: bool
 ) -> None:
     """The Reporter holds its proposal about the report the case holds."""
     proposal = _held_for_report(dl, _REPORT)
 
     store_carried_embargo(
         _case_with_report(
-            proposal.id_ if as_reference else _embargo(),
+            _embargo(),
             inline_report=inline_report,
         ),
         dl,
@@ -452,15 +393,14 @@ def test_a_held_proposal_about_the_cases_own_report_is_accepted(
 
 
 @pytest.mark.spec("EMB-18-004")
-@pytest.mark.parametrize("as_reference", [True, False])
 def test_a_held_proposal_about_another_cases_report_is_refused(
-    dl: SqliteDataLayer, as_reference: bool
+    dl: SqliteDataLayer,
 ) -> None:
-    proposal = _held_for_report(dl, _OTHER_REPORT)
+    _held_for_report(dl, _OTHER_REPORT)
 
     with pytest.raises(VultronValidationError, match=_OTHER_REPORT):
         store_carried_embargo(
-            _case_with_report(proposal.id_ if as_reference else _embargo()),
+            _case_with_report(_embargo()),
             dl,
         )
 
@@ -605,11 +545,6 @@ def _case_naming(embargo: EmbargoEvent | str) -> VulnerabilityCase:
             ),
             VultronValidationError,
             id="inline-of-another-case",
-        ),
-        pytest.param(
-            f"{_CASE}/embargo_events/missing",
-            VultronNotFoundError,
-            id="bare-reference-the-store-lacks",
         ),
     ],
 )

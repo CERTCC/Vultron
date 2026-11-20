@@ -305,7 +305,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        propose(case, embargo.id_)
+        propose(case, embargo)
         dl.save(case)
         # Every participant holds a row for the proposal (ADR-0122).
         write_consent_rows(dl, case)
@@ -455,7 +455,7 @@ class TestRemoveEmbargoRoutingGuard:
         read_case = dl.read(case.id_)
         assert read_case is not None
         case = cast(as_VulnerabilityCase, read_case)
-        activate(case, embargo.id_)
+        activate(case, embargo)
         dl.save(case)
         # The teardown declines every row; the act fails as a whole without
         # them (CLP-07-015, ADR-0151).

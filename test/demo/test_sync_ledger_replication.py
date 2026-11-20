@@ -795,7 +795,7 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
         )
     # An open proposal and no embargo in force, so both are active
     # participants and every case-content send reaches the peer (CM-10-004).
-    propose(case, embargo.id_)
+    propose(case, embargo)
     case_actor_dl.save(embargo)
     case_actor_dl.save(manager_participant)
     case_actor_dl.save(peer_participant)

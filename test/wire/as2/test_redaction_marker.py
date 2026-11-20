@@ -345,9 +345,10 @@ CUT_DOWN_OBJECTS: dict[str, dict[str, Any]] = {
     "termination cause cut to its kind": {
         "embargoRegister": [
             {
+                "type": ["EmbargoEvent", "Event"],
                 "termination": {
                     "cause": {"kind": "FIX_READY", "vendors": [MARKER]},
-                }
+                },
             }
         ]
     },

@@ -4860,9 +4860,9 @@ groups:
       This codebase MUST change a participant's consent row only through one of three
       `CaseParticipant` methods. The method `apply_pec_transition(embargo_id, trigger,
       entry_status=...)` applies a `PEC_Trigger`, given the embargo's own `status` in
-      the register (ADR-0202). The method `copy_consent_row()` writes a row that a ledger entry
-      carries in full (ADR-0124). The method `write_uninvited_rows()` writes the
-      `UNINVITED` rows that record no answer.
+      the register (ADR-0202). The method `copy_consent_row()` writes a row that a
+      ledger entry carries in full (ADR-0124). The method `write_uninvited_rows()`
+      writes the `UNINVITED` rows that record no answer.
     rationale: >-
       `apply_pec_transition()` validates the trigger against the consent table and the
       register status. It raises `VultronInvalidStateTransitionError` on an illegal

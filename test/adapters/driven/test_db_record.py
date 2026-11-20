@@ -658,8 +658,7 @@ def test_case_active_embargo_survives_storage_as_an_inline_object():
     case = _case_carrying_its_embargo()
     record = object_to_record(cast(Any, case))
 
-    (entry,) = record.data_["embargo_register"]
-    stored = entry["embargo"]
+    (stored,) = record.data_["embargo_register"]
     assert not isinstance(stored, str), (
         "AKM-02-004 requires the embargo inline; storage reduced it to"
         f" {stored!r}, which the receiver cannot resolve"
@@ -689,28 +688,21 @@ def test_case_carries_the_embargo_as_an_inline_object():
     )
 
 
-def test_case_passes_through_a_bare_embargo_id():
-    """A case that only ever held a bare embargo id is still valid.
-
-    ``inline_required_refs`` says the field must not be *reduced* to an id on
-    storage; it cannot conjure an object a sender never had.  Constructing such
-    a case must succeed and the id must be readable back.
-    """
+def test_case_refuses_a_bare_embargo_id():
+    """The register holds each embargo whole, with its own status
+    (ADR-0202), so a case naming one by bare id is refused."""
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCase,
     )
 
-    case = make(
-        as_VulnerabilityCase,
-        id_="urn:uuid:case-dl08001-0000-0000-000000000001",
-        attributed_to="https://example.org/actors/case-actor-dl08",
-        published=datetime(2026, 8, 24, tzinfo=UTC),
-        embargo_register=register(
-            active="urn:uuid:emb-dl08001-0000-0000-000000000001"
-        ),
-    )
-
-    assert case.active_embargo == "urn:uuid:emb-dl08001-0000-0000-000000000001"
+    with pytest.raises(ValueError, match="embargo_register"):
+        make(
+            as_VulnerabilityCase,
+            id_="urn:uuid:case-dl08001-0000-0000-000000000001",
+            attributed_to="https://example.org/actors/case-actor-dl08",
+            published=datetime(2026, 8, 24, tzinfo=UTC),
+            embargo_register=["urn:uuid:emb-dl08001-0000-0000-000000000001"],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1038,7 +1030,7 @@ def test_from_obj_wire_identity_keys_apply_to_inline_objects():
     record = object_to_record(cast(Any, case))
 
     (entry,) = record.data_["embargo_register"]
-    stored_embargo = entry["embargo"]
+    stored_embargo = entry
     assert isinstance(stored_embargo, dict)
     assert "id_" not in stored_embargo, (
         "ARCH-23-005: inline dict MUST NOT carry trailing-underscore 'id_'"

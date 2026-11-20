@@ -311,7 +311,7 @@ def _propose_revision_everywhere(
     for dl in net.stores.values():
         dl.create(revision)
         case = cast(VulnerabilityCase, dl.read(net.case_id))
-        propose(case, revision.id_)
+        propose(case, revision)
         dl.save(case)
         # The UNINVITED rows the proposal writes in production (ADR-0122).
         write_consent_rows(dl, case)

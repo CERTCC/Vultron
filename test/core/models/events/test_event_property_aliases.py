@@ -694,7 +694,7 @@ def test_the_stub_invite_event_carries_the_case_preview():
     shown_register = preview.embargo_register
     assert isinstance(shown_register, list)
     (entry,) = shown_register
-    assert is_loose_form_of(getattr(entry, "embargo", None), EmbargoEvent)
+    assert is_loose_form_of(entry, EmbargoEvent)
     assert preview_embargo_id(preview) == embargo.id_
     assert preview_em_state(preview) is EM.ACTIVE
 

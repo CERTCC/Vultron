@@ -67,7 +67,7 @@ def _case_with_embargo(case_id: str, *, ended: bool):
         )
         dl.save(embargo)
     stored = cast(VulnerabilityCase, dl.read(case.id_))
-    activate(stored, embargo.id_)
+    activate(stored, embargo)
     dl.save(stored)
     return dl, stored, embargo
 

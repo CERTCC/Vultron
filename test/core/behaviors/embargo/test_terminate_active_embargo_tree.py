@@ -519,7 +519,7 @@ class _World:
         for actor_id, participant in participants:
             case.case_participants.append(participant.id_)
             case.actor_participant_index[actor_id] = participant.id_
-        activate(case, self.embargo.id_)
+        activate(case, self.embargo)
         self.case_id = case.id_
         for obj in (case, self.embargo, owner, vendor, finder):
             self.dl.create(obj)

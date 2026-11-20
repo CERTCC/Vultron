@@ -302,7 +302,7 @@ def case_with_embargo(dl, actor):
         as_EmbargoEvent, context=case_obj.id_, end_time=days_from_now(45)
     )
     dl.create(embargo)
-    activate(case_obj, embargo.id_)
+    activate(case_obj, embargo)
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj, embargo
@@ -328,7 +328,7 @@ def case_with_proposal(dl, actor):
         at=authored_at(),
     )
     dl.create(proposal)
-    propose(case_obj, embargo.id_)
+    propose(case_obj, embargo)
     case_obj.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)

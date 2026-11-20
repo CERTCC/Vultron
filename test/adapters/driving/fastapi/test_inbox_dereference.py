@@ -163,7 +163,7 @@ def _replica_missing_its_active_embargo() -> tuple[
     """A replica whose case names an active embargo it holds no record of."""
     dl, case = _replica()
     replaced = _embargo(case.id_)
-    activate(case, replaced.id_)
+    activate(case, replaced)
     dl.save(case)
     return dl, case, replaced
 

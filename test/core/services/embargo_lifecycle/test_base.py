@@ -132,7 +132,7 @@ def test_activate_embargo_strict_raises_when_pxa_set(
     case, participants = _make_case(dl, owner.id_)
     case.append_case_status(ACT_AT, pxa=pxa_state)
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -155,7 +155,7 @@ def test_activate_embargo_strict_allowed_when_pxa_clear(
     owner, dl = owner_and_dl
     case, participants = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -181,7 +181,7 @@ def test_activate_embargo_observed_bypasses_pxa_guard(
     case, _ = _make_case(dl, owner.id_)
     case.append_case_status(ACT_AT, pxa=pxa_state)
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -207,7 +207,7 @@ def test_accept_embargo_invite_strict_non_owner_pxa_set_does_not_raise(
     case, _ = _make_case(dl, owner.id_, extra_participant_ids=[finder.id_])
     case.append_case_status(ACT_AT, pxa=pxa_state)
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -241,7 +241,7 @@ def test_owners_accept_of_an_invite_with_pxa_set_is_consent_only(
     case, (owner_p,) = _make_case(dl, owner.id_)
     case.append_case_status(ACT_AT, pxa=pxa_state)
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     _seed_consent(dl, owner_p.id_, embargo.id_, ECS.INVITED)
 
@@ -276,8 +276,8 @@ def test_reject_embargo_proposal_strict_revise_pxa_rejects_the_revision(
     case.append_case_status(ACT_AT, pxa=pxa_state)
     active = _make_embargo(dl, case.id_)
     embargo = _make_embargo(dl, case.id_, days=90)
-    activate(case, active.id_)
-    propose(case, embargo.id_)
+    activate(case, active)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -303,7 +303,7 @@ def test_reject_embargo_proposal_strict_proposed_pxa_allowed(
     case, _ = _make_case(dl, owner.id_)
     case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)  # public aware
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -356,7 +356,7 @@ class TestServiceAlwaysWritesEmState:
         owner, dl = owner_and_dl
         case, _ = _make_case(dl, owner.id_)
         embargo = _make_embargo(dl, case.id_)
-        propose(case, embargo.id_)
+        propose(case, embargo)
         dl.save(case)
         write_consent_rows(dl, case)
 

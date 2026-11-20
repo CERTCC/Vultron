@@ -1252,7 +1252,7 @@ class TestThreatTerminationBranchNode:
             context=CASE_ID,
             end_time=days_from_now(45),
         )
-        activate(case, embargo.id_)
+        activate(case, embargo)
         dl.create(case)
         dl.create(cm_participant)
         dl.create(embargo)
@@ -1616,7 +1616,7 @@ class TestThreatTerminationBranchNodeProposedEm:
             attributed_to=ACTOR_ID,
         )
         case.add_participant(cm_participant)
-        propose(case, embargo.id_)
+        propose(case, embargo)
         case.pending_embargo_proposal_index = {embargo.id_: invite.id_}
         status_obj = make(
             as_CaseStatus,
@@ -1709,7 +1709,7 @@ class TestRegressionCSPTeardownPath:
             attributed_to=manager_id,
         )
         case.add_participant(cm_participant)
-        activate(case, embargo.id_)
+        activate(case, embargo)
         dl.create(case)
         dl.create(cm_participant)
         dl.create(embargo)
@@ -1985,7 +1985,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
             attributed_to=DIAG_CM_ID,
         )
         case.add_participant(cm_participant)
-        activate(case, embargo.id_)
+        activate(case, embargo)
         for actor in (REPLICA_ID, PEER_ID):
             seed_case_participant(dl, case, actor)
         # The status carries the case's EM: a status never moves EM, so one

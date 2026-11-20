@@ -105,6 +105,28 @@ class EmbargoEvent(CoreObject):
         ),
     )
 
+    def with_register_state(
+        self,
+        status: EmbargoRegisterStatus = _S.PROPOSED,
+        *,
+        replaces: str | None = None,
+        termination: EmbargoTermination | None = None,
+    ) -> EmbargoEvent:
+        """Return this embargo holding the register state given, terms kept.
+
+        With no arguments, the embargo's terms alone, as proposed.  The copy
+        goes through validation, so a state no embargo may hold is refused
+        (ADR-0202).
+        """
+        return type(self).model_validate(
+            {
+                **self.model_dump(),
+                "status": status,
+                "replaces": replaces,
+                "termination": termination,
+            }
+        )
+
     def with_subject(self, subject_id: str) -> EmbargoEvent:
         """Return this embargo re-scoped to *subject_id*, identity kept.
 

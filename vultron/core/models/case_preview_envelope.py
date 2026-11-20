@@ -96,8 +96,8 @@ def invitation_preview_faults(preview: CasePreview) -> list[str]:
 
     An invitation preview shows its ``summary`` and the Case Owner, never as
     a marker (CM-17-010).  While an embargo is in force it also shows the
-    embargo's terms, as an ``ACTIVE`` embargo in ``embargoRegister`` whose
-    end time is not a marker, and the EM state of its current status (CM-17-002,
+    embargo's terms, as an ``ACTIVE`` embargo in ``embargoRegister``, and the
+    EM state of its current status (CM-17-002,
     CM-17-013).  The embargo is in force when the current status's EM state
     is ``ACTIVE`` or ``REVISE``, or when the register shows an ``ACTIVE``
     embargo.  The register carries no open proposal (CM-17-014).
@@ -149,16 +149,9 @@ def _in_force_faults(
         )
     elif embargo is None:
         faults.append(
-            "lacks the in-force embargo in 'embargoRegister' while an embargo"
+            "lacks the in-force entry in 'embargoRegister' while an embargo"
             " is in force"
         )
-    else:
-        end_time = getattr(embargo, "end_time", None)
-        if end_time is None or isinstance(end_time, Redacted):
-            faults.append(
-                "lacks or marks the in-force embargo's end time at"
-                " 'embargoRegister[].endTime'"
-            )
     return faults
 
 

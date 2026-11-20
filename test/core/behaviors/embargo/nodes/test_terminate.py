@@ -51,6 +51,7 @@ from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     FixDeployedCause,
     FixReadyCause,
+    OtherCause,
     ThreatSignal,
     ThreatSignalTermination,
 )
@@ -500,8 +501,8 @@ class TestParticipantCause:
         assert ThreatSignalTermination().participant_cause is None
 
     @pytest.mark.spec("EMB-13-005")
-    def test_no_cause_stays_none(self) -> None:
-        assert EmbargoTermination.other().participant_cause is None
+    def test_an_other_cause_is_carried(self) -> None:
+        assert EmbargoTermination.other().participant_cause == OtherCause()
 
     @pytest.mark.spec("EMB-13-005")
     def test_any_other_cause_passes_through(self) -> None:

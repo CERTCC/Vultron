@@ -52,6 +52,7 @@ from test.support.embargo_register import (
     propose,
     register,
     reject,
+    retime,
     terminate as terminate_register,
     write_consent_rows,
 )
@@ -218,7 +219,7 @@ def test_deadline_is_capped_at_the_end_of_the_embargo_it_carries(
         end_time=days_from_now(2),
     )
     dl.create(embargo)
-    activate(case, embargo.id_)
+    activate(case, embargo)
     seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
 
@@ -263,8 +264,8 @@ def test_a_revise_stub_deadline_is_capped_by_the_embargo_in_force(
     )
     dl.create(in_force)
     dl.create(revision)
-    activate(case, in_force.id_)
-    propose(case, revision.id_)
+    activate(case, in_force)
+    propose(case, revision)
     assert case.em_state == EM.REVISE
     seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
@@ -791,7 +792,7 @@ def _send_stub_invite_during_revision(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(90)
     )
     dl.create(revision)
-    propose(case, revision.id_)
+    propose(case, revision)
     dl.save(case)
     write_consent_rows(dl, case)
     assert case.em_state == EM.REVISE
@@ -920,7 +921,7 @@ def test_a_failed_replacement_waits_while_a_later_revision_is_open(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(120)
     )
     dl.create(later)
-    propose(stored, later.id_)
+    propose(stored, later)
     dl.save(stored)
     write_consent_rows(dl, stored)
     assert stored.em_state == EM.REVISE
@@ -1073,9 +1074,7 @@ def test_the_end_time_decision_commits_the_reissued_stub_invite_last(
     # The embargo's end time passes while the stub is still outstanding.
     case = dl.read_case(case.id_)
     assert case is not None and case.active_embargo_id is not None
-    embargo = dl.read(case.active_embargo_id)
-    assert isinstance(embargo, as_EmbargoEvent)
-    dl.save(embargo.model_copy(update={"end_time": now_utc()}))
+    retime(dl, case.id_, case.active_embargo_id, now_utc())
     before = {e.id_ for e in ledger_entries(dl, case.id_)}
 
     run_end_time_check(dl, case.id_, owner.id_)
@@ -1154,31 +1153,22 @@ def test_a_re_issue_credits_the_asker_and_names_the_stub_it_supersedes(
 
 
 @pytest.mark.spec("CM-11-014")
-@pytest.mark.parametrize("held_inline", [True, False], ids=["inline", "by-id"])
-def test_the_deadline_cap_reads_the_in_force_embargo_however_it_is_held(
-    held_inline: bool,
-) -> None:
-    """The cap is the end of the embargo the stub carries: read from the
-    register when it holds the embargo whole, else from the store; a case
-    with no embargo in force has no cap."""
+def test_the_deadline_cap_reads_the_registered_embargo_in_force() -> None:
+    """The cap is the end of the embargo the stub carries, read from the
+    register (ADR-0202); a case with no embargo in force has no cap."""
     case_id = "https://example.org/cases/deadline-cap"
     embargo = make(EmbargoEvent, context=case_id, end_time=days_from_now(3))
     case = make(
         VulnerabilityCase,
         id_=case_id,
         attributed_to="https://example.org/actors/owner",
-        embargo_register=register(
-            active=embargo if held_inline else embargo.id_
-        ),
+        embargo_register=register(active=embargo),
     )
-    store = MagicMock()
-    store.read.return_value = embargo
 
-    assert current_preview_embargo_end(store, case) == embargo.end_time
-    assert store.read.called is not held_inline
+    assert current_preview_embargo_end(case) == embargo.end_time
     bare = make(
         VulnerabilityCase,
         id_=case_id,
         attributed_to="https://example.org/actors/owner",
     )
-    assert current_preview_embargo_end(store, bare) is None
+    assert current_preview_embargo_end(bare) is None

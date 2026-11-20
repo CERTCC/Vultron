@@ -27,6 +27,7 @@ answer to a proposal and the case owner's decision on it live in
 import logging
 
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
     RegisterChange,
     proposal_changes,
@@ -99,6 +100,7 @@ class _ProposalOperationsMixin(_PecActivationMixin):
         embargo_id: str,
         actor_id: str | None = None,
         transition_mode: TransitionMode = TransitionMode.STRICT,
+        embargo: EmbargoEvent | None = None,
     ) -> EmbargoLifecycleResult:
         """Propose or counter-propose an embargo on a case.
 
@@ -118,9 +120,9 @@ class _ProposalOperationsMixin(_PecActivationMixin):
         participant of the case its row for the proposed embargo is marked
         ``AGREED`` (MSM-07-022).
 
-        The ``EmbargoEvent`` identified by *embargo_id* MUST already exist in
-        the DataLayer before this method is called; the caller is responsible
-        for creating it.
+        The register holds the proposed embargo whole (ADR-0202): *embargo*
+        when the caller holds it, else the ``EmbargoEvent`` identified by
+        *embargo_id*, which MUST then already exist in the DataLayer.
 
         Args:
             case_id: ID of the :class:`~...VulnerabilityCase` to update.
@@ -131,17 +133,27 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             transition_mode: ``STRICT`` (default) refuses a proposal the
                 register refuses, or one made once any of P/X/A is set.
                 ``OBSERVED`` skips a refused proposal instead.
+            embargo: The proposed ``EmbargoEvent`` itself, when the caller
+                holds it; it must carry *embargo_id*.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed;
             ``participant_changes`` is always empty.
 
         Raises:
-            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronNotFoundError: If *case_id* does not resolve to a case, or
+                no *embargo* is given and the store holds none under
+                *embargo_id*.
+            VultronValidationError: If *embargo* carries another id.
             VultronInvalidStateTransitionError: If the register refuses the
                 proposal (``STRICT`` mode only), or if any of P/X/A is set on
                 the case (``STRICT`` mode only, per EMB-01-002).
         """
+        if embargo is not None and embargo.id_ != embargo_id:
+            raise VultronValidationError(
+                f"Cannot propose embargo '{embargo_id}' with the terms of"
+                f" '{embargo.id_}'"
+            )
         case = self._read_case(case_id)
         em_before = case.em_state
 
@@ -157,7 +169,9 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             case_mutated = self._apply_register_step(
                 case,
                 proposal_changes(
-                    read_embargo_event(self._persistence, embargo_id)
+                    embargo
+                    if embargo is not None
+                    else read_embargo_event(self._persistence, embargo_id)
                 ),
                 transition_mode=transition_mode,
                 actor_id=actor_id,

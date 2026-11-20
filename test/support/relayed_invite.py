@@ -91,7 +91,7 @@ def seed_invitee_case(
             end_time=days_from_now(30),
         )
         dl.create(prior)
-        activate(case, prior.id_)
+        activate(case, prior)
     if em_state == EM.REVISE:
         other = make(
             as_EmbargoEvent,
@@ -100,7 +100,7 @@ def seed_invitee_case(
             end_time=days_from_now(20),
         )
         dl.create(other)
-        propose(case, other.id_)
+        propose(case, other)
     assert case.em_state == em_state
     coord_cp = make(
         WireCP,

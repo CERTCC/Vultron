@@ -171,20 +171,15 @@ def _entry_after(
         # ``PROPOSE``: the register decides the new embargo's state, not
         # whatever state the carried object claims (ADR-0202).
         assert change.embargo is not None  # required on PROPOSE
-        entry = change.embargo
-        update: dict[str, object] = {
-            "status": status,
-            "replaces": None,
-            "termination": None,
-        }
-    else:
-        update = {"status": status}
+        return change.embargo.with_register_state(status)
+    replaces = entry.replaces
     if change.trigger == _T.ACTIVATE and superseded_id is not None:
-        update["replaces"] = superseded_id
-    if change.termination is not None:
-        update["termination"] = change.termination
-    # Revalidate rather than ``model_copy``: the copy skips validators.
-    return type(entry).model_validate({**entry.model_dump(), **update})
+        replaces = superseded_id
+    return entry.with_register_state(
+        status,
+        replaces=replaces,
+        termination=change.termination or entry.termination,
+    )
 
 
 def apply_register_step(

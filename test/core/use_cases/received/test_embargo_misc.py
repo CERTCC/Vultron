@@ -66,7 +66,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             context=case.id_,
             end_time=days_from_now(45),
         )
-        activate(case, embargo.id_)
+        activate(case, embargo)
         # Only the CASE_MANAGER announces canonical embargo state (ADR-0115).
         seed_case_manager_participant(
             dl, case, "https://example.org/users/vendor"
@@ -268,7 +268,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
             name="Inline Participant Regression Test",
             attributed_to=actor_id,
         )
-        activate(case, embargo.id_)
+        activate(case, embargo)
         case.case_participants.append(participant)  # type: ignore[arg-type]  # inline wire object (regression test for #609)
         case.actor_participant_index[actor_id] = participant_id
         case_manager_id = "https://example.org/users/case-manager"

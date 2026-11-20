@@ -105,7 +105,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
     embargo = make(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
     )
-    activate(case, embargo.id_)
+    activate(case, embargo)
     participants = {
         MANAGER_ID: _participant(
             case.id_,

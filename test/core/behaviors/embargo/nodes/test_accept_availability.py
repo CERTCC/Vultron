@@ -324,24 +324,6 @@ def test_an_open_proposal_past_its_end_time_is_unavailable() -> None:
     )
 
 
-@pytest.mark.spec("EMB-18-003")
-def test_an_unreadable_answerable_embargo_is_an_internal_error() -> None:
-    """A proposal the manager's own store cannot read is its own fault.
-
-    It raises rather than reading as available or not, so no Accept is ever
-    answered on a store fault (EMB-18-003).
-    """
-    case, dl = _case("avail-unreadable", EM.NONE)
-    missing = f"{case.id_}/embargo_events/missing"
-    propose(case, missing)
-    dl.save(case)
-
-    with pytest.raises(RuntimeError, match="cannot read"):
-        embargo_availability(dl, case, missing, _NOW)
-    with pytest.raises(RuntimeError, match="cannot read"):
-        available_terms(dl, case, _NOW)
-
-
 # ---------------------------------------------------------------------------
 # The terms a refused accepter is re-invited to (EMB-17-003)
 # ---------------------------------------------------------------------------

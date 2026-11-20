@@ -73,7 +73,7 @@ from .conftest import (
 def _end_an_embargo(dl: SqliteDataLayer, case: VulnerabilityCase) -> None:
     """Activate and then terminate an embargo on *case*: EM ``EXITED``."""
     ended = _make_embargo(dl, case.id_)
-    activate(case, ended.id_)
+    activate(case, ended)
     terminate(case)
     dl.save(case)
     write_consent_rows(dl, case)
@@ -92,7 +92,7 @@ def test_activate_embargo_owner_strict_valid(
     case, participants = _make_case(dl, owner.id_)
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -126,7 +126,7 @@ def test_accept_embargo_invite_non_owner_strict(
         extra_participant_ids=[finder.id_],
     )
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -209,7 +209,7 @@ def test_activate_embargo_observed_already_active_syncs_embargo(
     case, _ = _make_case(dl, owner.id_)
     old_embargo = _make_embargo(dl, case.id_)
     # Simulate active_embargo pointing at a different (old) embargo
-    activate(case, old_embargo.id_)
+    activate(case, old_embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -238,7 +238,7 @@ def test_accept_embargo_invite_idempotent(
     case, participants = _make_case(dl, owner.id_)
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -279,7 +279,7 @@ def test_owners_accept_of_an_invite_is_its_consent_and_decides_nothing(
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     _seed_consent(dl, owner_p.id_, embargo.id_, ECS.INVITED)
 
@@ -314,7 +314,7 @@ def test_reject_embargo_proposal_owner_proposed_to_none(
     case, participants = _make_case(dl, owner.id_)
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -355,7 +355,7 @@ def test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_declines
     case, participants = _make_case(dl, owner.id_)
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_participant_id, embargo.id_, ECS.AGREED)
@@ -385,8 +385,8 @@ def test_reject_embargo_proposal_owner_revise_stays_active(
     case, _ = _make_case(dl, owner.id_)
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    activate(case, active.id_)
-    propose(case, revision.id_)
+    activate(case, active)
+    propose(case, revision)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -416,7 +416,7 @@ def test_record_embargo_rejection_non_owner_strict(
         extra_participant_ids=[finder.id_],
     )
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -451,7 +451,7 @@ def test_record_embargo_withdrawal_signatory_non_owner_transitions_to_declined(
         extra_participant_ids=[finder.id_],
     )
     embargo = _make_embargo(dl, case.id_)
-    activate(case, embargo.id_)
+    activate(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 
@@ -516,7 +516,7 @@ def test_owner_activation_prunes_the_proposal_and_a_repeat_changes_nothing(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     case.pending_embargo_proposal_index[embargo.id_] = "urn:proposal:1"
     dl.save(case)
     write_consent_rows(dl, case)
@@ -557,7 +557,7 @@ def test_participant_accept_is_consent_and_prunes_nothing(
         extra_participant_ids=[participant.id_],
     )
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     case.pending_embargo_proposal_index[embargo.id_] = "urn:proposal:1"
     dl.save(case)
     write_consent_rows(dl, case)
@@ -604,7 +604,7 @@ def test_owner_may_activate_a_revision_before_anyone_else_answers(
         extra_participant_ids=[proposer.id_, bystander.id_],
     )
     active = _make_embargo(dl, case.id_)
-    activate(case, active.id_)
+    activate(case, active)
     dl.save(case)
     write_consent_rows(dl, case)
     revision = _make_embargo(dl, case.id_)
@@ -678,8 +678,8 @@ def _revision_case(
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=revision_days)
     activate(case, OLD_EMBARGO_ID)
-    activate(case, active.id_)
-    propose(case, revision.id_)
+    activate(case, active)
+    propose(case, revision)
     case.pending_embargo_proposal_index = {
         revision.id_: f"{case.id_}/embargo_proposals/revision"
     }
@@ -1156,7 +1156,7 @@ def test_owner_activation_with_an_unreadable_previous_embargo_changes_nothing(
     revision = _make_embargo(dl, case.id_, days=90)
     missing = "https://example.org/embargoes/not-replicated"
     activate(case, missing)
-    propose(case, revision.id_)
+    propose(case, revision)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, missing, ECS.AGREED)
@@ -1199,8 +1199,8 @@ def test_withdrawal_from_the_active_embargo_leaves_its_revisions_too(
     )
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    activate(case, active.id_)
-    propose(case, revision.id_)
+    activate(case, active)
+    propose(case, revision)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, signer_p.id_, active.id_, ECS.AGREED)
@@ -1241,7 +1241,7 @@ def test_declined_participant_accepting_changes_its_answer(
         dl, owner.id_, extra_participant_ids=[decliner.id_]
     )
     active = _make_embargo(dl, case.id_)
-    activate(case, active.id_)
+    activate(case, active)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, decliner_p.id_, active.id_, ECS.DECLINED)
@@ -1347,8 +1347,8 @@ def test_participant_accept_after_the_embargo_exited_records_nothing(
     )
     ended = _make_embargo(dl, case.id_)
     embargo = _make_embargo(dl, case.id_, days=90)
-    activate(case, ended.id_)
-    propose(case, embargo.id_)
+    activate(case, ended)
+    propose(case, embargo)
     terminate(case)
     dl.save(case)
     write_consent_rows(dl, case)
@@ -1380,8 +1380,8 @@ def _shorter_revision_case(dl: SqliteDataLayer, owner: as_Service):
     )
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=30)
-    activate(case, active.id_)
-    propose(case, revision.id_)
+    activate(case, active)
+    propose(case, revision)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
@@ -1444,11 +1444,11 @@ def test_a_late_answer_naming_a_final_entry_records_nothing(
     first = _make_embargo(dl, case.id_)
     second = _make_embargo(dl, case.id_, days=30)
     if final == "superseded":
-        activate(case, first.id_)
-        activate(case, second.id_)
+        activate(case, first)
+        activate(case, second)
     else:
-        activate(case, second.id_)
-        propose(case, first.id_)
+        activate(case, second)
+        propose(case, first)
         reject(case, first.id_)
     dl.save(case)
     write_consent_rows(dl, case)

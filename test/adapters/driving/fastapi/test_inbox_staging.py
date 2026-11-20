@@ -408,35 +408,6 @@ def test_stage_inline_object_stages_the_inline_embargo_a_case_names(
     assert isinstance(datalayer.read(case_id), VulnerabilityCase)
 
 
-@pytest.mark.spec("EMB-18-003")
-def test_stage_inline_object_skips_a_case_naming_an_unheld_embargo(
-    datalayer, caplog
-):
-    """A bare embargo id this store cannot read keeps the case out of it."""
-    case_id = "urn:uuid:case-embargo-002"
-    activity = _parsed_announce(
-        {
-            **INBOUND_CASE_OWNERSHIP,
-            "type": "VulnerabilityCase",
-            "published": _PUBLISHED,
-            "id": case_id,
-            "name": "Unheld Embargo Case",
-            "embargoRegister": [
-                {
-                    "embargo": f"{case_id}/embargo_events/unheld",
-                    "status": "ACTIVE",
-                }
-            ],
-        }
-    )
-
-    with caplog.at_level(logging.WARNING):
-        _stage_inline_object(datalayer, activity)
-
-    assert datalayer.read(case_id) is None
-    assert any("EMB-18-003" in r.getMessage() for r in caplog.records)
-
-
 @pytest.mark.spec("AKM-03-004")
 def test_stage_inline_object_stages_nothing_for_a_case_reference(
     datalayer, persisted

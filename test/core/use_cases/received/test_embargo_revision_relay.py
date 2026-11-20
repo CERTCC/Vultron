@@ -131,7 +131,7 @@ def _active_case_with_revision(
         dl = replica
     case_read = cast(VulnerabilityCase, dl.read(case_id))
     if active:
-        activate(case_read, embargo_a.id_)
+        activate(case_read, embargo_a)
         dl.save(case_read)
         write_consent_rows(dl, case_read)
     # Under an active embargo only a signatory is an active participant

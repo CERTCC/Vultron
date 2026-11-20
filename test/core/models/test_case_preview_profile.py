@@ -497,7 +497,7 @@ _ACTIVE_ENTRY = {
         ({"attributedTo": {"type": "Redacted"}}, "marks the Case Owner"),
         (
             {"caseStatuses": [_ACTIVE_STATUS]},
-            "lacks the in-force embargo",
+            "lacks the in-force entry",
         ),
         (
             {
@@ -509,11 +509,9 @@ _ACTIVE_ENTRY = {
         (
             {
                 "caseStatuses": [_ACTIVE_STATUS],
-                "embargoRegister": [
-                    {"endTime": {"type": "Redacted"}, "status": "ACTIVE"}
-                ],
+                "embargoRegister": [{"type": "Redacted"}],
             },
-            "lacks or marks the in-force embargo's end time",
+            "lacks the in-force entry",
         ),
         ({"embargoRegister": [_ACTIVE_ENTRY]}, "lacks or marks the EM state"),
         (

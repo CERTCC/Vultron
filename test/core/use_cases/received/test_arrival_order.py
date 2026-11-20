@@ -275,7 +275,7 @@ def test_owner_answer_to_first_proposal_does_not_depend_on_its_entry(
         )
         if entry_first:
             # The proposal's ledger entry is its PROPOSE register step.
-            propose(case, embargo.id_)
+            propose(case, embargo)
             dl.save(case)
         deliver_relayed_invite(dl, case, embargo, make_payload)
         answers[entry_first] = answers_in_outbox(dl, INVITEE)

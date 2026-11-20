@@ -566,7 +566,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
         self.dl.create(embargo)
         case = cast(VulnerabilityCase, self.dl.read(self.case.id_))
-        activate(case, embargo.id_)
+        activate(case, embargo)
         if revising:
             revision = make(
                 as_EmbargoEvent,
@@ -574,7 +574,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
                 end_time=days_from_now(60),
             )
             self.dl.create(revision)
-            propose(case, revision.id_)
+            propose(case, revision)
         self.dl.save(case)
         em_before = case.em_state
         assert em_before == (EM.REVISE if revising else EM.ACTIVE)

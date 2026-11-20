@@ -159,8 +159,8 @@ class _World:
             self.manager.id_: owner.id_,
             self.finder.id_: finder.id_,
         }
-        activate(case, self.embargo.id_)
-        propose(case, self.revision.id_)
+        activate(case, self.embargo)
+        propose(case, self.revision)
         self.case_id = case.id_
         self.finder_participant = finder
         for obj in (case, self.embargo, self.revision, owner, finder):

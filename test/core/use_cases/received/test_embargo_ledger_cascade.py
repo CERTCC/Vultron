@@ -88,7 +88,7 @@ class TestEmbargoLogEntryCascade:
         grant_case_owner_role(dl, case_id, author_id)
         case_read = cast(VulnerabilityCase, dl.read(case.id_))
         assert case_read is not None
-        propose(case_read, embargo.id_)
+        propose(case_read, embargo)
         dl.save(case_read)
         write_consent_rows(dl, case_read)
 
@@ -129,7 +129,7 @@ class TestEmbargoLogEntryCascade:
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        activate(case, embargo.id_)
+        activate(case, embargo)
         dl.save(case)
 
         activity = remove_embargo_from_case_activity(
@@ -278,7 +278,7 @@ class TestEmbargoLogEntryCascade:
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        propose(case, embargo.id_)
+        propose(case, embargo)
         dl.save(case)
         # Every participant holds a row for the proposal (ADR-0122).
         write_consent_rows(dl, case)
@@ -354,7 +354,7 @@ class TestEmbargoLogEntryCascade:
         dl.create(proposal)
         # The Reject names an open proposal of the case.
         case_obj = cast(VulnerabilityCase, dl.read(case_id))
-        propose(case_obj, embargo.id_)
+        propose(case_obj, embargo)
         dl.save(case_obj)
         write_consent_rows(dl, case_obj)
 

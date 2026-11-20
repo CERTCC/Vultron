@@ -107,7 +107,7 @@ def _proposed_case(
         # The participant's Invite, held as the CASE_MANAGER's intake
         # archived it, never under the id its sender chose (DL-06-006).
         archive_received(dl, invite)
-        propose(case, embargo.id_)
+        propose(case, embargo)
         proposals[embargo.id_] = invite.id_
     if indexed:
         case.pending_embargo_proposal_index = dict(proposals)
@@ -174,7 +174,7 @@ def _own_proposal_case(
         # Ledgered, not sent, so it names the CASE_MANAGER (ADR-0205).
         invitee=CASE_MANAGER_ACTOR,
     )
-    propose(case, embargo.id_)
+    propose(case, embargo)
     case.pending_embargo_proposal_index = {embargo.id_: invite_id}
     dl.save(case)
     write_consent_rows(dl, case)

@@ -284,6 +284,7 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
             embargo_id=self._embargo_id,
             actor_id=read_embargo_proposer(self),
             transition_mode=TransitionMode.STRICT,
+            embargo=self._embargo,
         )
 
 

@@ -267,7 +267,7 @@ class TestFailedTeardownIsRefused:
             context=case.id_,
             end_time=days_from_now(45),
         )
-        activate(case, embargo.id_)
+        activate(case, embargo)
         seed_case_manager_participant(dl, case, _COORD)
         seed_case_owner_participant(dl, case, _VENDOR)
         dl.create(case)

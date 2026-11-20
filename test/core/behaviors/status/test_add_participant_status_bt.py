@@ -2565,9 +2565,9 @@ def _cm_store_with_embargo(
     )
     embargoes = [embargo]
     if em in (EM.ACTIVE, EM.REVISE):
-        activate(case, embargo.id_)
+        activate(case, embargo)
     else:
-        propose(case, embargo.id_)
+        propose(case, embargo)
     if em is EM.REVISE:
         revision = make(
             as_EmbargoEvent,
@@ -2575,7 +2575,7 @@ def _cm_store_with_embargo(
             context=CASE_ID,
             end_time=days_from_now(90),
         )
-        propose(case, revision.id_)
+        propose(case, revision)
         embargoes.append(revision)
     dl.create(case)
     for participant in seated:

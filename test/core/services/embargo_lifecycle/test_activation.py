@@ -120,8 +120,8 @@ def test_activate_embargo_replacing_a_longer_one_carries_signatories_over(
     )
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=30)
-    activate(case, active.id_)
-    propose(case, revision.id_)
+    activate(case, active)
+    propose(case, revision)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
@@ -170,8 +170,8 @@ def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
     )
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    activate(case, active.id_)
-    propose(case, revision.id_)
+    activate(case, active)
+    propose(case, revision)
     dl.save(case)
     write_consent_rows(dl, case)
     for p in (owner_p, signer_p, acceptor_p):
@@ -219,7 +219,7 @@ def test_activate_embargo_first_activation_writes_only_the_owners_agreement(
         extra_participant_ids=[proposer.id_, invitee.id_],
     )
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, proposer_p.id_, embargo.id_, ECS.AGREED)
@@ -261,8 +261,8 @@ def test_activate_embargo_records_the_owners_acceptance_of_a_longer_revision(
     )
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    activate(case, active.id_)
-    propose(case, revision.id_)
+    activate(case, active)
+    propose(case, revision)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
@@ -304,8 +304,8 @@ def test_activate_embargo_of_equal_terms_carries_signatories_over(
     )
     active = _make_embargo(dl, case.id_)
     same = _make_embargo(dl, case.id_, end_time=active.end_time)
-    activate(case, active.id_)
-    propose(case, same.id_)
+    activate(case, active)
+    propose(case, same)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, signer_p.id_, active.id_, ECS.AGREED)
@@ -334,7 +334,7 @@ def test_activate_embargo_with_an_unreadable_previous_embargo_changes_nothing(
     case, _ = _make_case(dl, owner.id_)
     revision = _make_embargo(dl, case.id_, days=90)
     activate(case, "https://example.org/embargoes/not-replicated")
-    propose(case, revision.id_)
+    propose(case, revision)
     dl.save(case)
 
     with pytest.raises(VultronNotFoundError):
@@ -434,7 +434,7 @@ def _declined_by_owner(
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, embargo.id_, ECS.DECLINED)
@@ -501,7 +501,7 @@ def test_a_refused_observed_activation_of_an_unrecorded_embargo_writes_no_row(
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     ended = _make_embargo(dl, case.id_)
-    activate(case, ended.id_)
+    activate(case, ended)
     terminate(case)
     dl.save(case)
     write_consent_rows(dl, case)
@@ -534,7 +534,7 @@ def test_decide_termination_names_the_step_and_writes_nothing(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
-    activate(case, embargo.id_)
+    activate(case, embargo)
     dl.save(case)
 
     step = decide_termination(
@@ -567,7 +567,7 @@ def test_decide_termination_refuses(
     case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
     if termination != "no embargo":
-        activate(case, embargo.id_)
+        activate(case, embargo)
     request: EmbargoTermination | ThreatSignalTermination = (
         ThreatSignalTermination()
         if termination == "no threat signal"
