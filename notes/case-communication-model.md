@@ -9,7 +9,7 @@ description: >
   participants (ADR-0172); Invite/Accept routing; the embargo relay
   (EP-09, ADR-0113), where ledger entries carry state but never ask; the
   delegated-message pattern; case-content entitlement is derived, not a
-  self-reported flag (#6763); and identity-spoofing antipatterns, including
+  self-reported flag (CM-31-018); and identity-spoofing antipatterns, including
   reading the CASE_MANAGER gate as a sender check (HP-01-006, ADR-0115).
 related_specs:
   - specs/architecture.yaml
@@ -121,11 +121,12 @@ lands, CM-10-004 and the code still carry the broad meaning and the combined tes
 ## Who Is Sent Case Content Is Derived, Not Reported
 
 Do not add a flag a participant sets about itself to say whether it is still sent
-messages about a case. Every replica derives that from the participant record and the
-case: joined, not removed, a signatory of the active embargo when one is in force, and
-not at RM `CLOSED`. Reason: the answer turns on the Case Owner's removal and on one
+case content. Every replica derives that from the participant record and the case:
+joined, not removed, a signatory of the active embargo when one is in force, and not
+at RM `CLOSED`. The messages a closed participant still gets are the exceptions the
+section above names. Reason: the answer turns on the Case Owner's removal and on one
 consent row per embargo, so a self-reported boolean can only repeat or contradict
-those facts (#6763).
+those facts (CM-31-018).
 
 ---
 
