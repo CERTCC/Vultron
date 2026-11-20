@@ -86,6 +86,7 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
     RmDimension,
 )
+from vultron.core.models.type_terms import type_terms
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -706,9 +707,12 @@ _CASE_CONTENT_TYPES = frozenset(
 
 
 def _typed_objects(value: Any) -> list[str]:
-    """Every ``type`` carried by an inline object anywhere in *value*."""
+    """Every ``type`` carried by an inline object anywhere in *value*.
+
+    A type list counts as its own type, the first term (VM-03-005).
+    """
     if isinstance(value, dict):
-        found = [value["type"]] if isinstance(value.get("type"), str) else []
+        found = list(type_terms(value.get("type"))[:1])
         for item in value.values():
             found.extend(_typed_objects(item))
         return found

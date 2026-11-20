@@ -88,7 +88,6 @@ from test.architecture import _corpus
 # re-exports only 48 of the 51, so importing the public surface would leave the
 # unexported patterns invisible to this ratchet — the same silent gap a
 # class-only map produced.
-from vultron.metadata.msm.occasions import emitted_type
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.extractor import _instances
 from vultron.wire.as2.extractor._pattern import ActivityPattern, ObjectForm
@@ -269,9 +268,8 @@ def _render_as2_form(pattern: ActivityPattern) -> str:
     object is an ``Invite``.  ``target_`` and ``context_`` are deliberately *not*
     folded in: they are per-activity qualifiers the prose states, and including
     them would make the inline form too long to read in a sentence or a diagram
-    node.  An object type is written as the sender emits it (``emitted_type``),
-    as the occasion generator writes it: an embargo pattern matches ``Event``
-    but the sender emits ``EmbargoEvent`` (Annex C; #5155 fixes the pattern).
+    node.  An object type is written as the pattern names it, which is the
+    type the sender emits, as the occasion generator writes it (Annex C).
     The form a pattern requires of its object is written beside the type, as
     the occasion generator writes it, so the stub Invite and the full-case
     Invite render apart (SE-01-009, ADR-0205).
@@ -283,7 +281,7 @@ def _render_as2_form(pattern: ActivityPattern) -> str:
     if isinstance(obj, ActivityPattern):
         inner = _render_as2_form(obj)
     else:
-        inner = emitted_type(obj)
+        inner = str(obj)
         if pattern.object_form is ObjectForm.PREVIEWED_REFERENCE:
             inner = f"{inner} preview"
         elif pattern.object_form is ObjectForm.WHOLE_OBJECT:

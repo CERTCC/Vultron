@@ -123,6 +123,9 @@ class _LooseForm(ValidatedAssignmentMixin, BaseModel):
     """
 
     full_form: ClassVar[type[BaseModel] | None] = None
+    #: The full class's AS2 supertype term (``CoreObject``), copied so a
+    #: preview writes the ``type`` list its full class writes.
+    _as2_core_supertype_term: ClassVar[str | None] = None
 
     def __init_subclass__(
         cls, *, full_form: type[BaseModel] | None = None, **kwargs: Any
@@ -131,6 +134,11 @@ class _LooseForm(ValidatedAssignmentMixin, BaseModel):
         # loose form under its full class's type.
         if full_form is not None:
             cls.full_form = full_form
+            # A preview writes its full class's ``type``, so it writes the
+            # type list that class writes too (VM-03-005, ADR-0201).
+            cls._as2_core_supertype_term = getattr(
+                full_form, "_as2_core_supertype_term", None
+            )
         super().__init_subclass__(**kwargs)
 
     @field_validator("*")

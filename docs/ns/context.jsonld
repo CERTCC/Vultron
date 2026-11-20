@@ -205,6 +205,12 @@
   ],
   "@graph": [
     {
+      "@id": "vultron:EmbargoEvent",
+      "http://www.w3.org/2000/01/rdf-schema#subClassOf": {
+        "@id": "as:Event"
+      }
+    },
+    {
       "@id": "vultron:Refuse",
       "http://www.w3.org/2000/01/rdf-schema#subClassOf": {
         "@id": "as:Reject"

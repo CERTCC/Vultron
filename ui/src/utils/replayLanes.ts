@@ -28,6 +28,7 @@
 import { getVendorColor, PARTICIPANT_COLORS } from '../constants'
 import { CASE_ROLES_VALUES, type CaseRoles, type CvdRole } from '../data/ledgerTypes'
 import type { CaseLedgerEntry, CaseParticipantSnapshot, ParticipantStatusSnapshot } from './caseLedgerParser'
+import { namesType } from './typeTerms'
 
 /** A CVD role as a `CaseParticipant` record writes it (`vendor`, `case_owner`). */
 export type CaseRole = CaseRoles
@@ -106,7 +107,7 @@ function* objectsOfType<T>(value: unknown, type: string): Generator<T> {
     return
   }
   if (!isRecord(value)) return
-  if (value.type === type) yield value as T
+  if (namesType(value.type, type)) yield value as T
   for (const child of Object.values(value)) yield* objectsOfType<T>(child, type)
 }
 

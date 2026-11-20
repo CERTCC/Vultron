@@ -56,6 +56,10 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.errors import VultronNotFoundError
+from vultron.wire.as2.vocab.base.registry import (
+    resolve_wire_type,
+    resolved_wire_type_name,
+)
 
 VENDOR_ID = "https://example.org/actors/vendor"
 EMBARGO_ID = "https://example.org/embargoes/urn:uuid:embargo-1"
@@ -341,7 +345,8 @@ def test_the_record_is_the_case_managers_own_activity(
     activity_type, object_type, _ = _SHAPES[method]
     assert snapshot["type"] == activity_type
     assert snapshot["actor"] == CASE_ACTOR_ID
-    assert snapshot["object"]["type"] == object_type
+    # An extension type is sent as a type list (VM-03-005, ADR-0201).
+    assert resolved_wire_type_name(snapshot["object"]["type"]) == object_type
     assert snapshot["context"] == CASE_ID
     assert "to" not in snapshot, "the ledger fan-out delivers it"
 
@@ -409,10 +414,8 @@ def test_the_object_revalidates_through_its_wire_class(
     adapter, recipes, method
 ):
     """Every carried object is wire-reconstitutable (AC-7 of #1777)."""
-    from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-
     obj = _snapshot(recipes[method], adapter)["object"]
-    find_in_vocabulary(obj["type"]).model_validate(obj)
+    resolve_wire_type(obj["type"]).model_validate(obj)
 
 
 @pytest.mark.spec("CLP-07-021")
