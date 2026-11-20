@@ -862,11 +862,13 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A CSAF projection MUST be of category `csaf_base` and MUST pass the pinned
-      CSAF 2.1 schema.
+      While the case holds no products, a CSAF projection MUST be of category
+      `csaf_base` and MUST pass the pinned CSAF 2.1 schema.
     rationale: >-
       The case holds no products (ADR-0187), and the Vulnerability Report and
-      Security Advisory profiles require a product tree and product status.
+      Security Advisory profiles require a product tree and product status. The
+      call site passes the category, so a later category for a case that holds
+      products replaces this requirement rather than contradicting it.
     adr:
     - ADR-0219
     lint_suppress:

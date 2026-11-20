@@ -20,7 +20,8 @@ the case and its ledger into a
 :class:`~vultron.core.models.case_projection.ProjectionCut`, and this module
 translates only that cut, with the inputs its call site passes
 (:class:`~vultron.core.models.case_projection.ProjectionInputs`),
-into a document of category ``csaf_base``.  It reads no case and no ledger,
+into a document of the category its call site passes, ``csaf_base`` while
+the case holds no products.  It reads no case and no ledger,
 so it cannot show what the profile withheld; it selects, and may leave out a
 value the preview shows because CSAF cannot express it.
 
@@ -78,8 +79,10 @@ from vultron.errors import VultronValidationError
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
 from vultron.wire.csaf.reader import CSAF_21_SCHEMA, CSAF_21_VERSION
 
-#: The one category a projection can have while a case holds no products
-#: (ADR-0187, ADR-0219).
+#: The categories a call site may pass.  While a case holds no products,
+#: the one category a projection can have is ``csaf_base``: the Vulnerability
+#: Report and Security Advisory profiles need a product tree and product
+#: statuses (ADR-0187, ADR-0219).
 CsafCategory = Literal["csaf_base"]
 
 #: The CSAF action category of each act with a CSAF meaning, by the
@@ -544,11 +547,12 @@ def render_csaf(
     cut: ProjectionCut,
     inputs: ProjectionInputs,
     *,
-    category: CsafCategory = "csaf_base",
+    category: CsafCategory,
 ) -> dict[str, JsonValue]:
     """Render *cut* as a CSAF 2.1 document.
 
-    Reads only *cut* and *inputs* (ADR-0219).  The preview's ``id`` is the
+    Reads only *cut*, *inputs* and *category*, which the call site passes
+    (ADR-0219).  The preview's ``id`` is the
     case's, as both projection profiles include it, and its distribution
     label and identity name the profile that cut it.  The result has been
     checked by the generated models, written as JSON with no unset or

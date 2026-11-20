@@ -141,13 +141,17 @@ def _csaf(
     profile: ProjectionProfile = PUBLIC_PROFILE,
 ) -> dict[str, Any]:
     """The rendered document, read as plain JSON."""
-    rendered: dict[str, Any] = render_csaf(_cut(preview, profile), inputs)
+    rendered: dict[str, Any] = render_csaf(
+        _cut(preview, profile), inputs, category="csaf_base"
+    )
     return rendered
 
 
 def _render(profile: ProjectionProfile, **inputs: Any) -> dict[str, Any]:
     cut = ProjectionCut.of(projected_case(), projected_ledger(), profile)
-    rendered: dict[str, Any] = render_csaf(cut, _inputs(profile, **inputs))
+    rendered: dict[str, Any] = render_csaf(
+        cut, _inputs(profile, **inputs), category="csaf_base"
+    )
     return rendered
 
 
