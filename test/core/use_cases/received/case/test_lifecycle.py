@@ -262,7 +262,7 @@ def test_apply_report_entry_is_idempotent_and_tolerates_a_missing_case(dl):
     report_id = "https://example.org/reports/replay"
     entry = make(
         CaseLedgerEntry,
-        case_id=_CASE_ID,
+        context=_CASE_ID,
         log_index=0,
         log_object_id="https://example.org/activities/add-report",
         semantic_type="add_report_to_case",

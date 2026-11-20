@@ -150,7 +150,7 @@ class ReportHashMismatchNode(DataLayerActionWithPorts):
             peer_id,
             entry.id_,
             entry.log_index,
-            entry.case_id,
+            entry.context,
             announce_id,
             self.own_copy.value,
             _VERDICT[self.own_copy],

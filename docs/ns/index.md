@@ -24,7 +24,7 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `CaseLedgerEntry` | — | Entry in the canonical append-only case ledger |
 | `CaseParticipant` | — | Actor-in-role binding within a specific case |
 | `CaseParticipantRole` | — | A CVD role being offered to an actor in a case context |
-| `CasePreview` | — | The case's preview, sent as the `preview` of the case reference a stub Invite carries as its `object`, so the invitee can give informed consent before it holds the case |
+| `CasePreview` | — | The case's preview, sent as the `preview` of the case reference a stub Invite carries as its `object`, so the invitee can give informed consent before it holds the case: the case's own fields, cut down, showing its summary and Case Owner and, while an embargo is in force, `embargoRegister` reduced to the embargo in force and `caseStatuses` reduced to the current status, with other values withheld as `Redacted` markers |
 | `CaseProposal` | — | Request to a Case Actor Service to initialize a new case |
 | `CaseReference` | — | Typed external URL reference attached to a case |
 | `CaseStatus` | — | Case-level status snapshot: the Embargo Management (EM) state and the public (pxa) dimensions of the Case State (CS) |
@@ -51,14 +51,13 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 
 | Property name | Value kind | Description |
 |---------------|------------|-------------|
-| `activeEmbargo` | iri | The embargo active on a case, as its case preview carries it: an EmbargoEvent or its id |
 | `activeParticipants` | set of iri | The ids of the participants a case finds active |
 | `actorParticipantIndex` | index of iri | A map from the id of each actor in a case to the id of its CaseParticipant |
 | `caseEngagement` | plain | Whether a participant reports itself engaged in a case |
 | `caseParticipants` | set of iri | The participants of a case, each a CaseParticipant or its id |
 | `caseReferences` | set of iri | The external references of a case, each a CaseReference or its id |
 | `caseRoles` | set | The CVD roles a participant holds in a case |
-| `caseStatus` | iri | The case status a participant status or a case preview reports: a CaseStatus object or its id |
+| `caseStatus` | iri | The case status a participant status reports, as a CaseStatus object |
 | `caseStatuses` | list of iri | The statuses of a case, oldest first, each a CaseStatus or its id; the last is its current status |
 | `category` | plain | The CSAF category of a vulnerability note, such as description or summary |
 | `cause` | plain | Why an embargo ended early: an object whose kind names the cause |

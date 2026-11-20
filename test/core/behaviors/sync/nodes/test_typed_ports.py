@@ -265,7 +265,7 @@ class TestCollectLogEntryRecipientsNodeOutputPorts:
         bt_scenario.seed(case)
         entry = make(
             CaseLedgerEntry,
-            case_id=case_id,
+            context=case_id,
             log_object_id="https://example.org/activities/act-001",
             semantic_type="close_case",
             received_at=ACT_AT,
@@ -311,7 +311,7 @@ class TestFanoutCollectorsRequireCase:
         # from the unresolved case, not from a missing hand-off value.
         entry = make(
             CaseLedgerEntry,
-            case_id=case_id,
+            context=case_id,
             log_object_id="https://example.org/activities/act-001",
             semantic_type="close_case",
             received_at=ACT_AT,
@@ -341,7 +341,7 @@ class TestFanoutCollectorsRequireCase:
 def _make_ledger_entry() -> CaseLedgerEntry:
     return make(
         CaseLedgerEntry,
-        case_id=LEDGER_CASE_ID,
+        context=LEDGER_CASE_ID,
         log_object_id="https://example.org/activities/act-001",
         semantic_type="close_case",
         received_at=ACT_AT,

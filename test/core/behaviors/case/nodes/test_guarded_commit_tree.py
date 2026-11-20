@@ -169,7 +169,7 @@ def test_guarded_commit_tree_entry_has_non_empty_hash(
     entries = [
         e
         for e in _seeded_scenario.dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
+        if isinstance(e, CaseLedgerEntry) and e.context == CASE_ID
     ]
     assert len(entries) >= 1
     for entry in entries:
@@ -199,7 +199,7 @@ def test_guarded_commit_tree_entry_has_utc_received_at(
     entries = [
         e
         for e in _seeded_scenario.dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
+        if isinstance(e, CaseLedgerEntry) and e.context == CASE_ID
     ]
     assert len(entries) >= 1
     for entry in entries:
@@ -230,7 +230,7 @@ def test_guarded_commit_tree_entry_references_correct_case_id(
     entries = [
         e
         for e in _seeded_scenario.dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
+        if isinstance(e, CaseLedgerEntry) and e.context == CASE_ID
     ]
     assert len(entries) >= 1
-    assert all(e.case_id == CASE_ID for e in entries)
+    assert all(e.context == CASE_ID for e in entries)

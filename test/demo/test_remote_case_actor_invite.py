@@ -52,6 +52,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from test.support.case_preview import in_force_embargo
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
 from test.support.objects import make
@@ -209,12 +210,10 @@ def _seed_case(
     (CM-17-007).
 
     The case is seeded **under an active embargo**, and that is load-bearing
-    rather than incidental colour.  ``_project_case_to_preview`` enriches the
-    Invite's ``target`` only while an embargo is in force (EM ``ACTIVE`` or
-    ``REVISE``, CM-17-002); with no embargo it returns a stub
-    carrying nothing but an id, which AS2 serialises to a bare URI string —
-    exactly what a *failed* case read produces.  Under an active embargo the two
-    outcomes differ, so
+    rather than incidental colour.  The preview carries the embargo terms only
+    while an embargo is in force (EM ``ACTIVE`` or ``REVISE``, CM-17-002), and
+    only a CaseActor that read the case *and* its EmbargoEvent can embed them.
+    Under an active embargo a failed read cannot pass for a successful one, so
     ``test_the_invite_carries_the_embargo_terms_and_the_roles`` can tell "read
     the case" from "read an empty store".
 
@@ -362,7 +361,7 @@ def _ledger_entries(dl, case_id: str) -> list:
     return [
         entry
         for entry in dl.list_objects("CaseLedgerEntry")
-        if getattr(entry, "case_id", None) == case_id
+        if getattr(entry, "context", None) == case_id
     ]
 
 
@@ -472,9 +471,9 @@ class TestOwnerInviteThroughARemoteCaseActor:
         """CM-17-002 and CM-16-018, on the wire form the invitee is sent.
 
         The sealed body is what the CaseActor's outbox delivers, so it is the
-        boundary that decides what the invitee sees.  An ``activeEmbargo`` in
-        the preview means the CaseActor read the case *and* its EmbargoEvent
-        out of a store that holds them.
+        boundary that decides what the invitee sees.  An in-force
+        ``embargoRegister`` entry in the preview means the CaseActor read the
+        case *and* its EmbargoEvent out of a store that holds them.
         """
         case_id = "urn:uuid:remote-ca-target-enrichment"
         _, ca_dl, _ = _bootstrap(topology, case_id)
@@ -490,7 +489,7 @@ class TestOwnerInviteThroughARemoteCaseActor:
             f" store with no case in it. object={reference!r}"
         )
         preview = reference["preview"]
-        assert preview.get("activeEmbargo"), (
+        assert in_force_embargo(preview), (
             "the preview carries no embargo terms, so the invitee could not"
             f" give informed consent (CM-17-002). preview={preview!r}"
         )

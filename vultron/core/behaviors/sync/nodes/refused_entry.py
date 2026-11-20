@@ -142,14 +142,14 @@ class FindRefusedLedgerEntry(
                 self.actor_id,
             )
             return Status.SUCCESS
-        self._set_output(CASE_ID.name, entry.case_id)
+        self._set_output(CASE_ID.name, entry.context)
         self._set_output(REFUSED_ENTRY.name, entry)
         self._set_output(ANNOUNCE_ID.name, announce_id)
         self.logger.debug(
             "%s: found ledger entry '%s' of case '%s' in Add '%s'",
             self.name,
             entry.id_,
-            entry.case_id,
+            entry.context,
             announce_id,
         )
         return Status.SUCCESS

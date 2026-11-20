@@ -2,9 +2,9 @@
 status: accepted-provisional
 date: 2026-11-10
 created: 2026-11-10
-updated: 2026-11-19
-revision: 3
-status_override: "Revision 2 (2026-11-11) was approved by Allen D. Householder in the #5132 planning session, before this record first merged: offers carry the act (#6251) and the reference-as-Link question moved to #6249. Two clarifications within that scope were approved by Allen D. Householder on 2026-11-11: a reference stays an Object whose url holds a Link (#6249), and an admitted change is recorded as the resulting object, not as the offered act. Revision 3 (2026-11-19) applies Allen D. Householder's direction from the #6641 planning, recorded in #6693: a CVE ID is an ids entry, not a field of its own; and Allen D. Householder's direction on PR #6718 (2026-11-19): an update merges a list rather than replacing it."
+updated: 2026-11-20
+revision: 4
+status_override: "Revision 2 (2026-11-11) was approved by Allen D. Householder in the #5132 planning session, before this record first merged: offers carry the act (#6251) and the reference-as-Link question moved to #6249. Two clarifications within that scope were approved by Allen D. Householder on 2026-11-11: a reference stays an Object whose url holds a Link (#6249), and an admitted change is recorded as the resulting object, not as the offered act. Revision 3 (2026-11-19) applies Allen D. Householder's direction from the #6641 planning, recorded in #6693: a CVE ID is an ids entry, not a field of its own; and Allen D. Householder's direction on PR #6718 (2026-11-19): an update merges a list rather than replacing it. Revision 4 (2026-11-20) applies Allen D. Householder's direction from the #6241 planning: an item carries no content document, so the CVE JSON schema rule is retired, and a CVE record or advisory drafted from the case is a projection."
 lint_suppress: [phantom_symbol_ref, phantom_path_ref]
 deciders: Allen D. Householder
 consulted: Claude Opus 5.5
@@ -62,7 +62,8 @@ The decision has five parts.
 3. **Identifier values are opaque, and a `CVE` entry is the one checked identifier.**
    No actor parses an identifier's value or limits identifiers to one namespace.
    The text of a `CVE` entry must have the CVE ID format CSAF gives its `cve` field, so the entry maps to that field.
-   The CVE JSON schema applies only to a CVE record carried as an item's content, never to a CVE ID alone.
+   An item carries no content document, neither a CVE record nor a CSAF document.
+   A case reference links a published record, and a CVE record drafted from the case is a projection of the case, not item content (#6241).
 4. **A participant offers; the CASE_MANAGER admits or declines.**
    A participant offers the act it proposes: adding a new item or a new reference to the case, or updating an item.
    The change the CASE_MANAGER applies on admission is exactly what the offered act states.
@@ -76,7 +77,7 @@ The decision has five parts.
    A sender's view may be partial, such as a case preview, or stale, and two senders may update one item at once, so replacing a list would drop entries silently.
    Taking an entry out of a list needs an explicit act that names it.
 
-Removing an item or a reference, relationships between items beyond "same vulnerability", and content documents carried by an item are not decided here.
+Removing an item or a reference, and relationships between items beyond "same vulnerability", are not decided here.
 A reference keeps its current shape here; it stays an object of its own, and its URL will become a link with a relation type (#6249).
 
 ### Consequences
@@ -124,4 +125,4 @@ There, `tag` lets another object refer to an item by reference, while the case's
 
 Source: #5132.
 
-Generated spec requirements: `case-management.yaml` CM-05-008, CM-05-010, CM-05-018 to CM-05-021, and CM-34; `csaf-report-content.yaml` CSAF-03-008 and CSAF-03-009.
+Generated spec requirements: `case-management.yaml` CM-05-008, CM-05-018 to CM-05-021, and CM-34; `csaf-report-content.yaml` CSAF-03-008 and CSAF-03-009.

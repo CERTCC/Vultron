@@ -51,7 +51,7 @@ function entry(object: unknown = participantStatus()): Record<string, unknown> {
     id: `${CASE}/log/1`,
     type: 'CaseLedgerEntry',
     published: '2026-01-01T00:00:01.000000+00:00',
-    caseId: CASE,
+    context: CASE,
     logIndex: 1,
     logObjectId: `${CASE}/activity/1`,
     semanticType: 'add_participant_status_to_participant',
@@ -268,7 +268,7 @@ describe('ledgerLineProblems', () => {
   })
 
   it('reports every problem of a line, not only the first', () => {
-    const line = { ...entry({ ...participantStatus(), rmState: 1 }), logIndex: -0.5, caseId: 3 }
+    const line = { ...entry({ ...participantStatus(), rmState: 1 }), logIndex: -0.5, context: 3 }
     expect(ledgerLineProblems(line)).toHaveLength(3)
   })
 })

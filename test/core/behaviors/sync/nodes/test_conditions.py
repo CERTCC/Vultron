@@ -162,7 +162,7 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
         # Skip index 1; jump to index 2
         e2 = make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",
             semantic_type="test_event",
@@ -190,7 +190,7 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
         datalayer.save(e0)
         bad_e1 = make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_index=1,
             log_object_id="https://example.org/activities/log-1",
             semantic_type="test_event",
@@ -221,7 +221,7 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
         datalayer.save(e0)
         e2 = make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",
             semantic_type="test_event",

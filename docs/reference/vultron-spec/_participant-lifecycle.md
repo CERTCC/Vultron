@@ -53,44 +53,62 @@ Being in the case's participant list does not make it one ([§9.7 Gating Full Ca
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-10-004", "CM-17-005"))
 ```
 
-The protocol solves this with a **case stub**: the case's preview, which carries enough for the invitee to decide, and no vulnerability detail.
+The protocol solves this with a **case stub**: the case's preview, which shows enough for the invitee to decide, and withholds the rest.
 The invitation names the case by a typed reference: an object with the case's `id`, the `type` `VulnerabilityCase`, and the stub as its `preview`.
 The stub is an object of its own type, `CasePreview`, and is not the case.
-A sender's stub carries exactly the required fields and, while an embargo is in force, the embargo fields.
+Its fields are the case's fields, under the case's names.
 
-Every stub carries these required fields:
+For each case field, the protocol permits a set of operations, and the sender applies one of them:
+
+- **include**: the case's value, as the sender holds it.
+- **substitute**: a replacement, or the value cut down, such as the current status alone.
+- **redact**: a `Redacted` marker, `{"type": "Redacted"}`, which says the sender has a value and does not show it.
+- **omit**: no key at all.
+
+A field the case holds no value for is left out, not marked.
+
+Every stub shows these items, never as a marker:
 
 - `id`: the stub's own identifier.
   It names only the stub; the reference that carries the stub names the case.
 - `type`: `CasePreview`.
   A receiver tells a stub from a case by its `type` alone.
-- `summary`: required human-readable context saying what the invitee is being asked to join.
+- `summary`: human-readable context saying what the invitee is being asked to join.
   The sender chooses it.
   It may be the case name, or a deliberately less revealing string.
-  The case name itself can be sensitive to share with an actor not yet bound by the embargo.
-  A receiver refuses a stub without a `summary` ([MV-10-001](requirements/messages.md#mv-10-001)).
+- `attributedTo`: the Case Owner.
+  Nobody joins a case without knowing who runs it, and the `Invite` names only the inviter, the CASE_MANAGER, who need not be the owner.
 
-A stub carries these fields only while an embargo is in force:
+While an embargo is in force, that is, while the embargo state is `ACTIVE` or `REVISE`, the stub also shows the terms the invitee would agree to by accepting:
 
-- `activeEmbargo` and `caseStatus`: present whenever an embargo is in force, that is, while the embargo state is `ACTIVE` or `REVISE`.
-  They state the embargo terms the invitee would agree to by accepting: the embargo in force and the case's embargo state.
-  The sender gives the `caseStatus` its `published` time, as every case status has one.
-  A receiver reads the status as sent, with or without that time, because it sits inside the stub ([MV-12-006](requirements/messages.md#mv-12-006), [CLP-15-010](requirements/ledger-replication.md#clp-15-010)).
-  During a revision the stub carries the embargo in force, never the open revision, which the invitee receives after joining.
-  The stub may carry the embargo inline or name it by an identifier the invitee can ask the inviter to resolve.
+- `embargoRegister`: the case's embargo register, reduced to the one entry in force.
+  During a revision that is the embargo in force, never the open revision, which the invitee receives after joining.
+  The entry may carry the embargo inline or name it by an identifier the invitee can ask the inviter to resolve.
   The reference implementation always carries the full embargo inline, because it does not build that lookup.
+- `caseStatuses`: the case's statuses, reduced to the current one, whose embargo state is the one in force.
+  A receiver reads the status as sent, because it sits inside the stub ([MV-12-006](requirements/messages.md#mv-12-006), [CLP-15-010](requirements/ledger-replication.md#clp-15-010)).
 
-The sender sets no other field.
+The stub never carries the case's bookkeeping: its ledger position, genesis hash, participant and proposal indexes, or the owner's `stubSummary`.
+Every other field is the sender's choice.
+The reference implementation cuts each stub from the case by one fixed profile:
+
+| Case field | What the stub shows |
+|---|---|
+| `summary` | the owner's `stubSummary` in its place |
+| `attributedTo`, `name`, `published`, `updated` | the case's value |
+| `caseStatuses` | the current status, whole |
+| `embargoRegister` | the entry in force, with the embargo whole; left out with no embargo in force |
+| `vulnerabilityItems` | each item cut to its `ids`, so a CVE ID shows |
+| `content`, `caseParticipants`, `vulnerabilityReports`, `notes`, `caseReferences`, the related cases, and any other property the case holds | a `Redacted` marker |
+
 On receipt, the stub accepts any field the case has, under the case's name, all optional, and reads it as sent ([MV-12-006](requirements/messages.md#mv-12-006)).
-Any value in the stub, at any depth, may be a `Redacted` marker: a value the sender has but does not show ([MV-12-001](requirements/messages.md#mv-12-001)).
-The reference implementation sets none of these on a stub it sends.
+Any value in the stub, at any depth, may be a `Redacted` marker ([MV-12-001](requirements/messages.md#mv-12-001)).
+A receiver refuses a stub that lacks or marks an item it must show, or that carries an open embargo proposal, and names where the fault is ([MV-10-007](requirements/messages.md#mv-10-007)).
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-013", "CM-11-038", "CM-17-010", "CM-17-020", "CM-17-021", "CM-17-022", "CM-17-023", "CM-17-002", "CM-17-013", "CM-17-014", "EP-09-011", "MV-10-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-013", "CM-11-038", "CM-17-010", "CM-17-020", "CM-17-002", "CM-17-013", "CM-17-014", "CM-17-025", "EP-09-011", "MV-10-001", "MV-10-007", "MV-12-004"))
 ```
 
-The stub does not name the case's coordinator or Case Owner.
-The `Invite` that carries the stub already identifies who is asking: its `actor` is the CASE_MANAGER, and its `attributedTo` can name the Case Owner, with `inReplyTo` naming the Case Owner's request.
 Full content follows only after the invitee accepts.
 
 Two paths bring an actor into a case, and they differ in who initiates.

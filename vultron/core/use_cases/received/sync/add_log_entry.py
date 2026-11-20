@@ -127,18 +127,18 @@ def _held_or_not_manager(
     ):
         return HandlerResult.deferred(
             f"ledger entry '{entry.id_}' does not apply to this replica's"
-            f" case '{entry.case_id}'; its Add is held, never patched"
+            f" case '{entry.context}'; its Add is held, never patched"
             " over (ADR-0124)"
         )
     if node_succeeded(tree, BufferPreGenesisEntryNode):
         return HandlerResult.deferred(
             f"ledger entry '{entry.id_}' held in its Add until case"
-            f" '{entry.case_id}' is seeded (SYNC-15-004)"
+            f" '{entry.context}' is seeded (SYNC-15-004)"
         )
     if sender_guard_refused(tree):
         return HandlerResult.refused(
             f"sender '{sender_id}' is not the CASE_MANAGER of case"
-            f" '{entry.case_id}', so its announcement of ledger entry"
+            f" '{entry.context}', so its announcement of ledger entry"
             f" '{entry.id_}' is not accepted (SYNC-13-006, HP-01-006)"
         )
     return None
@@ -213,7 +213,7 @@ class AddLedgerEntryReceivedUseCase:
             "sync: received log-entry announcement '%s' for case '%s' "
             "from actor '%s' (log_index=%d)",
             request.activity_id,
-            entry.case_id,
+            entry.context,
             request.actor_id,
             entry.log_index,
         )
@@ -253,7 +253,7 @@ class AddLedgerEntryReceivedUseCase:
             store = get_pending_assertion_store(request.receiving_actor_id)
         if store is not None:
             store.clear(
-                entry.case_id,
+                entry.context,
                 entry.semantic_type,
                 entry.log_object_id,
             )

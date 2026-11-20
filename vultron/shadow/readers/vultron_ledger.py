@@ -125,7 +125,7 @@ class VultronCaseReader:
         )
         logger.debug(
             "Read case %s: %d ledger entries from %s",
-            reading.ledger[0].case_id,
+            reading.ledger[0].context,
             len(reading.ledger),
             path,
         )

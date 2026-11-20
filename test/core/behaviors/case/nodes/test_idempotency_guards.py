@@ -327,7 +327,7 @@ class TestCheckCaseStatusIdempotencyNode:
         entries = [
             obj
             for obj in bt_scenario.dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, CaseLedgerEntry) and obj.case_id == _CASE_ID
+            if isinstance(obj, CaseLedgerEntry) and obj.context == _CASE_ID
         ]
         assert entries == [], (
             f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"

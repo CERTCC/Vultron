@@ -29,15 +29,6 @@ from vultron.core.models.base import (
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.states.em import EM
 
-#: The Vultron property ``caseStatus``, declared once because a participant
-#: status and a case stub carry it with one meaning in two shapes, an object
-#: or a link (VM-10-012).
-CASE_STATUS_PROPERTY = vultron_property(
-    "The case status a participant status or a case preview reports: a "
-    "CaseStatus object or its id",
-    PropertyValueKind.IRI,
-)
-
 
 class CaseStatus(CoreObject):
     """Domain representation of a case status snapshot.

@@ -116,7 +116,6 @@ TIMESTAMP_PLACEHOLDER = "<timestamp>"
 VERDICT_FIELDS: frozenset[str] = frozenset(
     {
         # The entry: which act, at which position in the case's ledger.
-        "caseId",
         "id",
         "logIndex",
         "logObjectId",
@@ -189,7 +188,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "preferredDuration",
         "preferredUsername",
         # The case and who takes part in it.
-        "activeEmbargo",
         "activeParticipants",
         "caseParticipants",
         "caseReferences",
@@ -232,8 +230,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "embargoId",
         "embargoRegister",
         "kind",
-        "offerActorId",
-        "offerId",
         "proposedEmbargo",
         "reason",
         "replaces",

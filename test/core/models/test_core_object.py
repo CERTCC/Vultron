@@ -628,7 +628,7 @@ def test_core_object_drops_alias_shadowed_field_name_twin():
     """
     entry = make(
         CoreCaseLedgerEntry,
-        case_id="urn:uuid:case-dedup",
+        context="urn:uuid:case-dedup",
         log_object_id="urn:uuid:logobj-dedup",
         semantic_type="RS",
         published=ACT_AT,
@@ -647,14 +647,15 @@ def test_core_object_drops_alias_shadowed_field_name_twin():
 
 
 def test_case_ledger_entry_derives_id_from_wire_spelled_coordinates():
-    """An entry parsed off the wire carries ``caseId``/``logIndex``.
+    """An entry parsed off the wire carries ``context``/``logIndex``.
 
-    The derivation must read those too, or a wire-parsed entry keeps a random
-    id instead of its ``{case_id}/log/{log_index}`` coordinates.
+    The derivation must read the AS2 spelling too, or a wire-parsed entry
+    keeps a random id instead of its ``{context}/log/{log_index}``
+    coordinates.
     """
     entry = CoreCaseLedgerEntry.model_validate(
         {
-            "caseId": "urn:uuid:case-wire",
+            "context": "urn:uuid:case-wire",
             "logIndex": 3,
             "logObjectId": "urn:uuid:logobj-wire",
             "semanticType": "RS",

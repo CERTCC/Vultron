@@ -42,7 +42,7 @@ _RECORDING = recording_path("rcv")
 def _entry(index: int, case_id: str = _CASE, **extra: object) -> dict:
     """A minimal ledger entry at *index* of *case_id*."""
     return {
-        "caseId": case_id,
+        "context": case_id,
         "logIndex": index,
         "entryHash": f"{case_id}#{index}",
         "semanticType": "add_participant_status",
@@ -349,7 +349,7 @@ def test_two_cases_are_two_histories_never_interleaved(tmp_path):
 
     assert list(read.cases) == sorted([_CASE, _OTHER_CASE])
     for case_id, case in read.cases.items():
-        assert {e["caseId"] for e in case.entries} == {case_id}
+        assert {e["context"] for e in case.entries} == {case_id}
     assert _indices(read.cases[_CASE].rows) == [0, 1]
     assert _indices(read.cases[_OTHER_CASE].rows) == [0, 1, 2]
     assert read.cases[_OTHER_CASE].copies == [mixed, other]
@@ -386,7 +386,7 @@ def test_an_entry_missing_every_key_names_all_three(tmp_path):
 
     assert read.cases == {}
     (row,) = read.unusable_rows
-    assert row.reason.startswith("no usable caseId, logIndex, entryHash")
+    assert row.reason.startswith("no usable context, logIndex, entryHash")
 
 
 def test_no_files_is_an_empty_read():

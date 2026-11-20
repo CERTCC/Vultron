@@ -445,7 +445,6 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_CASE_ACTOR,
         offer_id=w.offer_id(holder=_CASE_ACTOR),
-        offer_actor_id=_PEER,
         at=authored_at(),
     ),
     "record_participant_status_added": lambda w: w.adapter_as(

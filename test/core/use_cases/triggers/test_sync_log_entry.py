@@ -144,7 +144,7 @@ def test_commits_a_canonical_entry_and_returns_its_identity(actor_and_dl):
     assert result.emitting_actor_id == actor.id_
     entry = dl.read(result.log_entry_id)
     assert isinstance(entry, CaseLedgerEntry)
-    assert entry.case_id == case.id_
+    assert entry.context == case.id_
     assert entry.semantic_type == "announce_vulnerability_case"
     assert registry_label(entry.payload_snapshot) == entry.semantic_type
     assert entry.entry_hash == result.entry_hash

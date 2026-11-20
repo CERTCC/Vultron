@@ -26,7 +26,9 @@ These messages have no formal-protocol shorthand (see
 
 {% include-markdown "./_occasions/sections/create-case-proposal.md" %}
 
-When the report receiver still holds the `Offer(VulnerabilityReport)` that brought it the report, the proposal carries that Offer whole as `inReplyTo`, alongside the bare `offerId` and `offerActorId` provenance.
+The proposal names the `Offer(VulnerabilityReport)` that brought the report in its `inReplyTo`, and nowhere else (CP-01-007).
+When the report receiver still holds that Offer, `inReplyTo` carries it whole; otherwise it carries the Offer's id.
+The Offer's sender is the inline Offer's `actor`, or the report's `attributedTo`.
 That is how a Reporter's proposed embargo terms reach the case-actor (EP-04-004).
 
 - **Triggering transition:** none — initiates the proposal sub-protocol.

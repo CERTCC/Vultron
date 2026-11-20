@@ -70,6 +70,7 @@ def _stub_invite_fields(case_id: str) -> dict[str, Any]:
             "type": "VulnerabilityCase",
             "preview": {
                 "type": "CasePreview",
+                "attributedTo": "https://example.org/actors/vendor",
                 "id": "https://example.org/previews/stub-invite-1",
                 "summary": _SUMMARY,
             },

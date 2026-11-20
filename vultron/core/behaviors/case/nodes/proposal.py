@@ -99,11 +99,9 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
         assert self.actor_id is not None
         assert self.datalayer is not None
         # CP-01-007: this store has the OfferRecord because this actor received
-        # the Offer; the CaseActor's own store never will, so the provenance has
-        # to be read here and carried on the proposal (#2548).
-        offer_id, offer_actor_id = find_offer_for_report(
-            self.datalayer, self.report_id
-        )
+        # the Offer; the CaseActor's own store never will, so the Offer has to
+        # be found here and named on the proposal (#2548).
+        offer_id = find_offer_for_report(self.datalayer, self.report_id)
         try:
             activity_id, _ = (
                 self.trigger_activity_factory.create_case_proposal(
@@ -111,7 +109,6 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
                     report_id=self.report_id,
                     case_actor_id=case_actor_id,
                     offer_id=offer_id,
-                    offer_actor_id=offer_actor_id,
                     # CP-01-013, ADR-0133: this actor's own roles, which the
                     # CASE_MANAGER cannot read from its own configuration.
                     proposer_case_roles=get_config().actor.default_case_roles,

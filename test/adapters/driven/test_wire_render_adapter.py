@@ -145,7 +145,7 @@ def test_render_participant_status(adapter):
 def test_render_case_ledger_entry(adapter):
     obj = make(
         CaseLedgerEntry,
-        case_id="urn:uuid:case",
+        context="urn:uuid:case",
         log_object_id="urn:uuid:obj",
         semantic_type="V",
         received_at=ACT_AT,
@@ -164,17 +164,17 @@ def test_render_returns_camel_case_keys(adapter):
     """Output dict uses camelCase field names (by_alias=True)."""
     obj = make(
         CaseLedgerEntry,
-        case_id="urn:uuid:case",
+        context="urn:uuid:case",
         log_object_id="urn:uuid:obj",
         semantic_type="V",
         received_at=ACT_AT,
         published=ACT_AT,
     )
     result = adapter.render(obj)
-    # Wire alias for 'case_id' is 'caseId' / 'context' depending on wire model;
-    # at minimum no snake_case keys that are known aliases should be present
-    assert "case_id" not in result, (
-        "Expected camelCase output (by_alias=True) but found snake_case key 'case_id'"
+    # At minimum no snake_case keys that are known aliases should be present
+    assert "log_object_id" not in result, (
+        "Expected camelCase output (by_alias=True) but found snake_case key"
+        " 'log_object_id'"
     )
 
 

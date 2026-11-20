@@ -113,7 +113,7 @@ def test_the_lookup_publishes_the_entry_its_case_and_the_add() -> None:
     assert result.status is Status.SUCCESS
     entry = probe.seen[REFUSED_ENTRY.name]
     assert isinstance(entry, CaseLedgerEntry)
-    assert probe.seen[CASE_ID.name] == entry.case_id == net.case_id
+    assert probe.seen[CASE_ID.name] == entry.context == net.case_id
     assert probe.seen[ANNOUNCE_ID.name] == announce_id
 
 

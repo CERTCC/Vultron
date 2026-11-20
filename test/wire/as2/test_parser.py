@@ -292,6 +292,7 @@ def _invite_response_body(activity_type: str) -> dict[str, object]:
                 "id": "https://example.org/cases/case-1",
                 "preview": {
                     "type": "CasePreview",
+                    "attributedTo": "https://example.org/actors/vendor",
                     "id": "urn:uuid:case-1-preview",
                     "summary": (
                         "Security issue — details shared after acceptance"

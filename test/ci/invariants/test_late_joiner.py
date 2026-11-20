@@ -22,7 +22,7 @@ def _entry(log_index: int, entry_hash: str, prev_hash: str) -> dict:
         "entryHash": entry_hash,
         "prevLogHash": prev_hash,
         "semanticType": "noop",
-        "case_id": "https://example.org/cases/test",
+        "context": "https://example.org/cases/test",
         "payloadSnapshot": {},
     }
 
