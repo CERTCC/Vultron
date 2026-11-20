@@ -59,7 +59,7 @@ export function handleOfferCaseOwnership(
     timestamp: now + offset,
     consequences: [
       `${offerer.name} offers to transfer case ownership to ${target.name}`,
-      'Offer(Offer(VulnerabilityCase)) → CASE_MANAGER, which offers the case to the transferee (ADR-0148)',
+      'Offer(VulnerabilityCase) → CASE_MANAGER, which makes its own Offer to the transferee (ADR-0199)',
       `Awaiting ${target.name}'s acceptance`,
     ],
   })
