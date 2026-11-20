@@ -127,10 +127,13 @@ def _run(
         tree=with_act_keys(
             CreateLogEntryNode(
                 semantic_type="note_added",
-                payload_snapshot=snapshot,
                 name="CreateLogEntry",
             ),
-            {act_keys.CASE_ID: CASE_ID, act_keys.OBJECT_ID: _ACT_UNDER_TEST},
+            {
+                act_keys.PAYLOAD_SNAPSHOT: snapshot,
+                act_keys.CASE_ID: CASE_ID,
+                act_keys.OBJECT_ID: _ACT_UNDER_TEST,
+            },
         ),
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,

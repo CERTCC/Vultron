@@ -43,6 +43,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import (
     CASE_ID as CASE_KEY,
+    REFUSAL_REASON,
     REFUSED_ACTIVITY_ID,
     SENDER_ID,
 )
@@ -127,7 +128,7 @@ _BUILDERS: dict[str, Callable[[], object]] = {
         termination=EmbargoTermination.end_time_reached(),
     ),
     "ask_case_manager_to_terminate_once": lambda: (
-        ask_case_manager_to_terminate_once(_CASE)
+        ask_case_manager_to_terminate_once(_CASE, EmbargoTermination.early())
     ),
     "accept_invite_to_embargo_tree": lambda: accept_invite_to_embargo_tree(
         case_id=_CASE,
@@ -281,7 +282,7 @@ def test_clearing_a_refused_assertion_judges_its_timeout_at_the_acts_instant(
     at = emitted + timedelta(
         seconds=owner_pending_store.timeout_seconds + 1 if overdue else 0
     )
-    node = ClearRefusedAssertionNode(reason="refused")
+    node = ClearRefusedAssertionNode()
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_OWNER)
 
     result = run_tree(
@@ -292,6 +293,7 @@ def test_clearing_a_refused_assertion_judges_its_timeout_at_the_acts_instant(
                 CASE_KEY: _CASE,
                 REFUSED_ACTIVITY_ID: refused,
                 SENDER_ID: _OTHER,
+                REFUSAL_REASON: "refused",
             },
         ),
         actor_id=_OWNER,

@@ -25,7 +25,7 @@ from datetime import datetime
 import py_trees
 
 from vultron.core.behaviors.act_key_scope import with_act_keys
-from vultron.core.behaviors.act_keys import SENDER_ID
+from vultron.core.behaviors.act_keys import FAULT_PUBLISHED, SENDER_ID
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -102,8 +102,8 @@ def create_case_diverged_fault_tree(
         sender_context=SenderCheckContext(sender_id=sender_id),
         manager_effects=[
             with_act_keys(
-                ReportRepeatDivergenceNode(fault_published=fault_published),
-                {SENDER_ID: sender_id},
+                ReportRepeatDivergenceNode(),
+                {SENDER_ID: sender_id, FAULT_PUBLISHED: fault_published},
             ),
             with_act_keys(
                 ReseedPeerNode(refuses_withheld_peer=True),

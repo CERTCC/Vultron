@@ -36,6 +36,7 @@ from vultron.core.behaviors.act_keys import (
     EMBARGO_ID,
     SENDER_ID,
     TERMINATED_AT,
+    TERMINATION,
 )
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
@@ -115,11 +116,12 @@ def _teardown_if_active(
                 children=[
                     *before_teardown,
                     with_act_keys(
-                        ClearActiveEmbargoNode(termination=termination),
+                        ClearActiveEmbargoNode(),
                         {
                             CASE_ID: case_id,
                             EMBARGO_ID: embargo_id,
                             TERMINATED_AT: terminated_at,
+                            TERMINATION: termination,
                         },
                     ),
                     *after_teardown,
@@ -229,13 +231,18 @@ def remove_embargo_from_case_tree(
             # A threat signal arrives as a case status update, never on a
             # case owner's Remove (EMB-13-005).
             with_act_keys(
-                TerminationCauseIsAdmissibleNode(termination=termination),
-                {CASE_ID: case_id, SENDER_ID: sender_actor_id},
-            ),
-            with_act_keys(
-                TerminationIsTimelyNode(termination=termination),
+                TerminationCauseIsAdmissibleNode(),
                 {
                     CASE_ID: case_id,
+                    SENDER_ID: sender_actor_id,
+                    TERMINATION: termination,
+                },
+            ),
+            with_act_keys(
+                TerminationIsTimelyNode(),
+                {
+                    CASE_ID: case_id,
+                    TERMINATION: termination,
                     TERMINATED_AT: terminated_at,
                     EMBARGO_ID: embargo_id,
                     EMBARGO: embargo,

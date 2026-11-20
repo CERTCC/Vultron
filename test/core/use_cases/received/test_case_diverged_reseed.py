@@ -681,7 +681,7 @@ def test_the_report_node_keeps_the_error_for_a_fault_claiming_no_time(
     _report(net)
     (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
     _acknowledge(net, BYSTANDER, entry.entry_hash, _ACKNOWLEDGED_AT)
-    node = ReportRepeatDivergenceNode(fault_published=None)
+    node = ReportRepeatDivergenceNode()
     seeded = with_act_keys(
         node,
         {

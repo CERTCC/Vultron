@@ -43,6 +43,7 @@ from vultron.core.behaviors.act_keys import ActKey
 from vultron.errors import VultronWiringError
 
 __all__ = [
+    "ReadsOptionalPorts",
     "act_key_ports",
     "act_key_remappings",
     "act_value",
@@ -50,7 +51,7 @@ __all__ = [
 ]
 
 
-class _ReadsOptionalPorts(Protocol):
+class ReadsOptionalPorts(Protocol):
     """A ports node with the shared optional-port read (BTND-03-021)."""
 
     @property
@@ -77,7 +78,7 @@ def act_key_remappings(*keys: ActKey) -> dict[str, str]:
 
 
 def optional_act_value[T](
-    node: _ReadsOptionalPorts,
+    node: ReadsOptionalPorts,
     key: ActKey,
     kind: type[T],
     *,
@@ -110,7 +111,7 @@ def optional_act_value[T](
 
 
 def act_value[T](
-    node: _ReadsOptionalPorts,
+    node: ReadsOptionalPorts,
     key: ActKey,
     kind: type[T],
     *,
