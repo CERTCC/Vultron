@@ -41,7 +41,13 @@ a retry can still end the embargo.
 from typing import cast
 
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+)
+from vultron.core.behaviors.act_keys import TERMINATION
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
@@ -51,10 +57,7 @@ from vultron.core.behaviors.embargo.copy_commit import (
     read_embargo_case_file,
     trial_apply,
 )
-from vultron.core.behaviors.embargo.nodes.chosen_cause import (
-    ChosenTermination,
-    resolve_chosen,
-)
+from vultron.core.behaviors.embargo.nodes.chosen_cause import act_termination
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
@@ -65,10 +68,7 @@ from vultron.core.behaviors.node_logger import fail_with_error
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_apply import RegisterStep
-from vultron.core.models.embargo_termination import (
-    EmbargoTermination,
-    TerminationRequest,
-)
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycleResult,
@@ -87,8 +87,9 @@ class CommitAndApplyEmbargoTerminationNode(
 ):
     """End the embargo in force as the CASE_MANAGER, committing first.
 
-    *termination* is how the embargo ends (ADR-0122); a
-    :class:`ChosenTermination` is read when this node runs (EMB-14-001).
+    *termination*, read from ``/termination``, is how the embargo ends
+    (ADR-0122); a ``ChosenTermination`` is read when this node runs
+    (EMB-14-001).
     The CASE_MANAGER's own termination is claimed at the act's instant, read
     from the tree run when the node ticks (ADR-0176), so an
     ``END_TIME_REACHED`` one is judged against it.  *builder* is the trigger
@@ -107,13 +108,18 @@ class CommitAndApplyEmbargoTerminationNode(
     ``result_out`` holds ``em_before``, ``em_after`` and the
     ``lifecycle_result`` the trigger use case reports.
 
-    The case is read from ``/case_id`` (BTND-01-008).
+    The case is read from ``/case_id`` and *termination* from
+    ``/termination`` (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_CommitCaseManagerActivityBase.INPUT_PORTS,
+        **act_key_ports(TERMINATION),
+    }
 
     def __init__(
         self,
         result_out: dict[str, object],
-        termination: TerminationRequest | ChosenTermination,
         builder: EmbargoActivityBuilder | None = None,
         name: str | None = None,
     ) -> None:
@@ -123,10 +129,16 @@ class CommitAndApplyEmbargoTerminationNode(
             name=name,
         )
         self._result_out = result_out
-        self._termination = termination
         self._builder = builder
         self._step: RegisterStep | None = None
         self._ended: VulnerabilityCase | None = None
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(TERMINATION),
+        }
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         if self._builder is not None:
@@ -186,7 +198,7 @@ class CommitAndApplyEmbargoTerminationNode(
 
         # Read outside the refusal handler: an unchosen cause is a wiring
         # fault, not a refusal (VultronWiringError escapes update()).
-        termination = resolve_chosen(self._termination)
+        termination = act_termination(self)
         try:
             step = decide_termination(
                 dl, case, termination, self._require_act_instant()

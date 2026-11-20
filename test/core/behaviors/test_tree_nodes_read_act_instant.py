@@ -85,7 +85,6 @@ from vultron.core.models.pending_assertion import (
     reset_pending_assertion_stores,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     ProposeCaseOwnershipTransferReceivedUseCase,
@@ -128,7 +127,7 @@ _BUILDERS: dict[str, Callable[[], object]] = {
         termination=EmbargoTermination.end_time_reached(),
     ),
     "ask_case_manager_to_terminate_once": lambda: (
-        ask_case_manager_to_terminate_once(_CASE, TerminationReason.EARLY)
+        ask_case_manager_to_terminate_once(_CASE, EmbargoTermination.early())
     ),
     "accept_invite_to_embargo_tree": lambda: accept_invite_to_embargo_tree(
         case_id=_CASE,

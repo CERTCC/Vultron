@@ -24,6 +24,9 @@ own sites in one block.
 
 When a site moves to a vocabulary key, delete its entry here; the ratchet
 fails until you do.  Never add an entry: a new site reads its key instead.
+The one deliberate growth is a widened name rule: the sites it newly finds
+predate the rule too, so each is tagged to its family's Task (#6699 added
+the termination and requesting-actor names).
 """
 
 from collections.abc import Mapping
@@ -243,6 +246,7 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/case/nodes/submit_report.py::StoreSubmitReportOfferRecordNode::offer_actor_id": 6575,
         "vultron/core/behaviors/case/nodes/submit_report.py::StoreSubmitReportOfferRecordNode::offer_id": 6575,
         "vultron/core/behaviors/case/nodes/submit_report.py::StoreSubmitReportOfferRecordNode::report_id": 6575,
+        "vultron/core/behaviors/case/reject_case_proposal_received_tree.py::RecordCaseProposalRejectionNode::rejection_reason": 6575,
         "vultron/core/behaviors/case/reject_case_proposal_received_tree.py::RecordCaseProposalRejectionNode::report_id": 6575,
         # #6576: The ownership-transfer and leave nodes read every per-act
         #   value from vocabulary keys
@@ -656,17 +660,22 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::_teardown_if_active::case_id": 6583,
         "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::_teardown_if_active::embargo_id": 6583,
         "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::_teardown_if_active::terminated_at": 6583,
+        "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::_teardown_if_active::termination": 6583,
         "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::remove_embargo_from_case_tree::case_id": 6583,
         "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::remove_embargo_from_case_tree::embargo": 6583,
         "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::remove_embargo_from_case_tree::embargo_id": 6583,
         "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::remove_embargo_from_case_tree::sender_actor_id": 6583,
         "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::remove_embargo_from_case_tree::terminated_at": 6583,
+        "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::remove_embargo_from_case_tree::termination_cause": 6583,
+        "vultron/core/behaviors/embargo/announce_teardown_tree/teardown.py::remove_embargo_from_case_tree::termination_reason": 6583,
         "vultron/core/behaviors/embargo/end_time_tree.py::end_embargo_at_end_time_bt::case_id": 6583,
         "vultron/core/behaviors/embargo/end_time_tree.py::end_time_clock_decision::case_id": 6583,
         "vultron/core/behaviors/embargo/nodes/ending_notice.py::embargo_ending_notice_nodes::case_id": 6583,
+        "vultron/core/behaviors/embargo/nodes/ending_notice.py::embargo_ending_notice_nodes::requested_by": 6583,
         "vultron/core/behaviors/embargo/nodes/ending_notice_replica.py::adopted_revision_timing_violations::actor_id": 6583,
         "vultron/core/behaviors/embargo/nodes/ending_notice_replica.py::adopted_revision_timing_violations::embargo": 6583,
         "vultron/core/behaviors/embargo/nodes/ending_notice_replica.py::adopted_revision_timing_violations::embargo_id": 6583,
+        "vultron/core/behaviors/embargo/nodes/ending_notice_replica.py::adopted_revision_timing_violations::termination": 6583,
         "vultron/core/behaviors/embargo/nodes/ending_notice_replica.py::names_unadopted_revision::embargo_id": 6583,
         "vultron/core/behaviors/embargo/nodes/invitation_expiry.py::_is_invite_to::embargo_id": 6583,
         "vultron/core/behaviors/embargo/nodes/invitation_expiry.py::_is_invite_to::entry": 6583,
@@ -675,9 +684,13 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/embargo/nodes/invitation_expiry.py::latest_invite_id::embargo_id": 6583,
         "vultron/core/behaviors/embargo/nodes/invitation_expiry.py::latest_invite_id::invitee_id": 6583,
         "vultron/core/behaviors/embargo/nodes/terminate.py::ask_case_manager_to_terminate_once::case_id": 6583,
+        "vultron/core/behaviors/embargo/nodes/terminate.py::ask_case_manager_to_terminate_once::termination": 6583,
         "vultron/core/behaviors/embargo/trigger_tree/termination.py::end_embargo_outliving_disclosure_bt::case_id": 6583,
+        "vultron/core/behaviors/embargo/trigger_tree/termination.py::end_embargo_outliving_disclosure_bt::requested_by": 6583,
         "vultron/core/behaviors/embargo/trigger_tree/termination.py::reject_proposed_embargo_bt::case_id": 6583,
         "vultron/core/behaviors/embargo/trigger_tree/termination.py::terminate_embargo_bt::case_id": 6583,
+        "vultron/core/behaviors/embargo/trigger_tree/termination.py::terminate_embargo_bt::requested_by": 6583,
+        "vultron/core/behaviors/embargo/trigger_tree/termination.py::terminate_embargo_bt::termination": 6583,
         "vultron/core/behaviors/sync/commit_tree.py::commit_emitted_activity::activity_id": 6583,
         "vultron/core/behaviors/sync/commit_tree.py::commit_emitted_activity::actor_id": 6583,
         "vultron/core/behaviors/sync/commit_tree.py::commit_emitted_activity::case_id": 6583,
@@ -967,6 +980,7 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/case/refusal_notice_received_tree.py::refusal_notice_received_tree::case_id": 6586,
         "vultron/core/behaviors/case/refusal_notice_received_tree.py::refusal_notice_received_tree::refused_activity_id": 6586,
         "vultron/core/behaviors/case/refusal_notice_received_tree.py::refusal_notice_received_tree::sender_id": 6586,
+        "vultron/core/behaviors/case/reject_case_proposal_received_tree.py::create_reject_case_proposal_received_tree::rejection_reason": 6586,
         "vultron/core/behaviors/case/reject_case_proposal_received_tree.py::create_reject_case_proposal_received_tree::report_id": 6586,
         "vultron/core/behaviors/case/reject_case_proposal_received_tree.py::create_reject_case_proposal_received_tree::sender_actor_id": 6586,
         "vultron/core/behaviors/case/report_author.py::report_author_id::report_id": 6586,

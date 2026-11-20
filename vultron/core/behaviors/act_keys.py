@@ -51,9 +51,14 @@ from datetime import datetime, timedelta
 from types import MappingProxyType
 
 from vultron.core.behaviors.bridge.act_instant import ACT_INSTANT_KEY
+from vultron.core.behaviors.chosen_termination import ChosenTermination
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    ThreatSignalTermination,
+)
 
 __all__ = [
     "ACT_KEYS",
@@ -75,11 +80,13 @@ __all__ = [
     "REFUSED_ACTIVITY_ID",
     "REFUSED_ENTRY",
     "REPORT_ID",
+    "REQUESTING_ACTOR_ID",
     "RUN_KEYS",
     "SENDER_ID",
     "SENDER_PROPOSED_EMBARGO",
     "SENDER_PROPOSED_EMBARGO_DURATION",
     "TERMINATED_AT",
+    "TERMINATION",
     "ActKey",
     "RunKey",
     "require_act_key",
@@ -242,6 +249,17 @@ EMBARGO_PROPOSER_ID = _act_key(
     "The id of the actor who proposed the embargo the act answers"
     " (CM-24-002).",
 )
+REQUESTING_ACTOR_ID = _act_key(
+    "requesting_actor_id",
+    str,
+    "The id of the actor whose request the CASE_MANAGER carries out in the"
+    " act, when another actor asked for it: the sender of the received"
+    " request, credited as ``attributedTo`` on what the CASE_MANAGER sends"
+    " for it (CM-24-001, CM-24-020).  Unset when the act is the executing"
+    " actor's own decision, a CASE_MANAGER trigger or cascade included, so"
+    " it is not ``sender_id``: a cascade inside a received tree credits no"
+    " sender.",
+)
 OWNER_PROFILE = _act_key(
     "owner_profile",
     CoreActor | str,
@@ -274,6 +292,17 @@ TERMINATED_AT = _act_key(
     datetime,
     "The time a received termination claims: the ``published`` time of the"
     " ``Remove(EmbargoEvent)`` (ADR-0122).",
+)
+
+TERMINATION = _act_key(
+    "termination",
+    EmbargoTermination | ThreatSignalTermination | ChosenTermination,
+    "How the act ends the embargo in force, its what and its why"
+    " (ADR-0122, EMB-13-005): the termination a received"
+    " ``Remove(EmbargoEvent)`` carries, the one a trigger requests, a"
+    " threat-signal termination resolved from the case at the write, or the"
+    " ``ChosenTermination`` a voluntary termination's reason call-out fills"
+    " earlier in the same run, read when the node runs (EMB-14-001).",
 )
 
 #: Every per-act key, by name.

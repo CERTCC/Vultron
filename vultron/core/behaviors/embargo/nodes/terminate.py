@@ -30,16 +30,17 @@ from vultron.core.behaviors.act_key_ports import (
     act_key_remappings,
     act_value,
 )
+from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import (
     CASE_ACTOR_ID,
     CASE_ID,
     EMBARGO_ID,
+    TERMINATION,
 )
 from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.case_id_scope import with_case_id
-from vultron.core.behaviors.embargo.nodes.chosen_cause import (
-    ChosenTermination,
-)
+from vultron.core.behaviors.chosen_termination import ChosenTermination
+from vultron.core.behaviors.embargo.nodes.chosen_cause import act_termination
 from vultron.core.behaviors.embargo.nodes.emit import (
     _SendEmbargoActivityForCaseKey,
 )
@@ -50,12 +51,11 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.models.embargo_termination import TerminationCause
+from vultron.core.models.embargo_termination import TerminationRequest
 from vultron.core.models.pending_assertion import (
     record_pending_assertion,
     suppressed_repeat_reason,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 
 
@@ -147,31 +147,30 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
     ask also escapes ``update()`` rather than reporting a success the next
     repeat would not be suppressed by (BT-HELPER-01).
 
-    The case is read from ``/case_id`` (BTND-01-008).
+    The ask carries the termination's what and the cause a participant may
+    name (``participant_cause``): a threat-signal termination's ask names
+    none, since a ``THREAT_SIGNAL`` cause from anyone but the CASE_MANAGER is
+    refused (EMB-13-005).
+
+    The case is read from ``/case_id`` and the termination from
+    ``/termination`` (BTND-01-008); a ``ChosenTermination`` is read when the
+    ask is sent (EMB-14-001).
     """
 
-    def __init__(
-        self,
-        reason: TerminationReason,
-        name: str | None = None,
-        *,
-        cause: TerminationCause | ChosenTermination | None = None,
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name)
-        self._reason = reason
-        self._cause = cause
-        self._resolved_cause: TerminationCause | None = None
+        self._resolved: TerminationRequest | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_SendEmbargoActivityForCaseKey.INPUT_PORTS,
-        **act_key_ports(EMBARGO_ID, CASE_ACTOR_ID),
+        **act_key_ports(EMBARGO_ID, CASE_ACTOR_ID, TERMINATION),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             **super()._domain_port_remappings(),
-            **act_key_remappings(EMBARGO_ID, CASE_ACTOR_ID),
+            **act_key_remappings(EMBARGO_ID, CASE_ACTOR_ID, TERMINATION),
         }
 
     def initialise(self) -> None:
@@ -196,25 +195,20 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
             )
         # Read here, outside the factory call's failure handler: an unchosen
         # cause is a wiring fault that escapes update(), never a FAILURE.
-        self._resolved_cause = self._ask_cause()
+        self._resolved = act_termination(self)
         return self.embargo_id, self.case_manager_id
-
-    def _ask_cause(self) -> TerminationCause | None:
-        """The cause the ask carries; a chosen one is read now (EMB-14-001)."""
-        if isinstance(self._cause, ChosenTermination):
-            return self._cause.termination.participant_cause
-        return self._cause
 
     def _call_factory(
         self, actor_id: str, embargo_id: str, case_manager_id: str
     ) -> tuple[str, object]:
         assert self.trigger_activity_factory is not None
+        assert self._resolved is not None  # read before the factory runs
         return self.trigger_activity_factory.terminate_embargo(
             embargo_id=embargo_id,
             case_id=self._case_id,
             actor=actor_id,
-            reason=self._reason,
-            cause=self._resolved_cause,
+            reason=self._resolved.reason,
+            cause=self._resolved.participant_cause,
             to=[case_manager_id],
             at=self._require_act_instant(),
         )
@@ -243,8 +237,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
 
 def ask_case_manager_to_terminate_once(
     case_id: str | None,
-    reason: TerminationReason,
-    cause: TerminationCause | ChosenTermination | None = None,
+    termination: TerminationRequest | ChosenTermination,
 ) -> py_trees.behaviour.Behaviour:
     """The cascades' ask: queue ``Remove(EmbargoEvent)`` unless already asked.
 
@@ -254,9 +247,9 @@ def ask_case_manager_to_terminate_once(
     or suppress a repeat, so this subtree does both (EP-09-018, SYNC-11-002):
     SUCCESS without sending when the ask is still pending, else the send
     node's result, whose FAILURE still fails the tree (BT-14-001).  The ask
-    carries *reason*, the termination's what (ADR-0122), and *cause*, its
-    why, when given (EMB-13-005); a :class:`ChosenTermination` is read when
-    the ask is sent (EMB-14-001).
+    carries *termination*'s what (ADR-0122) and the why a participant may
+    name (EMB-13-005), seeded on ``/termination`` for the send node; a
+    :class:`ChosenTermination` is read when the ask is sent (EMB-14-001).
 
     The pending-ask check judges the ask's age against the act's instant,
     read from the tree run when it ticks (SYNC-11-005, ADR-0176).
@@ -266,9 +259,9 @@ def ask_case_manager_to_terminate_once(
         memory=False,
         children=[
             with_case_id(TeardownAskPendingNode(), case_id),
-            with_case_id(
-                SendTerminateEmbargoActivityNode(reason=reason, cause=cause),
-                case_id,
+            with_act_keys(
+                SendTerminateEmbargoActivityNode(),
+                {CASE_ID: case_id, TERMINATION: termination},
             ),
         ],
     )

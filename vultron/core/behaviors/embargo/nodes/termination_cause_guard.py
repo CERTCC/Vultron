@@ -22,7 +22,7 @@ from vultron.core.behaviors.act_key_ports import (
     act_key_remappings,
     act_value,
 )
-from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID, TERMINATION
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
@@ -62,31 +62,27 @@ class TerminationCauseIsAdmissibleNode(DataLayerConditionWithPorts):
     the receiver, so it is no second asker of the receiver's question
     (ARCH-24-003).
 
-    The case is read from ``/case_id`` and *sender_actor_id* from
-    ``/sender_id`` (BTND-01-008).
+    The case is read from ``/case_id``, *sender_actor_id* from
+    ``/sender_id`` and *termination* from ``/termination`` (BTND-01-008).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
-        **act_key_ports(CASE_ID, SENDER_ID),
+        **act_key_ports(CASE_ID, SENDER_ID, TERMINATION),
     }
 
-    def __init__(
-        self,
-        termination: EmbargoTermination,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._termination = termination
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return act_key_remappings(CASE_ID, SENDER_ID)
+        return act_key_remappings(CASE_ID, SENDER_ID, TERMINATION)
 
     def initialise(self) -> None:
         super().initialise()
         self.case_id: str = act_value(self, CASE_ID, str)
         self._sender_actor_id: str = act_value(self, SENDER_ID, str)
+        self._termination = act_value(self, TERMINATION, EmbargoTermination)
 
     def update(self) -> Status:
         cause = self._termination.cause
