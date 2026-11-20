@@ -330,6 +330,10 @@ Record to the Case").
 
 Issue: #6246. Records: ADR-0201, ADR-0202, ADR-0203.
 
+**Built (embargo wire type).** An embargo is sent as `["EmbargoEvent", "Event"]`
+and the embargo patterns match `EmbargoEvent` only, so a plain `Event` is no
+embargo (#6480).
+
 **Decision.**
 
 - **The embargo is its own wire type.** `"type": ["EmbargoEvent", "Event"]`, a
@@ -440,7 +444,7 @@ Issues: #6487, #6625. Record: ADR-0199 revision 2 (partially superseding ADR-018
 `vultron/semantic_registry/embargo/decision.py`; the activation effect is
 `vultron/core/behaviors/embargo/nodes/activation_effect.py`. Patterns match types
 only (`vultron/wire/as2/extractor/_pattern.py`). Depends on the embargo carrying its
-own `status` (#6481) and the `EmbargoEvent` wire type (#6480).
+own `status` (#6481); the `EmbargoEvent` wire type is built (#6480).
 
 **Touches.** VAM-05-008, VAM-05-009, VAM-05-010, MSM-02-002, MSM-02-005 and the ER/EJ
 shorthands, MSM-07-005, MSM-07-008, MSM-07-009, MSM-07-023, MSM-07-032, EMB-02-002,

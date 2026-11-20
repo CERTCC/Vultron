@@ -80,6 +80,7 @@ from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import (
     WIRE_TYPE_MAP,
+    core_supertype_term,
     declared_wire_type,
     wire_type_value,
 )
@@ -437,11 +438,13 @@ def _wire_object_classes() -> list[type[BaseModel]]:
 def vultron_subtype_statements() -> dict[str, str]:
     """Map each Vultron type that refines an AS2 type to that AS2 type.
 
-    The source is the class's one supertype declaration,
+    The source is the class's one supertype declaration, which also makes
+    the serializer write the ``type`` list: a wire class's
     ``_as2_core_supertype`` (``as_Refuse`` declares ``as_Reject``, so
-    ``Refuse`` maps to ``Reject``), which also makes the serializer write the
-    ``type`` list (ADR-0196).  A subclass that inherits the declaration and
-    its supertype's ``type`` adds nothing.  Keyed and sorted by the Vultron
+    ``Refuse`` maps to ``Reject``, ADR-0196), or a core class's
+    ``_as2_core_supertype_term`` (``EmbargoEvent`` declares ``Event``,
+    ADR-0201).  A subclass that inherits the declaration and its
+    supertype's ``type`` adds nothing.  Keyed and sorted by the Vultron
     type's wire value.
     """
     statements: dict[str, str] = {}
@@ -452,6 +455,12 @@ def vultron_subtype_statements() -> dict[str, str]:
         if supertype is None or value is None:
             continue
         statements[value] = wire_type_value(supertype)
+    for cls in WIRE_TYPE_MAP.values():
+        term = core_supertype_term(cls)
+        value = _concrete_type_value(cls)
+        if term is None or value is None:
+            continue
+        statements[value] = term
     return dict(sorted(statements.items()))
 
 

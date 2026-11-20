@@ -171,18 +171,36 @@ def _declared_supertypes(cls: type) -> list[type[BaseModel]]:
     # KeyError here would read as an unknown type and refuse the message.
     # test_each_declared_supertype_is_needed holds every entry registered,
     # and test_the_table_has_no_cycle holds the recursion finite.
-    for base in cls.__mro__:
-        supertype = AS2_SUPERTYPES.get(declared_type_value(base) or "")
+    terms = [
+        AS2_SUPERTYPES.get(declared_type_value(base) or "")
+        for base in cls.__mro__
+    ]
+    terms.append(core_supertype_term(cls))
+    for supertype in terms:
         if supertype is not None and supertype in WIRE_TYPE_MAP:
             supertypes.append(WIRE_TYPE_MAP[supertype])
     return supertypes
+
+
+def core_supertype_term(cls: type) -> str | None:
+    """The AS2 type a core extension class declares it refines, or ``None``.
+
+    A core class cannot subclass the wire class of the AS2 type it refines
+    (ARCH-01-001), so it declares that type by its wire value,
+    ``_as2_core_supertype_term`` (``EmbargoEvent`` declares ``"Event"``,
+    ADR-0201).  The type-list resolver and the context document read it
+    here, beside :data:`AS2_SUPERTYPES`.
+    """
+    term = getattr(cls, "_as2_core_supertype_term", None)
+    return term if isinstance(term, str) else None
 
 
 def is_as2_subtype(cls: type, other: type) -> bool:
     """Return whether *cls* is *other* or an AS2 subtype of it.
 
     A subclass is one, and so is a class whose type :data:`AS2_SUPERTYPES`
-    declares a subtype of a class that is one.
+    declares a subtype of a class that is one, and a core class whose
+    :func:`core_supertype_term` names one.
     """
     if issubclass(cls, other):
         return True

@@ -27,6 +27,7 @@ from typing import Any
 
 from vultron.adapters.connectors.vince import translate_case
 from vultron.core.models.case_reading import CaseReading
+from vultron.core.models.type_terms import type_terms
 from vultron.measure.history.derive import derive_case
 from vultron.measure.history.model import CaseEventHistory
 from vultron.measure.history.reached import ReachedState
@@ -99,14 +100,14 @@ def _records(node: object, kind: str) -> Iterator[Mapping[str, Any]]:
         for item in node:
             yield from _records(item, kind)
     elif isinstance(node, dict):
-        if node.get("type") == kind:
+        if kind in type_terms(node.get("type")):
             yield node
         for child in node.values():
             yield from _records(child, kind)
 
 
 def records(reading: CaseReading, kind: str) -> list[Mapping[str, Any]]:
-    """Every object of type *kind* any entry's payload carries."""
+    """Every object any entry's payload carries whose type names *kind*."""
     return [
         record
         for entry in reading.ledger

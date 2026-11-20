@@ -139,10 +139,7 @@ _EXPECTED_TYPES = [
     "EmbargoPolicy",
     "CaseStatus",
     "CaseReference",
-    # Note: EmbargoEvent intentionally NOT listed here — it inherits
-    # type_="Event" from as_Event and is stored/retrieved as as_Event.
-    # Its embargo-specific fields (start_time, end_time) are preserved
-    # via name field; see embargo_event.py for rationale.
+    "EmbargoEvent",
 ]
 
 

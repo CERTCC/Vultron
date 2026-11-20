@@ -59,7 +59,6 @@ from typing import Any, ClassVar, TypeGuard
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.core.models.actor import CoreActor
-from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.core.models.redacted import Redacted
 from vultron.primitives import NonEmptyString
@@ -72,8 +71,8 @@ from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
-from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.wire.as2.vocab.base.registry import (
+    is_as2_subtype,
     resolve_wire_type,
     resolved_wire_type_name,
 )
@@ -303,11 +302,12 @@ def is_case_reference(value: object) -> bool:
 
 
 #: Core classes that are a kind of an AS2 base type without subclassing its
-#: wire class (ADR-0034, ADR-0099): a core actor is an ``Actor``, and the
-#: core ``EmbargoEvent`` is an ``Event``.
+#: wire class or declaring it (ADR-0034, ADR-0099): a core actor is an
+#: ``Actor``.  A core extension type that declares the AS2 type it refines,
+#: as ``EmbargoEvent`` declares ``Event`` (ADR-0201), is one through
+#: :func:`is_as2_subtype` instead.
 _CORE_KINDS: tuple[tuple[type[BaseModel], type[BaseModel]], ...] = (
     (as_Actor, CoreActor),
-    (as_Event, CoreEmbargoEvent),
 )
 
 
@@ -315,11 +315,12 @@ def is_of_kind(cls: type, kind: type) -> bool:
     """Whether an object of class *cls* is an object of type *kind*.
 
     The one rule a pattern routing a reference and rehydration resolving it
-    both ask (MV-10-011): a subclass of *kind*, or a core class that is a
-    kind of *kind* without subclassing it (``_CORE_KINDS``), so a core
-    ``EmbargoEvent`` is an ``Event`` and a core actor an ``Actor``.
+    both ask (MV-10-011): an AS2 subtype of *kind* (:func:`is_as2_subtype`,
+    so a core ``EmbargoEvent`` is an ``Event``), or a core class that is a
+    kind of *kind* without subclassing it (``_CORE_KINDS``), so a core actor
+    is an ``Actor``.
     """
-    if issubclass(cls, kind):
+    if is_as2_subtype(cls, kind):
         return True
     return any(
         issubclass(base, kind) and issubclass(cls, core)
