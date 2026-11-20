@@ -38,7 +38,6 @@ class TriggerProposalsPort(Protocol):
         summary: str | None = None,
         to: list[str] | None = None,
         offer_id: str | None = None,
-        offer_actor_id: str | None = None,
         proposer_case_roles: Sequence[CVDRole] = (),
         *,
         at: datetime,
@@ -50,10 +49,11 @@ class TriggerProposalsPort(Protocol):
         ``case_actor_id``, and persists ``Create(CaseProposal)`` to the
         DataLayer.
 
-        ``offer_id`` and ``offer_actor_id`` carry the provenance of the report —
-        which ``Offer(VulnerabilityReport)`` brought it and from whom
-        (CP-01-007).  The CaseActor cannot recover them on its own; see
-        ``as_CaseProposal.offer_id`` for why they have to travel on the wire.
+        ``offer_id`` names the ``Offer(VulnerabilityReport)`` that brought the
+        report, which the proposal's ``inReplyTo`` carries: inline when this
+        store holds the Offer (CP-01-008), else by id (CP-01-007).  The
+        CaseActor cannot recover it on its own; see
+        ``as_CaseProposal.in_reply_to`` for why it has to travel on the wire.
 
         The Create's ``actor`` is ``actor``'s own full profile, read from this
         DataLayer with its ``embargo_policy``: the CASE_MANAGER reads the

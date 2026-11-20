@@ -227,8 +227,6 @@ def _case_proposal(offer: as_Offer | None = None) -> as_CaseProposal:
         attributed_to=_VENDOR,
         object_=report,
         target=_CASE_ACTOR,
-        offer_id=offer.id_,
-        offer_actor_id=_FINDER,
         in_reply_to=offer,
     )
 
@@ -252,24 +250,49 @@ def test_case_proposal_embeds_the_offer_and_round_trips_through_the_parser():
     proposal = getattr(parsed, "object_", None)
     assert isinstance(proposal, as_CaseProposal)
     assert isinstance(proposal.in_reply_to, as_Offer)
-    assert proposal.in_reply_to.id_ == proposal.offer_id
+    assert proposal.in_reply_to.id_ == body["object"]["inReplyTo"]["id"]
     nested = proposal.in_reply_to.proposed_embargo
     assert isinstance(nested, EmbargoEvent)
     assert nested.context == _report().id_
 
 
-@pytest.mark.spec("CP-01-020")
-def test_case_proposal_refuses_provenance_that_names_a_different_offer():
-    offer = _offer()
-    with pytest.raises(ValueError, match="CP-01-020"):
-        make(
+@pytest.mark.spec("CP-01-007")
+def test_case_proposal_names_an_offer_it_does_not_hold_by_id():
+    """A proposer that knows the Offer but no longer holds it names it by id
+    in ``inReplyTo``, and the parser keeps the id (#6419)."""
+    offer_id = _offer().id_
+    activity = make(
+        as_Create,
+        actor=make(VultronOrganization, id_=_VENDOR),
+        object_=make(
             as_CaseProposal,
+            id_="https://example.org/proposals/p-002",
             attributed_to=_VENDOR,
             object_=_report(),
             target=_CASE_ACTOR,
-            offer_id="urn:uuid:00000000-0000-4000-8000-000000000000",
-            in_reply_to=offer,
-        )
+            in_reply_to=offer_id,
+        ),
+        to=[_CASE_ACTOR],
+    )
+    body = _wire(activity)
+    assert body["object"]["inReplyTo"] == offer_id
+
+    proposal = getattr(parse_activity(body), "object_", None)
+    assert isinstance(proposal, as_CaseProposal)
+    assert proposal.in_reply_to == offer_id
+
+
+@pytest.mark.spec("CP-01-007")
+def test_case_proposal_has_no_offer_reference_besides_in_reply_to():
+    """``inReplyTo`` is the one name for the Offer: no Vultron ``offerId`` or
+    ``offerActorId`` field is declared or serialized beside it (#6419)."""
+    assert not {"offer_id", "offer_actor_id"} & set(
+        as_CaseProposal.model_fields
+    )
+    offer = _offer(_report())
+    body = json.loads(_case_proposal(offer).model_dump_json(by_alias=True))
+    assert body["inReplyTo"]["id"] == offer.id_
+    assert not {"offerId", "offerActorId"} & set(body)
 
 
 @pytest.mark.spec("CP-01-008")
@@ -311,21 +334,6 @@ def test_case_proposal_without_terms_extracts_none():
     event = extract_event(parse_activity(_wire(activity)))
     assert isinstance(event, CreateCaseProposalReceivedEvent)
     assert event.proposed_embargo is None
-
-
-@pytest.mark.spec("CP-01-020")
-def test_case_proposal_refuses_a_sender_that_is_not_the_inline_offers_actor():
-    offer = _offer()
-    with pytest.raises(ValueError, match="offerActorId"):
-        make(
-            as_CaseProposal,
-            attributed_to=_VENDOR,
-            object_=_report(),
-            target=_CASE_ACTOR,
-            offer_id=offer.id_,
-            offer_actor_id="https://example.org/actors/someone-else",
-            in_reply_to=offer,
-        )
 
 
 @pytest.mark.spec("EP-04-004")
@@ -373,7 +381,5 @@ def test_case_proposal_refuses_an_offer_for_a_different_report():
             attributed_to=_VENDOR,
             object_=_report(),
             target=_CASE_ACTOR,
-            offer_id=offer.id_,
-            offer_actor_id=_FINDER,
             in_reply_to=offer,
         )

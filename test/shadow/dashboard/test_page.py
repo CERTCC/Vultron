@@ -184,7 +184,7 @@ render(Watched([__ANSWERS__]))
 
 def _follow_page(answers: str) -> AppTest:
     """The follow page over *answers*, its case entered and followed."""
-    case_id = recording_rows(_RV)[0]["caseId"]
+    case_id = recording_rows(_RV)[0]["context"]
     script = _FOLLOW_PAGE.replace("__ANSWERS__", answers)
     at = AppTest.from_string(script, default_timeout=_TIMEOUT).run()
     at.text_input[0].input(case_id).run()
@@ -964,7 +964,7 @@ def test_a_followed_case_shows_its_new_standing_after_each_entry():
     at = _follow_page("(sse_rows(rows) + CLOSE,)")
     assert at.session_state["seen"] == [1, 2, 3]
     case_id, kept = at.session_state[LAST_READING_KEY]
-    assert case_id == recording_rows(_RV)[0]["caseId"]
+    assert case_id == recording_rows(_RV)[0]["context"]
     assert len(kept.ledger) == 3
     assert "Participants" in _texts(at.subheader)
     assert not at.error

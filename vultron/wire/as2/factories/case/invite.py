@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Factories for the stub Invite to a case and its replies (CM-11-001, CM-17-002).
+"""Factories for the stub Invite to a case and its replies (CM-11-001, CM-17-010).
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
@@ -24,11 +24,9 @@ from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.dimensions import (
-    EmDimension,
-)
+from vultron.core.models.case_preview_profile import INVITATION_PROFILE
+from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.models.enums import VultronObjectType as VO_type
-from vultron.core.models.preview_object import to_loose
 from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._actor import carried_actor
 from vultron.wire.as2.factories._construct import build_activity
@@ -53,135 +51,53 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
-from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent as WireEmbargoEvent,
 )
 
-#: The ``CaseStatus`` fields a preview's ``caseStatus`` shows (CM-17-013): what
-#: identifies the status, the time it was made, and its EM state.
-#: ``published`` stays because every ``CaseStatus`` carries one.
-_PREVIEW_CASE_STATUS_FIELDS = ("id_", "type_", "context", "published", "em")
 
+def _with_embargo_inline(
+    case: VulnerabilityCase, embargo_obj: object
+) -> VulnerabilityCase:
+    """*case*, its in-force register entry holding *embargo_obj* whole.
 
-def _project_case_to_preview(
-    case: VulnerabilityCase,
-    embargo_obj: Any,
-    at: datetime,
-) -> as_CasePreview:
-    """Project a ``VulnerabilityCase`` to its preview, the case stub.
-
-    The stub names no case of its own: the typed reference that carries it
-    names the case by its ``id`` (CM-17-010, ADR-0205).
-
-    While an embargo is in force (``case.embargo_in_force``: EM ``ACTIVE`` or
-    ``REVISE``) the stub carries ``case_status`` (with ``em_state``) and
-    ``active_embargo`` so the invitee can give informed consent (CM-17-002).
-    In ``REVISE`` that is the embargo in force, never the open revision, which
-    is relayed after joining (EP-09-011).  ``active_embargo`` is the **full**
-    embargo, every term as the inviter holds it, not just its ID and
-    ``end_time``: this prototype builds no way for the invitee to ask for the
-    embargo by ID (CM-17-011).  Builds a minimal stub when no embargo is in
-    force.
-
-    Refuses to build a stub when the case carries no ``stub_summary``
-    (CM-17-010, MV-10-001, AC-2 of #4165): the owner must choose a summary
-    before emitting a stub Invite so the invitee can evaluate the case.
-
-    Args:
-        case: The ``VulnerabilityCase`` to project (``as_VulnerabilityCase``
-            is the same class, ARCH-25-003).
-        embargo_obj: The fetched ``EmbargoEvent`` (core or wire), or ``None``
-            when the case holds its active embargo inline.
-        at: The authoring act's instant, the stub status's ``published``.
+    A case seeded from a sealed Announce carries the ``EmbargoEvent``
+    inline; a locally built one holds the id, and the caller fetches the
+    object.  The object is embedded as held, never rebuilt, so the invitee
+    sees the terms the inviter holds.  The stored case is untouched: the
+    entry is replaced on a copy, as for any case put on the wire
+    (:func:`~vultron.core.models.embargo_register.carry_embargo_inline`).
 
     Raises:
-        VultronActivityConstructionError: When the case carries no
-            ``stub_summary``.  Set ``VulnerabilityCase.stub_summary`` before
-            emitting a stub Invite (CM-17-010).  Also when the active
-            embargo cannot be embedded whole (CM-17-011); see
-            :func:`_preview_embargo`.
+        VultronActivityConstructionError: When *embargo_obj* is not an
+            ``EmbargoEvent`` or is not the case's in-force embargo.  A stub
+            naming the embargo by ID alone would leave the invitee no way to
+            read the terms, since the case host serves case objects only to
+            active participants (AKM-05-006, CM-17-011), so it is not sent.
     """
-    stub_summary = case.stub_summary
-    if stub_summary is None:
-        raise VultronActivityConstructionError(
-            f"_project_case_to_preview: case {case.id_!r} has no "
-            "'stub_summary' — set VulnerabilityCase.stub_summary before "
-            "emitting a stub Invite (CM-17-010, MV-10-001)"
-        )
-    case_id = case.id_
-    # EM is derived from the case's embargo register (ADR-0122).
-    # "In force" is the register's ACTIVE entry, so it holds through a
-    # revision (EM REVISE), not only while EM is exactly ACTIVE (CM-17-002).
-    if not case.embargo_in_force:
-        return as_CasePreview(summary=stub_summary)
-    em_state = case.em_state
-    active_embargo = case.active_embargo
-    embargo = _preview_embargo(active_embargo, embargo_obj, case_id)
-    # ``context`` names the case this status belongs to.  It is required on the
-    # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
-    # absent because the wire branch was deliberately lenient (ARCH-12-002).
-    wire_status = as_CaseStatus(
-        context=case_id, em=EmDimension(state=em_state), published=at
-    )
-    # A preview holds its contents in loose forms (ADR-0217).  The embargo is
-    # shown whole, every term as held (CM-17-011); the status only by its
-    # identity, time and EM state, since it is built for the preview and its
-    # other properties are class defaults that say nothing true about the
-    # case (CM-17-013).
-    return as_CasePreview(
-        summary=stub_summary,
-        active_embargo=to_loose(embargo),
-        case_status=to_loose(wire_status, _PREVIEW_CASE_STATUS_FIELDS),
-    )
-
-
-def _preview_embargo(
-    active_embargo: str | WireEmbargoEvent | None,
-    embargo_obj: object,
-    case_id: str,
-) -> WireEmbargoEvent:
-    """The full embargo an enriched stub embeds (CM-17-002, CM-17-011).
-
-    ``active_embargo`` is id-or-object: a case seeded from a sealed Announce
-    carries the ``EmbargoEvent`` inline, a locally built one holds the id.  An
-    inline object is its own *embargo_obj* when the caller supplied none.  The
-    object is embedded as held, never rebuilt, so the invitee sees the terms
-    the inviter holds, its start and name included.
-
-    Raises:
-        VultronActivityConstructionError: When the case names no active
-            embargo, no embargo object is at hand (only its ID is known), or
-            *embargo_obj* is not the case's active embargo.  A stub naming
-            the embargo by ID alone would leave the invitee no way to read
-            the terms, since the case host serves case objects only to active
-            participants (AKM-05-006, CM-17-011), so it is not sent.
-    """
-    if active_embargo is None:
-        raise VultronActivityConstructionError(
-            f"_preview_embargo: case {case_id!r} has an embargo in force but"
-            " names no active embargo, so the stub has no terms to embed"
-            " (CM-17-002, CM-17-011)"
-        )
-    if isinstance(active_embargo, str):
-        active_id = active_embargo
-    else:
-        active_id = active_embargo.id_
-        if embargo_obj is None:
-            embargo_obj = active_embargo
+    entry = case.active_register_entry
+    if embargo_obj is None or entry is None:
+        return case
     if not isinstance(embargo_obj, WireEmbargoEvent):
         raise VultronActivityConstructionError(
-            f"_preview_embargo: case {case_id!r} has active embargo"
-            f" {active_id!r} but no EmbargoEvent object to embed in the stub"
-            " — the stub carries the full embargo, not its ID (CM-17-002,"
-            " CM-17-011)"
+            f"_with_embargo_inline: case {case.id_!r} has embargo"
+            f" {entry.embargo_id!r} in force, and"
+            f" {type(embargo_obj).__name__} is no EmbargoEvent to embed in"
+            " the stub (CM-17-002, CM-17-011)"
         )
-    if embargo_obj.id_ != active_id:
+    if embargo_obj.id_ != entry.embargo_id:
         raise VultronActivityConstructionError(
-            f"_preview_embargo: embargo {embargo_obj.id_!r} is not case"
-            f" {case_id!r}'s active embargo {active_id!r} (CM-17-011)"
+            f"_with_embargo_inline: embargo {embargo_obj.id_!r} is not case"
+            f" {case.id_!r}'s in-force embargo {entry.embargo_id!r}"
+            " (CM-17-011)"
         )
-    return embargo_obj
+    return case.model_copy(
+        update={
+            "embargo_register": carry_embargo_inline(
+                case.embargo_register, embargo_obj
+            )
+        }
+    )
 
 
 def rm_invite_to_case_activity(
@@ -200,10 +116,17 @@ def rm_invite_to_case_activity(
     :func:`vultron.wire.as2.factories.report.rm_submit_report_activity`
     for the scenario where a case does not yet exist.
 
-    The ``object`` is the typed reference naming the case, carrying the
-    case's preview, the case stub projected from *case* by
-    :func:`_project_case_to_preview` (CM-17-010, ADR-0205).  The invitee is the
-    ``target``.
+    The ``object`` is the typed reference naming the case by its ``id``,
+    carrying the case's preview, the case stub (CM-11-013, ADR-0205).  The
+    preview is cut from *case* by
+    :data:`~vultron.core.models.case_preview_profile.INVITATION_PROFILE`
+    (:meth:`~vultron.core.models.case_preview.CasePreview.from_case`,
+    CM-17-010, ADR-0217): the owner's ``stub_summary``, the case name and
+    times, the Case Owner, the current status, each vul item's ``ids`` and,
+    while an embargo is in force (EM ``ACTIVE`` or ``REVISE``), the in-force
+    register entry with the embargo whole, never the open revision
+    (CM-17-011, EP-09-011).  Every other value the case holds is marked
+    ``Redacted``.  The invitee is the ``target``.
 
     Args:
         invitee: The actor being invited: its profile as the sender holds
@@ -216,9 +139,10 @@ def rm_invite_to_case_activity(
             (CM-17-003).  When provided the Invite carries the intended
             participant roles so ``CreateInertInviteeParticipantNode``
             can set them on the new inert ``CaseParticipant``.
-        embargo_obj: The fetched ``EmbargoEvent`` for the case, used when
-            *case* has an embargo in force (EM ``ACTIVE`` or ``REVISE``) to
-            embed the full embargo in the preview (CM-17-002, CM-17-011).
+        embargo_obj: The fetched in-force ``EmbargoEvent``, used when
+            *case*'s register names it by id, to embed it whole in the
+            preview (CM-17-002, CM-17-011).  ``None`` when the register holds
+            it inline or no embargo is in force.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor`` for the inviting party).
 
@@ -229,8 +153,8 @@ def rm_invite_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails,
             *case* is not a ``VulnerabilityCase``, the case carries no
-            ``stub_summary`` (CM-17-010), or its active embargo cannot be
-            embedded whole (CM-17-011).
+            ``stub_summary`` (CM-17-010), or its in-force embargo cannot be
+            embedded whole (CM-17-011, CM-17-024).
     """
     if not isinstance(case, VulnerabilityCase):
         raise VultronActivityConstructionError(
@@ -246,7 +170,10 @@ def rm_invite_to_case_activity(
             "object_": as_TypedReference(
                 type_=VO_type.VULNERABILITY_CASE.value,
                 id_=case.id_,
-                preview=_project_case_to_preview(case, embargo_obj, at),
+                preview=as_CasePreview.from_case(
+                    _with_embargo_inline(case, embargo_obj),
+                    INVITATION_PROFILE,
+                ),
             ),
             "target": carried_actor(invitee),
             **with_case_context(kwargs, case.id_),

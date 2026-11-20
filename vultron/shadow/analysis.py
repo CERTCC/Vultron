@@ -96,7 +96,7 @@ def _ledger_of(entries: Sequence[CaseLedgerEntry]) -> CaseLedger | None:
     read = case_ledgers_from_files(
         [LedgerFile(path=READING_SOURCE, rows=rows)]
     )
-    return read.cases[entries[0].case_id]
+    return read.cases[entries[0].context]
 
 
 def reading_ledger(reading: CaseReading) -> CaseLedger | None:

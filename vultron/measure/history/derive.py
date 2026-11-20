@@ -398,10 +398,11 @@ class _Deriver:
         """The embargo in force when a stub Invite is answered (CM-11-001).
 
         The history's own record of the register wins, since the embargo the
-        Invite named may have ended before the answer; the Invite's
-        ``activeEmbargo`` is read only when the history has seen no embargo
-        start or end, as in a merge missing the genesis entry.  The terms are
-        in the preview the Invite's case reference carries (ADR-0205).
+        Invite named may have ended before the answer; the Invite's preview
+        is read only when the history has seen no embargo start or end, as
+        in a merge missing the genesis entry.  The terms are the in-force
+        entry of the ``embargoRegister`` in the preview the Invite's case
+        reference carries (CM-17-002, ADR-0205).
         """
         if self.started or self.exited:
             return self.active_embargo
@@ -413,9 +414,7 @@ class _Deriver:
                 else None
             )
             if isinstance(preview, dict):
-                return actor_uri(
-                    first_present(preview, "activeEmbargo", "active_embargo")
-                )
+                return _in_force_embargo_of(preview)
         return None
 
     def _join(self, context: _Entry, invitee: str, invite: object) -> None:
@@ -856,6 +855,24 @@ def _case_invitee(invite: object) -> str | None:
     return (
         actor_uri(invite.get("target")) if isinstance(invite, dict) else None
     )
+
+
+def _in_force_embargo_of(preview: Mapping[str, object]) -> str | None:
+    """The id of the embargo a stub Invite's *preview* shows in force.
+
+    The embargo of its ``embargoRegister`` entry whose status is ``ACTIVE``
+    (CM-17-002); ``None`` when it shows none, or withholds the register.
+    """
+    register = first_present(preview, "embargoRegister", "embargo_register")
+    if not isinstance(register, list):
+        return None
+    for entry in register:
+        if (
+            isinstance(entry, dict)
+            and entry.get("status") == EmbargoRegisterStatus.ACTIVE.value
+        ):
+            return actor_uri(entry.get("embargo"))
+    return None
 
 
 def _invited_embargo(invite: object) -> str | None:

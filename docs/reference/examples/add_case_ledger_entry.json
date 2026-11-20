@@ -16,8 +16,8 @@
   "object": {
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/0",
     "type": "CaseLedgerEntry",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2024-01-01T12:00:00.000000+00:00",
-    "caseId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "logIndex": 0,
     "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001",
     "semanticType": "create_case",
@@ -39,6 +39,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z35V28iTq3H6PMTwB7GWvKYVwRMSejdAd8xhJAhBnSnhHMBnZQxV8XDaYc6KyrTC9gBj9i2mvJkHsEGxZn4t2CcUV"
+    "proofValue": "z3kg8ULftSzPbqpMKT7TatzPysJYkVrsvJZfAxjsanfmKzq7h3kvo6P2XjzR3qi7SuH2opnHHe1wwFTWYMxmL73sH"
   }
 }

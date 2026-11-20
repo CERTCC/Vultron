@@ -176,7 +176,7 @@ class TestBufferOutOfOrderEntryNode:
         )
 
         assert result.status == Status.SUCCESS
-        [held] = held_ledger_announces(datalayer, entry.case_id)
+        [held] = held_ledger_announces(datalayer, entry.context)
         assert held.activity_id == event.activity_id
 
     @pytest.mark.spec("SYNC-14-001")
@@ -196,7 +196,7 @@ class TestBufferOutOfOrderEntryNode:
         )
 
         assert result.status == Status.FAILURE
-        assert held_ledger_announces(datalayer, entry.case_id) == []
+        assert held_ledger_announces(datalayer, entry.context) == []
 
     @pytest.mark.spec("SYNC-14-005")
     def test_returns_failure_when_no_tail_index(
@@ -214,4 +214,4 @@ class TestBufferOutOfOrderEntryNode:
         )
 
         assert result.status == Status.FAILURE
-        assert held_ledger_announces(datalayer, entry.case_id) == []
+        assert held_ledger_announces(datalayer, entry.context) == []

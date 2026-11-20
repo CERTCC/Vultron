@@ -112,7 +112,7 @@ class EntryReflectedByCaseCopyNode(DataLayerConditionWithPorts):
             self.name,
             entry.id_,
             entry.log_index,
-            entry.case_id,
+            entry.context,
         )
         return Status.SUCCESS
 
@@ -159,14 +159,14 @@ class CheckEntryAgreesWithCasePositionNode(
             " (SYNC-16-025, SYNC-16-026)",
             self.name,
             entry.id_,
-            entry.case_id,
+            entry.context,
             entry.log_index,
             getattr(self.activity, "activity_id", None),
             getattr(self.activity, "actor_id", None),
         )
         return self._refuse(
             f"ledger entry '{entry.id_}' (log_index={entry.log_index}) is"
-            f" not the entry case '{entry.case_id}' names at its ledger"
+            f" not the entry case '{entry.context}' names at its ledger"
             " position; the chains conflict, so it is not stored"
             " (SYNC-16-025)"
         )

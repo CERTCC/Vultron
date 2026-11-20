@@ -34,7 +34,7 @@ from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
 )
 from vultron.core.behaviors.case.offer_provenance import (
-    offer_provenance_from_proposal,
+    offer_id_from_proposal,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -218,9 +218,9 @@ def create_case_proposal_received_tree(
         proposal_dict: The proposal's AS2 rendering (from ``WireRenderPort``).
             When supplied, the Accept's ``object_`` carries the full inline proposal,
             satisfying CP-05-009 and the AKM-03-003 outbox requirement. Falls back
-            to bare URI when ``None``. It is also where the report's offer
-            provenance arrives (``offerId``/``offerActorId``, CP-01-007), which
-            the ``add_report_to_case`` ledger entry needs and this CaseActor
+            to bare URI when ``None``. It is also where the report's Offer
+            arrives (its ``inReplyTo``, CP-01-007), which the
+            ``add_report_to_case`` ledger entry names and this CaseActor
             cannot look up for itself.
         actor_config: Optional configuration of the CaseActor itself.  Its
             ``protocol_default_embargo_duration`` is the fallback embargo
@@ -263,7 +263,7 @@ def create_case_proposal_received_tree(
     # lookups agree on who the proposer is (#4772).
     proposer_uri = normalise_actor_id(proposer_uri)
 
-    offer_id, offer_actor_id = offer_provenance_from_proposal(proposal_dict)
+    offer_id = offer_id_from_proposal(proposal_dict)
 
     creation_act = create_case_from_proposal_act(
         report_id=report_id,
@@ -274,7 +274,6 @@ def create_case_proposal_received_tree(
         inline_report=inline_report,
         proposer_case_roles=proposer_case_roles,
         offer_id=offer_id,
-        offer_actor_id=offer_actor_id,
         claims_readings=claims_readings,
         stated_report_fields=stated_report_fields,
         activity_id=activity_id,

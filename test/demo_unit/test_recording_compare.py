@@ -68,7 +68,7 @@ def _ledger(acts: Sequence[str] = ("create_case", "engage_case")) -> str:
                 "id": f"{CASE_ID}/log/{index}",
                 "type": "CaseLedgerEntry",
                 "published": "2026-01-01T00:00:00.560000+00:00",
-                "caseId": CASE_ID,
+                "context": CASE_ID,
                 "logIndex": index,
                 "semanticType": act,
                 "payloadSnapshot": {"type": "Create"},

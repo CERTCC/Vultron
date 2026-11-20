@@ -72,7 +72,7 @@ class ApplyOwnershipTransferFromLedgerNode(_LedgerEffectNode):
         assert self.datalayer is not None
 
         entry = self._get_entry()
-        case_id = entry.case_id
+        case_id = entry.context
         carried = entry.payload_snapshot.get("object")
         # The entry carries the owner in its writer's spelling; the replica
         # stores the canonical one (OID-01-006, #5919).

@@ -95,7 +95,7 @@ def test_restart_queues_one_read_stating_the_tail(
         participant_dl.list_objects("CaseLedgerEntry"),
         key=lambda entry: entry.log_index,
     )
-    assert _as_id(read.object_) == f"{tail.case_id}/ledger"
+    assert _as_id(read.object_) == f"{tail.context}/ledger"
     assert read.to == [MANAGER_ID]
     assert read.ledger_position is not None
     assert read.ledger_position.log_index == tail.log_index
@@ -139,10 +139,10 @@ def test_each_statement_is_a_new_activity(participant_dl) -> None:
     )
 
     adapter.send_read_ledger(
-        tail.case_id, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
+        tail.context, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
     )
     adapter.send_read_ledger(
-        tail.case_id, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
+        tail.context, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
     )
 
     reads = _queued_reads(participant_dl)

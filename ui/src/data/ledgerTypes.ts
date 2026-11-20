@@ -75,7 +75,7 @@ export interface CaseLedgerEntry {
   replies?: Record<string, unknown> | string | null
   url?: string | null
   generator?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
-  context?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  context: string
   tag?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   inReplyTo?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   duration?: string | null
@@ -99,7 +99,6 @@ export interface CaseLedgerEntry {
   nameMap?: Record<string, string> | null
   summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
-  caseId: string
   logIndex: number
   term?: number | null
   logObjectId: string
@@ -279,7 +278,7 @@ export const LEDGER_SHAPES = {
       { key: "replies", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } },
       { key: "url", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "generator", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
-      { key: "context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "context", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
       { key: "tag", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "inReplyTo", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "duration", required: false, nullable: true, shape: { kind: "duration" } },
@@ -303,7 +302,6 @@ export const LEDGER_SHAPES = {
       { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
-      { key: "caseId", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
       { key: "logIndex", required: true, nullable: false, shape: { kind: "integer", minimum: -1 } },
       { key: "term", required: false, nullable: true, shape: { kind: "integer" } },
       { key: "logObjectId", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },

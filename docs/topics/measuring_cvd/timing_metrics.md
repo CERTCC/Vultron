@@ -121,7 +121,7 @@ They are per-participant, because Report Management (RM) is per-participant.
 !!! note "Invitees and their two Invites"
 
     An Invitee is a participant that the case invites to join.
-    The case first sends the Invitee a Stub Invite, which asks the Invitee to join and carries only a summary of the case.
+    The case first sends the Invitee a Stub Invite, which asks the Invitee to join and carries a preview of the case: its summary, its Case Owner and the embargo in force, with the case's content withheld.
     After the Invitee joins, the case sends a Full-Case Invite, which carries the full case and asks the Invitee to judge the report (CM-11-011).
     The [Glossary](../../reference/glossary.md#messaging-and-protocol) defines both Invites.
 

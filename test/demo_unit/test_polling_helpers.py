@@ -244,7 +244,7 @@ def test_wait_for_case_participants_raises_on_timeout():
 
 _LEDGER_ENTRY = {
     "type": "CaseLedgerEntry",
-    "case_id": CASE_ID,
+    "context": CASE_ID,
     "semantic_type": "close_case",
     "log_object_id": CASE_ID,
     "log_index": 5,

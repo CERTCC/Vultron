@@ -240,11 +240,11 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
     def test_invariant_11_payload_context_uses_case_uri(
         request: pytest.FixtureRequest,
     ) -> None:
-        """payloadSnapshot.context matches the entry's case_id for recorded entries."""
+        """payloadSnapshot.context matches the entry's context for recorded entries."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_payload_context_uses_case_uri(replicas)
         assert not violations, (
-            f"payloadSnapshot.context != case_id in {len(violations)} entries:\n"
+            f"payloadSnapshot.context != entry context in {len(violations)} entries:\n"
             + "\n".join(violations[:20])
         )
 

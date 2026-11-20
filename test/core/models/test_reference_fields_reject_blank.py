@@ -154,10 +154,10 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
         ),
     ),
     (
-        "CaseLedgerEntry.case_id",
+        "CaseLedgerEntry.context",
         lambda v: make(
             CaseLedgerEntry,
-            case_id=v,
+            context=v,
             log_object_id=URI,
             semantic_type="note_added",
             received_at=ACT_AT,
@@ -168,7 +168,7 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
         "CaseLedgerEntry.log_object_id",
         lambda v: make(
             CaseLedgerEntry,
-            case_id=CASE,
+            context=CASE,
             log_object_id=v,
             semantic_type="note_added",
             received_at=ACT_AT,

@@ -112,7 +112,7 @@ class TestEmbargoLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1
         assert cast(CaseLedgerEntry, entries[0]).semantic_type == semantic_type
@@ -155,7 +155,7 @@ class TestEmbargoLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1
         assert cast(CaseLedgerEntry, entries[0]).semantic_type == (
@@ -207,7 +207,7 @@ class TestEmbargoLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         # Cascade must fire even on BT FAILURE.
         assert len(entries) == 1
@@ -261,7 +261,7 @@ class TestEmbargoLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 0, (
             "Invitee-side receipt must not commit a canonical ledger entry; "
@@ -326,7 +326,7 @@ class TestEmbargoLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         # The answer's entry is its row's entry: no second one follows
         # (ADR-0122, CLP-07-013).
@@ -388,7 +388,7 @@ class TestEmbargoLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         # The answer's entry is its row's entry: no second one follows
         # (ADR-0122, CLP-07-013).

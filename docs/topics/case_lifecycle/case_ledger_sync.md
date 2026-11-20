@@ -39,7 +39,7 @@ These are the fields that carry the ordering and integrity guarantees this page 
 
 | Field | Meaning |
 |---|---|
-| `case_id` | The case this entry belongs to |
+| `context` | The case this entry belongs to (the AS2 `context` every case object uses) |
 | `log_index` | Position in the case history; starts at 0 and counts up |
 | `published` | When the CASE_MANAGER stamped the entry, by its own clock |
 | `prevLogHash` | Hash of the previous entry |

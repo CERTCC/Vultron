@@ -160,7 +160,7 @@ _EMBARGO = make(
 _PARTICIPANT = make(as_CaseParticipant, attributed_to=_ACTOR.id_)
 _LOG_ENTRY = make(
     as_CaseLedgerEntry,
-    case_id=_CASE.id_,
+    context=_CASE.id_,
     log_object_id=_REPORT.id_,
     semantic_type="CREATE_REPORT",
     payload_snapshot={"id": "https://example.org/activities/create-report"},
