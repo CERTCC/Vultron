@@ -178,7 +178,7 @@ A best, good or sub-optimal mark also takes the shade its layer has on its band'
 The ledger records that the public became aware of the vul, but not whether a participant published it or it leaked.
 So the entry that makes the case public is 🎲, except after an embargo that ended on its own terms, at its end time or because a fix was ready or deployed.
 That entry is graded as a participant's publication.
-A public exploit always makes the public aware, so an entry that follows one is 🎲.
+A public exploit always makes the public aware, so the entry where the public becomes aware after a public exploit, or together with one, is 🎲.
 A later publication changes no state, so it is 💬.
 
 To see whether a better move was open earlier, pick a narrative line in **Show the case as it stood just after**, above the scoreboard.

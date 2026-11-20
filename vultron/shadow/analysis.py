@@ -282,14 +282,14 @@ def narrative_marks(
     """The hindsight mark of each line of *reading*'s narrative, in
     log-index order; empty when the reading holds no entry (#6672).
 
-    Each line's step is graded by the advice for the entries before it
-    (:func:`prefix_advice`), worked out only for an entry that changes a
-    state the advice weighs: most entries, such as notes, invitations and
-    consent rows, change none, and grade nothing whatever the advice.
-    *advice_of* reads the advice of each such prefix.  A case's first
-    entries are the same in every longer reading of it, so a caller whose
-    *advice_of* keeps its results, as the page's does, works out a followed
-    case's new entries alone.
+    Each line's step is graded by the advice for the entries before it,
+    as *advice_of* reads it (:func:`ledger_advice` by default, the advice
+    :func:`prefix_advice` gives), worked out only for an entry that changes
+    a state the advice weighs: most entries, such as notes, invitations and
+    consent rows, change none, and grade nothing whatever the advice.  A
+    case's first entries are the same in every longer reading of it, so a
+    caller whose *advice_of* keeps its results, as the page's does, works
+    out a followed case's new entries alone.
     """
     ledger = reading_ledger(reading)
     if ledger is None:
