@@ -187,7 +187,9 @@ def _owner_is_the_case_manager_store() -> _RemovalCase:
     for actor_id, gains in ((MANAGER, True), (OWNER, False)):
         record = dl.read(case.actor_participant_index[actor_id])
         assert isinstance(record, CaseParticipant)
-        roles = [r for r in record.case_roles if r is not CVDRole.CASE_OWNER]
+        roles: list[CVDRole] = [
+            r for r in record.case_roles if r is not CVDRole.CASE_OWNER
+        ]
         if gains:
             roles.append(CVDRole.CASE_OWNER)
         dl.save(record.model_copy(update={"case_roles": roles}))
