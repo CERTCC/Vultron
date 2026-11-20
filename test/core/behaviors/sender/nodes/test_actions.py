@@ -117,19 +117,19 @@ class TestResolveCaseManagerNode:
         assert result.status == Status.SUCCESS
 
     def test_writes_case_manager_id_to_blackboard(self, dl, bridge):
-        """``/case_manager_id`` is published for later nodes of the same
+        """``/case_actor_id`` is published for later nodes of the same
         execution and does not outlive it (#5803).
         """
         store, actor = dl
         case, _ = _make_case_with_case_manager(store, actor.id_, CASE_ACTOR_ID)
         tree, probe = BlackboardKeyProbe.after(
             with_act_keys(ResolveCaseManagerNode(), {CASE_KEY: case.id_}),
-            "case_manager_id",
+            "case_actor_id",
         )
         result = run_tree(bridge, tree=tree, actor_id=actor.id_)
         assert result.status == Status.SUCCESS
         assert probe.value == CASE_ACTOR_ID
-        assert "/case_manager_id" not in py_trees.blackboard.Blackboard.storage
+        assert "/case_actor_id" not in py_trees.blackboard.Blackboard.storage
 
     def test_failure_when_case_not_found(self, dl, bridge):
         _, actor = dl

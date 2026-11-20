@@ -57,7 +57,7 @@ def request_invite_actor_to_case() -> as_Offer:
     """The Case Owner asks the CASE_MANAGER to invite an actor (CM-17-007).
 
     The vendor, as Case Owner, sends its own ``Offer(Actor)`` to the
-    CASE_MANAGER with the roles it offers in ``suggestedRoles``.  The wire
+    CASE_MANAGER with the roles it offers in ``roles``.  The wire
     form is a participant's suggestion; the CASE_MANAGER answers it with the
     stub Invite because the sender holds the Case Owner role.
     """
@@ -68,7 +68,7 @@ def request_invite_actor_to_case() -> as_Offer:
         context=_case.id_,
         target=_case.id_,
         to=case_actor().id_,
-        suggested_roles=[CVDRole.COORDINATOR.value],
+        roles=[CVDRole.COORDINATOR.value],
         at=EXAMPLE_TIMESTAMP,
     )
 

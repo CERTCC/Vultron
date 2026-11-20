@@ -313,7 +313,7 @@ def test_invite_stub_shows_the_ids_of_each_stored_vul_item(adapter, dl):
     item = make(
         VulnerabilityItem,
         context=case_id,
-        title="Buffer overflow in the parser",
+        name="Buffer overflow in the parser",
         ids=[VulnerabilityItemId.cve("CVE-2026-0042")],
     )
     dl.create(item)

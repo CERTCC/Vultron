@@ -303,7 +303,10 @@ leaves subtrees no walk can reach.
   stage still wraps its nodes in `with_case_id`, and a received tree cannot
   while its shared stages use `with_case_id`. A key declared published needs
   exactly one lookup node, so a guard repeated across stages, such as
-  `CheckIsCaseManagerNode` publishing `/case_actor_id`, is folded first.
+  `CheckIsCaseManagerNode` publishing `/case_actor_id` beside the path stage and
+  `ResolveCaseManagerNode`, is folded first. Until then a reader of an
+  undeclared multi-publisher key follows its own publisher in its own arm, as
+  `terminate_embargo_bt`'s ask re-resolves the manager.
   Reason: a scoped copy and the seed can differ (a resolved case id against a
   short id), and tick order would choose between them. Pinned by
   `test_a_seeded_case_id_under_the_clock_decision_stage_has_two_sources`.

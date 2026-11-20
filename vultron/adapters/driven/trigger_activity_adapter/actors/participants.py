@@ -164,7 +164,7 @@ class _ParticipantsMixin:
         activity = recommend_actor_activity(
             recommended=_held_actor(self._dl, recommended_id),
             target=case_id,
-            suggested_roles=roles,
+            roles=roles,
             **extra,
             at=at,
         )

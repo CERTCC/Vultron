@@ -95,7 +95,7 @@ class TestRequestInviteActorToCase(unittest.TestCase):
         self.assertEqual(self.activity.target, case().id_)
 
     def test_carries_the_offered_roles(self):
-        self.assertEqual(self.activity.suggested_roles, ["coordinator"])
+        self.assertEqual(self.activity.roles, ["coordinator"])
 
 
 class TestAcceptActorRecommendation(unittest.TestCase):

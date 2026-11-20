@@ -92,7 +92,7 @@ class OfferActorToCaseReceivedUseCase:
             if isinstance(offer_summary, str) and offer_summary.strip():
                 offer_content = offer_summary
 
-        suggested_roles = getattr(request.activity, "suggested_roles", None)
+        suggested_roles = getattr(request.activity, "roles", None)
         if suggested_roles is not None and not isinstance(
             suggested_roles, list
         ):

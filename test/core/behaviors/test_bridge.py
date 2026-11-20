@@ -661,12 +661,10 @@ _SCOPED_OUTPUT_PORT_KEYS = [
     # replica of a case the acknowledgement never named (HP-01-040,
     # RMB-08-003).
     pytest.param("case_id", id="case_id"),
-    # ResolveCaseManagerNode publishes it; a stale one would address a
-    # trigger's activities to another case's CASE_MANAGER (#5803).
-    pytest.param("case_manager_id", id="case_manager_id"),
-    # FindCaseActorNode, ReceivedPathNode and CheckIsCaseManagerNode publish
-    # it; a stale one would address a genesis Announce or a replay to the
-    # wrong actor (#5803).
+    # FindCaseActorNode, ReceivedPathNode, CheckIsCaseManagerNode and
+    # ResolveCaseManagerNode publish it; a stale one would address a genesis
+    # Announce, a replay or a trigger's activities to another case's
+    # CASE_MANAGER (#5803).
     pytest.param("case_actor_id", id="case_actor_id"),
     # PublishEmbargoProposerNode publishes it; a stale one would let a run
     # that published no proposer record another proposal's proposer's
