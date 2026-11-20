@@ -147,6 +147,15 @@ The page shows the case as it stands at its last ledger entry, unless you pick a
   A trade-off move that a harm-free move beats says so under **Dominated by**.
 - **Moves with no band** lists each other move a participant can make, with the reason it has no band.
   The tool never adds the Vendors' values into one score, and never ranks the moves by one.
+- **Action rules** lists, for each Vendor, the authored action rules that match the Vendor's position, as [Recommended Action Rules for CVD](../topics/other_uses/action_rules.md) numbers them.
+  Each rule is compared with its move's band for that Vendor: an agreement (✅) when the move is harm-free for it, a rule disagreement (⚠️) when the move is unhelpful for it.
+  A misplaced rule (⚠️) names a move that the state machines do not allow there, or one that the rule's roles may not make.
+  An unclaimed move (💡) is harm-free for the Vendor, and no matching rule names it.
+  A warning above the table counts the flagged rows; neither the rule nor the band is ground truth, so you judge which one is wrong.
+- **Rules with no number**, a closed group below the action rules, lists the rules that no band can check, with the reason: an action that changes no state, a step that happens anyway, or a rule that names no desideratum.
+  A rule that reads a Vendor's consent to an embargo, which the reading does not hold, shows as undecided (❔).
+  A rule never removes a move from the bands.
+  [Action Rules Against Move Advice](../topics/measuring_cvd/action_rule_comparison.md) gives the same comparison at every position of one Vendor.
 
 A ledger with a missing entry shows the missing entry instead of a standing, because a measure over a history with a gap is wrong.
 
@@ -182,7 +191,7 @@ A public exploit always makes the public aware, so the entry where the public be
 A later publication changes no state, so it is 💬.
 
 To see whether a better move was open earlier, pick a narrative line in **Show the case as it stood just after**, above the scoreboard.
-The scoreboard then shows the case as it stood just after that entry: its states and their maps, its participants and their tabs, its desiderata, and its move bands with their color legends, worked out from the entries up to that line only.
+The scoreboard then shows the case as it stood just after that entry: its states and their maps, its participants and their tabs, its desiderata, its move bands with their color legends, and its action rules, worked out from the entries up to that line only.
 A note above the scoreboard names the entry, and the case narrative still lists every entry.
 A point before a missing entry has a standing, even when the whole ledger shows the missing entry instead.
 Pick **Now** to see where the case stands at its last entry again.

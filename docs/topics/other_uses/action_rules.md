@@ -26,13 +26,14 @@ to synchronize state transitions across CVD stakeholders.
     A significant portion of CVD can be formally described as a set of action
     rules based on this model. For our purposes, a CVD action rule consists of:
     
-    | Rule Component | Description                                                                             |
-    |----------------|-----------------------------------------------------------------------------------------|
-    | State subset   | The subset of states $Q^{cs} \in \mathcal{Q^{cs}}$ from which the action may be taken   |
-    | Role(s)        | The role(s) capable of performing the action                                            |
-    | Action         | A summary of the action to be taken                                                     |
-    | Reason         | The rationale for taking the action                                                     |
-    | Transition     | The state transition event $\sigma^{cs} \in \Sigma^{cs}$ induced by the action (if any) |
+    | Rule Component | Description                                                                                                                     |
+    |----------------|---------------------------------------------------------------------------------------------------------------------------------|
+    | Pattern        | The subset of states $Q^{cs} \in \mathcal{Q^{cs}}$ from which the action may be taken, narrowed by the states of other machines |
+    | Role(s)        | The role(s) capable of performing the action                                                                                    |
+    | Action         | A summary of the action to be taken                                                                                             |
+    | Reason         | The rationale for taking the action                                                                                             |
+    | Desiderata     | The desiderata the action serves, where the reason is one                                                                       |
+    | Move           | The state transition the action causes, if any                                                                                  |
 
 This rule structure follows a common user story pattern:
 
@@ -44,66 +45,25 @@ This rule structure follows a common user story pattern:
 
 ## CVD Action Suggestion Rules
 
-We define a set of such rules in the table below.
+The table below lists the authored action rules of [ADR-0216](../../adr/0216-action-rules-span-cs-rm-em-and-pec-and-authored-rules-are-compared-with-rules-generated-from-move-advice.md).
+Each rule carries over one pattern and action of the original CS rules, shown in the column "Carried over from".
+A rule can be narrowed by the vendor's report management (RM) state, the case's embargo management (EM) state, or the vendor's consent to an embargo (PEC), wherever those states change what the rule is.
+A rule names the desiderata that its reason serves, where its reason is one: situation awareness (SA), detection, and defense order no events.
+An action causes its case-state event only the first time, so a publication after the public is aware is still a valid action that changes no state.
+The original rule that starts the Vulnerabilities Equities Process (VEP) of the US government is left out, because it is not a move of the protocol.
+A rule suggests an action and never forbids one.
 
-| State Subset<br/>($q^{cs} \in Q^{cs}$) |     Role(s)      | Action                                                 | Reason                                       | $\sigma$ |
-|:--------------------------------------:|:----------------:|--------------------------------------------------------|----------------------------------------------|:--------:|
-|     $\cdot\cdot\cdot p \cdot\cdot$     |       any        | Terminate any existing embargo                         | Exit criteria met                            |    -     |
-|     $\cdot\cdot\cdot\cdot X \cdot$     |       any        | Terminate any existing embargo                         | Exit criteria met                            |    -     |
-|     $\cdot\cdot\cdot\cdot\cdot A$      |       any        | Terminate any existing embargo                         | Exit criteria met                            |    -     |
-|     $\cdot\cdot\cdot\cdot x\cdot$      |       any        | Monitor for exploit publication                        | SA                                           |    -     |
-|     $\cdot\cdot\cdot\cdot X\cdot$      |       any        | Monitor for exploit refinement                         | SA                                           |    -     |
-|     $\cdot\cdot\cdot\cdot\cdot a$      |       any        | Monitor for attacks                                    | SA                                           |    -     |
-|     $\cdot\cdot\cdot\cdot\cdot A$      |       any        | Monitor for additional attacks                         | SA                                           |    -     |
-|            $vfdP\cdot\cdot$            |      vendor      | Pay attention to public reports                        | SA                                           |  **V**   |
-|       $\cdot\cdot\cdot pX\cdot$        |       any        | Draw attention to published exploit(s)                 | SA                                           |  **P**   |
-|       $\cdot\cdot\cdot PX\cdot$        |       any        | Draw attention to published exploit(s)                 | SA                                           |  **P**   |
-|         $\cdot\cdot\cdot pxa$          |       any        | Maintain vigilance for embargo exit criteria           | SA                                           |    -     |
-|            $VfdP\cdot\cdot$            |       any        | Escalate vigilance for exploit publication or attacks  | SA, Coordination                             |    -     |
-|     $\cdot\cdot\cdot\cdot X\cdot$      |       any        | Publish detection(s) for exploits                      | Detection                                    |  **P**   |
-|     $\cdot\cdot\cdot\cdot\cdot A$      |       any        | Publish detection(s) for attacks                       | Detection                                    |  **P**   |
-|       $V\cdot\cdot p\cdot\cdot$        |       any        | Publish vul and any mitigations (if no active embargo) | Defense                                      |  **P**   |
-|         $\cdot fdP \cdot\cdot$         |       any        | Publish mitigations                                    | Defense                                      |    -     |
-|       $\cdot\cdot\cdot pX \cdot$       |       any        | Publish vul and any mitigations                        | Defense                                      |  **P**   |
-|       $\cdot\cdot\cdot PX \cdot$       |       any        | Publish vul and any mitigations                        | Defense                                      |  **P**   |
-|       $\cdot\cdot\cdot p\cdot A$       |       any        | Publish vul and any mitigations                        | Defense                                      |  **P**   |
-|            $VfdP\cdot\cdot$            |       any        | Publish mitigations                                    | Defense                                      |    -     |
-|            $vfdp\cdot\cdot$            |       any        | Publish vul and any mitigations (if no vendor exists)  | Defense                                      |  **P**   |
-|            $VfdP\cdot\cdot$            |       any        | Ensure any available mitigations are publicized        | Defense                                      |    -     |
-|          $Vfd\cdot\cdot\cdot$          |      vendor      | Create fix                                             | Defense                                      |  **F**   |
-|            $VFdp\cdot\cdot$            | vendor, deployer | Deploy fix (if possible)                               | Defense                                      |  **D**   |
-|            $VFdP\cdot\cdot$            |     deployer     | Deploy fix                                             | Defense                                      |  **D**   |
-|             $\cdot fdPxA$              |       any        | Publish exploit code                                   | Defense, Detection                           |  **X**   |
-|                $VFdPxa$                |       any        | Publish exploit code                                   | Defense, Detection, Accelerate deployment    |  **X**   |
-|          $vfd\cdot\cdot\cdot$          |    non-vendor    | Notify vendor                                          | Coordination                                 |  **V**   |
-|       $\cdot\cdot dP\cdot\cdot$        |       any        | Escalate response priority among responding parties    | Coordination                                 |    -     |
-|       $\cdot\cdot d\cdot X\cdot$       |       any        | Escalate response priority among responding parties    | Coordination                                 |    -     |
-|       $\cdot\cdot d\cdot\cdot A$       |       any        | Escalate response priority among responding parties    | Coordination                                 |    -     |
-|          $Vfd\cdot\cdot\cdot$          |    non-vendor    | Encourage vendor to create fix                         | Coordination                                 |    -     |
-|         $\cdot\cdot\cdot pxa$          |       any        | Maintain any existing disclosure embargo               | Coordination                                 |    -     |
-|           $\cdot\cdot dpxa$            |       any        | Negotiate or establish disclosure embargo              | Coordination                                 |    -     |
-|            $VfdP\cdot\cdot$            |    non-vendor    | Escalate fix priority with vendor                      | Coordination                                 |    -     |
-|            $Vfdp\cdot\cdot$            |    non-vendor    | Publish vul                                            | Coordination, Motivate vendor to fix         |  **P**   |
-|            $Vfdp\cdot\cdot$            |       any        | Publish vul                                            | Coordination, Motivate deployers to mitigate |  **P**   |
-|            $VFdp\cdot\cdot$            |    non-vendor    | Encourage vendor to deploy fix (if possible)           | Coordination                                 |    -     |
-|                $VFdpxa$                |       any        | Scrutinize appropriateness of initiating a new embargo | Coordination                                 |    -     |
-|            $VFdp\cdot\cdot$            |       any        | Publish vul and fix details                            | Accelerate deployment                        |  **P**   |
-|            $VFdP\cdot\cdot$            |       any        | Promote fix deployment                                 | Accelerate deployment                        |    -     |
-|            $VFDp\cdot\cdot$            |       any        | Publish vulnerability                                  | Document for future reference                |  **P**   |
-|            $VFDp\cdot\cdot$            |       any        | Publish vulnerability                                  | Acknowledge contributions                    |  **P**   |
-|           $\cdot\cdot fdxa$            |       any        | Discourage exploit publication until at least **F**    | Limit attacker advantage                     |    -     |
-|              $vfdpx\cdot$              |     US Gov't     | Initiate VEP (if applicable)                           | Policy                                       |    -     |
-|                $VFDPXA$                |       any        | Close case                                             | No action required                           |    -     |
-|                $VFDPxa$                |       any        | Close case (unless monitoring for X or A)              | No action required                           |    -     |
-|                $VFDPXa$                |       any        | Close case (unless monitoring for A)                   | No action required                           |    -     |
-|                $VFDPxA$                |       any        | Close case (unless monitoring for X)                   | No action required                           |    -     |
+The command `uv run action-rules-docs --write` generates the table from the authored rules, and a test fails when the table is stale.
+[Action Rules Against Move Advice](../measuring_cvd/action_rule_comparison.md) compares each rule with move advice at every position of one vendor.
+
+{% include-markdown "./_action_rules_table.md" %}
 
 !!! vultron "CVD Action Suggestion Rules Engine"
 
     The rules listed in the table above can be built into a rules engine that
     translates each state in the model to a set of suggested CVD actions.
     The detailed [case state listings](../../reference/case_states/index.md) in the
-    references section show these rules applied to each $q^{cs}$ state.
+    references section show the original CS rules applied to each $q^{cs}$ state.
 
     Furthermore, much of the logic embodied in the rules above forms the basis of the
     [Vultron Process Models](../process_models/index.md)

@@ -55,3 +55,37 @@ def names_type(value: object, names: Collection[str]) -> bool:
 def first_named(value: object, names: Collection[str]) -> str | None:
     """The first term of *value* that is in *names*, or ``None``."""
     return next((t for t in type_terms(value) if t in names), None)
+
+
+def with_supertype_term(data: Any, own: str, supertype: str | None) -> Any:
+    """*data* with ``type`` written as ``[own, supertype]`` when one is declared.
+
+    The one place a sender writes an extension type with the AS2 core type it
+    refines (VM-03-005, ADR-0196): ``["Refuse", "Reject"]`` for a wire class,
+    ``["EmbargoEvent", "Event"]`` for a core one (ADR-0201).  *data* is
+    returned unchanged when *supertype* is ``None``, when it is not a dict,
+    or when it carries no ``type`` key.  Only the wire dump calls this: the
+    persistence dump keeps ``type_`` one string, so a stored row reads back
+    as it was written.
+    """
+    if supertype is None or not isinstance(data, dict) or "type" not in data:
+        return data
+    return {**data, "type": [own, supertype]}
+
+
+def read_type_list_as_own(
+    data: dict[str, Any], own: str
+) -> dict[str, Any] | None:
+    """*data* with a ``type`` list naming *own* read as *own*, or ``None``.
+
+    A class whose ``type_`` holds one string reads a list that names its own
+    type as that type (VM-03-006), so it reads back the list its own wire
+    dump writes (:func:`with_supertype_term`).  ``None`` when no ``type`` (or
+    ``type_``) key holds a list naming *own*; *data* is never modified.
+    """
+    narrowed = data
+    for key in ("type", "type_"):
+        value = data.get(key)
+        if isinstance(value, list) and own in type_terms(value):
+            narrowed = {**narrowed, key: own}
+    return None if narrowed is data else narrowed

@@ -38,7 +38,7 @@ publication, is named by its member of
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from enum import StrEnum
 from functools import cache
 from types import MappingProxyType
@@ -386,6 +386,25 @@ class RulePattern(BaseModel):
         """Whether the pattern has a PEC part."""
         return self.in_force is not None or self.proposal is not None
 
+    @property
+    def label(self) -> str:
+        """The pattern as text: its CS part, then each part that names
+        states, its states in their enum order: ``VFdpx. · RM ACCEPTED,
+        DEFERRED · EM ACTIVE``."""
+        parts = [self.cs]
+        named: list[tuple[str, frozenset[StrEnum] | None]] = [
+            ("RM", self.rm),
+            ("EM", self.em),
+            ("in-force PEC", self.in_force),
+            ("proposal PEC", self.proposal),
+        ]
+        for title, part in named:
+            if part is not None:
+                members = type(next(iter(part)))
+                states = [m.name for m in members if m in part]
+                parts.append(f"{title} {', '.join(states)}")
+        return " · ".join(parts)
+
     def matches_cs(self, state: CS) -> bool:
         """Whether the CS part matches *state*."""
         return cs_pattern_matches(self.cs, state)
@@ -610,6 +629,29 @@ class AuthoredRule(BaseModel):
         return self.action if isinstance(self.action, str) else None
 
     @property
+    def carried_action(self) -> Actions | None:
+        """The ``Actions`` member the rule names, or else the one its source
+        pair carries; ``None`` for a new rule that names a move."""
+        if isinstance(self.action, Actions):
+            return self.action
+        return None if self.source is None else self.source.action
+
+    @property
+    def action_label(self) -> str:
+        """Its action as text: the ``Actions`` member it names or carries
+        over, in words, with the move it names in parentheses: ``Create fix
+        (cs.fix_is_ready)``, ``Monitor for attacks``, or a new rule's bare
+        move name."""
+        carried = self.carried_action
+        if carried is None:
+            assert isinstance(self.action, str), "a rule naming no Actions"
+            return self.action
+        words = action_words(carried)
+        if isinstance(self.action, Actions):
+            return words
+        return f"{words} ({self.action})"
+
+    @property
     def roles_label(self) -> str:
         """Its roles as text: ``any``, or the roles in ``CVDRole`` order."""
         if self.roles == ANY_ROLE:
@@ -620,6 +662,58 @@ class AuthoredRule(BaseModel):
         """Whether the rule's roles include *role*; ``None`` is any role,
         which every rule's roles include."""
         return role is None or self.roles == ANY_ROLE or role in self.roles
+
+
+def rule_number(rule: AuthoredRule, rules: Sequence[AuthoredRule]) -> int:
+    """*rule*'s place in *rules*, from 1: the number the docs and the page
+    give it.
+
+    Raises:
+        ValueError: *rule* is not one of *rules*.
+    """
+    return list(rules).index(rule) + 1
+
+
+class RuleNumbers:
+    """Each rule's place in one table, from 1, numbered once.
+
+    :func:`rule_number` scans the table and compares whole rules, which a
+    pass over every point repeats thousands of times.  This looks a rule up
+    by identity instead: give it the rule objects the table holds, as a
+    comparison's results do.  Two equal rules in the table keep their own
+    numbers.
+    """
+
+    def __init__(self, rules: Sequence[AuthoredRule]) -> None:
+        # The table is held so that no number's id is reused.
+        self._rules = tuple(rules)
+        self._numbers = {
+            id(rule): number
+            for number, rule in enumerate(self._rules, start=1)
+        }
+
+    def __call__(self, rule: AuthoredRule) -> int:
+        """*rule*'s number.
+
+        Raises:
+            ValueError: *rule* is not one of the table's rule objects.
+        """
+        number = self._numbers.get(id(rule))
+        if number is None:
+            raise ValueError(
+                "the rule is not one of the numbered table's rules"
+            )
+        return number
+
+
+def rule_label(number: int) -> str:
+    """A rule by its number: ``Rule 12``."""
+    return f"Rule {number}"
+
+
+def action_words(action: Actions) -> str:
+    """*action* in words: ``Actions.CREATE_FIX`` is ``Create fix``."""
+    return action.name.replace("_", " ").capitalize()
 
 
 def _within[S: StrEnum](

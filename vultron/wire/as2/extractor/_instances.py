@@ -26,22 +26,22 @@ from vultron.wire.as2.extractor._pattern import (
 
 RemoveEmbargoEventFromCasePattern = ActivityPattern(
     description=(
-        "Remove an embargo event from a vulnerability case. This is typically "
-        "observed as a REMOVE activity where the object is an EVENT. The "
-        "origin field of the activity contains the VulnerabilityCase from "
-        "which the embargo is removed."
+        "Remove an embargo event from a vulnerability case. This is "
+        "typically observed as a REMOVE activity where the object is an "
+        "EmbargoEvent. The origin field of the activity contains the "
+        "VulnerabilityCase from which the embargo is removed."
     ),
     activity_=TAtype.REMOVE,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
 )
 AnnounceEmbargoEventToCasePattern = ActivityPattern(
     description=(
-        "Announce an embargo event to a vulnerability case. This is typically "
-        "observed as an ANNOUNCE activity where the object is an EVENT and the "
-        "context is a VULNERABILITY_CASE."
+        "Announce an embargo event to a vulnerability case. This is "
+        "typically observed as an ANNOUNCE activity where the object is an "
+        "EmbargoEvent and the context is a VULNERABILITY_CASE."
     ),
     activity_=TAtype.ANNOUNCE,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
     context_=VOtype.VULNERABILITY_CASE,
 )
 InviteToEmbargoOnCasePattern = ActivityPattern(
@@ -53,7 +53,7 @@ InviteToEmbargoOnCasePattern = ActivityPattern(
         "Corresponds to EmProposeEmbargoActivity."
     ),
     activity_=TAtype.INVITE,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
     target_=AOtype.ACTOR,
     context_=VOtype.VULNERABILITY_CASE,
 )
@@ -113,7 +113,7 @@ ActivateEmbargoOnCasePattern = ActivityPattern(
         "an embargo (ADR-0180)."
     ),
     activity_=TAtype.ADD,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
     target_=VOtype.VULNERABILITY_CASE,
     # target_ is lenient: the case target is a bare URI by design (the
     # recipient holds the case, so ``case_target_ref`` reduces it,
@@ -130,7 +130,7 @@ RejectEmbargoProposalOnCasePattern = ActivityPattern(
         "is the VulnerabilityCase (ADR-0122, ADR-0180)."
     ),
     activity_=TAtype.REJECT,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
     target_=VOtype.VULNERABILITY_CASE,
     # target_ lenient, for the same reason as the activation pattern above.
 )
@@ -143,7 +143,7 @@ WithdrawFromEmbargoOnCasePattern = ActivityPattern(
         "Leave(VulnerabilityCase), which leaves the case."
     ),
     activity_=TAtype.LEAVE,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
     context_=VOtype.VULNERABILITY_CASE,
 )
 

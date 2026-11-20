@@ -298,7 +298,7 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
       "context": "https://vultron.example/cases/1",
       "summary": "We propose to embargo case 1 for 90 days.",
       "object": {
-        "type": "EmbargoEvent",
+        "type": ["EmbargoEvent", "Event"],
         "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
         "published": "2026-06-01T18:00:00.000000+00:00",
         "context": "https://vultron.example/cases/1",
@@ -325,7 +325,7 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
       "endTime": "2026-06-08T19:12:00.000000+00:00",
       "summary": "The vendor proposes to embargo case 1 for 90 days.",
       "object": {
-        "type": "EmbargoEvent",
+        "type": ["EmbargoEvent", "Event"],
         "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
         "published": "2026-06-01T18:00:00.000000+00:00",
         "context": "https://vultron.example/cases/1",
@@ -358,7 +358,7 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
         "published": "2026-06-01T19:12:00.000000+00:00",
         "endTime": "2026-06-08T19:12:00.000000+00:00",
         "object": {
-          "type": "EmbargoEvent",
+          "type": ["EmbargoEvent", "Event"],
           "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
           "published": "2026-06-01T18:00:00.000000+00:00",
           "context": "https://vultron.example/cases/1",

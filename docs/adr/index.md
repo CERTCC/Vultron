@@ -279,6 +279,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0192 The Shadow Is a Streamlit Dashboard, Shipped as a Compose Service](0192-the-shadow-is-a-streamlit-dashboard-shipped-as-a-compose-service.md) *(revision 2)*
 - [ADR-0193 A Redacted Marker Builds a Preview and Appears Nowhere Else](0193-a-redacted-marker-builds-a-preview-and-appears-nowhere-else.md) *(revision 2)* *(provisional)*
 - [ADR-0194 Every Wire Field Has a Typed JSON-LD Term, With One Meaning per Name](0194-every-wire-field-has-a-typed-json-ld-term-with-one-meaning-per-name.md) *(provisional)*
+- [ADR-0195 A Received Handler Builds and Runs Its Tree, and the Verdict Is Read From Node Declarations](0195-a-received-handler-builds-and-runs-its-tree-and-the-verdict-is-read-from-node-declarations.md) *(revision 5)* *(provisional)*
 - [ADR-0196 A Refusal Notice Is a Refuse, a Subtype of Reject](0196-a-refusal-notice-is-a-refuse-a-subtype-of-reject.md) *(provisional)* — partially supersedes 0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md
 - [ADR-0197 A Case Reading Reports Its Inferences and What Its Source Cannot Observe](0197-a-case-reading-reports-its-inferences-and-what-its-source-cannot-observe.md) *(revision 2)*
 - [ADR-0198 An Object Slot Holds a Whole Object, a Typed Reference or a URI, and a Received Whole Object Carries Its Time](0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md) *(revision 2)* *(provisional)* — partially supersedes 0103-object-time-is-carried-never-minted.md, 0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md
@@ -302,7 +303,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
 - [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) *(revision 4)*
 - [ADR-0186 One Participant-Suggestion Port, Narrowed by a Core Projection, Serves Both a Call-Out and a Call-In Caller](0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md) *(revision 2)*
-- [ADR-0195 A Received Handler Builds and Runs Its Tree, and the Verdict Is Read From Node Declarations](0195-a-received-handler-builds-and-runs-its-tree-and-the-verdict-is-read-from-node-declarations.md) *(revision 5)*
 - [ADR-0201 An EmbargoEvent Is a Vultron Extension Type and a Subtype of Event](0201-an-embargoevent-is-a-vultron-extension-type-and-a-subtype-of-event.md)
 - [ADR-0202 An Embargo Stores Its Own Status, and the Register Is the Case's Ordered List of Embargoes](0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md) — partially supersedes 0122-per-embargo-participant-consent.md
 - [ADR-0208 Core Owns the AS2 Base Vocabulary](0208-core-owns-the-as2-base-vocabulary.md) — partially supersedes 0099-one-object-model-as2-is-a-serialization.md

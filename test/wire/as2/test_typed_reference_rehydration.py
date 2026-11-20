@@ -218,9 +218,11 @@ def test_a_reference_by_base_type_to_a_held_subtype_is_replaced_by_it(
 ) -> None:
     """A held core ``EmbargoEvent`` answers an ``{id, type: Event}`` reference.
 
-    The core class does not subclass the wire ``as_Event``, yet the pattern
-    routes the reference as an embargo Invite, so rehydration must read the
-    held embargo the same way, not refuse it as another type (MV-10-011).
+    The core class does not subclass the wire ``as_Event``, but it is an AS2
+    subtype of ``Event`` (ADR-0201), so rehydration reads the held embargo
+    for the reference, not refuse it as another type (MV-10-011).  Before
+    rehydration the reference names only an ``Event``, which no embargo
+    pattern matches (ADR-0201): the receiver must read the object first.
     """
     dl, case_id, _ = held
     embargo = make(
@@ -242,7 +244,7 @@ def test_a_reference_by_base_type_to_a_held_subtype_is_replaced_by_it(
     )
     assert (
         find_matching_semantics(activity)
-        == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+        == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
     )
 
     with caplog.at_level(logging.WARNING):

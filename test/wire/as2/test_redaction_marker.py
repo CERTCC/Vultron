@@ -531,7 +531,7 @@ CUT_PREVIEW: dict[str, Any] = {
     "embargoRegister": [
         {
             "embargo": {
-                "type": "EmbargoEvent",
+                "type": ["EmbargoEvent", "Event"],
                 "id": "urn:uuid:embargo-1",
                 "endTime": "2026-12-01T00:00:00.000000+00:00",
             },

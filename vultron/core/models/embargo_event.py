@@ -16,7 +16,7 @@
 """Domain representation of an EmbargoEvent."""
 
 from datetime import datetime
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import Field, model_validator
 
@@ -30,7 +30,14 @@ class EmbargoEvent(CoreObject):
     ``type_`` is ``"EmbargoEvent"`` to match the wire vocabulary key, enabling
     proper DataLayer round-trips via ``dl.read()`` and ``dl.list_objects()``,
     and to auto-register this class in :data:`CORE_VOCABULARY`.
+
+    A Vultron extension type and a subtype of AS2 ``Event`` (ADR-0201): its
+    AS2 dump writes ``"type": ["EmbargoEvent", "Event"]`` (VM-03-005), so a
+    generic AS2 reader sees an event, and a receiver reads the list back as
+    this class (VM-03-006).
     """
+
+    _as2_core_supertype_term: ClassVar[str | None] = "Event"
 
     # Every author states it (ADR-0176), and a receiver refuses a received
     # one without it (CLP-15-011).

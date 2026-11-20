@@ -32,7 +32,8 @@ then shows the case as it stood just after that entry, worked out from the
 entries up to it alone (:func:`~vultron.shadow.analysis.point_analysis`),
 so they can ask whether a better move was open earlier (#6671).  Everything
 the scoreboard draws follows the pick: its states and their maps, its
-participants, desiderata and move bands with their legends.  The pick
+participants, desiderata, move bands with their legends, and the
+authored action rules that match each vendor's position there (ADR-0216).  The pick
 is kept in session state by the entry's log index, so a followed case's new
 entries add narrative lines without moving it.
 
@@ -70,6 +71,8 @@ here:
   state maps, participants and desiderata.
 * :mod:`~vultron.shadow.dashboard.page.advice` — the move bands and their
   legends.
+* :mod:`~vultron.shadow.dashboard.page.action_rules` — the authored action
+  rules beside the bands, with each rule disagreement flagged.
 * :mod:`~vultron.shadow.dashboard.page.narrative` — the case narrative and
   its hindsight marks.
 * :mod:`~vultron.shadow.dashboard.page.reader_report` — the reader's report.

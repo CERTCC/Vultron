@@ -16,6 +16,8 @@ The EM state context, not a payload field, discriminates them (MSM-02).
 `EA`, `EC`, `ER`, and `EJ` are the Case Owner's decision on a proposal (see [The Case Owner's Decision](#the-case-owners-decision)).
 A participant's `Accept` or `Reject` of an embargo Invite is that participant's consent, so it carries no shorthand (MSM-02-010).
 
+An embargo is a Vultron `EmbargoEvent`, a subtype of AS2 `Event`, and is sent as `"type": ["EmbargoEvent", "Event"]` ([ADR-0201](../../adr/0201-an-embargoevent-is-a-vultron-extension-type-and-a-subtype-of-event.md), VM-03-005).
+A receiver reads that list, in either order, or `"EmbargoEvent"` alone, as an embargo, and does not read a plain `Event` as one (VM-03-006).
 An embargo proposal carries its `EmbargoEvent` inline on the `Invite` that proposes it.
 The protocol names `Invite(EmbargoEvent)` as the one form.
 A received `Create(EmbargoEvent)` is not a protocol message, and its receiver must not change the case file because of it ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-019).

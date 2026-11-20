@@ -22,6 +22,7 @@ import {
   type FieldShape,
   type LedgerTypeName,
 } from '../data/ledgerTypes'
+import { ownType } from './typeTerms'
 
 const TYPE_NAMES: ReadonlySet<string> = new Set(Object.keys(LEDGER_SHAPES))
 
@@ -193,8 +194,10 @@ class ShapeChecker {
       return
     }
     if (!isRecord(value)) return
-    if (!this.checked.has(value) && isLedgerTypeName(value.type)) {
-      this.checkObject(value, value.type, path)
+    // A Vultron extension type is sent as a type list, own type first.
+    const type = ownType(value.type)
+    if (!this.checked.has(value) && isLedgerTypeName(type)) {
+      this.checkObject(value, type, path)
     }
     for (const [key, child] of Object.entries(value)) this.walk(child, join(path, key))
   }

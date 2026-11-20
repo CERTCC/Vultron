@@ -79,7 +79,8 @@ TOP_MARK = "⭐ top"
 LEADING_MARK = "👉 leading among yours"
 
 
-def _size(size: Fraction) -> str:
+def size_text(size: Fraction) -> str:
+    """*size* to three significant figures, with a true minus sign."""
     return f"{float(size):.3g}".replace("-", "−")
 
 
@@ -87,7 +88,7 @@ def harm_text(move: AdvisedMove, names: Mapping[str, str]) -> str:
     """Each negative part of *move*'s shift, by vendor, with its size."""
     return (
         "; ".join(
-            f"{actor_label(h.vendor, names)}: {h.part} {_size(h.size)}"
+            f"{actor_label(h.vendor, names)}: {h.part} {size_text(h.size)}"
             for h in move.harms
         )
         or "none"
@@ -229,5 +230,6 @@ __all__ = [
     "band_views",
     "harm_text",
     "move_label",
+    "size_text",
     "unbanded_rows",
 ]

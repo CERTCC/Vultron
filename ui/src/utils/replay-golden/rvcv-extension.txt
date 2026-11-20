@@ -51,9 +51,9 @@ Case          EM ACTIVE → EXITED; PXA pxa → Pxa
 11  Coordinator   Coordinator suggested Vendor 2 for the case
       Offer(Actor)[target=VulnerabilityCase]
       → Reporter, Vendor, Case Manager
-12  Case Manager  Case Manager invited Vendor 2 to the case
+12  Vendor        Vendor invited Vendor 2 to the case
       Invite(VulnerabilityCase preview)[target=Actor]
-      → Reporter, Vendor, Coordinator
+      → Reporter, Coordinator, Case Manager
 13  Vendor 2      Vendor 2 accepted the case invitation
       Accept(Invite(VulnerabilityCase preview)[target=Actor]) · RM → RECEIVED · VFD → vfd
       → Reporter, Vendor, Coordinator, Case Manager
