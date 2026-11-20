@@ -35,7 +35,6 @@ from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.core.models.received_activity_view import ReceivedActivityView
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     activate_embargo_activity,
@@ -746,7 +745,6 @@ def test_remove_embargo_from_case_returns_remove(sample_embargo):
     result = remove_embargo_from_case_activity(
         embargo=sample_embargo,
         actor=_ACTOR_URI,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
     assert isinstance(result, as_Remove)
@@ -756,7 +754,6 @@ def test_remove_embargo_from_case_object_is_embargo(sample_embargo):
     result = remove_embargo_from_case_activity(
         embargo=sample_embargo,
         actor=_ACTOR_URI,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
     assert result.object_ == sample_embargo
@@ -768,7 +765,6 @@ def test_remove_embargo_from_case_origin_is_set(sample_embargo):
         embargo=sample_embargo,
         origin=_CASE_URI,
         actor=_ACTOR_URI,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
     assert result.origin == _CASE_URI
@@ -780,7 +776,6 @@ def test_remove_embargo_from_case_target_not_used(sample_embargo):
         embargo=sample_embargo,
         origin=_CASE_URI,
         actor=_ACTOR_URI,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
     assert result.target is None
@@ -791,7 +786,6 @@ def test_remove_embargo_from_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         remove_embargo_from_case_activity(
             embargo="not-an-embargo",  # type: ignore[arg-type]
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None

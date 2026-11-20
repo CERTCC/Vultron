@@ -28,7 +28,6 @@ import logging
 from datetime import datetime
 
 from vultron.core.states.cs_invariants import CSEvent
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.measure.history import (
     CaseEvent,
     CaseEventHistory,
@@ -144,10 +143,7 @@ def _first_times(
 def _end_of(exit_: CaseEvent) -> datetime:
     """When an embargo really ended: at its end time when it reached it,
     since the stamp is then only the latest possible end (CEH-03-015)."""
-    if (
-        exit_.exit_reason is TerminationReason.END_TIME_REACHED
-        and exit_.deadline is not None
-    ):
+    if exit_.ended_at_end_time and exit_.deadline is not None:
         return exit_.deadline
     return exit_.committed_at
 

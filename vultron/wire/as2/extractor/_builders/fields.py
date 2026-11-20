@@ -13,12 +13,8 @@ from vultron.core.models.case_preview import (
     PreviewedCaseReference,
 )
 from vultron.core.models.embargo_termination import EmbargoTermination
-from vultron.core.states.embargo_register import (
-    termination_reason_from_content,
-)
 from vultron.wire.as2.errors import (
     VultronParseMissingPublishedError,
-    VultronParseValidationError,
 )
 from vultron.wire.as2.typed_reference import is_previewed_reference
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -74,28 +70,15 @@ def _get_type(field: object) -> str | None:
 def termination_of(activity: as_Activity) -> EmbargoTermination:
     """Parse the termination a ``Remove(EmbargoEvent)`` carries.
 
-    The what is ``content``, exactly ``END_TIME_REACHED`` or ``EARLY``
-    (ADR-0122, EMB-13-004); the why, when the sender names one, is
-    ``terminationCause``, which the wire model has already validated
-    against the cause kinds (EMB-13-005).  Both are checked here, at the
-    parse edge, so core receives a valid termination (ADR-0032): a cause on
-    an ``END_TIME_REACHED`` termination is refused.
-
-    Raises:
-        VultronParseValidationError: when ``content`` is not a termination
-            reason, or the cause does not fit it, naming the activity.
+    The termination is its cause, ``END_TIME_REACHED`` included, carried as
+    ``terminationCause`` (EMB-13-005, ADR-0203); the wire model has already
+    validated it against the cause kinds at the parse edge (EMB-13-012), so
+    core receives a valid termination (ADR-0032).  A ``Remove`` naming no
+    cause is an early termination whose sender named none.
     """
-    try:
-        return EmbargoTermination.from_reason(
-            termination_reason_from_content(
-                getattr(activity, "content", None)
-            ),
-            getattr(activity, "termination_cause", None),
-        )
-    except ValueError as exc:
-        raise VultronParseValidationError(
-            f"activity {activity.id_!r}: {exc}"
-        ) from exc
+    return EmbargoTermination(
+        cause=getattr(activity, "termination_cause", None)
+    )
 
 
 def _to_domain_obj(as_obj: object) -> CoreObject | None:

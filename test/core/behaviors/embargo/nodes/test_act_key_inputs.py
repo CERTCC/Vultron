@@ -99,7 +99,6 @@ from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationCauseKind,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 
 #: Each moved node, built from configuration alone, and the act keys it
@@ -147,12 +146,7 @@ _NODES: list[tuple[NodeBuild, tuple[ActKey, ...]]] = [
         ),
         (CASE_ID,),
     ),
-    (
-        lambda: SendTerminateEmbargoActivityNode(
-            reason=TerminationReason.EARLY
-        ),
-        (CASE_ID, EMBARGO_ID, CASE_MANAGER_ID),
-    ),
+    (SendTerminateEmbargoActivityNode, (CASE_ID, EMBARGO_ID, CASE_MANAGER_ID)),
     (TeardownAskPendingNode, (CASE_ID, EMBARGO_ID)),
     (
         lambda: TerminationCauseIsAdmissibleNode(

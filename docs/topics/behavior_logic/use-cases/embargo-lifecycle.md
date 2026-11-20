@@ -82,11 +82,11 @@ An unanswered invitation eventually times out.
 A time-out is not a refusal, as [Inaction is an answer](#inaction-is-an-answer) below explains.
 
 **An end time passing.** An embargo in force does not end by itself when its end time passes.
-The CASE_MANAGER ends it with the reason `END_TIME_REACHED` the next time it handles the case.
+The CASE_MANAGER ends it with the cause `END_TIME_REACHED` the next time it handles the case.
 That handling can be for an incoming message or for one of its own triggers, so no scheduler is needed.
 The end-time check runs as part of the message or trigger handling.
 It runs after the CASE_MANAGER confirms that the sender may send the message or trigger, so a sender with no standing in the case cannot end the embargo.
-A request to end the embargo early made after its end time is also recorded as `END_TIME_REACHED`.
+A request to end the embargo early made after its end time is also recorded with the cause `END_TIME_REACHED`.
 See [When the End Time Passes](../../process_models/em/early_termination.md#when-the-end-time-passes).
 
 ---
@@ -236,9 +236,8 @@ An entry that does not fit is held as a gap until the missing entries arrive.
 The gap is never patched over.
 As a result, a store rebuilt from the CASE_MANAGER's ledger alone holds the same participant records, consent rows and embargo register as the CASE_MANAGER.
 
-The `Remove` entry carries what ended the embargo: `EARLY` or `END_TIME_REACHED`.
-For an early end, it also carries the structured cause, such as a threat signal.
-A replica copies both onto its own register, so its record of the termination matches the CASE_MANAGER's.
+The `Remove` entry carries the structured cause of the end, such as `END_TIME_REACHED` or a threat signal, when one is known.
+A replica copies the cause onto its own register, so its record of the termination matches the CASE_MANAGER's.
 
 When the owner rejects the last open revision after the case went public, the CASE_MANAGER records the rejection and then ends the embargo in the same act (EMB-04-002, MSM-07-032).
 The ledger holds two entries: the `Reject`, which leaves the revision `REJECTED`, and then the CASE_MANAGER's own `Remove`, which leaves the embargo `TERMINATED` with the threat signals as its cause.

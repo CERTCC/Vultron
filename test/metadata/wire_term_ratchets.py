@@ -43,8 +43,3 @@ KNOWN_ITEM_NAME_CLASH_TERM_VIOLATIONS = frozenset(
 KNOWN_ACTOR_KEY_TERM_VIOLATIONS = frozenset(
     {"CoreActor.assertionMethod: VM-10-007"}
 )
-
-# owner: #6421
-KNOWN_EMBARGO_TERMINATION_TERM_VIOLATIONS = frozenset(
-    {"EmbargoTermination.reason: VM-10-007"}
-)

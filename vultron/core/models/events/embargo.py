@@ -4,7 +4,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
-from pydantic import field_validator, model_validator
+from pydantic import field_validator
 
 from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.activity import VultronActivity
@@ -16,7 +16,6 @@ from vultron.core.models.events.base import (
     LedgerPositionedEvent,
     MessageSemantics,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.primitives import normalise_actor_id
 
 logger = logging.getLogger(__name__)
@@ -111,27 +110,22 @@ class WithdrawFromEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
 class RemoveEmbargoEventFromCaseReceivedEvent(LedgerPositionedEvent):
     """Actor removed an EmbargoEvent from a VulnerabilityCase.
 
-    ``termination_reason`` is the termination's what, parsed from the
-    ``Remove``'s ``content`` at the edge (ADR-0122, ADR-0032).
-    ``termination_cause`` is its why, parsed from ``terminationCause``, or
-    ``None`` when the sender named none (EMB-13-005).  The two fit each
-    other: an ``END_TIME_REACHED`` termination has no cause.
+    ``termination_cause`` is why the embargo ended, ``END_TIME_REACHED``
+    included, parsed from the ``Remove``'s ``terminationCause`` at the edge
+    (EMB-13-005, ADR-0032, ADR-0203), or ``None`` for an early termination
+    whose sender named no cause.
     """
 
     semantic_type: Literal[MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE] = (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE
     )
-    termination_reason: TerminationReason
     termination_cause: TerminationCause | None = None
     required_slots: ClassVar[tuple[str, ...]] = ("embargo_id", "case_id")
 
-    @model_validator(mode="after")
-    def _cause_fits_reason(self) -> RemoveEmbargoEventFromCaseReceivedEvent:
-        """Refuse a cause the what cannot have (EMB-13-004)."""
-        EmbargoTermination.from_reason(
-            self.termination_reason, self.termination_cause
-        )
-        return self
+    @property
+    def termination(self) -> EmbargoTermination:
+        """The termination this ``Remove`` tells its receiver."""
+        return EmbargoTermination(cause=self.termination_cause)
 
     @property
     def embargo_id(self) -> str:

@@ -199,16 +199,14 @@ If the CASE_MANAGER refuses the termination, it commits neither entry.
 
 - **Triggering transition:** Active or Revise → eXited ({A,R} → X).
   The same register step cancels every open proposal and writes no participant's consent (EP-08-004, MSM-07-025).
-- **Reason:** `content` states what ended the embargo.
-  Its value is exactly `END_TIME_REACHED` or `EARLY`.
-  A receiver refuses a `Remove` whose `content` is anything else.
-  `summary` is a human-readable account that the protocol does not read.
 - **Why it ended:** `terminationCause` gives the cause, when the sender names one.
-  The CASE_MANAGER's embargo register records the cause beside the reason (EMB-13-010, EMB-13-005).
-  Its `kind` is `THREAT_SIGNAL` (with the `signals` `P`, `X` or `A`), `FIX_READY` (with the `vendors` whose readiness made the quorum), `FIX_DEPLOYED`, or `OTHER` (whose account is the `summary`).
-  Every cause goes with `EARLY`.
-  A `Remove` that carries `END_TIME_REACHED` names no cause.
-  A receiver refuses a `Remove` with an unknown `kind`, a missing or malformed detail, or a cause on `END_TIME_REACHED`.
+  The CASE_MANAGER's embargo register records the cause (EMB-13-010, EMB-13-005).
+  Its `kind` is `END_TIME_REACHED`, `THREAT_SIGNAL` (with the `signals` `P`, `X` or `A`), `FIX_READY` (with the `vendors` whose readiness made the quorum), `FIX_DEPLOYED`, or `OTHER` (whose account is the `summary`).
+  `END_TIME_REACHED` means the embargo reached its end time.
+  Every other cause, and a `Remove` that names no cause, means the embargo ended early (EMB-13-004, EMB-13-011).
+  A receiver does not read `content` as what ended the embargo (EMB-13-009).
+  `summary` is a human-readable account that the protocol does not read.
+  A receiver refuses a `Remove` with an unknown `kind` or a missing or malformed detail (EMB-13-012).
   The Case Owner's `Remove` may name `FIX_READY`, `FIX_DEPLOYED` or `OTHER`.
   The CASE_MANAGER records the cause as given.
   Only the CASE_MANAGER's own `Remove` may name `THREAT_SIGNAL`.

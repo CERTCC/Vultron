@@ -93,7 +93,7 @@ def pxa_embargo_teardown_bt(
     EMB-07-001/002) and otherwise abandons every open proposal (PROPOSED,
     EMB-16-001).  Each subtree checks its own EM precondition first, so at
     most one of them writes, and only as the CASE_MANAGER (EP-09-008).
-    The termination is ``EARLY`` with a ``THREAT_SIGNAL`` cause naming
+    The termination is early, with a ``THREAT_SIGNAL`` cause naming
     *signals*, or, when they are not known yet, the signals the case carries
     at the write (ADR-0122).
     """

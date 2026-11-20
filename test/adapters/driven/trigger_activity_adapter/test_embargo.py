@@ -21,7 +21,6 @@ import pytest
 from test.support.future_dates import days_from_now
 from test.support.objects import authored_at, make
 from test.support.received import archive_received
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
@@ -566,7 +565,6 @@ class TestTerminateEmbargo:
             embargo_id=embargo.id_,
             case_id=_CASE_ID,
             actor=_ACTOR,
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
 
@@ -581,7 +579,6 @@ class TestTerminateEmbargo:
             case_id=_CASE_ID,
             actor=_ACTOR,
             to=[_PEER],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
 

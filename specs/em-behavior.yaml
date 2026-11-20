@@ -1469,7 +1469,7 @@ groups:
       A Participant entering EM Active SHOULD maintain the embargo by not
       publishing information about the vulnerability until the embargo is
       terminated, whether on reaching its end time or early. An embargo whose
-      end time has passed is ended by the CASE_MANAGER with the reason
+      end time has passed is ended by the CASE_MANAGER with the cause
       `END_TIME_REACHED` (EMB-13-003); until that termination reaches a
       Participant, its end time still bounds what it withholds.
     rationale: >-
@@ -1715,7 +1715,7 @@ groups:
     kind: protocol
     statement: >-
       When the end time of the embargo in force has passed, the CASE_MANAGER
-      MUST end it with the reason `END_TIME_REACHED`, through one idempotent
+      MUST end it with the cause `END_TIME_REACHED`, through one idempotent
       termination path.
       Two ways reach that path. One is the CASE_MANAGER's own lazy check when it
       next handles the case, for an inbound activity or one of its own triggers.
@@ -1723,8 +1723,8 @@ groups:
       from a Sentinel that monitors embargo timers.
       A request to end the embargo early, made after its end time, takes the same
       path.
-      Each way commits the CASE_MANAGER's `Remove(EmbargoEvent)` with `content`
-      `END_TIME_REACHED` and runs the full termination cascade.
+      Each way commits the CASE_MANAGER's `Remove(EmbargoEvent)` with the
+      `terminationCause` `END_TIME_REACHED` and runs the full termination cascade.
       The outside request is made to the CASE_MANAGER itself. A `Remove` from the
       Case Owner is the owner's own message, ledgered on receipt like any other.
     rationale: >-
@@ -1756,7 +1756,7 @@ groups:
       description: An embargo is in force and its end time has passed
     postconditions:
     - description: >-
-        The register's ACTIVE entry is TERMINATED with reason
+        The register's ACTIVE entry is TERMINATED with the cause
         END_TIME_REACHED, every open proposal CANCELLED, EM EXITED, and the
         teardown announced
     adr:
@@ -1822,7 +1822,7 @@ groups:
       refused, by the CASE_MANAGER before it commits and by a replica that replays
       it.
     rationale: >-
-      An `END_TIME_REACHED` reason claims the end time has passed. A claim made before
+      An `END_TIME_REACHED` cause claims the end time has passed. A claim made before
       then is false, and the content gate would stop withholding content under an
       embargo that is still in force.
     verification: >-
@@ -1853,50 +1853,56 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A termination `Remove(EmbargoEvent)` MUST carry what ended the embargo in
-      `content`, exactly `END_TIME_REACHED` or `EARLY`. Its `summary` carries a
-      human-readable account the protocol does not read.
+      A receiver MUST read whether a termination `Remove(EmbargoEvent)` ended the
+      embargo at its end time from its cause alone (EMB-13-005): `END_TIME_REACHED`
+      when it did, and any other cause, or none, when it ended early.
+      Its `summary` carries a human-readable account the protocol does not read.
     rationale: >-
-      The what is all a receiver needs to apply a termination and to check it
-      against the end time; the why records the decision. A cause is a kind
-      with its own details, so a new cause (adversary awareness, exploit code
-      held by adversaries, a participant's leak) is a new kind rather than a
-      change to a closed list (ADR-0122).
+      End time reached is a cause like the others, so a separate
+      `END_TIME_REACHED`/`EARLY` value beside the cause would say the same thing
+      twice and could disagree with it (ADR-0203). A cause is a kind with its own
+      details, so a new cause (adversary awareness, exploit code held by
+      adversaries, a participant's leak) is a new kind rather than a change to a
+      closed list (ADR-0122).
     verification: >-
       `test/core/use_cases/received/test_termination_reason.py`
-      (`test_parse_edge_promotes_the_reason_onto_the_event`) and
+      (`test_parse_edge_promotes_the_end_time_cause_onto_the_event`) and
       `test/core/models/test_embargo_termination.py`
-      (`test_the_wire_what_has_exactly_two_values`) cover the two values of the
-      what.
+      (`test_end_time_reached_is_a_cause_kind_like_the_others`,
+      `test_a_termination_declares_no_separate_reason`) cover the end-time cause
+      and the absence of a separate what.
     testable: true
     lint_suppress:
     - testable_without_steps
     adr:
     - ADR-0122
+    - ADR-0203
+    see_also:
+    - spec_id: EMB-13-005
+      reason: 'carries the cause this reads; EMB-13-010 already extends this one'
     stories:
     - story_2022_080
     - story_2022_026
   - id: EMB-13-009
-    priority: MUST
+    priority: MUST_NOT
     kind: protocol
     statement: >-
-      A receiver MUST refuse, at the parse edge, a termination `Remove(EmbargoEvent)`
-      whose `content` is anything other than `END_TIME_REACHED` or `EARLY`
-      (EMB-13-004).
+      A receiver MUST NOT read a termination `Remove(EmbargoEvent)`'s `content` as
+      what ended the embargo (EMB-13-004).
     rationale: >-
-      The what is all a receiver needs to apply a termination and to check it against
-      the end time, so a termination without a valid what cannot be applied.
+      The cause says what ended the embargo. A sender that still writes
+      `END_TIME_REACHED` or `EARLY` in `content` names no cause, so reading
+      `content` would give two answers that can disagree (ADR-0203).
     verification: >-
       `test/core/use_cases/received/test_termination_reason.py`
-      (`test_parse_edge_refuses_a_remove_without_a_termination_reason`) and
-      `test/core/models/test_embargo_termination.py`
-      (`test_content_that_is_not_a_reason_is_refused`) cover the parse-edge
-      check.
+      (`test_parse_edge_reads_no_termination_reason_from_content`) parses a
+      `Remove` whose `content` carries each retired value and asserts it is read
+      as an early termination with no cause.
     testable: true
     lint_suppress:
     - testable_without_steps
     adr:
-    - ADR-0122
+    - ADR-0203
     relationships:
     - rel_type: extends
       spec_id: EMB-13-004
@@ -1907,27 +1913,31 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `TERMINATED` register entry MUST record the termination's reason (the what)
-      and, when known, a structured cause (the why).
+      The `TERMINATED` register entry MUST record the termination's structured
+      cause, when known.
       The cause is an object discriminated on `kind`, whose details depend on the
       kind.
-      One kind is `THREAT_SIGNAL`, with the signals (`P`, `X`, `A`) that ended the
+      One kind is `END_TIME_REACHED`: the embargo reached its end time.
+      Another is `THREAT_SIGNAL`, with the signals (`P`, `X`, `A`) that ended the
       embargo, distinct and in that order.
       Another, `FIX_READY`, has the vendor participants whose readiness made the
       quorum (VP-09-007).
       The other kinds are `FIX_DEPLOYED`, and `OTHER`, whose account is the
       `summary`.
     rationale: >-
-      The why records the decision. A cause is a kind with its own details, so a new
-      cause (adversary awareness, exploit code held by adversaries, a participant's
-      leak) is a new kind rather than a change to a closed list (ADR-0122).
+      The cause records the decision. A cause is a kind with its own details, so a
+      new cause (adversary awareness, exploit code held by adversaries, a
+      participant's leak) is a new kind rather than a change to a closed list
+      (ADR-0122). End time reached is one of them, so no separate what is recorded
+      beside it (ADR-0203).
     verification: >-
       `test/core/use_cases/received/test_termination_reason.py`
-      (`test_case_manager_records_an_early_remove_as_early`) and
-      `test/core/models/test_embargo_termination.py` cover the recorded what and the
-      why for `THREAT_SIGNAL`;
+      (`test_case_manager_records_an_early_remove_as_early`,
+      `test_case_manager_records_an_end_time_remove_after_the_end_time`) and
+      `test/core/models/test_embargo_termination.py` cover the recorded cause for
+      `END_TIME_REACHED`, `THREAT_SIGNAL` and none;
       `test/core/use_cases/received/test_termination_cause.py`
-      (`test_an_early_termination_records_each_new_cause_kind`) builds an `EARLY`
+      (`test_an_early_termination_records_each_new_cause_kind`) builds an early
       termination with each of `FIX_READY`, `FIX_DEPLOYED` and `OTHER`.
     testable: true
     lint_suppress:
@@ -1944,26 +1954,28 @@ groups:
     - spec_id: VP-09-007
       reason: 'context for the reader'
   - id: EMB-13-011
-    priority: MUST_NOT
+    priority: MUST
     kind: protocol
     statement: >-
-      An `END_TIME_REACHED` termination MUST NOT record a cause (EMB-13-010). Every
-      cause kind is `EARLY`, and an `EARLY` termination with no cause is valid and
-      records the what alone.
+      A receiver MUST read every cause kind but `END_TIME_REACHED` as an early
+      termination (EMB-13-010). A termination with no cause is valid: it ended the
+      embargo early, and records no cause.
     rationale: >-
-      A cause explains why an embargo ended before its end time. An embargo that ran
-      to its end time has no such cause.
+      Every cause but the end time explains why an embargo ended before its end
+      time. A sender may end an embargo early without naming why, so the absence of
+      a cause is an early end, never an end at the end time, which is a cause of its
+      own (ADR-0203).
     verification: >-
       `test/core/use_cases/received/test_termination_cause.py`
-      (`test_every_cause_kind_is_early_and_end_time_has_none`,
-      `test_an_early_termination_with_no_cause_records_the_what_alone`) refuses each
-      cause on `END_TIME_REACHED` and records an `EARLY` termination with no
-      cause.
+      (`test_end_time_reached_is_the_one_cause_kind_that_is_not_early`,
+      `test_a_termination_with_no_cause_ended_early`) reads each cause kind and a
+      termination with no cause.
     testable: true
     lint_suppress:
     - testable_without_steps
     adr:
     - ADR-0122
+    - ADR-0203
     relationships:
     - rel_type: extends
       spec_id: EMB-13-010
@@ -1976,7 +1988,8 @@ groups:
     kind: protocol
     statement: >-
       A termination `Remove(EmbargoEvent)` whose termination has a cause
-      (EMB-13-010) MUST carry it as `terminationCause`.
+      (EMB-13-010), `END_TIME_REACHED` included, MUST carry it as
+      `terminationCause`.
     rationale: >-
       One ledger entry is one activity, and the termination's entry is the
       whole `TERMINATE` register step (ADR-0124), so the why reaches a replica
@@ -1989,7 +2002,9 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_termination_cause.py`
       (`test_parse_edge_promotes_a_carried_cause_onto_the_event`,
-      `test_the_factory_carries_the_cause_as_termination_cause`) parses a `Remove`
+      `test_parse_edge_promotes_an_end_time_cause_onto_the_event`,
+      `test_the_factory_carries_the_cause_as_termination_cause`,
+      `test_the_factory_carries_the_end_time_as_its_cause`) parses a `Remove`
       carrying each cause kind.
     testable: true
     lint_suppress:
@@ -2008,17 +2023,15 @@ groups:
     kind: protocol
     statement: >-
       At the parse edge, a receiver MUST refuse a bad `terminationCause` (EMB-13-005).
-      A cause is bad when its `kind` is unknown, when a detail is missing or malformed,
-      or when the termination is `END_TIME_REACHED`.
+      A cause is bad when its `kind` is unknown, or when a detail is missing or
+      malformed.
     rationale: >-
-      A cause the receiver cannot read, or one on a termination that can have none
-      (EMB-13-011), would put a `TERMINATED` entry in the register that no other
-      node can reproduce.
+      A cause the receiver cannot read would put a `TERMINATED` entry in the
+      register that no other node can reproduce.
     verification: >-
       `test/core/use_cases/received/test_termination_cause.py`
-      (`test_parse_edge_refuses_a_malformed_cause`,
-      `test_parse_edge_refuses_a_cause_on_an_end_time_termination`) refuses each
-      malformed cause and a cause on `END_TIME_REACHED`.
+      (`test_parse_edge_refuses_a_malformed_cause`) refuses each malformed
+      cause.
     testable: true
     lint_suppress:
     - testable_without_steps
@@ -2275,11 +2288,11 @@ groups:
     statement: >-
       An actor that ends an active embargo early of its own accord MUST record its
       reason as the termination's cause (EMB-13-010).
-      The cause is `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively, never an `EARLY`
+      The cause is `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively, never a
       termination with no cause.
     rationale: >-
       Recording the chosen reason as the cause carries it to every participant through
-      the termination's ledger entry, where a cause-less `EARLY` termination would tell
+      the termination's ledger entry, where a termination with no cause would tell
       them only that the embargo ended.
     verification: >-
       Tests in `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py` run

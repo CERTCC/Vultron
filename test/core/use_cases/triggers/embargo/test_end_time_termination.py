@@ -1,8 +1,8 @@
 """Why an embargo ended, and ending it when its end time passes (#4293).
 
-ADR-0122: a termination records its *what* (``END_TIME_REACHED`` or
-``EARLY``, carried as the ``Remove``'s ``content``) and, on the register
-entry, its *why* (a ``THREAT_SIGNAL`` cause naming the signals).  An embargo
+ADR-0122, ADR-0203: a termination records its cause (``END_TIME_REACHED``,
+or an early cause such as ``THREAT_SIGNAL`` naming the signals), carried as
+the ``Remove``'s ``terminationCause`` and on the register entry.  An embargo
 reaches its end time through the CASE_MANAGER's lazy check or an outside
 request such as a Sentinel; both share one idempotent path, and whichever
 arrives second commits nothing.  The lazy check is a clock decision composed
@@ -55,8 +55,10 @@ from vultron.core.models.case_participant import (
 from vultron.core.models.dimensions import PxaDimension, RmDimension
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
+    EndTimeReachedCause,
     FixDeployedCause,
     OtherCause,
+    TerminationCause,
     ThreatSignal,
     ThreatSignalTermination,
 )
@@ -69,10 +71,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import (
-    EmbargoRegisterStatus,
-    TerminationReason,
-)
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.rm import RM
 from vultron.core.trigger_dispatcher import RegistryTriggerDispatcher
 from vultron.core.use_cases.received.status import (
@@ -109,6 +108,10 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 S = EmbargoRegisterStatus
+
+
+#: The cause a Sentinel's end-time request names (EMB-13-003).
+_END_TIME = EndTimeReachedCause()
 
 
 class _World:
@@ -214,16 +217,13 @@ class _World:
             )
         )
 
-    def sentinel_request(
-        self, reason=TerminationReason.END_TIME_REACHED, cause=None
-    ):
+    def sentinel_request(self, cause: TerminationCause | None = _END_TIME):
         return run_in_act(
             SvcTerminateEmbargoUseCase(
                 self.dl,
                 TerminateEmbargoTriggerRequest(
                     actor_id=self.manager.id_,
                     case_id=self.case_id,
-                    reason=reason,
                     cause=cause,
                 ),
                 **self.ports(),
@@ -240,7 +240,7 @@ class _World:
 
 
 def _assert_full_cascade(world: _World, termination: EmbargoTermination):
-    """AC-5: TERMINATED with its reason, proposals CANCELLED, EM EXITED, ET."""
+    """AC-5: TERMINATED with its cause, proposals CANCELLED, EM EXITED, ET."""
     case = world.case()
     entry = case.embargo_register_entry(world.embargo.id_)
     assert entry is not None
@@ -252,7 +252,10 @@ def _assert_full_cascade(world: _World, termination: EmbargoTermination):
     (teardown,) = world.teardown_entries()
     snapshot = teardown.payload_snapshot
     assert snapshot["type"] == "Remove"
-    assert snapshot["content"] == termination.reason.value
+    assert (
+        snapshot.get("terminationCause")
+        == termination.model_dump(mode="json", by_alias=True)["cause"]
+    )
     assert snapshot["actor"] == world.manager.id_
     # The announcement reaches the other participant, never the manager.
     assert world.finder.id_ in snapshot["to"]
@@ -325,7 +328,7 @@ def test_sentinel_request_ends_the_embargo_at_its_end_time() -> None:
     result = world.sentinel_request()
 
     assert result.activity is not None
-    assert result.activity["content"] == "END_TIME_REACHED"
+    assert result.activity["terminationCause"] == {"kind": "END_TIME_REACHED"}
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
 
 
@@ -413,28 +416,26 @@ def test_racing_lazy_check_and_sentinel_commit_one_termination() -> None:
 def test_an_early_request_after_the_end_time_ends_it_at_its_end_time() -> None:
     world = _World(end_time=now_utc() - timedelta(minutes=5))
 
-    result = world.sentinel_request(reason=TerminationReason.EARLY)
+    result = world.sentinel_request(cause=None)
 
     assert result.activity is not None
-    assert result.activity["content"] == "END_TIME_REACHED"
+    assert result.activity["terminationCause"] == {"kind": "END_TIME_REACHED"}
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
 
 
 @pytest.mark.spec("EMB-13-003")
-@pytest.mark.spec("EMB-13-004")
-def test_an_early_request_naming_a_cause_after_the_end_time_records_none() -> (
+@pytest.mark.spec("EMB-13-010")
+def test_an_early_request_naming_a_cause_after_the_end_time_records_end_time() -> (
     None
 ):
-    """Once the end time has passed the embargo ends END_TIME_REACHED, which
-    has no cause, so the requested cause is not recorded."""
+    """Once the end time has passed the embargo ends with the END_TIME_REACHED
+    cause, so the requested early cause is not recorded."""
     world = _World(end_time=now_utc() - timedelta(minutes=5))
 
-    result = world.sentinel_request(
-        reason=TerminationReason.EARLY, cause=FixDeployedCause()
-    )
+    result = world.sentinel_request(cause=FixDeployedCause())
 
     assert result.activity is not None
-    assert "terminationCause" not in result.activity
+    assert result.activity["terminationCause"] == {"kind": "END_TIME_REACHED"}
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
 
 
@@ -556,12 +557,12 @@ def test_the_termination_commits_one_entry_per_as2_activity_in_order() -> None:
 def test_an_early_termination_runs_the_full_cascade() -> None:
     world = _World(end_time=days_from_now(10))
 
-    world.sentinel_request(reason=TerminationReason.EARLY)
+    world.sentinel_request(cause=None)
 
-    # An EARLY request naming no cause is recorded as OTHER (EMB-14-001).
+    # An early request naming no cause is recorded as OTHER (EMB-14-001).
     _assert_full_cascade(
         world,
-        EmbargoTermination(reason=TerminationReason.EARLY, cause=OtherCause()),
+        EmbargoTermination(cause=OtherCause()),
     )
 
 

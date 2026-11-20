@@ -46,7 +46,7 @@ Six triggers move an entry:
 | `ACTIVATE` | `PROPOSED` → `ACTIVE` |
 | `REJECT` | `PROPOSED` → `REJECTED` |
 | `SUPERSEDE` | `ACTIVE` → `SUPERSEDED`, in the step that activates another entry |
-| `TERMINATE` | `ACTIVE` → `TERMINATED`, recording what ended the embargo and, when known, why |
+| `TERMINATE` | `ACTIVE` → `TERMINATED`, recording, when known, why the embargo ended |
 | `CANCEL` | `PROPOSED` → `CANCELLED`, in the step that terminates the embargo in force, or on a threat signal while no entry is `ACTIVE` |
 
 A **register step** is the whole change that one act causes.
@@ -62,18 +62,18 @@ Every step keeps these invariants:
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-08-004"))
 ```
 
-A termination records two things.
-What ended the embargo is `END_TIME_REACHED` or `EARLY`.
-Why it ended, when known, is a structured cause.
+A termination records why the embargo ended, when known, as a structured cause.
 The `kind` of the cause is one of these values:
 
+- `END_TIME_REACHED`: the embargo reached its end time
 - `THREAT_SIGNAL`, with the signals `P`, `X` or `A`
 - `FIX_READY`, with the vendors whose readiness made the quorum
 - `FIX_DEPLOYED`
 - `OTHER`
 
-Every cause is `EARLY`, and an `END_TIME_REACHED` termination has none.
-The termination message carries the what as `content` and the why as `terminationCause`.
+Every cause except `END_TIME_REACHED` means that the embargo ended early.
+A termination with no cause also means that the embargo ended early.
+The termination message carries the cause as `terminationCause`.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-13-004", "EMB-13-009", "EMB-13-010", "EMB-13-011", "EMB-13-005", "EMB-13-012", "EMB-13-013", "EMB-13-014", "EMB-13-015", "EMB-13-016", "EMB-13-017"))
@@ -175,7 +175,7 @@ A participant does not put the case into Exited by deciding to stop observing th
 A participant can instead withdraw its own consent, report that it intends to exit, propose a shorter embargo, or propose an earlier end date.
 The CASE_MANAGER then terminates the embargo and records the termination ([§11.2 Embargo Revision and Termination Cascades](interactions.md#112-embargo-revision-and-termination-cascades)).
 An early termination takes Case Owner authorization by default, on the same terms as any other change to canonical case state ([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)).
-The one exception is an embargo whose end time has passed: the CASE_MANAGER itself terminates it, with the reason `END_TIME_REACHED`.
+The one exception is an embargo whose end time has passed: the CASE_MANAGER itself terminates it, with the cause `END_TIME_REACHED`.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "EMB-13-003", "EMB-13-006", "EMB-13-007", "EMB-13-008", "EMB-14-001", "EMB-14-005", "EMB-14-006"))

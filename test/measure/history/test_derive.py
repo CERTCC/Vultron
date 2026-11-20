@@ -44,7 +44,6 @@ from test.measure.history.builders import (
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.cs_invariants import CSEvent
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.measure.history import EventKind, GapLabel
 from vultron.measure.ledger import Dimension, LedgerSource
 
@@ -734,7 +733,7 @@ def test_a_shorter_revision_carries_every_signatory_over():
 @pytest.mark.spec("CEH-04-007")
 @pytest.mark.spec("CEH-03-015")
 @pytest.mark.spec("CEH-06-006")
-def test_an_end_time_exit_carries_its_reason_and_deadline_and_no_cause():
+def test_an_end_time_exit_carries_its_cause_and_deadline():
     ledger = Ledger()
     ledger.standard_genesis()
     ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
@@ -743,11 +742,11 @@ def test_an_end_time_exit_carries_its_reason_and_deadline_and_no_cause():
         "Remove",
         CM,
         embargo(),
-        content="END_TIME_REACHED",
+        terminationCause={"kind": "END_TIME_REACHED"},
     )
     (event,) = ledger.history().of_kind(EventKind.EMBARGO_EXIT)
-    assert event.exit_reason is TerminationReason.END_TIME_REACHED
-    assert event.exit_cause is None
+    assert event.ended_at_end_time
+    assert event.exit_cause == {"kind": "END_TIME_REACHED"}
     assert event.deadline == datetime.fromisoformat(EMBARGO_END)
     assert event.embargo_id == EMBARGO
     assert (
@@ -767,7 +766,6 @@ def test_an_early_exit_carries_its_cause_as_recorded():
         "Remove",
         OWNER,
         embargo(),
-        content="EARLY",
         terminationCause=cause,
     )
     # The CASE_MANAGER's own Remove of the same embargo is not a second exit.
@@ -776,21 +774,38 @@ def test_an_early_exit_carries_its_cause_as_recorded():
         "Remove",
         CM,
         embargo(),
-        content="EARLY",
         terminationCause=cause,
     )
     (event,) = ledger.history().of_kind(EventKind.EMBARGO_EXIT)
-    assert event.exit_reason is TerminationReason.EARLY
+    assert not event.ended_at_end_time
     assert event.exit_cause == cause
     assert event.deadline is None
     assert GapLabel.STAMPED_WHEN_NEXT_HANDLED not in event.gaps
 
 
-def test_an_exit_with_no_reason_is_reported_unreadable():
+@pytest.mark.spec("CEH-04-006")
+def test_an_exit_with_no_cause_ended_early():
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add("remove_embargo_event_from_case", "Remove", CM, embargo())
+    (event,) = ledger.history().of_kind(EventKind.EMBARGO_EXIT)
+    assert not event.ended_at_end_time
+    assert event.exit_cause is None
+    assert event.deadline is None
+
+
+@pytest.mark.parametrize(
+    "cause", ["END_TIME_REACHED", {"signals": ["P"]}, {"kind": ["OTHER"]}]
+)
+def test_an_exit_whose_cause_names_no_kind_is_reported_unreadable(cause):
     ledger = Ledger()
     ledger.standard_genesis()
     index = ledger.add(
-        "remove_embargo_event_from_case", "Remove", CM, embargo()
+        "remove_embargo_event_from_case",
+        "Remove",
+        CM,
+        embargo(),
+        terminationCause=cause,
     )
     history = ledger.history()
     assert history.of_kind(EventKind.EMBARGO_EXIT) == []
@@ -883,7 +898,7 @@ class TestGapLabels:
             "Remove",
             CM,
             embargo(),
-            content="END_TIME_REACHED",
+            terminationCause={"kind": "END_TIME_REACHED"},
             claimed=claimed,
         )
         (event,) = ledger.history().of_kind(EventKind.EMBARGO_EXIT)
@@ -920,7 +935,6 @@ def test_joining_after_the_embargo_ended_implies_no_consent():
         "Remove",
         OWNER,
         embargo(),
-        content="EARLY",
     )
     ledger.add(
         "accept_invite_actor_to_case",
@@ -998,9 +1012,7 @@ def test_an_entry_with_no_commit_stamp_is_reported_unreadable():
 def test_an_exit_naming_no_embargo_with_none_in_force_is_unreadable():
     ledger = Ledger()
     ledger.genesis([], with_embargo=False)
-    index = ledger.add(
-        "remove_embargo_event_from_case", "Remove", CM, None, content="EARLY"
-    )
+    index = ledger.add("remove_embargo_event_from_case", "Remove", CM, None)
     history = ledger.history()
     assert history.of_kind(EventKind.EMBARGO_EXIT) == []
     assert [u.log_index for u in history.unreadable_entries] == [index]
@@ -1021,7 +1033,7 @@ def test_an_end_time_exit_not_committed_by_the_case_manager_is_unlabelled():
         "Remove",
         OWNER,
         embargo(),
-        content="END_TIME_REACHED",
+        terminationCause={"kind": "END_TIME_REACHED"},
     )
     (event,) = ledger.history().of_kind(EventKind.EMBARGO_EXIT)
     assert event.gaps == []
@@ -1084,7 +1096,6 @@ def test_ending_an_embargo_not_in_force_leaves_the_one_in_force():
         "Remove",
         OWNER,
         embargo(EMBARGO_2),
-        content="EARLY",
     )
     _invited(ledger)
     ledger.add(
@@ -1228,7 +1239,6 @@ def test_a_refusal_with_no_embargo_in_force_records_no_consent():
         "Remove",
         OWNER,
         embargo(),
-        content="EARLY",
     )
     _invited(ledger)
     ledger.add(

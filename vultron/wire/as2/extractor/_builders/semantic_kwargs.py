@@ -164,13 +164,11 @@ def _content_kwargs(
     kwargs: dict[str, object] = {}
     if "ledger_position" in event_class.model_fields:
         kwargs["ledger_position"] = _ledger_position(activity, event_class)
-    if "termination_reason" in event_class.model_fields:
-        # A termination Remove carries its what in ``content``: exactly
-        # END_TIME_REACHED or EARLY, refused otherwise (ADR-0122); and its
-        # why, when named, as ``terminationCause`` (EMB-13-005).
-        termination = termination_of(activity)
-        kwargs["termination_reason"] = termination.reason
-        kwargs["termination_cause"] = termination.cause
+    if "termination_cause" in event_class.model_fields:
+        # A termination Remove carries its cause, END_TIME_REACHED included,
+        # as ``terminationCause``, or none for an early end whose sender
+        # named none (EMB-13-005, ADR-0203).
+        kwargs["termination_cause"] = termination_of(activity).cause
     elif getattr(activity, "termination_cause", None) is not None:
         # Only a termination Remove(EmbargoEvent) has a why (EMB-13-005).
         # Any other Remove naming one is refused here, so the cause never

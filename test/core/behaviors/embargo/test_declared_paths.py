@@ -86,7 +86,6 @@ from vultron.core.behaviors.embargo.withdrawal_tree import (
     withdraw_from_embargo_on_case_tree,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo.accept import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
 )
@@ -205,7 +204,6 @@ def _remove(case_id: str, embargo_id: str) -> py_trees.behaviour.Behaviour:
         case_id=case_id,
         embargo_id=embargo_id,
         sender_actor_id=CASE_MANAGER_ACTOR,
-        termination_reason=TerminationReason.EARLY,
         terminated_at=days_from_now(0),
         sender_rule=RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
     )

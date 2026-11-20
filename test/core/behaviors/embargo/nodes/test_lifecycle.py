@@ -51,7 +51,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.pending_assertion import ASSERTED_ACTIVITY_KEY
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -149,7 +148,6 @@ class TestTerminateEmbargoBT:
                     case_id=case.id_,
                     actor=CASE_MANAGER_ACTOR,
                     to=to,
-                    reason=TerminationReason.EARLY,
                     at=authored_at(),
                 ),
             )
@@ -278,7 +276,6 @@ class TestTerminateEmbargoBT:
                     case_id=case.id_,
                     actor=OTHER_PARTICIPANT_ACTOR,
                     to=to,
-                    reason=TerminationReason.EARLY,
                     at=authored_at(),
                 ),
             )
@@ -328,7 +325,6 @@ class TestTerminateEmbargoBT:
                     case_id=case.id_,
                     actor=ACTOR_ID,
                     to=to,
-                    reason=TerminationReason.EARLY,
                     at=authored_at(),
                 ),
             )

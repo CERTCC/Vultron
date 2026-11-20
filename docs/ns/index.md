@@ -60,7 +60,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `caseStatus` | iri | The case status a participant status reports, as a CaseStatus object |
 | `caseStatuses` | list of iri | The statuses of a case, oldest first, each a CaseStatus or its id; the last is its current status |
 | `category` | plain | The CSAF category of a vulnerability note, such as description or summary |
-| `cause` | plain | Why an embargo ended early: an object whose kind names the cause |
+| `cause` | plain | Why an embargo ended: an object whose kind names the cause, END_TIME_REACHED included |
 | `childCases` | set of iri | The ids of a case's child cases |
 | `cvdRole` | set | The CVD roles a participant status reports its participant holding in the case |
 | `dState` | plain | A deployer participant's fix-deployed (D) dimension of the Case State (CS) |
@@ -76,7 +76,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `genesisHash` | plain | The hash that starts a case's ledger chain, computed from its owner; the first ledger entry's prevLogHash |
 | `ids` | set | The identifiers other systems give a vulnerability, each an object with a systemName and a text |
 | `joined` | plain | Whether a participant has joined its case: it was seated when the case was created, or it accepted its case invitation |
-| `kind` | plain | The kind of an embargo's early-termination cause: THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
+| `kind` | plain | The kind of an embargo's termination cause: END_TIME_REACHED, THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
 | `ledgerPosition` | plain | The last entry of a case's ledger that a case file, or the sender of an activity about the case, holds: an object whose logIndex and entryHash name that entry, or logIndex -1 with the case's genesis hash when it holds none |
 | `logIndex` | plain | The position of an entry in its case's ledger, counting from 0; -1 in a ledger position that names no entry |
 | `logObjectId` | iri | The id of the activity or object a case ledger entry records |
@@ -110,8 +110,8 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `suggestedRoles` | set | The CVD roles an Offer that recommends an actor suggests it take in a case |
 | `systemName` | plain | The name of the system that issued a vulnerability identifier |
 | `term` | plain | The cluster term in which the CASE_MANAGER committed a case ledger entry; absent on a single-node deployment |
-| `termination` | plain | How a terminated embargo ended: an object that gives the reason and, when recorded, its cause |
-| `terminationCause` | plain | Why an embargo ended early, on the Remove that terminates it: an object whose kind is THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
+| `termination` | plain | How a terminated embargo ended: an object that gives its cause when recorded, END_TIME_REACHED included |
+| `terminationCause` | plain | Why an embargo ended, on the Remove that terminates it: an object whose kind is END_TIME_REACHED, THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
 | `title` | plain | The title of a vulnerability note |
 | `trackingId` | plain | A participant's own tracking identifier for a case, such as its internal ticket number |
 | `vendors` | set of iri | The ids of the vendors whose readiness to fix made the quorum that ended an embargo |

@@ -17,8 +17,8 @@ PROPOSE   : None → PROPOSED
 ACTIVATE  : PROPOSED → ACTIVE
 REJECT    : PROPOSED → REJECTED
 SUPERSEDE : ACTIVE → SUPERSEDED   (in the step that activates another entry)
-TERMINATE : ACTIVE → TERMINATED   (with a :class:`TerminationReason`, the
-                                   what, and a structured cause, the why)
+TERMINATE : ACTIVE → TERMINATED   (with a structured cause, END_TIME_REACHED
+                                   included)
 CANCEL    : PROPOSED → CANCELLED  (with a TERMINATE, or on a threat signal
                                    while no entry is ACTIVE)
 
@@ -73,38 +73,6 @@ class RegisterTrigger(StrEnum):
     SUPERSEDE = auto()
     TERMINATE = auto()
     CANCEL = auto()
-
-
-class TerminationReason(StrEnum):
-    """What ended an ``ACTIVE`` entry: its end time, or an early end (ADR-0122).
-
-    The *what* of a termination, and the only part that travels on the wire:
-    a termination ``Remove`` carries it as ``content``, checked at the parse
-    edge.  The *why* — a threat signal, for one — is a structured cause the
-    register entry records beside it
-    (:mod:`vultron.core.models.embargo_termination`).
-    """
-
-    END_TIME_REACHED = "END_TIME_REACHED"
-    EARLY = "EARLY"
-
-
-def termination_reason_from_content(content: object) -> TerminationReason:
-    """Parse a termination ``Remove``'s ``content`` into its reason.
-
-    The ``Remove`` carries the termination's what as exactly
-    ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122).
-
-    Raises:
-        ValueError: *content* is anything else, absent included.
-    """
-    allowed = [reason.value for reason in TerminationReason]
-    if not isinstance(content, str) or content not in allowed:
-        raise ValueError(
-            "a termination Remove(EmbargoEvent) must carry its reason in"
-            f" `content` as exactly one of {allowed}, not {content!r}"
-        )
-    return TerminationReason(content)
 
 
 _S = EmbargoRegisterStatus

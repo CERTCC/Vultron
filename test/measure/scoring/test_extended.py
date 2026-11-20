@@ -36,7 +36,6 @@ from test.measure.history.builders import (
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.cs_invariants import CSEvent
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.baselines import (
     EXTENDED,
@@ -110,16 +109,11 @@ def _start(index: int) -> CaseEvent:
     return _event(index, RecordKind.EMBARGO_START, embargo_id="urn:uuid:e")
 
 
-def _exit(
-    index: int,
-    reason: TerminationReason = TerminationReason.EARLY,
-    cause: dict[str, Any] | None = None,
-) -> CaseEvent:
+def _exit(index: int, cause: dict[str, Any] | None = None) -> CaseEvent:
     return _event(
         index,
         RecordKind.EMBARGO_EXIT,
         embargo_id="urn:uuid:e",
-        exit_reason=reason,
         exit_cause=cause,
     )
 
@@ -383,27 +377,25 @@ def test_each_walk_reads_one_vendor():
 
 
 @pytest.mark.parametrize(
-    ("reason", "cause", "end"),
+    ("cause", "end"),
     [
-        (TerminationReason.END_TIME_REACHED, None, EmbargoEnd.OWN_TERMS),
-        (TerminationReason.EARLY, {"kind": "FIX_READY"}, EmbargoEnd.OWN_TERMS),
+        ({"kind": "END_TIME_REACHED"}, EmbargoEnd.OWN_TERMS),
+        ({"kind": "FIX_READY"}, EmbargoEnd.OWN_TERMS),
         (
-            TerminationReason.EARLY,
             {"kind": "FIX_DEPLOYED"},
             EmbargoEnd.OWN_TERMS,
         ),
         (
-            TerminationReason.EARLY,
             {"kind": "THREAT_SIGNAL", "signals": ["P"]},
             EmbargoEnd.THREAT_SIGNAL,
         ),
-        (TerminationReason.EARLY, {"kind": "OTHER"}, EmbargoEnd.OTHER),
-        (TerminationReason.EARLY, None, EmbargoEnd.OTHER),
-        (TerminationReason.EARLY, {"kind": ["FIX_READY"]}, EmbargoEnd.OTHER),
+        ({"kind": "OTHER"}, EmbargoEnd.OTHER),
+        (None, EmbargoEnd.OTHER),
+        ({"kind": ["FIX_READY"]}, EmbargoEnd.OTHER),
     ],
 )
-def test_an_embargo_exit_splits_by_its_cause(reason, cause, end):
-    assert exit_end(_exit(3, reason, cause)) is end
+def test_an_embargo_exit_splits_by_its_cause(cause, end):
+    assert exit_end(_exit(3, cause)) is end
 
 
 def test_only_an_embargo_exit_has_an_exit_cause():
@@ -480,27 +472,21 @@ def _accepted_then_public(*rest: CaseEvent) -> CaseEventHistory:
 
 
 @pytest.mark.parametrize(
-    ("reason", "cause"),
-    [
-        (TerminationReason.END_TIME_REACHED, None),
-        (TerminationReason.EARLY, {"kind": "FIX_READY"}),
-        (TerminationReason.EARLY, {"kind": "OTHER"}),
-    ],
+    "cause",
+    [{"kind": "END_TIME_REACHED"}, {"kind": "FIX_READY"}, {"kind": "OTHER"}],
 )
-def test_a_later_exit_of_an_embargo_a_threat_ended_changes_nothing(
-    reason, cause
-):
+def test_a_later_exit_of_an_embargo_a_threat_ended_changes_nothing(cause):
     """Public awareness ended the embargo at 2 as a threat signal, so the
     ledger's own-terms exit at 3 is not an own-terms exit: ``F_i ≺
     Ex_own`` stays out of scope, met, as with no exit recorded."""
     fix = _event(4, CSEvent.F, _V1)
-    with_exit = score_case(_accepted_then_public(_exit(3, reason, cause), fix))
+    with_exit = score_case(_accepted_then_public(_exit(3, cause), fix))
     without = score_case(_accepted_then_public(fix))
     assert with_exit.vendors == without.vendors
     (vendor,) = with_exit.vendors
     embargo = _extended(vendor).embargo
     assert _term(embargo, r"\evF_i \prec \evExOwn").met == 1
-    record_history = _accepted_then_public(_exit(3, reason, cause), fix)
+    record_history = _accepted_then_public(_exit(3, cause), fix)
     record = CaseRecord(
         record_history, case_state_sequences(record_history).sequences
     )

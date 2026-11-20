@@ -11,34 +11,31 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Why an embargo ended: the *what* and the *why* of a termination (ADR-0122).
+"""Why an embargo ended: a termination's structured cause (ADR-0122, ADR-0203).
 
-A termination has two parts:
+A termination is its cause, a union discriminated on ``kind`` (EMB-13-010):
 
-- **What** — :class:`~vultron.core.states.embargo_register.TerminationReason`,
-  ``END_TIME_REACHED`` or ``EARLY``.  It travels on the wire as the
-  termination ``Remove``'s ``content`` and is checked at the parse edge.
-- **Why** — a structured :data:`TerminationCause`, recorded on the
-  ``TERMINATED`` register entry beside the what.  It is a union discriminated
-  on ``kind`` (EMB-13-004, ADR-0122):
+- :class:`EndTimeReachedCause` — the embargo reached its end time;
+- :class:`ThreatSignalCause` — the CS signals (``P``, ``X``, ``A``) that
+  ended the embargo; only the CASE_MANAGER names it;
+- :class:`FixReadyCause` — the vendors whose fix readiness made the quorum
+  (VP-09-007);
+- :class:`FixDeployedCause` — the fix is deployed;
+- :class:`OtherCause` — anything else; the ``Remove``'s ``summary`` gives
+  the account.
 
-  - :class:`ThreatSignalCause` — the CS signals (``P``, ``X``, ``A``) that
-    ended the embargo; only the CASE_MANAGER names it;
-  - :class:`FixReadyCause` — the vendors whose fix readiness made the quorum
-    (VP-09-007);
-  - :class:`FixDeployedCause` — the fix is deployed;
-  - :class:`OtherCause` — anything else; the ``Remove``'s ``summary`` gives
-    the account.
-
-  Every cause is ``EARLY``.  ``cause`` is ``None`` when no structured cause
-  is recorded: an end-time termination, or an ``EARLY`` one whose sender
-  named none.  The termination ``Remove`` carries the cause as
-  ``terminationCause``, checked at the parse edge (EMB-13-005).  A replica
-  copies the cause from the ledger entry and never works it out itself.
+End time reached is a cause like the others, so no separate
+``END_TIME_REACHED``/``EARLY`` value travels beside it (ADR-0203): every
+cause but :class:`EndTimeReachedCause` ends an embargo before its end time.
+``cause`` is ``None`` when no structured cause is recorded: an early
+termination whose sender named none.  The termination ``Remove`` carries
+the cause as ``terminationCause``, checked at the parse edge (EMB-13-005).
+A replica copies the cause from the ledger entry and never works it out
+itself.
 
 :func:`end_time_violations` is the end-time rule every node applies before
-an ``END_TIME_REACHED`` termination: it is refused when it is claimed before
-the embargo's end time.
+an end-time termination: it is refused when it is claimed before the
+embargo's end time.
 """
 
 from datetime import datetime
@@ -54,7 +51,6 @@ from vultron.core.models.base import (
     vultron_property,
 )
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.primitives import NormalisedActorId
 
 
@@ -78,8 +74,10 @@ def threat_signals_of(pxa: CS_pxa) -> list[ThreatSignal]:
 
 
 class TerminationCauseKind(StrEnum):
-    """The kinds of structured cause a termination may record."""
+    """The kinds of structured cause a termination records."""
 
+    #: The embargo reached its end time (EMB-13-003).
+    END_TIME_REACHED = "END_TIME_REACHED"
     #: The case carries P, X or A; only the CASE_MANAGER names it.
     THREAT_SIGNAL = "THREAT_SIGNAL"
     #: A quorum of vendors is fix-ready (VP-09-007).
@@ -110,10 +108,25 @@ _FROZEN = ConfigDict(
 #: The Vultron property ``kind`` every termination cause carries, declared
 #: once so the four causes give it one meaning (VM-10-012).
 CAUSE_KIND_PROPERTY = vultron_property(
-    "The kind of an embargo's early-termination cause: THREAT_SIGNAL, "
-    "FIX_READY, FIX_DEPLOYED or OTHER",
+    "The kind of an embargo's termination cause: END_TIME_REACHED, "
+    "THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER",
     PropertyValueKind.PLAIN,
 )
+
+
+class EndTimeReachedCause(ValidatedAssignmentMixin, BaseModel):
+    """The embargo reached its end time (EMB-13-003).
+
+    The one cause that does not end an embargo early, so it is refused when
+    claimed before the end time (EMB-13-008, :func:`end_time_violations`).
+    """
+
+    model_config = _FROZEN
+
+    kind: Literal[TerminationCauseKind.END_TIME_REACHED] = Field(
+        default=TerminationCauseKind.END_TIME_REACHED,
+        json_schema_extra=CAUSE_KIND_PROPERTY,
+    )
 
 
 class ThreatSignalCause(ValidatedAssignmentMixin, BaseModel):
@@ -223,86 +236,59 @@ class OtherCause(ValidatedAssignmentMixin, BaseModel):
 
 
 #: The structured why of a termination: one model per kind, discriminated on
-#: ``kind`` (EMB-13-004).  A new cause is a new model with its own ``kind``
-#: literal, added here and to :data:`_CAUSE_KINDS_BY_REASON`.
+#: ``kind`` (EMB-13-010).  A new cause is a new model with its own ``kind``
+#: literal, added here.
 TerminationCause = Annotated[
-    ThreatSignalCause | FixReadyCause | FixDeployedCause | OtherCause,
+    EndTimeReachedCause
+    | ThreatSignalCause
+    | FixReadyCause
+    | FixDeployedCause
+    | OtherCause,
     Field(discriminator="kind"),
 ]
 
-#: The causes each what admits.  Every cause ends an embargo before its end
-#: time, so it is always ``EARLY``; an end-time termination has none.
-_CAUSE_KINDS_BY_REASON: dict[TerminationReason, frozenset[str]] = {
-    TerminationReason.END_TIME_REACHED: frozenset(),
-    TerminationReason.EARLY: frozenset(TerminationCauseKind),
-}
-
 
 class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
-    """How one embargo ended: the what, and the why when it is recorded."""
+    """How one embargo ended: its cause, when one is recorded (ADR-0203).
+
+    No cause is an early termination whose sender named none.
+    """
 
     model_config = _FROZEN
 
-    reason: TerminationReason
     cause: TerminationCause | None = Field(
         default=None,
         json_schema_extra=vultron_property(
             (
-                "Why an embargo ended early: an object whose kind names the "
-                "cause"
+                "Why an embargo ended: an object whose kind names the "
+                "cause, END_TIME_REACHED included"
             ),
             PropertyValueKind.PLAIN,
         ),
     )
 
-    @model_validator(mode="after")
-    def _cause_fits_reason(self) -> EmbargoTermination:
-        """Refuse a cause the what cannot have (EH-07-001)."""
-        if (
+    @property
+    def is_end_time_reached(self) -> bool:
+        """Whether the embargo ended at its end time, not early."""
+        return (
             self.cause is not None
-            and self.cause.kind not in _CAUSE_KINDS_BY_REASON[self.reason]
-        ):
-            raise ValueError(
-                f"an {self.reason} termination cannot have a"
-                f" {self.cause.kind} cause (EMB-13-004)"
-            )
-        return self
+            and self.cause.kind == TerminationCauseKind.END_TIME_REACHED
+        )
 
     @classmethod
     def early(cls) -> EmbargoTermination:
         """An early termination with no structured cause recorded."""
-        return cls(reason=TerminationReason.EARLY)
+        return cls()
 
     @classmethod
     def end_time_reached(cls) -> EmbargoTermination:
         """The embargo reached its end time."""
-        return cls(reason=TerminationReason.END_TIME_REACHED)
+        return cls(cause=EndTimeReachedCause())
 
     @classmethod
     def threat(cls, signals: list[ThreatSignal]) -> EmbargoTermination:
         """An early termination caused by the threat *signals*."""
-        return cls(
-            reason=TerminationReason.EARLY,
-            cause=ThreatSignalCause(signals=signals),
-        )
-
-    @classmethod
-    def from_reason(
-        cls,
-        reason: TerminationReason,
-        cause: TerminationCause | None = None,
-    ) -> EmbargoTermination:
-        """The termination a ``Remove`` tells its receiver.
-
-        *reason* is the what the ``Remove`` carries in ``content``; *cause*
-        is the why it carries as ``terminationCause``, or ``None`` when it
-        names none (EMB-13-005).
-
-        Raises:
-            ValidationError: *cause* does not fit *reason* (an
-                ``END_TIME_REACHED`` termination has no cause).
-        """
-        return cls(reason=reason, cause=cause)
+        return cls(cause=ThreatSignalCause(signals=signals))
 
     @property
     def participant_cause(self) -> TerminationCause | None:
@@ -343,9 +329,9 @@ class ThreatSignalTermination(ValidatedAssignmentMixin, BaseModel):
         return self
 
     @property
-    def reason(self) -> TerminationReason:
-        """The what: a threat signal ends an embargo early (ADR-0122)."""
-        return TerminationReason.EARLY
+    def is_end_time_reached(self) -> bool:
+        """A threat signal ends an embargo early, never at its end time."""
+        return False
 
     @property
     def participant_cause(self) -> None:
@@ -399,10 +385,11 @@ def end_time_violations(
     """Why *termination* may not be applied at *at*, given *end_time*.
 
     An ``END_TIME_REACHED`` termination claimed before the embargo's end
-    time is refused (ADR-0122); it needs the time it is claimed at.  An
-    ``EARLY`` one has no time rule.  An empty list means it may be applied.
+    time is refused (EMB-13-008); it needs the time it is claimed at.  Every
+    other cause ends an embargo early and has no time rule.  An empty list
+    means it may be applied.
     """
-    if termination.reason != TerminationReason.END_TIME_REACHED:
+    if not termination.is_end_time_reached:
         return []
     if at is None:
         return [
@@ -419,6 +406,7 @@ def end_time_violations(
 __all__ = [
     "CASE_MANAGER_ONLY_CAUSE_KINDS",
     "EmbargoTermination",
+    "EndTimeReachedCause",
     "FixDeployedCause",
     "FixReadyCause",
     "OtherCause",

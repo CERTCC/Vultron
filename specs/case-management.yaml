@@ -10529,7 +10529,7 @@ groups:
       file asserts a `Remove` of a longer revision ends it;
       `test_paused_replica_ends_an_expired_revision_it_has_not_activated` there
       asserts an `END_TIME_REACHED` `Remove` of an expired revision ends it as an
-      `EARLY` one does, judged by the revision's own end time, and
+      early one does, judged by the revision's own end time, and
       `test_paused_replica_refuses_an_early_expiry_remove_of_a_revision` that one
       claimed before that end time is refused.
     relationships:

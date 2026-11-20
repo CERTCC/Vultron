@@ -236,7 +236,7 @@ def test_an_exited_embargo_stands_at_the_cause_its_exit_records():
         "Remove",
         CM,
         embargo(),
-        content="END_TIME_REACHED",
+        terminationCause={"kind": "END_TIME_REACHED"},
     )
     history, reached = derive_case(ledger.case_ledger())
     prefix = case_prefix(
@@ -258,9 +258,9 @@ def _exited_prefix(cause: str | None = None) -> JointState:
     ledger = _vendor_case()
     removal = ("remove_embargo_event_from_case", "Remove", CM, embargo())
     if cause is None:
-        ledger.add(*removal, content="EARLY")
+        ledger.add(*removal)
     else:
-        ledger.add(*removal, content="EARLY", terminationCause={"kind": cause})
+        ledger.add(*removal, terminationCause={"kind": cause})
     history, reached = derive_case(ledger.case_ledger())
     prefix = case_prefix(
         history,

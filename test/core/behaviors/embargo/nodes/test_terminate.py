@@ -61,7 +61,6 @@ from vultron.core.models.pending_assertion import (
     record_pending_assertion,
 )
 from vultron.core.models.pending_assertion.registry import _STORES
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 
 ACTOR_ID = "https://example.org/actors/vendor"
@@ -182,19 +181,19 @@ def _run(
 
 class TestSendTerminateEmbargoActivityNodePorts:
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = SendTerminateEmbargoActivityNode(reason=TerminationReason.EARLY)
+        node = SendTerminateEmbargoActivityNode()
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("datalayer")
 
     def test_missing_embargo_id_raises_no_data_available(self) -> None:
-        node = SendTerminateEmbargoActivityNode(reason=TerminationReason.EARLY)
+        node = SendTerminateEmbargoActivityNode()
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("embargo_id")
 
     def test_missing_case_manager_id_raises_no_data_available(self) -> None:
-        node = SendTerminateEmbargoActivityNode(reason=TerminationReason.EARLY)
+        node = SendTerminateEmbargoActivityNode()
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("case_manager_id")
@@ -213,9 +212,7 @@ class TestSendTerminateEmbargoActivityNodePorts:
         """
         result = bt_scenario.run(
             with_case_id(
-                SendTerminateEmbargoActivityNode(
-                    reason=TerminationReason.EARLY
-                ),
+                SendTerminateEmbargoActivityNode(),
                 CASE_ID,
             ),
             actor_id=ACTOR_ID,
@@ -229,9 +226,7 @@ class TestSendTerminateEmbargoActivityNodePorts:
         """No trigger-activity port: FAILURE, nothing queued or recorded."""
         dl, result = _run(
             with_case_id(
-                SendTerminateEmbargoActivityNode(
-                    reason=TerminationReason.EARLY
-                ),
+                SendTerminateEmbargoActivityNode(),
                 CASE_ID,
             ),
             _VENDOR_ID,
@@ -252,9 +247,7 @@ class TestTeardownAsk:
 
         _run(
             with_case_id(
-                SendTerminateEmbargoActivityNode(
-                    reason=TerminationReason.EARLY
-                ),
+                SendTerminateEmbargoActivityNode(),
                 CASE_ID,
             ),
             _VENDOR_ID,
@@ -272,9 +265,7 @@ class TestTeardownAsk:
     def test_queued_ask_is_recorded_keyed_by_the_ended_embargo(self) -> None:
         dl, result = _run(
             with_case_id(
-                SendTerminateEmbargoActivityNode(
-                    reason=TerminationReason.EARLY
-                ),
+                SendTerminateEmbargoActivityNode(),
                 CASE_ID,
             ),
             _VENDOR_ID,
@@ -305,9 +296,7 @@ class TestTeardownAsk:
         )
         _, result = _run(
             with_case_id(
-                SendTerminateEmbargoActivityNode(
-                    reason=TerminationReason.EARLY
-                ),
+                SendTerminateEmbargoActivityNode(),
                 CASE_ID,
             ),
             _VENDOR_ID,
@@ -335,9 +324,7 @@ class TestTeardownAsk:
         )
         dl, result = _run(
             with_case_id(
-                SendTerminateEmbargoActivityNode(
-                    reason=TerminationReason.EARLY
-                ),
+                SendTerminateEmbargoActivityNode(),
                 CASE_ID,
             ),
             _VENDOR_ID,
@@ -357,9 +344,7 @@ class TestTeardownAsk:
 
         dl, result = _run(
             with_case_id(
-                SendTerminateEmbargoActivityNode(
-                    reason=TerminationReason.EARLY
-                ),
+                SendTerminateEmbargoActivityNode(),
                 CASE_ID,
             ),
             _MANAGER_ID,
@@ -382,9 +367,7 @@ class TestAskCaseManagerToTerminateOnce:
         factory = _factory()
 
         dl, result = _run(
-            ask_case_manager_to_terminate_once(
-                CASE_ID, TerminationReason.EARLY
-            ),
+            ask_case_manager_to_terminate_once(CASE_ID),
             _VENDOR_ID,
             factory,
         )
@@ -398,9 +381,7 @@ class TestAskCaseManagerToTerminateOnce:
         _record_earlier_ask(subject_id="https://example.org/embargoes/other")
 
         dl, _ = _run(
-            ask_case_manager_to_terminate_once(
-                CASE_ID, TerminationReason.EARLY
-            ),
+            ask_case_manager_to_terminate_once(CASE_ID),
             _VENDOR_ID,
             _factory(),
         )
@@ -415,9 +396,7 @@ class TestAskCaseManagerToTerminateOnce:
         )
 
         dl, _ = _run(
-            ask_case_manager_to_terminate_once(
-                CASE_ID, TerminationReason.EARLY
-            ),
+            ask_case_manager_to_terminate_once(CASE_ID),
             _VENDOR_ID,
             _factory(),
         )
@@ -430,9 +409,7 @@ class TestAskCaseManagerToTerminateOnce:
         _record_earlier_ask()
 
         dl, _ = _run(
-            ask_case_manager_to_terminate_once(
-                CASE_ID, TerminationReason.EARLY
-            ),
+            ask_case_manager_to_terminate_once(CASE_ID),
             _VENDOR_ID,
             _factory(),
         )
@@ -445,9 +422,7 @@ class TestAskCaseManagerToTerminateOnce:
         factory.terminate_embargo.side_effect = RuntimeError("factory down")
 
         _, result = _run(
-            ask_case_manager_to_terminate_once(
-                CASE_ID, TerminationReason.EARLY
-            ),
+            ask_case_manager_to_terminate_once(CASE_ID),
             _VENDOR_ID,
             factory,
         )
@@ -475,9 +450,7 @@ class TestTheAskCarriesTheParticipantCause:
         cause = FixDeployedCause()
 
         _run(
-            ask_case_manager_to_terminate_once(
-                CASE_ID, TerminationReason.EARLY, cause
-            ),
+            ask_case_manager_to_terminate_once(CASE_ID, cause),
             _VENDOR_ID,
             factory,
         )
@@ -490,9 +463,7 @@ class TestTheAskCarriesTheParticipantCause:
         cause chosen after the tree was built still reaches the ask."""
         factory = _factory()
         chosen = ChosenTermination()
-        ask = ask_case_manager_to_terminate_once(
-            CASE_ID, chosen.reason, chosen
-        )
+        ask = ask_case_manager_to_terminate_once(CASE_ID, chosen)
         chosen.choose(FixDeployedCause())
 
         _run(ask, _VENDOR_ID, factory)
@@ -508,9 +479,7 @@ class TestTheAskCarriesTheParticipantCause:
         is an internal error, never a FAILURE, and queues nothing."""
         factory = _factory()
         chosen = ChosenTermination()
-        ask = ask_case_manager_to_terminate_once(
-            CASE_ID, chosen.reason, chosen
-        )
+        ask = ask_case_manager_to_terminate_once(CASE_ID, chosen)
 
         _, result = _run(ask, _VENDOR_ID, factory)
 
@@ -537,9 +506,4 @@ class TestParticipantCause:
     @pytest.mark.spec("EMB-13-005")
     def test_any_other_cause_passes_through(self) -> None:
         cause = FixReadyCause(vendors=[_VENDOR_ID])
-        assert (
-            EmbargoTermination.from_reason(
-                TerminationReason.EARLY, cause
-            ).participant_cause
-            == cause
-        )
+        assert EmbargoTermination(cause=cause).participant_cause == cause

@@ -40,7 +40,6 @@ from test.measure.history.builders import (
     status,
 )
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.demo.recordings.layout import recording_path
 from vultron.measure.history import (
     CaseEvent,
@@ -220,7 +219,6 @@ def _revised_case() -> Ledger:
         "Remove",
         OWNER,
         embargo(EMBARGO_3),
-        content="EARLY",
     )
     assert (fix, exit_) == (5, 6)
     return ledger
@@ -264,7 +262,7 @@ def test_an_embargo_that_reached_its_end_time_ended_at_it():
         "Remove",
         CM,
         embargo(),
-        content="END_TIME_REACHED",
+        terminationCause={"kind": "END_TIME_REACHED"},
     )
     duration = _counts(ledger).case.duration
     assert duration.end == datetime.fromisoformat(EMBARGO_END)
@@ -280,7 +278,6 @@ def _exit(ledger: Ledger, embargo_id: str = EMBARGO) -> int:
         "Remove",
         OWNER,
         embargo(embargo_id),
-        content="EARLY",
     )
 
 
@@ -525,7 +522,6 @@ def test_an_exit_before_the_first_start_is_not_its_end():
             EventKind.EMBARGO_EXIT,
             1,
             embargo_id=EMBARGO,
-            exit_reason=TerminationReason.EARLY,
         ),
         _event(EventKind.EMBARGO_START, 2, embargo_id=EMBARGO_2),
     )

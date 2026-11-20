@@ -55,17 +55,13 @@ from vultron.adapters.connectors.vince import (
     VINCE_UNOBSERVABLE,
     vince_case_url,
 )
-from vultron.adapters.connectors.vince.case_rows import END_TIME_REACHED
 from vultron.adapters.connectors.vince.records import VinceCase
 from vultron.core.models.case_reading import (
     CaseReading,
     UntranslatedReason as Reason,
 )
 from vultron.core.states.cs_invariants import CSEvent
-from vultron.core.states.embargo_register import (
-    EmbargoRegisterStatus,
-    TerminationReason,
-)
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.rm import RM
 
 CERT = "CERT/CC"
@@ -273,7 +269,7 @@ def test_the_embargo_ends_at_due_date_once_the_reading_reaches_it(as_of):
         EmbargoRegisterStatus.TERMINATED
     ]
     (exit_,) = _exits(reading)
-    assert exit_.exit_reason is TerminationReason.END_TIME_REACHED
+    assert exit_.ended_at_end_time
     assert exit_.committed_at == AT_DUE_DATE
     assert exit_.claimed_at == AT_DUE_DATE
     entry = reading.ledger[exit_.log_index]
@@ -283,8 +279,14 @@ def test_the_embargo_ends_at_due_date_once_the_reading_reaches_it(as_of):
     assert _reached(reading) == _reached(translate(ACTIVE))
 
 
-def test_the_exit_names_the_core_s_end_time_reason():
-    assert TerminationReason.END_TIME_REACHED.value == END_TIME_REACHED
+def test_the_exit_carries_the_end_time_as_its_cause():
+    reading = translate(ACTIVE, as_of=AT_DUE_DATE)
+    (exit_,) = _exits(reading)
+    entry = reading.ledger[exit_.log_index]
+    assert entry.payload_snapshot["terminationCause"] == {
+        "kind": "END_TIME_REACHED"
+    }
+    assert "content" not in entry.payload_snapshot
 
 
 @pytest.mark.spec("CRD-03-001")

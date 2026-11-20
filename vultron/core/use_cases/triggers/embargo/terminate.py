@@ -15,13 +15,14 @@
 
 """Embargo termination trigger use case.
 
-``reason=EARLY`` (the default) ends the embargo in force on the actor's own
-decision.  ``reason=END_TIME_REACHED`` is an outside request to end it at its
-end time, such as a Sentinel monitoring embargo timers sends: it runs the
-same idempotent path as the CASE_MANAGER's lazy check
+An early cause (``OTHER`` when none is named, the default) ends the embargo
+in force on the actor's own decision.  An ``END_TIME_REACHED`` cause is an
+outside request to end it at its end time, such as a Sentinel monitoring
+embargo timers sends: it runs the same idempotent path as the CASE_MANAGER's
+lazy check
 (:func:`~vultron.core.behaviors.embargo.end_time_tree.end_embargo_at_end_time_bt`),
 is refused before the end time, and is answered as already done — no
-activity — once the embargo has ended (ADR-0122).  An ``EARLY`` request made
+activity — once the embargo has ended (ADR-0122).  An early request made
 once the end time has passed takes that path too, so the embargo is recorded
 as ending at its end time (EMB-13-003).
 """
@@ -46,7 +47,6 @@ from vultron.core.services.embargo_lifecycle import (
     embargo_end_time_passed,
     termination_timing_violations,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     _coerce_embargo_event,
@@ -77,7 +77,6 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         actor = resolve_actor(request.actor_id, dl)
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, dl)
-        self._reason: TerminationReason = request.reason
         # This act's instant, read once by ``execute()`` before anything
         # decides anything (#5591); the end-time claim and the clock
         # decisions judge against the same one.
@@ -91,33 +90,32 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
             _coerce_embargo_event(dl.read(embargo_id), embargo_id)
         self._embargo_id = embargo_id or ""
 
+        # The termination this request asks for: the cause the requester
+        # names, OTHER when it names none (EMB-14-001).  The Remove carries
+        # it, and the CASE_MANAGER records it on its TERMINATED entry
+        # (EMB-13-005).
+        self._termination = EmbargoTermination(
+            cause=request.cause or OtherCause()
+        )
+
         # Once the end time has passed, the embargo ends with
         # END_TIME_REACHED whatever was asked (EMB-13-003): this trigger runs
         # the end-time path itself, so it takes no case-wide end-time check.
-        if self._reason == TerminationReason.EARLY and embargo_end_time_passed(
-            dl, self._case, self._now
+        if (
+            not self._termination.is_end_time_reached
+            and embargo_end_time_passed(dl, self._case, self._now)
         ):
             logger.info(
                 "Actor '%s': embargo on case '%s' has reached its end time —"
-                " ending it with END_TIME_REACHED, not EARLY, which records"
-                " no cause (requested cause: %s)",
+                " ending it with END_TIME_REACHED, not the requested early"
+                " cause %s",
                 self._actor_id,
                 self._case.id_,
-                request.cause.kind if request.cause is not None else "none",
+                self._termination.cause.kind
+                if self._termination.cause is not None
+                else "none",
             )
-            self._reason = TerminationReason.END_TIME_REACHED
-
-        # The termination this request asks for: its what, and for an EARLY
-        # one the cause the requester names, OTHER when it names none
-        # (EMB-14-001).  An end-time termination has no cause.  The Remove
-        # carries both, and the CASE_MANAGER records them on its TERMINATED
-        # entry (EMB-13-005).
-        self._termination = EmbargoTermination.from_reason(
-            self._reason,
-            (request.cause or OtherCause())
-            if self._reason == TerminationReason.EARLY
-            else None,
-        )
+            self._termination = EmbargoTermination.end_time_reached()
 
         # An end-time request before the end time is refused on every actor,
         # so a participant never asks the CASE_MANAGER for one (ADR-0122).
@@ -141,7 +139,6 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
                 embargo_id=self._embargo_id,
                 case_id=self._case.id_,
                 actor=self._actor_id,
-                reason=self._termination.reason,
                 cause=self._termination.cause,
                 to=to,
                 at=self._at,
@@ -149,7 +146,7 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
             self._captured["activity"] = json.loads(remove_blob)
             return remove_id, remove_blob
 
-        if self._reason == TerminationReason.END_TIME_REACHED:
+        if self._termination.is_end_time_reached:
             return end_embargo_at_end_time_bt(
                 case_id=self._case.id_,
                 result_out=self._result_out,
@@ -181,7 +178,9 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
             self._actor_id,
             self._embargo_id,
             self._case.id_,
-            self._reason,
+            self._termination.cause.kind
+            if self._termination.cause is not None
+            else "early, no cause",
             lr.em_before,
             lr.em_after,
         )
