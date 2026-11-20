@@ -26,7 +26,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
     as_Announce,
-    as_Create,
     as_Invite,
     as_Offer,
     as_Reject,
@@ -56,18 +55,19 @@ class TestVocabParticipantExamples(unittest.TestCase):
         for status in obj.participant_statuses:
             self.assertIsInstance(status, as_ParticipantStatus)
 
-    def test_create_participant(self):
-        activity = examples.create_participant()
+    def test_add_participant_to_case(self):
+        activity = examples.add_participant_to_case()
         self.assertIsInstance(activity, as_Activity)
         case_actor = examples.case_actor()
         case = examples.case()
         coordinator = examples.coordinator()
 
-        self.assertIsInstance(activity, as_Create)
-        self.assertEqual(activity.type_, "Create")
+        self.assertIsInstance(activity, as_Add)
+        self.assertEqual(activity.type_, "Add")
 
         self.assertEqual(activity.actor, case_actor.id_)
         self.assertIsNone(activity.content)
+        self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.context, case.id_)
         participant = cast(as_CaseParticipant, activity.object_)
         self.assertEqual(participant.attributed_to, coordinator.id_)

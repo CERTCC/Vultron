@@ -17,8 +17,8 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sync.nodes import (
     CheckLedgerFreshnessNode,
+    IsAddCaseParticipantToCaseEventNode,
     IsAddNoteEventNode,
-    IsCreateCaseParticipantEventNode,
     IsInviteAcceptEventNode,
     IsInviteRejectEventNode,
     IsParticipantStatusEventNode,
@@ -33,7 +33,7 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.participant_semantic_types import (
-    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
 )
 
 
@@ -45,8 +45,8 @@ from vultron.core.models.participant_semantic_types import (
         (IsAddNoteEventNode, _ADD_NOTE_TO_CASE_EVENT),
         (IsRemoveNoteEventNode, _REMOVE_NOTE_FROM_CASE_EVENT),
         (
-            IsCreateCaseParticipantEventNode,
-            CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+            IsAddCaseParticipantToCaseEventNode,
+            ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
         ),
         (IsInviteAcceptEventNode, "accept_invite_actor_to_case"),
         (IsInviteRejectEventNode, "reject_invite_actor_to_case"),

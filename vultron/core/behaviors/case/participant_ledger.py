@@ -22,7 +22,7 @@ ids and times in the entry are the ones in its store.  The entry's snapshot is
 the activity the trigger-activity port builds for that change and seals,
 verbatim (VM-08-003).
 
-- :func:`commit_case_participant_created` -- ``create_case_participant``
+- :func:`commit_case_participant_added` -- ``add_case_participant_to_case``
 - :func:`commit_participant_status_added` -- the existing
   ``add_participant_status_to_participant``
 
@@ -38,7 +38,7 @@ from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_semantic_types import (
-    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 
-def commit_case_participant_created(
+def commit_case_participant_added(
     *,
     datalayer: CaseOutboxPersistence,
     actor_id: str,
@@ -56,8 +56,8 @@ def commit_case_participant_created(
     trigger_activity: TriggerActivityPort,
     at: datetime,
 ) -> None:
-    """Commit ``Create(CaseParticipant)`` for the record just created."""
-    _, blob = trigger_activity.record_case_participant_created(
+    """Commit ``Add(CaseParticipant, target=<case>)`` for the record just seated."""
+    _, blob = trigger_activity.record_case_participant_added(
         participant=participant, case_id=case_id, actor=actor_id, at=at
     )
     commit_emitted_activity(
@@ -66,7 +66,7 @@ def commit_case_participant_created(
         case_id=case_id,
         activity_id=participant.id_,
         activity_blob=blob,
-        semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        semantic_type=ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
     )
 
 

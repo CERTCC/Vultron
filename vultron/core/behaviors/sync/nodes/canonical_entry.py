@@ -57,7 +57,7 @@ _PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", CaseLedgerEntry)
 # ledger ``payloadSnapshot``.  Audited against the CaseActor-authoritative
 # initialization path in ADR-0041 (Issue #1777): the init signatures
 # (``Create(VulnerabilityCase)``, ``Create(EmbargoEvent)``,
-# ``Add(VulnerabilityReport)``, ``Create(CaseParticipant)``,
+# ``Add(VulnerabilityReport)``, ``Add(CaseParticipant)``,
 # ``Add(ParticipantStatus)``, ``Add(CaseStatus)``) are all still required —
 # ``case_proposal_received_tree`` now commits them natively where the deleted
 # ``WritePrologueLedgerEntriesNode`` used to back-fill them (CM-22-003).  No
@@ -134,10 +134,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # sibling ``Offer(CaseParticipant)`` recommendation it moves no replica
     # state — the offer is a proposal, not the grant (CLP-07-005, #3764).
     ("Offer", "CaseParticipantRole"),
+    # CASE_MANAGER-authored record of each participant record it adds to the
+    # case, such as the inert record for a stub Invite's invitee
+    # (add_case_participant_to_case, VAM-06-004, ADR-0114).
     ("Add", "CaseParticipant"),
-    # CASE_MANAGER-authored record of the inert participant record it creates
-    # for a stub Invite's invitee (ADR-0114).
-    ("Create", "CaseParticipant"),
     # The Case Owner's removal and reinstatement, each its own act naming the
     # actor, committed as received (CM-31-005, CM-31-044, ADR-0199).
     # Owner-authored.

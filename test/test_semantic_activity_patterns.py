@@ -1592,8 +1592,8 @@ def test_refusal_notice_pattern_matches_the_notice_example():
         ),
         (
             "participant",
-            "create_participant",
-            MessageSemantics.CREATE_CASE_PARTICIPANT,
+            "add_participant_to_case",
+            MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
         ),
         (
             "participant",

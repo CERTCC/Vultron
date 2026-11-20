@@ -545,21 +545,43 @@ class TestRecommendActorActivity:
 # ---------------------------------------------------------------------------
 
 
-class TestCreateParticipantActivity:
+class TestAddParticipantToCaseActivity:
     from vultron.wire.as2.vocab.activities.case_participant import (
-        _CreateParticipantActivity,
+        _AddParticipantToCaseActivity,
     )
 
-    cls = _CreateParticipantActivity
+    cls = _AddParticipantToCaseActivity
+    # The case whose participant list the record joins (VAM-06-004), so a
+    # refusal is about ``object_`` alone.
+    fields = {
+        "target": "https://example.org/cases/c1",
+        "context": "https://example.org/cases/c1",
+    }
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.fields)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.fields)
 
     def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, make(as_CaseParticipant))
+        _assert_accepts_inline(
+            self.cls, make(as_CaseParticipant), **self.fields
+        )
+
+    @pytest.mark.spec("VAM-06-004")
+    @pytest.mark.parametrize("missing", ["target", "context"])
+    def test_requires_the_case(self, missing):
+        fields = {k: v for k, v in self.fields.items() if k != missing}
+        with pytest.raises(ValidationError):
+            _make_activity(self.cls, make(as_CaseParticipant), **fields)
+
+    @pytest.mark.spec("VAM-06-004")
+    @pytest.mark.parametrize("slot", ["target", "context"])
+    def test_refuses_an_explicit_none_case(self, slot):
+        fields = {**self.fields, slot: None}
+        with pytest.raises(ValidationError, match=f"names its case in {slot}"):
+            _make_activity(self.cls, make(as_CaseParticipant), **fields)
 
 
 class TestAddStatusToParticipantActivity:

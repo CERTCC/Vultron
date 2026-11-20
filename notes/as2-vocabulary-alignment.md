@@ -317,9 +317,8 @@ the manager path alone and read the actor from `/participant_actor_id`. The one
 `announce_admitted_act_activity` and the received `ANNOUNCE_ADMITTED_ACT`
 (VAM-06-008), which a replica records and applies nothing from; the ADR-0203 end of
 an embargo (#6483) reuses it by overriding its recipients and, for an act it did
-not receive, `_admitted_act_id`. `Add(CaseParticipant)` is unrecognized until the
-CASE_MANAGER's seating entry takes it (§ "The CASE_MANAGER Adds a New Participant
-Record to the Case").
+not receive, `_admitted_act_id`. `Add(CaseParticipant)` is the CASE_MANAGER's
+seating entry (§ "The CASE_MANAGER Adds a New Participant Record to the Case").
 
 ---
 
@@ -853,25 +852,13 @@ received one is refused as unrecognized (VAM-01-017).
 **AS2 basis.** CORE App. B: the AS1 "post" verb maps to `Create` without a target and
 to `Add` with one.
 
-**Today.** `create_participant_activity` builds `Create(CaseParticipant)` with
-`target=case_target_ref(target)` (`vultron/wire/as2/factories/case_participant.py`);
-`ApplyCreateCaseParticipantFromLedgerNode` seats the record from the entry's `context`.
-
-**Touches.** The factory and wire class, `record_case_participant_created`, the
-`create_participant` example, the semantic registry and canonical signatures, the
-replica's apply node, `docs/reference/messages/case_management.md` and its
-`_occasions` fragments, the docs pages
-that name the `create_case_participant` entry
-(`docs/topics/case_lifecycle/case_initialization.md`,
-`docs/reference/messages/ledger_replication.md`,
-`docs/reference/rv-demo-protocol.md`, the `rv`, `rcv`, `rcv-reject` and `rvv`
-scenario pages and `docs/topics/scenarios/_engagement_status_entry.md`),
-`notes/demo-ci-scenario-coverage.md`, the demo ledger recordings, and the
-strict-xfail probes that hold the amended specs
-(`test/architecture/test_participant_seating_add_planned.py` and
-`test_the_stub_invite_adds_the_participant_record_to_the_case` in
-`test/core/use_cases/received/test_stub_invite_replay.py`). The Case Owner's
-`Add(CaseParticipant)` request is retired (#6465), so the name is free.
+**Today.** Built (#6295). `add_participant_to_case_activity`
+(`vultron/wire/as2/factories/case_participant.py`) is the one factory; it refuses a
+`context` naming another case than `target`. `record_case_participant_added` seals it
+for both seating paths (stub Invite, case creation). The replica's
+`ApplyAddCaseParticipantToCaseFromLedgerNode` reads the case from the entry's `target`
+and fails an entry whose `target` names no case or another case. The entry names no
+`inReplyTo` yet: like every other commit-caused act, it gets one in #6726 (ADR-0204).
 
 ---
 

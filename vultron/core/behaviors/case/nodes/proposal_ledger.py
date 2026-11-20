@@ -51,7 +51,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_semantic_types import (
-    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
@@ -79,7 +79,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
       3. ``add_report_to_case``              actor=CaseActor
          then one ``add_vulnerability_item_to_case`` or
          ``add_case_reference_to_case`` per record (CLP-07-021)
-      4. per seated record, ``create_case_participant`` carrying it as
+      4. per seated record, ``add_case_participant_to_case`` carrying it as
          created, then ``add_participant_status_to_participant`` for each
          later status (CLP-07-013, CM-23-007)  actor=CaseActor
       5. ``add_case_status_to_case``         actor=CaseActor (the receiver
@@ -295,7 +295,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     ) -> None:
         """Commit each seated record as it came into existence, then its moves.
 
-        Per record, ``Create(CaseParticipant)`` carries the record in full
+        Per record, ``Add(CaseParticipant, target=<case>)`` carries the record in full
         as it was created: its roles, its consent rows and its first status
         (CLP-07-021).  Each later status the initialization wrote follows as
         its own ``add_participant_status_to_participant`` entry, so the
@@ -333,8 +333,8 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             self._commit_one(
                 case_id,
                 participant_id,
-                CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
-                port.record_case_participant_created(
+                ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
+                port.record_case_participant_added(
                     participant=created,
                     case_id=case_id,
                     actor=self.actor_id,
@@ -447,7 +447,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                 self._require_act_instant(),
             ):
                 self._commit_one(case_id, object_id, semantic_type, activity)
-            # 4. per record: create_case_participant, then its later
+            # 4. per record: add_case_participant_to_case, then its later
             #    statuses  (actor = CaseActor)
             self._commit_participant_records(case, case_id)
             # 5. add_case_status  (actor = CaseActor, its signer; the

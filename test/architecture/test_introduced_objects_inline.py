@@ -60,6 +60,7 @@ from vultron.wire.as2.factories import (
     add_case_reference_to_case_activity,
     add_log_entry_activity,
     add_note_to_case_activity,
+    add_participant_to_case_activity,
     add_report_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
@@ -68,7 +69,6 @@ from vultron.wire.as2.factories import (
     create_case_activity,
     create_embargo_consent_activity,
     create_embargo_event_activity,
-    create_participant_activity,
     create_processing_fault_activity,
     em_propose_embargo_activity,
     offer_case_participant_activity,
@@ -113,11 +113,11 @@ INTRODUCES: dict[
         lambda o: create_case_activity(o, actor=_ACTOR, at=authored_at()),
         _example_object("create_case"),
     ),
-    "create_participant_activity": (
-        lambda o: create_participant_activity(
+    "add_participant_to_case_activity": (
+        lambda o: add_participant_to_case_activity(
             o, target=_CASE, actor=_ACTOR, at=authored_at()
         ),
-        _example_object("create_participant"),
+        _example_object("add_participant_to_case"),
     ),
     "create_embargo_consent_activity": (
         lambda o: create_embargo_consent_activity(

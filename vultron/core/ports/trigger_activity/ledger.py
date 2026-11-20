@@ -157,7 +157,7 @@ class TriggerLedgerRecordsPort(Protocol):
         """
         ...
 
-    def record_case_participant_created(
+    def record_case_participant_added(
         self,
         participant: CaseParticipant,
         case_id: str,
@@ -165,7 +165,11 @@ class TriggerLedgerRecordsPort(Protocol):
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """``Create(CaseParticipant)`` (``create_case_participant``), the record as stored."""
+        """``Add(CaseParticipant, target=<case>)``, the record as stored.
+
+        The ``add_case_participant_to_case`` entry (VAM-06-004): ``target``
+        and ``context`` are *case_id*.
+        """
         ...
 
     def record_case_participant_updated(

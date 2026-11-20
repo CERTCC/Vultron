@@ -105,7 +105,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_semantic_types import (
-    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
 )
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -827,7 +827,7 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
     The invitee's stub-Invite acceptance commits no ``add_case_participant``
     entry and enqueues no ``Add(CaseParticipant)``; the existing
     participant's replica stores the new member's record from the
-    ``create_case_participant`` entry and its joined mark from the invitee's
+    ``add_case_participant_to_case`` entry and its joined mark from the invitee's
     own ``Accept(Invite)`` entry, as the CASE_MANAGER holds them.
     """
     case.dl.create(make(as_Organization, id_=NEWBIE))
@@ -857,13 +857,13 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
             activity_id=stored.id_,
             activity_blob=TriggerActivityAdapter(
                 case.dl
-            ).record_case_participant_created(
+            ).record_case_participant_added(
                 participant=stored,
                 case_id=CASE_ID,
                 actor=MANAGER,
                 at=authored_at(),
             )[1],
-            semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+            semantic_type=ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
             sync_port=SyncActivityAdapter(case.dl),
         )
 

@@ -251,8 +251,10 @@ class Ledger:
         )
 
     def seat(self, record: dict[str, Any]) -> int:
-        """The CASE_MANAGER's ``Create(CaseParticipant)``."""
-        return self.add("create_case_participant", "Create", CM, record)
+        """The CASE_MANAGER's ``Add(CaseParticipant, target=<case>)``."""
+        return self.add(
+            "add_case_participant_to_case", "Add", CM, record, target=CASE
+        )
 
     def stub_invite(self, invitee: str) -> dict[str, Any]:
         """A stub ``Invite`` of *invitee*, naming the default embargo."""

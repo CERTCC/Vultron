@@ -1,13 +1,13 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-## Create case participant { #create-case-participant }
+## Add case participant to case { #add-case-participant-to-case }
 
-Carries the new participant record in full: its roles, statuses, joined mark and consent rows.
+Carries the new participant record in full: its roles, statuses, joined mark and consent rows. The target is the case whose participant list the record joins.
 
 === "Details"
 
-    - **When…** the CASE_MANAGER creates a participant record, such as the inert record for the invitee of a stub Invite
-    - **Send:** `Create(CaseParticipant)`
+    - **When…** the CASE_MANAGER adds a new participant record to the case, such as the inert record for the invitee of a stub Invite
+    - **Send:** `Add(CaseParticipant)[target=VulnerabilityCase]`
     - **Send to:** a participant
     - **Sent by:** internal to the CASE_MANAGER
     - **Mapping status:** [none](../../index.md#mapping-status)
@@ -19,5 +19,5 @@ Carries the new participant record in full: its roles, statuses, joined mark and
     ```python exec="true" idprefix=""
     from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(render_example("create_participant"))
+    print(render_example("add_participant_to_case"))
     ```

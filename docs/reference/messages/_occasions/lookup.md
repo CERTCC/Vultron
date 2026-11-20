@@ -51,7 +51,7 @@
 | the Case Owner removes a Participant from active participation | `Remove(Actor)[origin=VulnerabilityCase]` | the CASE_MANAGER | the Case Owner | — | [Remove participant from case](../case_management.md#remove-participant-from-case) |
 | the Case Owner reinstates a removed Participant | `Add(Actor)[target=VulnerabilityCase]` | the CASE_MANAGER | the Case Owner | — | [Reinstate participant in case](../case_management.md#reinstate-participant-in-case) |
 | the CASE_MANAGER has admitted an act that concerns an actor the ledger fan-out does not reach, such as a removed or reinstated Participant | `Announce(Activity)[context=VulnerabilityCase]` | a participant | the CASE_MANAGER | — | [Announce admitted act](../case_management.md#announce-admitted-act) |
-| the CASE_MANAGER creates a participant record, such as the inert record for the invitee of a stub Invite | `Create(CaseParticipant)` | a participant | internal to the CASE_MANAGER | — | [Create case participant](../case_management.md#create-case-participant) |
+| the CASE_MANAGER adds a new participant record to the case, such as the inert record for the invitee of a stub Invite | `Add(CaseParticipant)[target=VulnerabilityCase]` | a participant | internal to the CASE_MANAGER | — | [Add case participant to case](../case_management.md#add-case-participant-to-case) |
 | the CASE_MANAGER changes a participant record, such as moving the CASE_OWNER role on an ownership transfer | `Update(CaseParticipant)` | a participant | internal to the CASE_MANAGER | — | [Update case participant](../case_management.md#update-case-participant) |
 
 ## Embargo

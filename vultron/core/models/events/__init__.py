@@ -61,8 +61,8 @@ from vultron.core.models.events.case_context import (
     resolve_case_context_id,
 )
 from vultron.core.models.events.case_participant import (
+    AddCaseParticipantToCaseReceivedEvent,
     AnnounceAdmittedActReceivedEvent,
-    CreateCaseParticipantReceivedEvent,
     ReinstateParticipantInCaseReceivedEvent,
     RemoveParticipantFromCaseReceivedEvent,
     UpdateCaseParticipantReceivedEvent,
@@ -168,7 +168,7 @@ AnyReceivedEvent = (
     RemoveParticipantFromCaseReceivedEvent
     | ReinstateParticipantInCaseReceivedEvent
     | AnnounceAdmittedActReceivedEvent
-    | CreateCaseParticipantReceivedEvent
+    | AddCaseParticipantToCaseReceivedEvent
     | UpdateCaseParticipantReceivedEvent
     |
     # embargo
@@ -266,7 +266,7 @@ __all__ = [
     "AnnounceAdmittedActReceivedEvent",
     "ReinstateParticipantInCaseReceivedEvent",
     "RemoveParticipantFromCaseReceivedEvent",
-    "CreateCaseParticipantReceivedEvent",
+    "AddCaseParticipantToCaseReceivedEvent",
     "UpdateCaseParticipantReceivedEvent",
     # embargo
     "ActivateEmbargoOnCaseReceivedEvent",

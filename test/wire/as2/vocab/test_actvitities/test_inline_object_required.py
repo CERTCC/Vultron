@@ -59,9 +59,9 @@ from vultron.wire.as2.vocab.activities.case.rm import (
     _RmEngageCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
+    _AddParticipantToCaseActivity,
     _AddStatusToParticipantActivity,
     _AnnounceAdmittedActActivity,
-    _CreateParticipantActivity,
     _ReinstateParticipantActivity,
     _RemoveParticipantActivity,
 )
@@ -150,6 +150,8 @@ _PARTICIPANT_STATUS = make(as_ParticipantStatus, context=_CASE.id_)
 #: A status Add's history and case (ADR-0204), so a refusal is about
 #: ``object_`` alone.
 _CASE_STATUS_ADD = {"target": f"{_CASE.id_}/statuses", "context": _CASE.id_}
+# The case whose participant list the record joins (VAM-06-004).
+_PARTICIPANT_ADD = {"target": _CASE.id_, "context": _CASE.id_}
 _PARTICIPANT_STATUS_ADD = {
     "target": f"{_CASE.id_}/participants/p1/statuses",
     "context": _CASE.id_,
@@ -650,11 +652,15 @@ class TestNoneObjectRejected(unittest.TestCase):
 
     # --- case_participant.py (4 classes) ---
 
-    def test_create_participant_rejects_none(self):
-        self._assert_none_rejected(_CreateParticipantActivity)
+    def test_add_participant_to_case_rejects_none(self):
+        self._assert_none_rejected(
+            _AddParticipantToCaseActivity, **_PARTICIPANT_ADD
+        )
 
-    def test_create_participant_rejects_missing(self):
-        self._assert_missing_rejected(_CreateParticipantActivity)
+    def test_add_participant_to_case_rejects_missing(self):
+        self._assert_missing_rejected(
+            _AddParticipantToCaseActivity, **_PARTICIPANT_ADD
+        )
 
     def test_add_status_to_participant_rejects_none(self):
         self._assert_none_rejected(

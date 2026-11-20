@@ -26,6 +26,7 @@ from datetime import datetime
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.status_history import status_history_id
+from vultron.wire.as2.context_agreement import case_uri_of
 from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
@@ -33,9 +34,9 @@ from vultron.wire.as2.factories._context import (
 )
 from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.vocab.activities.case_participant import (
+    _AddParticipantToCaseActivity,
     _AddStatusToParticipantActivity,
     _AnnounceAdmittedActActivity,
-    _CreateParticipantActivity,
     _ReinstateParticipantActivity,
     _RemoveParticipantActivity,
     _UpdateParticipantActivity,
@@ -44,7 +45,6 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Announce,
-    as_Create,
     as_Remove,
     as_Update,
 )
@@ -59,40 +59,59 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 
-def create_participant_activity(
+def add_participant_to_case_activity(
     participant: as_CaseParticipant,
-    target: as_VulnerabilityCaseRef | None = None,
+    target: as_VulnerabilityCaseRef,
     *,
     at: datetime,
     **kwargs,
-) -> as_Create:
-    """Build a Create(CaseParticipant).
+) -> as_Add:
+    """Build ``Add(CaseParticipant, target=<case>)``, the record in full.
 
-    The internal class automatically generates a descriptive ``name``
-    field if one is not provided.
+    The CASE_MANAGER's own act bringing a participant record into the case's
+    participant list (VAM-06-004, CLP-07-021).  ``context`` is the case
+    unless the caller names it (CLP-07-007).  The internal class generates a
+    descriptive ``name`` if none is given.
 
     Args:
-        participant: The ``as_CaseParticipant`` being created.
-        target: The ``VulnerabilityCase`` (or its URI) this participant
-            is being created for.
+        participant: The ``as_CaseParticipant`` added, carried inline.
+        target: The ``VulnerabilityCase`` (or its URI) whose participant list
+            the record joins.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+            (e.g. ``actor``, ``id_``).
 
     Returns:
-        An ``as_Create`` whose ``object_`` is the participant.
+        An ``as_Add`` whose ``object_`` is the participant and whose
+        ``target`` and ``context`` are the case.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails, or
+            ``context`` names another case than ``target``.
     """
+
+    def _fields() -> dict[str, object]:
+        fields = with_case_context(
+            {
+                "object_": participant,
+                "target": case_target_ref(target),
+                **kwargs,
+            },
+            target,
+        )
+        # The record joins the list of the case the activity is about, so
+        # the two slots name one case (CLP-07-007, CLP-07-021).
+        if case_uri_of(fields.get("context")) != case_uri_of(target):
+            raise ValueError(
+                "a participant record is added to the case its context names"
+            )
+        return fields
+
     return build_activity(
-        "create_participant_activity",
-        _CreateParticipantActivity,
+        "add_participant_to_case_activity",
+        _AddParticipantToCaseActivity,
         at,
-        lambda: {
-            "object_": participant,
-            "target": case_target_ref(target),
-            **kwargs,
-        },
+        _fields,
+        also=(ValueError,),
     )
 
 

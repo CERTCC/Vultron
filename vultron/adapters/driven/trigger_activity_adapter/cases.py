@@ -77,6 +77,10 @@ _ADD_OBJECT_TO_CASE_SEMANTICS: frozenset[MessageSemantics] = frozenset(
 ) - {
     MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
     MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+    # The CASE_MANAGER's own seating entry: a participant record comes into
+    # existence only as its consequence of an act it records (VAM-01-020,
+    # VAM-06-004), never by a participant's generic Add.
+    MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
 }
 
 
@@ -191,7 +195,9 @@ class _CasesMixin:
             VultronValidationError: when the ``Add`` matches no receive-side
                 pattern that adds an object to a case, or matches one whose
                 object type has its own flow (an actor, whose ``Add`` is
-                the Case Owner's reinstatement, ADR-0199; ``CaseStatus``;
+                the Case Owner's reinstatement, ADR-0199; a
+                ``CaseParticipant``, whose ``Add`` is the CASE_MANAGER's own
+                seating entry, VAM-06-004; ``CaseStatus``;
                 and ``EmbargoEvent``, whose ``Add`` is the Case Owner's
                 activation, ADR-0180).
         """

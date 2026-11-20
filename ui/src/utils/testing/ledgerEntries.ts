@@ -38,12 +38,13 @@ export function ledgerEntry(logIndex: number, semanticType: string, payloadSnaps
   }
 }
 
-/** A `create_case_participant` entry recording `actor` with `caseRoles`. */
+/** An `add_case_participant_to_case` entry recording `actor` with `caseRoles`. */
 export function participantEntry(logIndex: number, actor: string, caseRoles: CaseRole[]): CaseLedgerEntry {
-  return ledgerEntry(logIndex, 'create_case_participant', {
-    type: 'Create',
+  return ledgerEntry(logIndex, 'add_case_participant_to_case', {
+    type: 'Add',
     actor: ACTORS.manager,
     object: { type: 'CaseParticipant', attributedTo: actor, caseRoles },
+    target: { id: CASE, type: 'VulnerabilityCase' },
   })
 }
 

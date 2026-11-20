@@ -460,8 +460,8 @@ def _case_manager_acts() -> list[Any]:
         pytest.param(build, semantics, id=semantics.value)
         for build, semantics in (
             (
-                participant.create_participant,
-                MessageSemantics.CREATE_CASE_PARTICIPANT,
+                participant.add_participant_to_case,
+                MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
             ),
             (
                 participant.update_participant,
@@ -485,7 +485,12 @@ def _case_manager_acts() -> list[Any]:
 
 
 @pytest.mark.spec(
-    "SE-05-002", "CLP-07-013", "VAM-01-018", "VAM-01-019", "VAM-01-020"
+    "SE-05-002",
+    "CLP-07-013",
+    "VAM-01-018",
+    "VAM-01-019",
+    "VAM-01-020",
+    "VAM-06-004",
 )
 @pytest.mark.parametrize(("build", "semantics"), _case_manager_acts())
 def test_a_received_case_manager_act_is_recognized_and_unhandled(
@@ -538,9 +543,12 @@ def _retired_create_activities() -> list[Any]:
     """The received ``Create(X)`` routes #4598 and #4707 removed, one each.
 
     Each addressed to the receiver and naming the case the way the removed
-    pattern required.  ``Create(CaseParticipant)`` is not among them: it is
-    the CASE_MANAGER's own act, which the registry recognizes (#4724), and
-    neither is ``Create(EmbargoEvent)`` (VAM-05-016).  A ``Create`` of a plain
+    pattern required.  ``Create(CaseParticipant)`` is among them: the
+    CASE_MANAGER's own record of a participant is
+    ``Add(CaseParticipant, target=<case>)`` (VAM-06-004, #6295), which the
+    registry recognizes (#4724), so a ``Create`` of one is not a protocol
+    message, even naming the case in ``target`` as the retired form did.
+    ``Create(EmbargoEvent)`` is not among them (VAM-05-016).  A ``Create`` of a plain
     ``Event`` is among them: only an ``EmbargoEvent`` object is recognized
     (VAM-01-017).  ``Create(Note)`` is sent
     twice: once with the note's ``context`` naming the case (the form the
@@ -553,6 +561,9 @@ def _retired_create_activities() -> list[Any]:
         as_Event,
         as_Note,
     )
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
     from vultron.wire.as2.vocab.objects.case_status import (
         as_CaseStatus,
         as_ParticipantStatus,
@@ -560,6 +571,22 @@ def _retired_create_activities() -> list[Any]:
 
     participant_id = f"{_RETIRED_CASE_ID}/participants/sender"
     return [
+        pytest.param(
+            make(
+                as_Create,
+                object_=make(
+                    as_CaseParticipant,
+                    id_=participant_id,
+                    attributed_to=_SENDER_ID,
+                    context=_RETIRED_CASE_ID,
+                ),
+                target=_RETIRED_CASE_ID,
+                context=_RETIRED_CASE_ID,
+                actor=_SENDER_ID,
+                to=[_RECEIVER_ID],
+            ),
+            id="case-participant",
+        ),
         pytest.param(
             make(
                 as_Create,
@@ -625,7 +652,12 @@ def _retired_create_activities() -> list[Any]:
 
 
 @pytest.mark.spec(
-    "CLP-07-013", "CLP-02-013", "VAM-01-017", "VAM-01-011", "VAM-01-019"
+    "CLP-07-013",
+    "CLP-02-013",
+    "VAM-01-017",
+    "VAM-01-011",
+    "VAM-01-019",
+    "VAM-06-004",
 )
 @pytest.mark.parametrize("activity", _retired_create_activities())
 def test_received_create_of_a_case_record_is_refused_case_unchanged(
@@ -634,10 +666,10 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
     """A received ``Create`` of a case record is not a protocol message (VAM-01-017, VAM-01-019).
 
     The protocol names one form for each act: ``Add(CaseStatus)``,
-    ``Add(ParticipantStatus)``, ``Add(Note)``, and the CASE_MANAGER's own
-    record of a ``CaseParticipant`` or a creation-time ``EmbargoEvent``
-    (ADR-0137, VAM-05-016), which ``test_a_received_case_manager_act_is_recognized_and_unhandled``
-    covers.
+    ``Add(ParticipantStatus)``, ``Add(Note)``, ``Add(CaseParticipant)``, and
+    the CASE_MANAGER's own record of a creation-time ``EmbargoEvent``
+    (ADR-0137, VAM-05-016, VAM-06-004), which
+    ``test_a_received_case_manager_act_is_recognized_and_unhandled`` covers.
     Each of the record ``Create`` forms once stored its object with no ledger
     entry, which CLP-07-013 rules out (#4598); ``Create(Note)`` was a second
     way to attach a note (#4707).

@@ -38,11 +38,11 @@ from vultron.core.behaviors.embargo.nodes import (
     IsRejectEmbargoProposalEventNode,
 )
 from vultron.core.behaviors.sync.nodes import (
+    ApplyAddCaseParticipantToCaseFromLedgerNode,
     ApplyCaseParticipantRoleGrantFromLedgerNode,
     ApplyCaseParticipantUpdateFromLedgerNode,
     ApplyCaseReferenceFromLedgerNode,
     ApplyCaseStatusFromLedgerNode,
-    ApplyCreateCaseParticipantFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
     ApplyInviteRejectFromLedgerNode,
     ApplyNoteFromLedgerNode,
@@ -55,11 +55,11 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyVulnerabilityItemFromLedgerNode,
     IsAcceptCaseParticipantRoleEventNode,
     IsAcceptEmbargoInviteEventNode,
+    IsAddCaseParticipantToCaseEventNode,
     IsAddCaseReferenceEventNode,
     IsAddCaseStatusEventNode,
     IsAddNoteEventNode,
     IsAddVulnerabilityItemEventNode,
-    IsCreateCaseParticipantEventNode,
     IsCreateEmbargoEventNode,
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
@@ -285,13 +285,13 @@ def create_log_entry_event_effects() -> py_trees.composites.Sequence:
                 IsRemoveNoteEventNode,
                 ApplyRemoveNoteFromLedgerNode,
             ),
-            # The ledger holds the wire messages exchanged (ADR-0114): creating
+            # The ledger holds the wire messages exchanged (ADR-0114): adding
             # the record is the CASE_MANAGER's own act and has its own entry; the
             # invitee's Accept and Reject are the entries for their own effects.
             _event_effect_slot(
-                "CreateCaseParticipant",
-                IsCreateCaseParticipantEventNode,
-                ApplyCreateCaseParticipantFromLedgerNode,
+                "AddCaseParticipantToCase",
+                IsAddCaseParticipantToCaseEventNode,
+                ApplyAddCaseParticipantToCaseFromLedgerNode,
             ),
             _event_effect_slot(
                 "InviteAccept",

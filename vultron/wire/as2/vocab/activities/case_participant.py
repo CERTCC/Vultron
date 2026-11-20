@@ -32,7 +32,6 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Announce,
-    as_Create,
     as_Remove,
     as_Update,
 )
@@ -49,22 +48,44 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 
-class _CreateParticipantActivity(as_Create):
-    """Create a new as_CaseParticipant"""
+class _AddParticipantToCaseActivity(as_Add):
+    """The CASE_MANAGER adds a new participant record to a case (VAM-06-004).
+
+    ``Add(CaseParticipant, target=<case>)``, with ``context`` the case: the
+    record joins the case's participant list, so it is an ``Add`` naming that
+    list's owner in ``target`` (CLP-07-021), carrying the record in full
+    (CM-11-024).  Only the CASE_MANAGER sends it, committed as its own
+    ``add_case_participant_to_case`` entry (ADR-0114), and a replica seats the
+    record in the case ``target`` names (CM-11-025).
+
+    object_: the participant record, inline
+    target: VulnerabilityCase
+    context: VulnerabilityCase
+    """
 
     object_: as_CaseParticipant = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = Field(...)
+    context: as_VulnerabilityCaseRef = Field(...)
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
     @model_validator(mode="after")
-    def set_name(self):
-        """Override default name to clearly identify as_CaseParticipant creation.
+    def _names_its_case(self) -> Self:
+        if self.target is None:
+            raise ValueError("a participant record names its case in target")
+        if self.context is None:
+            raise ValueError("a participant record names its case in context")
+        return self
 
-        Produces a name of the form:
-            "{actor} Create as_CaseParticipant {participant_id} from {attributed_to} in {case_id}"
-        making it obvious that a participant object is being created for an actor,
-        not the actor itself.
+    @model_validator(mode="after")
+    def set_name(self) -> Self:
+        """Name the record added and its case, unless a name is given.
+
+        Produces ``"{actor} Add as_CaseParticipant {participant_id} from
+        {attributed_to} to {case_id}"``, so it reads as a record joining the
+        case, not the actor itself.
         """
         if self.name is not None:
             return self
@@ -72,18 +93,16 @@ class _CreateParticipantActivity(as_Create):
         parts = []
         if self.actor is not None:
             parts.append(name_of(self.actor))
-        parts.append("Create as_CaseParticipant")
+        parts.append("Add as_CaseParticipant")
         participant_id = getattr(self.object_, "id_", None)
         if participant_id:
             parts.append(str(participant_id))
         attributed_to = getattr(self.object_, "attributed_to", None)
         if attributed_to:
             parts.extend(["from", str(attributed_to)])
-        if self.context is not None:
-            parts.extend(["in", str(self.context)])
+        parts.extend(["to", name_of(self.target)])
 
-        if parts:
-            object.__setattr__(self, "name", " ".join(parts))
+        object.__setattr__(self, "name", " ".join(parts))
         return self
 
 

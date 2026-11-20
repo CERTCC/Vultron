@@ -97,7 +97,7 @@ def vendor_rejects_invite(state: StoryState) -> None:
             semantic_type="reject_invite_actor_to_case",
         )
         # Read from the CASE_MANAGER's own store: a replica stores the record
-        # the CASE_MANAGER's create_case_participant entry carries (ADR-0114),
+        # the CASE_MANAGER's add_case_participant_to_case entry carries (ADR-0114),
         # but this scenario checks the record
         # the CASE_MANAGER wrote at invite-send time.
         with demo_check(

@@ -52,8 +52,8 @@ from vultron.core.behaviors.sync.nodes.case_status_effect import (
     warn_if_out_of_order,
 )
 from vultron.core.behaviors.sync.nodes.participant_record_effect import (
+    ApplyAddCaseParticipantToCaseFromLedgerNode,
     ApplyCaseParticipantUpdateFromLedgerNode,
-    ApplyCreateCaseParticipantFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
     ApplyReinstateCaseParticipantFromLedgerNode,
@@ -116,7 +116,7 @@ _RECORD_CLASSES = frozenset(
 _SLOTS = [
     ApplyParticipantStatusFromLedgerNode,
     ApplyCaseStatusFromLedgerNode,
-    ApplyCreateCaseParticipantFromLedgerNode,
+    ApplyAddCaseParticipantToCaseFromLedgerNode,
     ApplyCaseParticipantUpdateFromLedgerNode,
     ApplyCaseParticipantRoleGrantFromLedgerNode,
     ApplyRemoveCaseParticipantFromLedgerNode,

@@ -1528,7 +1528,8 @@ class TestStubInviteIsRecordedAfterItIsSent:
             step
             for step in events
             if step == ("queued", invite_id)
-            or step[0] in ("invite_actor_to_case", "create_case_participant")
+            or step[0]
+            in ("invite_actor_to_case", "add_case_participant_to_case")
         ]
         # The owner's Invite is committed first, as the act it is (AC-3);
         # then the stub Invite is queued, committed, and the invitee seated.
@@ -1538,7 +1539,7 @@ class TestStubInviteIsRecordedAfterItIsSent:
             ("invite_actor_to_case", invite_id),
             steps[3],
         ]
-        assert steps[3][0] == "create_case_participant"
+        assert steps[3][0] == "add_case_participant_to_case"
         # Committed with the Invite still pending: the commit waited for the
         # outbox write, not for delivery (OX-14-002).
         assert invite_id in harness.manager_dl.outbox_list()

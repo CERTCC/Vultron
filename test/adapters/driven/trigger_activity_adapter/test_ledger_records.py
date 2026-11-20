@@ -176,8 +176,8 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
             actor=CASE_ACTOR_ID,
             at=authored_at(),
         ),
-        "record_case_participant_created": lambda a: (
-            a.record_case_participant_created(
+        "record_case_participant_added": lambda a: (
+            a.record_case_participant_added(
                 participant=participant,
                 case_id=CASE_ID,
                 actor=CASE_ACTOR_ID,
@@ -270,10 +270,10 @@ _SHAPES: dict[str, tuple[str, str, str]] = {
         "CaseStatus",
         "add_case_status_to_case",
     ),
-    "record_case_participant_created": (
-        "Create",
+    "record_case_participant_added": (
+        "Add",
         "CaseParticipant",
-        "create_case_participant",
+        "add_case_participant_to_case",
     ),
     "record_case_participant_updated": (
         "Update",

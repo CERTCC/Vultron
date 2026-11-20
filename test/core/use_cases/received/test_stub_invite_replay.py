@@ -3,7 +3,8 @@
 
 Each actor has its own store (TB-06-007).  The ledger holds the wire messages
 exchanged (ADR-0114): sending the stub Invite commits the Invite and, separately,
-``create_case_participant`` for the inert record the CASE_MANAGER created; the invitee's own ``Accept`` and ``Reject`` messages are the entries for
+``add_case_participant_to_case`` for the inert record the CASE_MANAGER created;
+the invitee's own ``Accept`` and ``Reject`` messages are the entries for
 their effects (consent, ``joined``, ``DECLINED``), and a vendor's VF ``Vf`` and the
 reject's closing status are ``add_participant_status_to_participant`` entries.  A
 replica that never sees the Invite or the reply directly stores what those
@@ -316,7 +317,7 @@ def test_the_ledger_holds_the_messages_and_the_one_creation_entry() -> None:
     assert new[:4] == [
         "invite_actor_to_case",
         "invite_actor_to_case",
-        "create_case_participant",
+        "add_case_participant_to_case",
         "accept_invite_actor_to_case",
     ], new
     assert new[4:5] == ["add_participant_status_to_participant"], new
@@ -324,26 +325,46 @@ def test_the_ledger_holds_the_messages_and_the_one_creation_entry() -> None:
 
 
 @pytest.mark.spec("CM-11-023", "CM-11-024", "CM-11-025", "CLP-07-021")
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-023: the stub Invite's participant entry is still "
-        "create_case_participant, not add_case_participant_to_case. "
-        "Tracked by #6295 (the CASE_MANAGER seats a participant with Add)."
-    ),
-)
 def test_the_stub_invite_adds_the_participant_record_to_the_case() -> None:
-    """The CASE_MANAGER's entry for the invitee's new record is an ``Add``."""
+    """The CASE_MANAGER's entry for the invitee's new record is an ``Add``.
+
+    ``Add(CaseParticipant, target=<case>)`` with ``context`` the case and the
+    record inline (VAM-06-004, CLP-07-021), after the Owner's Invite and the
+    CASE_MANAGER's stub (ADR-0199).  A replica the entry reaches seats the
+    record in the case the entry's ``target`` names (CM-11-025).
+    """
     net = _net(EM.ACTIVE)
     before = len(_entry_types(net))
     _the_owner_invites_the_joiner(net)
 
     new = _entry_types(net)[before:]
     assert new[:3] == [
-        "offer_actor_to_case",
+        "invite_actor_to_case",
         "invite_actor_to_case",
         "add_case_participant_to_case",
     ], new
+    (entry,) = [
+        e
+        for e in net.stores[MANAGER].list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry)
+        and str(e.semantic_type) == "add_case_participant_to_case"
+        and e.payload_snapshot["object"]["attributedTo"] == JOINER
+    ]
+    snapshot = entry.payload_snapshot
+    assert snapshot["type"] == "Add"
+    assert snapshot["target"] == net.case_id
+    assert snapshot["context"] == net.case_id
+    assert snapshot["object"]["type"] == "CaseParticipant"
+    assert snapshot["object"]["id"] == _record(net, MANAGER).id_
+
+    _deliver_announcements(net, BYSTANDER)
+    replica_case = net.case(BYSTANDER)
+    assert JOINER in replica_case.actor_participant_index
+    seated = _record(net, BYSTANDER)
+    assert seated.id_ in {
+        str(getattr(p, "id_", p)) for p in replica_case.case_participants
+    }
+    assert seated == _record(net, MANAGER)
 
 
 @pytest.mark.spec("CM-11-027")

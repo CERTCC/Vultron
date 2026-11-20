@@ -19,7 +19,7 @@ The ledger holds the wire messages exchanged: the invitee's Accept is already
 the entry for the consent row it signs and its ``joined`` mark, so those two
 writes commit nothing of their own (they take the Accept's ``published`` as the
 record's time).  Creating the record is the CASE_MANAGER's own act, with its own
-``create_case_participant`` entry.  The vendor's VF status is a CASE_MANAGER
+``add_case_participant_to_case`` entry.  The vendor's VF status is a CASE_MANAGER
 -written object, so ``CommitInviteeAcceptEntriesNode`` ledgers it as an
 ``add_participant_status_to_participant`` entry.  VF is a vendor-only status: no
 entry carries one for any other role (CM-11-006, CM-11-009, CM-31-041).
@@ -149,7 +149,9 @@ def test_creating_the_record_emits_its_own_entry_carrying_it(roles):
     s = _scenario(roles, embargo=True)
 
     created = [
-        e for e in _entries(s) if e.semantic_type == "create_case_participant"
+        e
+        for e in _entries(s)
+        if e.semantic_type == "add_case_participant_to_case"
     ]
     assert len(created) == 1
     carried = created[0].payload_snapshot["object"]

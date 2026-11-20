@@ -91,17 +91,17 @@ class AnnounceAdmittedActReceivedEvent(LedgerPositionedEvent):
         return self.context_id
 
 
-class CreateCaseParticipantReceivedEvent(LedgerPositionedEvent):
-    """The CASE_MANAGER created a participant record (ADR-0114, CLP-07-013).
+class AddCaseParticipantToCaseReceivedEvent(LedgerPositionedEvent):
+    """The CASE_MANAGER added a participant record to a case (VAM-06-004).
 
-    ``Create(CaseParticipant)``: the CASE_MANAGER's own act, committed as its
-    ``create_case_participant`` ledger entry.  No received use case handles
-    it: a participant takes the record from the committed entry (ADR-0140
-    item 5).
+    ``Add(CaseParticipant, target=<case>)``: the CASE_MANAGER's own act,
+    committed as its ``add_case_participant_to_case`` ledger entry (ADR-0114,
+    CLP-07-021).  No received use case handles it: a participant takes the
+    record from the committed entry (VAM-01-018, ADR-0140 item 5).
     """
 
-    semantic_type: Literal[MessageSemantics.CREATE_CASE_PARTICIPANT] = (
-        MessageSemantics.CREATE_CASE_PARTICIPANT
+    semantic_type: Literal[MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE] = (
+        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE
     )
 
     @property
@@ -110,7 +110,8 @@ class CreateCaseParticipantReceivedEvent(LedgerPositionedEvent):
 
     @property
     def case_id(self) -> str | None:
-        return self.context_id
+        """The case whose participant list the record joins (its ``target``)."""
+        return self.target_id
 
 
 class UpdateCaseParticipantReceivedEvent(LedgerPositionedEvent):

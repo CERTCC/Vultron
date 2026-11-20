@@ -64,7 +64,7 @@ from test.architecture._ledger_commit_inventory import (
 )
 from vultron.core.models.events.base import MessageSemantics as MS
 from vultron.core.models.participant_semantic_types import (
-    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
     UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
@@ -78,7 +78,7 @@ REPLAYED: dict[str, dict[str, Any]] = {
     semantic_type: {"actor": MANAGER, "object": _EMBARGO}
     for semantic_type in (
         "accept_case_participant_role",
-        CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
         UPDATE_CASE_OWNER_SEMANTIC_TYPE,
         UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
         MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
@@ -122,7 +122,7 @@ _RECOMMENDATION = (
 
 _STUB_REPLY = (
     "the stub Invite is a message to the invitee; the record it leads to has"
-    " its own entry (create_case_participant), and the invitee's Accept and"
+    " its own entry (add_case_participant_to_case), and the invitee's Accept and"
     " Reject are the entries for their own effects (ADR-0114)"
 )
 

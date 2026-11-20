@@ -30,8 +30,8 @@ Case           EM ACTIVE → EXITED; PXA pxa → Pxa
 04  Coordinator    Case Manager updated Coordinator's participant status
       Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase] · RM: VALID → ACCEPTED (accept)
       → Reporter, Case Manager
-05  Coordinator    Coordinator suggested Coordinator 2 for the case
-      Offer(Actor)[target=VulnerabilityCase]
+05  Coordinator    Coordinator invited Coordinator 2 to the case
+      Invite(VulnerabilityCase preview)[target=Actor]
       → Reporter, Case Manager
 06  Coordinator    Coordinator invited Coordinator 2 to the case
       Invite(VulnerabilityCase preview)[target=Actor]
@@ -48,8 +48,8 @@ Case           EM ACTIVE → EXITED; PXA pxa → Pxa
 10  Coordinator 2  Coordinator 2 accepted case ownership
       Accept(Offer(VulnerabilityCase))
       → Reporter, Coordinator, Case Manager
-11  Coordinator 2  Coordinator 2 suggested Vendor for the case
-      Offer(Actor)[target=VulnerabilityCase]
+11  Coordinator 2  Coordinator 2 invited Vendor to the case
+      Invite(VulnerabilityCase preview)[target=Actor]
       → Reporter, Coordinator, Case Manager
 12  Coordinator 2  Coordinator 2 invited Vendor to the case
       Invite(VulnerabilityCase preview)[target=Actor]

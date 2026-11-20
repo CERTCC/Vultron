@@ -700,13 +700,14 @@ function handleEntry(ctx: ReplayContext, entry: CaseLedgerEntry): MapResult {
       return handleOfferActorToCase(ctx, entry)
     case 'accept_case_manager_role':
     case 'add_case_participant':
-      // Retired verbs (the CASE_MANAGER role offer, and the roster entry now
-      // `create_case_participant`), kept so older uploaded logs replay: roster
+    case 'create_case_participant':
+      // Retired verbs (the CASE_MANAGER role offer, and the roster entries now
+      // `add_case_participant_to_case`), kept so older uploaded logs replay: roster
       // bookkeeping, log-only like their current counterparts.
       return logOnly(ctx, entry)
     default:
       // A registered type with no visual handler (roster bookkeeping such as
-      // `create_case_participant`, `engage_case`, the suggest-actor legs) is
+      // `add_case_participant_to_case`, `engage_case`, the suggest-actor legs) is
       // recorded in the event log in the registry's own phrasing. A type the
       // registry does not list is from another protocol version (or a corrupt
       // line) and is drawn as an unrecognized node, so it is never only a line.

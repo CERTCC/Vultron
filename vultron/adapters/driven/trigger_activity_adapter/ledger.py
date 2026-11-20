@@ -51,13 +51,13 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import (
     add_case_reference_to_case_activity,
+    add_participant_to_case_activity,
     add_report_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
     add_vulnerability_item_to_case_activity,
     create_embargo_consent_activity,
     create_embargo_event_activity,
-    create_participant_activity,
     update_case_activity,
     update_embargo_consent_activity,
     update_participant_activity,
@@ -91,7 +91,7 @@ class _LedgerRecordsMixin:
         of them is also carried in full by an entry of its own
         (``create_embargo_event``, ``add_report_to_case``,
         ``add_vulnerability_item_to_case``, ``add_case_reference_to_case``,
-        ``create_case_participant``), so a replica that builds its case from
+        ``add_case_participant_to_case``), so a replica that builds its case from
         the ledger copies each record from its own entry (ADR-0124).
         """
         sealed = read_sealed_body(self._dl, create_activity_id)
@@ -229,7 +229,7 @@ class _LedgerRecordsMixin:
         )
         return _seal_record(self._dl, activity)
 
-    def record_case_participant_created(
+    def record_case_participant_added(
         self,
         participant: CaseParticipant,
         case_id: str,
@@ -237,14 +237,14 @@ class _LedgerRecordsMixin:
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Build and seal ``Create(CaseParticipant)``."""
-        activity = create_participant_activity(
+        """Build and seal ``Add(CaseParticipant, target=<case>)``."""
+        activity = add_participant_to_case_activity(
             participant=participant,
             target=case_id,
             actor=actor,
             context=case_id,
             id_=derived_activity_id(
-                "case-participant-created", actor, participant.id_
+                "case-participant-added", actor, participant.id_
             ),
             at=at,
         )

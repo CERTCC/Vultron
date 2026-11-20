@@ -30,7 +30,7 @@ CASE_MANAGER's trees also call
   embargo in force.
 
 A reply for a record the replica does not hold is a broken invariant (the
-chain is complete and in order, SYNC-14, SYNC-15, and ``create_case_participant``
+chain is complete and in order, SYNC-14, SYNC-15, and ``add_case_participant_to_case``
 came first), so the node FAILS with a reason and writes nothing; it is lenient
 only on a replica that holds no copy of the case (Regime 2, ADR-0087).  No id is
 made and no clock is read: ``updated`` is the reply's ``published`` as received.
@@ -97,7 +97,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
             self.feedback_message = (
                 f"{entry.semantic_type} entry {entry.log_index} for '{actor_id}'"
                 f" in case '{entry.context}' but this replica holds no"
-                " participant record: the create_case_participant entry has"
+                " participant record: the add_case_participant_to_case entry has"
                 " not been applied, so the chain is incomplete or out of"
                 " order (CM-11-006, CM-11-021, SYNC-14)"
             )

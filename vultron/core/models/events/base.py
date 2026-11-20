@@ -90,7 +90,7 @@ class MessageSemantics(StrEnum):
     REMOVE_PARTICIPANT_FROM_CASE = auto()
     REINSTATE_PARTICIPANT_IN_CASE = auto()
     ANNOUNCE_ADMITTED_ACT = auto()
-    CREATE_CASE_PARTICIPANT = auto()
+    ADD_CASE_PARTICIPANT_TO_CASE = auto()
     UPDATE_CASE_PARTICIPANT = auto()
 
     ADD_NOTE_TO_CASE = auto()

@@ -1862,15 +1862,17 @@ groups:
       (ADR-0124). A record a replica derived could differ from the CASE_MANAGER's in
       an id or a time, and the copies of the case would then disagree.
     verification: >-
-      `test_create_entry_stores_the_record_exactly_as_carried` in
+      `test_add_entry_stores_the_record_exactly_as_carried` in
       `test/core/behaviors/sync/test_add_log_entry_tree.py` finds the stored record equal
       to the one the entry carries;
       `test_replicas_hold_the_managers_whole_record_after_invite_and_accept` in
       `test/core/use_cases/received/test_stub_invite_replay.py` finds each
       replica's record equal to the CASE_MANAGER's in every field, status ids and
-      times included. A test replays an entry whose `target` names the case and
-      finds the record in that case, not in one taken from the entry's `context`
-      (#6295).
+      times included. `test_add_entry_seats_the_record_in_the_case_its_target_names`
+      in `test/core/behaviors/sync/test_add_log_entry_tree.py` replays an entry
+      whose `target` names the case and finds the record in that case, and
+      `test_add_entry_naming_no_case_or_another_case_seats_nothing` finds that an
+      entry whose `target` names no case or another case seats nothing.
     relationships:
     - rel_type: depends_on
       spec_id: CM-11-024

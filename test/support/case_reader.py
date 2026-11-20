@@ -113,7 +113,7 @@ class FakeRule:
 FAKE_RULES: Mapping[str, FakeRule] = {
     "case_opened": FakeRule("create_case", "Create"),
     "vendor_listed": FakeRule(
-        "create_case_participant",
+        "add_case_participant_to_case",
         "Create",
         inferred=FakeInference(
             "FAKE-RM-01",

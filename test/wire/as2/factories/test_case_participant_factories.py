@@ -29,9 +29,9 @@ from test.support.objects import authored_at, make
 from vultron.core.models._helpers import _as_id
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
+    add_participant_to_case_activity,
     add_status_to_participant_activity,
     announce_admitted_act_activity,
-    create_participant_activity,
     reinstate_participant_activity,
     remove_participant_activity,
 )
@@ -60,60 +60,85 @@ def sample_participant_status() -> as_ParticipantStatus:
 
 
 # ---------------------------------------------------------------------------
-# create_participant_activity
+# add_participant_to_case_activity
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("AF-01-002")
-def test_create_participant_returns_create(sample_participant):
-    result = create_participant_activity(
-        participant=sample_participant, actor=_ACTOR_URI, at=authored_at()
-    )
-    assert isinstance(result, as_Create)
-
-
-def test_create_participant_object_is_participant(sample_participant):
-    result = create_participant_activity(
-        participant=sample_participant, actor=_ACTOR_URI, at=authored_at()
-    )
-    assert result.object_ == sample_participant
-
-
-def test_create_participant_target_is_set(sample_participant):
-    result = create_participant_activity(
-        participant=sample_participant,
+def _seat(participant: as_CaseParticipant, **kwargs) -> as_Add:
+    return add_participant_to_case_activity(
+        participant=participant,
         target=_CASE_URI,
         actor=_ACTOR_URI,
         at=authored_at(),
+        **kwargs,
     )
+
+
+@pytest.mark.spec("AF-01-002", "AF-01-001")
+@pytest.mark.spec("VAM-06-004", "CLP-07-021", "CLP-07-007")
+def test_the_seating_entry_is_an_add_to_the_case(sample_participant):
+    """The record joins the case's list: ``Add``, ``target`` and ``context`` the case."""
+    result = _seat(sample_participant)
+
+    assert isinstance(result, as_Add)
+    assert not isinstance(result, as_Create)
+    assert result.type_ == "Add"
     assert result.target == _CASE_URI
+    assert result.context == _CASE_URI
+    body = result.model_dump(by_alias=True, mode="json")
+    assert body["type"] == "Add"
+    assert body["target"] == _CASE_URI
+    assert body["context"] == _CASE_URI
 
 
-def test_create_participant_auto_generates_name(sample_participant):
-    """CreateParticipantActivity model_validator auto-generates a name."""
-    result = create_participant_activity(
-        participant=sample_participant, actor=_ACTOR_URI, at=authored_at()
-    )
+@pytest.mark.spec("CM-11-024")
+def test_the_seating_entry_carries_the_record_in_full(sample_participant):
+    result = _seat(sample_participant)
+
+    assert result.object_ == sample_participant
+
+
+def test_the_seating_entry_auto_generates_a_name(sample_participant):
+    """The wire class names the record added and its case."""
+    result = _seat(sample_participant)
+
     assert result.name is not None
-    assert "CaseParticipant" in result.name
+    assert "Add as_CaseParticipant" in result.name
+    assert result.name.endswith(f"to {_CASE_URI}")
 
 
-def test_create_participant_explicit_name_preserved(sample_participant):
+def test_the_seating_entry_keeps_an_explicit_name(sample_participant):
     """Explicitly provided name is not overwritten by the model validator."""
-    result = create_participant_activity(
-        participant=sample_participant,
-        name="My Custom Name",
-        actor=_ACTOR_URI,
-        at=authored_at(),
-    )
+    result = _seat(sample_participant, name="My Custom Name")
+
     assert result.name == "My Custom Name"
 
 
+@pytest.mark.spec("AF-04-001", "CLP-07-007")
+def test_the_seating_entry_refuses_a_context_naming_another_case(
+    sample_participant,
+):
+    with pytest.raises(VultronActivityConstructionError):
+        _seat(sample_participant, context="https://example.org/cases/other")
+
+
+@pytest.mark.spec("AF-04-001", "VAM-06-004")
+def test_the_seating_entry_refuses_no_case(sample_participant):
+    with pytest.raises(VultronActivityConstructionError):
+        add_participant_to_case_activity(
+            participant=sample_participant,
+            target=None,  # type: ignore[arg-type]
+            actor=_ACTOR_URI,
+            at=authored_at(),
+        )
+
+
 @pytest.mark.spec("AF-04-001")
-def test_create_participant_invalid_raises():
+def test_the_seating_entry_refuses_an_invalid_participant():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        create_participant_activity(
+        add_participant_to_case_activity(
             participant="not-a-participant",  # type: ignore[arg-type]
+            target=_CASE_URI,
             at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
@@ -315,9 +340,9 @@ def test_announce_of_no_act_raises():
 @pytest.mark.spec("AF-04-002")
 def test_all_case_participant_factories_importable_from_package():
     from vultron.wire.as2.factories import (  # noqa: F401
+        add_participant_to_case_activity,
         add_status_to_participant_activity,
         announce_admitted_act_activity,
-        create_participant_activity,
         reinstate_participant_activity,
         remove_participant_activity,
     )

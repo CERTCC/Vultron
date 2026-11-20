@@ -307,7 +307,7 @@ groups:
       `test_received_create_of_a_case_record_is_refused_case_unchanged` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that each
       of these received `Create` activities, including `Create(Note)` with and without
-      a case `context`, `Create(CaseParticipant)` (#6295) and a `Create` of a plain
+      a case `context`, `Create(CaseParticipant)` and a `Create` of a plain
       `Event`, resolves to `UNKNOWN` and is
       refused, and that the case, the ledger and the outbox stay unchanged.
     relationships:
@@ -330,7 +330,7 @@ groups:
     verification: >-
       `test_a_received_case_manager_act_is_recognized_and_unhandled` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that a
-      received `Add(CaseParticipant)[target=VulnerabilityCase]` (#6295) or
+      received `Add(CaseParticipant)[target=VulnerabilityCase]` or
       `Create(EmbargoEvent)` is recognized, reported unhandled, and changes nothing.
     adr:
     - ADR-0137
@@ -404,7 +404,7 @@ groups:
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` sends each of the
       `Create` activities, including `Create(Note)` with and without a case
       `context`, to an inbox and confirms that the case, the ledger and the outbox
-      stay unchanged, `Create(CaseParticipant)` included (#6295).
+      stay unchanged, `Create(CaseParticipant)` included.
       `test_a_received_case_manager_act_is_recognized_and_unhandled` in the same file
       confirms that a received `Create(EmbargoEvent)` changes nothing.
     relationships:
@@ -430,7 +430,7 @@ groups:
       received `Add(CaseParticipant)[target=VulnerabilityCase]` is recognized,
       reported unhandled, and creates no participant, and
       `test_received_create_of_a_case_record_is_refused_case_unchanged` confirms the
-      same for a received `Create(CaseParticipant)` (#6295).
+      same for a received `Create(CaseParticipant)`.
 - id: VAM-02
   title: Report Management Messages
   specs:
@@ -1496,10 +1496,6 @@ groups:
   title: Case Participant Management Messages
   specs:
   - id: VAM-06-004
-    # The CASE_MANAGER's seating entry reuses this name once #6295 builds it;
-    # #6465 retired its earlier meaning, the Owner's reinstatement.
-    lint_suppress:
-    - phantom_symbol_ref
     priority: MUST
     kind: protocol
     statement: >-
@@ -1519,8 +1515,10 @@ groups:
     verification: >-
       `test_case_manager_acts_map_to_their_semantics` in
       `test/test_semantic_activity_patterns.py` confirms that the participant-seating
-      example maps to `ADD_CASE_PARTICIPANT_TO_CASE`, and a pattern test confirms
-      that `Create(CaseParticipant)` matches no participant-seating pattern (#6295).
+      example maps to `ADD_CASE_PARTICIPANT_TO_CASE`, and
+      `test_received_create_of_a_case_record_is_refused_case_unchanged` in
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that
+      `Create(CaseParticipant)` matches no pattern.
     adr:
     - ADR-0140
     - ADR-0199

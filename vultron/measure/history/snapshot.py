@@ -13,7 +13,7 @@
 """Find the state-bearing records in one entry's payload snapshot (CEH-04).
 
 What an entry records is its activity's carried ``object``: the record a
-``Create(CaseParticipant)`` seats, the status an ``Add(ParticipantStatus)``
+``Add(CaseParticipant)`` seats, the status an ``Add(ParticipantStatus)``
 adds, the row a ``Create`` or ``Update(EmbargoConsent)`` writes, and the whole
 case a ``Create`` or ``Update(VulnerabilityCase)`` carries.  Nothing else in the
 snapshot is read: an ``Add``'s ``target`` holds the participant as stored when
