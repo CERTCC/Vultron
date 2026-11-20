@@ -221,7 +221,7 @@ class CreateCaseProposalReceivedUseCase:
         # Render the proposal as a plain AS2 dict so the Accept can carry it
         # inline (CP-05-003, CP-05-009).  The subject handed to the port is the
         # core-branch ``VultronActivity`` the extractor built; its ``object`` is
-        # the as_CaseProposal as it arrived.  Core renders nothing itself
+        # the CaseProposal as it arrived.  Core renders nothing itself
         # (ARCH-20-001): the port is the only route to the AS2 shape, so a
         # proposal cannot be handled without it.  A missing port is this
         # actor's composition fault, never the sender's, so it raises rather
@@ -270,6 +270,7 @@ class CreateCaseProposalReceivedUseCase:
             proposer_case_roles=request.proposer_case_roles,
             sender_rule=self.sender_entitlement,
             claims_readings=request.claims_readings,
+            case_inputs=request.case_inputs,
             stated_report_fields=_stated_report_fields(
                 request, inline_report, sender_terms
             ),

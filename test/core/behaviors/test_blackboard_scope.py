@@ -26,10 +26,14 @@ than separately at each call site:
 
 from typing import Any
 
+import py_trees
 import pytest
 
+from test.support.blackboard_registry import registry_snapshot
 from vultron.core.behaviors.blackboard_scope import (
     key_aliases,
+    release_clients,
+    release_tree_clients,
     restore_keys,
     snapshot_keys,
 )
@@ -132,3 +136,108 @@ def test_nesting_restores_the_outer_value_not_the_innermost() -> None:
 
     restore_keys(storage, outer_saved)
     assert storage["/actor_id"] == "outer"
+
+
+def _client(name: str) -> py_trees.blackboard.Client:
+    client = py_trees.blackboard.Client(name=name)
+    client.register_key(key="actor_id", access=py_trees.common.Access.WRITE)
+    return client
+
+
+def test_a_released_client_leaves_the_registry_and_its_key_metadata() -> None:
+    """Both process-global maps drop the client (#6727)."""
+    before = registry_snapshot()
+
+    release_clients([_client("released")])
+
+    gained = registry_snapshot().gained_since(before)
+    assert not gained, gained.describe()
+
+
+def test_releasing_a_client_keeps_the_value_it_wrote() -> None:
+    """Storage belongs to ``restore_keys``; release never clears it."""
+    client = _client("writer")
+    client.actor_id = "kept"
+
+    release_clients([client])
+
+    assert py_trees.blackboard.Blackboard.storage["/actor_id"] == "kept"
+
+
+def test_releasing_a_client_twice_changes_nothing() -> None:
+    """A seam may release its own client before the run ends (BT-18)."""
+    client = _client("twice")
+    release_clients([client])
+    before = registry_snapshot()
+
+    release_clients([client])
+
+    assert registry_snapshot() == before
+
+
+def test_a_client_whose_registry_was_cleared_is_skipped() -> None:
+    """``Blackboard.clear()`` may run between a client's build and release."""
+    client = _client("cleared")
+    py_trees.blackboard.Blackboard.clear()
+
+    release_clients([client])
+
+    assert not registry_snapshot()
+
+
+def test_releasing_a_tree_reaches_every_node_and_keeps_other_clients() -> None:
+    """Each node's attached clients are released, and nothing outside the tree."""
+    outside = _client("outside")
+    leaf = py_trees.behaviours.Success(name="leaf")
+    leaf.attach_blackboard_client(name="leaf").register_key(
+        key="actor_id", access=py_trees.common.Access.READ
+    )
+    root = py_trees.decorators.Inverter(name="root", child=leaf)
+    root.attach_blackboard_client(name="root")
+    tree_ids = {c.id() for node in root.iterate() for c in node.blackboards}
+
+    release_tree_clients(root)
+
+    registered = set(py_trees.blackboard.Blackboard.clients)
+    assert outside.id() in registered
+    assert len(tree_ids) == 2
+    assert not tree_ids & registered
+
+
+def test_a_client_with_two_keys_remapped_onto_one_is_released() -> None:
+    """An input and an output port may share one blackboard key.
+
+    ``Client.unregister`` deletes the shared key's metadata on the first local
+    key and raises ``KeyError`` on the second; the release must not.
+    """
+    client = py_trees.blackboard.Client(name="ports")
+    client.register_key(
+        key="record_in",
+        access=py_trees.common.Access.READ,
+        remap_to="/record",
+    )
+    client.register_key(
+        key="record_out",
+        access=py_trees.common.Access.WRITE,
+        remap_to="/record",
+    )
+    before = registry_snapshot()
+
+    release_clients([client])
+
+    assert client.id() not in py_trees.blackboard.Blackboard.clients
+    assert "/record" not in py_trees.blackboard.Blackboard.metadata
+    assert before.gained_since(registry_snapshot()).clients == {client.id()}
+
+
+def test_releasing_one_client_keeps_another_clients_registration() -> None:
+    """A key two clients registered keeps the one not released."""
+    reader = py_trees.blackboard.Client(name="reader")
+    reader.register_key(key="actor_id", access=py_trees.common.Access.READ)
+    writer = _client("writer")
+
+    release_clients([writer])
+
+    meta = py_trees.blackboard.Blackboard.metadata["/actor_id"]
+    assert reader.id() in meta.read
+    assert writer.id() not in meta.write
