@@ -26,6 +26,7 @@ Spec coverage:
 import pytest
 
 from test.support.objects import authored_at, make
+from vultron.core.models._helpers import _as_id
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     add_status_to_participant_activity,
@@ -290,7 +291,7 @@ def test_announce_carries_the_act_and_names_it_in_reply_to():
     )
 
     assert isinstance(result, as_Announce)
-    assert result.object_.id_ == removal.id_
+    assert _as_id(result.object_) == removal.id_
     assert result.in_reply_to == removal.id_
     assert result.context == _CASE_URI
     assert result.attributed_to is None

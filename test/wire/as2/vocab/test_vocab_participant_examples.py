@@ -15,6 +15,7 @@ from collections.abc import Sequence
 from typing import cast
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from vultron.core.models._helpers import _as_id
 from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -321,7 +322,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertIsInstance(activity, as_Remove)
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.to, [examples.case_actor().id_])
-        self.assertEqual(activity.object_.id_, coord_p.attributed_to)
+        self.assertEqual(_as_id(activity.object_), coord_p.attributed_to)
         self.assertEqual(activity.origin, case.id_)
         self.assertIsNone(activity.target)
 
@@ -331,7 +332,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
 
         self.assertIsInstance(activity, as_Add)
         self.assertEqual(activity.actor, examples.vendor().id_)
-        self.assertEqual(activity.object_.id_, coord_p.attributed_to)
+        self.assertEqual(_as_id(activity.object_), coord_p.attributed_to)
         self.assertEqual(activity.target, examples.case().id_)
 
     def test_announce_participant_removal(self):
@@ -341,7 +342,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
 
         self.assertIsInstance(activity, as_Announce)
         self.assertEqual(activity.actor, examples.case_actor().id_)
-        self.assertEqual(activity.object_.id_, removal.id_)
+        self.assertEqual(_as_id(activity.object_), removal.id_)
         self.assertEqual(activity.in_reply_to, removal.id_)
         self.assertEqual(activity.to, [examples.coordinator().id_])
 

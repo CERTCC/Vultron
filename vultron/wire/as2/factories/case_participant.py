@@ -282,13 +282,17 @@ def announce_admitted_act_activity(
 
     def _fields() -> dict[str, object]:
         act = as_answered(as_Activity, admitted)
+        # as_answered passes anything but a received activity through
+        # unchanged, and the constructor refuses one that is not an activity,
+        # so the id is read without assuming one.
+        act_id = getattr(act, "id_", None)
         fields: dict[str, object] = {
             "object_": act,
-            "in_reply_to": act.id_,
+            "in_reply_to": act_id,
             "context": case_target_ref(case),
             **kwargs,
         }
-        if fields["in_reply_to"] != act.id_:
+        if fields["in_reply_to"] != act_id:
             raise ValueError(
                 "an announcement names the act it carries in inReplyTo"
             )
