@@ -104,8 +104,7 @@ def case_proposal_from_report(
     with no reading that fills case inputs the proposal states none, and the
     CASE_MANAGER starts the case from the report (CP-01-026).
     """
-    reading = filling_reading(readings)
-    stated = StatedReportFields(name=report.name, summary=report.summary)
+    reading, outcomes = used_claims(report, readings)
     proposal = CaseProposal(
         attributed_to=proposer_id,
         object_=report,
@@ -113,21 +112,44 @@ def case_proposal_from_report(
         in_reply_to=offer_id,
         proposer_case_roles=list(proposer_case_roles),
         case_inputs=(
-            proposed_case_inputs_from_claims(reading.claims, stated=stated)
+            proposed_case_inputs_from_claims(
+                reading.claims, stated=_stated(report)
+            )
             if reading is not None
             else None
         ),
         **authored_times(at),
     )
     return ConvertedCaseProposal(
-        proposal=proposal,
-        reading=reading,
-        outcomes=(
-            proposed_claim_outcomes(reading.claims, stated=stated)
-            if reading is not None
-            else {}
-        ),
+        proposal=proposal, reading=reading, outcomes=outcomes
     )
 
 
-__all__ = ["ConvertedCaseProposal", "case_proposal_from_report"]
+def _stated(report: VulnerabilityReport) -> StatedReportFields:
+    """What *report* states for the values a document can fill."""
+    return StatedReportFields(name=report.name, summary=report.summary)
+
+
+def used_claims(
+    report: VulnerabilityReport, readings: Sequence[ClaimsReading]
+) -> tuple[ClaimsReading | None, dict[str, ClaimOutcome]]:
+    """The reading the conversion fills ``caseInputs`` from, and its outcomes.
+
+    The outcomes of the values :func:`case_proposal_from_report` takes
+    from that reading (CSAF-04-004); ``(None, {})`` when no reading fills
+    case inputs.  Pure, so the receiver can mark its record after the
+    proposal is sent without carrying them across the send.
+    """
+    reading = filling_reading(readings)
+    if reading is None:
+        return None, {}
+    return reading, proposed_claim_outcomes(
+        reading.claims, stated=_stated(report)
+    )
+
+
+__all__ = [
+    "ConvertedCaseProposal",
+    "case_proposal_from_report",
+    "used_claims",
+]

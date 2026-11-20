@@ -358,7 +358,7 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
     ): _ARCHIVE,
     (
         f"{_B}.case.nodes.proposal",
-        "ConvertReportToCaseProposalNode",
+        "MarkProposedClaimsNode",
     ): _LOCAL,
     (f"{_B}.case.nodes.replica_bootstrap", "BindReportCaseLinkNode"): _LOCAL,
     (

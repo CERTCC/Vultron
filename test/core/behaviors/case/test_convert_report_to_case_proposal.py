@@ -10,11 +10,13 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The receiver's conversion node refuses to build a proposal it cannot.
+"""The receiver's conversion and marking nodes fail on what they lack.
 
-``ConvertReportToCaseProposalNode`` fails, and so sends nothing, when the
-CaseActor service is not configured, the report is not held, or the claims
-record it marks is not held (CP-01-026, CSAF-04-004).
+``ConvertReportToCaseProposalNode`` fails, and so nothing is sent, when the
+CaseActor service is not configured or the report is not held
+(CP-01-026).  ``MarkProposedClaimsNode`` fails when the claims record it
+marks is not held, and changes nothing when no reading filled the proposal
+(CSAF-04-004).
 """
 
 import pytest
@@ -24,7 +26,10 @@ from test.support.act_runner import run_tree
 from vultron.config.app import reload_config
 from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import REPORT_ID
-from vultron.core.behaviors.case.nodes import ConvertReportToCaseProposalNode
+from vultron.core.behaviors.case.nodes import (
+    ConvertReportToCaseProposalNode,
+    MarkProposedClaimsNode,
+)
 from vultron.core.models.report_claims import (
     ClaimsReading,
     ReportClaims,
@@ -55,8 +60,8 @@ def _reading(report_id: str) -> ClaimsReading:
     )
 
 
-def _convert(bridge, actor_id, report_id, readings=()):
-    node = ConvertReportToCaseProposalNode(readings=readings)
+def _convert(bridge, actor_id, report_id, readings=(), node_type=None):
+    node = (node_type or ConvertReportToCaseProposalNode)(readings=readings)
     result = run_tree(
         bridge,
         tree=with_act_keys(node, {REPORT_ID: report_id}),
@@ -88,19 +93,42 @@ def test_a_report_not_held_is_a_fault(case_actor_url, bridge, actor):
     )
 
     assert result.status is Status.FAILURE
-    assert "not held" in node.feedback_message
+    assert "CP-01-004" in node.feedback_message
+    assert "not found" in node.feedback_message
 
 
 @pytest.mark.spec("CSAF-04-004")
-def test_a_claims_record_not_held_is_a_fault(
-    case_actor_url, bridge, datalayer, actor, report
-):
+def test_a_claims_record_not_held_is_a_fault(bridge, datalayer, actor, report):
     """The effects that keep the report write the record first, so its
     absence is a fault, not a proposal sent with nothing marked."""
     result, node = _convert(
-        bridge, actor.id_, report.id_, readings=[_reading(report.id_)]
+        bridge,
+        actor.id_,
+        report.id_,
+        readings=[_reading(report.id_)],
+        node_type=MarkProposedClaimsNode,
     )
 
     assert result.status is Status.FAILURE
     assert "CSAF-04-004" in node.feedback_message
+    assert list(datalayer.list_objects("ReportClaimsRecord")) == []
+
+
+@pytest.mark.spec("CSAF-04-004")
+def test_no_filling_reading_marks_nothing(bridge, datalayer, actor, report):
+    other = _reading(report.id_).model_copy(
+        update={
+            "claims": ReportClaims(document_category="csaf_security_advisory")
+        }
+    )
+
+    result, _ = _convert(
+        bridge,
+        actor.id_,
+        report.id_,
+        readings=[other],
+        node_type=MarkProposedClaimsNode,
+    )
+
+    assert result.status is Status.SUCCESS
     assert list(datalayer.list_objects("ReportClaimsRecord")) == []

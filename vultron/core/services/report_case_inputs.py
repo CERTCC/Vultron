@@ -576,7 +576,11 @@ def proposed_claim_outcomes(
     value it took is ``APPLIED``, a name or summary *stated* beats is
     ``OVERRIDDEN``.  The earliest ``disclosure_date`` is ``APPLIED`` because
     the proposal carries it, unjudged (CP-01-023); a later one stays display
-    only.  Reads no clock.  A document of any category but
+    only.  Whether that date then sets P or proposes the end, or is set
+    aside for the Offer's own ``proposedEmbargo`` or an X or A, is the
+    CASE_MANAGER's judgment at case creation, which no receiver can make
+    ahead of it without reading a clock; the receiver's record states what
+    its proposal took.  Reads no clock.  A document of any category but
     ``csaf_vulnerability_report`` fills nothing, so no outcome is given
     (CSAF-02-002).
     """

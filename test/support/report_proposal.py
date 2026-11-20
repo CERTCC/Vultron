@@ -10,10 +10,11 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Run the report receiver's two proposal nodes, as its tree composes them.
+"""Run the report receiver's proposal nodes, as its tree composes them.
 
-``ConvertReportToCaseProposalNode`` builds the core proposal and
-``ProposeReportCaseToActorNode`` sends it (CP-01-026, CP-04-002).  *between*
+``ConvertReportToCaseProposalNode`` builds the core proposal,
+``ProposeReportCaseToActorNode`` sends it (CP-01-026, CP-04-002) and
+``MarkProposedClaimsNode`` marks the claims record (CSAF-04-004).  *between*
 runs between them, as a receiver that changes its proposal before sending
 it would.
 """
@@ -29,6 +30,7 @@ from vultron.core.behaviors.act_keys import REPORT_ID
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     ConvertReportToCaseProposalNode,
+    MarkProposedClaimsNode,
     ProposeReportCaseToActorNode,
 )
 from vultron.core.models.case_proposal import CaseProposal
@@ -52,6 +54,10 @@ def proposal_nodes(
             ),
             *between,
             ProposeReportCaseToActorNode(),
+            with_act_keys(
+                MarkProposedClaimsNode(readings=readings),
+                {REPORT_ID: report_id},
+            ),
         ],
     )
 

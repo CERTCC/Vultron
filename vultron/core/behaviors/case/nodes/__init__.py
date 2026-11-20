@@ -127,6 +127,7 @@ from vultron.core.behaviors.case.nodes.participant import (
 )
 from vultron.core.behaviors.case.nodes.proposal import (
     ConvertReportToCaseProposalNode,
+    MarkProposedClaimsNode,
     ProposeReportCaseToActorNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
@@ -203,6 +204,7 @@ __all__ = [
     "EmitAcceptCaseInviteNode",
     "EvaluateDefaultRolesNode",
     "ConvertReportToCaseProposalNode",
+    "MarkProposedClaimsNode",
     "ProposeReportCaseToActorNode",
     # conditions
     "CheckAutoCaseCreationEnabledNode",

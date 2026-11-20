@@ -319,6 +319,29 @@ def test_the_side_that_converts_the_document_marks_what_it_used() -> None:
     assert manager.records() == []
 
 
+@pytest.mark.spec("CSAF-04-004", "CP-01-023")
+def test_the_receiver_marks_the_date_its_proposal_carries() -> None:
+    """The receiver judges no date, so its record marks the disclosure date
+    by what its proposal carries, even when the Offer's own proposed end or
+    the document's X will decide the embargo at the CASE_MANAGER."""
+    receipt = Receipt(
+        csaf(_quiet_document(disclosure_date=_SOONER, metrics=_ssvc("P"))),
+        proposed_embargo_end=_when(_LATER),
+    )
+
+    manager, case = _created(receipt)
+
+    outcomes = receipt.record().outcomes
+    assert (
+        outcomes["vulnerabilities[0].disclosure_date"] is ClaimOutcome.APPLIED
+    )
+    assert outcomes["vulnerabilities[0].exploitation"] is ClaimOutcome.APPLIED
+    # X set: the case starts with no embargo (EP-04-020).
+    assert case.current_status.pxa.state is CS_pxa.PXa
+    assert case.em_state is EM.NONE
+    assert manager.records() == []
+
+
 @pytest.mark.spec("CSAF-02-001", "CSAF-04-004")
 def test_the_case_manager_marks_what_it_read_when_no_inputs_are_stated() -> (
     None
@@ -1099,6 +1122,9 @@ def test_the_receiver_may_change_its_proposal_before_it_is_sent() -> None:
     inputs = receipt.proposal_body()["object"]["caseInputs"]
     assert inputs["name"] == "Owner's name"
     assert [i["name"] for i in inputs["proposedItems"]] == ["Widget overflow"]
+    # The record says what the conversion took, marked once the proposal
+    # is sent; the owner's later change is its own (CSAF-04-004).
+    assert receipt.record().outcomes["name"] is ClaimOutcome.APPLIED
     manager, case = _created_from(receipt.proposal_body())
     assert case.name == "Owner's name"
     assert [item.name for item in _items(manager, case)] == ["Widget overflow"]

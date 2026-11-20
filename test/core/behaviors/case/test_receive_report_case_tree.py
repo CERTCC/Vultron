@@ -47,6 +47,7 @@ from vultron.core.behaviors.case.nodes import (
     CheckProposalAlreadySentForReport,
     ConvertReportToCaseProposalNode,
     EnsureCaseActorHostedNode,
+    MarkProposedClaimsNode,
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
@@ -220,15 +221,15 @@ class TestTreeStructure:
         assert isinstance(flow, py_trees.composites.Sequence)
         assert flow.name == "ReceiveReportProposalFlow"
 
-    def test_flow_has_four_children(self, report, offer, reporter_actor_id):
-        """ReceiveReportProposalFlow has exactly 4 children."""
+    def test_flow_has_five_children(self, report, offer, reporter_actor_id):
+        """ReceiveReportProposalFlow has exactly 5 children."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[-1].children[1]
-        assert len(flow.children) == 4
+        assert len(flow.children) == 5
 
     def test_flow_first_child_ensures_case_actor_hosted(
         self, report, offer, reporter_actor_id
@@ -261,24 +262,27 @@ class TestTreeStructure:
         assert isinstance(flow.children[1], WritePendingReportCaseLinkNode)
 
     @pytest.mark.spec("CP-01-026")
-    def test_flow_converts_the_report_then_sends_the_proposal(
+    def test_flow_converts_sends_then_marks(
         self, report, offer, reporter_actor_id
     ):
         """The conversion runs ahead of the send, as its own leaf, so the
-        receiver may change the proposal between them."""
+        receiver may change the proposal between them; the claims record is
+        marked only once the proposal is sent."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[-1].children[1]
-        [convert] = [
-            n
-            for n in flow.children[2].iterate()
-            if isinstance(n, ConvertReportToCaseProposalNode)
-        ]
-        assert convert is not None
+
+        def leaf(index: int) -> object:
+            return next(
+                n for n in flow.children[index].iterate() if not n.children
+            )
+
+        assert isinstance(leaf(2), ConvertReportToCaseProposalNode)
         assert isinstance(flow.children[3], ProposeReportCaseToActorNode)
+        assert isinstance(leaf(4), MarkProposedClaimsNode)
 
     def test_no_create_case_node(self, report, offer, reporter_actor_id):
         """Tree does NOT contain CreateCaseNode (AC-1)."""

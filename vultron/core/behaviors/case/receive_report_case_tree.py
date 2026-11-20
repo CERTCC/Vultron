@@ -47,7 +47,8 @@ Structure (ADR-0041):
           ├─ EnsureCaseActorHostedNode        # CaseActor record in its own store
           ├─ WritePendingReportCaseLinkNode   # VultronReportCaseLink(case_id=None)
           ├─ ConvertReportToCaseProposalNode  # core CaseProposal, caseInputs
-          └─ ProposeReportCaseToActorNode     # Create(CaseProposal) → CaseActor
+          ├─ ProposeReportCaseToActorNode     # Create(CaseProposal) → CaseActor
+          └─ MarkProposedClaimsNode           # claims record: what it took
 
 The conversion fills the proposal's ``caseInputs`` from the first
 ``csaf_vulnerability_report`` document on the report, and the receiver may
@@ -77,6 +78,7 @@ from vultron.core.behaviors.case.nodes import (
     CheckProposalAlreadySentForReport,
     ConvertReportToCaseProposalNode,
     EnsureCaseActorHostedNode,
+    MarkProposedClaimsNode,
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
@@ -165,6 +167,10 @@ def create_receive_report_case_tree(
                 {REPORT_ID: report_id},
             ),
             ProposeReportCaseToActorNode(),
+            with_act_keys(
+                MarkProposedClaimsNode(readings=claims_readings),
+                {REPORT_ID: report_id},
+            ),
         ],
     )
 

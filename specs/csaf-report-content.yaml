@@ -110,8 +110,9 @@ groups:
       (CP-01-024, CP-01-028). Only for a proposal that carries no `caseInputs`
       does the CASE_MANAGER read the document on the Offer the proposal carries
       (CP-01-008, CP-01-021, CP-01-025) and record what became of each value
-      itself. Either way only the side that read the document marks a value, so
-      no record says a value shaped a case its side did not shape. When a report
+      itself. Only the side that read the document marks a value: the
+      receiver's marks say what its proposal took, with the disclosure date
+      unjudged, and the CASE_MANAGER's what the case took. When a report
       carries several `csaf_vulnerability_report` documents, the first one fills
       the case and the others stay display only.
     verification: >-

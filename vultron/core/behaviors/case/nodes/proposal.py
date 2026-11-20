@@ -16,17 +16,18 @@
 """
 CaseProposal action nodes for the slimmed receive-report tree.
 
-The report receiver proposes a case in two steps, so it may change the
-proposal between them (CP-01-026):
+The report receiver proposes a case in steps, so it may change the
+proposal between the conversion and the send (CP-01-026):
 
 - :class:`ConvertReportToCaseProposalNode` converts the received report into
   the core ``CaseProposal``
   (:func:`~vultron.core.services.report_case_proposal.case_proposal_from_report`),
   its ``caseInputs`` filled from the first ``csaf_vulnerability_report``
-  reading, and marks on the receiver's own claims record each value the
-  conversion used (CSAF-04-004);
+  reading;
 - :class:`ProposeReportCaseToActorNode` hands that proposal to the adapter,
-  which renders and sends it as ``Create(CaseProposal)`` (ADR-0041).
+  which renders and sends it as ``Create(CaseProposal)`` (ADR-0041);
+- :class:`MarkProposedClaimsNode` then marks on the receiver's own claims
+  record each value the conversion used (CSAF-04-004).
 
 Both run from a ``report_id`` without a ``VulnerabilityCase`` in the
 DataLayer.  The CaseActor's identity comes from
@@ -63,9 +64,10 @@ from vultron.core.models.report_claims import (
     ReportClaimsRecord,
 )
 from vultron.core.services.report_case_proposal import (
-    ConvertedCaseProposal,
     case_proposal_from_report,
+    used_claims,
 )
+from vultron.errors import VultronError, VultronNotFoundError
 
 #: Blackboard key for the receiver's core ``CaseProposal``, written by
 #: :class:`ConvertReportToCaseProposalNode` and sent by
@@ -74,7 +76,40 @@ from vultron.core.services.report_case_proposal import (
 CASE_PROPOSAL_KEY = "case_proposal"
 
 
-class ConvertReportToCaseProposalNode(DataLayerActionWithPorts):
+class _ReceivedReportNode(DataLayerActionWithPorts):
+    """A receiver node that reads the report the act names (``report_id``)."""
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(REPORT_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(REPORT_ID)
+
+    def __init__(
+        self,
+        readings: Sequence[ClaimsReading] = (),
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._readings = list(readings)
+
+    def _held_report(self, report_id: str) -> VulnerabilityReport:
+        """The report *report_id* as this store holds it.
+
+        Raises:
+            VultronNotFoundError: when it is not held as a report.
+        """
+        assert self.datalayer is not None
+        report = self.datalayer.read(report_id)
+        if not isinstance(report, VulnerabilityReport):
+            raise VultronNotFoundError("VulnerabilityReport", report_id)
+        return report
+
+
+class ConvertReportToCaseProposalNode(_ReceivedReportNode):
     """Convert the received report into the receiver's ``CaseProposal``.
 
     Reads the report the act names (``report_id``) from this store, and the
@@ -83,23 +118,17 @@ class ConvertReportToCaseProposalNode(DataLayerActionWithPorts):
     ``{ActorConfig.case_actor_service_url}/actors/case-actor`` (CP-04-003,
     CP-04-005), and states this actor's ``default_case_roles`` (CFG-07-002),
     which the CASE_MANAGER seats it with alongside ``CASE_OWNER`` (CP-01-011,
-    CP-01-013, CP-09-007, ADR-0133).
+    CP-01-013, CP-09-007, ADR-0133).  When the first
+    ``csaf_vulnerability_report`` of *readings* fills case inputs, the
+    proposal carries them as ``caseInputs`` (CP-01-026).
 
-    When the first ``csaf_vulnerability_report`` of *readings* fills case
-    inputs, the proposal carries them as ``caseInputs`` (CP-01-026), and the
-    receiver's claims record of that reading marks each value the
-    conversion used ``applied`` or ``overridden`` (CSAF-04-004).  The record
-    stays this actor's own (CSAF-04-005).
-
-    Writes the proposal to ``case_proposal``.  Returns ``FAILURE`` when the
-    DataLayer or ``actor_id`` is unavailable, ``case_actor_service_url`` is
-    not configured, the report is not in this store, or the claims record
-    of the filling reading is not held.
+    Writes the proposal to ``case_proposal`` and nothing to the store.
+    Returns ``FAILURE`` when the DataLayer or ``actor_id`` is unavailable,
+    ``case_actor_service_url`` is not configured, or the report is not held.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        **act_key_ports(REPORT_ID),
+        **_ReceivedReportNode.INPUT_PORTS,
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
@@ -112,16 +141,8 @@ class ConvertReportToCaseProposalNode(DataLayerActionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             CASE_PROPOSAL_KEY: f"/{CASE_PROPOSAL_KEY}",
-            **act_key_remappings(REPORT_ID),
+            **super()._domain_port_remappings(),
         }
-
-    def __init__(
-        self,
-        readings: Sequence[ClaimsReading] = (),
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._readings = list(readings)
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -135,28 +156,26 @@ class ConvertReportToCaseProposalNode(DataLayerActionWithPorts):
                 "case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)",
             )
-        report = self.datalayer.read(report_id)
-        if not isinstance(report, VulnerabilityReport):
+        try:
+            converted = case_proposal_from_report(
+                self._held_report(report_id),
+                proposer_id=self.actor_id,
+                case_actor_id=case_actor_id,
+                readings=self._readings,
+                # CP-01-007: this store has the OfferRecord because this
+                # actor received the Offer; the CaseActor's store never will.
+                offer_id=find_offer_for_report(self.datalayer, report_id),
+                # CP-01-013, ADR-0133: this actor's own roles, which the
+                # CASE_MANAGER cannot read from its own configuration.
+                proposer_case_roles=get_config().actor.default_case_roles,
+                at=self._require_act_instant(),
+            )
+        except (VultronError, ValueError) as exc:
             return fail_with_fault(
                 self,
-                f"report '{report_id}' is not held as a VulnerabilityReport"
-                " in this store, so no proposal can carry it (CP-01-004)",
+                f"cannot convert report '{report_id}' into a proposal, which"
+                f" carries it whole (CP-01-004): {exc}",
             )
-        converted = case_proposal_from_report(
-            report,
-            proposer_id=self.actor_id,
-            case_actor_id=case_actor_id,
-            readings=self._readings,
-            # CP-01-007: this store has the OfferRecord because this actor
-            # received the Offer; the CaseActor's own store never will.
-            offer_id=find_offer_for_report(self.datalayer, report_id),
-            # CP-01-013, ADR-0133: this actor's own roles, which the
-            # CASE_MANAGER cannot read from its own configuration.
-            proposer_case_roles=get_config().actor.default_case_roles,
-            at=self._require_act_instant(),
-        )
-        if (f := self._mark_used_claims(report_id, converted)) is not None:
-            return f
         self._set_output(CASE_PROPOSAL_KEY, converted.proposal)
         self.logger.info(
             "%s: converted report '%s' into proposal '%s' for case-actor"
@@ -174,41 +193,60 @@ class ConvertReportToCaseProposalNode(DataLayerActionWithPorts):
         )
         return Status.SUCCESS
 
-    def _mark_used_claims(
-        self, report_id: str, converted: ConvertedCaseProposal
-    ) -> Status | None:
-        """Mark the values the conversion used on the receiver's record.
 
-        ``None`` when done, or when no reading filled the proposal;
-        ``FAILURE`` when the record of the filling reading is not held,
-        since the effects that keep the report write it first.
-        """
-        reading = converted.reading
-        if reading is None:
-            return None
+class MarkProposedClaimsNode(_ReceivedReportNode):
+    """Mark on the receiver's record the values its sent proposal took.
+
+    Runs after ``ProposeReportCaseToActorNode``, so no record says a value
+    was used by a proposal that was never sent.  The claims record of the
+    reading that filled ``caseInputs`` gets the outcomes of
+    :func:`~vultron.core.services.report_case_proposal.used_claims`:
+    ``applied`` or ``overridden`` for each value the conversion used
+    (CSAF-04-004).  The record stays this actor's own (CSAF-04-005).
+
+    Returns ``FAILURE`` when the report or the claims record of the filling
+    reading is not held: the effects that keep the report write the record
+    first, so its absence is a fault.  Does nothing when no reading filled
+    the proposal.
+    """
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
         assert self.datalayer is not None
-        record_id = ReportClaimsRecord.build_id(
-            report_id, reading.document_digest
-        )
-        record = self.datalayer.read(record_id)
-        if not isinstance(record, ReportClaimsRecord):
-            return fail_with_fault(
-                self,
-                f"the claims record '{record_id}' of document"
-                f" '{reading.document_id}' on report '{report_id}' is not"
-                " held, so the values the proposal takes cannot be marked"
-                " (CSAF-04-004)",
+        report_id = act_value(self, REPORT_ID, str)
+        try:
+            reading, outcomes = used_claims(
+                self._held_report(report_id), self._readings
             )
-        self.datalayer.save(record.with_outcomes(converted.outcomes))
+            if reading is None:
+                return Status.SUCCESS
+            record_id = ReportClaimsRecord.build_id(
+                report_id, reading.document_digest
+            )
+            record = self.datalayer.read(record_id)
+            if not isinstance(record, ReportClaimsRecord):
+                return fail_with_fault(
+                    self,
+                    f"the claims record '{record_id}' of document"
+                    f" '{reading.document_id}' on report '{report_id}' is"
+                    " not held, so the values the proposal took cannot be"
+                    " marked (CSAF-04-004)",
+                )
+            self.datalayer.save(record.with_outcomes(outcomes))
+        except (VultronError, ValueError, KeyError) as exc:
+            return fail_with_fault(
+                self, f"cannot mark the claims of '{report_id}': {exc}"
+            )
         self.logger.info(
             "%s: marked %d value(s) of document '%s' on report '%s' as"
-            " used by the proposal (CSAF-04-004)",
+            " taken by the sent proposal (CSAF-04-004)",
             self.name,
-            len(converted.outcomes),
+            len(outcomes),
             reading.document_id,
             report_id,
         )
-        return None
+        return Status.SUCCESS
 
 
 class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
