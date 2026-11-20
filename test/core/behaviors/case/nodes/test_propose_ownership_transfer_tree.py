@@ -13,11 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for MakeOwnershipTransferOfferNode and the proposal tree (ADR-0148).
+"""Tests for MakeOwnershipTransferOfferNode and the Offer's tree (ADR-0199).
 
-The Case Owner proposes a transfer as ``Offer(Offer(VulnerabilityCase))``;
-the CASE_MANAGER's received tree makes the one ``Offer(VulnerabilityCase)``
-under an id it derives, queues it in its own outbox and ledgers it
+The Case Owner proposes a transfer with its own ``Offer(VulnerabilityCase)``;
+the CASE_MANAGER's received tree makes its own ``Offer(VulnerabilityCase)``
+from it under an id it derives, queues it in its own outbox and ledgers it
 (CM-21-028, CM-21-029).  A receiver that is not the CASE_MANAGER makes nothing.
 """
 

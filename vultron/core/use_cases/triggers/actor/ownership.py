@@ -314,9 +314,12 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
         # compare equal to "Offer".
         offer_types = type_terms(getattr(own_offer, "type_", None))
         sender_id = _as_id(getattr(own_offer, "actor", None))
-        raw_case_id = _as_id(getattr(own_offer, "object_", None))
+        offered = getattr(own_offer, "object_", None)
+        raw_case_id = _as_id(offered)
         if (
             "Offer" not in offer_types
+            or "VulnerabilityCase"
+            not in type_terms(getattr(offered, "type_", None))
             or not raw_case_id
             or not sender_id
             or not same_actor_id(sender_id, self._actor_id)

@@ -21,9 +21,10 @@ both as ``offer_case_ownership_transfer`` entries; its own, committed once it
 is queued, is the one the transferee holds and answers, and the one that is
 closed and expired.  Every reader here reads only the CASE_MANAGER's Offers,
 told from the Owner's by the entry's ``actor`` (:func:`_offer_entries`), so
-an answer naming the Owner's Offer names nothing that can be accepted.  "Recorded" means ledgered, and whether the Offer is
-still open is read from the same ledger and the ``end_time`` the ledgered
-Offer carries (CM-21-014, CM-21-017, CLP-11-001).
+an answer naming the Owner's Offer names nothing that can be accepted.
+"Recorded" means ledgered, and whether the Offer is still open is read from
+the same ledger and the ``end_time`` the ledgered Offer carries (CM-21-014,
+CM-21-017, CLP-11-001).
 
 A reply names it directly: the transferee's ``Accept`` or ``Reject`` by its
 id, and the owner's ``Undo`` of its own Offer through the id derived from

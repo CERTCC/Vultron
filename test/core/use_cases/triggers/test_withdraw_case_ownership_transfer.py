@@ -15,9 +15,9 @@
 
 """Tests for ``SvcWithdrawCaseOwnershipTransferUseCase`` (TRIG-11-006).
 
-The Case Owner withdraws its ownership-transfer proposal: the trigger emits
-``Undo(Offer(Offer(VulnerabilityCase)))`` from the owner, addressed to the
-case's CASE_MANAGER (CM-21-036, ADR-0148), and queues it in the owner's own
+The Case Owner withdraws its own ownership-transfer Offer: the trigger emits
+``Undo(Offer(VulnerabilityCase))`` from the owner, addressed to the case's
+CASE_MANAGER (CM-21-036, ADR-0199), and queues it in the owner's own
 outbox.  What the CASE_MANAGER does with it (admit only from the owner of an
 open Offer it made from the proposal, ledger it, close the Offer) is tested
 with the received use case in
@@ -238,7 +238,9 @@ def test_the_owners_offer_is_recognised_whatever_form_its_type_takes(
     case_id = "https://example.org/cases/held-forms"
     owner_id = "https://example.org/actors/owner-forms"
     own_offer = SimpleNamespace(
-        type_=offer_type, actor=owner_id, object_=case_id
+        type_=offer_type,
+        actor=owner_id,
+        object_=SimpleNamespace(id_=case_id, type_="VulnerabilityCase"),
     )
     dl = MagicMock()
     dl.read.return_value = own_offer
@@ -253,6 +255,33 @@ def test_the_owners_offer_is_recognised_whatever_form_its_type_takes(
     )
 
     assert use_case._held_case_id("https://example.org/p/1") == case_id
+
+
+@pytest.mark.spec("TRIG-11-006")
+def test_naming_an_offer_of_something_else_is_refused():
+    """An Offer this actor sent that offers no case, such as a report, is
+    not an ownership-transfer Offer: refused before any tree runs."""
+    owner_id = "https://example.org/actors/owner-report-offer"
+    own_offer = SimpleNamespace(
+        type_="Offer",
+        actor=owner_id,
+        object_=SimpleNamespace(
+            id_="https://example.org/reports/r1", type_="VulnerabilityReport"
+        ),
+    )
+    dl = MagicMock()
+    dl.read.return_value = own_offer
+    use_case = SvcWithdrawCaseOwnershipTransferUseCase.__new__(
+        SvcWithdrawCaseOwnershipTransferUseCase
+    )
+    use_case._dl = dl
+    use_case._actor_id = owner_id
+    cast(Any, use_case)._trigger_activity = SimpleNamespace(
+        load_received_activity=lambda _activity_id: None
+    )
+
+    with pytest.raises(VultronNotFoundError, match="this actor sent"):
+        use_case._held_case_id("https://example.org/p/report")
 
 
 @pytest.mark.spec("TRIG-11-006")

@@ -10,12 +10,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for ownership transfer received use cases (CM-21, ADR-0148).
+"""Tests for ownership transfer received use cases (CM-21, ADR-0199).
 
-The Case Owner proposes a transfer to the CASE_MANAGER as
-``Offer(Offer(VulnerabilityCase))``; the CASE_MANAGER makes the one
-``Offer(VulnerabilityCase)`` the transferee answers, under an id it derives
-from the proposal.  The harness delivers proposals and hands back that Offer.
+The Case Owner proposes a transfer to the CASE_MANAGER with its own
+``Offer(VulnerabilityCase)``; the CASE_MANAGER makes its own
+``Offer(VulnerabilityCase)`` from it, the one the transferee answers, under an
+id it derives from the Owner's.  The harness delivers proposals and hands back that Offer.
 """
 
 import json
@@ -917,9 +917,9 @@ def _proposal(
     proposer: str = _VENDOR_ID,
     **extra: Any,
 ):
-    """The *proposer*'s Offer(Offer(VulnerabilityCase)) to the CASE_MANAGER.
+    """The *proposer*'s own Offer(VulnerabilityCase) to the CASE_MANAGER.
 
-    ADR-0148.
+    ADR-0199.
     """
     if isinstance(transferee, str):
         transferee = make(as_Service, id_=transferee, name="Transferee")
@@ -3185,7 +3185,7 @@ def test_a_redelivered_accept_is_skipped_after_the_new_owner_lapses(
 
 @pytest.mark.spec("OID-01-006")
 def test_a_slash_spelled_transferee_is_offered_to_canonically(make_payload):
-    """The inner Offer's ``target`` is extracted as the transferee without
+    """The Owner's Offer's ``target`` is extracted as the transferee without
     its trailing slash: the Offer names the actor the roster stores."""
     case_id = "https://example.org/cases/case_ot_slash_transferee"
     _dl, deliver, trigger_activity = _ownership_offer_harness(

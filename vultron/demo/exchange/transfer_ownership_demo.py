@@ -107,7 +107,7 @@ def demo_transfer_ownership_accept(
     2. Vendor offers case ownership to coordinator, with a deadline to
        answer (OfferCaseOwnershipTransferActivity → **CaseActor** inbox,
        CM-21-005, TRIG-11-007)
-    3. CaseActor makes the Offer from the proposal and sends it to the
+    3. CaseActor makes its own Offer from the vendor's and sends it to the
        coordinator, carrying the deadline; the demo discovers it
     4. Coordinator accepts through its ``accept-case-ownership-transfer``
        trigger (AcceptCaseOwnershipTransferActivity → **CaseActor** inbox,

@@ -1856,9 +1856,10 @@ def test_a_bare_object_two_activities_deep_is_unresolvable(
 ) -> None:
     """The chain is followed to its end, not one level down.
 
-    ``Undo(Offer(Offer(<id>)))`` is the shape of the registered depth-2
-    ownership-transfer Undo; with a bare innermost object it matches nothing
-    and names that innermost id as the one to fetch.
+    ``Undo(Offer(Offer(<id>)))`` and ``Undo(Accept(Invite(<id>)))`` are each
+    two activities deep; with a bare innermost object each matches nothing
+    and names that innermost id as the one to fetch, whether or not a pattern
+    of that depth is registered.
     """
     innermost = _bare_object_body(inner, context=_CASE_URI)
     activity = parse_activity(
