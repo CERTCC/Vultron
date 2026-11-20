@@ -69,6 +69,8 @@ __all__ = [
     "EMBARGO",
     "EMBARGO_ID",
     "EMBARGO_PROPOSER_ID",
+    "EXPECTED_SENDER_SEQUENCE",
+    "FAULT_PUBLISHED",
     "INVITEE_ID",
     "INVITE_ID",
     "NOTE_ID",
@@ -76,6 +78,7 @@ __all__ = [
     "OFFER_ID",
     "OWNER_PROFILE",
     "PARTICIPANT_ID",
+    "PAYLOAD_SNAPSHOT",
     "PROPOSAL_ID",
     "REFUSED_ACTIVITY_ID",
     "REFUSAL_REASON",
@@ -231,6 +234,30 @@ REFUSED_ENTRY = _act_key(
     " SYNC-16-008).",
 )
 
+FAULT_PUBLISHED = _act_key(
+    "fault_published",
+    datetime,
+    "The ``published`` time a replica's processing fault claims, on the"
+    " sender's own clock (SYNC-16-008).  Unset when the fault claims none.",
+)
+
+EXPECTED_SENDER_SEQUENCE = _act_key(
+    "expected_sender_sequence",
+    int,
+    "The sender sequence number a refusal notice says the CASE_MANAGER"
+    " expects next from the executing actor: its"
+    " ``expectedSenderSequence`` (SYNC-21-015).  Unset when the notice"
+    " names none.",
+)
+
+PAYLOAD_SNAPSHOT = _act_key(
+    "payload_snapshot",
+    dict,
+    "The activity a new ledger entry records, as its wire payload verbatim:"
+    " the entry's ``payload_snapshot`` (CLP-07-011).  Unset when the commit"
+    " has no payload to record.",
+)
+
 # --- Who takes part in the act ------------------------------------------------
 
 SENDER_ID = _act_key(
@@ -262,12 +289,12 @@ REQUESTING_ACTOR_ID = _act_key(
     "requesting_actor_id",
     str,
     "The id of the actor whose request the CASE_MANAGER carries out in the"
-    " act, when another actor asked for it: the sender of the received"
-    " request, credited as ``attributedTo`` on what the CASE_MANAGER sends"
-    " for it (CM-24-001, CM-24-020).  Unset when the act is the executing"
-    " actor's own decision, a CASE_MANAGER trigger or cascade included, so"
-    " it is not ``sender_id``: a cascade inside a received tree credits no"
-    " sender.",
+    " act: the sender of the received request, credited as ``attributedTo``"
+    " on what the CASE_MANAGER sends for it (CM-24-001, CM-24-020).  When no"
+    " other actor asked, it is unset or names the executing actor itself,"
+    " and either credits nobody.  A CASE_MANAGER trigger or cascade leaves"
+    " it unset, so it is not ``sender_id``: a cascade inside a received tree"
+    " credits no sender.",
 )
 OWNER_PROFILE = _act_key(
     "owner_profile",

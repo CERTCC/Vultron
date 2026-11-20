@@ -33,10 +33,10 @@ Every module-level function is read, tick-time helpers included, as the
 helper whether the parameter goes or becomes a stated exemption.
 
 The reading is by parameter name, so it can miss a per-act value passed under
-a name it does not know (``case``, ``report``, ``reason``); it cannot invent
-one.  A ``**kwargs`` parameter is not read here; the one-channel check
-(``test_act_key_one_channel.py``) fails closed on it for a node with an
-act-key port.
+a name it does not know (``case``, ``report``, ``reason``, ``role``); it
+cannot invent one.  A ``**kwargs`` parameter is not read here; the
+one-channel check (``test_act_key_one_channel.py``) fails closed on it for a
+node with an act-key port.
 """
 
 import ast
@@ -60,18 +60,24 @@ _BEHAVIORS = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 _PER_ACT_SUFFIX = re.compile(r"_(?:id|ids|uri|obj|content)$")
 
 #: Further names that carry a per-act value: the act itself, a carried
-#: object, record or field of one, a time the act names, how a termination
-#: it carries or requests ends the embargo, or the actor whose request it
-#: carries out.  A bare domain name (``case``, ``participant``, ``status``)
-#: is not listed: it is most often a record a node read at tick time and
-#: hands to a helper, which no tree builds in.  Nor is a bare ``reason``: most
-#: often it is text a declaration (``no_sender_check``), a refusal node or a
-#: log helper states itself, so a per-act reason goes by a qualified name
-#: (``termination_reason``, ``rejection_reason``, the ``refusal_reason``
-#: key) that the rule reads.
+#: object, record or field of one, a time or deadline the act names, its
+#: recipients, the ledger position it carries, the activity it answers,
+#: how a termination it carries or requests ends the embargo, or the actor
+#: whose request it carries out.  A bare domain name (``case``,
+#: ``participant``, ``status``) is not listed: it is most often a record a
+#: node read at tick time and hands to a helper, which no tree builds in.
+#: Nor is a bare ``reason``: most often it is text a declaration
+#: (``no_sender_check``), a refusal node or a log helper states itself, so a
+#: per-act reason goes by a qualified name (``termination_reason``,
+#: ``rejection_reason``, the ``refusal_reason`` key) that the rule reads.
+#: Nor is a CVD ``role`` or ``roles``, which BTND-01-009 names as
+#: configuration, nor the act's instant (``at``, ``published``), a run key
+#: every node reads from the run (ADR-0176).
 _PER_ACT_NAMES: frozenset[str] = frozenset(
     {
         "activity",
+        "answer_deadline",
+        "answers",
         "attributed_to",
         "case_name",
         "cause",
@@ -85,6 +91,8 @@ _PER_ACT_NAMES: frozenset[str] = frozenset(
         "note",
         "note_name",
         "object_data",
+        "offer_to",
+        "position",
         "proposal_dict",
         "refused_entry",
         "rejection_reason",
@@ -274,6 +282,13 @@ def test_the_reading_covers_every_parameter_kind() -> None:
         ("termination", True),
         ("termination_reason", True),
         ("cause", True),
+        ("fault_published", True),
+        ("expected_sender_sequence", True),
+        ("payload_snapshot", True),
+        ("answer_deadline", True),
+        ("answers", True),
+        ("offer_to", True),
+        ("position", True),
         ("name", False),
         ("child", False),
         ("role", False),

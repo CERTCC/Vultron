@@ -67,6 +67,7 @@ from vultron.core.behaviors.act_key_ports import (
 )
 from vultron.core.behaviors.act_keys import (
     CASE_ID,
+    EXPECTED_SENDER_SEQUENCE,
     REFUSAL_REASON,
     REFUSED_ACTIVITY_ID,
     SENDER_ID,
@@ -441,26 +442,22 @@ class ResumeOutboundSequenceNode(DataLayerActionWithPorts):
     The counter is this actor's own bookkeeping (SYNC-21-020), not case
     state, so the node is not a state writer.
 
-    The case and the notice's sender are read from ``/case_id`` and
-    ``/sender_id`` (BTND-01-008).
+    The case, the notice's sender and the number it names are read from
+    ``/case_id``, ``/sender_id`` and ``/expected_sender_sequence``
+    (BTND-01-008).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        **act_key_ports(CASE_ID, SENDER_ID),
+        **act_key_ports(CASE_ID, SENDER_ID, EXPECTED_SENDER_SEQUENCE),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return act_key_remappings(CASE_ID, SENDER_ID)
+        return act_key_remappings(CASE_ID, SENDER_ID, EXPECTED_SENDER_SEQUENCE)
 
-    def __init__(
-        self,
-        expected: int,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.expected = expected
         self.moved = False
         """Whether the last run moved the counter."""
 
@@ -468,7 +465,7 @@ class ResumeOutboundSequenceNode(DataLayerActionWithPorts):
         super().initialise()
         self.case_id: str = act_value(self, CASE_ID, str)
         self.sender_id: str = act_value(self, SENDER_ID, str)
-        self.reason = optional_act_value(self, REFUSAL_REASON, str)
+        self.expected: int = act_value(self, EXPECTED_SENDER_SEQUENCE, int)
 
     def update(self) -> Status:
         self.moved = False

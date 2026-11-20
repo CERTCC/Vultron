@@ -421,15 +421,18 @@ def _case_and_manager(
 
 
 def _refuse_if_closed(
-    dl: CasePersistence, case: VulnerabilityCase, sender: str, position: str
+    dl: CasePersistence, case: VulnerabilityCase, sender: str, answerer: str
 ) -> None:
     """Refuse an answerer whose closure the case records (CM-23-018).
+
+    *answerer* names what the sender answers as (``"Target"``,
+    ``"Transferee"``) in the refusal reason.
 
     Raises:
         NoStandingError: *sender* has left the case (RM ``CLOSED``).
     """
     if closure_recorded(case, dl, sender):
         raise NoStandingError(
-            f"{position} '{sender}' has left case '{case.id_}' (RM CLOSED)"
+            f"{answerer} '{sender}' has left case '{case.id_}' (RM CLOSED)"
             " and may answer nothing further (CM-23-018)"
         )

@@ -30,7 +30,11 @@ from vultron.core.behaviors.act_key_ports import (
     act_value,
     optional_act_value,
 )
-from vultron.core.behaviors.act_keys import CASE_ID, OBJECT_ID
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    OBJECT_ID,
+    PAYLOAD_SNAPSHOT,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -268,25 +272,27 @@ class UpdateReplicationStateNode(CaseNamedReplayNode):
 class CreateLogEntryNode(DataLayerActionWithPorts):
     """Build the next ledger entry of ``/case_id`` recording ``/object_id``.
 
-    Both are read from their keys (BTND-01-008); the commit tree seeds them.
+    Both are read from their keys, and the entry's payload from
+    ``/payload_snapshot``, which a commit with no payload leaves unset
+    (BTND-01-008); the commit tree seeds them.
     """
 
     def __init__(
         self,
         semantic_type: str,
         *,
-        payload_snapshot: dict[str, Any] | None = None,
         term: int | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.semantic_type = semantic_type
-        self.payload_snapshot = dict(payload_snapshot or {})
+        self.payload_snapshot: dict[str, Any] = {}
+        """The payload the last run recorded; empty when none was seeded."""
         self.term = term
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        **act_key_ports(CASE_ID, OBJECT_ID),
+        **act_key_ports(CASE_ID, OBJECT_ID, PAYLOAD_SNAPSHOT),
         "tail_hash": PortInformation(data_type=object, required=True),
         "tail_index": PortInformation(data_type=object, required=True),
     }
@@ -301,7 +307,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
-            **act_key_remappings(CASE_ID, OBJECT_ID),
+            **act_key_remappings(CASE_ID, OBJECT_ID, PAYLOAD_SNAPSHOT),
             "tail_hash": "/tail_hash",
             "tail_index": "/tail_index",
             "log_entry": "/log_entry",
@@ -319,6 +325,9 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         self.case_id = act_value(self, CASE_ID, str)
         self.object_id = act_value(self, OBJECT_ID, str)
+        self.payload_snapshot = dict(
+            optional_act_value(self, PAYLOAD_SNAPSHOT, dict) or {}
+        )
 
         # One scan of this case's entries, shared by the
         # claimed-timestamp guard's predecessor lookup and the idempotency

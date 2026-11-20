@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING, Any
 import py_trees
 
 from vultron.core.behaviors.act_key_scope import with_act_keys
-from vultron.core.behaviors.act_keys import CASE_ID, OBJECT_ID
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    OBJECT_ID,
+    PAYLOAD_SNAPSHOT,
+)
 from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case_id_scope import with_case_id
@@ -100,10 +104,13 @@ def create_commit_log_entry_tree(
                     with_act_keys(
                         CreateLogEntryNode(
                             semantic_type=semantic_type,
-                            payload_snapshot=payload_snapshot,
                             name="CreateLogEntry",
                         ),
-                        {CASE_ID: case_id, OBJECT_ID: object_id},
+                        {
+                            CASE_ID: case_id,
+                            OBJECT_ID: object_id,
+                            PAYLOAD_SNAPSHOT: payload_snapshot,
+                        },
                     ),
                     PersistLogEntryNode(name="PersistLogEntry"),
                     with_case_id(

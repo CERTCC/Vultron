@@ -43,6 +43,7 @@ import py_trees
 from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import (
     CASE_ID,
+    EXPECTED_SENDER_SEQUENCE,
     REFUSAL_REASON,
     REFUSED_ACTIVITY_ID,
     SENDER_ID,
@@ -102,10 +103,11 @@ def refusal_notice_received_tree(
         if expected_sender_sequence is not None:
             effects.append(
                 with_act_keys(
-                    ResumeOutboundSequenceNode(
-                        expected=expected_sender_sequence
-                    ),
-                    notice,
+                    ResumeOutboundSequenceNode(),
+                    {
+                        **notice,
+                        EXPECTED_SENDER_SEQUENCE: expected_sender_sequence,
+                    },
                 )
             )
     return create_receive_activity_tree(

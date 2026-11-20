@@ -50,8 +50,14 @@ from vultron.core.behaviors.act_key_ports import (
     act_key_ports,
     act_key_remappings,
     act_value,
+    optional_act_value,
 )
-from vultron.core.behaviors.act_keys import CASE_ID, REFUSED_ENTRY, SENDER_ID
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    FAULT_PUBLISHED,
+    REFUSED_ENTRY,
+    SENDER_ID,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -310,8 +316,9 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
 
     The case is ``/case_id``, the peer is ``/sender_id`` (the fault's
     sender), and *refused_entry*, read from ``/refused_entry``, is the entry
-    the peer's divergence fault reports refusing (BTND-01-008).  When the
-    peer's last re-seed named a ledger position at or after it, the copy the
+    the peer's divergence fault reports refusing; *fault_published* is read
+    from ``/fault_published``, which a fault that claims no time leaves
+    unset (BTND-01-008).  When the peer's last re-seed named a ledger position at or after it, the copy the
     peer was sent already reflected that entry.
 
     - If the peer's acknowledged position (``last_acknowledged_hash``) is at
@@ -341,21 +348,18 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        **act_key_ports(CASE_ID, SENDER_ID, REFUSED_ENTRY),
+        **act_key_ports(CASE_ID, SENDER_ID, REFUSED_ENTRY, FAULT_PUBLISHED),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return act_key_remappings(CASE_ID, SENDER_ID, REFUSED_ENTRY)
+        return act_key_remappings(
+            CASE_ID, SENDER_ID, REFUSED_ENTRY, FAULT_PUBLISHED
+        )
 
-    def __init__(
-        self,
-        *,
-        fault_published: datetime | None,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, *, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.fault_published = as_utc(fault_published)
+        self.fault_published: datetime | None = None
         """The ``published`` time the peer claims for its fault, if any."""
         self.repeated = False
         """True when the peer acknowledged the copy that reflected the entry
@@ -374,6 +378,9 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
         self.case_id = act_value(self, CASE_ID, str)
         self.peer_id = act_value(self, SENDER_ID, str)
         self.refused_entry = act_value(self, REFUSED_ENTRY, CaseLedgerEntry)
+        self.fault_published = as_utc(
+            optional_act_value(self, FAULT_PUBLISHED, datetime)
+        )
         datalayer = cast(CasePersistence, self.datalayer)
         state = read_replication_state(
             datalayer, case_id=self.case_id, peer_id=self.peer_id
