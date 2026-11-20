@@ -675,6 +675,7 @@ reference/user_stories/story_2026_097.md
 reference/user_stories/story_2026_098.md
 reference/user_stories/story_2026_099.md
 reference/user_stories/story_2026_100.md
+reference/user_stories/story_2026_101.md
 reference/user_stories/table.md
 reference/user_stories/traceability.md
 reference/versioning.md

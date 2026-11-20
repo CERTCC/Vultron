@@ -437,7 +437,10 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # faults answer an Announce this store sent, as replication signalling
     # that is never ledgered and never relayed (SYNC-16-002).  Every effect
     # of all four is the CASE_MANAGER's, so no receiver off that path does
-    # anything with them.
+    # anything with them.  A fault carries no case (ASK-07-006), so its tree
+    # finds the case with a lookup and declares the no-case path too, where
+    # a fault whose entry is not found is refused by the lookup's miss guard
+    # (BT-25-010, HP-01-041).
     (f"{_SY}/reject_tree.py", "create_reject_log_entry_tree", 0): frozenset(
         {CM}
     ),
@@ -446,12 +449,12 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         f"{_SY}/divergence_tree.py",
         "create_case_diverged_fault_tree",
         0,
-    ): frozenset({CM}),
+    ): frozenset({CM, NC}),
     (
         f"{_SY}/hash_mismatch_tree.py",
         "create_hash_mismatch_fault_tree",
         0,
-    ): frozenset({CM}),
+    ): frozenset({CM, NC}),
 }
 
 #: Sites whose declaration is conditional on the tree naming a case at build
