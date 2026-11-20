@@ -14,10 +14,10 @@ tracks:
 description: >
   How this codebase gives a vendor's participant record its products and the
   authored product statuses that participants state about them (ADR-0220): the
-  product object and its offer flow, the two-dimension product status, statements
-  from the original report, how fix readiness reads product statuses, and what the
-  CSAF projection renders. Holds the table of decision points that read fix
-  readiness and the requirement text the implementation adds.
+  product object and its offer flow, the product status in CSAF's record format,
+  statements from the original report, how fix readiness reads product statuses,
+  and what the CSAF projection renders. Holds the table of decision points that
+  read fix readiness and the requirement text the implementation adds.
 related_specs:
   - specs/case-management.yaml
   - specs/csaf-report-content.yaml
