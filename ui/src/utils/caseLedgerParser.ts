@@ -103,7 +103,8 @@ export interface As2Object
     Pick<CaseStatusSnapshot, 'emState' | 'pxaState'>,
     Pick<CaseParticipantSnapshot, 'caseRoles'> {
   id?: string
-  type?: string
+  /** One type, or an extension type's list (`["EmbargoEvent", "Event"]`, ADR-0201). */
+  type?: string | string[]
   name?: string | null
   content?: string | null
   inReplyTo?: string | null
@@ -122,7 +123,8 @@ export interface As2Object
 /** An AS2 activity (the `payloadSnapshot`). */
 export interface As2Activity {
   id?: string
-  type?: string
+  /** One type, or an extension type's list (`["Refuse", "Reject"]`, ADR-0196). */
+  type?: string | string[]
   actor?: string
   /** Who asked for an act the CASE_MANAGER sends on another's behalf (CM-24-002). */
   attributedTo?: string
