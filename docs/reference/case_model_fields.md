@@ -62,7 +62,8 @@ For each case field the profile names the operations the protocol permits and th
 | `vulnerability_items` | Each item cut to its `ids`; an item the case holds only by URI is marked `Redacted` |
 | `content`, `case_participants`, `vulnerability_reports`, `notes`, `case_references`, `parent_cases`, `child_cases`, `sibling_cases`, and every other AS2 property | A `Redacted` marker when the case holds a value; left out when it holds none ([MV-12-004](vultron-spec/requirements/messages.md#mv-12-004)) |
 
-`CasePreview.for_projection` cuts a preview for a projection by one of the two profiles in `vultron/core/models/case_projection_profile.py`, and `ProjectionCut.of` in `vultron/core/models/case_projection.py` pairs it with the profile's name and Traffic Light Protocol (TLP) label:
+`CasePreview.for_projection` cuts a preview for a projection by one of the two profiles in `vultron/core/models/case_projection_profile.py`.
+`ProjectionCut.of` in `vultron/core/models/case_projection.py` pairs that preview with the profile's name and Traffic Light Protocol (TLP) label:
 
 | Field | Public profile (`public-v1`, `CLEAR`) | Joined profile (`joined-v1`, `AMBER+STRICT`) |
 |---|---|---|
