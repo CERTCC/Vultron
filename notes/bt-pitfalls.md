@@ -225,6 +225,10 @@ producer; *lifetime* is the bridge's.
   at the start of `execute_with_setup`, so a nested call restores the outer
   value. Consequently none of them can carry a result out: pass a mutable
   `result_out` dict instead.
+- A call-out seam's answer is a hand-off key too, written through the seam's own
+  blackboard client for a later sibling, so the seam cannot restore it. The
+  bridge adds `call_out_written_keys(tree)`, every key of every seam's contract,
+  to `managed_keys`; never list a contract's keys by hand (BT-17-020, #6789).
 - The snapshot/restore lives in `vultron/core/behaviors/blackboard_scope.py`,
   shared with the inbox pipeline. Use it rather than re-implementing: a key absent
   before the call must be *removed* afterwards (not set to `None`, which reads as
