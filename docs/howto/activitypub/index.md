@@ -82,7 +82,7 @@ Read it field by field.
 | `type` | The AS2 verb | Every guide names its activities by verb and object |
 | `actor` | The actor performing the activity | Case-management handshakes are sent by the CASE_MANAGER, with the requesting participant in `attributedTo` and the request in `inReplyTo` |
 | `object` | The thing acted on: a Vultron object, or an earlier activity being answered | `Accept`, `Reject`, `TentativeReject`, and `Read` carry the activity they answer, not the object inside it |
-| `target` | Where the object goes | `Add` names the case here, as does `Remove(CaseParticipant)`; `Offer(CaseParticipantRole)` names the actor being offered the role |
+| `target` | Where the object goes | `Add` names the case here; `Offer(CaseParticipantRole)` names the actor being offered the role |
 | `origin` | Where the object comes from | `Remove(Note)` and `Remove(EmbargoEvent)`, which terminates an embargo, name the case here rather than in `target` |
 | `context` | The case an activity belongs to | `Invite(EmbargoEvent)` names the case here, and so does the `Note` an `Add(Note)` carries |
 | `inReplyTo` | The earlier activity this one answers, when the verb alone does not say so | `Accept(Offer(Actor)[target=VulnerabilityCase])` names, in `inReplyTo`, the actor recommendation it accepts, and so does the CASE_MANAGER's forward of that recommendation, `Offer(CaseParticipant)` |
@@ -100,7 +100,8 @@ Vultron adds no verbs.
 The objects are where Vultron extends AS2.
 `VulnerabilityReport`, `VulnerabilityCase`, `CaseParticipant`, `CaseParticipantRole`, `CaseStatus`, `ParticipantStatus`, `EmbargoEvent`, `CaseLedgerEntry`, and `ProcessingFault` are Vultron types, declared in the Vultron JavaScript Object Notation for Linked Data (JSON-LD) context that every activity cites in its `@context`, after the AS2 namespace.
 Standard AS2 objects appear too: a case note is an `as:Note`, and the actor invited to a case is an `as:Actor`.
-An embargo is not one of them: it is sent with the Vultron `type` `EmbargoEvent`, never a plain `as:Event`.
+An embargo is a Vultron `EmbargoEvent`, a subtype of `as:Event`: it is sent as `"type": ["EmbargoEvent", "Event"]`, so a plain AS2 reader still sees an event.
+A receiver does not accept a plain `as:Event` as an embargo.
 
 The same verb carries different protocol messages depending on its object.
 `Accept(Offer(VulnerabilityReport))` is Report Valid (RV); `Accept(Invite(EmbargoEvent))` is a participant's consent to embargo terms, while `Add(EmbargoEvent)` is Embargo Proposal Acceptance (EA); `Accept(Invite(VulnerabilityCase preview))` is an actor joining a case.

@@ -86,6 +86,7 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
     RmDimension,
 )
+from vultron.core.models.type_terms import type_terms
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -118,12 +119,12 @@ from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     add_log_entry_activity,
-    add_participant_to_case_activity,
     announce_embargo_activity,
     em_propose_embargo_activity,
+    reinstate_participant_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
-    remove_participant_from_case_activity,
+    remove_participant_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,
@@ -231,12 +232,10 @@ class _Manager:
     def __init__(self, *, end_in_days: int = 60) -> None:
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER)
         _seed(self.dl, end_in_days=end_in_days)
-        record = self.dl.read(_participant_id(REMOVED))
-        assert isinstance(record, CaseParticipant)
         removal = self.route(
-            remove_participant_from_case_activity(
-                record,
-                target=CASE_ID,
+            remove_participant_activity(
+                REMOVED,
+                CASE_ID,
                 actor=OWNER,
                 to=[MANAGER],
                 at=authored_at(),
@@ -706,9 +705,12 @@ _CASE_CONTENT_TYPES = frozenset(
 
 
 def _typed_objects(value: Any) -> list[str]:
-    """Every ``type`` carried by an inline object anywhere in *value*."""
+    """Every ``type`` carried by an inline object anywhere in *value*.
+
+    A type list counts as its own type, the first term (VM-03-005).
+    """
     if isinstance(value, dict):
-        found = [value["type"]] if isinstance(value.get("type"), str) else []
+        found = list(type_terms(value.get("type"))[:1])
         for item in value.values():
             found.extend(_typed_objects(item))
         return found
@@ -1352,7 +1354,7 @@ def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
     """AC-5: the notice and its ledger entry are idempotent across channels.
 
     The removed signatory applies the termination notice.  The Case Owner
-    then reinstates it: the replica replays the ``Add(CaseParticipant)``
+    then reinstates it: the replica replays the Owner's ``Add(<Actor>)``
     entry (``ApplyReinstateCaseParticipantFromLedgerNode``, CM-31-011), which
     makes it active again, and then the termination's own entry.  That
     replay changes nothing further.
@@ -1361,9 +1363,9 @@ def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
     notice = replica.receive(_termination_from(MANAGER, replica.dl, REMOVED))
     assert notice.disposition is HandlerDisposition.APPLIED
     reinstatement, reinstatement_entry = _entry_event(
-        add_participant_to_case_activity(
-            replica.record(),
-            target=CASE_ID,
+        reinstate_participant_activity(
+            REMOVED,
+            CASE_ID,
             actor=OWNER,
             context=CASE_ID,
             at=authored_at(),

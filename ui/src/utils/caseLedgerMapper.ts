@@ -58,6 +58,7 @@ import {
   vfdLadderToken,
 } from './caseLedgerParser'
 import { buildLanes, type LaneDirectory, type ReplayLane } from './replayLanes'
+import { ownType } from './typeTerms'
 import { isRegisteredSemanticType, renderPhrase, wireForm, type PhraseSlots } from '../semanticRegistry'
 
 
@@ -292,7 +293,7 @@ function referentLabel(ctx: ReplayContext, ref: As2Object | string | null | unde
   if (typeof ref === 'string') return nameOf(ctx, laneOf(ctx, ref))
   return (
     lanedName(ctx, ref) ??
-    ref.type?.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+    ownType(ref.type)?.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
   )
 }
 
@@ -732,7 +733,7 @@ function handleUnrecognized(ctx: ReplayContext, entry: CaseLedgerEntry): MapResu
     entry,
     laneId,
     `Unrecognized: ${renderPhrase(entry.semanticType)}`,
-    [`semanticType: ${entry.semanticType}`, ...(entry.payloadSnapshot?.type ? [`payload type: ${entry.payloadSnapshot.type}`] : [])],
+    [`semanticType: ${entry.semanticType}`, ...(ownType(entry.payloadSnapshot?.type) ? [`payload type: ${ownType(entry.payloadSnapshot?.type)}`] : [])],
     () => [],
     { unrecognized: note }
   )

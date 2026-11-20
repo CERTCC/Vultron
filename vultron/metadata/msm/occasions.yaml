@@ -493,34 +493,52 @@ groups:
     - path: howto/activitypub/activities/manage_case.md
       title: How to Advance a Case Through Report Management
     example: close_case
-  - anchor: add-case-participant-to-case
-    heading: Add case participant to case
-    when: the Case Owner reinstates a removed Participant
-    send: Add(CaseParticipant)[target=VulnerabilityCase]
-    send_to: the CASE_MANAGER
-    sent_by: the Case Owner
-    semantics: add_case_participant_to_case
-    status: none
-    description: Asks the CASE_MANAGER to reinstate the participant record named by the object.
-      The Participant becomes active again and receives the ledger entries it missed.
-    seen_in:
-    - path: howto/activitypub/activities/manage_participants.md
-      title: How to Manage a Case Roster
-    example: add_coordinator_participant_to_case
-  - anchor: remove-case-participant-from-case
-    heading: Remove case participant from case
+  - anchor: remove-participant-from-case
+    heading: Remove participant from case
     when: the Case Owner removes a Participant from active participation
-    send: Remove(CaseParticipant)[target=VulnerabilityCase]
+    send: Remove(Actor)[origin=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: the Case Owner
-    semantics: remove_case_participant_from_case
+    semantics: remove_participant_from_case
     status: none
-    description: Asks the CASE_MANAGER to remove the participant record named by the object.
-      The removed Participant receives a direct notice.
+    description: The Case Owner's own removal of the actor named by the object, from the case
+      named by the origin. The CASE_MANAGER records it as the ledger entry and announces it
+      to the removed actor.
     seen_in:
     - path: howto/activitypub/activities/manage_participants.md
       title: How to Manage a Case Roster
     example: remove_participant_from_case
+  - anchor: reinstate-participant-in-case
+    heading: Reinstate participant in case
+    when: the Case Owner reinstates a removed Participant
+    send: Add(Actor)[target=VulnerabilityCase]
+    send_to: the CASE_MANAGER
+    sent_by: the Case Owner
+    semantics: reinstate_participant_in_case
+    status: none
+    description: The Case Owner's own reinstatement of the removed actor named by the object.
+      The CASE_MANAGER records it as the ledger entry and announces it to the actor, which
+      becomes active again and receives the ledger entries it missed.
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
+    example: reinstate_participant_in_case
+  - anchor: announce-admitted-act
+    heading: Announce admitted act
+    when: the CASE_MANAGER has admitted an act that concerns an actor the ledger fan-out does
+      not reach, such as a removed or reinstated Participant
+    send: Announce(Activity)[context=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the CASE_MANAGER
+    semantics: announce_admitted_act
+    status: none
+    description: 'Carries the admitted act inline, as it was received, and names it in inReplyTo.
+      It informs and asks nothing: the receiver takes the change from the ledger entry that
+      carries the act, never from the Announce.'
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
+    example: announce_participant_removal
   - anchor: create-case-participant
     heading: Create case participant
     when: the CASE_MANAGER creates a participant record, such as the inert record for the

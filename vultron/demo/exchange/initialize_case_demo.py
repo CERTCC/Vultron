@@ -24,7 +24,7 @@ This demo script showcases the case initialization process:
 4. Add Report to Case: vendor links the submitted report to the case
 5. Invite the Reporter: vendor sends the reporter the stub Invite
 6. Reporter Joins: the reporter accepts, and the vendor, as CASE_MANAGER, seats it
-   (ADR-0114; ``Add(CaseParticipant)`` only reinstates, CM-31-011)
+   (ADR-0114; the Case Owner's ``Add(<Actor>)`` only reinstates, CM-31-011)
 7. Show final case state
 
 This corresponds to the workflow documented in:

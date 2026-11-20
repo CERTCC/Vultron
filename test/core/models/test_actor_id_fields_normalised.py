@@ -33,7 +33,7 @@ from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.factories import add_participant_to_case_activity
+from vultron.wire.as2.factories import update_participant_activity
 from vultron.wire.as2.parser import parse_activity
 
 CASE_ID = "https://example.org/cases/c1"
@@ -138,11 +138,11 @@ def test_the_roster_key_is_the_received_records_own_spelling() -> None:
 
 
 @pytest.mark.spec("OID-01-006", "OID-01-007")
-def test_an_add_participant_activity_yields_the_canonical_actor() -> None:
-    """A peer's ``Add(CaseParticipant)`` reaches core with one spelling.
+def test_an_update_participant_activity_yields_the_canonical_actor() -> None:
+    """A peer's ``Update(CaseParticipant)`` reaches core with one spelling.
 
     The whole edge: the body is parsed as received, then the extractor
-    builds the participant the use case adds to the roster.
+    builds the participant record the activity carries.
     """
     participant = make(
         CaseParticipant,
@@ -150,10 +150,10 @@ def test_an_add_participant_activity_yields_the_canonical_actor() -> None:
         attributed_to=VENDOR_ID,
         context=CASE_ID,
     )
-    activity = add_participant_to_case_activity(
+    activity = update_participant_activity(
         participant,
-        target=CASE_ID,
         actor=OWNER_ID,
+        context=CASE_ID,
         to=[VENDOR_ID],
         at=authored_at(),
     )

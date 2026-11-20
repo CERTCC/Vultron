@@ -14,6 +14,7 @@
 """Builders for participants, notes, statuses, faults and the unmatched."""
 
 import json
+from collections.abc import Callable
 from typing import Any, cast
 
 from test.support.objects import authored_at, make
@@ -33,16 +34,19 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
     record_pending_assertion,
 )
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
-    add_participant_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
-    remove_participant_from_case_activity,
+    reinstate_participant_activity,
+    remove_participant_activity,
 )
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -196,8 +200,8 @@ def _owner_moves(
     return _at_removal_manager(
         case,
         factory(
-            case.participant(actor_id),
-            target=_REMOVAL_CASE_ID,
+            actor_id,
+            _REMOVAL_CASE_ID,
             actor=_REMOVAL_OWNER,
             to=[_REMOVAL_MANAGER],
             id_=f"https://example.org/activities/rerun-sweep-{tag}",
@@ -206,47 +210,78 @@ def _owner_moves(
     )
 
 
-@applied(MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE)
+@applied(MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE)
 def remove_case_participant() -> Scenario:
-    """The Case Owner removes a vendor: committed, announced and noticed."""
+    """The Case Owner removes a vendor: committed and announced (ADR-0199)."""
     return _owner_moves(
         _removal_case(),
-        remove_participant_from_case_activity,
+        remove_participant_activity,
         _REMOVAL_VENDOR,
         tag="remove",
     )
 
 
-@refused(MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE)
+@refused(MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE)
 def remove_case_owner() -> Scenario:
     """A removal naming the Case Owner: refused (CM-31-004), with a notice."""
     return _owner_moves(
         _removal_case(),
-        remove_participant_from_case_activity,
+        remove_participant_activity,
         _REMOVAL_OWNER,
         tag="remove-refused",
     )
 
 
-@applied(MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE)
+@applied(MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE)
 def add_case_participant() -> Scenario:
     """The Case Owner reinstates a removed vendor (CM-31-011)."""
     case = _removal_case()
     removed = case.remove(_REMOVAL_VENDOR)
     assert removed.disposition is HandlerDisposition.APPLIED, removed.reason
     return _owner_moves(
-        case, add_participant_to_case_activity, _REMOVAL_VENDOR, tag="add"
+        case, reinstate_participant_activity, _REMOVAL_VENDOR, tag="add"
     )
 
 
-@refused(MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE)
+@refused(MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE)
 def add_case_participant_not_removed() -> Scenario:
-    """An Add of a participant never removed: refused, with a notice."""
+    """A reinstatement of a participant never removed: refused, with a
+    notice (CM-31-036)."""
     return _owner_moves(
         _removal_case(),
-        add_participant_to_case_activity,
+        reinstate_participant_activity,
         _REMOVAL_OTHER,
         tag="add-refused",
+    )
+
+
+def _recorded(activity_id: str) -> Callable[[SqliteDataLayer], str | None]:
+    """A check that the receiver recorded *activity_id* on intake."""
+
+    def reached(dl: SqliteDataLayer) -> str | None:
+        if dl.read(ReceivedActivityRecord.build_id(activity_id)):
+            return None
+        return f"'{activity_id}' was not recorded on intake"
+
+    return reached
+
+
+@applied(MessageSemantics.ANNOUNCE_ADMITTED_ACT)
+def announce_admitted_act() -> Scenario:
+    """The removed vendor's replica records the CASE_MANAGER's Announce of
+    the Owner's removal and writes nothing else (ADR-0199, CM-31-029)."""
+    case = _removal_case()
+    removed = case.remove(_REMOVAL_VENDOR)
+    assert removed.disposition is HandlerDisposition.APPLIED, removed.reason
+    (announce,) = case.activities_to("Announce", _REMOVAL_VENDOR)
+    replica = SqliteDataLayer("sqlite:///:memory:", actor_id=_REMOVAL_VENDOR)
+    _seed(replica)
+    return Scenario(
+        dl=replica,
+        event=received_event(
+            announce, at=replica, receiving_actor_id=_REMOVAL_VENDOR
+        ),
+        reached=_recorded(announce.id_),
     )
 
 

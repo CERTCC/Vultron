@@ -66,7 +66,8 @@ logger = logging.getLogger(__name__)
 # The Case Owner's activation of a proposed embargo is an ``Add(EmbargoEvent)``
 # too, sent only by the owner-decision paths (the accept-embargo trigger and
 # the owner's automatic answer), which name the proposal it decides
-# (ADR-0180).
+# (ADR-0180).  So is the Case Owner's reinstatement, ``Add(<Actor>)``,
+# which its own trigger sends (ADR-0199).
 _ADD_OBJECT_TO_CASE_SEMANTICS: frozenset[MessageSemantics] = frozenset(
     entry.semantics
     for entry in SEMANTIC_REGISTRY
@@ -74,7 +75,7 @@ _ADD_OBJECT_TO_CASE_SEMANTICS: frozenset[MessageSemantics] = frozenset(
     and entry.pattern.activity_ == TAtype.ADD
     and entry.pattern.target_ == VOtype.VULNERABILITY_CASE
 ) - {
-    MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+    MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
     MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
 }
 
@@ -189,9 +190,10 @@ class _CasesMixin:
                 representation or cannot be carried in an ``Add``.
             VultronValidationError: when the ``Add`` matches no receive-side
                 pattern that adds an object to a case, or matches one whose
-                object type has its own flow (``CaseParticipant``,
-                ``CaseStatus``, and ``EmbargoEvent``, whose ``Add`` is the
-                Case Owner's activation, ADR-0180).
+                object type has its own flow (an actor, whose ``Add`` is
+                the Case Owner's reinstatement, ADR-0199; ``CaseStatus``;
+                and ``EmbargoEvent``, whose ``Add`` is the Case Owner's
+                activation, ADR-0180).
         """
         activity = self._build_add_object_to_case(
             actor=None, object_id=object_id, case_id=case_id, to=None, at=at

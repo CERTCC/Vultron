@@ -66,10 +66,10 @@ flowchart LR
 
 If all participants are known when the case is created, seat them inline on the `Create(VulnerabilityCase)` activity instead — see [How to Initialize a Case](initialize_case.md).
 
-!!! warning "`Add(CaseParticipant)` does not seat a member"
+!!! warning "An `Add` does not seat a member"
 
-    `Add(CaseParticipant)` is the Case Owner's request to reinstate a participant it removed earlier.
-    The CASE_MANAGER refuses an `Add` that names an actor that never joined, so an `Add` cannot take the place of the Invite.
+    The Case Owner's `Add(Actor)` reinstates a participant it removed earlier.
+    The CASE_MANAGER refuses one that names an actor that never joined, so an `Add` cannot take the place of the Invite.
     See [How to Manage a Case Roster](manage_participants.md#reinstate-a-participant).
 
 !!! note "The binding is per case"

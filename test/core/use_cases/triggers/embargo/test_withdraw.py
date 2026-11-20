@@ -163,7 +163,7 @@ def test_a_seeded_signatory_withdraws_with_no_invite(
     activity = activity_of(result)
     assert activity["type"] == "Leave"
     assert activity["object"]["id"] == embargo_id
-    assert activity["object"]["type"] == "EmbargoEvent"
+    assert activity["object"]["type"] == ["EmbargoEvent", "Event"]
     assert activity["context"] == case.id_
     _assert_asked_case_manager(
         dl,

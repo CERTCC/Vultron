@@ -49,7 +49,7 @@ from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
 )
 from vultron.core.behaviors.case.nodes.case_participant_received import (
-    MoveNamesCaseParticipantNode,
+    NamedParticipantIsNotProtectedNode,
 )
 from vultron.core.behaviors.case.nodes.full_case_invite import (
     CheckFullCaseReplyNode,
@@ -165,7 +165,7 @@ def _target_participant() -> py_trees.behaviour.Behaviour:
 
 @_case("participant-move")
 def _participant_move() -> py_trees.behaviour.Behaviour:
-    node = _bare(MoveNamesCaseParticipantNode, move="removal")
+    node = _bare(NamedParticipantIsNotProtectedNode, move="removal")
     assert node._refuse("p is not on the roster") is Status.FAILURE
     return node
 

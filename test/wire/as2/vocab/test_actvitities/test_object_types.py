@@ -606,38 +606,47 @@ class TestAddStatusToParticipantActivity:
         _assert_accepts_inline(self.cls, _participant_status(), **self.fields)
 
 
-class TestAddParticipantToCaseActivity:
+_MOVE_CASE = "https://example.org/cases/c1"
+
+
+class TestReinstateParticipantActivity:
+    """The Case Owner's ``Add(<Actor>, target=<case>)`` (ADR-0199)."""
+
     from vultron.wire.as2.vocab.activities.case_participant import (
-        _AddParticipantToCaseActivity,
+        _ReinstateParticipantActivity,
     )
 
-    cls = _AddParticipantToCaseActivity
+    cls = _ReinstateParticipantActivity
+    fields = {"target": _MOVE_CASE}
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.fields)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.fields)
 
-    def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, make(as_CaseParticipant))
+    def test_accepts_an_actor_reference(self):
+        _assert_accepts_inline(self.cls, make(as_Actor), **self.fields)
 
 
-class TestRemoveParticipantFromCaseActivity:
+class TestRemoveParticipantActivity:
+    """The Case Owner's ``Remove(<Actor>, origin=<case>)`` (ADR-0199)."""
+
     from vultron.wire.as2.vocab.activities.case_participant import (
-        _RemoveParticipantFromCaseActivity,
+        _RemoveParticipantActivity,
     )
 
-    cls = _RemoveParticipantFromCaseActivity
+    cls = _RemoveParticipantActivity
+    fields = {"origin": _MOVE_CASE}
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.fields)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.fields)
 
-    def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, make(as_CaseParticipant))
+    def test_accepts_an_actor_reference(self):
+        _assert_accepts_inline(self.cls, make(as_Actor), **self.fields)
 
 
 # ---------------------------------------------------------------------------

@@ -29,8 +29,8 @@ This demo script showcases the participant initialization process:
    the ledger entries the CaseActor commits for it
 
 A participant is only ever initialized this way (ADR-0114):
-``Add(CaseParticipant)`` is the Case Owner's request to reinstate a removed
-participant, not a way to seat a new one (CM-31-011, ADR-0116).  Compare with
+the Case Owner's ``Add(<Actor>)`` reinstates a removed participant and is not
+a way to seat a new one (CM-31-011, ADR-0199).  Compare with
 invite_actor_demo.py, which drives the same join through the triggers.
 
 When run as a script, this module will:

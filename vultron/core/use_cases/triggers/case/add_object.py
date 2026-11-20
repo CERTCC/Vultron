@@ -53,7 +53,7 @@ class SvcAddObjectToCaseUseCase(SvcActivityTriggerBase):
     Before anything is built, the ``Add`` is classified the way a receiver
     would classify it.  An object type no receive-side pattern routes as an
     addition to the case, or one with its own flow (``EmbargoEvent``,
-    ``CaseParticipant``, ``CaseStatus``), is refused with
+    an actor, ``CaseStatus``), is refused with
     ``VultronValidationError`` (422) and nothing is queued (TRIG-10-001).
     A case with no CASE_MANAGER fails the same way, also before the outbox
     is written.

@@ -410,7 +410,9 @@ class JointModel:
     def _em_steps(self, state: JointState) -> list[Step[JointState, Event]]:
         found = []
         for trigger, moves in EM_TRANSITIONS.items():
-            for source, dest in moves:
+            # Sorted: a set's order follows the string hash seed, and the
+            # step order fixes the walk order a generated table reads.
+            for source, dest in sorted(moves):
                 if source is not state.em or dest is source:
                     continue
                 if dest is EM.EXITED:

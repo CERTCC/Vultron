@@ -77,6 +77,12 @@ on:
       # service (SHD-02-002, SHD-02-003), so a pull request that edits only
       # the Compose file must run it.
       - docker/docker-compose.yml
+      # test/measure/action_rules/test_pages.py compares the committed action
+      # rule fragments with a fresh build and reads the pages that include
+      # them (SHD-05-009), so a pull request that hand-edits only a fragment
+      # or one of those pages must run it.
+      - 'docs/topics/measuring_cvd/*action_rule*.md'
+      - 'docs/topics/other_uses/*action_rules*.md'
   pull_request:
     branches: [ "main" ]
     paths:
@@ -129,6 +135,9 @@ on:
       - docker/Dockerfile
       # The case shadow tool's Compose service; see the push filter.
       - docker/docker-compose.yml
+      # The action rule fragments and their pages; see the push filter.
+      - 'docs/topics/measuring_cvd/*action_rule*.md'
+      - 'docs/topics/other_uses/*action_rules*.md'
   workflow_dispatch:
 
 permissions:

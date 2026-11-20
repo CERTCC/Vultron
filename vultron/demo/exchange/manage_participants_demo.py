@@ -22,13 +22,15 @@ This demo script showcases two participant management paths:
    seats it (ADR-0114) → coordinator creates participant status →
    coordinator adds status to participant → vendor, as Case Owner, removes
    the participant from active participation (the record stays on the case)
-   → vendor, as Case Owner, reinstates it with ``Add(CaseParticipant)``
-   (ADR-0116)
+   → vendor, as Case Owner, reinstates it (ADR-0116).  Each move is the
+   Case Owner's own act naming the actor, sent through its trigger, and the
+   CASE_MANAGER announces each to the coordinator (ADR-0199)
 2. Reject path: vendor invites coordinator → coordinator rejects →
    coordinator is not added to the case
 
-``Add(CaseParticipant)`` never seats a member: it is the Case Owner's request
-to reinstate a removed one (CM-31-011).  Each demo starts from an initialized
+A member is seated only by accepting its stub Invite (ADR-0114); the Case
+Owner's ``Add(<Actor>)`` only reinstates a removed one (CM-31-011).
+Each demo starts from an initialized
 case (report submitted and validated, case created through the
 ``create-case`` trigger, which seats the vendor as Case Owner and
 CASE_MANAGER) so that the invitation and participant management workflows can
@@ -54,7 +56,11 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.states.rm import RM
 from vultron.demo import wall_clock
-from vultron.demo.helpers.polling import wait_for_participant_rm_state
+from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.polling import (
+    wait_for_participant_rm_state,
+    wait_for_semantic_type_in_ledger,
+)
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
     verify_participant_status_appended,
@@ -78,9 +84,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
     add_status_to_participant_activity,
-    remove_participant_from_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -109,7 +113,7 @@ def _setup_case_with_vendor(
        seats it as Vendor, Case Owner and CASE_MANAGER (CM-02-014,
        CM-02-015): a case is never without a CASE_MANAGER (CM-02-014), and
        the removal and reinstatement in the accept path are the Case Owner's
-       requests to it
+       own acts, sent to it
     4. Report is linked to the case
 
     Returns the created as_VulnerabilityCase.
@@ -138,6 +142,52 @@ def _setup_case_with_vendor(
     return case
 
 
+def _activity_id(activity: dict | None, verb: str) -> str:
+    """The id of the activity the *verb* trigger returned.
+
+    The move triggers return an untyped result: ``WireActivityResult`` cannot
+    hold an act whose ``object`` is a bare typed actor reference (AKM-05-005),
+    so the id is checked here.
+    """
+    activity_id = (activity or {}).get("id")
+    if not isinstance(activity_id, str) or not activity_id:
+        raise ValueError(f"The {verb} trigger returned no activity id")
+    return activity_id
+
+
+def _carried_id(activity: dict) -> str | None:
+    """The id of the object a stored activity carries, inline or by id."""
+    carried = activity.get("object_") or activity.get("object")
+    if isinstance(carried, dict):
+        carried_id = carried.get("id")
+        return carried_id if isinstance(carried_id, str) else None
+    return ref_id(carried)
+
+
+def _require_one_announcement(
+    client: DataLayerClient, act_id: str, recipient: as_Actor
+) -> None:
+    """Check the CASE_MANAGER sent *recipient* one ``Announce`` of *act_id*.
+
+    The vendor is the CASE_MANAGER here, so its store holds the
+    ``Announce(<the Owner's act>)`` it sent (ADR-0199): its ``inReplyTo``
+    and its ``object`` name the act.
+    """
+    stored = client.get(client.dl_path("Announces/")) or {}
+    notices = [
+        notice
+        for notice in stored.values()
+        if (notice.get("inReplyTo") or notice.get("in_reply_to")) == act_id
+        and _carried_id(notice) == act_id
+        and recipient.id_ in (notice.get("to") or [])
+    ]
+    if len(notices) != 1:
+        raise ValueError(
+            f"Expected one Announce of '{act_id}' to '{recipient.id_}',"
+            f" found {len(notices)}"
+        )
+
+
 def demo_manage_participants_accept(
     client: DataLayerClient,
     reporter: as_Actor,
@@ -155,14 +205,14 @@ def demo_manage_participants_accept(
        seats it (ADR-0114)
     4. Coordinator adds a new status, carried inline, to their participant
        (AddStatusToParticipantActivity)
-    5. Vendor, as Case Owner, removes the coordinator participant
-       (RemoveParticipantFromCaseActivity)
+    5. Vendor, as Case Owner, removes the coordinator through the
+       remove-participant trigger (Remove(<Actor>, origin=<case>))
     6. Verify the coordinator's record stays on the case and carries the
        removal fact (CM-31-001)
-    7. Vendor, as Case Owner, reinstates the coordinator
-       (AddParticipantToCaseActivity, CM-31-011)
+    7. Vendor, as Case Owner, reinstates the coordinator through the
+       reinstate-participant trigger (Add(<Actor>, target=<case>), CM-31-011)
     8. Verify the removal fact is cleared and the coordinator was sent the
-       CASE_MANAGER's notice
+       CASE_MANAGER's Announce of the Owner's act (ADR-0199)
 
     This follows the accept branch in
     docs/howto/activitypub/activities/manage_participants.md.
@@ -185,7 +235,6 @@ def demo_manage_participants_accept(
         # ledgers it; the coordinator's Accept(Invite) is the entry for its
         # consent and joined mark; every replica applies those entries
         # (CM-31-012, ADR-0114).
-        # Add(CaseParticipant) does not seat a member.
         coordinator_participant = seat_participant_through_stub_invite(
             client,
             case,
@@ -242,16 +291,21 @@ def demo_manage_participants_accept(
                     client, case.id_, "after AddStatusToParticipantActivity"
                 )
 
+        vendor_session = ActorSession(client=client, actor=vendor).with_case(
+            case
+        )
         with demo_step("Step 5: Vendor, as Case Owner, removes coordinator"):
-            # The Case Owner's request to the CASE_MANAGER (CM-31-004).  The
-            # vendor holds both roles here, so it posts to its own inbox.
-            remove_participant = remove_participant_from_case_activity(
-                coordinator_participant,
-                actor=vendor.id_,
-                target=case.id_,
-                at=at,
+            # The Case Owner's own act, Remove(<Actor>, origin=<case>), sent
+            # to the CASE_MANAGER through the remove-participant trigger
+            # (CM-31-004, ADR-0199).  The vendor holds both roles here, so
+            # its own inbox admits the act under the same rules.
+            removal = vendor_session.remove_participant(
+                participant_actor_id=coordinator.id_
             )
-            post_to_inbox_and_wait(client, vendor.id_, remove_participant)
+            removal_id = _activity_id(removal.activity, "remove-participant")
+            wait_for_semantic_type_in_ledger(
+                client, case.id_, "remove_participant_from_case"
+            )
 
             # Single-use removal checks, inline for now; extract them into
             # helpers/verification/ when a second scenario removes a
@@ -263,9 +317,7 @@ def demo_manage_participants_accept(
                     "Coordinator still on the case roster (CM-31-015)"
                 ):
                     final_case = log_case_state(
-                        client,
-                        case.id_,
-                        "after RemoveParticipantFromCaseActivity",
+                        client, case.id_, "after the Case Owner's removal"
                     )
                     if final_case is None:
                         raise ValueError(
@@ -295,51 +347,38 @@ def demo_manage_participants_accept(
                     record = client.get(
                         client.dl_path(coordinator_participant.id_)
                     )
-                    if record.get("removalActivity") != remove_participant.id_:
+                    if record.get("removalActivity") != removal_id:
                         raise ValueError(
                             "Coordinator participant"
                             f" '{coordinator_participant.id_}' does not record"
                             " the removal: removalActivity="
                             f"{record.get('removalActivity')!r}, expected"
-                            f" '{remove_participant.id_}'"
+                            f" '{removal_id}'"
                         )
                     logger.info(
                         "✓ Coordinator removed from active participation;"
                         " its record stays on the case"
                     )
                 with demo_check(
-                    "CASE_MANAGER sent the coordinator a removal notice"
+                    "CASE_MANAGER announced the removal to the coordinator"
                 ):
-                    # The vendor is the CASE_MANAGER, so its store holds the
-                    # notice it sent (CM-31-006); the owner's request is not
-                    # the notice.
-                    stored = client.get(client.dl_path("Removes/")) or {}
-                    notices = [
-                        notice
-                        for notice in stored.values()
-                        if notice.get("id") != remove_participant.id_
-                        and ref_id(notice.get("object_"))
-                        == coordinator_participant.id_
-                        and coordinator.id_ in (notice.get("to") or [])
-                    ]
-                    if len(notices) != 1:
-                        raise ValueError(
-                            "Expected one Remove(CaseParticipant) notice to"
-                            f" the coordinator, found {len(notices)}"
-                        )
+                    _require_one_announcement(client, removal_id, coordinator)
 
         with demo_step(
             "Step 7: Vendor, as Case Owner, reinstates coordinator"
         ):
-            # The Case Owner's request to the CASE_MANAGER (CM-31-011): the
+            # The Case Owner's own act, Add(<Actor>, target=<case>), through
+            # the reinstate-participant trigger (CM-31-011, ADR-0199): the
             # removed coordinator is reinstated without accepting again.
-            reinstate_participant = add_participant_to_case_activity(
-                coordinator_participant,
-                actor=vendor.id_,
-                target=case.id_,
-                at=at,
+            reinstatement = vendor_session.reinstate_participant(
+                participant_actor_id=coordinator.id_
             )
-            post_to_inbox_and_wait(client, vendor.id_, reinstate_participant)
+            reinstatement_id = _activity_id(
+                reinstatement.activity, "reinstate-participant"
+            )
+            wait_for_semantic_type_in_ledger(
+                client, case.id_, "reinstate_participant_in_case"
+            )
 
             # Single-use reinstatement checks, inline for now; extract them
             # into helpers/verification/ when a second scenario reinstates a
@@ -359,22 +398,12 @@ def demo_manage_participants_accept(
                             f" removalActivity={record.get('removalActivity')!r}"
                         )
                 with demo_check(
-                    "CASE_MANAGER sent the coordinator a reinstatement notice"
+                    "CASE_MANAGER announced the reinstatement to the"
+                    " coordinator"
                 ):
-                    stored = client.get(client.dl_path("Adds/")) or {}
-                    notices = [
-                        notice
-                        for notice in stored.values()
-                        if notice.get("id") != reinstate_participant.id_
-                        and ref_id(notice.get("object_"))
-                        == coordinator_participant.id_
-                        and coordinator.id_ in (notice.get("to") or [])
-                    ]
-                    if len(notices) != 1:
-                        raise ValueError(
-                            "Expected one Add(CaseParticipant) notice to the"
-                            f" coordinator, found {len(notices)}"
-                        )
+                    _require_one_announcement(
+                        client, reinstatement_id, coordinator
+                    )
                     logger.info(
                         "✓ Coordinator reinstated; it did not accept again"
                         " (CM-31-035)"

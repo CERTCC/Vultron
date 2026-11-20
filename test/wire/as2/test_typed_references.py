@@ -387,15 +387,21 @@ def test_an_object_with_one_more_key_is_a_whole_object_not_a_reference() -> (
     [
         (
             "Remove",
-            "CaseParticipant",
-            {"target": CASE_ID},
-            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
+            "Organization",
+            {"origin": CASE_ID},
+            MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE,
         ),
         (
             "Add",
-            "CaseParticipant",
+            "Person",
             {"target": CASE_ID},
-            MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+            MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
+        ),
+        (
+            "Update",
+            "CaseParticipant",
+            {"context": CASE_ID},
+            MessageSemantics.UPDATE_CASE_PARTICIPANT,
         ),
         (
             "Announce",
@@ -417,8 +423,9 @@ def test_an_object_with_one_more_key_is_a_whole_object_not_a_reference() -> (
         ),
     ],
     ids=[
-        "Remove(CaseParticipant)",
-        "Add(CaseParticipant)",
+        "Remove(Organization)",
+        "Add(Person)",
+        "Update(CaseParticipant)",
         "Announce(EmbargoEvent)",
         "Add(Note)",
         "Offer(VulnerabilityReport)",
@@ -714,3 +721,26 @@ def test_a_proposed_embargo_by_reference_is_no_proposal(
 
     assert found is None
     assert any("by reference" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("VAM-06-008")
+def test_a_received_announce_with_a_mismatched_reply_is_taken_as_received():
+    """The receiver is lenient about the Announce's ``inReplyTo``: it acts on
+    neither the field nor the Announce, so a mismatch is not refused."""
+    import json
+    from pathlib import Path
+
+    body = json.loads(
+        (
+            Path(__file__).parents[3]
+            / "docs/reference/examples/announce_participant_removal.json"
+        ).read_text(encoding="utf-8")
+    )
+    body["inReplyTo"] = "https://example.org/activities/other"
+
+    parsed = parse_activity(body)
+
+    assert (
+        find_matching_semantics(parsed)
+        is MessageSemantics.ANNOUNCE_ADMITTED_ACT
+    )

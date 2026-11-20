@@ -26,22 +26,22 @@ from vultron.wire.as2.extractor._pattern import (
 
 RemoveEmbargoEventFromCasePattern = ActivityPattern(
     description=(
-        "Remove an embargo event from a vulnerability case. This is typically "
-        "observed as a REMOVE activity where the object is an EVENT. The "
-        "origin field of the activity contains the VulnerabilityCase from "
-        "which the embargo is removed."
+        "Remove an embargo event from a vulnerability case. This is "
+        "typically observed as a REMOVE activity where the object is an "
+        "EmbargoEvent. The origin field of the activity contains the "
+        "VulnerabilityCase from which the embargo is removed."
     ),
     activity_=TAtype.REMOVE,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
 )
 AnnounceEmbargoEventToCasePattern = ActivityPattern(
     description=(
-        "Announce an embargo event to a vulnerability case. This is typically "
-        "observed as an ANNOUNCE activity where the object is an EVENT and the "
-        "context is a VULNERABILITY_CASE."
+        "Announce an embargo event to a vulnerability case. This is "
+        "typically observed as an ANNOUNCE activity where the object is an "
+        "EmbargoEvent and the context is a VULNERABILITY_CASE."
     ),
     activity_=TAtype.ANNOUNCE,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
     context_=VOtype.VULNERABILITY_CASE,
 )
 InviteToEmbargoOnCasePattern = ActivityPattern(
@@ -53,7 +53,7 @@ InviteToEmbargoOnCasePattern = ActivityPattern(
         "Corresponds to EmProposeEmbargoActivity."
     ),
     activity_=TAtype.INVITE,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
     target_=AOtype.ACTOR,
     context_=VOtype.VULNERABILITY_CASE,
 )
@@ -113,7 +113,7 @@ ActivateEmbargoOnCasePattern = ActivityPattern(
         "an embargo (ADR-0180)."
     ),
     activity_=TAtype.ADD,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
     target_=VOtype.VULNERABILITY_CASE,
     # target_ is lenient: the case target is a bare URI by design (the
     # recipient holds the case, so ``case_target_ref`` reduces it,
@@ -130,7 +130,7 @@ RejectEmbargoProposalOnCasePattern = ActivityPattern(
         "is the VulnerabilityCase (ADR-0122, ADR-0180)."
     ),
     activity_=TAtype.REJECT,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
     target_=VOtype.VULNERABILITY_CASE,
     # target_ lenient, for the same reason as the activation pattern above.
 )
@@ -143,7 +143,7 @@ WithdrawFromEmbargoOnCasePattern = ActivityPattern(
         "Leave(VulnerabilityCase), which leaves the case."
     ),
     activity_=TAtype.LEAVE,
-    object_=AOtype.EVENT,
+    object_=VOtype.EMBARGO_EVENT,
     context_=VOtype.VULNERABILITY_CASE,
 )
 
@@ -538,15 +538,36 @@ RemoveNoteFromCasePattern = ActivityPattern(
 # Case participant patterns
 # ---------------------------------------------------------------------------
 
-AddCaseParticipantToCasePattern = ActivityPattern(
+RemoveParticipantFromCasePattern = ActivityPattern(
+    description=(
+        "The Case Owner's removal of an actor from active participation: a "
+        "Remove whose object is the actor, as a typed reference, and whose "
+        "origin is the case it is removed from (CM-31-004, ADR-0199)."
+    ),
+    activity_=TAtype.REMOVE,
+    object_=AOtype.ACTOR,
+    origin_=VOtype.VULNERABILITY_CASE,
+)
+ReinstateParticipantInCasePattern = ActivityPattern(
+    description=(
+        "The Case Owner's reinstatement of a removed actor: an Add whose "
+        "object is the actor, as a typed reference, and whose target is the "
+        "case (CM-31-011, ADR-0199)."
+    ),
     activity_=TAtype.ADD,
-    object_=VOtype.CASE_PARTICIPANT,
+    object_=AOtype.ACTOR,
     target_=VOtype.VULNERABILITY_CASE,
 )
-RemoveCaseParticipantFromCasePattern = ActivityPattern(
-    activity_=TAtype.REMOVE,
-    object_=VOtype.CASE_PARTICIPANT,
-    target_=VOtype.VULNERABILITY_CASE,
+AnnounceAdmittedActPattern = InlineActivityObjectPattern(
+    description=(
+        "The CASE_MANAGER's Announce of an act it admitted: an Announce whose "
+        "object is the act, inline, and whose context is the case, sent to an "
+        "actor the act concerns that the entry's fan-out does not reach "
+        "(ADR-0199).  Any verb, so it is the most general Announce of an "
+        "activity."
+    ),
+    activity_=TAtype.ANNOUNCE,
+    context_=VOtype.VULNERABILITY_CASE,
 )
 CreateCaseParticipantPattern = ActivityPattern(
     description=(

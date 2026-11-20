@@ -43,10 +43,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 REMOVED_ACTOR_ID = "https://example.org/actors/removed"
 REMOVE_ID = "https://example.org/activities/remove-1"
-# The replica's own id for the record may differ from the one the CASE_MANAGER
-# put in the snapshot; the apply node resolves it by actor.
+# The replica's own id for the record may differ from the CASE_MANAGER's; the
+# Owner's act names the actor, and the apply node resolves the record by it.
 REPLICA_PARTICIPANT_ID = f"{CASE_ID}/participants/removed-replica"
-SNAPSHOT_PARTICIPANT_ID = f"{CASE_ID}/participants/removed"
 
 
 def _entry(
@@ -64,13 +63,10 @@ def _entry(
                 "id": REMOVE_ID,
                 "type": "Remove",
                 "actor": OWNER_ACTOR_ID,
+                # The Owner's Remove(<Actor>, origin=<case>) (ADR-0199).
                 "object": participant
-                or {
-                    "id": SNAPSHOT_PARTICIPANT_ID,
-                    "type": "CaseParticipant",
-                    "attributedTo": REMOVED_ACTOR_ID,
-                },
-                "target": CASE_ID,
+                or {"id": REMOVED_ACTOR_ID, "type": "Organization"},
+                "origin": CASE_ID,
             },
             prev_log_hash="0" * 64,
             received_at=ACT_AT,
@@ -143,31 +139,10 @@ def test_replay_keeps_the_first_removal(
 def test_a_slash_spelled_participant_actor_resolves_to_the_replica_record(
     bridge, datalayer, case_actor, replica_record
 ) -> None:
-    """The inline participant's ``attributedTo`` keeps the sender's trailing
-    slash; the replica's index names the actor canonically, and the record
-    is still found by actor."""
+    """The named actor keeps the sender's trailing slash; the replica's
+    index names the actor canonically, and the record is still found."""
     entry = _entry(
-        participant={
-            "id": SNAPSHOT_PARTICIPANT_ID,
-            "type": "CaseParticipant",
-            "attributedTo": REMOVED_ACTOR_ID + "/",
-        }
-    )
-
-    assert _apply(bridge, case_actor, entry).status == Status.SUCCESS
-
-    record = datalayer.read(REPLICA_PARTICIPANT_ID)
-    assert isinstance(record, CaseParticipant)
-    assert record.removal_activity == REMOVE_ID
-
-
-@pytest.mark.spec("CM-31-007")
-def test_falls_back_to_the_snapshot_record_id_on_the_roster(
-    bridge, datalayer, case_actor, replica_record
-) -> None:
-    """With no actor to resolve by, the record id the snapshot names is used."""
-    entry = _entry(
-        participant={"id": REPLICA_PARTICIPANT_ID, "type": "CaseParticipant"}
+        participant={"id": REMOVED_ACTOR_ID + "/", "type": "Organization"}
     )
 
     assert _apply(bridge, case_actor, entry).status == Status.SUCCESS
@@ -188,9 +163,8 @@ def test_skips_a_participant_the_replica_does_not_hold(
 ) -> None:
     entry = _entry(
         participant={
-            "id": f"{CASE_ID}/participants/unknown",
-            "type": "CaseParticipant",
-            "attributedTo": "https://example.org/actors/unknown",
+            "id": "https://example.org/actors/unknown",
+            "type": "Organization",
         }
     )
 

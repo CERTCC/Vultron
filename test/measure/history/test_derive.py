@@ -1193,8 +1193,8 @@ def test_each_nameless_participant_record_is_reported():
     ledger = _vendor_ledger()
     nameless = {"type": "CaseParticipant", "participantStatuses": []}
     odd = ledger.add(
-        "add_case_participant_to_case",
-        "Add",
+        "create_case_participant",
+        "Create",
         CM,
         {"type": "Collection", "items": [nameless, dict(nameless)]},
     )

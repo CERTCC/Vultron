@@ -22,8 +22,13 @@
 * :mod:`.generated` — those bands grouped into generated rules.
 * :mod:`.compare` — the comparison, position by position, and its five
   results.
+* :mod:`.report` — the comparison over every valid position of one vendor,
+  rule by rule, for the generated docs page.
+* :mod:`.pages` — the command that rebuilds the generated docs fragments
+  (``uv run action-rules-docs``).
 
-Everything here reads; nothing fires a trigger or writes (CEH-01-002).
+Everything here reads; nothing fires a trigger or writes (CEH-01-002),
+except the command of :mod:`.pages`, which writes only the docs fragments.
 """
 
 from vultron.measure.action_rules.authored import (
@@ -32,7 +37,8 @@ from vultron.measure.action_rules.authored import (
     authored_rules,
 )
 from vultron.measure.action_rules.compare import (
-    FORCED_AWARENESS,
+    FLAGGED,
+    FORCED_STEP,
     NO_STATE_CHANGE,
     NOT_MEASURED,
     DesideratumShift,
@@ -68,6 +74,7 @@ from vultron.measure.action_rules.model import (
     PatternMatch,
     Position,
     ProposalConsent,
+    RuleNumbers,
     RulePattern,
     SourcePair,
     cs_action_pairs,
@@ -75,6 +82,8 @@ from vultron.measure.action_rules.model import (
     machine_of,
     move_advice_desiderata,
     move_names,
+    rule_label,
+    rule_number,
     trigger_of,
 )
 from vultron.measure.action_rules.verdicts import (
@@ -99,7 +108,8 @@ __all__ = [
     "ConditionalVerdict",
     "ConsentReading",
     "DesideratumShift",
-    "FORCED_AWARENESS",
+    "FLAGGED",
+    "FORCED_STEP",
     "GeneratedRule",
     "Machine",
     "MatchStatus",
@@ -115,6 +125,7 @@ __all__ = [
     "PositionKey",
     "ProposalConsent",
     "ResultKind",
+    "RuleNumbers",
     "RulePattern",
     "RuleResult",
     "SCORED_MACHINES",
@@ -141,7 +152,9 @@ __all__ = [
     "point_at",
     "point_prefix",
     "resolve_action",
+    "rule_label",
     "rule_move",
+    "rule_number",
     "rules_from",
     "vendor_points",
     "vendor_score",
