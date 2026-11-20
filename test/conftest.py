@@ -353,11 +353,9 @@ def clear_py_trees_blackboard() -> Iterator[None]:
     ``/participant`` an earlier test's tree had left behind and transitioned
     that participant instead of its own (#3996).
 
-    This clears ``storage`` only, not the blackboard's client registry, which
-    also outlives a tree and which
-    :func:`vultron.demo.determinism.reset_blackboard` does clear.  Widening an
-    autouse fixture changes isolation for the whole suite, so the two halves
-    are reconciled separately: #5572.
+    This clears ``storage`` only, not the blackboard's client registry: each
+    tree run releases its own clients (BT-25-004, #6727), and the demo tests
+    assert that none outlives a test (``no_blackboard_client_outlives_the_test``).
     """
     py_trees.blackboard.Blackboard.storage.clear()
     yield

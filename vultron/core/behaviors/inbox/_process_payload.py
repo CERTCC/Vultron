@@ -36,6 +36,8 @@ from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.blackboard_scope import (
     KeyState,
     key_aliases,
+    release_clients,
+    release_tree_clients,
     restore_keys,
     snapshot_keys,
 )
@@ -98,18 +100,27 @@ def _write_inbox_inputs(
 ) -> None:
     """Write pipeline inputs to the BT blackboard."""
     setup_bb = py_trees.blackboard.Client(name="InboxOrchestrator-setup")
-    setup_bb.register_key(KEY_PAYLOAD, access=py_trees.common.Access.WRITE)
-    setup_bb.register_key(KEY_INGRESS, access=py_trees.common.Access.WRITE)
-    setup_bb.register_key(KEY_DISPATCH, access=py_trees.common.Access.WRITE)
-    setup_bb.register_key(KEY_QUEUE, access=py_trees.common.Access.WRITE)
-    setup_bb.register_key(KEY_DEREFERENCE, access=py_trees.common.Access.WRITE)
-    setup_bb.register_key(KEY_OUTCOME, access=py_trees.common.Access.WRITE)
-    setup_bb.inbox_payload = payload
-    setup_bb.inbox_ingress = ingress_adapter
-    setup_bb.inbox_dispatch = dispatch_adapter
-    setup_bb.inbox_queue = queue_port
-    setup_bb.inbox_dereference = dereference_port
-    setup_bb.inbox_received_outcome = received_outcome_port
+    try:
+        setup_bb.register_key(KEY_PAYLOAD, access=py_trees.common.Access.WRITE)
+        setup_bb.register_key(KEY_INGRESS, access=py_trees.common.Access.WRITE)
+        setup_bb.register_key(
+            KEY_DISPATCH, access=py_trees.common.Access.WRITE
+        )
+        setup_bb.register_key(KEY_QUEUE, access=py_trees.common.Access.WRITE)
+        setup_bb.register_key(
+            KEY_DEREFERENCE, access=py_trees.common.Access.WRITE
+        )
+        setup_bb.register_key(KEY_OUTCOME, access=py_trees.common.Access.WRITE)
+        setup_bb.inbox_payload = payload
+        setup_bb.inbox_ingress = ingress_adapter
+        setup_bb.inbox_dispatch = dispatch_adapter
+        setup_bb.inbox_queue = queue_port
+        setup_bb.inbox_dereference = dereference_port
+        setup_bb.inbox_received_outcome = received_outcome_port
+    finally:
+        # The values outlive the writer; the registry must not keep it
+        # (#6727).
+        release_clients([setup_bb])
 
 
 def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
@@ -132,6 +143,9 @@ def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
         final_status = Status.FAILURE
     finally:
         bt.shutdown()
+        # The tree was built for this run; its nodes' clients end with it
+        # rather than staying in py_trees' process-global registry (#6727).
+        release_tree_clients(tree)
 
     logger.debug(
         "process_payload: BT completed status=%s ticks=%d",
@@ -144,51 +158,58 @@ def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
 def _read_inbox_outcome() -> InboxOutcome:
     """Read the outcome fields written by BT nodes and build an InboxOutcome."""
     result_bb = py_trees.blackboard.Client(name="InboxOrchestrator-result")
-    result_bb.register_key(
-        KEY_OUTCOME_STATUS, access=py_trees.common.Access.READ
-    )
-    result_bb.register_key(KEY_CONTEXT_ID, access=py_trees.common.Access.READ)
-    result_bb.register_key(
-        KEY_FAILURE_REASON, access=py_trees.common.Access.READ
-    )
-    result_bb.register_key(KEY_EVENT, access=py_trees.common.Access.READ)
-    result_bb.register_key(KEY_UNHANDLED, access=py_trees.common.Access.READ)
-
-    # No node wrote a status: the BT failed somewhere that records nothing,
-    # so the payload was not processed (fail closed).
     try:
-        status = InboxOutcomeStatus(result_bb.inbox_outcome_status)
-    except KeyError:
-        status = InboxOutcomeStatus.REJECTED
+        result_bb.register_key(
+            KEY_OUTCOME_STATUS, access=py_trees.common.Access.READ
+        )
+        result_bb.register_key(
+            KEY_CONTEXT_ID, access=py_trees.common.Access.READ
+        )
+        result_bb.register_key(
+            KEY_FAILURE_REASON, access=py_trees.common.Access.READ
+        )
+        result_bb.register_key(KEY_EVENT, access=py_trees.common.Access.READ)
+        result_bb.register_key(
+            KEY_UNHANDLED, access=py_trees.common.Access.READ
+        )
 
-    try:
-        context_id: str | None = result_bb.inbox_context_id
-    except KeyError:
-        context_id = None
+        # No node wrote a status: the BT failed somewhere that records nothing,
+        # so the payload was not processed (fail closed).
+        try:
+            status = InboxOutcomeStatus(result_bb.inbox_outcome_status)
+        except KeyError:
+            status = InboxOutcomeStatus.REJECTED
 
-    try:
-        failure_reason: str | None = result_bb.inbox_failure_reason
-    except KeyError:
-        failure_reason = None
+        try:
+            context_id: str | None = result_bb.inbox_context_id
+        except KeyError:
+            context_id = None
 
-    try:
-        unhandled = bool(result_bb.inbox_unhandled)
-    except KeyError:
-        unhandled = False
+        try:
+            failure_reason: str | None = result_bb.inbox_failure_reason
+        except KeyError:
+            failure_reason = None
 
-    try:
-        activity_id: str | None = result_bb.inbox_event.activity_id
-    except KeyError:
-        # Rejected before extraction: there is no event to name.
-        activity_id = None
+        try:
+            unhandled = bool(result_bb.inbox_unhandled)
+        except KeyError:
+            unhandled = False
 
-    return InboxOutcome(
-        status=status,
-        context_id=context_id,
-        activity_id=activity_id,
-        failure_reason=failure_reason,
-        unhandled=unhandled,
-    )
+        try:
+            activity_id: str | None = result_bb.inbox_event.activity_id
+        except KeyError:
+            # Rejected before extraction: there is no event to name.
+            activity_id = None
+
+        return InboxOutcome(
+            status=status,
+            context_id=context_id,
+            activity_id=activity_id,
+            failure_reason=failure_reason,
+            unhandled=unhandled,
+        )
+    finally:
+        release_clients([result_bb])
 
 
 def _restore_inbox_keys(

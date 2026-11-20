@@ -28,6 +28,7 @@ from pydantic import ValidationError
 
 from test.support import stub_invite_arrival
 from test.support.act_clock import tree_lock_held
+from test.support.blackboard_registry import registry_snapshot
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
 from test.support.received import case_stub, delivered_body, stamped
@@ -365,6 +366,37 @@ class TestProcessPayloadHappyPath:
         assert outcome.status == "processed"
         assert outcome.failure_reason is None
         assert len(dispatch.dispatched) == 1
+
+    @pytest.mark.spec("BT-25-004")
+    @pytest.mark.parametrize(
+        ("fail_parse", "dispatch_raises"),
+        [(False, False), (True, False), (False, True)],
+        ids=["processed", "rejected", "dispatch-raises"],
+    )
+    def test_leaves_no_blackboard_client_registered(
+        self, report_activity, fail_parse, dispatch_raises
+    ):
+        """The pipeline releases every client its run registered (#6727).
+
+        Its input and outcome clients and each node's client stay in
+        py_trees' process-global registry otherwise, one set per delivery,
+        for the life of the process.
+        """
+        ingress = _StubIngressAdapter(
+            activity=None if fail_parse else report_activity,
+            fail_parse=fail_parse,
+        )
+        before = registry_snapshot()
+
+        process_payload(
+            {},
+            ingress,
+            _StubDispatchAdapter(should_fail=dispatch_raises),
+            arrived_at=SystemClock().now(),
+        )
+
+        gained = registry_snapshot().gained_since(before)
+        assert not gained, gained.describe()
 
     @pytest.mark.spec("SL-02-001")
     def test_outcome_names_the_dispatched_activity(self, report_activity):
