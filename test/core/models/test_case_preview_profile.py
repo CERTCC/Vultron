@@ -135,12 +135,14 @@ def test_the_profile_chooses_as_the_table_lists() -> None:
 
 @pytest.mark.spec("CM-17-025")
 def test_every_omit_only_field_is_absent_from_the_preview() -> None:
+    """Each, but the ledger position a projection shows (ADR-0219), which
+    the preview declares and an invitation preview may not carry."""
     omit_only = {
         name for name, rule in INVITATION_PROFILE.items() if rule.omit_only
     }
 
     assert omit_only
-    assert not omit_only & set(CasePreview.model_fields)
+    assert omit_only & set(CasePreview.model_fields) == {"ledger_position"}
 
 
 @pytest.mark.spec("CM-17-010")

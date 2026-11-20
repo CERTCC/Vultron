@@ -110,7 +110,7 @@ Issue [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} p
 
 A Vultron participant can produce a CSAF document from its copy of the case.
 This crosswalk calls such a document a **projection**.
-[ADR-0219](../../adr/0219-a-csaf-projection-is-a-case-preview-cut-by-its-call-sites-profile-then-rendered-to-csaf.md) (proposed) decides how a projection is made.
+[ADR-0219](../../adr/0219-a-csaf-projection-is-a-case-preview-cut-by-its-call-sites-profile-then-rendered-to-csaf.md) (provisionally accepted) decides how a projection is made.
 A projection can occur at two times:
 
 | Time | Use |

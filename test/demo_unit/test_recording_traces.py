@@ -519,6 +519,10 @@ _OUTSIDE_THE_VERDICT = frozenset(
         # Lookup indexes derived from fields the verdict already holds.
         "actorParticipantIndex",
         "pendingEmbargoProposalIndex",
+        # A projection preview's ledger list: a recorded activity never
+        # carries one, since a stub Invite's preview that does is refused
+        # (CM-17-025, ADR-0219).
+        "ledgerEntries",
         # The JSON-LD context, the same on every object.
         "@context",
     }
