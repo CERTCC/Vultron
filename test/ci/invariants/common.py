@@ -832,7 +832,10 @@ def check_nested_objects_inlined(
 def check_payload_context_uses_case_uri(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """payloadSnapshot.context matches the entry's context for recorded entries (Invariant 11)."""
+    """payloadSnapshot.context matches the entry's context (Invariant 11).
+
+    Only recorded entries are checked.
+    """
     auth = auth_entries(replicas)
     mismatches: list[str] = []
     for e in auth:
