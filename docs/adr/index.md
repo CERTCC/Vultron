@@ -309,6 +309,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0216 Action Rules Span CS, RM, EM and PEC, and Authored Rules Are Compared With Rules Generated From Move Advice](0216-action-rules-span-cs-rm-em-and-pec-and-authored-rules-are-compared-with-rules-generated-from-move-advice.md) *(revision 2)*
 - [ADR-0218 Whether a Case Records Public Credit](0218-whether-a-case-records-public-credit.md)
 - [ADR-0219 A CSAF Projection Is a Case Preview Cut by Its Call Site's Profile, Then Rendered to CSAF](0219-a-csaf-projection-is-a-case-preview-cut-by-its-call-sites-profile-then-rendered-to-csaf.md)
+- [ADR-0220 Affected Products Live on the Vendor's Participant Record as Authored Status Claims, and Fix Readiness Stays Binary](0220-affected-products-live-on-the-vendors-participant-record-as-authored-status-claims-and-fix-readiness-stays-binary.md)
 
 ## Rejected ADRs
 

@@ -21,6 +21,7 @@ related_specs:
   - specs/csaf-report-content.yaml
   - specs/embargo-policy.yaml
 related_notes:
+  - notes/affected-products.md
   - notes/csaf-report-content.md
   - notes/case-proposal.md
   - notes/embargo-default-semantics.md
