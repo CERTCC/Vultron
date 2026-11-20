@@ -27,12 +27,13 @@ participant out of active participation (CM-31-004), and
 ``Add(<Actor>, target=<case>)`` reinstates a removed one (CM-31-011).  The
 CASE_MANAGER refuses an act from a sender that does not hold ``CASE_OWNER``
 with no refusal notice (CLP-05-006), refuses an Owner's act that breaks the
-rules with one, and commits nothing for either; otherwise it admits the Owner's act as the move's one ledger
-entry (CM-31-005, CM-31-044), changes the record, and announces the act to
-the actor it names.  It sends no ``Accept`` and makes no act of its own.  A
-replica takes the move from the ledger entry (CM-31-007, CM-31-045), never
-from the act or its ``Announce``, so the trees declare the manager path
-alone and any other receiver is refused at the path stage (HP-01-038).
+rules with one, and commits nothing for either; otherwise it admits the
+Owner's act as the move's one ledger entry (CM-31-005, CM-31-044), changes
+the record, and announces the act to the actor it names.  It sends no
+``Accept`` and makes no act of its own.  A replica takes the move from the
+ledger entry (CM-31-007, CM-31-045), never from the act or its ``Announce``,
+so the trees declare the manager path alone and any other receiver is
+refused at the path stage (HP-01-038).
 
 Both trees declare ``/participant_actor_id``, the actor the act names, as an
 input the runner seeds from the act (BT-25-006, BT-25-007).

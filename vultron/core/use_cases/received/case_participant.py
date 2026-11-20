@@ -5,11 +5,11 @@ The Case Owner sends the CASE_MANAGER its own act, naming the actor:
 ``Add(<Actor>, target=<case>)`` (CM-31-011).  The CASE_MANAGER refuses an act
 from a sender that does not hold ``CASE_OWNER`` with no refusal notice
 (CLP-05-006), refuses an Owner's act that breaks the rules with one, or
-admits it as the move's one ledger entry, changes the record and announces the act to the actor it names
-with ``Announce(<the Owner's act>)``.  It sends no ``Accept`` and makes no
-act of its own.  The announced actor's replica records the ``Announce``
-(:class:`AnnounceAdmittedActReceivedUseCase`) and takes the change from the
-ledger entry alone (CM-31-029, CM-31-045).
+admits it as the move's one ledger entry, changes the record and announces
+the act to the actor it names with ``Announce(<the Owner's act>)``.  It sends
+no ``Accept`` and makes no act of its own.  The announced actor's replica
+records the ``Announce`` (:class:`AnnounceAdmittedActReceivedUseCase`) and
+takes the change from the ledger entry alone (CM-31-029, CM-31-045).
 """
 
 import logging
@@ -247,11 +247,12 @@ class RemoveParticipantFromCaseReceivedUseCase(
     ``REFUSED`` with nothing committed and no refusal notice (CLP-05-006);
     the received runner logs it at WARNING (SL-03-002).  A removal naming
     the CASE_MANAGER, the Case Owner or an actor with no record on the case
-    is ``REFUSED`` with a refusal notice and nothing committed; removing an already-removed participant is ``SKIPPED``
-    (CM-31-022).  An admitted removal commits the Owner's act as the one
-    ledger entry (CM-31-005, CM-31-025), sets the removal fact while keeping
-    the record (CM-31-001, CM-31-015), and announces the Owner's act to the
-    removed actor (ADR-0199).
+    is ``REFUSED`` with a refusal notice and nothing committed; removing an
+    already-removed participant is ``SKIPPED`` (CM-31-022).  An admitted
+    removal commits the Owner's act as the one ledger entry (CM-31-005,
+    CM-31-025), sets the removal fact while keeping the record (CM-31-001,
+    CM-31-015), and announces the Owner's act to the removed actor
+    (ADR-0199).
     """
 
     # Re-declared so ``request`` names this handler's own event class, the
