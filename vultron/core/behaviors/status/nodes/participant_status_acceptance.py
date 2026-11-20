@@ -133,7 +133,7 @@ def _rm_refusal(current: RM, asserted: RM) -> DimensionRefusal | None:
 def _path_refusals(
     baseline: RecordedBaseline,
     asserted: ParticipantStatus,
-    roles: list[CVDRole],
+    recorded_roles: list[CVDRole],
 ) -> list[DimensionRefusal]:
     """Return the refusals of the asserted fix-readiness and deployment states.
 
@@ -147,7 +147,7 @@ def _path_refusals(
     current_vf = baseline.vf
     asserted_vf = None if asserted.vf is None else asserted.vf.state
     if asserted_vf is not None:
-        if not has_vendor_role(roles):
+        if not has_vendor_role(recorded_roles):
             refusals.append(
                 DimensionRefusal(
                     "vf", "the sender does not hold the VENDOR role"
@@ -168,7 +168,7 @@ def _path_refusals(
     current_d = baseline.d
     asserted_d = None if asserted.d is None else asserted.d.state
     if asserted_d is not None:
-        if not has_deployer_role(roles):
+        if not has_deployer_role(recorded_roles):
             refusals.append(
                 DimensionRefusal(
                     "d", "the sender does not hold the DEPLOYER role"
@@ -216,7 +216,7 @@ def _pxa_refusal(
 def participant_status_refusals(
     history: Sequence[ParticipantStatus],
     asserted: ParticipantStatus,
-    roles: list[CVDRole],
+    recorded_roles: list[CVDRole],
 ) -> list[DimensionRefusal]:
     """Return every refusal of *asserted* against the participant's *history*.
 
@@ -237,7 +237,7 @@ def participant_status_refusals(
     refusals: list[DimensionRefusal] = []
     if (rm := _rm_refusal(baseline.rm, asserted.rm.state)) is not None:
         refusals.append(rm)
-    refusals.extend(_path_refusals(baseline, asserted, roles))
+    refusals.extend(_path_refusals(baseline, asserted, recorded_roles))
     refusals.extend(
         DimensionRefusal(violation.dimension, violation.message)
         for violation in composite_state_violations(
@@ -341,7 +341,7 @@ class CheckParticipantStatusAcceptableNode(
         refusals = participant_status_refusals(
             participant.participant_statuses,
             asserted,
-            roles=list(participant.case_roles),
+            recorded_roles=list(participant.case_roles),
         )
         if not refusals:
             return Status.SUCCESS

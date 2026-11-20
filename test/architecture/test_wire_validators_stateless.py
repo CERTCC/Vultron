@@ -115,7 +115,7 @@ def _names_in(func: object) -> set[str]:
 def test_discovery_finds_the_parse_edge_validators() -> None:
     """Guard the guard: the walk reaches the form checks ARCH-12-021 permits."""
     names = {cls.__name__ for cls in _wire_classes_with_validators()}
-    assert {"as_CaseProposal", "as_Reject", "as_Question"} <= names
+    assert {"as_CaseParticipantRole", "as_Reject", "as_Question"} <= names
 
 
 @pytest.mark.spec("ARCH-12-004")

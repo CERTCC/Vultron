@@ -41,10 +41,20 @@ re-implementation, which is the specific reason to have one implementation:
    ``/``-prefixed alias while direct ``Blackboard.storage`` access often uses the
    bare name.  Restoring one spelling and not the other leaves the key visible
    through the path that was missed.
+
+The same two callers also release the run's blackboard *clients*
+(:func:`release_clients`, :func:`release_tree_clients`).  py_trees records
+every ``Client`` in two more process-global maps, ``Blackboard.clients`` and
+each key's ``Blackboard.metadata`` reader and writer sets, and only
+``Client.unregister()`` takes it out: collecting the ``Client`` does not.  A
+run that leaves its clients registered grows both maps by one entry per node,
+for the life of the process (#6727).
 """
 
 from collections.abc import Iterable
 from typing import Any
+
+import py_trees
 
 #: A key's pre-execution state: whether it was present, and what it held.
 KeyState = tuple[bool, Any]
@@ -99,3 +109,71 @@ def restore_keys(storage: dict[str, Any], saved: dict[str, KeyState]) -> None:
             storage[alias] = value
         else:
             storage.pop(alias, None)
+
+
+def release_clients(clients: Iterable[py_trees.blackboard.Client]) -> None:
+    """Take each of *clients* out of py_trees' process-global registry.
+
+    Drops the client's id from ``Blackboard.clients`` and from the reader,
+    writer and exclusive sets of every key it registered, and deletes a key's
+    metadata once no client holds it, as ``Client.unregister`` would.  It keeps
+    every value the client wrote: ``storage`` is :func:`restore_keys`'s to put
+    back, and a value a run hands its caller is read after the run ends.
+
+    Not ``Client.unregister`` itself: py_trees deletes a key's metadata on the
+    first of two local keys remapped onto it, then raises ``KeyError`` on the
+    second, and a node whose input and output ports share one blackboard key
+    has exactly that (``_SignEmbargoConsentLeafNode``).
+
+    A client the registry no longer holds is skipped: a seam may release its
+    own client early, and ``Blackboard.clear()`` may have dropped the whole
+    registry since the client was built.
+
+    Args:
+        clients: Clients whose registrations end now.
+    """
+    board = py_trees.blackboard.Blackboard
+    for client in clients:
+        uid = client.id()
+        if uid not in board.clients:
+            continue
+        # A Client answers attribute reads as blackboard keys, so its own
+        # bookkeeping is read past that override, as py_trees itself does.
+        remappings: dict[str, str] = object.__getattribute__(
+            client, "remappings"
+        )
+        for key in set(remappings.values()):
+            meta = board.metadata.get(key)
+            if meta is None:
+                continue
+            for ids in (meta.read, meta.write, meta.exclusive):
+                ids.discard(uid)
+            if not (meta.read or meta.write or meta.exclusive):
+                del board.metadata[key]
+        for registered in ("read", "write", "exclusive", "required"):
+            object.__getattribute__(client, registered).clear()
+        remappings.clear()
+        del board.clients[uid]
+
+
+def release_tree_clients(root: py_trees.behaviour.Behaviour) -> None:
+    """Release the client of every node under *root*, *root* included.
+
+    A tree is built for one run (BT-01-002), so the run that executes it
+    releases it once its ticks are done.  The clients a node attached are
+    detached too, so a later ``setup()`` attaches fresh ones instead of
+    appending to released ones.
+
+    A client a node attached when it was *built* (a call-out seam, a
+    ``Capability``'s inputs, an ``Actuator``, ``SettleReceivedOutcome``) is
+    not attached again by ``setup()``, so a tree holding one is single-use:
+    run it again and that node reads through a released client.  A subtree a
+    node holds and re-runs through the bridge, until BT-25-001 removes those,
+    attaches its clients in ``setup()``.
+
+    Args:
+        root: The tree whose run has ended.
+    """
+    for node in root.iterate():
+        release_clients(node.blackboards)
+        node.blackboards.clear()

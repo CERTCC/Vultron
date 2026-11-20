@@ -257,8 +257,9 @@ leaves subtrees no walk can reach.
 
 - **Per-act values travel on named keys** (BTND-01-008, BTND-03-022). A node
   constructor and a tree factory take configuration only: a name, a port name, a
-  role, a declared state, a child. A case, report, embargo or actor id, or a
-  carried object, is a key in the one key vocabulary.
+  role the node is built to check, a declared state, a child. A case, report,
+  embargo or actor id, a carried object, or a role the act carries (the roles an
+  Invite offers, a role Offer's role), is a key in the one key vocabulary.
 - **A tree declares its inputs** (BT-25-006). The declaration is the tree's
   behavior contract, "given these values, this logic completes the act", and is
   what a published behavior spec renders. The runner raises a wiring error rather
@@ -344,6 +345,11 @@ leaves subtrees no walk can reach.
   tree carries node attributes across acts; py_trees releases no blackboard
   client, so the runner unregisters every client the tree registered with
   `clear=False`, leaving key restore to the bridge (BT-17-007).
+- **A subtree a node re-runs attaches its clients in `setup()`** (BT-25-004,
+  until BT-25-001 lands). Reason: the release ends every client the run held,
+  and `setup()` re-attaches only its own, so a build-time client (a call-out
+  seam, a `Capability`, an `Actuator`) reads as released on the second run.
+  See `release_tree_clients` in `core/behaviors/blackboard_scope.py`.
 
 ### The Received-Side Stages (ADR-0214)
 

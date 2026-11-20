@@ -70,15 +70,25 @@ _PER_ACT_SUFFIX = re.compile(r"_(?:id|ids|uri|obj|content)$")
 #: (``no_sender_check``), a refusal node or a log helper states itself, so a
 #: per-act reason goes by a qualified name (``termination_reason``,
 #: ``rejection_reason``, the ``refusal_reason`` key) that the rule reads.
-#: Nor is a CVD ``role`` or ``roles``, which BTND-01-009 names as
-#: configuration, nor the act's instant (``at``, ``published``), a run key
-#: every node reads from the run (ADR-0176).
+#: Nor is a bare ``role`` or ``roles``: BTND-01-009 keeps a role a node is
+#: built to check (``ActorHoldsRoleInCaseNode``'s ``CASE_OWNER``) as
+#: configuration.  A role the act carries or its content decides is per-act
+#: and goes by a qualified name the rule reads: the roles an Invite offers
+#: (``offered_roles``), the role a role Offer offers or its Accept grants
+#: (``offered_role``, ``carried_role``, ``granted_role``), a recommendation's
+#: roles (``suggested_roles``, ``injected_roles``), a proposer's
+#: (``proposer_case_roles``) and the roles an on-behalf status's states
+#: require (``on_behalf_roles``).  A participant's roles a helper reads from
+#: the store at tick time (``recorded_roles``) are neither.  Nor is the act's
+#: instant (``at``, ``published``), a run key every node reads from the run
+#: (ADR-0176).
 _PER_ACT_NAMES: frozenset[str] = frozenset(
     {
         "activity",
         "answer_deadline",
         "answers",
         "attributed_to",
+        "carried_role",
         "case_name",
         "cause",
         "content",
@@ -86,20 +96,27 @@ _PER_ACT_NAMES: frozenset[str] = frozenset(
         "embargo_data",
         "end_time",
         "entry",
+        "granted_role",
         "in_reply_to",
+        "injected_roles",
         "inline_report",
         "note",
         "note_name",
         "object_data",
         "offer_to",
+        "offered_role",
+        "offered_roles",
+        "on_behalf_roles",
         "position",
         "proposal_dict",
+        "proposer_case_roles",
         "refused_entry",
         "rejection_reason",
         "request",
         "requested_by",
         "snapshot",
         "status_obj_fallback",
+        "suggested_roles",
         "terminated_at",
         "termination",
         "termination_cause",
@@ -289,9 +306,19 @@ def test_the_reading_covers_every_parameter_kind() -> None:
         ("answers", True),
         ("offer_to", True),
         ("position", True),
+        ("offered_roles", True),
+        ("offered_role", True),
+        ("carried_role", True),
+        ("granted_role", True),
+        ("suggested_roles", True),
+        ("injected_roles", True),
+        ("proposer_case_roles", True),
+        ("on_behalf_roles", True),
         ("name", False),
         ("child", False),
         ("role", False),
+        ("roles", False),
+        ("recorded_roles", False),
         ("case_id_key", False),
         ("idle", False),
     ],

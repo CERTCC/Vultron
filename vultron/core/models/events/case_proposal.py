@@ -24,6 +24,7 @@ from typing import ClassVar, Literal
 from pydantic import Field, field_validator
 
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.case_proposal import ProposedCaseInputs
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.report_claims import ClaimsReading
@@ -35,7 +36,7 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     """Case-actor received a Create(CaseProposal) from a report receiver.
 
     ``object_`` contains a minimal ``CoreObject`` wrapping the
-    ``as_CaseProposal`` wire object; the full proposal is accessible via the
+    ``CaseProposal``; the full proposal is accessible via the
     ``activity.object_`` field when ``include_activity=True``.
     """
 
@@ -57,6 +58,11 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     offered_report_name: NonEmptyString | None = None
     offered_report_summary: NonEmptyString | None = None
     claims_readings: list[ClaimsReading] = Field(default_factory=list)
+    # The starting content the proposer states on the proposal, its
+    # ``caseInputs`` (CP-01-022).  All or nothing: when present, the
+    # CASE_MANAGER builds a new case from it and reads no CSAF document, so
+    # the edge reads none and ``claims_readings`` stays empty (CP-01-024).
+    case_inputs: ProposedCaseInputs | None = None
     # The proposer's actor profile: sent inline as the Create's ``actor``, or
     # named by its id, which the inbox dereferences from the proposer before
     # dispatch and swaps for the fetched profile (CP-01-009, AKM-05-007).  Its
@@ -99,7 +105,7 @@ class AcceptCaseProposalReceivedEvent(VultronEvent):
     The case-actor accepted the report receiver's proposal; a
     Create(VulnerabilityCase) will follow separately (CP-05-003).
     ``object_`` contains a minimal ``CoreObject`` wrapping the
-    ``as_CaseProposal`` that was accepted.
+    ``CaseProposal`` that was accepted.
     """
 
     semantic_type: Literal[MessageSemantics.ACCEPT_CASE_PROPOSAL] = (
@@ -123,7 +129,7 @@ class RejectCaseProposalReceivedEvent(VultronEvent):
 
     The case-actor declined the report receiver's proposal (CP-05-004).
     ``object_`` contains a minimal ``CoreObject`` wrapping the
-    ``as_CaseProposal`` that was rejected.
+    ``CaseProposal`` that was rejected.
     """
 
     semantic_type: Literal[MessageSemantics.REJECT_CASE_PROPOSAL] = (

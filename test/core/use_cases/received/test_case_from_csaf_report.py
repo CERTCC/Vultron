@@ -40,14 +40,16 @@ from test.support.act_runner import run_in_act
 from test.support.ledger import ledger_entries
 from test.support.objects import make
 from test.support.received import received_event
+from test.support.signing import resigned
 from test.wire.csaf._documents import section, vulnerability_report_document
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.actor import VultronOrganization, VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_claims import ClaimOutcome
@@ -123,7 +125,12 @@ def _created(receipt: Receipt) -> tuple[CaseManager, VulnerabilityCase]:
 
 def _embargo_end(manager: CaseManager, case: VulnerabilityCase) -> datetime:
     assert case.em_state is EM.ACTIVE
-    embargo = manager.dl.read(str(case.active_embargo_id))
+    return _stored_end(manager, str(case.active_embargo_id))
+
+
+def _stored_end(manager: CaseManager, embargo_id: str) -> datetime:
+    """The end of the embargo *manager* stores as *embargo_id*."""
+    embargo = manager.dl.read(embargo_id)
     assert isinstance(embargo, EmbargoEvent)
     return embargo.end_time
 
@@ -710,3 +717,254 @@ def test_a_failed_reference_write_creates_no_case() -> None:
     assert result.disposition is not HandlerDisposition.APPLIED
     assert manager.cases() == []
     assert manager.dl.list_objects("VulnerabilityItem") == []
+
+
+# ---------------------------------------------------------------------------
+# A proposal that states its case inputs (CP-01-022 to CP-01-026)
+# ---------------------------------------------------------------------------
+
+_OWNER_ADVISORY = "https://vendor.example.org/advisories/widget"
+
+
+def _owner_inputs(**changes: Any) -> dict[str, Any]:
+    """``caseInputs`` as the case owner states them, in their wire form."""
+    inputs: dict[str, Any] = {
+        "name": "Owner's name for the case",
+        "summary": "Owner's summary.",
+        "exploitPublic": False,
+        "attacksObserved": False,
+        "proposedItems": [
+            {
+                "ids": [{"systemName": "CVE", "identifier": "CVE-2026-9999"}],
+                "name": "Owner's item",
+                "referenceLinks": [
+                    {"type": "Link", "href": _OWNER_ADVISORY, "name": "Adv"}
+                ],
+            }
+        ],
+        "referenceLinks": [{"type": "Link", "href": _BULLETIN}],
+    }
+    inputs.update(changes)
+    return inputs
+
+
+def _with_inputs(receipt: Receipt, inputs: dict[str, Any]) -> dict[str, Any]:
+    """*receipt*'s sent proposal, with *inputs* stated as its caseInputs."""
+    receipt.handle()
+
+    def state(body: dict[str, Any]) -> None:
+        body["object"]["caseInputs"] = inputs
+
+    return resigned(receipt.proposal_body(), alter=state)
+
+
+def _created_from(
+    body: dict[str, Any], at: datetime | None = None
+) -> tuple[CaseManager, VulnerabilityCase]:
+    manager = CaseManager()
+    result = (
+        manager.receive(body) if at is None else manager.receive(body, at=at)
+    )
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    return manager, manager.case()
+
+
+def _noisy_document() -> dict[str, Any]:
+    """A document that states P/X/A, a date, items and references."""
+    data = _two_vulnerabilities()
+    entry = data["vulnerabilities"][0]
+    entry["disclosure_date"] = _SOONER
+    entry["metrics"] = _ssvc("A")
+    return data
+
+
+@pytest.mark.spec("CP-01-022", "CP-01-024", "CP-01-028")
+def test_a_case_is_built_from_the_case_inputs_a_proposal_states() -> None:
+    """The case takes the owner's inputs, and no document is read: no claims
+    record is written and nothing of the document reaches the case."""
+    body = _with_inputs(
+        Receipt(csaf(_noisy_document()), report_name=None),
+        _owner_inputs(disclosureDate=_LATER),
+    )
+
+    manager, case = _created_from(body)
+
+    assert (case.name, case.summary) == (
+        "Owner's name for the case",
+        "Owner's summary.",
+    )
+    assert case.current_status.pxa.state is CS_pxa.pxa
+    [item] = _items(manager, case)
+    assert [i.identifier for i in item.ids] == ["CVE-2026-9999"]
+    assert item.name == "Owner's item"
+    [ref] = item.references
+    assert isinstance(ref, CaseReference)
+    assert (ref.url.href, ref.name) == (_OWNER_ADVISORY, "Adv")
+    [case_ref] = _references(manager, case)
+    assert case_ref.url.href == _BULLETIN
+    assert _embargo_end(manager, case) == _when(_LATER)
+    assert manager.records() == []
+
+
+@pytest.mark.spec("CP-01-024")
+def test_emptied_inputs_are_never_refilled_from_the_document() -> None:
+    """All or nothing: an empty item list and false X and A are the owner's
+    word, though the document states items and attacks."""
+    body = _with_inputs(
+        Receipt(csaf(_noisy_document())),
+        _owner_inputs(proposedItems=[], referenceLinks=[]),
+    )
+
+    manager, case = _created_from(body)
+
+    assert (case.vulnerability_items, case.case_references) == ([], [])
+    assert case.current_status.pxa.state is CS_pxa.pxa
+    assert manager.records() == []
+
+
+@pytest.mark.spec("CP-01-024", "EP-04-020")
+def test_stated_x_or_a_starts_the_case_with_no_embargo() -> None:
+    body = _with_inputs(
+        Receipt(), _owner_inputs(attacksObserved=True, disclosureDate=_LATER)
+    )
+
+    _, case = _created_from(body)
+
+    assert case.current_status.pxa.state is CS_pxa.pxA
+    assert case.em_state is EM.NONE
+
+
+@pytest.mark.spec("CP-01-023", "CSAF-03-003")
+def test_a_stated_disclosure_date_that_has_passed_makes_the_case_public() -> (
+    None
+):
+    body = _with_inputs(Receipt(), _owner_inputs(disclosureDate=_PAST))
+
+    _, case = _created_from(body)
+
+    assert case.current_status.pxa.state is CS_pxa.Pxa
+    assert case.em_state is EM.NONE
+
+
+@pytest.mark.spec("CP-01-023", "CSAF-03-001")
+def test_the_stated_date_is_judged_when_the_case_is_created() -> None:
+    """A date still ahead at the receiver's receipt but passed by the time
+    the CASE_MANAGER creates the case makes the case public."""
+    body = _with_inputs(Receipt(), _owner_inputs(disclosureDate=_SOONER))
+
+    _, case = _created_from(body, at=_when(_SOONER) + timedelta(days=1))
+
+    assert case.current_status.pxa.state is CS_pxa.Pxa
+    assert case.em_state is EM.NONE
+
+
+@pytest.mark.spec("CP-01-021", "CSAF-02-003")
+def test_the_offers_proposed_embargo_beats_the_stated_date() -> None:
+    """The Offer's end wins even when the stated date is earlier."""
+    proposed_end = _when(_LATER)
+    body = _with_inputs(
+        Receipt(proposed_embargo_end=proposed_end),
+        _owner_inputs(disclosureDate=_SOONER),
+    )
+
+    manager, case = _created_from(body)
+
+    assert _embargo_end(manager, case) == proposed_end
+
+
+def _owner_with_default(receipt: Receipt, days: int) -> Receipt:
+    """*receipt*'s receiver, publishing an actor default of *days* (EP-01-001)."""
+    receipt.dl.save(
+        make(
+            VultronService,
+            id_=VENDOR,
+            embargo_policy=make(
+                EmbargoPolicy,
+                id_=EmbargoPolicy.build_id(VENDOR),
+                attributed_to=VENDOR,
+                preferred_duration=timedelta(days=days),
+            ),
+        )
+    )
+    return receipt
+
+
+@pytest.mark.spec("CP-01-024", "EP-04-003", "EP-04-016")
+@pytest.mark.parametrize(
+    ("default_days", "date", "active_end", "pending_end"),
+    [
+        (30, _LATER, RECEIVED_AT + timedelta(days=30), _when(_LATER)),
+        (365, _SOONER, _when(_SOONER), RECEIVED_AT + timedelta(days=365)),
+    ],
+    ids=["default-shorter", "date-shorter"],
+)
+def test_a_stated_date_is_weighed_against_the_owners_actor_default(
+    default_days: int, date: str, active_end: datetime, pending_end: datetime
+) -> None:
+    """The stated date is the Reporter's proposal: the shorter of it and the
+    owner's actor default becomes active, the longer a pending revision."""
+    receipt = _owner_with_default(Receipt(), days=default_days)
+
+    manager, case = _created_from(
+        _with_inputs(receipt, _owner_inputs(disclosureDate=date))
+    )
+
+    assert case.em_state is EM.REVISE
+    assert _stored_end(manager, str(case.active_embargo_id)) == active_end
+    assert [
+        _stored_end(manager, revision_id)
+        for revision_id in case.pending_embargo_proposal_index
+    ] == [pending_end]
+
+
+@pytest.mark.spec("CP-01-024")
+def test_empty_case_inputs_give_a_case_with_nothing_the_owner_left_out() -> (
+    None
+):
+    """All or nothing: inputs that state no name leave the case unnamed, even
+    though the report and its document name it."""
+    body = _with_inputs(
+        Receipt(csaf(_quiet_document()), report_name="Widget overflow"), {}
+    )
+
+    manager, case = _created_from(body)
+
+    assert (case.name, case.summary) == (None, None)
+    assert case.vulnerability_items == []
+    assert manager.records() == []
+
+
+@pytest.mark.spec("CP-01-025", "CP-01-029")
+def test_a_proposal_with_no_case_inputs_is_filled_from_the_document() -> None:
+    """The CASE_MANAGER's fallback: it reads the carried Offer's document and
+    records what each claimed value became."""
+    receipt = Receipt(csaf(_quiet_document(disclosure_date=_SOONER)))
+    receipt.handle()
+    assert "caseInputs" not in receipt.proposal_body()["object"]
+
+    manager, case = _created_from(receipt.proposal_body())
+
+    assert case.name == "Widget overflow"
+    assert _embargo_end(manager, case) == _when(_SOONER)
+    [record] = manager.records()
+    assert (
+        record.outcomes["vulnerabilities[0].disclosure_date"]
+        is ClaimOutcome.APPLIED
+    )
+    assert record.outcomes["name"] is ClaimOutcome.OVERRIDDEN
+
+
+@pytest.mark.spec("CP-01-026")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CP-01-026: the report receiver sends caseInputs on a proposal whose"
+        " initial report carries a csaf_vulnerability_report document."
+        " Tracked by #6723."
+    ),
+)
+def test_the_receiver_states_the_case_inputs_of_a_csaf_report() -> None:
+    receipt = Receipt(csaf(_quiet_document(disclosure_date=_SOONER)))
+    receipt.handle()
+
+    assert "caseInputs" in receipt.proposal_body()["object"]

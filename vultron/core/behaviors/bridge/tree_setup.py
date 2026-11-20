@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 import py_trees
 
+from vultron.core.behaviors.blackboard_scope import release_clients
 from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
 
@@ -198,65 +199,71 @@ class _BridgeSetup:
 
         # Populate blackboard with execution context
         blackboard = py_trees.blackboard.Client(name=f"BTBridge-{actor_id}")
-        blackboard.register_key(
-            key="datalayer", access=py_trees.common.Access.WRITE
-        )
-        blackboard.register_key(
-            key="actor_id", access=py_trees.common.Access.WRITE
-        )
-
-        store = self._store_for_actor(actor_id)
-        trigger_activity, sync_port, wire_render_port = self._ports_for_store(
-            store
-        )
-
-        blackboard.datalayer = store
-        blackboard.actor_id = actor_id
-
-        if trigger_activity is not None:
+        # The client only writes the run's context.  The values outlive it, so
+        # it is released here, on every outcome: py_trees keeps a client in
+        # its process-global registry until it is unregistered (#6727).
+        try:
             blackboard.register_key(
-                key="trigger_activity_factory",
-                access=py_trees.common.Access.WRITE,
+                key="datalayer", access=py_trees.common.Access.WRITE
             )
-            blackboard.trigger_activity_factory = trigger_activity
-
-        if sync_port is not None:
             blackboard.register_key(
-                key="sync_port",
-                access=py_trees.common.Access.WRITE,
+                key="actor_id", access=py_trees.common.Access.WRITE
             )
-            blackboard.sync_port = sync_port
 
-        if wire_render_port is not None:
-            blackboard.register_key(
-                key="wire_render_port",
-                access=py_trees.common.Access.WRITE,
+            store = self._store_for_actor(actor_id)
+            trigger_activity, sync_port, wire_render_port = (
+                self._ports_for_store(store)
             )
-            blackboard.wire_render_port = wire_render_port
 
-        # Write is_leader to the blackboard only when this bridge carries an
-        # explicit (non-default) guard.  Default bridges do NOT overwrite the
-        # key so that an outer explicit value is visible to grandchild bridges
-        # (prevents a 3-level-deep inner bridge from reading _default_is_leader
-        # instead of the outermost raft_fn — CLP-08-005, SYNC-09-003).
-        if self._is_leader_explicit:
-            blackboard.register_key(
-                key="is_leader", access=py_trees.common.Access.WRITE
-            )
-            blackboard.is_leader = self.is_leader
+            blackboard.datalayer = store
+            blackboard.actor_id = actor_id
 
-        if activity is not None:
-            blackboard.register_key(
-                key="activity", access=py_trees.common.Access.WRITE
-            )
-            blackboard.activity = activity
+            if trigger_activity is not None:
+                blackboard.register_key(
+                    key="trigger_activity_factory",
+                    access=py_trees.common.Access.WRITE,
+                )
+                blackboard.trigger_activity_factory = trigger_activity
 
-        # Register any additional context data
-        for key, value in context_data.items():
-            blackboard.register_key(
-                key=key, access=py_trees.common.Access.WRITE
-            )
-            setattr(blackboard, key, value)
+            if sync_port is not None:
+                blackboard.register_key(
+                    key="sync_port",
+                    access=py_trees.common.Access.WRITE,
+                )
+                blackboard.sync_port = sync_port
+
+            if wire_render_port is not None:
+                blackboard.register_key(
+                    key="wire_render_port",
+                    access=py_trees.common.Access.WRITE,
+                )
+                blackboard.wire_render_port = wire_render_port
+
+            # Write is_leader to the blackboard only when this bridge carries an
+            # explicit (non-default) guard.  Default bridges do NOT overwrite the
+            # key so that an outer explicit value is visible to grandchild bridges
+            # (prevents a 3-level-deep inner bridge from reading _default_is_leader
+            # instead of the outermost raft_fn — CLP-08-005, SYNC-09-003).
+            if self._is_leader_explicit:
+                blackboard.register_key(
+                    key="is_leader", access=py_trees.common.Access.WRITE
+                )
+                blackboard.is_leader = self.is_leader
+
+            if activity is not None:
+                blackboard.register_key(
+                    key="activity", access=py_trees.common.Access.WRITE
+                )
+                blackboard.activity = activity
+
+            # Register any additional context data
+            for key, value in context_data.items():
+                blackboard.register_key(
+                    key=key, access=py_trees.common.Access.WRITE
+                )
+                setattr(blackboard, key, value)
+        finally:
+            release_clients([blackboard])
 
         self.logger.info("BT setup complete for actor %s", actor_id)
 

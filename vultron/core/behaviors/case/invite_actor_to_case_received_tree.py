@@ -132,7 +132,7 @@ def create_invite_actor_to_case_received_tree(
     invitee_id: str,
     inviter_id: str,
     invite_id: str,
-    roles: list[str] | None = None,
+    offered_roles: list[str] | None = None,
     actor_config: ActorConfig | None = None,
     *,
     sender_rule: SenderRule,
@@ -195,7 +195,7 @@ def create_invite_actor_to_case_received_tree(
         invite_id: The Invite's id, recorded so the invitee's Accept of it
             can fix the anchor (PCR-03-004); at the CASE_MANAGER, the request
             its stub Invite carries out.
-        roles: The roles the Invite offers the invitee (CM-17-003).
+        offered_roles: The roles the Invite offers the invitee (CM-17-003).
         actor_config: The receiving CASE_MANAGER's configuration; its RSVP
             windows set the stub Invite's reply deadline (CM-11-014).
         sender_rule: The use case's declared sender rule; the factory
@@ -220,7 +220,8 @@ def create_invite_actor_to_case_received_tree(
             OnPaths.at_case_manager(
                 "OwnerInviteAdmissibleAtCaseManager",
                 with_act_keys(
-                    case_manager_admits_owner_invite_guard(roles), owner_keys
+                    case_manager_admits_owner_invite_guard(offered_roles),
+                    owner_keys,
                 ),
             )
         ],
@@ -266,7 +267,7 @@ def create_invite_actor_to_case_received_tree(
         manager_effects=[
             with_act_keys(
                 owner_decided_stub_invite(
-                    list(roles or []),
+                    list(offered_roles or []),
                     credits_sender=True,
                     actor_config=actor_config,
                 ),

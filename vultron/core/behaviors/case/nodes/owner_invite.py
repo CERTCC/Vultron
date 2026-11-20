@@ -224,10 +224,10 @@ class OwnerInviteRolesAreGrantableNode(
     """
 
     def __init__(
-        self, roles: list[str] | None, name: str | None = None
+        self, offered_roles: list[str] | None, name: str | None = None
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.roles = list(roles or [])
+        self.roles = list(offered_roles or [])
 
     def _invitation(self) -> tuple[str, str, Iterable[object]]:
         return ("The Case Owner's Invite", self._act_invitee(), self.roles)
@@ -244,7 +244,7 @@ class OwnerInviteRolesAreGrantableNode(
 
 
 def case_manager_admits_owner_invite_guard(
-    roles: list[str] | None,
+    offered_roles: list[str] | None,
 ) -> py_trees.composites.Sequence:
     """Precondition guard: the Case Owner's Invite may be admitted.
 
@@ -264,7 +264,8 @@ def case_manager_admits_owner_invite_guard(
             InviteeIsNotRemovedNode(name="InviteeNotRemoved"),
             InviteeIsInvitableNode(name="InviteeIsInvitable"),
             OwnerInviteRolesAreGrantableNode(
-                roles=roles, name="OwnerInviteRolesGrantable"
+                offered_roles=offered_roles,
+                name="OwnerInviteRolesGrantable",
             ),
         ],
     )

@@ -240,16 +240,16 @@ class SuggestedActorIsInvitableNode(
 
 
 def authority_roles_refusal(
-    subject: str, invitee_id: str, roles: Iterable[object]
+    subject: str, invitee_id: str, offered_roles: Iterable[object]
 ) -> str | None:
     """The refusal for *subject* naming an authority role for *invitee_id*.
 
-    ``None`` when *roles* names neither ``CASE_MANAGER`` nor ``CASE_OWNER``.
+    ``None`` when *offered_roles* names neither ``CASE_MANAGER`` nor ``CASE_OWNER``.
     An invitation adds a participant; it never confers either role, and the
     CASE_MANAGER refuses the request whole rather than strip the role, so
     nobody is invited with roles other than the ones asked for (CM-20-008).
     """
-    named = describe_authority_roles(roles)
+    named = describe_authority_roles(offered_roles)
     if named is None:
         return None
     return f"{subject} for '{invitee_id}' names {named} — REFUSED (CM-20-008)"

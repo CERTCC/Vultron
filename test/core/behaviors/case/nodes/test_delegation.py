@@ -343,7 +343,7 @@ class TestIsRoleOfferTargetNode:
 def _forward_node(owner_id: str = VENDOR_ID) -> ForwardRoleOfferToTargetNode:
     return ForwardRoleOfferToTargetNode(
         case_id=CASE_ID,
-        role=CVDRole.VENDOR,
+        offered_role=CVDRole.VENDOR,
         target_actor_id=MANAGER_ID,
         offer_id=OFFER_ID,
         owner_id=owner_id,
@@ -428,7 +428,7 @@ class TestGrantCaseParticipantRoleNode:
         participant_id = _seed_participant(dl, ACTOR_ID, [CVDRole.VENDOR])
         node = GrantCaseParticipantRoleNode(
             case_id=CASE_ID,
-            role=CVDRole.CASE_MANAGER,
+            granted_role=CVDRole.CASE_MANAGER,
             target_actor_id=ACTOR_ID,
         )
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
@@ -443,7 +443,7 @@ class TestGrantCaseParticipantRoleNode:
         """No participant for the target: SUCCESS, nothing written."""
         node = GrantCaseParticipantRoleNode(
             case_id=CASE_ID,
-            role=CVDRole.CASE_MANAGER,
+            granted_role=CVDRole.CASE_MANAGER,
             target_actor_id=ACTOR_ID,
         )
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)

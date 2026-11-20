@@ -74,7 +74,7 @@ def scenario() -> BTTestScenario:
 def _run(scenario: BTTestScenario, roles: list[str] | None) -> Any:
     return scenario.run(
         with_act_keys(
-            SeatOwnerInvitedInviteeNode(roles=roles or []),
+            SeatOwnerInvitedInviteeNode(offered_roles=roles or []),
             {INVITEE_ID_KEY: INVITEE_ID},
         ),
         case_id=CASE_ID,
@@ -147,7 +147,7 @@ class TestSeating:
         scenario.assert_success(
             scenario.run(
                 with_act_keys(
-                    SeatOwnerInvitedInviteeNode(roles=["VENDOR"]),
+                    SeatOwnerInvitedInviteeNode(offered_roles=["VENDOR"]),
                     {INVITEE_ID_KEY: f"{INVITEE_ID}/"},
                 ),
                 case_id=CASE_ID,

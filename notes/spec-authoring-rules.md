@@ -517,7 +517,7 @@ does not make a spec `project`.
 
 The statement still has to be code-free **as written**. A protocol rule that
 spells its concept in our identifiers — a dotted enum member
-(`CVDRole.CASE_OWNER`), a wire class's Python name (`as_CaseProposal`), a helper
+(`CVDRole.CASE_OWNER`), a class's Python name (`as_CaseProposal`), a helper
 function, the `DataLayer` — stays `protocol` and is reworded, even where
 MS-12-006's token list does not flag it. Protocol vocabulary is not a codebase
 reference: AS2 types and field names, shorthands (`CP`, `ET`), state notation

@@ -172,7 +172,7 @@ argument. A stranded `# pyright: ignore[...]` is reported by CI's `lint-pyright`
 the only place pyright runs (PAD-18-027), so a local pass cannot catch that half.
 A file-level `# pyright: reportGeneralTypeIssues=false` is
 acceptable only for a Pydantic subclass that intentionally narrows an optional base
-field to required (see `vultron/wire/as2/vocab/objects/case_proposal.py`).
+field to required (see `vultron/wire/as2/vocab/objects/processing_fault.py`).
 
 ---
 

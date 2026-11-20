@@ -93,7 +93,7 @@ def suggest_actor_to_case_trigger_bt(
 
 
 def case_manager_invite_actor_trigger_bt(
-    roles: list[str],
+    offered_roles: list[str],
     actor_config: ActorConfig | None = None,
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -109,7 +109,7 @@ def case_manager_invite_actor_trigger_bt(
     resolved (:func:`~vultron.core.behaviors.act_key_scope.with_act_keys`).
 
     Args:
-        roles: The roles the Owner named; never empty (CM-11-019).
+        offered_roles: The roles the Owner named; never empty (CM-11-019).
         actor_config: The Owner's configuration; its RSVP window sets the
             stub Invite's reply deadline (CM-11-014, CM-28-012).
         captured: Optional dict; ``captured["activity"]`` is set to the
@@ -119,7 +119,7 @@ def case_manager_invite_actor_trigger_bt(
         name="CaseManagerInviteActorToCaseTriggerBT",
         children=[
             owner_decided_stub_invite(
-                roles,
+                offered_roles,
                 credits_sender=False,
                 actor_config=actor_config,
                 captured=captured,
