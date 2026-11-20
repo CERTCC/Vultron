@@ -164,7 +164,6 @@ def test_case_participant_round_trips_between_core_and_wire():
                 rsvp_deadline=FAR_FUTURE,  # far-future; tests round-trip, not specific value
             ),
         ],
-        participant_case_name="Vendor Case Name",
     )
 
     wire_dump = core.model_dump(by_alias=True, mode="json")
@@ -227,7 +226,6 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
             active="https://example.org/embargoes/1",
             proposed=["https://example.org/embargoes/2"],
         ),
-        case_activity=["https://example.org/activities/1"],
         parent_cases=["https://example.org/cases/parent"],
         child_cases=["https://example.org/cases/child"],
         sibling_cases=["https://example.org/cases/sibling"],
@@ -240,7 +238,6 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         "vulnerabilityReports",
         "caseStatuses",
         "embargoRegister",
-        "caseActivity",
         "parentCases",
         "childCases",
         "siblingCases",
@@ -256,7 +253,6 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
     assert restored.active_embargo == core.active_embargo
     assert restored.embargo_register == core.embargo_register
     assert restored.proposed_embargo_ids == core.proposed_embargo_ids
-    assert restored.case_activity == core.case_activity
     assert restored.parent_cases == core.parent_cases
     assert restored.child_cases == core.child_cases
     assert restored.sibling_cases == core.sibling_cases

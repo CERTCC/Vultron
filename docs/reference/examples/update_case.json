@@ -38,7 +38,6 @@
     "notes": [],
     "embargoRegister": [],
     "pendingEmbargoProposalIndex": {},
-    "caseActivity": [],
     "genesisHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d",
     "ledgerPosition": {
       "logIndex": -1,
@@ -60,6 +59,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5dkCbouVk3djURcvnvoR5Wx3YdWycTgnQMMsfugutpbXVChm12EzqZvx4ERDyCMXWoTX9uNWrKmiLca7A4mn835q"
+    "proofValue": "z4TZnngCyxnve5ndbPDDRmz3UyunRiqX5Wm4YRve3SkUyFZwAeWDmUJnZsKWzcV3HMZNdd1sLktDxH25FNkdaLQ19"
   }
 }
