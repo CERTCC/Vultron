@@ -155,6 +155,7 @@ CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(
         # Act entry points: a delivery's arrival stamp, a trigger, a sweep.
         "vultron/adapters/driving/fastapi/routers/actors/_routes/mailbox.py",
         "vultron/core/use_cases/triggers/_base/bt.py",
+        "vultron/core/use_cases/triggers/_base/embargo.py",
         "vultron/core/use_cases/triggers/actor/participant_role.py",
         "vultron/core/use_cases/triggers/actor/ownership.py",
         "vultron/core/use_cases/triggers/actor/recommendation.py",
