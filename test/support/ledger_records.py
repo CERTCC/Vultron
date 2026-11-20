@@ -34,7 +34,7 @@ LEDGER_RECORD_METHODS: tuple[str, ...] = (
     "record_report_added_to_case",
     "record_participant_status_added",
     "record_case_status_added",
-    "record_case_participant_created",
+    "record_case_participant_added",
     "record_case_announced",
     # The CASE_MANAGER's own note, committed as ``add_note_to_case`` (#4829).
     "create_note",

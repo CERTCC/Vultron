@@ -68,7 +68,7 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.participant_semantic_types import (
-    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
     UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
@@ -100,8 +100,8 @@ from vultron.demo.determinism import SteppingClock
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_log_entry_activity,
+    add_participant_to_case_activity,
     announce_vulnerability_case_activity,
-    create_participant_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -1263,20 +1263,22 @@ def _invitee_record() -> CaseParticipant:
     return record
 
 
-def _create_entry(
+def _add_participant_entry(
     record: CaseParticipant,
     log_index: int,
     prev_hash: str,
     carried_actor: str | None = None,
+    target: str | None = CASE_ID,
 ) -> CaseLedgerEntry:
-    """The CASE_MANAGER's ``create_case_participant`` entry carrying *record*.
+    """The CASE_MANAGER's ``add_case_participant_to_case`` entry carrying *record*.
 
     *carried_actor* replaces the record's ``attributedTo`` in the snapshot,
-    for a writer that spelled it differently from the record.
+    for a writer that spelled it differently from the record.  *target*
+    replaces the snapshot's ``target``; ``None`` drops it.
     """
     snapshot = json.loads(
         dump_outbound_body(
-            create_participant_activity(
+            add_participant_to_case_activity(
                 record,
                 target=CASE_ID,
                 actor="https://example.org/actors/manager",
@@ -1287,12 +1289,16 @@ def _create_entry(
     )
     if carried_actor is not None:
         snapshot["object"]["attributedTo"] = carried_actor
+    if target is None:
+        del snapshot["target"]
+    else:
+        snapshot["target"] = target
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=record.id_,
-            semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+            semantic_type=ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
             payload_snapshot={"id": record.id_, **snapshot},
             prev_log_hash=prev_hash,
             received_at=ACT_AT,
@@ -1388,7 +1394,9 @@ class TestAddLogEntryAppliesStubPath:
     def _seat(
         self, bridge, datalayer, case_actor, case_obj
     ) -> CaseLedgerEntry:
-        create = _create_entry(_invitee_record(), 0, case_obj.genesis_hash)
+        create = _add_participant_entry(
+            _invitee_record(), 0, case_obj.genesis_hash
+        )
         assert self._announce(bridge, case_actor, create).status == (
             Status.SUCCESS
         )
@@ -1396,11 +1404,11 @@ class TestAddLogEntryAppliesStubPath:
 
     @pytest.mark.spec("CM-11-025")
     @pytest.mark.spec("SYNC-12-001")
-    def test_create_entry_stores_the_record_exactly_as_carried(
+    def test_add_entry_stores_the_record_exactly_as_carried(
         self, bridge, datalayer, case_actor, case_obj
     ):
         sent = _invitee_record()
-        entry = _create_entry(sent, 0, case_obj.genesis_hash)
+        entry = _add_participant_entry(sent, 0, case_obj.genesis_hash)
 
         assert (
             self._announce(bridge, case_actor, entry).status == Status.SUCCESS
@@ -1408,6 +1416,48 @@ class TestAddLogEntryAppliesStubPath:
 
         held = self._held(datalayer)
         assert held.model_dump(mode="json") == sent.model_dump(mode="json")
+
+    @pytest.mark.spec("CM-11-025", "CM-23-044", "VAM-06-004")
+    def test_add_entry_seats_the_record_in_the_case_its_target_names(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The record joins the participant list of the ``target`` case."""
+        sent = _invitee_record()
+        entry = _add_participant_entry(sent, 0, case_obj.genesis_hash)
+        assert entry.payload_snapshot["type"] == "Add"
+        assert entry.payload_snapshot["target"] == CASE_ID
+
+        assert (
+            self._announce(bridge, case_actor, entry).status == Status.SUCCESS
+        )
+
+        case = datalayer.read(CASE_ID)
+        assert case.actor_participant_index[INVITEE_ACTOR_ID] == sent.id_
+        assert sent.id_ in {
+            str(getattr(p, "id_", p)) for p in case.case_participants
+        }
+
+    @pytest.mark.spec("CM-11-025", "CM-23-044", "SYNC-02-008")
+    @pytest.mark.parametrize(
+        "target",
+        [None, "https://example.org/cases/another"],
+        ids=["no-target", "another-case"],
+    )
+    def test_add_entry_naming_no_case_or_another_case_seats_nothing(
+        self, bridge, datalayer, case_actor, case_obj, target
+    ):
+        """The replica does not infer the list from the verb or ``context``."""
+        sent = _invitee_record()
+        entry = _add_participant_entry(
+            sent, 0, case_obj.genesis_hash, target=target
+        )
+
+        result = self._announce(bridge, case_actor, entry)
+
+        assert result.status != Status.SUCCESS
+        case = datalayer.read(CASE_ID)
+        assert INVITEE_ACTOR_ID not in case.actor_participant_index
+        assert datalayer.read(sent.id_) is None
 
     @pytest.mark.spec("OID-01-006")
     @pytest.mark.spec("SYNC-12-001")
@@ -1418,7 +1468,7 @@ class TestAddLogEntryAppliesStubPath:
         (OID-01-008); the replica stores the canonical one, which
         ``attributed_to``'s type requires, instead of refusing the entry
         the CASE_MANAGER admitted (#5919)."""
-        entry = _create_entry(
+        entry = _add_participant_entry(
             _invitee_record(),
             0,
             case_obj.genesis_hash,
@@ -1578,7 +1628,9 @@ class TestAddLogEntryAppliesStubPath:
         case_obj.add_participant(held)
         datalayer.save(case_obj)
         before = held.model_dump(mode="json")
-        entry = _create_entry(_invitee_record(), 0, case_obj.genesis_hash)
+        entry = _add_participant_entry(
+            _invitee_record(), 0, case_obj.genesis_hash
+        )
 
         assert (
             self._announce(bridge, case_actor, entry).status == Status.SUCCESS

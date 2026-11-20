@@ -539,20 +539,20 @@ groups:
     - path: howto/activitypub/activities/manage_participants.md
       title: How to Manage a Case Roster
     example: announce_participant_removal
-  - anchor: create-case-participant
-    heading: Create case participant
-    when: the CASE_MANAGER creates a participant record, such as the inert record for the
-      invitee of a stub Invite
-    send: Create(CaseParticipant)
+  - anchor: add-case-participant-to-case
+    heading: Add case participant to case
+    when: the CASE_MANAGER adds a new participant record to the case, such as the inert record
+      for the invitee of a stub Invite
+    send: Add(CaseParticipant)[target=VulnerabilityCase]
     send_to: a participant
     sent_by: internal to the CASE_MANAGER
-    semantics: create_case_participant
+    semantics: add_case_participant_to_case
     status: none
     description: 'Carries the new participant record in full: its roles, statuses, joined
-      mark and consent rows.'
+      mark and consent rows. The target is the case whose participant list the record joins.'
     notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
     seen_in: []
-    example: create_participant
+    example: add_participant_to_case
   - anchor: update-case-participant
     heading: Update case participant
     when: the CASE_MANAGER changes a participant record, such as moving the CASE_OWNER role

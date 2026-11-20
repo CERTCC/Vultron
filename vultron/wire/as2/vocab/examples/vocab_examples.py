@@ -134,11 +134,11 @@ from vultron.wire.as2.vocab.examples.participant import *  # noqa: F403  # CS-03
 from vultron.wire.as2.vocab.examples.participant import (  # noqa: F401
     accept_full_case_invite,
     accept_invite_to_case,
+    add_participant_to_case,
     announce_participant_reinstatement,
     announce_participant_removal,
     case_participant,
     coordinator_participant,
-    create_participant,
     finder_participant,
     invite_to_case,
     invite_to_full_case,
@@ -235,7 +235,7 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     (accept_case_participant_offer, None),
     (reject_case_participant_offer, None),
     # participants and invitations
-    (create_participant, None),
+    (add_participant_to_case, None),
     (update_participant, None),
     (case_participant, None),
     (invite_to_case, None),

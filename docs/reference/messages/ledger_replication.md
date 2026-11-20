@@ -93,7 +93,7 @@ A replica copies that row and does not decide the change itself (CLP-07-013, EP-
 The same holds for participants.
 Some acts move a participant's RM state, such as a report verdict, an engagement decision or a Leave.
 Such an act is followed by an `add_participant_status_to_participant` entry for each status the CASE_MANAGER wrote.
-A record the CASE_MANAGER creates is its own `Create(CaseParticipant)` entry.
+A record the CASE_MANAGER brings into the case is its own `Add(CaseParticipant)` entry, whose `target` is the case.
 A replica copies each of these, ids and times included (CLP-07-013, CM-23-016).
 
 The replica does not patch over an embargo or consent entry whose starting state does not match the replica's case.

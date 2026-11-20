@@ -91,7 +91,7 @@ Coordinator accepts responsibility.
 
 ### 3. Participant status records are created
 
-Each record seated at case creation is ledgered as a `create_case_participant` entry, and each later status the Case Actor writes, the Vendor's engagement included, as an `add_participant_status_to_participant` entry.
+Each record seated at case creation is ledgered as an `add_case_participant_to_case` entry, and each later status the Case Actor writes, the Vendor's engagement included, as an `add_participant_status_to_participant` entry.
 The Reporter is one of them: it joins the case as a signatory when the case is created, so the Coordinator never invites it.
 
 *Antecedent:* `engage_case` is in the ledger.

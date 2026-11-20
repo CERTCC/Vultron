@@ -287,9 +287,9 @@
       "phrase": "{actor} announced an act it admitted"
     },
     {
-      "semanticType": "create_case_participant",
-      "wire": "Create(CaseParticipant)",
-      "phrase": "{actor} created a participant record"
+      "semanticType": "add_case_participant_to_case",
+      "wire": "Add(CaseParticipant)[target=VulnerabilityCase]",
+      "phrase": "{actor} added a participant record to the case"
     },
     {
       "semanticType": "update_case_participant",

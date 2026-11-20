@@ -75,9 +75,9 @@ from vultron.wire.as2.factories.case import (
     update_case_activity,
 )
 from vultron.wire.as2.factories.case_participant import (
+    add_participant_to_case_activity,
     add_status_to_participant_activity,
     announce_admitted_act_activity,
-    create_participant_activity,
     reinstate_participant_activity,
     remove_participant_activity,
     update_participant_activity,
@@ -172,7 +172,7 @@ __all__ = [
     # case_participant
     "add_status_to_participant_activity",
     "announce_admitted_act_activity",
-    "create_participant_activity",
+    "add_participant_to_case_activity",
     "reinstate_participant_activity",
     "remove_participant_activity",
     "update_participant_activity",

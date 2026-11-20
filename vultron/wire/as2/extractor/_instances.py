@@ -569,13 +569,16 @@ AnnounceAdmittedActPattern = InlineActivityObjectPattern(
     activity_=TAtype.ANNOUNCE,
     context_=VOtype.VULNERABILITY_CASE,
 )
-CreateCaseParticipantPattern = ActivityPattern(
+AddCaseParticipantToCasePattern = ActivityPattern(
     description=(
-        "The CASE_MANAGER creates a participant record: a CREATE of the "
-        "CaseParticipant carrying the record in full (ADR-0114, CLP-07-021)."
+        "The CASE_MANAGER adds a new participant record to the case: an ADD "
+        "of the CaseParticipant, carrying the record in full, whose target "
+        "is the case (VAM-06-004, ADR-0114, CLP-07-021).  The object type "
+        "tells it apart from the Case Owner's Add(<Actor>) reinstatement."
     ),
-    activity_=TAtype.CREATE,
+    activity_=TAtype.ADD,
     object_=VOtype.CASE_PARTICIPANT,
+    target_=VOtype.VULNERABILITY_CASE,
 )
 UpdateCaseParticipantPattern = ActivityPattern(
     description=(

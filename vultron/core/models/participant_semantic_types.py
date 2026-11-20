@@ -22,10 +22,12 @@ for the consent it signs and the ``joined`` mark, and its
 Creating the inert record is the CASE_MANAGER's own act, with no wire message
 of its own, so it is the one new entry on the stub path:
 
-- :data:`CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE` -- ``Create(CaseParticipant)``:
-  the CASE_MANAGER created the record.  The entry carries the whole record
-  (roles, statuses with their ids and times, ``joined``, consent rows), and a
-  replica stores it as received (ADR-0103, CLP-15-007).
+- :data:`ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE` --
+  ``Add(CaseParticipant, target=<case>)``: the CASE_MANAGER added the record
+  to the case's participant list (VAM-06-004, CLP-07-021).  The entry
+  carries the whole record (roles, statuses with their ids and times,
+  ``joined``, consent rows), and a replica stores it as received, in the case
+  the entry's ``target`` names (ADR-0103, CLP-15-007, CM-11-025).
 - a new ``ParticipantStatus`` (a vendor's VF, an RM closure) is the existing
   ``add_participant_status_to_participant`` entry.
 
@@ -47,10 +49,11 @@ payload with it (ADR-0140); these names are its string values.
 
 from vultron.core.models.events.base import MessageSemantics
 
-#: ``Create(CaseParticipant)`` -- the CASE_MANAGER created a participant record.
+#: ``Add(CaseParticipant, target=<case>)`` -- the CASE_MANAGER added a
+#: participant record to the case.
 #: The registry recognizes it, but no received use case handles it (ADR-0140).
-CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE = (
-    MessageSemantics.CREATE_CASE_PARTICIPANT.value
+ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE = (
+    MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE.value
 )
 
 #: ``Update(CaseParticipant)`` -- the CASE_MANAGER changed a participant record.
@@ -65,7 +68,7 @@ UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE = (
 UPDATE_CASE_OWNER_SEMANTIC_TYPE = MessageSemantics.UPDATE_CASE_OWNER.value
 
 __all__ = [
-    "CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE",
+    "ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE",
     "UPDATE_CASE_OWNER_SEMANTIC_TYPE",
     "UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE",
 ]

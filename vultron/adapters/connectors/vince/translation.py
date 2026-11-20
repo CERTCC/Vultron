@@ -300,7 +300,7 @@ class CaseTranslation:
         rules: Sequence[str],
         statuses: Sequence[str],
     ) -> Act:
-        """The ``Create(CaseParticipant)`` by *actor* that seats
+        """The ``Add(CaseParticipant, target=<case>)`` by *actor* that seats
         *participant*, carrying a status for each RM state in *statuses*."""
         self.participants[participant.actor] = participant
         for rm in statuses:
@@ -311,8 +311,8 @@ class CaseTranslation:
         act = self.act(
             Act(
                 at=at,
-                semantic_type=MessageSemantics.CREATE_CASE_PARTICIPANT,
-                activity_type="Create",
+                semantic_type=MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+                activity_type="Add",
                 actor=actor,
                 object_=self.participant_record(participant, name, at),
                 source_record=source_record,

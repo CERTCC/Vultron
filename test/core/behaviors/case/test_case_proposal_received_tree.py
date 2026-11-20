@@ -139,14 +139,14 @@ _RETIRED_CONSENT_KEYS = frozenset(
     {"consent", "emConsentState", "embargoAdherence"}
 )
 
-_CREATE_PARTICIPANT = "create_case_participant"
+_CREATE_PARTICIPANT = "add_case_participant_to_case"
 _ADD_STATUS = "add_participant_status_to_participant"
 
 
 def _participant_creation_entry(
     dl: SqliteDataLayer, case_id: str, actor_uri: str
 ) -> CaseLedgerEntry:
-    """The one ``create_case_participant`` entry for *actor_uri*'s record.
+    """The one ``add_case_participant_to_case`` entry for *actor_uri*'s record.
 
     Each seated record is committed once as it came into existence: its
     roles, its consent rows and its first status (CLP-07-013).
@@ -2078,7 +2078,7 @@ class TestCM14005ReporterSignatory:
     ):
         """AC-4: the reporter's record carries its rows; its status, none.
 
-        The reporter's ``create_case_participant`` entry carries the record
+        The reporter's ``add_case_participant_to_case`` entry carries the record
         as created (CLP-07-013): the stored record's consent rows
         (CM-18-007) and one ``ParticipantStatus`` with no ``emConsentState``
         or ``embargoAdherence`` key, consent being per-embargo (ADR-0122).
@@ -2130,7 +2130,7 @@ class TestADR0041LedgerEntries:
         ``creation_entry_sequence`` reads the sequence off the resulting case
         file: genesis, each embargo the register names, each report, then
         per seated record one
-        ``create_case_participant`` followed by an entry per later status,
+        ``add_case_participant_to_case`` followed by an entry per later status,
         then each case status (CLP-07-013).  The create-case trigger is
         pinned to the same rule in ``test_create.py``, so a case created
         either way commits the same entries.
@@ -2270,7 +2270,7 @@ class TestCM18007InitLedgerEntries:
     def test_exactly_one_creation_entry_per_participant(self, make_payload):
         """Each seated record is created once; only the CaseActor moves on.
 
-        One ``create_case_participant`` entry per record, in roster order
+        One ``add_case_participant_to_case`` entry per record, in roster order
         (CM-18-007 AC-3, CLP-07-013), plus two status entries: the
         CaseActor's VALID and ACCEPTED, RECEIVED being the first status its
         record was created with (CM-23-007, ADR-0051).
@@ -2297,7 +2297,7 @@ class TestCM18007InitLedgerEntries:
             if e.semantic_type == _CREATE_PARTICIPANT
         ]
         assert created == [str(_as_id(p)) for p in case.case_participants], (
-            "one create_case_participant entry per record, in roster order"
+            "one add_case_participant_to_case entry per record, in roster order"
             " (CM-18-007, CLP-07-013)"
         )
         status_entries = [e for e in entries if e.semantic_type == _ADD_STATUS]
@@ -2923,7 +2923,7 @@ class TestADR0041GenesisCommitFailure:
 
         assert node.update() == Status.FAILURE
         assert missing in node.feedback_message
-        assert "create_case_participant" not in attempted
+        assert "add_case_participant_to_case" not in attempted
 
     @pytest.mark.spec("CLP-07-013")
     def test_an_embargo_missing_from_the_store_stops_the_sequence(
@@ -3060,7 +3060,7 @@ class TestCaseActorRMLifecycleBootstrap:
 
         CM-23-007: the CaseActor's RM.RECEIVED, RM.VALID and RM.ACCEPTED are
         each in its ledger.  Its record is created carrying RECEIVED, its
-        first status, in its ``create_case_participant`` entry; VALID then
+        first status, in its ``add_case_participant_to_case`` entry; VALID then
         ACCEPTED follow as ``add_participant_status_to_participant`` entries
         (CLP-07-013).
         """

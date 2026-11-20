@@ -4,9 +4,9 @@
     "https://certcc.github.io/Vultron/ns/context.jsonld",
     "https://w3id.org/security/data-integrity/v2"
   ],
-  "type": "Create",
-  "id": "urn:uuid:19f8ed08-881b-4ffb-a326-af232e51dd50",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Create as_CaseParticipant urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/https://vultron.example/organizations/coordinator from https://vultron.example/organizations/coordinator in urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "type": "Add",
+  "id": "urn:uuid:53deb54c-b063-4478-907b-82909cd4554f",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Add as_CaseParticipant urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/https://vultron.example/organizations/coordinator from https://vultron.example/organizations/coordinator to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
@@ -25,7 +25,7 @@
     ],
     "participantStatuses": [
       {
-        "id": "urn:uuid:5335cd02-4367-4a21-afbb-980beee3ef63",
+        "id": "urn:uuid:c897a90c-771b-4a9a-8f52-a0063c416c2e",
         "type": "ParticipantStatus",
         "name": "START",
         "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -53,6 +53,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z67D69F7x3nvURmLk3aP9iMiERx2zhr4EvkLrQHS6TZWBuTLDp6Rni6MyKX69X7GyMuywUrsmimvUERFWhPNE1XsG"
+    "proofValue": "z5Tn1myvN8Yvdxt5KN5vwnBzZt2UWXwXqFQAhF9T3syDrPRuLk1CqxQFDPtBvNR7evaewqewm4vxe7BnJDzFvgXVA"
   }
 }

@@ -24,8 +24,8 @@ from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
+    add_participant_to_case_activity,
     announce_admitted_act_activity,
-    create_participant_activity,
     reinstate_participant_activity,
     remove_participant_activity,
     rm_accept_full_case_invite_activity,
@@ -41,7 +41,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
     as_Announce,
-    as_Create,
     as_Invite,
     as_Reject,
     as_Remove,
@@ -211,17 +210,17 @@ def _coordinator_participant() -> as_CaseParticipant:
     )
 
 
-def create_participant() -> as_Create:
-    """The CASE_MANAGER's ``Create(CaseParticipant)`` of a participant record.
+def add_participant_to_case() -> as_Add:
+    """The CASE_MANAGER's ``Add(CaseParticipant, target=<case>)``.
 
-    The CASE_MANAGER creates a participant record when it sends a stub Invite
-    and commits ``Create(CaseParticipant)`` as its own
-    ``create_case_participant`` entry (ADR-0114).  No received use case
+    The CASE_MANAGER adds a participant record to the case when it sends a
+    stub Invite and commits ``Add(CaseParticipant)`` as its own
+    ``add_case_participant_to_case`` entry (ADR-0114).  No received use case
     handles it (ADR-0140 item 5), so the example is authored by the case
     actor and carries no sender-voice ``content``.
     """
     _case = case()
-    return create_participant_activity(
+    return add_participant_to_case_activity(
         _coordinator_participant(),
         target=_case.id_,
         actor=case_actor().id_,

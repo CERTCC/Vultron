@@ -124,7 +124,7 @@ def test_use_case_map_omits_an_entry_with_no_use_case(monkeypatch):
     assert set(ucm) == set(MessageSemantics) - {
         unhandled,
         MessageSemantics.UNDO_INVITE_TO_EMBARGO_ON_CASE,
-        MessageSemantics.CREATE_CASE_PARTICIPANT,
+        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
         MessageSemantics.UPDATE_CASE_PARTICIPANT,
         MessageSemantics.UPDATE_CASE_OWNER,
         MessageSemantics.ADD_VULNERABILITY_ITEM_TO_CASE,

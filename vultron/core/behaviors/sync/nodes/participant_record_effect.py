@@ -13,12 +13,15 @@
 
 """Replica replay of the CASE_MANAGER's own participant-record entries.
 
-The ledger holds the wire messages exchanged (ADR-0114).  Creating the inert
-record is the CASE_MANAGER's own act, with no wire message of its own, so it has
-its own entry, ``create_case_participant``, whose object is the whole record as
-the CASE_MANAGER stored it.  A replica stores that record as received (ADR-0103,
-CLP-15-007) and reconstructs nothing: no id, time, status or consent row is
-derived here.  The changes the invitee's reply makes to the record are the
+The ledger holds the wire messages exchanged (ADR-0114).  Adding the inert
+record to the case is the CASE_MANAGER's own act, with no wire message of its
+own, so it has its own entry, ``add_case_participant_to_case``:
+``Add(CaseParticipant, target=<case>)``, whose object is the whole record as
+the CASE_MANAGER stored it (VAM-06-004).  A replica stores that record as
+received (ADR-0103, CLP-15-007), in the case the entry's ``target`` names
+(CM-11-025), and reconstructs nothing: no id, time, status or consent row is
+derived here, and the list is not inferred from the verb or the object's type
+(CM-23-044).  The changes the invitee's reply makes to the record are the
 effect of the reply's own entry (``stub_reply_effect``).
 
 A change the CASE_MANAGER makes to a record as the consequence of an act, such
@@ -36,6 +39,7 @@ from __future__ import annotations
 from py_trees.common import Status
 
 from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
+from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _SingleSemanticTypeNode,
 )
@@ -77,6 +81,22 @@ def _carried_participant(
         return None
 
 
+def _target_case_id(node: _LedgerEffectNode, snapshot: dict) -> str | None:
+    """The case whose participant list the entry adds to, or ``None``.
+
+    Read from the activity's ``target`` (CM-11-025), never inferred from its
+    verb or object type (CM-23-044).  ``None`` sets the node's feedback.
+    """
+    case_id = _extract_id_from_field(snapshot.get("target"))
+    if not isinstance(case_id, str) or not case_id:
+        node.feedback_message = (
+            f"{node.name}: the entry names no case in 'target' to add the"
+            " participant record to (CM-11-025)"
+        )
+        return None
+    return case_id
+
+
 def _record_held(
     node: _LedgerEffectNode, case: VulnerabilityCase, record: CaseParticipant
 ) -> CaseParticipant | None:
@@ -88,13 +108,15 @@ def _record_held(
     return held if isinstance(held, CaseParticipant) else None
 
 
-class ApplyCreateCaseParticipantFromLedgerNode(_LedgerEffectNode):
-    """Store the participant record a ``create_case_participant`` entry carries.
+class ApplyAddCaseParticipantToCaseFromLedgerNode(_LedgerEffectNode):
+    """Seat the record an ``add_case_participant_to_case`` entry carries.
 
-    Lenient only on a replica that holds no copy of the case (Regime 2,
-    ADR-0087).  A record the replica already holds is left alone (idempotent,
-    a replay).  An entry whose object is not a valid ``CaseParticipant`` fails
-    with a reason.
+    The record joins the participant list of the case the entry's ``target``
+    names (CM-11-025).  Lenient only on a replica that holds no copy of that
+    case (Regime 2, ADR-0087).  A record the replica already holds is left
+    alone (idempotent, a replay).  An entry whose object is not a valid
+    ``CaseParticipant``, or whose ``target`` names no case or another case
+    than the entry's own (SYNC-02-008), fails with a reason.
     """
 
     def update(self) -> Status:
@@ -108,7 +130,18 @@ class ApplyCreateCaseParticipantFromLedgerNode(_LedgerEffectNode):
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
-        case = self._resolve_case_replica(entry.context)
+        target_case_id = _target_case_id(self, entry.payload_snapshot)
+        if target_case_id is None or target_case_id != entry.context:
+            if target_case_id is not None:
+                self.feedback_message = (
+                    f"{self.name}: the entry adds the record to"
+                    f" '{target_case_id}', not to its own case"
+                    f" '{entry.context}' (SYNC-02-008)"
+                )
+            self.logger.error("%s", self.feedback_message)
+            return Status.FAILURE
+
+        case = self._resolve_case_replica(target_case_id)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
@@ -116,7 +149,7 @@ class ApplyCreateCaseParticipantFromLedgerNode(_LedgerEffectNode):
             self.logger.debug(
                 "%s: '%s' already holds a record for '%s' — idempotent no-op",
                 self.name,
-                entry.context,
+                target_case_id,
                 record.attributed_to,
             )
             return Status.SUCCESS
@@ -129,11 +162,11 @@ class ApplyCreateCaseParticipantFromLedgerNode(_LedgerEffectNode):
             self.datalayer.save(record)
         self.datalayer.save(case)
         self.logger.info(
-            "%s: stored participant '%s' for case '%s' as the entry carries it"
-            " (CM-11-006)",
+            "%s: stored participant '%s' in case '%s', the entry's target, as"
+            " the entry carries it (CM-11-006, CM-11-025)",
             self.name,
             record.id_,
-            entry.context,
+            target_case_id,
         )
         return Status.SUCCESS
 

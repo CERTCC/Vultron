@@ -83,7 +83,7 @@ _UNDISPATCHABLE: frozenset[str] = frozenset()
 _UNHANDLED = frozenset(
     {
         "undo_embargo_invite",
-        "create_participant",
+        "add_participant_to_case",
         "update_participant",
         "update_case",
         "create_embargo_event",

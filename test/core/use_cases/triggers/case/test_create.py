@@ -529,7 +529,7 @@ class TestSvcCreateCaseUseCase:
 _CARRIED: dict[str, tuple[str, type[CoreObject]]] = {
     "create_case": ("object", VulnerabilityCase),
     "add_report_to_case": ("object", VulnerabilityReport),
-    "create_case_participant": ("object", CaseParticipant),
+    "add_case_participant_to_case": ("object", CaseParticipant),
     "add_participant_status_to_participant": ("target", CaseParticipant),
     "add_case_status_to_case": ("object", CaseStatus),
 }
@@ -600,7 +600,7 @@ class TestCreateCaseTriggerLedger:
         """The creator's record is created whole, with its one status.
 
         The owner holds one status, so its record is one
-        ``create_case_participant`` entry and no status entry follows it
+        ``add_case_participant_to_case`` entry and no status entry follows it
         (CLP-07-013).
         """
         case = self._create(to=to)
@@ -610,7 +610,7 @@ class TestCreateCaseTriggerLedger:
         assert [e.semantic_type for e in entries] == [
             "create_case",
             "add_report_to_case",
-            "create_case_participant",
+            "add_case_participant_to_case",
             "add_case_status_to_case",
         ]
         assert [
@@ -625,7 +625,7 @@ class TestCreateCaseTriggerLedger:
             e.semantic_type for e in ledger_entries(self.dl, case.id_)
         ] == [
             "create_case",
-            "create_case_participant",
+            "add_case_participant_to_case",
             "add_case_status_to_case",
         ]
 
@@ -790,7 +790,7 @@ class TestCreateCaseTriggerLedger:
         [
             (0, "create_case"),
             (1, "add_report_to_case"),
-            (2, "create_case_participant"),
+            (2, "add_case_participant_to_case"),
             (3, "add_case_status_to_case"),
         ],
         ids=lambda v: v if isinstance(v, str) else None,
@@ -867,7 +867,7 @@ class TestCreateCaseTriggerLedger:
         assert [kind for kind, _ in events[1:]] == [
             "create_case",
             "add_report_to_case",
-            "create_case_participant",
+            "add_case_participant_to_case",
             "add_case_status_to_case",
         ]
 

@@ -16,7 +16,7 @@ import unittest
 from test.support.objects import make
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.activities.case_participant import (
-    _CreateParticipantActivity,
+    _AddParticipantToCaseActivity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
@@ -32,8 +32,8 @@ class MyTestCase(unittest.TestCase):
         pass
 
 
-class TestCreateParticipantName(unittest.TestCase):
-    """_CreateParticipantActivity activity name should clearly identify as_CaseParticipant creation."""
+class TestAddParticipantToCaseName(unittest.TestCase):
+    """_AddParticipantToCaseActivity's name should identify the record added to the case."""
 
     def setUp(self):
         self.actor_id = "https://vultron.example/organizations/vendorco"
@@ -47,9 +47,10 @@ class TestCreateParticipantName(unittest.TestCase):
             case_roles=[CVDRole.VENDOR],
         )
         self.activity = make(
-            _CreateParticipantActivity,
+            _AddParticipantToCaseActivity,
             actor=self.actor_id,
             object_=self.participant,
+            target=self.case_id,
             context=self.case_id,
         )
 
@@ -69,15 +70,14 @@ class TestCreateParticipantName(unittest.TestCase):
         assert self.attributed_to in self.activity.name
 
     def test_name_contains_actor(self):
-        """Name must include the creating actor."""
+        """Name must include the adding actor."""
         assert self.activity.name is not None
         assert self.actor_id in self.activity.name
 
-    def test_name_not_misleading(self):
-        """Name must not look like creating an actor (old buggy format was '{actor} Create {actor_uri}')."""
-        # The old broken name was e.g. "vendorco Create finndervul" — two actor URIs with no "CaseParticipant"
-        old_format = f"{self.actor_id} Create {self.attributed_to}"
-        assert self.activity.name != old_format
+    def test_name_names_the_case(self):
+        """Name must name the case whose participant list the record joins."""
+        assert self.activity.name is not None
+        assert self.activity.name.endswith(f"to {self.case_id}")
 
 
 if __name__ == "__main__":

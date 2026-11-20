@@ -42,7 +42,7 @@ from vultron.core.behaviors.sync.nodes.embargo_event_conditions import (
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_semantic_types import (
-    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE,
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
 )
 
@@ -163,18 +163,19 @@ class IsCreateEmbargoEventNode(_SingleSemanticTypeNode):
     matched_semantic_type = _CREATE_EMBARGO_EVENT
 
 
-class IsCreateCaseParticipantEventNode(_SingleSemanticTypeNode):
-    """Precondition: SUCCESS when this log entry IS a ``create_case_participant``.
+class IsAddCaseParticipantToCaseEventNode(_SingleSemanticTypeNode):
+    """Precondition: SUCCESS when this log entry IS an ``add_case_participant_to_case``.
 
-    Precondition of the ``CreateCaseParticipant`` slot, in the same
+    Precondition of the ``AddCaseParticipantToCase`` slot, in the same
     ``Selector(Seq(Is, Apply), Inverter(Is))`` shape as the other slots.  The
-    CASE_MANAGER commits it when it creates a participant record, for instance
-    the inert record of a stub Invite's invitee (CM-11-006).
+    CASE_MANAGER commits it when it adds a new participant record to the case,
+    for instance the inert record of a stub Invite's invitee (CM-11-006,
+    VAM-06-004).
 
     Per BTND-08-001, BTND-08-002, CM-11-006, SYNC-12-001, RSH-08-004.
     """
 
-    matched_semantic_type = CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE
+    matched_semantic_type = ADD_CASE_PARTICIPANT_TO_CASE_SEMANTIC_TYPE
 
 
 class IsInviteAcceptEventNode(_SingleSemanticTypeNode):
@@ -274,7 +275,7 @@ class IsWithdrawFromEmbargoEventNode(_SingleSemanticTypeNode):
 __all__ = [
     "IsAcceptEmbargoInviteEventNode",
     "IsAddNoteEventNode",
-    "IsCreateCaseParticipantEventNode",
+    "IsAddCaseParticipantToCaseEventNode",
     "IsCreateEmbargoEventNode",
     "IsEmbargoAbandonmentEventNode",
     "IsEmbargoInviteRelayEventNode",

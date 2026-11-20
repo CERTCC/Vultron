@@ -21,7 +21,7 @@ below. Effect classes live in their own modules (BTND-07-004):
 - :mod:`~vultron.core.behaviors.sync.nodes.note_effect` —
   :class:`~vultron.core.behaviors.sync.nodes.note_effect.ApplyNoteFromLedgerNode`
 - :mod:`~vultron.core.behaviors.sync.nodes.participant_record_effect` —
-  :class:`~vultron.core.behaviors.sync.nodes.participant_record_effect.ApplyCreateCaseParticipantFromLedgerNode`
+  :class:`~vultron.core.behaviors.sync.nodes.participant_record_effect.ApplyAddCaseParticipantToCaseFromLedgerNode`
 - :mod:`~vultron.core.behaviors.sync.nodes.stub_reply_effect` —
   :class:`~vultron.core.behaviors.sync.nodes.stub_reply_effect.ApplyInviteAcceptFromLedgerNode`
   and :class:`~vultron.core.behaviors.sync.nodes.stub_reply_effect.ApplyInviteRejectFromLedgerNode`

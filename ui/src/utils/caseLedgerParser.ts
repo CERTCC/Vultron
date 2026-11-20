@@ -44,7 +44,8 @@ import { ledgerLineProblems } from './ledgerShape'
  * A few retired types are still handled so older uploaded logs replay:
  * `offer_case_manager_role` (now `create_case`), `submit_report` as a ledger verb
  * (now `add_report_to_case`), `create_note` (now `add_note_to_case`),
- * `add_case_participant` (now `create_case_participant`) and
+ * `add_case_participant` and `create_case_participant` (both now
+ * `add_case_participant_to_case`) and
  * `accept_case_manager_role`.
  */
 export type LedgerSemanticType = string

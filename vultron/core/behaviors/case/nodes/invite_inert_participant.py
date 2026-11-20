@@ -23,7 +23,7 @@ the stub-Invite workflow:
   (when an embargo is in force).  Sets ``joined=False`` so the participant is
   inert and does not receive case content until it accepts (CM-11-006).
   Creating the record is the CASE_MANAGER's own act, with no wire message of
-  its own, so it commits its own ``create_case_participant`` entry carrying the
+  its own, so it commits its own ``add_case_participant_to_case`` entry carrying the
   record as stored; replicas store it as received (ADR-0114, CM-31-012).  The
   status a later node adds (VF ``Vf``, an RM closure) has its own entry; the
   invitee's Accept and Reject messages are the entries for their consent and
@@ -52,7 +52,7 @@ from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.case.participant_ledger import (
-    commit_case_participant_created,
+    commit_case_participant_added,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
 from vultron.core.behaviors.helpers import (
@@ -270,7 +270,7 @@ class _SeatInertInviteeBase(DataLayerActionWithPorts, StateWriteCapable):
             )
             return Status.FAILURE
         try:
-            commit_case_participant_created(
+            commit_case_participant_added(
                 datalayer=cast(CaseOutboxPersistence, self.datalayer),
                 actor_id=cast(str, self.actor_id),
                 case_id=self.case_id,

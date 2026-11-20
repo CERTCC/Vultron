@@ -307,7 +307,7 @@ def creation_entry_sequence(
     for participant_ref in case.case_participants:
         participant = dl.read(str(_as_id(participant_ref)))
         assert isinstance(participant, CaseParticipant), participant_ref
-        sequence.append(("create_case_participant", participant.id_))
+        sequence.append(("add_case_participant_to_case", participant.id_))
         sequence += [
             ("add_participant_status_to_participant", status.id_)
             for status in participant.participant_statuses[1:]

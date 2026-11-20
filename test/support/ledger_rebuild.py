@@ -83,7 +83,7 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
 _CREATION_RECORDS: Mapping[str, tuple[str, type[CoreObject]]] = {
     "create_case": ("object", VulnerabilityCase),
     "add_report_to_case": ("object", VulnerabilityReport),
-    "create_case_participant": ("object", CaseParticipant),
+    "add_case_participant_to_case": ("object", CaseParticipant),
     "add_case_status_to_case": ("object", CaseStatus),
 }
 
@@ -91,7 +91,7 @@ _CREATION_RECORDS: Mapping[str, tuple[str, type[CoreObject]]] = {
 #: drives each one through its replica slot (``ApplyCreatedEmbargoFromLedgerNode``
 #: for ``create_embargo_event``, #5122).  A participant status entry names its
 #: participant's status history, not the record (ADR-0204): the record comes
-#: from its ``create_case_participant`` entry and the replay appends the status.
+#: from its ``add_case_participant_to_case`` entry and the replay appends the status.
 _REPLAYED_CREATION_ENTRIES: frozenset[str] = frozenset(
     {"create_embargo_event", "add_participant_status_to_participant"}
 )

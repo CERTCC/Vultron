@@ -47,7 +47,7 @@ exchanged (ADR-0114): the invitee's ``Accept(Invite)`` is already the entry for
 the consent row it signs and its ``joined`` mark, and a replica applies those
 through the same functions (``vultron.core.participants.stub_reply``).  The
 record's creation is the CASE_MANAGER's own act and has its own
-``create_case_participant`` entry, committed when the stub Invite was sent.  The
+``add_case_participant_to_case`` entry, committed when the stub Invite was sent.  The
 vendor's VF status is a CASE_MANAGER-written object with its own id and times, so
 ``CommitInviteeAcceptEntriesNode`` commits it as an
 ``add_participant_status_to_participant`` entry.  No ``Add(CaseParticipant)``

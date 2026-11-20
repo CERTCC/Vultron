@@ -79,7 +79,7 @@ from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoConsentFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_record_effect import (
-    ApplyCreateCaseParticipantFromLedgerNode,
+    ApplyAddCaseParticipantToCaseFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.stub_reply_effect import (
     ApplyInviteAcceptFromLedgerNode,
@@ -127,7 +127,7 @@ _SLOTS = [
     ApplyInviteAcceptFromLedgerNode,
     ApplyInviteRejectFromLedgerNode,
     # the roster entry, which seats a record carried with all its rows
-    ApplyCreateCaseParticipantFromLedgerNode,
+    ApplyAddCaseParticipantToCaseFromLedgerNode,
 ]
 
 #: Names whose use marks a slot as writing the register or a consent row:

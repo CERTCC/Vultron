@@ -96,8 +96,8 @@ from vultron.core.behaviors.sync.nodes.embargo_backfill import (
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsAcceptEmbargoInviteEventNode,
+    IsAddCaseParticipantToCaseEventNode,
     IsAddNoteEventNode,
-    IsCreateCaseParticipantEventNode,
     IsCreateEmbargoEventNode,
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
@@ -149,8 +149,8 @@ from vultron.core.behaviors.sync.nodes.ownership_effects import (
     ApplyOwnershipTransferFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_record_effect import (
+    ApplyAddCaseParticipantToCaseFromLedgerNode,
     ApplyCaseParticipantUpdateFromLedgerNode,
-    ApplyCreateCaseParticipantFromLedgerNode,
     IsUpdateCaseParticipantEventNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
@@ -216,7 +216,7 @@ __all__ = [
     "IsAddVulnerabilityItemEventNode",
     "IsAddCaseReferenceEventNode",
     "IsRemoveNoteEventNode",
-    "IsCreateCaseParticipantEventNode",
+    "IsAddCaseParticipantToCaseEventNode",
     "IsCreateEmbargoEventNode",
     "IsUpdateCaseParticipantEventNode",
     "IsInviteAcceptEventNode",
@@ -236,7 +236,7 @@ __all__ = [
     "ApplyCaseReferenceFromLedgerNode",
     "ApplyCaseParticipantRoleGrantFromLedgerNode",
     "ApplyRemoveNoteFromLedgerNode",
-    "ApplyCreateCaseParticipantFromLedgerNode",
+    "ApplyAddCaseParticipantToCaseFromLedgerNode",
     "ApplyCaseParticipantUpdateFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",
     "ApplyInviteRejectFromLedgerNode",

@@ -16,8 +16,8 @@
 from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case_participant import (
+    AddCaseParticipantToCaseReceivedEvent,
     AnnounceAdmittedActReceivedEvent,
-    CreateCaseParticipantReceivedEvent,
     ReinstateParticipantInCaseReceivedEvent,
     RemoveParticipantFromCaseReceivedEvent,
     UpdateCaseParticipantReceivedEvent,
@@ -34,15 +34,15 @@ from vultron.semantic_registry._occasion import (
     Occasion,
 )
 from vultron.wire.as2.extractor import (
+    AddCaseParticipantToCasePattern,
     AnnounceAdmittedActPattern,
-    CreateCaseParticipantPattern,
     ReinstateParticipantInCasePattern,
     RemoveParticipantFromCasePattern,
     UpdateCaseParticipantPattern,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
+    _AddParticipantToCaseActivity,
     _AnnounceAdmittedActActivity,
-    _CreateParticipantActivity,
     _ReinstateParticipantActivity,
     _RemoveParticipantActivity,
     _UpdateParticipantActivity,
@@ -145,27 +145,29 @@ ENTRIES: list[SemanticEntry] = [
     # the CASE_MANAGER sends them, and a participant takes the record from
     # the ledger, so no received use case handles them (ADR-0140 item 5).
     SemanticEntry(
-        semantics=MessageSemantics.CREATE_CASE_PARTICIPANT,
-        pattern=CreateCaseParticipantPattern,
-        event_class=CreateCaseParticipantReceivedEvent,
+        semantics=MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+        pattern=AddCaseParticipantToCasePattern,
+        event_class=AddCaseParticipantToCaseReceivedEvent,
         use_case_class=None,
-        phrase="{actor} created a participant record",
-        wire_activity_class=_CreateParticipantActivity,
+        phrase="{actor} added a participant record to the case",
+        wire_activity_class=_AddParticipantToCaseActivity,
         include_activity=True,
         occasions=(
             Occasion(
                 when=(
-                    "the CASE_MANAGER creates a participant record, such as "
-                    "the inert record for the invitee of a stub Invite"
+                    "the CASE_MANAGER adds a new participant record to the "
+                    "case, such as the inert record for the invitee of a "
+                    "stub Invite"
                 ),
-                anchor="create-case-participant",
+                anchor="add-case-participant-to-case",
                 addressee=AddresseeSide.PARTICIPANT,
-                heading="Create case participant",
+                heading="Add case participant to case",
                 description=(
                     "Carries the new participant record in full: its roles, "
-                    "statuses, joined mark and consent rows."
+                    "statuses, joined mark and consent rows. The target is "
+                    "the case whose participant list the record joins."
                 ),
-                example="create_participant",
+                example="add_participant_to_case",
                 notes=(
                     "Each participant learns of it from the case ledger, so "
                     "it is addressed to nobody."

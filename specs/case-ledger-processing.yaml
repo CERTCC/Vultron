@@ -1220,10 +1220,11 @@ groups:
       `test_each_item_and_reference_is_an_add_entry_after_the_genesis_entry` in
       `test/core/use_cases/received/test_case_from_csaf_report.py` asserts each
       vulnerability item and case reference a creation wrote is its own `Add` entry,
-      carrying the record in full with the case as its `target`. A test of the stub
-      Invite's entries asserts that the invitee's new participant record is an
-      `Add(CaseParticipant)` entry with the case as its `target` and `context`
-      (#6295).
+      carrying the record in full with the case as its `target`.
+      `test_the_stub_invite_adds_the_participant_record_to_the_case` in
+      `test/core/use_cases/received/test_stub_invite_replay.py` asserts that the
+      invitee's new participant record is an `Add(CaseParticipant)` entry with the
+      case as its `target` and `context`.
     relationships:
     - rel_type: extends
       spec_id: CLP-07-013
