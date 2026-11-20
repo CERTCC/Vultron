@@ -208,10 +208,10 @@ groups:
       legend. A legend in its rows' exact shades shows the analyst which end of
       the gradient is better without asking them to remember it.
     verification: >-
-      `test/shadow/dashboard/test_view.py::test_a_bands_legend_holds_each_layers_shade_in_its_own_map`
+      `test/shadow/dashboard/view/test_bands.py::test_a_bands_legend_holds_each_layers_shade_in_its_own_map`
       asserts each shaded band's legend is one shade per layer in its own map,
       holding every row's shade, and
-      `test/shadow/dashboard/test_page.py::test_each_shaded_band_shows_a_legend_in_its_rows_shades`
+      `test/shadow/dashboard/page/test_advice.py::test_each_shaded_band_shows_a_legend_in_its_rows_shades`
       asserts the page draws exactly one legend per shaded band, labelled at
       both ends, whose cells are that band's row shades.
   - id: SHD-03-004
@@ -229,7 +229,7 @@ groups:
     verification: >-
       `test/measure/advice/test_case.py::test_the_record_says_how_to_show_each_band`
       pins the help text, and
-      `test/shadow/dashboard/test_page.py::test_each_shaded_band_shows_a_legend_in_its_rows_shades`
+      `test/shadow/dashboard/page/test_advice.py::test_each_shaded_band_shows_a_legend_in_its_rows_shades`
       asserts the page shows it and no caption says "darkest".
 - id: SHD-04
   title: Live Vultron Case Reader
