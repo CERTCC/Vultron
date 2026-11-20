@@ -61,6 +61,8 @@ Placement in the tree::
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -128,11 +130,11 @@ def unless_rm_already_recorded(
         name=name,
         memory=False,
         children=[
-            CheckParticipantRMState(
-                case_id=case_id,
-                actor_id=sender_actor_id,
-                target_rm=declared_rm,
-                name=guard_name,
+            with_act_keys(
+                CheckParticipantRMState(
+                    target_rm=declared_rm, name=guard_name
+                ),
+                {SENDER_ID: sender_actor_id, CASE_ID: case_id},
             ),
             *children,
         ],
@@ -141,12 +143,16 @@ def unless_rm_already_recorded(
 
 def rm_declaration_guard(
     sender_actor_id: str, declared_rm: RM, case_id: str | None
-) -> AdjudicateRMDeclarationNode:
-    """Return the precondition guard for the sender's RM declaration."""
-    return AdjudicateRMDeclarationNode(
-        sender_actor_id=sender_actor_id,
-        declared_rm=declared_rm,
-        case_id=case_id,
+) -> py_trees.behaviour.Behaviour:
+    """Return the precondition guard for the sender's RM declaration.
+
+    The guard reads the sender and the case from their keys, seeded here
+    with the values given (BTND-01-008); a *case_id* of ``None`` leaves
+    ``/case_id`` to the tree's own lookup (BT-25-009).
+    """
+    return with_act_keys(
+        AdjudicateRMDeclarationNode(declared_rm=declared_rm),
+        {SENDER_ID: sender_actor_id, CASE_ID: case_id},
     )
 
 
@@ -192,11 +198,11 @@ def record_rm_declaration(
                 ),
             ],
         ),
-        CommitParticipantStatusEntriesNode(
-            subject_actor_id=sender_actor_id,
-            case_id=case_id,
-            status_ids=written,
-            name=f"Record{name}",
+        with_act_keys(
+            CommitParticipantStatusEntriesNode(
+                status_ids=written, name=f"Record{name}"
+            ),
+            {SENDER_ID: sender_actor_id, CASE_ID: case_id},
         ),
         rm_gap_note(sender_actor_id, case_id),
     ]

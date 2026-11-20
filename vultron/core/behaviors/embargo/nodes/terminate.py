@@ -242,7 +242,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
 
 
 def ask_case_manager_to_terminate_once(
-    case_id: str,
+    case_id: str | None,
     reason: TerminationReason,
     cause: TerminationCause | ChosenTermination | None = None,
 ) -> py_trees.behaviour.Behaviour:

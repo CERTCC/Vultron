@@ -190,13 +190,11 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         # The case and who takes part in it.
         "activeEmbargo",
         "activeParticipants",
-        "caseActivity",
         "caseParticipants",
         "caseReferences",
         "childCases",
         "notes",
         "parentCases",
-        "participantCaseName",
         "removalActivity",
         "siblingCases",
         "stubSummary",

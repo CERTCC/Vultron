@@ -225,14 +225,20 @@ def manager_stage(
     manager_gate_name: str | None,
     manager_body_name: str | None,
     manager_case_may_be_absent: bool,
+    *,
+    run_time_case: bool = False,
 ) -> CaseManagerGate:
     """Wrap *manager_effects* in the CASE_MANAGER gate.
 
+    With *run_time_case* the gate reads the case the tree's lookup
+    published on ``/case_id`` (BT-25-009).
+
     Raises:
-        VultronWiringError: *manager_case_id* is ``None`` — there is no case
-            whose CASE_MANAGER could gate the effects.
+        VultronWiringError: *manager_case_id* is ``None`` and no lookup
+            publishes the case — there is no case whose CASE_MANAGER could
+            gate the effects.
     """
-    if manager_case_id is None:
+    if manager_case_id is None and not run_time_case:
         raise VultronWiringError(
             f"create_receive_activity_tree({name}): manager_effects need"
             " manager_case_id, the case whose CASE_MANAGER gates them"

@@ -36,6 +36,8 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.call_out import acting_as
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
+from vultron.core.behaviors.act_key_scope import unscoped, with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
@@ -230,7 +232,7 @@ def test_should_stay_deferred_arm_composition():
     arm = tree.children[1]
     assert isinstance(arm, py_trees.composites.Sequence)
     assert len(arm.children) == 2
-    assert isinstance(arm.children[0], RMinStateDeferred)
+    assert isinstance(unscoped(arm.children[0]), RMinStateDeferred)
     assert arm.children[1].name == "NoNewDeploymentInfo"
 
 
@@ -241,7 +243,7 @@ def test_deploy_if_ready_arm_composition():
     assert isinstance(arm, py_trees.composites.Sequence)
     assert len(arm.children) == 7
     assert isinstance(arm.children[0], CheckDeployerRoleNode)
-    assert isinstance(arm.children[1], CheckRMStateAccepted)
+    assert isinstance(unscoped(arm.children[1]), CheckRMStateAccepted)
     assert isinstance(arm.children[2], CheckCSFixNotYetDeployed)
     assert arm.children[3].name == "PrioritizeDeployment"
     assert arm.children[4].name == "DeployFix"
@@ -536,7 +538,7 @@ class TestRMinStateDeferred:
     ) -> None:
         _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.DEFERRED)
         result = bt_scenario.run(
-            RMinStateDeferred(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID),
+            with_act_keys(RMinStateDeferred(), {CASE_KEY: CASE_ID}),
             actor_id=DEPLOYER_ACTOR_ID,
         )
         assert result.status == Status.SUCCESS
@@ -548,7 +550,7 @@ class TestRMinStateDeferred:
     ) -> None:
         _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.ACCEPTED)
         result = bt_scenario.run(
-            RMinStateDeferred(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID),
+            with_act_keys(RMinStateDeferred(), {CASE_KEY: CASE_ID}),
             actor_id=DEPLOYER_ACTOR_ID,
         )
         assert result.status == Status.FAILURE
@@ -557,7 +559,7 @@ class TestRMinStateDeferred:
         self, bt_scenario: BTTestScenario
     ) -> None:
         result = bt_scenario.run(
-            RMinStateDeferred(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID),
+            with_act_keys(RMinStateDeferred(), {CASE_KEY: CASE_ID}),
             actor_id=DEPLOYER_ACTOR_ID,
         )
         assert result.status == Status.FAILURE

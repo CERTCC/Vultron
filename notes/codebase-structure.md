@@ -2,12 +2,13 @@
 title: Codebase Structure Notes
 status: active
 kind: guidance
-tags: [architecture, codebase, circular-imports, fastapi, docker, health-check, actor-ids]
+tags: [architecture, codebase, circular-imports, fastapi, docker, health-check,
+  actor-ids, module-splits, logging]
 description: >
   Module layout rules and recurring pitfalls: enum placement, the legacy
   simulator boundary, demo lifecycle helpers, FastAPI routing and serialization,
-  actor-ID normalization, surrogate-key lookup, module splits, formatter and
-  type-checker interplay, and small coding habits.
+  actor-ID normalization, surrogate-key lookup, module splits and the logger
+  names they keep, formatter and type-checker interplay, and small coding habits.
 related_specs:
   - specs/prototype-shortcuts.yaml
   - specs/object-ids.yaml
@@ -320,6 +321,10 @@ descriptions, so keep those accurate and put new endpoints on the right router.
   (`# noqa: F401`) only when it is a `monkeypatch` target; a FastAPI router package
   re-exports the names used as `dependency_overrides` keys (#972). Anything else is
   a shim (PROTO-08-001): move the callers.
+- **A split keeps each moved logger's name.** `logging.getLogger(__name__)` in a
+  submodule logs under the submodule's path, so the split renames the logger, and log
+  settings, filters and logging tests on the old name stop matching. Pass the old
+  module's name explicitly, `logging.getLogger("old.module.path")` (#6729).
 - **Deleting a module instead of re-exporting needs importer proof**: no live importers
   in `vultron/` or `test/`.
 

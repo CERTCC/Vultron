@@ -41,9 +41,9 @@ from vultron.core.models.pending_assertion import (
 )
 
 
-def _make_emit_node(case_id: str) -> py_trees.behaviour.Behaviour:
-    return EmitCaseStatusUpdateNode(
-        case_id=case_id, name="EmitCaseStatusUpdate"
+def _make_emit_node(case_id: str | None) -> py_trees.behaviour.Behaviour:
+    return with_case_id(
+        EmitCaseStatusUpdateNode(name="EmitCaseStatusUpdate"), case_id
     )
 
 
@@ -71,7 +71,7 @@ ABANDONMENT_LEFT_TO_CASE_MANAGER = "LeaveToCaseManager"
 
 def _skip_at_case_manager(
     name: str,
-    case_id: str,
+    case_id: str | None,
     children: list[py_trees.behaviour.Behaviour],
 ) -> py_trees.composites.Selector:
     """Run *children* only when the executing actor is **not** the CASE_MANAGER.
@@ -109,7 +109,7 @@ def _skip_at_case_manager(
 
 def _by_role(
     name: str,
-    case_id: str,
+    case_id: str | None,
     as_case_manager: list[py_trees.behaviour.Behaviour],
     otherwise: list[py_trees.behaviour.Behaviour],
     otherwise_suffix: str = "AskCaseManager",

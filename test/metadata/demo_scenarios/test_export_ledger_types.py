@@ -117,7 +117,6 @@ def _instances() -> dict[str, CoreObject]:
         participant_statuses=[status],
         embargo_consents=[consent],
         removal_activity=f"{CASE}/activity/9",
-        participant_case_name="Vendor",
     )
     return {
         "CaseLedgerEntry": entry,

@@ -54,7 +54,9 @@ def embargo_admission_backfill_nodes(
     """
     return [
         with_case_id(BackfillAdmittedParticipantsNode(), case_id),
-        ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
+        with_case_id(
+            ReissueStubInvitesNode(actor_config=actor_config), case_id
+        ),
     ]
 
 

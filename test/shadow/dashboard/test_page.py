@@ -101,7 +101,7 @@ _ADVICE_PAGE = """
 from test.measure.history.builders import two_vendors_ledger
 from vultron.measure.advice import case_advice
 from vultron.measure.standing import case_standing
-from vultron.shadow.dashboard.page import _show_advice
+from vultron.shadow.dashboard.page.advice import _show_advice
 
 _show_advice(case_advice(case_standing(two_vendors_ledger().case_ledger())), {})
 """
@@ -365,7 +365,7 @@ def test_each_state_is_shown_on_its_machines_map(recordings_app):
 
 
 _NO_PARTICIPANTS_PAGE = """
-from vultron.shadow.dashboard.page import _show_participant_minimaps
+from vultron.shadow.dashboard.page.scoreboard import _show_participant_minimaps
 
 _show_participant_minimaps([], {})
 """
@@ -381,7 +381,7 @@ from vultron.measure.sequences import (
     UnprojectableReason,
 )
 from vultron.measure.standing import CaseStanding, ParticipantStanding
-from vultron.shadow.dashboard.page import _show_participant_minimaps
+from vultron.shadow.dashboard.page.scoreboard import _show_participant_minimaps
 
 VENDOR = "https://vendor.example/actors/vendor"
 _show_participant_minimaps(
