@@ -59,6 +59,7 @@ from test.support.signatures import signature_of
 from vultron.core.behaviors.case.nodes.submit_report import (
     submit_report_received_effects,
 )
+from vultron.core.behaviors.sender_check_context import SenderCheckContext
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -124,6 +125,13 @@ def _domain_values() -> dict[type, Any]:
         # CASE_MANAGER composes for a case known at build time and for one a
         # ledger activity names at run time alike (LedgerActivityContext).
         SenderRule: SenderRule.in_case(SenderEntitlementKind.CASE_MANAGER),
+        # The sender and case a tree's sender guard reads, built by the use
+        # case for a tree whose case is named by the activity it receives.
+        SenderCheckContext: SenderCheckContext(
+            sender_id=f"{_BASE}/actors/sender",
+            case_id=_CASE_ID,
+            case_manager_required=True,
+        ),
     }
 
 

@@ -13,7 +13,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for Add/Remove case participant BT leaf nodes."""
+"""Tests for the Case Owner's removal and reinstatement BT leaf nodes."""
+
+from types import SimpleNamespace
 
 import pytest
 from py_trees.common import Status
@@ -23,13 +25,13 @@ from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.case_participant_received import (
-    MoveNamesCaseParticipantNode,
-    RemoveCaseParticipantFromCaseReceivedNode,
+    NamedParticipantIsNotProtectedNode,
+    RecordParticipantRemovalNode,
 )
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
+    ClearParticipantRemovalNode,
     ParticipantHasJoinedNode,
     ParticipantIsRemovedNode,
-    ReinstateCaseParticipantReceivedNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -80,16 +82,29 @@ def participant(case):
 REMOVE_ID = "https://example.org/activities/remove-coord"
 
 
-class TestRemoveCaseParticipantFromCaseReceivedNode:
+def _run_move(bridge, node, case_id: str = CASE_ID, **keys):
+    """Run *node* with the case and the named actor seeded (BTND-01-008)."""
+    return run_tree(
+        bridge,
+        tree=node,
+        actor_id=ACTOR_ID,
+        case_id=case_id,
+        participant_actor_id=COORDINATOR_ID,
+        **keys,
+    )
+
+
+class TestRecordParticipantRemovalNode:
     """Removal sets the fact and keeps the record (CM-31-001, CM-31-015, ADR-0116)."""
 
     def _run(self, bridge, case_id: str = CASE_ID):
-        tree = RemoveCaseParticipantFromCaseReceivedNode(
-            participant_id=PARTICIPANT_ID,
-            case_id=case_id,
-            removal_activity_id=REMOVE_ID,
+        # The removal fact is the received act's id, read from ``/activity``.
+        return _run_move(
+            bridge,
+            RecordParticipantRemovalNode(),
+            case_id,
+            activity=SimpleNamespace(activity_id=REMOVE_ID),
         )
-        return run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
 
     @pytest.mark.spec("CM-31-015")
     def test_keeps_the_participant_on_the_roster(
@@ -161,14 +176,11 @@ class TestRemoveCaseParticipantFromCaseReceivedNode:
         assert result.status == Status.FAILURE
 
 
-class TestReinstateCaseParticipantReceivedNode:
+class TestClearParticipantRemovalNode:
     """Reinstatement clears the removal fact and nothing else (CM-31-034)."""
 
     def _run(self, bridge, case_id: str = CASE_ID):
-        tree = ReinstateCaseParticipantReceivedNode(
-            participant_id=PARTICIPANT_ID, case_id=case_id
-        )
-        return run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
+        return _run_move(bridge, ClearParticipantRemovalNode(), case_id)
 
     @pytest.mark.spec("CM-31-011")
     @pytest.mark.spec("CM-31-034")
@@ -215,11 +227,12 @@ class TestReinstateCaseParticipantReceivedNode:
 
 
 class TestReinstatementGuards:
-    """``Add`` only reinstates: each guard refuses a request to seat (CM-31-036)."""
+    """A reinstatement only reinstates: each guard refuses a request to seat
+    (CM-31-036)."""
 
     @staticmethod
     def _run(bridge, node):
-        return run_tree(bridge, tree=node, actor_id=ACTOR_ID)
+        return _run_move(bridge, node)
 
     @pytest.mark.spec("CM-31-036")
     def test_is_removed_guard_refuses_a_participant_that_is_not_removed(
@@ -228,14 +241,10 @@ class TestReinstatementGuards:
         case.add_participant(participant)
         dl.create(case)
         dl.create(participant)
-        node = ParticipantIsRemovedNode(
-            participant_id=PARTICIPANT_ID,
-            case_id=CASE_ID,
-            move="reinstatement",
-        )
+        node = ParticipantIsRemovedNode(move="reinstatement")
 
         assert self._run(bridge, node).status == Status.FAILURE
-        assert "reinstatement REFUSED (CM-31-011)" in node.feedback_message
+        assert "reinstatement REFUSED (CM-31-036)" in node.feedback_message
 
     @pytest.mark.spec("CM-31-011")
     def test_is_removed_guard_admits_a_removed_participant(
@@ -245,11 +254,7 @@ class TestReinstatementGuards:
         case.add_participant(participant)
         dl.create(case)
         dl.create(participant)
-        node = ParticipantIsRemovedNode(
-            participant_id=PARTICIPANT_ID,
-            case_id=CASE_ID,
-            move="reinstatement",
-        )
+        node = ParticipantIsRemovedNode(move="reinstatement")
 
         assert self._run(bridge, node).status == Status.SUCCESS
 
@@ -267,26 +272,120 @@ class TestReinstatementGuards:
         case.add_participant(invitee)
         dl.create(case)
         dl.create(invitee)
-        node = ParticipantHasJoinedNode(
-            participant_id=PARTICIPANT_ID,
-            case_id=CASE_ID,
-            move="reinstatement",
-        )
+        node = ParticipantHasJoinedNode(move="reinstatement")
 
         assert self._run(bridge, node).status == Status.FAILURE
         assert "never joined" in node.feedback_message
 
-    @pytest.mark.spec("CM-31-011")
-    def test_names_guard_refuses_a_record_off_the_roster(
+    @pytest.mark.spec("CM-31-036")
+    def test_guard_refuses_an_actor_off_the_roster(
         self, bridge, dl, case, participant
     ) -> None:
         dl.create(case)
         dl.create(participant)
-        node = MoveNamesCaseParticipantNode(
-            participant_id=PARTICIPANT_ID,
-            case_id=CASE_ID,
-            move="reinstatement",
-        )
+        node = ParticipantIsRemovedNode(move="reinstatement")
 
         assert self._run(bridge, node).status == Status.FAILURE
+        assert "is not a participant" in node.feedback_message
         assert "reinstatement REFUSED" in node.feedback_message
+
+    @pytest.mark.spec("CM-31-004")
+    @pytest.mark.spec("CM-31-036")
+    @pytest.mark.parametrize("move", ["removal", "reinstatement"])
+    @pytest.mark.parametrize("role", ["CASE_MANAGER", "CASE_OWNER"])
+    def test_protected_guard_refuses_the_manager_and_the_owner(
+        self, bridge, dl, case, move, role
+    ) -> None:
+        from vultron.enums.roles import CVDRole
+
+        protected = make(
+            as_CaseParticipant,
+            id_=PARTICIPANT_ID,
+            attributed_to=COORDINATOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole[role]],
+        )
+        case.add_participant(protected)
+        dl.create(case)
+        dl.create(protected)
+        node = NamedParticipantIsNotProtectedNode(move=move)
+
+        assert self._run(bridge, node).status == Status.FAILURE
+        assert role in node.feedback_message
+        assert f"{move} REFUSED" in node.feedback_message
+
+
+class TestEffectAndAnnounceFailures:
+    """The effect and the shared Announce emit fail whole, sending nothing."""
+
+    @staticmethod
+    def _seed(dl, case, participant):
+        case.add_participant(participant)
+        dl.create(case)
+        dl.create(participant)
+
+    @pytest.mark.spec("CM-31-001")
+    def test_removal_with_no_received_act_fails_before_writing(
+        self, bridge, dl, case, participant
+    ) -> None:
+        self._seed(dl, case, participant)
+
+        result = _run_move(bridge, RecordParticipantRemovalNode())
+
+        assert result.status == Status.FAILURE
+        record = dl.read(PARTICIPANT_ID)
+        assert isinstance(record, CaseParticipant)
+        assert not record.removed
+
+    @pytest.mark.spec("CM-31-006")
+    def test_announce_with_no_received_act_sends_nothing(
+        self, dl, case, participant
+    ) -> None:
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes.case_participant_received import (
+            AnnounceParticipantMoveNode,
+        )
+
+        self._seed(dl, case, participant)
+        bridge = BTBridge(
+            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        )
+
+        result = _run_move(bridge, AnnounceParticipantMoveNode())
+
+        assert result.status == Status.FAILURE
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-31-006")
+    def test_announce_naming_no_recipient_sends_nothing(
+        self, dl, case, participant
+    ) -> None:
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes.announce_admitted_act import (
+            EmitAnnounceAdmittedActNode,
+        )
+
+        class _NoOne(EmitAnnounceAdmittedActNode):
+            def _recipients(self) -> list[str]:
+                return []
+
+        self._seed(dl, case, participant)
+        bridge = BTBridge(
+            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        )
+
+        result = run_tree(
+            bridge,
+            tree=_NoOne(),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+            activity=SimpleNamespace(activity_id=REMOVE_ID),
+        )
+
+        assert result.status == Status.FAILURE
+        assert "names no recipient" in (result.feedback_message or "")
+        assert dl.outbox_list() == []

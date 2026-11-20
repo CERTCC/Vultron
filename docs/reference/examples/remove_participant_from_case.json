@@ -5,43 +5,20 @@
     "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Remove",
-  "id": "urn:uuid:dbe1756a-4767-4c6d-ba1d-547acf91faa4",
-  "name": "https://vultron.example/organizations/vendorco Remove Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "id": "urn:uuid:b4d38a29-fadf-45dd-a56c-704bce1c85ed",
+  "name": "https://vultron.example/organizations/vendorco Remove https://vultron.example/organizations/coordinator from urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
   "summary": "Vendor is removing the coordinator from the case.",
+  "to": [
+    "https://vultron.example/case-actors/vendorco-case-actor"
+  ],
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "origin": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
-    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/coordinator",
-    "type": "CaseParticipant",
-    "name": "Coordinator LLC",
-    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
-    "published": "2026-06-01T19:12:00.000000+00:00",
-    "updated": "2026-06-01T19:12:00.000000+00:00",
-    "attributedTo": "https://vultron.example/organizations/coordinator",
-    "caseRoles": [
-      "coordinator"
-    ],
-    "participantStatuses": [
-      {
-        "id": "urn:uuid:bab3a566-7e67-4d87-b1fe-a829423f27fa",
-        "type": "ParticipantStatus",
-        "name": "START",
-        "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
-        "published": "2026-06-01T19:12:00.000000+00:00",
-        "updated": "2026-06-01T19:12:00.000000+00:00",
-        "attributedTo": "https://vultron.example/organizations/coordinator",
-        "rmState": "START",
-        "caseEngagement": true,
-        "cvdRole": [
-          "COORDINATOR"
-        ]
-      }
-    ],
-    "embargoConsents": [],
-    "joined": true
+    "type": "Actor",
+    "id": "https://vultron.example/organizations/coordinator"
   },
   "proof": {
     "@context": [
@@ -54,6 +31,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z27Hhqhv3pVjNsm8yNLRvrdqHU4AyprPUM34XMdZPe2jXxdTkSVPMu7sKxj95PrvJvTVtmp6XZeuN1qMy32MZmuTw"
+    "proofValue": "zXGTguNZCUp1B6eU9KTqAA4BVMGV7MsqMNGfG6m8z7GpbNQPbJcfgMxJR52V3G9EN29E4Hx9BB3qQRbY5vFn2rmx"
   }
 }

@@ -29,13 +29,13 @@ from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     accept_case_participant_role_activity,
     add_note_to_case_activity,
-    add_participant_to_case_activity,
     offer_case_participant_activity,
     offer_case_participant_role_activity,
     recommend_actor_activity,
+    reinstate_participant_activity,
     reject_actor_recommendation_activity,
     reject_case_participant_role_activity,
-    remove_participant_from_case_activity,
+    remove_participant_activity,
     rm_invite_to_case_activity,
     update_case_activity,
 )
@@ -199,13 +199,10 @@ def _role_offer():
             id="reject_case_participant_offer",
         ),
         pytest.param(
-            lambda: add_participant_to_case_activity(
-                participant=_participant(),
-                target=_CASE_ID,
-                actor=_ACTOR,
-                at=authored_at(),
+            lambda: reinstate_participant_activity(
+                _VENDOR, _CASE_ID, actor=_ACTOR, at=authored_at()
             ),
-            id="add_participant_to_case",
+            id="reinstate_participant",
         ),
         pytest.param(
             lambda: add_note_to_case_activity(
@@ -217,13 +214,10 @@ def _role_offer():
             id="add_note_to_case",
         ),
         pytest.param(
-            lambda: remove_participant_from_case_activity(
-                participant=_participant(),
-                target=_CASE_ID,
-                actor=_ACTOR,
-                at=authored_at(),
+            lambda: remove_participant_activity(
+                _VENDOR, _CASE_ID, actor=_ACTOR, at=authored_at()
             ),
-            id="remove_participant_from_case",
+            id="remove_participant",
         ),
         pytest.param(
             lambda: accept_case_participant_role_activity(
@@ -245,9 +239,9 @@ def test_case_scoped_factories_default_context_to_the_case_uri(build):
 
 
 def test_an_explicit_context_is_left_alone():
-    activity = add_participant_to_case_activity(
-        participant=_participant(),
-        target=_CASE_ID,
+    activity = reinstate_participant_activity(
+        _VENDOR,
+        _CASE_ID,
         actor=_ACTOR,
         context="https://example.org/cases/explicit",
         at=authored_at(),
@@ -294,8 +288,8 @@ def test_factories_given_a_full_case_target_send_its_uri():
         id_=_CASE_ID,
         name="full",
     )
-    activity = add_participant_to_case_activity(
-        participant=_participant(), target=case, actor=_ACTOR, at=authored_at()
+    activity = reinstate_participant_activity(
+        _VENDOR, case, actor=_ACTOR, at=authored_at()
     )
     dumped = activity.model_dump(by_alias=True, exclude_none=True)
     assert dumped["target"] == _CASE_ID

@@ -132,8 +132,8 @@ def _held_object(dl: SqliteDataLayer, case_id: str, type_: str) -> CoreObject:
 _ROWS: list[tuple[str, str, MessageSemantics]] = [
     (
         "CaseParticipant",
-        "Remove",
-        MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
+        "Update",
+        MessageSemantics.UPDATE_CASE_PARTICIPANT,
     ),
     ("Note", "Add", MessageSemantics.ADD_NOTE_TO_CASE),
     ("Event", "Invite", MessageSemantics.INVITE_TO_EMBARGO_ON_CASE),
@@ -144,7 +144,7 @@ _ROWS: list[tuple[str, str, MessageSemantics]] = [
 def _row_body(
     activity_type: str, reference: dict[str, Any], case_id: str
 ) -> dict[str, Any]:
-    if activity_type == "Offer":
+    if activity_type in ("Offer", "Update"):
         return _activity(activity_type, reference, case_id)
     return _activity(activity_type, reference, case_id, target=case_id)
 
@@ -225,10 +225,10 @@ def test_a_reference_to_an_object_not_held_is_fetched_not_filled_in(
 @pytest.mark.parametrize(
     "named_by", ["typed reference", "bare id"], ids=["reference", "bare-id"]
 )
-def test_a_held_participant_reaches_the_remove_event_as_held(
+def test_a_held_participant_reaches_the_update_event_as_held(
     store: tuple[SqliteDataLayer, str, CaseParticipant], named_by: str
 ) -> None:
-    """``Remove`` of a held participant carries the participant's own
+    """``Update`` of a held participant carries the participant's own
     record: its statuses, membership and removal fact, with no fresh
     ``START`` status minted for it (#5265)."""
     dl, case_id, participant = store
@@ -238,14 +238,9 @@ def test_a_held_participant_reaches_the_remove_event_as_held(
         else participant.id_
     )
 
-    event = extract_event(
-        _received(_activity("Remove", name, case_id, target=case_id), dl)
-    )
+    event = extract_event(_received(_activity("Update", name, case_id), dl))
 
-    assert (
-        event.semantic_type
-        is MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
-    )
+    assert event.semantic_type is MessageSemantics.UPDATE_CASE_PARTICIPANT
     received = event.object_
     assert isinstance(received, CaseParticipant)
     assert received.model_dump() == participant.model_dump()

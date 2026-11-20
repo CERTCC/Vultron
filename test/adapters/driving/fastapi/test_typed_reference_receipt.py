@@ -94,12 +94,11 @@ def test_a_reference_to_a_held_participant_is_handled_with_the_held_record():
     assert isinstance(held, CaseParticipant)
     payload = signed_body(
         {
-            "type": "Remove",
-            "id": "https://example.org/activities/remove-ref-1",
+            "type": "Update",
+            "id": "https://example.org/activities/update-ref-1",
             "published": _PUBLISHED,
             "actor": CASE_MANAGER_ID,
             "object": {"id": participant_id, "type": "CaseParticipant"},
-            "target": case.id_,
             "context": case.id_,
             "to": [_REPLICA],
             "ledgerPosition": _POSITION,
@@ -111,10 +110,7 @@ def test_a_reference_to_a_held_participant_is_handled_with_the_held_record():
     _run(dl, _REPLICA, payload, fetcher, dispatcher)
 
     (event,) = seen
-    assert (
-        event.semantic_type
-        is MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
-    )
+    assert event.semantic_type is MessageSemantics.UPDATE_CASE_PARTICIPANT
     assert isinstance(event.object_, CaseParticipant)
     # The held record's roles and author, which a hollow reference lacks.
     assert held.case_roles

@@ -415,12 +415,12 @@ def test_extract_intent_preserves_sender_published_timestamp():
     assert event.activity.published == claimed
 
 
-@pytest.mark.spec("VAM-06-004")
+@pytest.mark.spec("VAM-06-005")
 def test_extract_intent_participant_case_roles():
     """CaseParticipant.case_roles is populated from the wire as_CaseParticipant."""
     from vultron.enums.roles import CVDRole
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Add,
+        as_Update,
     )
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
@@ -432,16 +432,16 @@ def test_extract_intent_participant_case_roles():
         context="https://example.org/cases/1",
     )
     object.__setattr__(participant, "case_roles", [CVDRole.VENDOR])
-    # AddCaseParticipantToCase pattern: Add + CASE_PARTICIPANT + target=VULNERABILITY_CASE
+    # UpdateCaseParticipant pattern: Update + CASE_PARTICIPANT
     activity = make(
-        as_Add,
+        as_Update,
         actor="https://example.org/alice",
         object_=participant,
-        target="https://example.org/cases/1",
+        context="https://example.org/cases/1",
     )
     event = extract_stamped(activity)
 
-    p = cast(Any, event).participant
+    p = cast(Any, event).object_
     assert p is not None
     assert CVDRole.VENDOR in p.case_roles
 

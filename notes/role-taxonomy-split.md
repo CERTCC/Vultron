@@ -108,8 +108,8 @@ role as a default. That clause survives precisely because the wire
 form still carries a string, so an unparseable value still has to be refused
 at the edge.
 
-**Stays: `PROTECTED_ROLES` and `RemovalTargetIsRemovableNode`.** The earlier
-reading of this one was wrong, and the constant's own comment — "Roles a
+**Stays: `PROTECTED_ROLES` and `NamedParticipantIsNotProtectedNode`.** The
+earlier reading of this one was wrong, and the constant's own comment — "Roles a
 removal may not take away" — is where the error came from. CM-31-004 refuses
 the *removal of a participant* that holds `CASE_MANAGER` or `CASE_OWNER`,
 because a case always has a CASE_MANAGER (CM-02-014) and ownership is
