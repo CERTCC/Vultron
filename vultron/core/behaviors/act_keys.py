@@ -60,7 +60,6 @@ __all__ = [
     "ANNOUNCE_ID",
     "CASE_ACTOR_ID",
     "CASE_ID",
-    "CASE_MANAGER_ID",
     "CAUSE_ID",
     "EMBARGO",
     "EMBARGO_ID",
@@ -229,17 +228,13 @@ INVITEE_ID = _act_key(
     str,
     "The id of the actor an invitation names as its invitee.",
 )
-CASE_MANAGER_ID = _act_key(
-    "case_manager_id",
-    str,
-    "The id of the CASE_MANAGER actor of the case a trigger acts on, as"
-    " ``ResolveCaseManagerNode`` publishes it.",
-)
 CASE_ACTOR_ID = _act_key(
     "case_actor_id",
     str,
-    "The id of the CASE_MANAGER actor of the case, as the path stage, the"
-    " manager-role guard and the replay stage publish it.",
+    "The id of the CASE_MANAGER actor of the case the act is about, as the"
+    " path stage, the manager-role guard, the replay stage and"
+    " ``ResolveCaseManagerNode`` publish it.  The one key for that id:"
+    " every tree reads the manager from it.",
 )
 EMBARGO_PROPOSER_ID = _act_key(
     "embargo_proposer_id",
