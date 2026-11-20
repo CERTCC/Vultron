@@ -231,7 +231,13 @@ def terminate_embargo_bt(
                         case_id,
                     ),
                 ],
-                otherwise=[ask],
+                # The ask reads the manager's id off ``/case_actor_id``, which
+                # the role guards ahead of it publish too, so it is resolved
+                # again here rather than relied on to survive them.
+                otherwise=[
+                    with_case_id(ResolveCaseManagerNode(), case_id),
+                    ask,
+                ],
             ),
         ],
     )

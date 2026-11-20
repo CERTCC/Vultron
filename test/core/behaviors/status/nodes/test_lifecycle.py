@@ -253,7 +253,7 @@ class TestThreatTerminationBranchNodeProposedEmPath:
 class TestEmitCloseCaseNode:
     def test_succeeds_when_no_factory(self, populated_bridge):
         """No trigger_activity_factory → best-effort SUCCESS (receive-side)."""
-        # Seed blackboard with a case_manager_id
+        # Seed blackboard with the CASE_MANAGER id on /case_actor_id
         py_trees.blackboard.Blackboard.storage["/case_actor_id"] = (
             CASE_MANAGER_ID
         )
