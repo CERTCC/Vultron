@@ -199,7 +199,7 @@ def create_case_from_proposal_act(
             AddOwnerParticipantNode(
                 owner_uri=proposer_uri,
                 report_id=report_id,
-                case_roles=proposer_case_roles,
+                proposer_case_roles=proposer_case_roles,
             ),
             # ADR-0041 AC-2: add reporter at RM.ACCEPTED
             AddReporterParticipantNode(report_id=report_id),

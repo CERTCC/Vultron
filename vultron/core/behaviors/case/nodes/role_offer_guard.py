@@ -97,14 +97,14 @@ class RoleOfferAdmissibleNode(
         self,
         case_id: str,
         offer_id: str,
-        role: CVDRole | None,
+        offered_role: CVDRole | None,
         target_actor_id: str | None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.offer_id = offer_id
-        self.role = role
+        self.role = offered_role
         self.target_actor_id = target_actor_id
         self.is_redelivery = False
         """``True`` when the last run found this Offer already ledgered: a

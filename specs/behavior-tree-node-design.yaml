@@ -125,13 +125,18 @@ groups:
     kind: project
     statement: >-
       A BT node constructor, and a tree factory, MUST NOT take a per-act value
-      (BTND-01-008) as a parameter. A constructor takes only configuration, such as
-      a name, a port name, a CVD role, a declared state or a child node.
+      (BTND-01-008) as a parameter. A CVD role that the act carries or that its
+      content decides is a per-act value, such as the roles an Invite offers or the
+      role a role Offer offers. A constructor takes only configuration, such as a
+      name, a port name, a CVD role the node is built to check, a declared state or
+      a child node.
     rationale: >-
       A per-act value baked in at build time makes the tree's shape depend on its
       data. Such a tree must be rebuilt for each item, which pushed nodes into
       nested runs (ADR-0207). A value fixed at build time also forces a store read
-      before the tree runs whenever the value is found in the store (ADR-0195).
+      before the tree runs whenever the value is found in the store (ADR-0195). A
+      role from the message changes with each act; a role a node checks, such as
+      "is the sender the Coordinator?", does not (maintainer, 2026-11-20, #6792).
     verification: >-
       The BTND-01-008 ratchet, `test/architecture/test_per_act_parameter_ratchet.py`,
       also reads the parameters of every module-level function under

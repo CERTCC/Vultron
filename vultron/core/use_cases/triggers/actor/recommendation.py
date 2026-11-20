@@ -309,7 +309,7 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
         if self._is_case_manager:
             return with_act_keys(
                 case_manager_invite_actor_trigger_bt(
-                    roles=roles,
+                    offered_roles=roles,
                     actor_config=self._actor_config,
                     captured=self._captured,
                 ),
