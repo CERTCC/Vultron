@@ -68,6 +68,7 @@ from vultron.core.models.case_projection import (
     ProjectionCut,
     ProjectionInputs,
 )
+from vultron.core.models.case_projection_profile import named_id
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.redacted import Redacted
 from vultron.core.models.vulnerability_item import (
@@ -398,7 +399,7 @@ def _read_act(entry: object) -> _Act | None:
         getattr(entry, "log_object_id", None)
     )
     log_index = _shown(getattr(entry, "log_index", None))
-    actor = _actor_id(payload.get("actor"))
+    actor = named_id(payload.get("actor"))
     date = _act_date(
         payload.get("published"), _shown(getattr(entry, "published", None))
     )
@@ -413,7 +414,7 @@ def _read_act(entry: object) -> _Act | None:
     recipients = tuple(
         recipient
         for recipient in (
-            _actor_id(value) for value in _as_list(payload.get("to"))
+            named_id(value) for value in _as_list(payload.get("to"))
         )
         if recipient is not None and recipient != actor
     )
@@ -423,7 +424,7 @@ def _read_act(entry: object) -> _Act | None:
         log_index=log_index,
         actor=actor,
         recipients=recipients,
-        in_reply_to=_actor_id(payload.get("inReplyTo")),
+        in_reply_to=named_id(payload.get("inReplyTo")),
         date=date,
         summary=ACTION_SUMMARIES.get(semantic_type),
     )
@@ -433,13 +434,6 @@ def _as_list(value: object) -> list[object]:
     if value is None:
         return []
     return value if isinstance(value, list) else [value]
-
-
-def _actor_id(value: object) -> str | None:
-    """The id *value* names: a string, or an object's ``id``."""
-    if isinstance(value, dict):
-        value = value.get("id")
-    return value if isinstance(value, str) and value else None
 
 
 def _act_date(claimed: object, committed: object) -> str | None:

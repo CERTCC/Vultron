@@ -21,9 +21,11 @@ from types import MappingProxyType
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from test.support.case_projection import (
     CASE_ID,
+    JOINED_ONLY_UNRENDERED,
     JOINED_ONLY_VALUES,
     PAYLOAD_ONLY_VALUE,
     POSITION,
@@ -223,9 +225,35 @@ def test_the_public_cut_shows_none_of_the_joined_only_values() -> None:
         projected_case(), projected_ledger(), JOINED_PROFILE
     ).model_dump_json()
 
-    for value in JOINED_ONLY_VALUES.values():
+    for value in [
+        *JOINED_ONLY_VALUES.values(),
+        *JOINED_ONLY_UNRENDERED.values(),
+    ]:
         assert value in joined
         assert value not in public
+
+
+@pytest.mark.spec("CSAF-06-002")
+def test_the_public_cut_shows_the_current_status_by_its_pxa_state_alone() -> (
+    None
+):
+    """The public profile omits the embargo register and the Case Owner, so
+    the status it shows carries neither the EM state nor its author."""
+    (public,) = _dumped_statuses(PUBLIC_PROFILE)
+    (joined,) = _dumped_statuses(JOINED_PROFILE)
+
+    assert public["pxaState"] == joined["pxaState"]
+    assert set(public) == {"id", "type", "context", "published", "pxaState"}
+    assert "emState" in joined
+
+
+def _dumped_statuses(profile: ProjectionProfile) -> list[dict[str, Any]]:
+    preview = CasePreview.for_projection(
+        projected_case(), projected_ledger(), profile
+    )
+    dumped = preview.model_dump(mode="json", by_alias=True, exclude_none=True)
+    statuses: list[dict[str, Any]] = dumped["caseStatuses"]
+    return statuses
 
 
 @pytest.mark.parametrize("profile", _PROFILES, ids=lambda p: p.name)
@@ -314,6 +342,28 @@ def test_a_cut_carries_the_name_and_label_of_its_profile(
         profile.distribution,
     )
     assert cut.preview == CasePreview.for_projection(case, ledger, profile)
+
+
+def test_a_cut_takes_no_name_or_label_apart_from_its_profile() -> None:
+    """The name and label are read from the profile the cut holds, so a cut
+    cannot state another profile's name or label beside it."""
+    preview = CasePreview.for_projection(
+        projected_case(), projected_ledger(), JOINED_PROFILE
+    )
+
+    with pytest.raises(ValidationError):
+        ProjectionCut.model_validate(
+            {
+                "preview": preview,
+                "profile": JOINED_PROFILE,
+                "profile_name": PUBLIC_PROFILE.name,
+                "distribution": PUBLIC_PROFILE.distribution,
+            }
+        )
+    with pytest.raises(ValidationError):
+        ProjectionCut.model_validate(
+            {"preview": preview, "profile": PUBLIC_PROFILE.name}
+        )
 
 
 @pytest.mark.spec("CSAF-06-009")

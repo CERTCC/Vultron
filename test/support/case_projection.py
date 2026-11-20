@@ -14,7 +14,9 @@
 
 :func:`projected_case` holds a value in every case field the public profile
 omits and the joined profile includes, each one a distinct string, so a test
-can look for it in a rendered document.  :func:`projected_ledger` holds one
+can look for it in a cut or a rendered document: :data:`JOINED_ONLY_VALUES`
+for the fields a joined document renders, :data:`JOINED_ONLY_UNRENDERED` for
+the ones no document renders, and the embargo end :data:`EMBARGO_END`.  :func:`projected_ledger` holds one
 entry per act with a CSAF meaning, and one with none.
 """
 
@@ -44,6 +46,9 @@ CASE_ID = "https://coordinator.example.org/cases/projected"
 COORDINATOR = "https://coordinator.example.org/actors/coordinator"
 VENDOR = "https://vendor.example.org/actors/vendor"
 REPORTER = "https://reporter.example.org/actors/reporter"
+#: The Case Owner, an actor apart from the projecting actor, so its id can
+#: be looked for in a document.
+CASE_OWNER = "https://owner.example.org/actors/case-owner"
 #: The commit time of the ledger entry at the case's position.
 COMMITTED_AT = datetime(2026, 11, 2, 12, 0, tzinfo=UTC)
 POSITION = LedgerPosition(log_index=7, entry_hash="ab" * 32)
@@ -57,6 +62,17 @@ JOINED_ONLY_VALUES = {
     "report": "The reporter's private proof of concept.",
     "reporter_name": "Pat Reporter of the private list",
 }
+
+#: A value of each case field the public profile omits and the joined one
+#: includes that no CSAF document renders: the cut shows it to the joined
+#: profile only, and no public document may hold it.
+JOINED_ONLY_UNRENDERED = {
+    "attributed_to": CASE_OWNER,
+    "notes": "https://coordinator.example.org/notes/private-note",
+}
+
+#: The case's related cases, which every projection omits.
+RELATED_CASE = "https://coordinator.example.org/cases/parent"
 
 PROJECTOR = ProjectingActor(
     id_=COORDINATOR,
@@ -84,10 +100,12 @@ def projected_case(**fields: Any) -> VulnerabilityCase:
     embargo = make(EmbargoEvent, context=CASE_ID, end_time=EMBARGO_END)
     defaults: dict[str, Any] = {
         "id_": CASE_ID,
-        "attributed_to": COORDINATOR,
+        "attributed_to": CASE_OWNER,
         "name": "Widget buffer overflow",
         "summary": "A buffer overflow in the widget parser.",
         "content": JOINED_ONLY_VALUES["content"],
+        "notes": [JOINED_ONLY_UNRENDERED["notes"]],
+        "parent_cases": [RELATED_CASE],
         "stub_summary": "The stub summary an invitee reads",
         "ledger_position": POSITION,
         "vulnerability_items": [

@@ -58,8 +58,8 @@ states their rules. No call site uses them yet.
 - **The projection port names no format; each format is an adapter.** The port
   takes a `ProjectionCut` (`ProjectionCut.of(case, ledger, profile)`, which carries
   the profile's name and label so a document cannot be labelled by another
-  profile) and `ProjectionInputs`; neither names a format, and the CSAF
-  adapter fixes the category, `csaf_base`. A CVE record drafted at the CVE ID
+  profile) and `ProjectionInputs`; neither names a format, and the call site
+  passes the CSAF category to the CSAF adapter. A CVE record drafted at the CVE ID
   assignment call-out and a CERT Vulnerability Note in the VINCE publication
   format are later adapters (#6759, #6760). A port shaped for CSAF would make each
   later format build a port of its own (CS-22-001).

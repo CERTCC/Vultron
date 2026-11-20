@@ -30,7 +30,7 @@ is not a case field.  Each call site uses one fixed profile:
 
 - :data:`PUBLIC_PROFILE`, at the draft step of the publication pipeline:
   the facts of a public advisory, with no participant, no ledger and no
-  embargo.
+  embargo register; its current case status shows only its PXA state.
 - :data:`JOINED_PROFILE`, at the operator's request for a document to give a
   party outside Vultron: what a joined participant sees, without the case
   bookkeeping.
@@ -55,6 +55,7 @@ from vultron.core.models.case_preview_profile import (
     PreviewOperation,
     Substitution,
     current_status,
+    held_current_status,
     preview_type,
 )
 from vultron.core.models.events.base import MessageSemantics
@@ -188,20 +189,20 @@ class ProjectionProfile:
         return kept or None
 
 
-def _named_id(value: object) -> object:
-    """The id *value* names: itself when a string, else an object's ``id``;
-    ``None`` when it names none."""
+def named_id(value: object) -> str | None:
+    """The id *value* names: itself when a non-empty string, else an
+    object's ``id``; ``None`` when it names none."""
     if isinstance(value, Mapping):
         value = value.get("id")
     return value if isinstance(value, str) and value else None
 
 
-def _ids_only(value: object) -> object:
+def _ids_only(value: object) -> str | list[str] | None:
     """*value*, one reference or a list of them, cut to the ids it names."""
     if isinstance(value, list):
-        named = [_named_id(item) for item in value]
+        named = [named_id(item) for item in value]
         return [item for item in named if item is not None] or None
-    return _named_id(value)
+    return named_id(value)
 
 
 def _cut_entry(entry: CaseLedgerEntry) -> PreviewObject:
@@ -219,6 +220,24 @@ def _cut_entry(entry: CaseLedgerEntry) -> PreviewObject:
         entry.model_copy(update={"payload_snapshot": payload}),
         SHOWN_ENTRY_FIELDS,
     )
+
+
+#: The fields of the current case status a public projection shows: the
+#: status itself and its public, exploit and attack (PXA) state.  Its EM
+#: state and its author are left out, as the public profile leaves out the
+#: embargo register and the Case Owner.
+PUBLIC_STATUS_FIELDS = ("type_", "id_", "context", "published", "pxa")
+
+
+def public_status(case: VulnerabilityCase) -> object:
+    """The case's statuses reduced to the current one, cut to
+    :data:`PUBLIC_STATUS_FIELDS`.
+
+    Raises:
+        VultronActivityConstructionError: When the case holds no status
+            object to show, only ids.
+    """
+    return [to_loose(held_current_status(case), PUBLIC_STATUS_FIELDS)]
 
 
 def _substitute(substitution: Substitution) -> PreviewFieldRule:
@@ -291,7 +310,12 @@ def _profile_rows(
 PUBLIC_PROFILE = ProjectionProfile(
     name="public-v1",
     distribution=DistributionLabel.CLEAR,
-    fields=_profile_rows({name: _OMIT for name in _JOINED_ONLY}),
+    fields=_profile_rows(
+        {
+            **{name: _OMIT for name in _JOINED_ONLY},
+            "case_statuses": _substitute(public_status),
+        }
+    ),
 )
 
 #: The profile of the operator's request for a document to give a party
@@ -308,8 +332,11 @@ __all__ = [
     "JOINED_LEDGER_ACTS",
     "JOINED_PROFILE",
     "PUBLIC_PROFILE",
+    "PUBLIC_STATUS_FIELDS",
     "SHOWN_ENTRY_FIELDS",
     "SHOWN_PAYLOAD_KEYS",
     "DistributionLabel",
     "ProjectionProfile",
+    "named_id",
+    "public_status",
 ]

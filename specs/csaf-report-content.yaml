@@ -814,8 +814,11 @@ groups:
       renders a preview built by hand, with no case behind it, from the cut
       and the inputs alone;
       `test/core/models/test_case_projection_profile.py::test_a_cut_carries_the_name_and_label_of_its_profile`
-      checks that a cut names the profile that made it; and
-      `::test_a_preview_with_no_identity_is_refused` checks that a preview that
+      checks that a cut names the profile that made it, and
+      `::test_a_cut_takes_no_name_or_label_apart_from_its_profile` that it
+      cannot state another profile's name or label; and
+      `test/wire/csaf/test_projection.py::test_a_preview_with_no_identity_is_refused`
+      checks that a preview that
       shows no ledger position is refused rather than completed from elsewhere.
   - id: CSAF-06-002
     priority: MUST_NOT
@@ -832,14 +835,21 @@ groups:
     verification: >-
       `test/wire/csaf/test_projection.py::test_a_value_the_public_profile_omits_appears_nowhere`
       renders a case holding a distinct value in each field the public profile
-      omits and checks that each appears in the joined document and nowhere in
-      the public one; `::test_a_value_only_a_ledger_payload_holds_appears_nowhere`
-      and `::test_the_case_bookkeeping_appears_nowhere` check the same of a
-      ledger payload's object and of the case bookkeeping, and
+      omits that a joined document renders (content, reports, participants)
+      and checks that each appears in the joined document and nowhere in the
+      public one;
+      `::test_a_value_the_public_profile_omits_and_no_document_renders_appears_nowhere`
+      checks the Case Owner and the notes, which no document renders, and
+      `::test_only_the_joined_projection_dates_the_embargos_end` the embargo
+      end; `::test_a_value_only_a_ledger_payload_holds_appears_nowhere` and
+      `::test_the_case_bookkeeping_appears_nowhere` check the same of a ledger
+      payload's object and of the case bookkeeping, and
       `::test_a_redacted_field_renders_as_an_absence_with_no_note` checks that a
       marked field leaves no trace.
       `test/core/models/test_case_projection_profile.py::test_the_public_cut_shows_none_of_the_joined_only_values`
-      checks the cut itself.
+      checks the cut itself, and
+      `::test_the_public_cut_shows_the_current_status_by_its_pxa_state_alone`
+      that the public cut's status carries no EM state and no author.
   - id: CSAF-06-003
     priority: MUST
     kind: project

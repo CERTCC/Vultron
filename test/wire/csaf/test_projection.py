@@ -30,10 +30,13 @@ from test.support.case_projection import (
     CASE_ID,
     COMMITTED_AT,
     COORDINATOR,
+    EMBARGO_END,
+    JOINED_ONLY_UNRENDERED,
     JOINED_ONLY_VALUES,
     PAYLOAD_ONLY_VALUE,
     POSITION,
     PROJECTOR,
+    RELATED_CASE,
     REPORTER,
     VENDOR,
     ledger_entry,
@@ -128,11 +131,7 @@ def _preview(profile: ProjectionProfile, **case_fields: Any) -> CasePreview:
 
 def _cut(preview: CasePreview, profile: ProjectionProfile) -> ProjectionCut:
     """*preview* as a cut by *profile*, built by hand."""
-    return ProjectionCut(
-        preview=preview,
-        profile_name=profile.name,
-        distribution=profile.distribution,
-    )
+    return ProjectionCut(preview=preview, profile=profile)
 
 
 def _csaf(
@@ -242,6 +241,14 @@ def test_a_value_the_public_profile_omits_appears_nowhere(value: str) -> None:
 
 
 @pytest.mark.spec("CSAF-06-002")
+@pytest.mark.parametrize("value", sorted(JOINED_ONLY_UNRENDERED.values()))
+def test_a_value_the_public_profile_omits_and_no_document_renders_appears_nowhere(
+    value: str,
+) -> None:
+    assert value not in _text(_render(PUBLIC_PROFILE))
+
+
+@pytest.mark.spec("CSAF-06-002")
 @pytest.mark.parametrize("profile", _PROFILES, ids=lambda p: p.name)
 def test_a_value_only_a_ledger_payload_holds_appears_nowhere(
     profile: ProjectionProfile,
@@ -259,6 +266,7 @@ def test_the_case_bookkeeping_appears_nowhere(
 
     assert "The stub summary an invitee reads" not in text
     assert case.genesis_hash not in text
+    assert RELATED_CASE not in text
 
 
 @pytest.mark.spec("CSAF-06-002")
@@ -619,12 +627,15 @@ def test_each_vul_item_renders_its_ids_title_and_notes() -> None:
     assert vulnerability["notes"][0]["title"] == "What goes wrong"
 
 
+@pytest.mark.spec("CSAF-06-002")
 def test_only_the_joined_projection_dates_the_embargos_end() -> None:
-    (public,) = _render(PUBLIC_PROFILE)["vulnerabilities"]
+    public_document = _render(PUBLIC_PROFILE)
+    (public,) = public_document["vulnerabilities"]
     (joined,) = _render(JOINED_PROFILE)["vulnerabilities"]
 
     assert "disclosure_date" not in public
-    assert "disclosure_date" in joined
+    assert datetime.fromisoformat(joined["disclosure_date"]) == EMBARGO_END
+    assert EMBARGO_END.date().isoformat() not in _text(public_document)
 
 
 def test_a_case_with_no_vul_items_has_no_vulnerabilities() -> None:
@@ -777,3 +788,112 @@ def test_an_act_with_no_time_at_all_is_left_out() -> None:
     )
 
     assert "involvement" not in document
+
+
+def _parsed(**preview_fields: Any) -> CasePreview:
+    """A preview parsed from its wire keys, as a received one is: the cuts
+    no profile makes, shown to the renderer alone."""
+    return CasePreview.model_validate(
+        {
+            "id": CASE_ID,
+            "ledgerPosition": {"logIndex": 0, "entryHash": "ef"},
+            **preview_fields,
+        }
+    )
+
+
+def _joined_document(preview: CasePreview) -> dict[str, Any]:
+    return _document(_csaf(preview, _inputs(JOINED_PROFILE), JOINED_PROFILE))
+
+
+def _entry(semantic_type: str, **payload: Any) -> dict[str, Any]:
+    return {
+        "type": "CaseLedgerEntry",
+        "logIndex": 0,
+        "logObjectId": "https://example.org/activities/by-log",
+        "semanticType": semantic_type,
+        "payloadSnapshot": {
+            "actor": REPORTER,
+            "published": COMMITTED_AT.isoformat(),
+            **payload,
+        },
+    }
+
+
+def test_a_report_that_shows_no_content_gives_no_note() -> None:
+    preview = _parsed(
+        vulnerabilityReports=[
+            {"type": "VulnerabilityReport", "name": "A titled report"},
+            {"type": "VulnerabilityReport", "content": {"type": "Redacted"}},
+        ]
+    )
+
+    notes = _joined_document(preview).get("notes", [])
+
+    assert [note for note in notes if note["category"] == "details"] == []
+
+
+def test_a_reference_that_shows_no_url_is_left_out() -> None:
+    preview = _parsed(
+        caseReferences=[
+            {"type": "CaseReference", "name": "No link"},
+            {"type": "CaseReference", "url": {"type": "Redacted"}},
+            {
+                "type": "CaseReference",
+                "url": {"type": "Link", "href": {"type": "Redacted"}},
+            },
+        ]
+    )
+
+    references = _document(_csaf(preview, _inputs(PUBLIC_PROFILE)))[
+        "references"
+    ]
+
+    assert [r["category"] for r in references] == ["self"]
+
+
+def test_an_entry_whose_act_has_no_csaf_meaning_gives_no_action() -> None:
+    unmapped = next(
+        semantic
+        for semantic in MessageSemantics
+        if semantic.value not in ACTION_CATEGORIES
+    )
+    preview = _parsed(
+        ledgerEntries=[
+            _entry(unmapped.value, id="https://example.org/activities/0")
+        ]
+    )
+
+    assert "involvement" not in _joined_document(preview)
+
+
+def test_an_act_that_shows_no_id_is_named_by_its_log_object() -> None:
+    preview = _parsed(
+        ledgerEntries=[
+            _entry(MessageSemantics.SUBMIT_REPORT.value),
+            _entry(MessageSemantics.SUBMIT_REPORT.value),
+        ]
+    )
+
+    actions = _joined_document(preview)["involvement"]["actions"]
+
+    # Both entries name one log object, so they are one act.
+    assert [action["action_id"] for action in actions] == ["ACT-0"]
+
+
+def test_an_actor_the_preview_does_not_show_is_an_other_entity() -> None:
+    preview = _parsed(
+        caseParticipants=[
+            {"type": "CaseParticipant", "caseRoles": ["REPORTER"]},
+        ],
+        ledgerEntries=[
+            _entry(
+                MessageSemantics.SUBMIT_REPORT.value,
+                id="https://example.org/activities/0",
+            )
+        ],
+    )
+
+    (entity,) = _joined_document(preview)["involvement"]["entities"]
+
+    assert (entity["category"], entity["name"]) == ("other", REPORTER)

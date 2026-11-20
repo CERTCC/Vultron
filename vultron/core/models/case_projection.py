@@ -41,7 +41,13 @@ from collections.abc import Sequence
 from enum import StrEnum
 from typing import Self
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    InstanceOf,
+    model_validator,
+)
 
 from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
@@ -111,18 +117,27 @@ class Acknowledgment(_Value):
 class ProjectionCut(_Value):
     """A case and its ledger cut by one projection profile (ADR-0219).
 
-    Built by :meth:`of`, so the name and label are those of the profile
-    that cut :attr:`preview`.
+    Built by :meth:`of`.  The cut holds the profile itself, and its name and
+    label are read from it, so a document cannot be named by one profile and
+    labelled by another.
 
     Attributes:
         preview: The cut.
-        profile_name: The versioned name of the profile that cut it.
-        distribution: The label every document of the cut is shared under.
+        profile: The profile that cut it.
     """
 
     preview: CasePreview
-    profile_name: NonEmptyString
-    distribution: DistributionLabel
+    profile: InstanceOf[ProjectionProfile]
+
+    @property
+    def profile_name(self) -> str:
+        """The versioned name of the profile that cut :attr:`preview`."""
+        return self.profile.name
+
+    @property
+    def distribution(self) -> DistributionLabel:
+        """The label every document of the cut is shared under."""
+        return self.profile.distribution
 
     @classmethod
     def of(
@@ -140,8 +155,7 @@ class ProjectionCut(_Value):
         """
         return cls(
             preview=CasePreview.for_projection(case, ledger, profile),
-            profile_name=profile.name,
-            distribution=profile.distribution,
+            profile=profile,
         )
 
 

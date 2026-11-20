@@ -49,6 +49,7 @@ from pydantic import BaseModel
 from vultron.core.models._helpers import new_object_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.preview_object import to_loose
 from vultron.core.models.redacted import Redacted
@@ -176,6 +177,22 @@ def preview_type(_case: VulnerabilityCase) -> object:
     return "CasePreview"
 
 
+def held_current_status(case: VulnerabilityCase) -> CaseStatus:
+    """The case's current status, held as an object (CM-17-013).
+
+    Raises:
+        VultronActivityConstructionError: When the case holds no status
+            object to show, only ids.
+    """
+    try:
+        return case.current_status
+    except ValueError as exc:
+        raise VultronActivityConstructionError(
+            f"case {case.id_!r} holds no case status to show its current one"
+            " (CM-17-013)"
+        ) from exc
+
+
 def current_status(case: VulnerabilityCase) -> object:
     """The case's statuses reduced to the current one, whole (CM-17-013).
 
@@ -183,14 +200,7 @@ def current_status(case: VulnerabilityCase) -> object:
         VultronActivityConstructionError: When the case holds no status
             object to show, only ids.
     """
-    try:
-        current = case.current_status
-    except ValueError as exc:
-        raise VultronActivityConstructionError(
-            f"case {case.id_!r} holds no case status to show its current one"
-            " (CM-17-013)"
-        ) from exc
-    return [to_loose(current)]
+    return [to_loose(held_current_status(case))]
 
 
 def _in_force_embargo(case: VulnerabilityCase) -> object:
@@ -436,5 +446,6 @@ __all__ = [
     "Substitution",
     "current_status",
     "cut_case",
+    "held_current_status",
     "preview_type",
 ]
