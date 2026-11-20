@@ -111,7 +111,7 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
     invite_id = getattr(obj, "id_", None)
     if not isinstance(case_id, str) or not invitee_id or not invite_id:
         return None
-    # The embargo terms the preview's in-force register entry shows, by id;
+    # The embargo terms the preview's in-force embargo shows, by id;
     # a withheld or id-less embargo names none (ADR-0217).
     embargo_id = preview_embargo_id(getattr(reference, "preview", None))
     return RecordedStubInvite(
@@ -209,7 +209,7 @@ def superseded_reason(
 def current_preview_embargo_id(case: VulnerabilityCase) -> str | None:
     """The embargo whose terms a stub Invite sent now would carry.
 
-    The embargo of the one register entry a preview's ``embargoRegister``
+    The one embargo a preview's ``embargoRegister``
     keeps, the in-force one: EM ``ACTIVE`` or ``REVISE``, never the open
     revision (CM-17-002, CM-17-014).  With none in force it carries none.
     """

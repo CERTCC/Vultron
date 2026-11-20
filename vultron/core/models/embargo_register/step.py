@@ -147,14 +147,14 @@ def _step_violations(
             violations.append(f"'{change.embargo_id}': {exc}")
     if _T.SUPERSEDE in triggers and _T.ACTIVATE not in triggers:
         violations.append(
-            "SUPERSEDE is legal only in the step that activates another entry"
+            "SUPERSEDE is legal only in the step that activates another embargo"
         )
     if _T.CANCEL in triggers and _T.TERMINATE not in triggers:
         active_before = any(entry.status == _S.ACTIVE for entry in entries)
         if not threat_signal or active_before:
             violations.append(
                 "CANCEL is legal only with a TERMINATE, or on a threat"
-                " signal while no entry is ACTIVE"
+                " signal while no embargo is ACTIVE"
             )
     return violations
 

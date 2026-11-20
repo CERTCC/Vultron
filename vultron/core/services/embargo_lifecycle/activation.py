@@ -38,7 +38,6 @@ from vultron.core.models.embargo_termination import (
     end_time_violations,
     has_reached_end_time,
 )
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle.pec_activation import (
     _PecActivationMixin,
 )
@@ -46,35 +45,20 @@ from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import VultronInvalidStateTransitionError
 
 logger = logging.getLogger(__name__)
 
 
-def embargo_in_force(
-    store: CasePersistence, case: VulnerabilityCase
-) -> EmbargoEvent | None:
+def embargo_in_force(case: VulnerabilityCase) -> EmbargoEvent | None:
     """The embargo in force on *case*, or ``None`` when there is none.
 
-    Read inline from the register when carried there, else from *store*,
-    failing closed (EMB-18-003).
-
-    Raises:
-        VultronNotFoundError: the embargo in force cannot be read.
-        VultronNotAnEmbargoError: its record is not an ``EmbargoEvent``.
+    Read from the register, which holds each embargo whole (ADR-0202).
     """
-    active = case.active_embargo
-    embargo_id = case.active_embargo_id
-    if active is None or embargo_id is None:
-        return None
-    if isinstance(active, EmbargoEvent):
-        return active
-    return read_embargo_event(store, embargo_id)
+    return case.active_embargo
 
 
 def termination_timing_violations(
-    store: CasePersistence,
     case: VulnerabilityCase,
     termination: EmbargoTermination,
     at: datetime | None,
@@ -87,35 +71,27 @@ def termination_timing_violations(
     The embargo is read by :func:`embargo_in_force`.  No embargo in force, or
     an early termination, has nothing to check.
 
-    Raises:
-        VultronNotFoundError: the embargo in force cannot be read.
     """
     if not termination.is_end_time_reached:
         return []
-    embargo = embargo_in_force(store, case)
+    embargo = embargo_in_force(case)
     if embargo is None:
         return []
     return end_time_violations(termination, end_time=embargo.end_time, at=at)
 
 
-def embargo_end_time_passed(
-    store: CasePersistence, case: VulnerabilityCase, at: datetime
-) -> bool:
+def embargo_end_time_passed(case: VulnerabilityCase, at: datetime) -> bool:
     """Whether *case*'s embargo in force has reached its end time at *at*.
 
     ``False`` when no embargo is in force.  The embargo is read by
     :func:`embargo_in_force`; the rule is
     :func:`~vultron.core.models.embargo_termination.has_reached_end_time`.
-
-    Raises:
-        VultronNotFoundError: the embargo in force cannot be read.
     """
-    embargo = embargo_in_force(store, case)
+    embargo = embargo_in_force(case)
     return embargo is not None and has_reached_end_time(embargo.end_time, at)
 
 
 def decide_termination(
-    store: CasePersistence,
     case: VulnerabilityCase,
     termination: TerminationRequest,
     terminated_at: datetime | None,
@@ -134,7 +110,6 @@ def decide_termination(
     Raises:
         VultronInvalidStateTransitionError: no embargo is in force, the
             threat signals are not set, or the termination is not yet due.
-        VultronNotFoundError: the embargo in force cannot be read.
     """
     embargo_id = case.active_embargo_id
     if embargo_id is None:
@@ -149,7 +124,7 @@ def decide_termination(
                 f"Case '{case.id_}': {exc}"
             ) from exc
     violations = termination_timing_violations(
-        store, case, termination, terminated_at
+        case, termination, terminated_at
     )
     if violations:
         raise VultronInvalidStateTransitionError(

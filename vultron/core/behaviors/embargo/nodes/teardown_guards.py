@@ -122,7 +122,8 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
     carries no time (EMB-13-008); SUCCESS otherwise, an early termination
     or a case with no embargo in force included.  It runs among the received
     tree's precondition guards, so a refused termination is never committed
-    (CLP-10-006).  An embargo that cannot be read fails closed (EMB-18-003).
+    (CLP-10-006).  The end time is read from the registered embargo in force
+    (ADR-0202).
 
     With *embargo_id* (the embargo the ``Remove`` names) in force, the
     ``TERMINATE`` step is also trial-applied through the one apply function
@@ -184,11 +185,11 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
             or case.active_embargo_id != self._embargo_id
         ):
             return termination_timing_violations(
-                dl, case, self._termination, self._terminated_at
+                case, self._termination, self._terminated_at
             )
         try:
             step = decide_termination(
-                dl, case, self._termination, self._terminated_at
+                case, self._termination, self._terminated_at
             )
             trial_apply(read_embargo_case_file(dl, self.case_id), [step])
         except (

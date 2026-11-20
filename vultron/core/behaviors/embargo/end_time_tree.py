@@ -46,8 +46,6 @@ beside a ``PROPOSED`` one (EP-08-004), then the ``Add(CaseStatus)`` and each
 re-issued stub ``Invite`` (CLP-10-052).
 """
 
-from typing import cast
-
 import py_trees
 from py_trees.common import Status
 
@@ -73,10 +71,9 @@ from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     has_reached_end_time,
 )
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import embargo_in_force
 from vultron.core.states.em import EM
-from vultron.errors import BtNodePreconditionError, VultronError
+from vultron.errors import BtNodePreconditionError
 
 #: ``result_out`` key :class:`EmbargoAlreadyEndedNode` sets when the embargo
 #: had already ended, so the request is answered as already done.
@@ -172,14 +169,7 @@ class EmbargoEndTimePassedNode(DataLayerConditionWithPorts):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure
-        try:
-            embargo = embargo_in_force(
-                cast(CasePersistence, self.datalayer), case
-            )
-        except VultronError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        embargo = embargo_in_force(case)
         if embargo is None:
             self.feedback_message = (
                 f"No embargo in force on case '{self.case_id}'"

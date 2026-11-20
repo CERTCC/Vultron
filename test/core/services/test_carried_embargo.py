@@ -34,6 +34,7 @@ from vultron.core.services.carried_embargo import (
     store_carried_embargo,
 )
 from vultron.core.services.embargo_ordering import read_embargo_event
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 _ACTOR = "https://example.org/actors/receiver"
@@ -88,6 +89,27 @@ def test_an_inline_embargo_is_stored_as_its_own_record(
     store_carried_embargo(case, dl)
 
     assert isinstance(dl.read(embargo.id_), EmbargoEvent)
+
+
+def test_the_held_record_is_the_embargos_terms_without_register_state(
+    dl: SqliteDataLayer,
+) -> None:
+    """The register's copy is ``ACTIVE``; the held record carries no state,
+    so every store holds the same record (ADR-0202)."""
+    embargo = _embargo()
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE,
+        name="c",
+        embargo_register=register(active=embargo),
+    )
+    active = case.active_embargo
+    assert active is not None and active.status is EmbargoRegisterStatus.ACTIVE
+
+    store_carried_embargo(case, dl)
+
+    assert dl.read(embargo.id_) == active.with_register_state()
 
 
 @pytest.mark.spec("EMB-18-003")

@@ -82,7 +82,8 @@ def persist_creation_time_embargo(
             *case_id* with the same ``end_time``.
     """
     try:
-        persistence.create(embargo)
+        # A held record is the embargo's terms (ADR-0202).
+        persistence.create(embargo.with_register_state())
     except VultronAlreadyExistsError:
         stored = persistence.read(embargo.id_)
         if (

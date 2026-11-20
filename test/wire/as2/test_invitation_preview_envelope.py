@@ -267,26 +267,21 @@ def _item(**fields: Any) -> VulnerabilityItem:
     )
 
 
-#: The register shapes a case can be in: no embargo, an embargo in force
-#: (held inline or by id), a revision open beside it, only a proposal, and
-#: an ended embargo.
-_REGISTERS = ("none", "active", "active-by-id", "revise", "proposed", "ended")
+#: The register shapes a case can be in: no embargo, an embargo in force, a
+#: revision open beside it, only a proposal, and an ended embargo.
+_REGISTERS = ("none", "active", "revise", "proposed", "ended")
 #: What else the case holds, each a value the preview withholds or cuts.
 _CONTENT = ("bare", "full")
 _ITEMS = ("none", "object", "by-id")
 
 
-def _variant(
-    shape: str, content: str, items: str
-) -> tuple[VulnerabilityCase, EmbargoEvent | None]:
-    """A valid case of the given shape, and the embargo to pass when its
-    register names the one in force by id."""
+def _variant(shape: str, content: str, items: str) -> VulnerabilityCase:
+    """A valid case of the given shape."""
     embargo = _embargo()
     revision = _embargo()
     registers = {
         "none": [],
         "active": register(active=embargo),
-        "active-by-id": register(active=embargo),
         "revise": register(active=embargo, proposed=[revision]),
         "proposed": register(proposed=[embargo]),
         "ended": register(terminated=embargo),
@@ -308,7 +303,7 @@ def _variant(
         fields["vulnerability_items"] = [_item()]
     elif items == "by-id":
         fields["vulnerability_items"] = ["https://example.org/items/i1"]
-    return _case(**fields), embargo if shape == "active-by-id" else None
+    return _case(**fields)
 
 
 @pytest.mark.spec("CM-17-010")
@@ -322,9 +317,9 @@ def test_the_cut_of_every_valid_case_is_a_valid_preview(
 ) -> None:
     """Built by the sender, sent and parsed by the receiver: the preview
     passes the envelope check on both sides and reads back as sent."""
-    case, embargo = _variant(shape, content, items)
+    case = _variant(shape, content, items)
 
-    body = _invite_json(case, embargo_obj=embargo)
+    body = _invite_json(case)
     sent = copy.deepcopy(body["object"]["preview"])
     activity = _parse(body)
 

@@ -178,7 +178,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         port = self._require_trigger_activity_port()
-        for embargo in creation_embargoes(self.datalayer, case):
+        for embargo in creation_embargoes(case):
             self._commit_one(
                 case_id,
                 embargo.id_,

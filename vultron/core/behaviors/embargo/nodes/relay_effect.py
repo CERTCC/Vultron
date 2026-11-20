@@ -132,7 +132,8 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
             return False
         if embargo is None:
             return True
-        self.datalayer.create(embargo)
+        # A held record is the embargo's terms (ADR-0202).
+        self.datalayer.create(embargo.with_register_state())
         self.logger.debug(
             "%s: stored embargo '%s' from the canonical entry",
             self.name,
@@ -235,7 +236,8 @@ def _store_carried_embargo(
 ) -> None:
     """Store *embargo* unless this store already holds it."""
     if datalayer.read(embargo.id_) is None:
-        datalayer.create(embargo)
+        # A held record is the embargo's terms (ADR-0202).
+        datalayer.create(embargo.with_register_state())
 
 
 class _CopiedEmbargoEntryNode(ApplyEmbargoChangeFromLedgerNode):

@@ -104,7 +104,7 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         # the end-time path itself, so it takes no case-wide end-time check.
         if (
             not self._termination.is_end_time_reached
-            and embargo_end_time_passed(dl, self._case, self._now)
+            and embargo_end_time_passed(self._case, self._now)
         ):
             logger.info(
                 "Actor '%s': embargo on case '%s' has reached its end time —"
@@ -119,7 +119,6 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         # An end-time request before the end time is refused on every actor,
         # so a participant never asks the CASE_MANAGER for one (ADR-0122).
         violations = termination_timing_violations(
-            dl,
             self._case,
             self._termination,
             self._now,

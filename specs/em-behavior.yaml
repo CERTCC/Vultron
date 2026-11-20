@@ -1913,9 +1913,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A `TERMINATED` embargo MUST store its termination on the embargo itself:
-      its structured cause, the id of the act that caused it when known, and a
-      human reason in `summary` when one is given.
+      A `TERMINATED` embargo MUST store its termination on the embargo itself,
+      with its structured cause.
+      Beside the cause, the termination holds the id of the act that caused it
+      (`causedBy`) and a human reason (`summary`) when they are given.
       The cause is required, an object discriminated on `kind`, whose details
       depend on the kind.
       One kind is `END_TIME_REACHED`: the embargo reached its end time.
@@ -1976,7 +1977,12 @@ groups:
       `test/core/use_cases/received/test_termination_cause.py`
       (`test_end_time_reached_is_the_one_cause_kind_that_is_not_early`,
       `test_a_termination_with_no_cause_ended_early`) reads each cause kind and a
-      `Remove` with no cause, stored as `OTHER`.
+      `Remove` with no cause, stored as `OTHER`;
+      `test/core/use_cases/received/test_termination_reason.py`
+      (`test_case_manager_records_an_early_remove_as_early`,
+      `test_replica_replay_records_an_entry_with_no_cause_as_early`) confirms
+      the CASE_MANAGER and a replica both store `OTHER` for a received `Remove`
+      that names no cause.
     testable: true
     lint_suppress:
     - testable_without_steps
@@ -1995,9 +2001,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A termination `Remove(EmbargoEvent)` whose termination has a cause
-      (EMB-13-010), `END_TIME_REACHED` included, MUST carry it as
-      `terminationCause`.
+      A termination `Remove(EmbargoEvent)` MUST carry its termination's cause
+      (EMB-13-010), `END_TIME_REACHED` included, as `terminationCause`, except
+      a Case Owner's `Remove` whose cause only the CASE_MANAGER may name
+      (EMB-13-014), which carries none.
     rationale: >-
       One ledger entry is one activity, and the termination's entry is the
       whole `TERMINATE` register step (ADR-0124), so the why reaches a replica

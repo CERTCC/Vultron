@@ -34,7 +34,6 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronError, VultronNotFoundError
 
@@ -91,28 +90,15 @@ def genesis_record(
         ) from exc
 
 
-def creation_embargoes(
-    datalayer: CasePersistence, case: VulnerabilityCase
-) -> list[EmbargoEvent]:
-    """Each embargo *case*'s register names, in register order (CLP-07-013).
+def creation_embargoes(case: VulnerabilityCase) -> list[EmbargoEvent]:
+    """Each embargo *case*'s register holds, as its terms, in register order.
 
     The default embargo, and a contested creation's losing terms
-    (EP-04-003).  A replica's embargo decisions read the event's times, so
-    no entry may name it by id alone (#5122).
-
-    Raises:
-        _EntryNotCommitted: An embargo the register names cannot be read.
+    (EP-04-003, CLP-07-013).  A replica's embargo decisions read the event's
+    times, so each is carried whole (#5122); its register state is not part
+    of the created embargo (ADR-0202).
     """
-    embargoes: list[EmbargoEvent] = []
-    for embargo_id in case.register_embargo_ids:
-        try:
-            embargoes.append(read_embargo_event(datalayer, embargo_id))
-        except VultronError as exc:
-            raise _EntryNotCommitted(
-                f"embargo '{embargo_id}' of case '{case.id_}' cannot"
-                f" be read: {exc}"
-            ) from exc
-    return embargoes
+    return [embargo.with_register_state() for embargo in case.embargo_register]
 
 
 def creation_contents(

@@ -256,20 +256,29 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
         self._embargo_id = embargo_id
         self._embargo = embargo
 
-    def _register_step(self) -> RegisterStep:
-        """``PROPOSE`` with the embargo inline: *embargo*, or the stored one.
+    def _proposed_embargo(self) -> EmbargoEvent:
+        """The proposed embargo: *embargo*, or the stored one.
 
         Raises:
             VultronNotFoundError: no embargo to carry; the proposal is refused.
         """
-        embargo = self._embargo
-        if embargo is None:
-            assert self.datalayer is not None
-            stored = self.datalayer.read(self._embargo_id)
-            if not isinstance(stored, EmbargoEvent):
-                raise VultronNotFoundError("EmbargoEvent", self._embargo_id)
-            embargo = stored
-        return RegisterStep(kind=RegisterStepKind.PROPOSE, embargo=embargo)
+        if self._embargo is not None:
+            return self._embargo
+        assert self.datalayer is not None
+        stored = self.datalayer.read(self._embargo_id)
+        if not isinstance(stored, EmbargoEvent):
+            raise VultronNotFoundError("EmbargoEvent", self._embargo_id)
+        return stored
+
+    def _register_step(self) -> RegisterStep:
+        """``PROPOSE`` with the embargo inline (:meth:`_proposed_embargo`).
+
+        Raises:
+            VultronNotFoundError: no embargo to carry; the proposal is refused.
+        """
+        return RegisterStep(
+            kind=RegisterStepKind.PROPOSE, embargo=self._proposed_embargo()
+        )
 
     def _case_id(self) -> str:
         return self._case_id_value
@@ -284,7 +293,7 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
             embargo_id=self._embargo_id,
             actor_id=read_embargo_proposer(self),
             transition_mode=TransitionMode.STRICT,
-            embargo=self._embargo,
+            embargo=self._proposed_embargo(),
         )
 
 

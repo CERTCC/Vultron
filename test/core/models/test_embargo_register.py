@@ -772,6 +772,25 @@ def test_a_proposal_must_carry_its_embargo() -> None:
         RegisterChange(embargo_id=A, trigger=T.PROPOSE)
 
 
+@pytest.mark.parametrize("trigger", [t for t in T if t != T.PROPOSE])
+def test_only_a_proposal_carries_an_embargo(trigger: T) -> None:
+    termination = (
+        EmbargoTermination.other() if trigger == T.TERMINATE else None
+    )
+    with pytest.raises(ValueError, match="embargo object"):
+        RegisterChange(
+            embargo_id=A,
+            trigger=trigger,
+            embargo=stand_in(A),
+            termination=termination,
+        )
+
+
+def test_a_proposal_carries_the_embargo_under_its_own_id() -> None:
+    with pytest.raises(ValueError, match="its own id"):
+        RegisterChange(embargo_id=A, trigger=T.PROPOSE, embargo=stand_in(B))
+
+
 def test_the_register_round_trips_through_its_wire_spelling() -> None:
     case = _case()
     propose(case, A)

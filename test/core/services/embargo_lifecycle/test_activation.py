@@ -538,7 +538,6 @@ def test_decide_termination_names_the_step_and_writes_nothing(
     dl.save(case)
 
     step = decide_termination(
-        dl,
         case,
         ThreatSignalTermination(signals=[ThreatSignal.X]),
         None,
@@ -577,4 +576,4 @@ def test_decide_termination_refuses(
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
-        decide_termination(dl, case, request, now_utc())
+        decide_termination(case, request, now_utc())

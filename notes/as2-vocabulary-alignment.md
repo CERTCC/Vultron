@@ -381,8 +381,8 @@ natural language summarization of the object".
 included, in the Vultron `terminationCause`
 (`vultron/wire/as2/vocab/activities/embargo.py`,
 `vultron/core/models/embargo_termination.py`); `content` carries no what. The status,
-`replaces` and termination are on the register entry
-(`vultron/core/models/embargo_register/entry.py`), not the embargo. The Owner's
+`replaces` and termination are on the embargo
+(`vultron/core/models/embargo_event.py`, ADR-0202). The Owner's
 `Remove` is ledgered as received (EMB-13-003, EMB-13-013). Teardown:
 `vultron/core/behaviors/embargo/nodes/teardown.py`; EMB-19.
 
