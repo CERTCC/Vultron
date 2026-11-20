@@ -423,13 +423,16 @@ def _stated_or_claimed(
     outcomes: dict[str, ClaimOutcome],
 ) -> str | None:
     """Take *stated* over *claimed*, recording the claim's outcome at *path*."""
-    if claimed is None:
-        return stated
-    if stated is not None:
-        outcomes[path] = ClaimOutcome.OVERRIDDEN
-        return stated
-    outcomes[path] = ClaimOutcome.APPLIED
-    return claimed
+    if claimed is not None:
+        outcomes[path] = (
+            ClaimOutcome.APPLIED if stated is None else ClaimOutcome.OVERRIDDEN
+        )
+    return _prefer_stated(stated, claimed)
+
+
+def _prefer_stated(stated: str | None, claimed: str | None) -> str | None:
+    """*stated* when it is given, else *claimed* (CSAF-02-003)."""
+    return stated if stated is not None else claimed
 
 
 def proposed_case_inputs_from_claims(
@@ -457,13 +460,9 @@ def proposed_case_inputs_from_claims(
         for vul in claims.vulnerabilities
         if vul.disclosure_date is not None
     ]
-    # Outcomes are the CASE_MANAGER's record (_claim_outcomes); none here.
-    unrecorded: dict[str, ClaimOutcome] = {}
     return ProposedCaseInputs(
-        name=_stated_or_claimed("name", stated.name, claims.name, unrecorded),
-        summary=_stated_or_claimed(
-            "summary", stated.summary, claims.summary, unrecorded
-        ),
+        name=_prefer_stated(stated.name, claims.name),
+        summary=_prefer_stated(stated.summary, claims.summary),
         exploit_public=any(_exploit_public(v) for v in claims.vulnerabilities),
         attacks_observed=any(
             _attacks_observed(v) for v in claims.vulnerabilities

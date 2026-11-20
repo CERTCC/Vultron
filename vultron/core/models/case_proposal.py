@@ -308,8 +308,7 @@ class CaseProposal(CoreObject):
 
         An Offer's id names it (CP-01-007); an embedded value must be the
         whole Offer (CP-01-008), since a reference that only names one, with
-        no ``actor`` and no ``object``, carries none of the Reporter's terms
-        (MV-10-011).
+        no ``actor``, carries none of the Reporter's terms (MV-10-011).
         """
         if value is None or isinstance(value, str):
             return value

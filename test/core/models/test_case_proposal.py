@@ -47,6 +47,7 @@ from vultron.core.models.vulnerability_item import (
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
 )
@@ -228,4 +229,21 @@ def test_in_reply_to_refuses_an_object_that_is_not_an_offer() -> None:
             object_=_report(),
             target=_CASE_ACTOR,
             in_reply_to=_report(),
+        )
+
+
+@pytest.mark.spec("CP-01-008", "MV-10-011")
+def test_in_reply_to_refuses_a_reference_that_only_names_an_offer() -> None:
+    """A typed reference names the Offer but carries none of its terms."""
+    reference = as_TypedReference(
+        id_="https://example.org/offers/1", type_="Offer"
+    )
+
+    with pytest.raises(ValidationError, match="without carrying it"):
+        make(
+            CaseProposal,
+            attributed_to=_VENDOR,
+            object_=_report(),
+            target=_CASE_ACTOR,
+            in_reply_to=reference,
         )

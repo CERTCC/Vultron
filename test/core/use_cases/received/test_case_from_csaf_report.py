@@ -125,7 +125,12 @@ def _created(receipt: Receipt) -> tuple[CaseManager, VulnerabilityCase]:
 
 def _embargo_end(manager: CaseManager, case: VulnerabilityCase) -> datetime:
     assert case.em_state is EM.ACTIVE
-    embargo = manager.dl.read(str(case.active_embargo_id))
+    return _stored_end(manager, str(case.active_embargo_id))
+
+
+def _stored_end(manager: CaseManager, embargo_id: str) -> datetime:
+    """The end of the embargo *manager* stores as *embargo_id*."""
+    embargo = manager.dl.read(embargo_id)
     assert isinstance(embargo, EmbargoEvent)
     return embargo.end_time
 
@@ -886,15 +891,15 @@ def _owner_with_default(receipt: Receipt, days: int) -> Receipt:
 
 @pytest.mark.spec("CP-01-024", "EP-04-003", "EP-04-016")
 @pytest.mark.parametrize(
-    ("default_days", "date", "active_end"),
+    ("default_days", "date", "active_end", "pending_end"),
     [
-        (30, _LATER, RECEIVED_AT + timedelta(days=30)),
-        (365, _SOONER, _when(_SOONER)),
+        (30, _LATER, RECEIVED_AT + timedelta(days=30), _when(_LATER)),
+        (365, _SOONER, _when(_SOONER), RECEIVED_AT + timedelta(days=365)),
     ],
     ids=["default-shorter", "date-shorter"],
 )
 def test_a_stated_date_is_weighed_against_the_owners_actor_default(
-    default_days: int, date: str, active_end: datetime
+    default_days: int, date: str, active_end: datetime, pending_end: datetime
 ) -> None:
     """The stated date is the Reporter's proposal: the shorter of it and the
     owner's actor default becomes active, the longer a pending revision."""
@@ -904,17 +909,12 @@ def test_a_stated_date_is_weighed_against_the_owners_actor_default(
         _with_inputs(receipt, _owner_inputs(disclosureDate=date))
     )
 
-    assert _pending_revision_end(manager, case) == active_end
-
-
-def _pending_revision_end(
-    manager: CaseManager, case: VulnerabilityCase
-) -> datetime:
-    """The active embargo's end, with the longer proposal pending (EM.REVISE)."""
     assert case.em_state is EM.REVISE
-    active = manager.dl.read(str(case.active_embargo_id))
-    assert isinstance(active, EmbargoEvent)
-    return active.end_time
+    assert _stored_end(manager, str(case.active_embargo_id)) == active_end
+    assert [
+        _stored_end(manager, revision_id)
+        for revision_id in case.pending_embargo_proposal_index
+    ] == [pending_end]
 
 
 @pytest.mark.spec("CP-01-024")
