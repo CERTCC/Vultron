@@ -156,14 +156,13 @@ class ResolveReportCaseInputsNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
         self._proposal_id = proposal_id
-        # All or nothing (CP-01-024): stated inputs leave no document to read.
-        self._reading = (
-            None if proposed is not None else filling_reading(readings)
-        )
+        self._reading = filling_reading(readings)
         self._stated = stated
         self._proposed = proposed
 
     def update(self) -> Status:
+        # The caller passes no readings with *proposed* (CP-01-024); given
+        # both, the stated inputs win and the reading is ignored.
         if self._proposed is None and self._reading is None:
             self._set_output(
                 REPORT_CASE_INPUTS_KEY,

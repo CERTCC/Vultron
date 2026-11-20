@@ -45,10 +45,11 @@ from test.wire.csaf._documents import section, vulnerability_report_document
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.actor import VultronOrganization, VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_claims import ClaimOutcome
@@ -854,15 +855,83 @@ def test_the_stated_date_is_judged_when_the_case_is_created() -> None:
 
 @pytest.mark.spec("CP-01-021", "CSAF-02-003")
 def test_the_offers_proposed_embargo_beats_the_stated_date() -> None:
-    proposed_end = _when(_SOONER)
+    """The Offer's end wins even when the stated date is earlier."""
+    proposed_end = _when(_LATER)
     body = _with_inputs(
         Receipt(proposed_embargo_end=proposed_end),
-        _owner_inputs(disclosureDate=_LATER),
+        _owner_inputs(disclosureDate=_SOONER),
     )
 
     manager, case = _created_from(body)
 
     assert _embargo_end(manager, case) == proposed_end
+
+
+def _owner_with_default(receipt: Receipt, days: int) -> Receipt:
+    """*receipt*'s receiver, publishing an actor default of *days* (EP-01-001)."""
+    receipt.dl.save(
+        make(
+            VultronService,
+            id_=VENDOR,
+            embargo_policy=make(
+                EmbargoPolicy,
+                id_=EmbargoPolicy.build_id(VENDOR),
+                attributed_to=VENDOR,
+                preferred_duration=timedelta(days=days),
+            ),
+        )
+    )
+    return receipt
+
+
+@pytest.mark.spec("CP-01-024", "EP-04-003", "EP-04-016")
+@pytest.mark.parametrize(
+    ("default_days", "date", "active_end"),
+    [
+        (30, _LATER, RECEIVED_AT + timedelta(days=30)),
+        (365, _SOONER, _when(_SOONER)),
+    ],
+    ids=["default-shorter", "date-shorter"],
+)
+def test_a_stated_date_is_weighed_against_the_owners_actor_default(
+    default_days: int, date: str, active_end: datetime
+) -> None:
+    """The stated date is the Reporter's proposal: the shorter of it and the
+    owner's actor default becomes active, the longer a pending revision."""
+    receipt = _owner_with_default(Receipt(), days=default_days)
+
+    manager, case = _created_from(
+        _with_inputs(receipt, _owner_inputs(disclosureDate=date))
+    )
+
+    assert _pending_revision_end(manager, case) == active_end
+
+
+def _pending_revision_end(
+    manager: CaseManager, case: VulnerabilityCase
+) -> datetime:
+    """The active embargo's end, with the longer proposal pending (EM.REVISE)."""
+    assert case.em_state is EM.REVISE
+    active = manager.dl.read(str(case.active_embargo_id))
+    assert isinstance(active, EmbargoEvent)
+    return active.end_time
+
+
+@pytest.mark.spec("CP-01-024")
+def test_empty_case_inputs_give_a_case_with_nothing_the_owner_left_out() -> (
+    None
+):
+    """All or nothing: inputs that state no name leave the case unnamed, even
+    though the report and its document name it."""
+    body = _with_inputs(
+        Receipt(csaf(_quiet_document()), report_name="Widget overflow"), {}
+    )
+
+    manager, case = _created_from(body)
+
+    assert (case.name, case.summary) == (None, None)
+    assert case.vulnerability_items == []
+    assert manager.records() == []
 
 
 @pytest.mark.spec("CP-01-025", "CP-01-029")

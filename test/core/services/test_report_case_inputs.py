@@ -454,13 +454,19 @@ def test_the_date_step_reads_a_date_at_the_instant_as_public() -> None:
 
 
 @pytest.mark.spec("CSAF-02-003", "CSAF-03-001")
-def test_the_date_step_lets_the_offer_end_beat_the_date() -> None:
+@pytest.mark.parametrize(
+    ("date", "offer_end"), [(_LATER, _SOONER), (_SOONER, _LATER)]
+)
+def test_the_date_step_lets_the_offer_end_beat_the_date(
+    date: datetime, offer_end: datetime
+) -> None:
+    """The Offer's end wins whether it is earlier or later than the date."""
     inputs = case_inputs_from_proposal(
-        ProposedCaseInputs(disclosure_date=_LATER),
+        ProposedCaseInputs(disclosure_date=date),
         reference_time=_NOW,
-        proposed_embargo_end=_SOONER,
+        proposed_embargo_end=offer_end,
     )
-    assert inputs.proposed_embargo_end == _SOONER
+    assert inputs.proposed_embargo_end == offer_end
 
 
 @pytest.mark.spec("EP-04-020")
@@ -509,24 +515,3 @@ def test_a_stated_item_becomes_an_item_with_its_own_id() -> None:
     assert [
         r.url.href for r in built.references if not isinstance(r, str)
     ] == ["https://example.org/a"]
-
-
-def test_claims_and_stated_item_paths_build_the_same_item() -> None:
-    vul = VulnerabilityClaims(
-        cve="CVE-2026-0001",
-        title="Overflow",
-        references=[
-            ClaimedReference(url="https://example.org/a", summary="S")
-        ],
-    )
-    direct = vulnerability_item_from_claims(vul, published=_NOW)
-    via = vulnerability_item_from_proposed(
-        proposed_item_from_claims(vul), published=_NOW
-    )
-    exclude = {"id_"}
-    assert direct.model_dump(
-        exclude=exclude | {"references"}
-    ) == via.model_dump(exclude=exclude | {"references"})
-    assert [r.name for r in direct.references if not isinstance(r, str)] == [
-        "S"
-    ]

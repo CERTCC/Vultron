@@ -54,11 +54,11 @@ from vultron.core.behaviors.case.offer_provenance import (
     find_offer_for_report,
     offer_id_from_proposal,
 )
+from vultron.core.models.activity import VultronOffer
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
@@ -446,7 +446,7 @@ class TestProposalCarriesTheOfferItself:
         proposal = self._propose(bridge, datalayer, actor.id_, report.id_)
 
         offer = proposal.in_reply_to
-        assert isinstance(offer, as_Offer)
+        assert isinstance(offer, VultronOffer)
         assert offer.id_ == offer_id
         terms = offer.proposed_embargo
         assert isinstance(terms, EmbargoEvent)

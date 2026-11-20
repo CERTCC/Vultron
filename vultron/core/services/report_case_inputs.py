@@ -15,17 +15,22 @@
 
 """The case inputs a report's attached document fills (CSAF-02, CSAF-03).
 
-One mapping serves both sides of a report:
+One mapping, in two halves, serves every side of a report:
 
-- the CASE_MANAGER fills the inputs of a case it creates from a proposal that
-  carries the initial ``Offer(VulnerabilityReport)``, measured against its
-  receipt of that proposal (CSAF-02-001, CSAF-03-001);
-- the Reporter's submit-report trigger fills the report name, summary and
-  proposed embargo end its request leaves unstated, measured against its own
-  "now" (CSAF-04-010).
+- :func:`proposed_case_inputs_from_claims` is the half that judges no date,
+  so a proposal can carry its result as ``caseInputs`` (CP-01-022, CP-01-023);
+- :func:`case_inputs_from_proposal` is the date step, which judges the
+  disclosure date at a reference time (CSAF-03-001, CSAF-03-003);
+- :func:`case_inputs_from_claims` composes the two and names what became of
+  each claimed value (CSAF-04-004).
 
-:func:`case_inputs_from_claims` is that mapping.  The reference time is a
-parameter, so neither caller reads a clock below its act's edge (ADR-0176).
+The CASE_MANAGER runs the date step at the instant it creates a case from a
+proposal: on the proposal's ``caseInputs`` when it carries them (CP-01-024),
+else on its own reading of the carried Offer's document (CP-01-025).  The
+Reporter's submit-report trigger fills the report name, summary and proposed
+embargo end its request leaves unstated, measured against its own "now"
+(CSAF-04-010).  The reference time is a parameter, so no caller reads a clock
+below its act's edge (ADR-0176).
 A value the Offer or the report states always wins over the document's
 (CSAF-02-003), and only a document of category ``csaf_vulnerability_report``
 fills anything (CSAF-02-001, CSAF-02-002).
@@ -106,14 +111,18 @@ class StatedReportFields(BaseModel):
 
 
 class ReportCaseInputs(BaseModel):
-    """The case inputs a report states, filled from its document.
+    """A new case's inputs, with the disclosure date judged.
 
-    ``name``, ``summary`` and ``proposed_embargo_end`` are the stated value
-    when there is one, else the document's; ``proposed_embargo_end`` is
-    ``None`` when the document sets P, X or A, since the case then starts
-    with no embargo (EP-04-020).  ``public``, ``exploit_public``
-    and ``attacks_observed`` are the P, X and A the document states for any
-    of its vulnerabilities; no Vultron field states them.  ``outcomes`` names
+    Filled from a report's document (:func:`case_inputs_from_claims`) or from
+    a proposal's ``caseInputs`` (:func:`case_inputs_from_proposal`).  From a
+    document, ``name``, ``summary`` and ``proposed_embargo_end`` are the
+    stated value when there is one, else the document's; from ``caseInputs``,
+    the proposer's.  ``proposed_embargo_end`` is ``None`` when P, X or A is
+    set, since the case then starts with no embargo (EP-04-020).
+    ``public``, ``exploit_public`` and ``attacks_observed`` are the P, X and
+    A: what a document states for any of its vulnerabilities, or the X and A
+    ``caseInputs`` state and the P its disclosure date gives; no field of the
+    report or Offer states them.  ``outcomes`` names
     each document value this mapping used (``APPLIED``) or set aside for a
     stated one (``OVERRIDDEN``); a value it names nowhere stays display only
     (CSAF-04-004).  ``filled_from_document`` is ``False`` when the document
@@ -448,9 +457,13 @@ def proposed_case_inputs_from_claims(
         for vul in claims.vulnerabilities
         if vul.disclosure_date is not None
     ]
+    # Outcomes are the CASE_MANAGER's record (_claim_outcomes); none here.
+    unrecorded: dict[str, ClaimOutcome] = {}
     return ProposedCaseInputs(
-        name=stated.name or claims.name,
-        summary=stated.summary or claims.summary,
+        name=_stated_or_claimed("name", stated.name, claims.name, unrecorded),
+        summary=_stated_or_claimed(
+            "summary", stated.summary, claims.summary, unrecorded
+        ),
         exploit_public=any(_exploit_public(v) for v in claims.vulnerabilities),
         attacks_observed=any(
             _attacks_observed(v) for v in claims.vulnerabilities
@@ -496,25 +509,19 @@ def case_inputs_from_proposal(
     """
     _require_aware(reference_time)
     date = proposed.disclosure_date
-    public = date is not None and not _is_future(date, reference_time)
-    eligible = not (
-        public or proposed.exploit_public or proposed.attacks_observed
-    )
-    end = None
-    if eligible:
-        end = (
-            proposed_embargo_end if proposed_embargo_end is not None else date
-        )
-    return ReportCaseInputs(
+    judged = ReportCaseInputs(
         name=proposed.name,
         summary=proposed.summary,
-        proposed_embargo_end=end,
-        public=public,
+        public=date is not None and not _is_future(date, reference_time),
         exploit_public=proposed.exploit_public,
         attacks_observed=proposed.attacks_observed,
         proposed_items=list(proposed.proposed_items),
         reference_links=list(proposed.reference_links),
     )
+    if not judged.embargo_eligible:
+        return judged
+    end = proposed_embargo_end if proposed_embargo_end is not None else date
+    return judged.model_copy(update={"proposed_embargo_end": end})
 
 
 def _claim_outcomes(

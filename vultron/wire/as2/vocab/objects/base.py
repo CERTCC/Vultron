@@ -81,13 +81,14 @@ class as_VultronObject(as_Object):
     override.
 
     **``inline_required_refs`` contract**: Some AS2 ref fields are *required* by
-    the protocol to carry a whole object rather than a URI — ``as_CaseProposal``
-    must inline its ``as_VulnerabilityReport`` (CP-01-004, AKM-03-003). The type
-    annotation cannot express that: ``ActivityStreamRequiredRef[T]`` is
+    the protocol to carry a whole object rather than a URI — an Invite to a
+    case carries its invitee whole in ``target`` (DL-08-003). The
+    type annotation cannot express that: ``ActivityStreamRequiredRef[T]`` is
     ``T | as_Link | NonEmptyString``, so a URI type-checks. Name such fields
-    here::
+    here (a core class, such as ``CaseProposal``, declares the same
+    attribute)::
 
-        inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+        inline_required_refs: ClassVar[frozenset[str]] = frozenset({"target"})
 
     Persistence reads this declaration and skips dehydration for those fields,
     so the invariant survives a store round-trip. Without it the id is stored

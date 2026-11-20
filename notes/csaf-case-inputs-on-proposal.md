@@ -14,7 +14,7 @@ description: >
   own reading of the document kept as the fallback; the CASE_MANAGER judges every
   embargo date when it builds the case, and records a passed one as an embargo
   that was in force and has ended. Holds the requirement text the implementation
-  adds to specs/case-proposal.yaml and specs/embargo-policy.yaml (ADR-0184).
+  adds to specs/embargo-policy.yaml (ADR-0184).
 related_specs:
   - specs/case-proposal.yaml
   - specs/csaf-report-content.yaml

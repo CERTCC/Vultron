@@ -303,8 +303,14 @@ class CaseProposal(CoreObject):
 
     @field_validator("in_reply_to")
     @classmethod
-    def _in_reply_to_is_an_offer(cls, value: object) -> object:
-        """Refuse an embedded object that is not an Offer (CP-01-007)."""
+    def _in_reply_to_is_a_whole_offer(cls, value: object) -> object:
+        """Refuse an embedded value that is not a whole Offer (CP-01-007).
+
+        An Offer's id names it (CP-01-007); an embedded value must be the
+        whole Offer (CP-01-008), since a reference that only names one, with
+        no ``actor`` and no ``object``, carries none of the Reporter's terms
+        (MV-10-011).
+        """
         if value is None or isinstance(value, str):
             return value
         kind = getattr(value, "type_", None)
@@ -312,6 +318,11 @@ class CaseProposal(CoreObject):
             raise ValueError(
                 "CaseProposal inReplyTo must be the Offer(VulnerabilityReport)"
                 f" it answers or its id, got a {kind!r} (CP-01-007)"
+            )
+        if getattr(value, "actor", None) is None:
+            raise ValueError(
+                "CaseProposal inReplyTo names an Offer without carrying it:"
+                " send the whole Offer, or its id (CP-01-008, MV-10-011)"
             )
         return value
 

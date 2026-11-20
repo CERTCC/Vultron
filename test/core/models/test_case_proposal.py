@@ -26,7 +26,10 @@ from pydantic import ValidationError
 
 from test.support.objects import authored_at, make
 from test.support.signing import signed_body
+from test.wire.csaf._documents import vulnerability_report_document
+from vultron.core.models.activity import VultronOffer
 from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.case_proposal import (
     CaseProposal,
     ProposedCaseInputs,
@@ -86,11 +89,21 @@ def _inputs() -> ProposedCaseInputs:
 
 
 def _report() -> as_VulnerabilityReport:
+    """A report carrying a ``csaf_vulnerability_report`` document, so the
+    edge would read it were it not for ``caseInputs``."""
     return make(
         as_VulnerabilityReport,
         id_="https://example.org/reports/r-001",
         attributed_to=_FINDER,
         content="An overflow in the widget parser.",
+        attachment=[
+            make(
+                AttachedDocument,
+                id_="https://example.org/reports/r-001/csaf",
+                media_type="application/json",
+                content=json.dumps(vulnerability_report_document()),
+            )
+        ],
     )
 
 
@@ -151,7 +164,8 @@ def test_case_inputs_round_trip_through_a_dump() -> None:
         json.loads(proposal.model_dump_json(by_alias=True))
     )
     assert again.case_inputs == _inputs()
-    assert again.in_reply_to is not None
+    assert isinstance(again.in_reply_to, VultronOffer)
+    assert again.in_reply_to.id_ == getattr(proposal.in_reply_to, "id_", None)
 
 
 @pytest.mark.spec("CP-01-022", "CP-01-028")
@@ -179,6 +193,8 @@ def test_a_proposal_without_case_inputs_omits_them() -> None:
     event = extract_event(parse_activity(_create_body(proposal)))
     assert isinstance(event, CreateCaseProposalReceivedEvent)
     assert event.case_inputs is None
+    # The same report's document is read when the proposal states no inputs.
+    assert len(event.claims_readings) == 1
 
 
 @pytest.mark.spec("CP-01-027")
