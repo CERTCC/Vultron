@@ -48,7 +48,7 @@ class _RmInviteToCaseActivity(as_Invite):
         the case's preview, the case stub (CM-17-010); required, so an Invite
         whose object is a URI or a whole case is not this class
     target: the Actor being invited
-    roles: inherited from as_Invite (CM-17-003)
+    roles: inherited from as_Offer through as_Invite (CM-17-003)
 
     Declares ``target`` in :attr:`inline_required_refs` (DL-08-003). The
     invitee is by definition a *peer* — under ADR-0073 its record lives in the

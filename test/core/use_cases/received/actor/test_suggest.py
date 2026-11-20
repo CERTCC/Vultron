@@ -137,7 +137,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=recommender_id,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -189,7 +189,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -257,7 +257,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["coordinator", authority_role],
+            roles=["coordinator", authority_role],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -300,7 +300,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -422,7 +422,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             **reason_fields,
             at=authored_at(),
         )
@@ -476,7 +476,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -819,7 +819,7 @@ class TestOwnerDirectInviteAtCaseManager:
             target=_case_ref(self._CASE_ID),
             actor=self._OWNER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=roles,
+            roles=roles,
             at=authored_at(),
         )
         return make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
@@ -994,7 +994,7 @@ class TestOwnerDirectInviteAtCaseManager:
             target=_case_ref(self._CASE_ID),
             actor=self._OWNER_ID,
             to=[TEST_ACTOR_ID],
-            suggested_roles=["vendor"],
+            roles=["vendor"],
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)

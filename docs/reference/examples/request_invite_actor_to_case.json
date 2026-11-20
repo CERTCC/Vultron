@@ -30,7 +30,7 @@
       "items": []
     }
   },
-  "suggestedRoles": [
+  "roles": [
     "coordinator"
   ],
   "proof": {
@@ -44,6 +44,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2sZJBkuM2GEnwcYCdvW9DMJf8Ukr9TKdemHMGpDuj4ubBEj7mvap9Cdx1wfwGHKrNX3VGCC8pULLBqugBUnJidMJ"
+    "proofValue": "z5DeKY1kqvEsDN7aXDvRcSSmcXWddh5paG2aQUvR2Y5eSE9efj9hBStdCk7quZeSP4EDXGpFknN84PgExxuSbf2fQ"
   }
 }

@@ -131,7 +131,7 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
         ),
         actor=_OWNER_ID,
         to=[_MANAGER_ID],
-        suggested_roles=["vendor"],
+        roles=["vendor"],
         at=authored_at(),
     )
     event = received_event(activity).model_copy(

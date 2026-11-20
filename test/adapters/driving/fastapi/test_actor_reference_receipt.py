@@ -92,7 +92,7 @@ def _recommendation_with_reference() -> dict[str, Any]:
         target=_CASE_ID,
         actor=_VENDOR_ID,
         to=[_CASE_ACTOR_ID],
-        suggested_roles=["vendor"],
+        roles=["vendor"],
         at=authored_at(),
     )
     # The reference replaces the full profile the factory inlines, so the

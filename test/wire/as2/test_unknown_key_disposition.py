@@ -49,6 +49,7 @@ from vultron.wire.as2.errors import (
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
@@ -474,6 +475,32 @@ def test_a_former_field_name_is_set_aside_and_reported(
     at INFO, and the activity proceeds on its declared fields (MV-11-003).
     """
     _assert_set_aside_and_reported(body, key, "object", caplog)
+
+
+@pytest.mark.spec("MV-11-003", "VM-10-012")
+@pytest.mark.parametrize("key", ["suggestedRoles", "suggested_roles"])
+def test_an_offers_former_suggested_roles_key_is_set_aside_and_reported(
+    key: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An Offer carries its proposed roles as ``roles`` (#6417).
+
+    ``suggestedRoles`` is an envelope key, so it sits apart from
+    :data:`FORMER_NAME_POSITIONS`, whose names are all on the inline object.
+    The key is set aside, and it is never read as the Offer's ``roles``.
+    """
+    body = _envelope(
+        object={
+            "type": "Organization",
+            "id": "https://example.org/actors/invitee",
+            "name": "Invitee",
+        },
+        target="https://example.org/cases/1",
+        **{key: ["vendor"]},
+    )
+    _assert_set_aside_and_reported(body, key, "", caplog)
+    activity = parse_activity(body)
+    assert isinstance(activity, as_Offer)
+    assert activity.roles is None
 
 
 @pytest.mark.spec("MV-11-003", "CM-05-018")
