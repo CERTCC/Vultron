@@ -3,8 +3,14 @@ title: "Affected Products and Product Status: Implementation Plan"
 status: draft
 kind: plan
 tracks:
-  - "#6707"
-  - "#5130"
+  - "#6780"   # products on the vendor's record
+  - "#6781"   # authored product statuses
+  - "#6782"   # fix readiness agrees with product statuses
+  - "#6783"   # report statements reach vendors' records
+  - "#6785"   # CSAF projection renders products
+  - "#6234"   # epic: vulnerability items and references
+  - "#5413"   # epic: fix states per role
+  - "#5130"   # epic: Vultron cases and CSAF 2.1
 description: >
   How this codebase gives a vendor's participant record its products and the
   authored product statuses that participants state about them (ADR-0220): the
@@ -232,7 +238,7 @@ Each lands with the code that tests it, citing ADR-0220.
 - **Deployment per product and deployer.** D stays per participant; #5140 tracks
   the finer unit.
 - **Splitting a case when a new affected product appears after `VF`.** Tracked as
-  its own Idea.
+  its own Idea (#6786).
 - **Removing a product or withdrawing a status.** No message does either yet; an
   author supersedes its own status with a later one.
 - **A third fix-readiness value.** Rejected in ADR-0220; partial readiness is the

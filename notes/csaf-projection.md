@@ -5,7 +5,7 @@ kind: plan
 tracks:
   - "#6705"
   - "#6706"
-  - "#6707"
+  - "#6785"   # products and statuses in the projection
   - "#5130"
   - "#6758"   # epic: CVE record and Vulnerability Note adapters on the same port
 description: >
