@@ -271,7 +271,7 @@ class _Manager:
         return {
             entry.log_object_id
             for entry in self.dl.list_objects("CaseLedgerEntry")
-            if isinstance(entry, CaseLedgerEntry) and entry.case_id == CASE_ID
+            if isinstance(entry, CaseLedgerEntry) and entry.context == CASE_ID
         }
 
     def terminate_as_owner(self) -> None:
@@ -1392,7 +1392,7 @@ def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
     assert {
         entry.log_index
         for entry in replica.dl.list_objects("CaseLedgerEntry")
-        if isinstance(entry, CaseLedgerEntry) and entry.case_id == CASE_ID
+        if isinstance(entry, CaseLedgerEntry) and entry.context == CASE_ID
     } == {0, 1}
     assert replica.embargo_state() == after_notice
     assert after_notice[:2] == (EM.EXITED, None)

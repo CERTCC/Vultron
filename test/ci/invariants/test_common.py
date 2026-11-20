@@ -68,7 +68,7 @@ def _entry(
         "entryHash": entry_hash,
         "prevLogHash": prev_log_hash,
         "semanticType": semantic_type,
-        "case_id": CASE_URI,
+        "context": CASE_URI,
         "payloadSnapshot": payload or {},
         "disposition": "recorded",
     }
@@ -532,7 +532,7 @@ def test_check_payload_context_uses_case_uri_detects_mismatch():
         semantic_type="create_case",
         payload={"context": "https://example.org/cases/WRONG"},
     )
-    entry["case_id"] = CASE_URI
+    entry["context"] = CASE_URI
     replicas = {"case-actor": [entry]}
     violations = check_payload_context_uses_case_uri(replicas)
     assert violations
@@ -1100,14 +1100,14 @@ class TestLoadDevlogsManifestHandling:
             "entryHash": "ha",
             "prevLogHash": "0",
             "semantic_type": "old_event",
-            "caseId": CASE_A,
+            "context": CASE_A,
         }
         entry_b = {
             "logIndex": 0,
             "entryHash": "hb",
             "prevLogHash": "0",
             "semantic_type": "new_event",
-            "caseId": CASE_B,
+            "context": CASE_B,
         }
 
         # Two JSONL files — one from each run — simulating local accumulation
@@ -1134,7 +1134,7 @@ class TestLoadDevlogsManifestHandling:
         replicas = common.load_devlogs("rv")
 
         assert "case-actor" in replicas
-        case_ids_in_result = {e.get("caseId") for e in replicas["case-actor"]}
+        case_ids_in_result = {e.get("context") for e in replicas["case-actor"]}
         assert case_ids_in_result == {CASE_B}, (
             f"Expected only {CASE_B!r}, got {case_ids_in_result!r}. "
             "load_devlogs must filter by manifest caseId to prevent "
@@ -1155,13 +1155,13 @@ class TestLoadDevlogsManifestHandling:
 
         CASE_A = "https://example.org/cases/case-a"
         CASE_B = "https://example.org/cases/case-b"
-        stale = {"semantic_type": "old_event", "caseId": CASE_A}
+        stale = {"semantic_type": "old_event", "context": CASE_A}
         current = {
             "logIndex": 0,
             "entryHash": "hb",
             "prevLogHash": "0",
             "semantic_type": "new_event",
-            "caseId": CASE_B,
+            "context": CASE_B,
         }
         (actor_dir / "case-a-case-ledger.jsonl").write_text(
             json.dumps(stale) + "\n", encoding="utf-8"

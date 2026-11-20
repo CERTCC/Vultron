@@ -31,6 +31,7 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.held_ledger_announces import hold_ledger_announce
 from vultron.errors import VultronWiringError
@@ -103,8 +104,8 @@ class _LedgerEffectNode(DataLayerActionWithPorts, StateWriteCapable):
         except NoDataAvailable, NotImplementedError:
             self.activity = None
 
-    def _get_entry(self):  # type: ignore[return]
-        """Return the HashChainLedgerRecord from the blackboard activity."""
+    def _get_entry(self) -> CaseLedgerEntry:
+        """Return the CaseLedgerEntry from the blackboard activity."""
         return require_log_entry(self.activity, self.name)
 
     def update(self) -> Status:  # pragma: no cover

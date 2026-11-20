@@ -58,7 +58,7 @@ def _camel_entry(**overrides):
     entry = {
         "id": "urn:case:1/log/0",
         "type": "CaseLedgerEntry",
-        "caseId": "urn:case:1",
+        "context": "urn:case:1",
         "logIndex": 0,
         "disposition": "recorded",
         "logObjectId": "urn:uuid:act0",
@@ -80,7 +80,7 @@ def _camel_entry(**overrides):
 def _snake_entry(**overrides):
     """A raw ledger entry using snake_case keys (tolerance check)."""
     entry = {
-        "case_id": "urn:case:1",
+        "context": "urn:case:1",
         "log_index": 1,
         "disposition": "recorded",
         "semantic_type": "add_participant_status_to_participant",
@@ -712,7 +712,7 @@ class TestBuildTimeline:
 def _case_entry(case_id, log_index, entry_hash, **overrides):
     """A camelCase entry scoped to an explicit case_id / log_index / hash."""
     return _camel_entry(
-        caseId=case_id,
+        context=case_id,
         logIndex=log_index,
         entryHash=entry_hash,
         **overrides,
@@ -834,8 +834,8 @@ class TestMarkdownRenderer:
         """Each distinct case_id gets its own ## Case … section (DRPT-02-006)."""
         replicas = {
             "vendor": [
-                _camel_entry(caseId="urn:case:A", entryHash="a" * 64),
-                _camel_entry(caseId="urn:case:B", entryHash="b" * 64),
+                _camel_entry(context="urn:case:A", entryHash="a" * 64),
+                _camel_entry(context="urn:case:B", entryHash="b" * 64),
             ],
         }
         md = render_markdown(build_timeline(replicas), ["vendor"])
@@ -972,8 +972,8 @@ class TestHtmlRenderer:
         """Each distinct case_id gets its own <h2>Case …</h2> (DRPT-02-006)."""
         replicas = {
             "vendor": [
-                _camel_entry(caseId="urn:case:A", entryHash="a" * 64),
-                _camel_entry(caseId="urn:case:B", entryHash="b" * 64),
+                _camel_entry(context="urn:case:A", entryHash="a" * 64),
+                _camel_entry(context="urn:case:B", entryHash="b" * 64),
             ],
         }
         out = render_html(build_timeline(replicas), ["vendor"])
@@ -1042,7 +1042,7 @@ class TestHtmlRenderer:
 
     def test_case_id_in_heading_is_escaped(self):
         """A case_id carrying markup is escaped in the <h2> heading."""
-        raw = _camel_entry(caseId="urn:case:<x>", entryHash="a" * 64)
+        raw = _camel_entry(context="urn:case:<x>", entryHash="a" * 64)
         out = render_html(build_timeline({"vendor": [raw]}), ["vendor"])
         assert "<h2>Case urn:case:&lt;x&gt;</h2>" in out
         assert "<x>" not in out

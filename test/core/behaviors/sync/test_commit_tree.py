@@ -287,7 +287,7 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
     entries = [
         entry
         for entry in datalayer.list_objects("CaseLedgerEntry")
-        if entry.case_id == CASE_ID
+        if entry.context == CASE_ID
     ]
     assert len(entries) == 1
 

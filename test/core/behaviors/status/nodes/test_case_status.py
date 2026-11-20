@@ -192,7 +192,7 @@ def _case_status_entries(dl) -> list[CaseLedgerEntry]:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and obj.case_id == CASE_ID
+            and obj.context == CASE_ID
             and obj.semantic_type == "add_case_status_to_case"
         ),
         key=lambda entry: entry.log_index,
@@ -614,7 +614,7 @@ class TestEmitCaseStatusUpdateNode:
             obj
             for obj in populated_dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and getattr(obj, "case_id", None) == CASE_ID
+            and getattr(obj, "context", None) == CASE_ID
             and getattr(obj, "semantic_type", None)
             == "add_case_status_to_case"
         ]

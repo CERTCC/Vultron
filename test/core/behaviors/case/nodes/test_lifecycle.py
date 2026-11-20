@@ -313,7 +313,7 @@ def test_a_recorded_resend_without_evidence_reuses_its_first_entry(
     datalayer.create(
         make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_object_id=ACTIVITY_ID,
             semantic_type=MessageSemantics.CREATE_CASE.value,
             payload_snapshot=_CREATE_BODY,
@@ -354,7 +354,7 @@ def test_a_recorded_activity_with_its_body_commits_no_second_entry(
     datalayer.create(
         make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_object_id=ACTIVITY_ID,
             semantic_type=MessageSemantics.CREATE_CASE.value,
             payload_snapshot=_CREATE_BODY,
@@ -390,7 +390,7 @@ def test_a_resend_whose_id_is_recorded_as_another_activity_is_refused(
     datalayer.create(
         make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_object_id=ACTIVITY_ID,
             semantic_type=MessageSemantics.CREATE_CASE.value,
             payload_snapshot=_CREATE_BODY,

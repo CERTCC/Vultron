@@ -409,7 +409,7 @@ def _make_wire_case_ledger_entry():
 
     return make(
         as_CaseLedgerEntry,
-        case_id=_CASE_ID_2401,
+        context=_CASE_ID_2401,
         log_object_id=_LOG_OBJ_ID_2401,
         semantic_type="RS",
         received_at=ACT_AT,

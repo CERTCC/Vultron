@@ -44,9 +44,9 @@
       "https://www.w3.org/ns/activitystreams",
       "https://certcc.github.io/Vultron/ns/context.jsonld"
     ],
-    "caseId": "urn:test:case_id:1",
+    "context": "urn:test:context:1",
     "entryHash": "",
-    "id": "urn:test:case_id:1/log/-1",
+    "id": "urn:test:context:1/log/-1",
     "logIndex": -1,
     "logObjectId": "urn:test:log_object_id:1",
     "payloadSnapshot": {},

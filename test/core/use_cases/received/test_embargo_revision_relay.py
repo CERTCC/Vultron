@@ -606,7 +606,7 @@ def _ledger_entries(
     entries = [
         cast(CaseLedgerEntry, e)
         for e in dl.list_objects("CaseLedgerEntry")
-        if cast(CaseLedgerEntry, e).case_id == case_id
+        if cast(CaseLedgerEntry, e).context == case_id
     ]
     return sorted(entries, key=lambda e: e.log_index)
 

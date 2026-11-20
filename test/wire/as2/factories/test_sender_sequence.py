@@ -57,7 +57,7 @@ def _note(*, positioned: bool = True):
 def _entry() -> as_CaseLedgerEntry:
     core = make(
         CaseLedgerEntry,
-        case_id=_CASE,
+        context=_CASE,
         log_index=4,
         log_object_id=f"{_CASE}/activities/4",
         semantic_type="add_note_to_case",

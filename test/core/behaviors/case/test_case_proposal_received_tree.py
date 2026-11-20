@@ -2181,7 +2181,7 @@ class TestADR0041LedgerEntries:
             e
             for e in entries
             if getattr(e, "semantic_type", None) == "create_case"
-            and getattr(e, "case_id", None) == case_id
+            and getattr(e, "context", None) == case_id
         ]
         assert create_entries, "create_case entry must reference the case_id"
         for entry in create_entries:
@@ -2208,7 +2208,7 @@ class TestADR0041LedgerEntries:
             e
             for e in entries
             if getattr(e, "semantic_type", None) == "add_report_to_case"
-            and getattr(e, "case_id", None) == case_id
+            and getattr(e, "context", None) == case_id
         ]
         assert report_entries, (
             "add_report_to_case ledger entry must be committed natively (AC-4)"
@@ -2447,7 +2447,7 @@ class TestADR0041Idempotency:
         entries_before = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if getattr(e, "case_id", None) == case_id
+            if getattr(e, "context", None) == case_id
         ]
 
         # Second delivery of the SAME proposal — LoadExistingCaseNode must
@@ -2470,7 +2470,7 @@ class TestADR0041Idempotency:
         entries_after = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if getattr(e, "case_id", None) == case_id
+            if getattr(e, "context", None) == case_id
         ]
         assert len(entries_after) == len(entries_before), (
             "duplicate proposal must not append duplicate ledger entries"
@@ -2533,7 +2533,7 @@ class TestADR0041Idempotency:
         entries_before = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if getattr(e, "case_id", None) == case_id
+            if getattr(e, "context", None) == case_id
         ]
         assert entries_before, "first delivery must have written the ledger"
 
@@ -2542,7 +2542,7 @@ class TestADR0041Idempotency:
         entries_after = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if getattr(e, "case_id", None) == case_id
+            if getattr(e, "context", None) == case_id
         ]
         assert len(entries_after) == len(entries_before), (
             "a retry is the same assertion no matter how much later it"

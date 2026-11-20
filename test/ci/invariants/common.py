@@ -137,8 +137,8 @@ def semantic_type(entry: dict) -> str:
 
 
 def case_id(entry: dict) -> str:
-    """Return the ``case_id`` from an entry dict (handles camelCase JSONL)."""
-    return str(entry.get("case_id", entry.get("caseId", "")))
+    """Return the case an entry dict names in its ``context`` (CLP-14-012)."""
+    return str(entry.get("context", ""))
 
 
 def payload(entry: dict) -> dict:

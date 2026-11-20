@@ -67,9 +67,9 @@ class ApplyEmbargoAbandonmentFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
         if (f := self._require_datalayer()) is not None:
             return f
         entry = self._get_entry()
-        before = self._resolve_case_replica(entry.case_id)
+        before = self._resolve_case_replica(entry.context)
         status = super().update()
-        after = self._resolve_case_replica(entry.case_id)
+        after = self._resolve_case_replica(entry.context)
         if (
             status is Status.SUCCESS
             and before is not None
@@ -78,7 +78,7 @@ class ApplyEmbargoAbandonmentFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
             log_em_transition(
                 self.logger,
                 snapshot_actor_id(entry.payload_snapshot.get("actor")) or "",
-                entry.case_id,
+                entry.context,
                 before.em_state,
                 after.em_state,
             )

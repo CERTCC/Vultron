@@ -140,7 +140,7 @@ def tracker_references(reading: CaseReading) -> tuple[str, ...]:
 def _identifiers(reading: CaseReading) -> set[str]:
     ids: set[str] = set(tracker_references(reading))
     for entry in reading.ledger:
-        ids.update((entry.case_id, entry.id_, entry.log_object_id))
+        ids.update((entry.context, entry.id_, entry.log_object_id))
     for citation in reading.citations:
         ids.update((citation.entry_id, citation.source_record))
     for inference in reading.inferences:

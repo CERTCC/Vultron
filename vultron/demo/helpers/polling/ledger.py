@@ -63,7 +63,7 @@ def wait_for_reporter_log_entry(
         for v in raw.values():
             if (
                 isinstance(v, dict)
-                and v.get("case_id") == case_id
+                and v.get("context") == case_id
                 and v.get("entry_hash") == entry_hash
             ):
                 logger.info(
@@ -92,7 +92,7 @@ def _ledger_entry_matches(
     min_log_index: int | None,
 ) -> bool:
     """Return True if *entry* satisfies all supplied ledger-event criteria."""
-    if entry.get("case_id") != case_id:
+    if entry.get("context") != case_id:
         return False
     if entry.get("semantic_type") != semantic_type:
         return False
@@ -292,7 +292,7 @@ def wait_for_contiguous_ledger_coverage(
             v["log_index"]
             for v in raw.values()
             if isinstance(v, dict)
-            and v.get("case_id") == case_id
+            and v.get("context") == case_id
             and isinstance(v.get("log_index"), int)
         }
         progress.observe(len(present))
@@ -342,7 +342,7 @@ def _count_case_ledger_entries(client: DataLayerClient, case_id: str) -> int:
     return sum(
         1
         for obj in raw.values()
-        if isinstance(obj, dict) and obj.get("case_id") == case_id
+        if isinstance(obj, dict) and obj.get("context") == case_id
     )
 
 

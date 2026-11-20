@@ -136,7 +136,7 @@ class TestRejectLogEntryPattern:
 
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.rejected_entry is not None
-        assert event.rejected_entry.case_id == CASE_URI
+        assert event.rejected_entry.context == CASE_URI
 
     @pytest.mark.spec("SYNC-03-001")
     @pytest.mark.spec("SYNC-18-001")

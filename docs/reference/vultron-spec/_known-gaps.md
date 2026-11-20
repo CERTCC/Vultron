@@ -342,15 +342,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#6411](https://github.com/CERTCC/Vultron/issues/6411)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CLP-14-012",
-))
-```
-
 ### Tracked by [#6413](https://github.com/CERTCC/Vultron/issues/6413)
 
 ```python exec="true" idprefix=""

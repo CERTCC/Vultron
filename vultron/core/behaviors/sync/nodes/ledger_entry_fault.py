@@ -102,7 +102,7 @@ def emit_ledger_entry_fault(
         )
     class_label = failure_class.rsplit("/", 1)[-1]
     sender_id = getattr(activity, "actor_id", None)
-    manager_id = case_manager_address(node.datalayer, entry.case_id)
+    manager_id = case_manager_address(node.datalayer, entry.context)
     if (
         manager_id is None
         or not isinstance(sender_id, str)
@@ -116,7 +116,7 @@ def emit_ledger_entry_fault(
             class_label,
             failed_id,
             sender_id,
-            entry.case_id,
+            entry.context,
             manager_id or "none known",
         )
         return
@@ -126,7 +126,7 @@ def emit_ledger_entry_fault(
             failed_activity_id=failed_id,
             failure_class=failure_class,
             to=[manager_id],
-            case_id=entry.case_id,
+            case_id=entry.context,
             at=at,
         )
     except VultronError as exc:
@@ -142,7 +142,7 @@ def emit_ledger_entry_fault(
         manager_id,
         failed_id,
         entry.id_,
-        entry.case_id,
+        entry.context,
     )
 
 

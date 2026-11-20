@@ -135,7 +135,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             return f
         assert self.datalayer is not None
         entry = self._get_entry()
-        if self._resolve_case_replica(entry.case_id) is None:
+        if self._resolve_case_replica(entry.context) is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
         try:
             change = self._change(entry)
@@ -147,7 +147,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             self.logger.exception("%s", self.feedback_message)
             return Status.FAILURE
 
-        before = read_embargo_case_file(self.datalayer, entry.case_id)
+        before = read_embargo_case_file(self.datalayer, entry.context)
         if change_is_in_place(before, change):
             self.logger.debug(
                 "%s: '%s' entry '%s' is already in place on case '%s' —"
@@ -155,7 +155,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
                 self.name,
                 entry.semantic_type,
                 entry.id_,
-                entry.case_id,
+                entry.context,
             )
             return Status.SUCCESS
         try:
@@ -170,7 +170,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
                     "%s: case '%s' is already past '%s' entry '%s' (a seed"
                     " taken after it) — idempotent no-op",
                     self.name,
-                    entry.case_id,
+                    entry.context,
                     entry.semantic_type,
                     entry.id_,
                 )
@@ -179,7 +179,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         save_case_file(self.datalayer, before, after)
         self.feedback_message = (
             f"{self.name}: copied '{entry.semantic_type}' entry '{entry.id_}'"
-            f" onto case '{entry.case_id}' (CM-23-016)"
+            f" onto case '{entry.context}' (CM-23-016)"
         )
         self.logger.info("%s", self.feedback_message)
         return Status.SUCCESS
@@ -219,7 +219,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         self.refused_into_gap = buffered
         self.feedback_message = (
             f"{self.name}: entry '{entry.id_}' (log_index={entry.log_index})"
-            f" does not apply to case '{entry.case_id}': {exc};"
+            f" does not apply to case '{entry.context}': {exc};"
             + (
                 " its Add is held for replay (ADR-0124)"
                 if buffered
