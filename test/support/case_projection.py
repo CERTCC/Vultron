@@ -16,8 +16,9 @@
 omits and the joined profile includes, each one a distinct string, so a test
 can look for it in a cut or a rendered document: :data:`JOINED_ONLY_VALUES`
 for the fields a joined document renders, :data:`JOINED_ONLY_UNRENDERED` for
-the ones no document renders, and the embargo end :data:`EMBARGO_END`.  :func:`projected_ledger` holds one
-entry per act with a CSAF meaning, and one with none.
+the ones no document renders, and the embargo end :data:`EMBARGO_END`.
+:func:`projected_ledger` holds one entry per act with a CSAF meaning, and
+one with none.
 """
 
 from datetime import UTC, datetime
