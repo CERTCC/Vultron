@@ -3,8 +3,9 @@
 
 The Case Owner proposes the transfer with its own ``Offer(VulnerabilityCase)``
 and the CASE_MANAGER ledgers it, then makes and ledgers its own
-``Offer(VulnerabilityCase)`` from it (ADR-0199).  The transferee is a *peer*: the CASE_MANAGER's store need not
-hold its actor profile, and no handler writes one.  Both ledger commits still
+``Offer(VulnerabilityCase)`` from it (ADR-0199).  The transferee is a *peer*:
+the CASE_MANAGER's store need not hold its actor profile, and no handler writes
+one.  Both ledger commits still
 need the transferee inline in the snapshot (CLP-07-006), so both Offers must
 carry it inline and storage must keep it so (DL-08-003).
 Before #4843 the sender named the transferee by a bare id and the

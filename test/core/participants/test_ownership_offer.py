@@ -19,6 +19,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
@@ -44,15 +47,20 @@ _T0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 @pytest.fixture
 def dl() -> SqliteDataLayer:
+    """The CASE_MANAGER's store: the case, naming ``_MANAGER`` as its manager.
+
+    The readers keep only the Offers the case's CASE_MANAGER made
+    (ADR-0199), so the case must name one.
+    """
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
-    store.create(
-        make(
-            as_VulnerabilityCase,
-            attributed_to=CASE_OWNER_ID,
-            id_=_CASE_ID,
-            name="Ownership offer",
-        )
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="Ownership offer",
     )
+    seed_case_manager_participant(store, case, _MANAGER)
+    store.create(case)
     return store
 
 
@@ -65,8 +73,12 @@ def _ledger(
     target: str | None = _TRANSFEREE,
     **snapshot_extra: str,
 ) -> None:
-    """Seed one ledger entry directly; only the fields read here matter."""
-    snapshot = {"id": object_id, **snapshot_extra}
+    """Seed one ledger entry directly; only the fields read here matter.
+
+    The entry's ``actor`` is the CASE_MANAGER unless *snapshot_extra* names
+    another.
+    """
+    snapshot = {"id": object_id, "actor": _MANAGER, **snapshot_extra}
     if target is not None:
         snapshot["target"] = target
     dl.save(
@@ -178,21 +190,23 @@ def test_the_offer_id_is_derived_from_the_manager_case_proposal_and_proposer():
     )
 
 
-def _managed_case(dl: SqliteDataLayer) -> None:
-    from test.core.use_cases.received.conftest import (
-        seed_case_manager_participant,
+def _unmanaged_store() -> SqliteDataLayer:
+    """A store holding the case with no CASE_MANAGER on its roster."""
+    store = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
+    store.create(
+        make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            name="No manager",
+        )
     )
-
-    case = dl.read_case(_CASE_ID)
-    assert case is not None
-    seed_case_manager_participant(dl, case, _MANAGER)
-    dl.save(case)
+    return store
 
 
 @pytest.mark.spec("CM-21-019")
 @pytest.mark.spec("HP-01-003")
 def test_the_offer_made_from_a_proposal_is_found_by_the_proposal(dl):
-    _managed_case(dl)
     made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1", _OWNER_ID)
     _ledger(
         dl,
@@ -221,7 +235,8 @@ def test_the_offer_made_from_a_proposal_is_found_by_the_proposal(dl):
     )
 
 
-def test_no_offer_is_made_from_a_proposal_on_a_case_with_no_manager(dl):
+def test_no_offer_is_made_from_a_proposal_on_a_case_with_no_manager():
+    dl = _unmanaged_store()
     made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1", _OWNER_ID)
     _ledger(dl, 0, made, "offer_case_ownership_transfer", _T0)
 
@@ -252,39 +267,33 @@ def test_offerer_is_the_participant_a_delegated_offer_speaks_for(dl):
     assert offer.offerer_id(_MANAGER) == _OWNER
 
 
-@pytest.mark.spec("CM-21-015")
-def test_offerer_of_an_offer_sent_directly_is_its_actor(dl):
+@pytest.mark.spec("CM-21-029")
+@pytest.mark.spec("CM-21-011")
+def test_the_owners_own_offer_is_not_the_recorded_offer(dl):
+    """The Owner's own Offer is ledgered under the same semantic type as the
+    CASE_MANAGER's (ADR-0199), but it is the proposal: no reader finds it as
+    the Offer to answer, close or expire, so an answer naming it names
+    nothing."""
     _ledger(
         dl,
         0,
-        "urn:offer:1",
+        "urn:offer:owner",
         "offer_case_ownership_transfer",
         _T0,
         actor=_OWNER,
     )
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
+    with pytest.raises(VultronNotFoundError):
+        recorded_ownership_offer(dl, _CASE_ID, "urn:offer:owner")
+    assert open_ownership_offer(dl, _CASE_ID, _T0) is None
 
-    assert offer.offerer_id(_MANAGER) == _OWNER
 
+def test_a_case_naming_no_case_manager_has_no_recorded_offer():
+    """A store whose case names no CASE_MANAGER holds no Offer it made."""
+    store = _unmanaged_store()
+    _ledger(store, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
 
-@pytest.mark.spec("CM-21-015")
-@pytest.mark.spec("CM-24-002")
-def test_attributed_to_counts_only_on_an_offer_the_manager_sent(dl):
-    """A direct Offer's ``attributedTo`` is an unchecked claim: ignored."""
-    _ledger(
-        dl,
-        0,
-        "urn:offer:1",
-        "offer_case_ownership_transfer",
-        _T0,
-        actor=_OWNER,
-        attributedTo="urn:actor:someone_else",
-    )
-
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
-
-    assert offer.offerer_id(_MANAGER) == _OWNER
+    assert open_ownership_offer(store, _CASE_ID, _T0) is None
 
 
 @pytest.mark.spec("CM-21-014")

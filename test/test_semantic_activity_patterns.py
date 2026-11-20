@@ -42,9 +42,6 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.typed_reference import as_TypedReference, case_reference
-from vultron.wire.as2.vocab.activities.case.ownership import (
-    _OfferCaseOwnershipTransferActivity,
-)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -1503,7 +1500,6 @@ def test_the_owners_offer_and_the_case_managers_offer_share_one_pattern():
     pattern and the receiver's path tells them apart (ADR-0199)."""
     owner_offer = _owner_offer()
 
-    assert isinstance(owner_offer, _OfferCaseOwnershipTransferActivity)
     assert OfferCaseOwnershipTransferActivityPattern.match(owner_offer)
     assert (
         find_matching_semantics(owner_offer)
