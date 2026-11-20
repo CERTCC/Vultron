@@ -852,10 +852,13 @@ topics/future_work/ontology.md
 topics/future_work/open_questions.md
 topics/future_work/reward_functions.md
 topics/index.md
+topics/measuring_cvd/_action_rule_comparison.md
 topics/measuring_cvd/_case_events.md
+topics/measuring_cvd/_generated_action_rules.md
 topics/measuring_cvd/_history_constraints.md
 topics/measuring_cvd/_ordered_pairs_events.md
 topics/measuring_cvd/_table_possible_histories.md
+topics/measuring_cvd/action_rule_comparison.md
 topics/measuring_cvd/benchmarking.md
 topics/measuring_cvd/benchmarking_mpcvd.md
 topics/measuring_cvd/desirable_histories.md
@@ -874,6 +877,7 @@ topics/measuring_cvd/state_space_size.md
 topics/measuring_cvd/timing_metrics.md
 topics/measuring_cvd/what_a_case_records.md
 topics/message_semantics.md
+topics/other_uses/_action_rules_table.md
 topics/other_uses/action_rules.md
 topics/other_uses/index.md
 topics/other_uses/policy_formalization.md
