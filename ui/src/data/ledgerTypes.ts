@@ -145,7 +145,6 @@ export interface ParticipantStatus {
   rmState?: RmState
   vfState?: VfState | null
   dState?: DState | null
-  caseEngagement?: boolean
   cvdRole?: Array<CvdRole>
   trackingId?: string | null
   caseStatus?: CaseStatus | null
@@ -350,7 +349,6 @@ export const LEDGER_SHAPES = {
       { key: "rmState", required: false, nullable: false, shape: { kind: "enum", type: "RmState", values: RM_STATE_VALUES } },
       { key: "vfState", required: false, nullable: true, shape: { kind: "enum", type: "VfState", values: VF_STATE_VALUES } },
       { key: "dState", required: false, nullable: true, shape: { kind: "enum", type: "DState", values: D_STATE_VALUES } },
-      { key: "caseEngagement", required: false, nullable: false, shape: { kind: "boolean" } },
       { key: "cvdRole", required: false, nullable: false, shape: { kind: "array", items: { kind: "enum", type: "CvdRole", values: CVD_ROLE_VALUES } } },
       { key: "trackingId", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "caseStatus", required: false, nullable: true, shape: { kind: "ref", type: "CaseStatus" } },

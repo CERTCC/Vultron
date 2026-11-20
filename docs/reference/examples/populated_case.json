@@ -31,7 +31,6 @@
           "updated": "2026-06-01T19:12:00.000000+00:00",
           "attributedTo": "https://vultron.example/users/finndervul",
           "rmState": "START",
-          "caseEngagement": true,
           "cvdRole": [
             "REPORTER"
           ]
@@ -62,7 +61,6 @@
           "attributedTo": "https://vultron.example/organizations/vendorco",
           "rmState": "RECEIVED",
           "vfState": "Vf",
-          "caseEngagement": true,
           "cvdRole": [
             "OBSERVER"
           ]

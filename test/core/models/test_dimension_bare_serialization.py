@@ -150,7 +150,6 @@ _EQUIVALENT_STATES = [
             "d": CS_d.D,
             "cvd_role": [CVDRole.VENDOR, CVDRole.DEPLOYER],
             "tracking_id": "VU#9",
-            "case_engagement": False,
         },
         {
             "rm": RM.ACCEPTED,
@@ -158,7 +157,6 @@ _EQUIVALENT_STATES = [
             "d": CS_d.D,
             "cvd_role": [CVDRole.VENDOR, CVDRole.DEPLOYER],
             "tracking_id": "VU#9",
-            "case_engagement": False,
         },
     ),
     # The nested-CaseStatus case. Kept because it is the only one of these that

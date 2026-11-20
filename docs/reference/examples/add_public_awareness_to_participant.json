@@ -21,7 +21,6 @@
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "attributedTo": "https://vultron.example/organizations/finder",
     "rmState": "ACCEPTED",
-    "caseEngagement": true,
     "cvdRole": [
       "REPORTER"
     ],
@@ -46,6 +45,6 @@
     "verificationMethod": "https://vultron.example/organizations/finder#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z37uMiJjnvDzVd41k6ebbXytDFgwLFAwauxoTFVizqYcpm4X1M7k9zZLBDXCk2D13acimFU75YapgCGF3n9trA1F4"
+    "proofValue": "z2K1VgzDW22uFMggwEY2NtmSHJ3ndbZ2197krE76YfRCDiC1pfGt2iuqQbTyLiq9uxMLtd1FzwduGXqbFnPxqrD2V"
   }
 }

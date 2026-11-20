@@ -68,7 +68,6 @@
     "joined": true,
     "participantStatuses": [
       {
-        "caseEngagement": true,
         "context": "urn:test:caseparticipant:golden",
         "cvdRole": [
           "OBSERVER"
@@ -192,7 +191,6 @@
       "https://www.w3.org/ns/activitystreams",
       "https://certcc.github.io/Vultron/ns/context.jsonld"
     ],
-    "caseEngagement": true,
     "context": "urn:test:context:1",
     "cvdRole": [
       "OBSERVER"

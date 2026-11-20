@@ -126,7 +126,13 @@ But the Participant that leaves is no longer involved in the case.
 
 !!! tip inline end "Embargo Engagement and Adherence"
 
-    We return to these concepts with the `case_engagement` attribute and the per-embargo consent rows described in [Case Model](../../case_lifecycle/case_model.md).
+    No participant reports whether it is still engaged in a case.
+    Each replica derives who is sent case content from the participant record and the case, described in [Case Model](../../case_lifecycle/case_model.md).
+    A participant is sent case content when it has joined, it is not removed, it is a signatory of the active embargo when one is in force, and it is not at RM `CLOSED`.
+    Three narrower audiences fall outside that set.
+    Consent Invites reach participants that are not yet sent case content.
+    The ledger entries that record a participant's own closure reach that participant.
+    A bound signatory that has left or was removed gets a direct notice when the embargo ends.
     For the per-(participant, embargo) consent state machine, see [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md).
 
 These points mean that Participants need to track the status of other Participants.

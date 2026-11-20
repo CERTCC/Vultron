@@ -100,7 +100,6 @@ Stored in `CaseParticipant.participant_statuses`.
 | `vf` | `VfDimension` — Vendor-awareness / Fix-readiness state (vf → Vf → VF); present only for VENDOR participants |
 | `d` | `DDimension` — Fix-deployment state (d → D); present only for DEPLOYER participants |
 | `cvd_role` | The CVD roles this participant held at the time of the snapshot |
-| `case_engagement` | Whether this participant is actively engaged |
 | `tracking_id` | Optional identifier this participant uses for the case in its own tracker |
 | `case_status` | Optional `CaseStatus` the participant believes the case to be in |
 

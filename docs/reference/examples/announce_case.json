@@ -39,7 +39,6 @@
             "updated": "2026-06-01T19:12:00.000000+00:00",
             "attributedTo": "https://vultron.example/users/finndervul",
             "rmState": "START",
-            "caseEngagement": true,
             "cvdRole": [
               "REPORTER"
             ]
@@ -70,7 +69,6 @@
             "attributedTo": "https://vultron.example/organizations/vendorco",
             "rmState": "RECEIVED",
             "vfState": "Vf",
-            "caseEngagement": true,
             "cvdRole": [
               "OBSERVER"
             ]
@@ -136,6 +134,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5tupCQtu7cEMfoT3tevYaoPTq1tiSjHxqdYuNPDu7YpteK9UEvey5QyYkr2ja8rKuCwizmLU6Z8QzYsAG13LMq6V"
+    "proofValue": "z4zs6vHpoyWt2KK54G6cCjst5Zy4CAuJenz2KDJNXikvU4XBu8RJ8DPH7CFhNzAzNPACPEutTtNcorwVDwmJVXZeU"
   }
 }
