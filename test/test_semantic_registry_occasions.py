@@ -307,7 +307,7 @@ def test_field_value_rejects_a_value_of_another_embedded_field_enum():
     [
         ("fix_state", "no typed field"),
         ("vf", "does not embed exactly one model"),
-        ("case_engagement", "does not embed exactly one model"),
+        ("published", "does not embed exactly one model"),
     ],
 )
 def test_field_value_rejects_a_within_that_embeds_no_model(
@@ -408,7 +408,7 @@ def test_field_value_rejects_a_field_not_typed_by_an_enum():
     with pytest.raises(ValueError, match="not typed by an enum"):
         FieldValue(
             object_type=ParticipantStatus,
-            field="case_engagement",
+            field="published",
             value=CS_vf.VF,
         )
 

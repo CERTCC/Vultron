@@ -52,7 +52,6 @@
           "attributedTo": "https://vultron.example/organizations/coordinator",
           "rmState": "START",
           "vfState": "vf",
-          "caseEngagement": true,
           "cvdRole": [
             "VENDOR"
           ]
@@ -73,6 +72,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "zajGRUj18DPXhtrUYJPeaYQ6xaPTzXGFyYuCUByDYznRWFG3MJMnbQR8TvjhRiURD3wQo4mdu4e7TVYgzRtyM1EK"
+    "proofValue": "z56iNe5HW8a1mRYVFm7CRbhvKkW8oEuW2wM4diE7bLfe3aMmTNNXvC3pBkWc3kgNkqhhvCcSEYhP1rqEPzv8vyNyo"
   }
 }

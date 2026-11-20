@@ -33,7 +33,6 @@
         "updated": "2026-06-01T19:12:00.000000+00:00",
         "attributedTo": "https://vultron.example/organizations/coordinator",
         "rmState": "START",
-        "caseEngagement": true,
         "cvdRole": [
           "COORDINATOR"
         ]
@@ -53,6 +52,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z67D69F7x3nvURmLk3aP9iMiERx2zhr4EvkLrQHS6TZWBuTLDp6Rni6MyKX69X7GyMuywUrsmimvUERFWhPNE1XsG"
+    "proofValue": "zVWv6Suf2xVSMjRKv8wYdx8FWRewNB97SYzFKMQz9qy8AoY6JXe9FqjRemFc6WFixp2viPUqXS2Djt2dDeUzqgFu"
   }
 }

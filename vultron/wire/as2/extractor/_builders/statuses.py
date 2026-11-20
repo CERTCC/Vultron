@@ -105,9 +105,8 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     if object_id and isinstance(obj, ParticipantStatus):
         # Already the core class (ARCH-25-003, ADR-0099): kept whole, so a
-        # field the rebuild below does not name (``case_engagement``,
-        # ``tracking_id``) is never replaced by the model's default
-        # (AKM-02-006, #5265).
+        # field the rebuild below does not name (``tracking_id``) is never
+        # replaced by the model's default (AKM-02-006, #5265).
         return {"object_": obj.model_copy(deep=True)}
     ctx = _get_id(getattr(obj, "context", None)) or ""
     wire_case_status = getattr(obj, "case_status", None)

@@ -30,7 +30,6 @@
         "@type": "@id",
         "@container": "@index"
       },
-      "caseEngagement": "vultron:caseEngagement",
       "caseParticipants": {
         "@id": "vultron:caseParticipants",
         "@type": "@id",

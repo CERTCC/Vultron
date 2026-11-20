@@ -402,7 +402,6 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "rmState": "ACCEPTED",
         "vfState": "VF",
-        "caseEngagement": true,
         "cvdRole": ["VENDOR"]
       }
     }

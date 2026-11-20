@@ -143,13 +143,6 @@ class ParticipantStatus(CoreObject):
             PropertyValueKind.PLAIN,
         ),
     )
-    case_engagement: bool = Field(
-        default=True,
-        json_schema_extra=vultron_property(
-            "Whether a participant reports itself engaged in a case",
-            PropertyValueKind.PLAIN,
-        ),
-    )
     cvd_role: list[CVDRole] = Field(
         default_factory=lambda: [CVDRole.OBSERVER],
         json_schema_extra=vultron_property(

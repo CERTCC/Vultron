@@ -407,6 +407,14 @@ FORMER_NAME_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
     ),
     *(
         (
+            f"ParticipantStatus.{key}",
+            _with_inline_object(_inline_participant_status(**{key: True})),
+            key,
+        )
+        for key in ("caseEngagement", "case_engagement")
+    ),
+    *(
+        (
             f"{build.__name__.removeprefix('_inline_')}.{key}",
             _with_inline_object(build(**{key: value})),
             key,

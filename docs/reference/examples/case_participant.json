@@ -24,7 +24,6 @@
       "attributedTo": "https://vultron.example/organizations/vendor",
       "rmState": "RECEIVED",
       "vfState": "Vf",
-      "caseEngagement": true,
       "cvdRole": [
         "OBSERVER"
       ],

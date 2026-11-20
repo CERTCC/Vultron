@@ -39,7 +39,6 @@ function participantStatus(): Record<string, unknown> {
     attributedTo: 'http://actor1:7999/api/v2/actors/actor1',
     rmState: 'ACCEPTED',
     vfState: 'Vf',
-    caseEngagement: true,
     cvdRole: ['VENDOR'],
   }
 }
@@ -189,8 +188,13 @@ describe('ledgerLineProblems', () => {
   })
 
   it('refuses a wrong boolean, a wrong type literal and a non-object status', () => {
-    expect(ledgerLineProblems(entry({ ...participantStatus(), caseEngagement: 'yes' }))).toEqual([
-      'payloadSnapshot.object.caseEngagement: expected a boolean, got "yes"',
+    const record = {
+      type: 'CaseParticipant',
+      published: '2026-01-01T00:00:00.000000+00:00',
+      joined: 'yes',
+    }
+    expect(ledgerLineProblems(entry(record))).toEqual([
+      'payloadSnapshot.object.joined: expected a boolean, got "yes"',
     ])
     expect(ledgerLineProblems({ ...entry(), type: 'Activity' })).toEqual([
       'type: expected "CaseLedgerEntry", got "Activity"',
@@ -207,7 +211,7 @@ describe('ledgerLineProblems', () => {
   it('requires on a payload status only what the model cannot go without', () => {
     const status = participantStatus()
     delete status.context
-    delete status.caseEngagement
+    delete status.cvdRole
     expect(ledgerLineProblems(entry(status))).toEqual([
       'payloadSnapshot.object.context: missing (ParticipantStatus requires it)',
     ])

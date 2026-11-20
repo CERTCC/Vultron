@@ -269,7 +269,7 @@ def test_a_whole_participant_reaches_core_with_the_statuses_it_carries(
                 ParticipantStatus,
                 context=case_id,
                 rm=RM.ACCEPTED,
-                case_engagement=False,
+                tracking_id="VND-7",
             )
         ],
     )
@@ -294,18 +294,17 @@ def test_a_whole_participant_reaches_core_with_the_statuses_it_carries(
 
 
 @pytest.mark.spec("AKM-02-006")
-def test_a_received_participant_status_keeps_its_engagement(
+def test_a_received_participant_status_keeps_its_tracking_id(
     store: tuple[SqliteDataLayer, str, CaseParticipant],
 ) -> None:
-    """A status saying the participant is not engaged is not read back as
-    engaged by the status model's default (#5265)."""
+    """A status carrying the participant's tracking ID is not read back
+    with the status model's default in its place (#5265)."""
     _, case_id, participant = store
     status = make(
         ParticipantStatus,
         context=case_id,
         attributed_to=participant.attributed_to,
         rm=RM.DEFERRED,
-        case_engagement=False,
         tracking_id="VND-42",
     )
 
