@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The action rules' generated docs: one command builds them all
-(ADR-0216 rule 5 and rule 8; SHD-05-008, SHD-06-004, SHD-06-005).
+(SHD-05-008, SHD-06-004, SHD-06-005; ADR-0216).
 
 ``uv run action-rules-docs --write`` rebuilds three Markdown fragments from
 the current move advice and the authored table:
@@ -315,7 +315,7 @@ def stale_fragments(root: Path = ROOT) -> list[Path]:
     ]
 
 
-def write_fragments(root: Path = ROOT) -> list[Path]:
+def rebuild_fragments(root: Path = ROOT) -> list[Path]:
     """Write every fragment under *root*; return the paths written."""
     written = []
     for path, text in built_fragments().items():
@@ -336,7 +336,10 @@ def main(argv: list[str] | None = None) -> int:
         help="exit 1 if a committed fragment is stale",
     )
     mode.add_argument(
-        "--write", action="store_true", help="rebuild every fragment"
+        "--write",
+        action="store_true",
+        dest="rebuild",
+        help="rebuild every fragment",
     )
     parser.add_argument(
         "--root",
@@ -345,8 +348,8 @@ def main(argv: list[str] | None = None) -> int:
         help="the repository root the fragments are under",
     )
     args = parser.parse_args(argv)
-    if args.write:
-        for path in write_fragments(args.root):
+    if args.rebuild:
+        for path in rebuild_fragments(args.root):
             print(f"wrote {path}")
         return 0
     stale = stale_fragments(args.root)
@@ -367,5 +370,5 @@ __all__ = [
     "generated_rules_markdown",
     "main",
     "stale_fragments",
-    "write_fragments",
+    "rebuild_fragments",
 ]

@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The comparison over every valid position of one vendor, as the generated
-docs page states it (ADR-0216 rule 8, SHD-06-004).
+docs page states it (SHD-06-004; ADR-0216).
 
 :func:`comparison_report` compares the authored rules at every point of
 :func:`~vultron.measure.action_rules.verdicts.vendor_points` and states,

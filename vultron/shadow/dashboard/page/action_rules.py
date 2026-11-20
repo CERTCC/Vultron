@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""The action rules on the page, beside the move bands (ADR-0216 rule 7):
+"""The action rules on the page, beside the move bands (SHD-06-001; ADR-0216):
 the rules the bands check, any flagged result, and the rules with no
 number.
 """

@@ -13,7 +13,7 @@
 
 
 """The comparison over every valid position of one vendor, rule by rule
-(ADR-0216 rule 8, #6676 AC-5)."""
+(SHD-06-004; ADR-0216; #6676 AC-5)."""
 
 from functools import cache
 

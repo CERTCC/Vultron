@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""The authored action rules beside the move bands (ADR-0216 rule 7).
+"""The authored action rules beside the move bands (SHD-06-001; ADR-0216).
 
 :func:`rule_comparisons` compares the authored rules with each vendor's
 position in a standing (SHD-06-001), each rule against the move's band for
