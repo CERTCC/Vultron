@@ -15,7 +15,11 @@ from enum import Enum
 import pytest
 from pydantic import ValidationError
 
-from vultron.core.models.case_reading import CaseReading, UnobservableFact
+from test.shadow.dashboard._support import (
+    VENDOR,
+    reading_with_d_unobservable,
+    recording_analysis,
+)
 from vultron.core.states.common import TransitionBase
 from vultron.core.states.cs import (
     CS,
@@ -29,7 +33,6 @@ from vultron.core.states.cs import (
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM, EM_TRANSITIONS
 from vultron.core.states.rm import RM, rm_transition_rows
-from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.ledger import UNNAMED_ACTOR
 from vultron.measure.sequences import (
     UnprojectableParticipant,
@@ -38,7 +41,6 @@ from vultron.measure.sequences import (
 from vultron.measure.standing import CaseStanding, ParticipantStanding
 from vultron.shadow.analysis import analyse
 from vultron.shadow.dashboard import case_state, machine_map, minimap, view
-from vultron.shadow.readers import VultronCaseReader
 
 _NODE = re.compile(r'^"(?P<id>[^"]+)" \[label="(?P<label>[^"]*)"', re.M)
 _ARROW = re.compile(
@@ -256,7 +258,6 @@ def test_the_case_minimaps_are_its_em_and_public_state():
     assert _current(pxa.dot) == ["Pxa"]
 
 
-VENDOR = "https://vendor.example/actors/vendor"
 OTHER_VENDOR = "https://other.example/actors/vendor"
 
 
@@ -299,10 +300,7 @@ def test_a_participant_with_an_opaque_id_has_a_tab_named_as_unnamed():
 
 def test_a_recorded_vendor_has_its_fix_path_on_its_map():
     """AC-1: a recorded case's vendor's RM and VFD, each marked."""
-    path = RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
-    analysis = analyse(
-        VultronCaseReader(root=RECORDINGS_DIR).read_case(str(path))
-    )
+    analysis = recording_analysis()
     assert analysis.standing is not None
     maps = minimap.participant_minimaps(
         analysis.standing.participants, analysis.actor_names
@@ -325,26 +323,10 @@ def test_an_unobservable_event_the_reading_says_happened_stays_happened():
     assert pxa.caption.startswith("📢 Public aware · ")
 
 
-def _reading_with_d_unobservable() -> CaseReading:
-    path = RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
-    recorded = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(path))
-    return CaseReading(
-        ledger=recorded.ledger,
-        citations=recorded.citations,
-        unobservable=(
-            UnobservableFact(
-                fact="Fix Deployed (D)",
-                why="no field",
-                events=frozenset({CSEvent.D}),
-            ),
-        ),
-    )
-
-
 @pytest.mark.spec("CRD-02-005")
 def test_a_participants_maps_read_its_cases_unobservable_events():
     """The reading's unobservable events reach each participant's map."""
-    analysis = analyse(_reading_with_d_unobservable())
+    analysis = analyse(reading_with_d_unobservable())
     assert analysis.standing is not None
     maps = minimap.participant_minimaps(
         analysis.standing.participants, analysis.actor_names

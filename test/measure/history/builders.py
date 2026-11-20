@@ -401,12 +401,11 @@ def publish(ledger: Ledger, pxa: str) -> int:
 
 def exit_embargo(
     ledger: Ledger,
-    content: str = "EARLY",
     cause: dict[str, Any] | None = None,
     embargo_id: str = EMBARGO,
 ) -> int:
     """The CASE_MANAGER's ``Remove`` of *embargo_id*, ending it."""
-    fields: dict[str, Any] = {"content": content}
+    fields: dict[str, Any] = {}
     if cause is not None:
         fields["terminationCause"] = cause
     return ledger.add(

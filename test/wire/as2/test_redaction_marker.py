@@ -345,7 +345,6 @@ CUT_DOWN_OBJECTS: dict[str, dict[str, Any]] = {
         "embargoRegister": [
             {
                 "termination": {
-                    "reason": "EARLY",
                     "cause": {"kind": "FIX_READY", "vendors": [MARKER]},
                 }
             }

@@ -62,7 +62,6 @@ from vultron.core.models.embargo_termination import (
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
-    TerminationReason,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -221,9 +220,8 @@ class TestTerminationCauseIsAdmissibleNode:
         "termination",
         [
             EmbargoTermination.early(),
-            EmbargoTermination.from_reason(
-                TerminationReason.EARLY,
-                FixReadyCause(vendors=[OTHER_PARTICIPANT_ACTOR]),
+            EmbargoTermination(
+                cause=FixReadyCause(vendors=[OTHER_PARTICIPANT_ACTOR]),
             ),
         ],
         ids=["no-cause", "fix-ready"],
@@ -656,7 +654,7 @@ class TestClearActiveEmbargoNode:
 
 
 def _remove_entry(
-    case_id: str, embargo_id: str | None, content: object = "EARLY"
+    case_id: str, embargo_id: str | None, cause: object = None
 ) -> CaseLedgerEntry:
     """The CASE_MANAGER's ``Remove(EmbargoEvent)`` entry naming *embargo_id*."""
     return _to_persistable_entry(
@@ -673,7 +671,7 @@ def _remove_entry(
                     if embargo_id is not None
                     else None
                 ),
-                "content": content,
+                **({"terminationCause": cause} if cause is not None else {}),
                 "published": now_utc().isoformat(),
                 "context": case_id,
             },
@@ -836,14 +834,19 @@ class TestApplyEmbargoTeardownNode:
         assert status == py_trees.common.Status.SUCCESS
 
     @pytest.mark.parametrize(
-        ("content", "names_embargo"),
-        [(None, True), ("THREAT_SIGNAL", True), ("EARLY", False)],
+        ("cause", "names_embargo"),
+        [
+            ("END_TIME_REACHED", True),
+            ({"kind": "LEAK"}, True),
+            (None, False),
+        ],
+        ids=["bare-kind", "unknown-kind", "no-embargo"],
     )
-    def test_refuses_a_malformed_entry(self, content, names_embargo):
-        """No termination reason, or no embargo named: FAILURE, unchanged."""
+    def test_refuses_a_malformed_entry(self, cause, names_embargo):
+        """A malformed cause, or no embargo named: FAILURE, unchanged."""
         dl, case = self._store("atn-bad", EM.ACTIVE)
         entry = _remove_entry(
-            case.id_, _e1(case) if names_embargo else None, content
+            case.id_, _e1(case) if names_embargo else None, cause
         )
 
         status = _copy_node(dl, entry).update()
@@ -866,7 +869,8 @@ class TestApplyEmbargoTeardownNode:
         )
         dl.create(case)  # the embargo record itself is not stored
         node = _copy_node(
-            dl, _remove_entry(case.id_, _e1(case), "END_TIME_REACHED")
+            dl,
+            _remove_entry(case.id_, _e1(case), {"kind": "END_TIME_REACHED"}),
         )
 
         status = node.update()

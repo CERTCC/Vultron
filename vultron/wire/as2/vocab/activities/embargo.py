@@ -15,12 +15,8 @@
 Provides Vultron Activity Streams Vocabulary classes for Embargo activities
 """
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
-from vultron.core.models.embargo_termination import EmbargoTermination
-from vultron.core.states.embargo_register import (
-    termination_reason_from_content,
-)
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.activities.base import RepliesToObject
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -204,26 +200,16 @@ class _RemoveEmbargoFromCaseActivity(as_Remove):
     owner, or by the CASE_MANAGER.
     object_: as_EmbargoEvent
     origin: VulnerabilityCase
-    content: the termination's what — exactly ``END_TIME_REACHED`` or
-        ``EARLY`` (ADR-0122); anything else is refused.  ``summary`` is a
-        human-readable account the protocol does not read.
-    termination_cause: the termination's why, when its sender names one,
-        as ``terminationCause`` (EMB-13-004, EMB-13-005); an
-        ``END_TIME_REACHED`` termination has none.
+    termination_cause: why the embargo ended, ``END_TIME_REACHED``
+        included, as ``terminationCause`` (EMB-13-005, ADR-0203); a
+        ``Remove`` naming none ends the embargo early.  ``summary`` is a
+        human-readable account the protocol does not read (EMB-13-004).
     """
 
     object_: as_EmbargoEvent = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
     origin: as_VulnerabilityCaseRef = None
-
-    @model_validator(mode="after")
-    def _content_is_a_termination_reason(self):
-        EmbargoTermination.from_reason(
-            termination_reason_from_content(self.content),
-            self.termination_cause,
-        )
-        return self
 
 
 class _CreateEmbargoEventActivity(as_Create):

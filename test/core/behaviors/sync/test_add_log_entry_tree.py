@@ -597,7 +597,6 @@ def _make_remove_embargo_entry(
                 "id": f"https://example.org/activities/log-{log_index}",
                 "log_index": log_index,
                 "object": {"id": ACTIVE_EMBARGO_ID, "type": "EmbargoEvent"},
-                "content": "EARLY",
             },
             prev_log_hash=prev_hash,
             received_at=ACT_AT,

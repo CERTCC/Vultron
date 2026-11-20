@@ -65,7 +65,6 @@ from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
-    TerminationReason,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -509,7 +508,6 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
             context=notices.CASE_ID,
             actor=notices.MANAGER,
             to=[replica.actor_id],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
         for activity in (

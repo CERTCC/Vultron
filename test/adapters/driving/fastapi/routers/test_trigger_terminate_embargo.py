@@ -103,19 +103,19 @@ def test_trigger_terminate_embargo_carries_the_requested_cause(
     }
 
 
-@pytest.mark.spec("EMB-13-004")
 @pytest.mark.spec("EMB-13-005")
 @pytest.mark.parametrize(
     "body",
     [
         {"cause": {"kind": "THREAT_SIGNAL", "signals": ["P"]}},
-        {"reason": "END_TIME_REACHED", "cause": {"kind": "OTHER"}},
+        {"cause": {"kind": "END_TIME_REACHED", "signals": ["P"]}},
     ],
+    ids=["threat-signal", "end-time-with-detail"],
 )
 def test_trigger_terminate_embargo_refuses_a_cause_it_may_not_name(
     client_triggers, actor, case_with_embargo, body
 ):
-    """A THREAT_SIGNAL cause, or a cause on END_TIME_REACHED, is a 422."""
+    """A THREAT_SIGNAL cause, or a malformed one, is a 422."""
     case_obj, _ = case_with_embargo
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/terminate-embargo",

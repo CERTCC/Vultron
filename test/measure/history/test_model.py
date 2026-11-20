@@ -21,7 +21,6 @@ from pydantic import ValidationError
 
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.cs_invariants import CSEvent
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.rm import RM
 from vultron.measure.history import (
     RM_EVENT_KINDS,
@@ -138,20 +137,23 @@ def test_a_consent_event_must_name_its_embargo():
 
 
 @pytest.mark.spec("CEH-04-006")
-def test_an_embargo_exit_must_carry_its_reason_and_only_it_may():
+def test_an_embargo_exit_says_whether_it_reached_its_end_time():
     exit_fields = _fields(
         kind=EventKind.EMBARGO_EXIT,
         participant=None,
         embargo_id="urn:uuid:embargo-1",
     )
-    with pytest.raises(ValidationError, match="carry its reason"):
-        CaseEvent(**exit_fields)
-    event = CaseEvent(
-        **exit_fields, exit_reason=TerminationReason.END_TIME_REACHED
-    )
-    assert event.exit_reason is TerminationReason.END_TIME_REACHED
-    with pytest.raises(ValidationError, match="only an embargo exit"):
-        CaseEvent(**_fields(exit_reason=TerminationReason.EARLY))
+    assert not CaseEvent(**exit_fields).ended_at_end_time
+    assert CaseEvent(
+        **exit_fields, exit_cause={"kind": "END_TIME_REACHED"}
+    ).ended_at_end_time
+    assert not CaseEvent(
+        **exit_fields, exit_cause={"kind": "FIX_DEPLOYED"}
+    ).ended_at_end_time
+
+
+@pytest.mark.spec("CEH-04-007")
+def test_only_an_embargo_exit_carries_a_cause():
     with pytest.raises(ValidationError, match="only an embargo exit"):
         CaseEvent(**_fields(exit_cause={"kind": "OTHER"}))
 

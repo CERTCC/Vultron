@@ -32,7 +32,6 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     ActivateEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
@@ -198,7 +197,6 @@ class TestEmbargoTermRevise:
             ),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
@@ -262,7 +260,6 @@ class TestEmbargoTermRevise:
             ),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
@@ -332,7 +329,6 @@ class TestEmbargoTermRevise:
             ),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
