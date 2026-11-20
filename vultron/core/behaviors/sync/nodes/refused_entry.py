@@ -205,7 +205,8 @@ class FindRefusedLedgerEntry(
                 " failed_activity_id; FindRefusedLedgerEntry belongs only in"
                 " a processing-fault tree"
             )
-        value = self._received.failed_activity_id
+        # The attribute is known present; the default only narrows the type.
+        value: object = getattr(self._received, "failed_activity_id", None)
         return value if isinstance(value, str) and value else None
 
 
