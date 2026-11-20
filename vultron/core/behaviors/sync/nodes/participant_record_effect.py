@@ -116,7 +116,7 @@ class ApplyAddCaseParticipantToCaseFromLedgerNode(_LedgerEffectNode):
     case (Regime 2, ADR-0087).  A record the replica already holds is left
     alone (idempotent, a replay).  An entry whose object is not a valid
     ``CaseParticipant``, or whose ``target`` names no case or another case
-    than the entry's own (SYNC-02-008), fails with a reason.
+    than the entry's own (CM-11-025, CLP-07-007), fails with a reason.
     """
 
     def update(self) -> Status:
@@ -136,7 +136,7 @@ class ApplyAddCaseParticipantToCaseFromLedgerNode(_LedgerEffectNode):
                 self.feedback_message = (
                     f"{self.name}: the entry adds the record to"
                     f" '{target_case_id}', not to its own case"
-                    f" '{entry.context}' (SYNC-02-008)"
+                    f" '{entry.context}' (CM-11-025, CLP-07-007)"
                 )
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE

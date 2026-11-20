@@ -5,7 +5,7 @@ status_override: >-
   ADR was unreleased, rather than superseded.
 date: 2026-10-07
 created: 2026-10-07
-updated: 2026-10-12
+updated: 2026-11-20
 revision: 2
 deciders: Allen D. Householder
 consulted: >-
@@ -153,6 +153,16 @@ A domain whose replay does not yet meet it is a defect to fix, not an exception,
 - Bad, because every object the case file holds needs a wire form, and consent rows and register entries do not have one yet.
 - Bad, because every case-file write in today's lifecycle and behavior-tree code must become an entry, and every replica step that works a change out must become a copy.
 - Neutral, because a replica trusts the CASE_MANAGER's working of each consequence instead of checking it; the single-writer regime already makes the CASE_MANAGER the authority for the case.
+
+## Amendment — 2026-11-20
+
+Corrected by decision of Allen D. Householder (Issue #6330, recorded on Issue #6295; built in Issue #6295).
+
+Replaced: "a record the CASE_MANAGER brings into existence is `Create(Object)`, such as the inert invitee's `Create(CaseParticipant)` (`create_case_participant`) after a stub Invite;"
+A record that joins one of the case's lists, its participants included, is recorded as an `Add` of the record with the case as its `target` (CLP-07-021).
+The inert invitee's record is therefore `Add(CaseParticipant)` with the case as its `target` and `context` (`add_case_participant_to_case`, VAM-06-004).
+`Create(Object)` stays the form for any other record the CASE_MANAGER brings into existence.
+The rest of the decision is unchanged.
 
 ## Validation
 

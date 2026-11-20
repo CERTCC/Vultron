@@ -652,7 +652,12 @@ def _retired_create_activities() -> list[Any]:
 
 
 @pytest.mark.spec(
-    "CLP-07-013", "CLP-02-013", "VAM-01-017", "VAM-01-011", "VAM-01-019"
+    "CLP-07-013",
+    "CLP-02-013",
+    "VAM-01-017",
+    "VAM-01-011",
+    "VAM-01-019",
+    "VAM-06-004",
 )
 @pytest.mark.parametrize("activity", _retired_create_activities())
 def test_received_create_of_a_case_record_is_refused_case_unchanged(

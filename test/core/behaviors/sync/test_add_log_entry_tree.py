@@ -1437,14 +1437,21 @@ class TestAddLogEntryAppliesStubPath:
             str(getattr(p, "id_", p)) for p in case.case_participants
         }
 
-    @pytest.mark.spec("CM-11-025", "CM-23-044", "SYNC-02-008", "SYNC-12-004")
+    @pytest.mark.spec("CM-11-025", "CM-23-044", "CLP-07-007", "SYNC-12-004")
     @pytest.mark.parametrize(
-        "target",
-        [None, "https://example.org/cases/another"],
+        ("target", "reason"),
+        [
+            (None, "names no case in 'target'"),
+            (
+                "https://example.org/cases/another",
+                "adds the record to 'https://example.org/cases/another',"
+                " not to its own case",
+            ),
+        ],
         ids=["no-target", "another-case"],
     )
     def test_add_entry_naming_no_case_or_another_case_seats_nothing(
-        self, bridge, datalayer, case_actor, case_obj, target
+        self, bridge, datalayer, case_actor, case_obj, caplog, target, reason
     ):
         """The replica does not infer the list from the verb or ``context``."""
         sent = _invitee_record()
@@ -1452,9 +1459,14 @@ class TestAddLogEntryAppliesStubPath:
             sent, 0, case_obj.genesis_hash, target=target
         )
 
-        result = self._announce(bridge, case_actor, entry)
+        with caplog.at_level("ERROR"):
+            result = self._announce(bridge, case_actor, entry)
 
         assert result.status != Status.SUCCESS
+        assert any(
+            "ApplyAddCaseParticipantToCase" in r.name and reason in r.message
+            for r in caplog.records
+        ), [r.message for r in caplog.records]
         case = datalayer.read(CASE_ID)
         assert INVITEE_ACTOR_ID not in case.actor_participant_index
         assert datalayer.read(sent.id_) is None

@@ -576,6 +576,13 @@ class TestAddParticipantToCaseActivity:
         with pytest.raises(ValidationError):
             _make_activity(self.cls, make(as_CaseParticipant), **fields)
 
+    @pytest.mark.spec("VAM-06-004")
+    @pytest.mark.parametrize("slot", ["target", "context"])
+    def test_refuses_an_explicit_none_case(self, slot):
+        fields = {**self.fields, slot: None}
+        with pytest.raises(ValidationError, match=f"names its case in {slot}"):
+            _make_activity(self.cls, make(as_CaseParticipant), **fields)
+
 
 class TestAddStatusToParticipantActivity:
     from vultron.wire.as2.vocab.activities.case_participant import (

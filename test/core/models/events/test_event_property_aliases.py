@@ -53,6 +53,7 @@ from vultron.core.models.events.case import (
     EngageCaseReceivedEvent,
 )
 from vultron.core.models.events.case_participant import (
+    AddCaseParticipantToCaseReceivedEvent,
     AnnounceAdmittedActReceivedEvent,
     ReinstateParticipantInCaseReceivedEvent,
     RemoveParticipantFromCaseReceivedEvent,
@@ -335,6 +336,16 @@ _CASES = [
         ],
     ),
     # ── case_participant.py ───────────────────────────────────────────────────
+    # The record joins the list of the case its target names (CM-11-025).
+    (
+        AddCaseParticipantToCaseReceivedEvent,
+        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+        {"object_": _participant, "target": _case, "context": _obj},
+        [
+            ("participant_id", "object_id"),
+            ("case_id", "target_id"),
+        ],
+    ),
     (
         ReinstateParticipantInCaseReceivedEvent,
         MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
