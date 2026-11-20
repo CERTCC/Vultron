@@ -301,9 +301,12 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   saying the actor published no key; the resolver logs it.
 - **The served profile's `@context` defines the key terms.** The Vultron
   context defines no `assertionMethod`, `Multikey`, `controller` or
-  `publicKeyMultibase`, so `profile_of_record` appends
-  `signing.MULTIKEY_CONTEXT` to the dumped `@context`, after whatever default
-  the actor has; a JSON-LD-expanding verifier drops the key without it.
+  `publicKeyMultibase`. Multikey v1 defines `Multikey` and its `controller` and
+  `publicKeyMultibase`; only Controlled Identifiers v1 defines `assertionMethod`
+  at top level. So `profile_of_record` appends each of
+  `signing.PROFILE_KEY_CONTEXTS` (Multikey v1, then CID v1) once to the dumped
+  `@context`, after whatever default the actor has; a JSON-LD-expanding
+  verifier drops the key without them.
 
 ## Encryption principles
 

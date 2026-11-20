@@ -23,7 +23,6 @@ tracks:
   - "#6422"   # term check and owned ratchets
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
-  - "#6418"   # profile cites Controlled Identifiers context
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
   - "#6481"   # embargo stores its status; register is a list (slice of #6246)
   - "#6482"   # embargo end is Update; owner's early end its own (#6246)
@@ -576,8 +575,10 @@ check (`vultron/metadata/wire_context/terms.py`, run by `uv run wire-context
 --check` and the unit suite) refuses a field with no term, a Vultron property named
 like a pinned external term, and two disagreeing declarations of one name. An
 external term counts only when a context in `CITED_CONTEXTS` defines it: AS2,
-data-integrity v2 and Multikey v1. CID v1 is pinned but not cited, so the
-profile's `assertionMethod` has no term until #6418 cites it. Each field the check
+data-integrity v2, Multikey v1 and CID v1. The actor profile cites Multikey v1 and
+CID v1 after its own contexts (`PROFILE_KEY_CONTEXTS` in
+`vultron/wire/as2/signing.py`), so `Multikey` and `assertionMethod` resolve in a
+JSON-LD processor. Each field the check
 refuses today is an entry in its owner's ratchet in
 `test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
 resolves to the marked one's meaning until its owner renames it: the item's `notes`
@@ -592,7 +593,6 @@ Invite carry the roles they propose in one field, `roles`, declared on
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
-| `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
 
 Every other field is a Vultron term. `state`, `status` and `kind` are each used once
