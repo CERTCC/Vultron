@@ -202,3 +202,42 @@ def test_releasing_a_tree_reaches_every_node_and_keeps_other_clients() -> None:
     assert outside.id() in registered
     assert len(tree_ids) == 2
     assert not tree_ids & registered
+
+
+def test_a_client_with_two_keys_remapped_onto_one_is_released() -> None:
+    """An input and an output port may share one blackboard key.
+
+    ``Client.unregister`` deletes the shared key's metadata on the first local
+    key and raises ``KeyError`` on the second; the release must not.
+    """
+    client = py_trees.blackboard.Client(name="ports")
+    client.register_key(
+        key="record_in",
+        access=py_trees.common.Access.READ,
+        remap_to="/record",
+    )
+    client.register_key(
+        key="record_out",
+        access=py_trees.common.Access.WRITE,
+        remap_to="/record",
+    )
+    before = registry_snapshot()
+
+    release_clients([client])
+
+    assert client.id() not in py_trees.blackboard.Blackboard.clients
+    assert "/record" not in py_trees.blackboard.Blackboard.metadata
+    assert before.gained_since(registry_snapshot()).clients == {client.id()}
+
+
+def test_releasing_one_client_keeps_another_clients_registration() -> None:
+    """A key two clients registered keeps the one not released."""
+    reader = py_trees.blackboard.Client(name="reader")
+    reader.register_key(key="actor_id", access=py_trees.common.Access.READ)
+    writer = _client("writer")
+
+    release_clients([writer])
+
+    meta = py_trees.blackboard.Blackboard.metadata["/actor_id"]
+    assert reader.id() in meta.read
+    assert writer.id() not in meta.write

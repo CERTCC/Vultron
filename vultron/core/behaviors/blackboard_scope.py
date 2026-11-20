@@ -114,20 +114,46 @@ def restore_keys(storage: dict[str, Any], saved: dict[str, KeyState]) -> None:
 def release_clients(clients: Iterable[py_trees.blackboard.Client]) -> None:
     """Take each of *clients* out of py_trees' process-global registry.
 
-    Unregisters the client and its key registrations, and keeps every value
-    it wrote: ``storage`` is :func:`restore_keys`'s to put back, and a value a
-    run hands its caller is read after the run ends.  A client the registry
-    no longer holds is skipped: a seam may release its own client early, and
-    ``Blackboard.clear()`` may have dropped the whole registry since the
-    client was built.
+    Drops the client's id from ``Blackboard.clients`` and from the reader,
+    writer and exclusive sets of every key it registered, and deletes a key's
+    metadata once no client holds it, as ``Client.unregister`` would.  It keeps
+    every value the client wrote: ``storage`` is :func:`restore_keys`'s to put
+    back, and a value a run hands its caller is read after the run ends.
+
+    Not ``Client.unregister`` itself: py_trees deletes a key's metadata on the
+    first of two local keys remapped onto it, then raises ``KeyError`` on the
+    second, and a node whose input and output ports share one blackboard key
+    has exactly that (``_SignEmbargoConsentLeafNode``).
+
+    A client the registry no longer holds is skipped: a seam may release its
+    own client early, and ``Blackboard.clear()`` may have dropped the whole
+    registry since the client was built.
 
     Args:
         clients: Clients whose registrations end now.
     """
-    registry = py_trees.blackboard.Blackboard.clients
+    board = py_trees.blackboard.Blackboard
     for client in clients:
-        if client.id() in registry:
-            client.unregister(clear=False)
+        uid = client.id()
+        if uid not in board.clients:
+            continue
+        # A Client answers attribute reads as blackboard keys, so its own
+        # bookkeeping is read past that override, as py_trees itself does.
+        remappings: dict[str, str] = object.__getattribute__(
+            client, "remappings"
+        )
+        for key in set(remappings.values()):
+            meta = board.metadata.get(key)
+            if meta is None:
+                continue
+            for ids in (meta.read, meta.write, meta.exclusive):
+                ids.discard(uid)
+            if not (meta.read or meta.write or meta.exclusive):
+                del board.metadata[key]
+        for registered in ("read", "write", "exclusive", "required"):
+            object.__getattribute__(client, registered).clear()
+        remappings.clear()
+        del board.clients[uid]
 
 
 def release_tree_clients(root: py_trees.behaviour.Behaviour) -> None:
