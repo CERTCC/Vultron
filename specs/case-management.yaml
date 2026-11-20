@@ -12483,3 +12483,137 @@ groups:
     - ADR-0217
     stories:
     - story_2022_030
+- id: CM-35
+  title: Participant Tracking IDs
+  description: >-
+    A participant states which of its own tracking IDs a case goes by, such as the
+    tickets for the case in its internal trackers. The set is part of the
+    participant's status, a claim the participant makes about itself, and it travels
+    with the status to every participant in the case. Each status carries the whole
+    current set: a status that names no set keeps the previous one, and a status that
+    names one replaces it.
+  specs:
+  - id: CM-35-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant status MUST carry its tracking IDs as a list, empty by default,
+      of entries that each hold a `value` and an optional `tracker`.
+    rationale: >-
+      A case often maps to several tickets in one organization, such as a PSIRT ticket
+      and an engineering ticket, so one value is not enough. The `tracker` label tells
+      a reader which of the participant's systems each value comes from, and a
+      participant with one tracker can leave it out. The entry's ID field is not named
+      `id`: AS2's context maps `id` to `@id`, so a reader would take a ticket number
+      for the IRI of the entry itself.
+    verification: >-
+      A test marked `CM-35-001` builds a participant status with two tracking IDs, one
+      with a `tracker` and one without, serializes it, and asserts the wire form holds
+      both entries under `trackingIds` with their `value` and `tracker` keys; and
+      asserts a status built with none holds an empty list.
+    stories:
+    - story_2026_101
+  - id: CM-35-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An actor MUST NOT interpret a tracking ID's `value` or `tracker`, nor restrict a
+      `tracker` to a fixed list of names.
+    rationale: >-
+      Each value is an opaque label in the participant's own system, and trackers
+      differ across organizations, so a fixed vocabulary would need upkeep and would
+      still miss some. This is the same rule CM-05-008 gives vulnerability
+      identifiers.
+    verification: >-
+      A test marked `CM-35-002` builds tracking IDs with an arbitrary `tracker` name
+      and a `value` of no known format, and asserts both are kept as sent.
+    stories:
+    - story_2026_101
+  - id: CM-35-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor MUST refuse a participant status that holds two tracking IDs with the
+      same `value`.
+    rationale: >-
+      The tracking IDs are a set keyed on `value`: one ticket number names one ticket,
+      and two entries for it, even with different `tracker` labels, would leave a
+      reader unable to tell which label is right. Refusing the status makes the sender
+      fix it, where silently keeping one entry would pick a label for it.
+    verification: >-
+      A test marked `CM-35-003` builds a participant status whose tracking IDs share a
+      `value` with different `tracker` labels and asserts construction is refused.
+    stories:
+    - story_2026_101
+  - id: CM-35-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor that writes or receives a participant status that supplies no tracking
+      IDs MUST give that status the participant's previous set of tracking IDs.
+    rationale: >-
+      A participant sends a new status for many reasons, such as an RM move or a fix
+      becoming ready, and the tracking IDs exist to route messages about the case to
+      its tracker. A status sent for another reason must not drop them. Leaving the
+      field out therefore means no change, and only an empty list clears the set
+      (CM-35-005). The stored status always holds the resolved set, so the rule binds
+      the status writer and the receiving edge, not storage.
+    verification: >-
+      A test marked `CM-35-004` gives a participant a status with tracking IDs, then
+      writes a status for an RM move with no tracking IDs supplied, and asserts the new
+      status holds the earlier set; and delivers a received status whose wire form has
+      no `trackingIds` key, and asserts the stored status holds the participant's
+      previous set.
+    stories:
+    - story_2026_101
+  - id: CM-35-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor MUST take a list of tracking IDs that a participant status supplies as
+      the participant's whole set, replacing the previous one.
+    rationale: >-
+      The set must show the IDs the participant claims now, not every one it ever
+      used: a participant that starts with `[ID1]`, adds three more as
+      `[ID1, ID2, ID3, ID4]`, then drops two sends `[ID1, ID3]`. An empty list
+      therefore clears the set. This differs from an admitted update of a case-file
+      object, which merges a list (CM-34-011): a case-file update may come from a
+      partial or stale view, but the participant is the only author of its own
+      tracking IDs, so its latest list is complete.
+    verification: >-
+      A test marked `CM-35-005` sends a participant's statuses with `[ID1]`,
+      `[ID1, ID2, ID3, ID4]`, `[ID1, ID3]` and `[]`, and asserts the latest status
+      holds exactly each list in turn.
+    stories:
+    - story_2026_101
+  - id: CM-35-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT withhold a participant's tracking IDs from the other
+      participants the participant's status reaches.
+    rationale: >-
+      Participants in a case also talk outside it, and naming the other party's own
+      ticket ("I am calling about your SEC-1234") reaches the right person faster
+      than naming the case. The participant chooses what to put in the set, so it
+      leaves out any ID it wants kept private.
+    verification: >-
+      A test marked `CM-35-006` admits a participant's status with tracking IDs and
+      asserts the status another participant's replica receives holds the same set.
+    stories:
+    - story_2026_101
+  - id: CM-35-007
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST model a tracking ID as its own type, one that refuses a
+      vulnerability item's `ids` entry and that the entry's type refuses.
+    rationale: >-
+      Both are a label with a value, so one shared type would let a participant's
+      ticket number land in a vulnerability's `ids`, or a CVE entry in a status.
+      Distinct field names on types that refuse unknown keys make each fail to parse
+      as the other.
+    verification: >-
+      A test marked `CM-35-007` asserts a tracking ID's wire form fails to validate as
+      a `VulnerabilityItemId`, and a `VulnerabilityItemId`'s wire form fails to
+      validate as a tracking ID.

@@ -2165,3 +2165,11 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CSAF — CSAF Documents in Reports | [CSAF-02-002](../vultron-spec/requirements/messages.md#csaf-02-002) |
+
+## [story_2026_101](story_2026_101.md)
+
+{% include-markdown "./story_2026_101.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CM — Case Management | [CM-35-001](../vultron-spec/requirements/case-management.md#cm-35-001), [CM-35-002](../vultron-spec/requirements/case-management.md#cm-35-002), [CM-35-003](../vultron-spec/requirements/case-management.md#cm-35-003), [CM-35-004](../vultron-spec/requirements/case-management.md#cm-35-004), [CM-35-005](../vultron-spec/requirements/case-management.md#cm-35-005), [CM-35-006](../vultron-spec/requirements/case-management.md#cm-35-006) |
