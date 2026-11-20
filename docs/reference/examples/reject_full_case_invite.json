@@ -73,7 +73,6 @@
       "notes": [],
       "embargoRegister": [],
       "pendingEmbargoProposalIndex": {},
-      "caseActivity": [],
       "genesisHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d",
       "ledgerPosition": {
         "logIndex": -1,
@@ -96,6 +95,6 @@
     "verificationMethod": "https://vultron.example/organizations/coordinator#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "zXDS1co74EesrsYwUMjBe3kRbhJpVWJPfu2HUzL7ZWtertaHUMYujdCXnQS88z23wzAqueuEiqtWSSjuheqxLjGJ"
+    "proofValue": "z46dwqTxNB8xmoU4iWRjbvo5UKbRnaHFZSt7a9YGju91kMDmuEpHKk7Gbh9fNGyQGMmCpTttecMWBgVTi16hFy7hz"
   }
 }

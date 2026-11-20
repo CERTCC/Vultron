@@ -40,7 +40,7 @@ stakeholder_type: [project-contributor]
 
 - **Per-recipient retry**: `HttpDeliveryAdapter` in `vultron/adapters/driven/http_delivery.py` retries 5xx and network errors with exponential backoff (`DEFAULT_MAX_RETRIES`, `DEFAULT_INITIAL_DELAY`, `DEFAULT_BACKOFF_MULTIPLIER`, `DEFAULT_MAX_DELAY`; SYNC-05-001, SYNC-05-002).
   A 4xx response is terminal and raises `DeliveryError` at once without consuming retries (OX-13-005).
-- **Position statements**: each hosted participant sends `Read(CaseLedgerEntry)` naming its tail for each case it holds after every restart, so a lost last entry is replayed (SYNC-17-007; `ledger_position_statements.py`).
+- **Position statements**: each hosted participant sends `Read(<case>/ledger)` stating its tail for each case it holds after every restart, so a lost last entry is replayed (SYNC-17-007; `ledger_position_statements.py`).
   It repeats every `LedgerConfig.position_statement_interval_seconds`, which defaults to `None` (off).
   A participant also sends one when a case copy first seeds its replica, naming the copy's position, so the CASE_MANAGER can resend an Invite the participant dropped before the copy arrived (SYNC-17-008; `StateSeededLedgerPositionNode` in `case_copy.py`).
 - **Unanswered-Invite resend (CASE_MANAGER)**: when a participant states a position its ledger holds, the CASE_MANAGER requeues the sealed body of each Invite that participant still owes an answer to, through `SyncActivityPort.resend_sealed_activity` (SYNC-20; `ResendOwedInvitesNode` in `sync/nodes/invite_resend.py`).

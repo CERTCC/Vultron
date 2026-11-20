@@ -55,9 +55,8 @@ _BM = TypeVar("_BM", bound=BaseModel)
 def _to_wire(core_obj: Any, wire_cls: type[_BM]) -> _BM:
     """Convert a core domain object to its wire vocabulary counterpart.
 
-    Uses ``wire_cls.from_core(core_obj)`` so that wire classes that override
-    ``from_core`` (e.g. ``as_VulnerabilityCase`` which wraps ``case_activity``
-    string IDs as stub ``as_Activity`` objects) apply their custom logic.
+    Uses ``wire_cls.from_core(core_obj)`` so that a wire class that overrides
+    ``from_core`` applies its own conversion logic.
 
     Raises:
         VultronNotFoundError: when *core_obj* is ``None`` (dl.read returned
@@ -376,6 +375,25 @@ def _addressing(
     if id_ is not None:
         extra["id_"] = id_
     return extra
+
+
+def _delegation(
+    attributed_to: str | None, in_reply_to: str | None = None
+) -> dict[str, str]:
+    """``attributed_to`` and ``in_reply_to`` as factory keywords, each only
+    when given (CM-24-002, CM-24-020).
+
+    Absent, the factory keeps its default of no attribution, so an activity
+    the CASE_MANAGER decides on its own names nobody else.
+    """
+    return {
+        key: value
+        for key, value in (
+            ("attributed_to", attributed_to),
+            ("in_reply_to", in_reply_to),
+        )
+        if value is not None
+    }
 
 
 def _already_sealed(

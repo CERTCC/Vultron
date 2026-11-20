@@ -16,7 +16,7 @@
 """Action nodes for SYNC log-replication replay.
 
 Replay is catch-up for one peer that has fallen behind, driven by an inbound
-``Reject(CaseLedgerEntry)`` or by the position a ``Read(CaseLedgerEntry)``
+``Reject(CaseLedgerEntry)`` or by the position a ``Read(<case>/ledger)``
 states (SYNC-03-002, SYNC-17-004).  The fan-out nodes that used to live here — the
 distribution of a single entry to every recipient — now sit in ``fanout.py``
 alongside their RM.CLOSED-filtered variants (BTND-07-004), and the genesis

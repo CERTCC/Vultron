@@ -35,6 +35,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.act_key_scope import seeded_value
+from vultron.core.behaviors.act_keys import SENDER_ID
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
@@ -505,7 +507,8 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     # about another actor or another RM state would make the handler report a
     # redelivery that was not one (#5006).
     asked = {
-        (node._actor_id, node._target_rm)
+        # The sender each one reads is the one its scope seeds.
+        (seeded_value(node, SENDER_ID), node._target_rm)
         for node in tree.iterate()
         if isinstance(node, CheckParticipantRMState)
     }

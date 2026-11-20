@@ -62,6 +62,10 @@ _NOT_A_SNAPSHOT_EXEMPTIONS: dict[tuple[str, str], str] = {
         "for_actor",
     ): "revalidates this row's own dump with its attribution set",
     (
+        "vultron/core/models/preview_object.py",
+        "to_loose",
+    ): "revalidates an object's own dump into its loose form (ADR-0217)",
+    (
         "vultron/core/models/embargo_register/step.py",
         "_entry_after",
     ): "revalidates this entry's own dump with the change applied",

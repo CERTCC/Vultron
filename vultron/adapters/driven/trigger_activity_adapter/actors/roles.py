@@ -41,6 +41,7 @@ from .._base import (
     _addressing,
     _case_for_wire,
     _create_and_seal,
+    _delegation,
 )
 from ._helpers import (
     _held_actor,
@@ -79,10 +80,7 @@ class _RolesMixin:
         case = _case_for_wire(self._dl, case_id)
         target = _held_actor(self._dl, target_actor_id)
         extra: dict[str, Any] = _addressing(actor, to, id_)
-        if attributed_to is not None:
-            extra["attributed_to"] = attributed_to
-        if in_reply_to is not None:
-            extra["in_reply_to"] = in_reply_to
+        extra.update(_delegation(attributed_to, in_reply_to))
         activity = offer_case_participant_role_activity(
             role=role,
             target_actor=target,

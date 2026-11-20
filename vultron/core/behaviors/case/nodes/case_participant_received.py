@@ -47,7 +47,10 @@ from typing import Literal
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
-from vultron.core.behaviors.delegated_authorship import delegated_authorship
+from vultron.core.behaviors.delegated_authorship import (
+    DelegatedAuthorship,
+    delegated_authorship,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -55,6 +58,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.behaviors.node_logger import fail_with_reason
+from vultron.core.behaviors.received_request import ReceivedRequestInputMixin
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -370,12 +374,15 @@ class RemoveCaseParticipantFromCaseReceivedNode(ParticipantMoveEffectNode):
         )
 
 
-class EmitParticipantMoveNoticeNode(_EmitSingleActivityBase):
+class EmitParticipantMoveNoticeNode(
+    ReceivedRequestInputMixin, _EmitSingleActivityBase
+):
     """Send the moved participant a direct notice of the Case Owner's move.
 
     The shared frame of the removal and reinstatement notices.  The
-    CASE_MANAGER is the ``actor`` and the Case Owner who asked for the move
-    is ``attributedTo`` (CM-24-001, CM-24-002, from
+    CASE_MANAGER is the ``actor``, the Case Owner who asked for the move is
+    ``attributedTo`` and the Owner's request, the received activity on the
+    blackboard, is ``inReplyTo`` (CM-24-001, CM-24-002, CM-24-020, from
     :func:`delegated_authorship`); the one recipient is the participant the
     move names.  The notice is delivery, not a record: it is queued on the
     outbox and never committed to the ledger.  The participant learns the
@@ -404,8 +411,7 @@ class EmitParticipantMoveNoticeNode(_EmitSingleActivityBase):
     def _send(
         self,
         trigger_activity: TriggerActivityPort,
-        actor: str,
-        attributed_to: str,
+        authorship: DelegatedAuthorship,
         to: list[str],
     ) -> tuple[str, str]:
         """Build and persist the notice through the port; subclasses pick it."""
@@ -427,11 +433,11 @@ class EmitParticipantMoveNoticeNode(_EmitSingleActivityBase):
         authorship = delegated_authorship(
             doing_actor_id=self.actor_id,
             requesting_actor_id=self.requesting_actor_id,
+            request_id=self._received_request_id(),
         )
         return self._send(
             self.trigger_activity_factory,
-            actor=authorship.actor,
-            attributed_to=authorship.attributed_to,
+            authorship=authorship,
             to=[moved_actor_id],
         )
 
@@ -459,15 +465,15 @@ class EmitParticipantRemovalNoticeNode(EmitParticipantMoveNoticeNode):
     def _send(
         self,
         trigger_activity: TriggerActivityPort,
-        actor: str,
-        attributed_to: str,
+        authorship: DelegatedAuthorship,
         to: list[str],
     ) -> tuple[str, str]:
         return trigger_activity.remove_participant_from_case(
             participant_id=self.participant_id,
             case_id=self.case_id,
-            actor=actor,
-            attributed_to=attributed_to,
+            actor=authorship.actor,
+            attributed_to=authorship.attributed_to,
+            in_reply_to=authorship.in_reply_to,
             to=to,
             at=self._require_act_instant(),
         )

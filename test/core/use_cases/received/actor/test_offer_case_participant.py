@@ -85,6 +85,7 @@ from vultron.wire.as2.factories import (
     reject_case_participant_offer_activity,
     rm_accept_invite_to_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -642,6 +643,39 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             for i in invites
         }
         assert invitees == {RECOMMENDED_ID}
+
+    @pytest.mark.spec("CM-16-006")
+    @pytest.mark.spec("CM-24-002")
+    @pytest.mark.spec("CM-24-020")
+    def test_the_invite_credits_the_owner_and_answers_its_accept(self):
+        """The Owner's Accept is its decision to invite (ADR-0199).
+
+        The CASE_MANAGER's stub Invite names the Owner in ``attributedTo``
+        and the Owner's ``Accept`` in ``inReplyTo``.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        event = self._event_with_stored_offer(dl)
+
+        result = run_in_act(
+            AcceptOfferCaseParticipantReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        (invite,) = [
+            obj
+            for obj in (dl.read(a) for a in dl.outbox_list())
+            if str(getattr(obj, "type_", "")) == "Invite"
+        ]
+        assert isinstance(invite, as_Invite)
+        assert invite.actor == CASE_ACTOR_ID
+        assert invite.attributed_to == CASE_OWNER_ID
+        assert invite.in_reply_to == event.activity_id
 
     @pytest.mark.spec("CM-16-019")
     def test_offer_archived_from_a_stranger_is_not_a_record(self):

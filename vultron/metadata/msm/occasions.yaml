@@ -307,8 +307,9 @@ groups:
     semantics: offer_case_ownership_transfer
     status: none
     description: 'Offers the case to the actor named by the target, on the Case Owner''s behalf:
-      `attributedTo` names the owner. This is the one offer of the transfer, the one the new
-      owner accepts or rejects. It carries the proposal''s `endTime`, if any.'
+      `attributedTo` names the owner and `inReplyTo` the owner''s proposal. This is the one
+      offer of the transfer, the one the new owner accepts or rejects. It carries the proposal''s
+      `endTime`, if any.'
     seen_in: []
     example: offer_case_ownership_transfer
   - anchor: accept-case-ownership-transfer
@@ -559,7 +560,8 @@ groups:
     status: direct
     description: Tells one participant that the embargo has ended, with immediate effect.
       The CASE_MANAGER sends one to each participant other than itself, naming the Case Owner
-      in `attributedTo` when the Case Owner asked for the termination.
+      in `attributedTo` and the Case Owner's request in `inReplyTo` when the Case Owner asked
+      for the termination.
     notes: The wire form is the Embargo Termination (ET) a Case Owner sends; only its sender
       and addressee differ.
     seen_in:
@@ -643,7 +645,8 @@ groups:
     status: collapse
     description: Asks one participant to accept or reject proposed embargo terms, or a proposed
       revision. The CASE_MANAGER sends one to each participant other than the proposer, naming
-      the proposer in `attributedTo`, and the participant's answer names this Invite.
+      the proposer in `attributedTo` and the proposer's Invite in `inReplyTo`, and the participant's
+      answer names this Invite.
     notes: The wire form is the Embargo Proposal (EP) or Embargo Revision Proposal (EV) a
       participant sends; only its sender and addressee differ.
     seen_in:
@@ -1252,16 +1255,18 @@ groups:
       hash. This negative acknowledgment serves the purpose of the formal EK and CK messages.
     seen_in: []
     example: reject_case_ledger_entry
-  - anchor: read-case-ledger-entry
-    heading: Read case ledger entry
-    when: a Participant checks that its ledger is current, such as after a restart
-    send: Read(CaseLedgerEntry)
+  - anchor: read-case-ledger
+    heading: Read case ledger
+    when: a Participant checks that its ledger is current, such as after a restart, or holds
+      a case but none of its entries
+    send: Read(OrderedCollection)[context=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: a participant
-    semantics: read_case_ledger_entry
+    semantics: read_case_ledger
     status: none
-    description: States the last ledger entry the sender has applied. The CASE_MANAGER resends
-      every Invite the sender has not answered and, for an active participant, records the
-      position as the sender's acknowledged position and replays every entry after it.
+    description: 'States the sender''s position in the case''s ledger: its last entry, or
+      index -1 when it holds none. The CASE_MANAGER resends every Invite the sender has not
+      answered and, for an active participant, records the position as the sender''s acknowledged
+      position and replays every entry after it, the whole ledger for index -1.'
     seen_in: []
-    example: read_case_ledger_entry
+    example: read_case_ledger

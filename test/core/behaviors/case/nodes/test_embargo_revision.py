@@ -32,6 +32,7 @@ import pytest
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.behaviors.case.nodes.revision_relay_fixtures import (
     CASE_ID,
+    CASE_PROPOSAL_ID,
     EMBARGO_ID,
     MANAGER,
     OWNER,
@@ -90,6 +91,7 @@ def assert_nothing_relayed(scenario: BTTestScenario) -> None:
 @pytest.mark.spec("EP-08-002")
 @pytest.mark.spec("CM-24-001")
 @pytest.mark.spec("CM-24-002")
+@pytest.mark.spec("CM-24-020")
 @pytest.mark.parametrize(
     ("losing_source", "loser", "winner"),
     [
@@ -114,6 +116,9 @@ def test_the_winner_alone_is_invited_on_the_losers_behalf(
     assert invite.to == [winner]
     assert invite.actor == MANAGER
     assert invite.attributed_to == loser
+    # Both parties' terms arrived in the case proposal, which the relay
+    # carries out (CM-24-020).
+    assert invite.in_reply_to == CASE_PROPOSAL_ID
     # Indexed only now that it is sent, for the default selection (EP-08-002).
     assert index(bt_scenario) == {EMBARGO_ID: invite.id_}
 

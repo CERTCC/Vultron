@@ -182,10 +182,11 @@ So the CASE_MANAGER refuses a message without a claimed time at the door ([CLP-1
 A field that is present but empty carries no claimed time either.
 A blank `published` — an empty string, or one holding only whitespace — is refused the same way as an omitted one, and reports the same reason ([MV-03-002](../../reference/vultron-spec/requirements/messages.md#mv-03-002)).
 
-A case status is held to the same rule wherever it sits in a message.
+A case status is held to the same rule wherever it sits in a message, except inside a case preview.
 Every case status carries the time its author made it.
 The CASE_MANAGER gives each new status a later time than the one before it, so time order and the order of the history agree ([CM-29-005](../../reference/vultron-spec/requirements/case-management.md#cm-29-005)).
 A receiver therefore refuses an activity that carries a case status with no `published` ([CLP-15-010](../../reference/vultron-spec/requirements/ledger-replication.md#clp-15-010)).
+Inside a case preview it reads the status as the sender showed it, because a preview shows only what its sender chose ([MV-12-006](../../reference/vultron-spec/requirements/messages.md#mv-12-006)).
 The same holds for every other whole object a message carries, at any depth, except an actor profile, a collection or an embargo consent row; a typed reference is not a whole object, and the case preview it may carry is a projection of the object it names ([CLP-15-011](../../reference/vultron-spec/requirements/ledger-replication.md#clp-15-011)).
 A receiver also refuses a case that arrives with no case statuses at all, because starting one would put the receiver's own clock on the case's first status ([CM-29-004](../../reference/vultron-spec/requirements/case-management.md#cm-29-004)).
 
@@ -346,7 +347,7 @@ The next entry that does not match the replica's tail produces a `Reject`, and t
 
 A `Reject` needs a later entry to arrive.
 When the lost entry is the last one before a quiet period, nothing follows it, so the replica has no gap to see and sends no `Reject`.
-The replica closes that gap itself by stating its position: `Read(CaseLedgerEntry)` names the last entry it applied ([SYNC-17-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-17-001)).
+The replica closes that gap itself by stating its position: `Read(<case>/ledger)`, a `Read` of the case's ledger, states the last entry it applied, or index -1 when it holds none ([SYNC-17-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-17-001)).
 The CASE_MANAGER records that position and replays every entry after it, under the same cooldown as a `Reject` replay ([SYNC-17-004](../../reference/vultron-spec/requirements/ledger-replication.md#sync-17-004)).
 The reference participant sends one for each case it holds after every restart, the moment it is most likely to have missed an entry.
 A participant also states its position once a case copy first seeds its replica, so the CASE_MANAGER learns the replica is ready ([SYNC-17-008](../../reference/vultron-spec/requirements/ledger-replication.md#sync-17-008)).

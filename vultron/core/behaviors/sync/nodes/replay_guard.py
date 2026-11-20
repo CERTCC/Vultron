@@ -319,7 +319,7 @@ def genesis_reject_answered(
     *,
     case_id: str,
     peer_id: str,
-    rejected_index: int | None,
+    rejected_index: int,
     at: datetime,
 ) -> bool:
     """Report whether the last replay from genesis already answered a genesis Reject.
@@ -337,7 +337,7 @@ def genesis_reject_answered(
       answered.  A peer that advanced through fan-out alone stays declined
       until the ceiling below;
     - *rejected_index* is at or below the highest ``log_index`` that replay
-      sent; a Reject naming no entry (``None``) or a later one is answered;
+      sent; a Reject naming a later one is answered;
     - less than :data:`MAX_REPLAY_COOLDOWN_SECONDS` has passed since that
       replay, judged at *at*, the act's instant, so the limit never becomes
       a stop (SYNC-15-018).
@@ -347,8 +347,6 @@ def genesis_reject_answered(
 
     Spec: SYNC-15-018, SYNC-15-019, SYNC-15-022, SYNC-15-024, SYNC-15-025.
     """
-    if rejected_index is None:
-        return False
     state = read_replication_state(datalayer, case_id=case_id, peer_id=peer_id)
     if (
         state is None

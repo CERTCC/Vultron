@@ -25,7 +25,7 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.wire.as2.factories import (
-    read_ledger_entry_activity,
+    read_ledger_at_entry_activity,
     reject_log_entry_activity,
     rm_engage_case_activity,
 )
@@ -124,15 +124,15 @@ def reject_case_ledger_entry() -> Scenario:
     )
 
 
-@applied(MessageSemantics.READ_CASE_LEDGER_ENTRY)
-def read_case_ledger_entry() -> Scenario:
+@applied(MessageSemantics.READ_CASE_LEDGER)
+def read_case_ledger() -> Scenario:
     """A replica states it holds entry 0: the entries after are replayed."""
     net = _engaged("read-ledger-entry")
     first, *_ = _entries(net)
     net.lose(MANAGER, to=BYSTANDER)
     return deliver(
         net,
-        read_ledger_entry_activity(
+        read_ledger_at_entry_activity(
             _wire(first), actor=BYSTANDER, to=[MANAGER], at=authored_at()
         ),
     )

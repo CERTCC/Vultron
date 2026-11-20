@@ -253,8 +253,7 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
     The guard of the ``LEDGER_PEER`` kind, the standing of a
     ``Reject(CaseLedgerEntry)`` resync request (SYNC-03-005).
     Reads ``activity`` from the blackboard and takes the case from the
-    ``CaseLedgerEntry`` it carries, or, for the ``Reject`` that names no entry
-    because its sender holds none, from its ``target`` (SYNC-16-027).
+    ``CaseLedgerEntry`` it carries.
     Returns ``SUCCESS`` only when the sender is an active participant of that
     case (:func:`~vultron.core.participants.recipients.is_case_content_recipient`,
     CM-10-004).
@@ -293,8 +292,7 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
             return f
         assert self.datalayer is not None
 
-        # The rejected entry's case, or the case the objectless genesis
-        # Reject names as its target (SYNC-16-027).
+        # The rejected entry's case.
         try:
             case_id = replay_case_id(self.activity, self.name)
         except VultronError as exc:

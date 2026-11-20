@@ -76,6 +76,7 @@ from vultron.core.behaviors.call_out.bundles.deploy_fix import (
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
 )
@@ -134,7 +135,7 @@ def create_stay_deferred_arm(
         name="_ShouldStayInRmDeferred",
         memory=False,
         children=[
-            RMinStateDeferred(case_id=case_id, actor_id=actor_id),
+            with_case_id(RMinStateDeferred(), case_id),
             bundle.no_new_deployment_info_factory("NoNewDeploymentInfo"),
         ],
     )
@@ -188,7 +189,7 @@ def create_deploy_fix_tree(
         memory=False,
         children=[
             CheckDeployerRoleNode(case_id=case_id, actor_id=actor_id),
-            CheckRMStateAccepted(case_id=case_id, actor_id=actor_id),
+            with_case_id(CheckRMStateAccepted(), case_id),
             CheckCSFixNotYetDeployed(case_id=case_id, actor_id=actor_id),
             bundle.prioritize_deployment_factory("PrioritizeDeployment"),
             bundle.deploy_fix_factory("DeployFix"),

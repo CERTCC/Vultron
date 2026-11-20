@@ -13,22 +13,24 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The ``Redacted`` marker: a preview field's value, withheld (ADR-0193).
+"""The ``Redacted`` marker: a preview's value, withheld (ADR-0193, ADR-0217).
 
 A preview is a limited view of an object for a recipient not yet entitled to
-the whole of it.  A sender that builds one may put a marker in a field to say
-that the field has a value it withholds from this recipient::
+the whole of it.  A sender that builds one may put a marker where a value
+would be, to say there is a value it withholds from this recipient::
 
     {"type": "Redacted", "summary": "Embargo pending"}
 
 The marker carries no field but ``type`` and an optional ``summary`` giving
-the reason (MV-12-003), so it cannot carry the value it stands for: a marker
-with any other field is refused (MV-12-005).  It has no ``id``, because it is
-a value in a field, not an object of its own.
+the reason (MV-12-003).  This class refuses any other field when it is built,
+so a sender cannot put the value it withholds in the marker (MV-12-005).  A
+received marker's other keys are set aside at the parse edge like any unknown
+key (MV-11-003), so the receiver reads a clean marker.  It has no ``id``,
+because it is a value, not an object of its own.
 
-This class is the marker's type only.  Each preview type declares which of its
-fields accept the marker, and a marker anywhere else is refused (MV-12-001,
-MV-12-002); until a preview type opens a field to it, no field does.
+A preview reads a marker anywhere inside it, at any depth (MV-12-001), and a
+marker outside a preview is refused (MV-12-002).  :data:`Redactable` is how a
+preview's field admits one.
 """
 
 from typing import Literal
@@ -40,29 +42,6 @@ from vultron.primitives import NonEmptyString
 
 #: The wire ``type`` of a redaction marker.
 REDACTED_TYPE: Literal["Redacted"] = "Redacted"
-
-
-def opens_to_redaction(model: BaseModel, field_name: str) -> bool:
-    """Whether *model*'s type opens its field *field_name* to the marker.
-
-    A preview type declares the fields that may carry a marker in a
-    ``redactable_fields`` class attribute, a frozenset of Python field names
-    (``object_``, not the wire key ``object``; ADR-0193).  Every other class,
-    and so every full object, opens none.
-
-    Raises:
-        TypeError: When the type declares ``redactable_fields`` as anything
-            but a frozenset of strings, a fault in the type, not the data.
-    """
-    opened: object = getattr(type(model), "redactable_fields", frozenset())
-    if not isinstance(opened, frozenset) or not all(
-        isinstance(name, str) for name in opened
-    ):
-        raise TypeError(
-            f"{type(model).__name__}.redactable_fields must be a frozenset"
-            f" of field names, not {opened!r} (ADR-0193)"
-        )
-    return field_name in opened
 
 
 class Redacted(ValidatedAssignmentMixin, BaseModel):
@@ -95,3 +74,9 @@ class Redacted(ValidatedAssignmentMixin, BaseModel):
         default=None,
         description="Why the value is withheld from the recipient.",
     )
+
+
+#: A preview's value or the marker that withholds it (ADR-0217).  A preview
+#: field ``name: Redactable[NonEmptyString] | None`` holds a name, a marker, or
+#: nothing.
+type Redactable[T] = T | Redacted

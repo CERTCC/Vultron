@@ -22,8 +22,8 @@ BT-17-009), and reads the ``HandlerResult`` from what the tree's nodes
 recorded (:func:`~vultron.core.behaviors.case.received_run.reading.read_outcome`).
 Nothing in it reads or writes the DataLayer around the run: a verdict that
 needs a fact the tree did not record needs a node, not code here.  (A
-handler's builder may still read the store to pick its tree until #6476
-moves the last such reads into the trees.)
+handler's builder may still read the store to pick its tree until #6499
+moves the fault trees' reads into their trees.)
 
 The runner is the one place a received use case's receiver is resolved, so
 no handler resolves it.  A tree whose shape names the receiver is handed

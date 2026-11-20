@@ -319,7 +319,14 @@ def refuse_absent_id(cls: type[BaseModel], data: dict[str, Any]) -> None:
     (OID-01-013).  For the inbound path only: an object this process builds
     takes the minting default.  A blank id is refused by ``NonEmptyString``
     itself; absent and ``None`` are refused here.
+
+    A loose form, which a preview reads its nested objects as, opts out by
+    setting the class attribute ``_received_without_id``: what sits inside a
+    preview is what its sender chose to show, and an object shown without
+    its ``id`` is read as shown (ADR-0217, OID-01-013).
     """
+    if getattr(cls, "_received_without_id", False):
+        return
     if all(data.get(key) is None for key in _ID_KEYS):
         raise MissingReceivedIdError(
             f"a received {cls.__name__} carries no 'id'; every object a"

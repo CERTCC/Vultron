@@ -220,7 +220,7 @@ def test_each_activity_to_the_case_manager_is_numbered_one_up() -> None:
     first = _note_body(net, "first")
     net.receive(MANAGER, first)
     net.deliver(MANAGER, to=OWNER, type_=BROADCAST)
-    SyncActivityAdapter(dl).send_read_ledger_entry(
+    SyncActivityAdapter(dl).send_read_ledger(
         net.case_id,
         ledger_tail_position(net.case_id, dl),
         OWNER,

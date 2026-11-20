@@ -92,7 +92,7 @@ SEEDING_TABLE: dict[str, str] = {
     "ProposeCaseOwnershipTransferReceivedEvent": "case_id object_id sender_id<-actor_id",
     "ProposeEmbargoRevisionTriggerRequest": "case_id",
     "ProposeEmbargoTriggerRequest": "case_id",
-    "ReadLogEntryReceivedEvent": "object_id sender_id<-actor_id",
+    "ReadLedgerReceivedEvent": "object_id sender_id<-actor_id",
     "RefusalNoticeReceivedEvent": "case_id object_id refused_activity_id sender_id<-actor_id",
     "RejectActorRecommendationReceivedEvent": "object_id sender_id<-actor_id",
     "RejectActorRecommendationTriggerRequest": "",

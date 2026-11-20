@@ -229,10 +229,9 @@ def materialise_object_slots(
     default, so a stub built from a bare ID must supply *something*, and
     ``from_core`` has no data layer to ask — so it invented the case's owner,
     or, failing that, the case's own URI.  Neither is the activity's actor.
-    ``VulnerabilityCase.record_activity`` records activity by *any*
-    participant, so in a multiparty case the stub misattributes every activity
-    the case owner did not perform; the ``or core_obj.id_`` fallback
-    attributes an activity to a case, which is not an actor at all.  A stub
+    In a multiparty case the stub misattributes every activity the case owner
+    did not perform; the ``or core_obj.id_`` fallback attributes an activity
+    to a case, which is not an actor at all.  A stub
     whose required field is invented is worse than an explicit failure,
     because it launders a missing object into a plausible-looking wrong one —
     and a wrong ``actor`` is what semantic dispatch and the AKM-03-003 outbox
@@ -244,7 +243,8 @@ def materialise_object_slots(
         data: Field data, keyed by python field name **or** by the field's AS2
             alias — both are looked for, via :func:`input_keys`, because callers
             legitimately hand over either spelling and a slot silently skipped
-            for being spelled ``caseActivity`` fails later and further away.
+            for being spelled ``participantStatuses`` fails later and further
+            away.
             Not mutated.
         dl: DataLayer used to resolve references.
 

@@ -43,13 +43,17 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
-from vultron.core.behaviors.case_id_scope import unscoped
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPathNode,
+)
+from vultron.core.behaviors.case_id_scope import unscoped, with_case_id
 from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
 from vultron.core.behaviors.report.received_report_trees import (
     create_invalidate_report_received_tree,
 )
+from vultron.core.behaviors.sender_guard import is_composed_sender_guard
 from vultron.core.behaviors.sync.add_log_entry_tree import (
     create_add_log_entry_tree,
 )
@@ -145,7 +149,6 @@ TREES: dict[str, TreeCase] = {
     "invalidate-report": TreeCase(
         build=lambda sender: create_invalidate_report_received_tree(
             _report_request(sender),  # type: ignore[arg-type]
-            CASE_ID,
             sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
         ),
         activity=lambda sender: SimpleNamespace(actor_id=sender),
@@ -180,7 +183,31 @@ TREES: dict[str, TreeCase] = {
 
 
 def _guard(tree: py_trees.behaviour.Behaviour) -> py_trees.behaviour.Behaviour:
-    """The sender guard the factory placed among the tree's stages."""
+    """The sender guard the factory placed among the tree's stages.
+
+    A guard with one arm per path reads the path stage's answer, so it runs
+    after that stage, on the case the tree's lookup would publish
+    (BT-25-009, HP-01-036).
+    """
+    composed = [c for c in tree.children if is_composed_sender_guard(c)]
+    if (
+        composed
+        and getattr(unscoped(composed[0]), "guards_kind", None) is None
+    ):
+        (stage,) = [
+            c for c in tree.children if isinstance(c, ReceivedPathNode)
+        ]
+        assert isinstance(tree, py_trees.composites.Composite)
+        tree.remove_child(stage)
+        tree.remove_child(composed[0])
+        return with_case_id(
+            py_trees.composites.Sequence(
+                name="PathThenGuard",
+                memory=False,
+                children=[stage, composed[0]],
+            ),
+            CASE_ID,
+        )
     guards = [
         child
         for child in tree.children

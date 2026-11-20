@@ -149,16 +149,15 @@ groups:
     kind: project
     statement: >-
       A scalar `object_` constraint MUST NOT match a bare URI still unresolved after
-      rehydration, unless its `ActivityPattern` sets `accepts_bare_object=True`.
+      rehydration, and no `ActivityPattern` field may opt a pattern out of that rule.
     rationale: >-
-      `accepts_bare_object` is how this codebase marks the exception SE-01-006
-      allows: a pattern that a field other than the object's type tells apart, as
-      `ledgerPosition` tells apart the `Read(CaseLedgerEntry)` position statement of
-      SYNC-17-001, which names its entry by id.
+      SE-01-006 allows no exception: the position statement that once named its entry
+      by id is a `Read` of the case's ledger (SYNC-17-001, ADR-0204). A pattern that
+      could opt out would route an object of unknown type.
     verification: >-
       Unit tests marked `VAM-01-012` confirm that a default `Offer(VulnerabilityCase)`
       pattern does not match an `Offer` whose `object_` is an unresolved bare string
-      URI, and that the same pattern with `accepts_bare_object=True` does.
+      URI, and that a pattern given `accepts_bare_object` is refused when it is built.
     relationships:
     - rel_type: implements
       spec_id: SE-01-006
