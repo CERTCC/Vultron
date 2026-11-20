@@ -206,7 +206,7 @@ def create_case_proposal_received_tree(
         report_id: URI of the VulnerabilityReport embedded in the proposal
             (CP-01-004). Pass ``None`` if the report URI could not be
             extracted — the case will be created without a report link.
-        proposal_id: URI of the ``as_CaseProposal`` object; ``None`` when
+        proposal_id: URI of the ``CaseProposal`` object; ``None`` when
             the proposal names none.
         proposer_uri: URI of the proposing actor — the report receiver — to
             whom the responses are sent.  It is normalised with

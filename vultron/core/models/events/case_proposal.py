@@ -36,7 +36,7 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     """Case-actor received a Create(CaseProposal) from a report receiver.
 
     ``object_`` contains a minimal ``CoreObject`` wrapping the
-    ``as_CaseProposal`` wire object; the full proposal is accessible via the
+    ``CaseProposal``; the full proposal is accessible via the
     ``activity.object_`` field when ``include_activity=True``.
     """
 
@@ -105,7 +105,7 @@ class AcceptCaseProposalReceivedEvent(VultronEvent):
     The case-actor accepted the report receiver's proposal; a
     Create(VulnerabilityCase) will follow separately (CP-05-003).
     ``object_`` contains a minimal ``CoreObject`` wrapping the
-    ``as_CaseProposal`` that was accepted.
+    ``CaseProposal`` that was accepted.
     """
 
     semantic_type: Literal[MessageSemantics.ACCEPT_CASE_PROPOSAL] = (
@@ -129,7 +129,7 @@ class RejectCaseProposalReceivedEvent(VultronEvent):
 
     The case-actor declined the report receiver's proposal (CP-05-004).
     ``object_`` contains a minimal ``CoreObject`` wrapping the
-    ``as_CaseProposal`` that was rejected.
+    ``CaseProposal`` that was rejected.
     """
 
     semantic_type: Literal[MessageSemantics.REJECT_CASE_PROPOSAL] = (
