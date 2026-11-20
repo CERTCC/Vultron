@@ -249,6 +249,44 @@ def test_a_fault_from_a_sender_not_active_is_refused(who: str) -> None:
     assert state is None or state.last_reseeded_at is None
 
 
+@pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("HP-01-045")
+def test_a_withheld_peer_past_the_sender_guard_is_refused_by_the_reseed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The re-seed's own declared refusal is the run's verdict.
+
+    The declared sender rule refuses an inactive sender first, so the rule
+    is widened here to reach the re-seed's arm: its refusal must survive
+    the CASE_MANAGER gate and the runner as ``REFUSED`` with its reason, and
+    nothing is sent (ADR-0195).
+    """
+    from vultron.core.behaviors.sender_entitlement import (
+        SenderEntitlementKind,
+        SenderRule,
+    )
+    from vultron.core.use_cases.received.fault.processing_fault import (
+        CreateProcessingFaultReceivedUseCase,
+    )
+
+    monkeypatch.setattr(
+        CreateProcessingFaultReceivedUseCase,
+        "sender_entitlement",
+        SenderRule.at_case_manager_only(SenderEntitlementKind.ANY_ACTOR),
+    )
+    net, announce_id = _diverged("reseed-withheld-past-guard")
+
+    verdict = _fault_from(net, _STRANGER, announce_id)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason == (
+        f"the sender is not an active participant of case '{net.case_id}';"
+        " no case copy sent (CM-10-004)"
+    )
+    assert _seeds(net, _STRANGER) == []
+    assert _state(net, _STRANGER) is None
+
+
 @pytest.mark.spec("SYNC-16-003")
 def test_a_fault_naming_no_announce_this_actor_sent_is_refused() -> None:
     """The fault carries no case, so one naming no ledger announce has none."""
@@ -742,7 +780,7 @@ def _stored_announce(net: LedgerNetwork, announce_id: str) -> Any:
 def test_an_announce_of_an_entry_this_store_lacks_names_none() -> None:
     """An ``Announce`` whose object is a reference this store cannot resolve
     names no refused entry: the store reads it back as the bare id."""
-    from vultron.core.behaviors.sync.nodes.reseed import (
+    from vultron.core.behaviors.sync.nodes.refused_entry import (
         announced_ledger_entry,
     )
     from vultron.errors import VultronNotFoundError
@@ -765,7 +803,7 @@ def test_an_announce_of_an_entry_this_store_lacks_names_none() -> None:
 def test_an_announce_of_something_other_than_an_entry_names_none() -> None:
     """An ``Announce`` this actor sent of anything but a ledger entry names
     no refused entry."""
-    from vultron.core.behaviors.sync.nodes.reseed import (
+    from vultron.core.behaviors.sync.nodes.refused_entry import (
         announced_ledger_entry,
     )
     from vultron.errors import VultronNotFoundError

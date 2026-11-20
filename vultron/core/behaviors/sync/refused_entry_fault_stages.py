@@ -38,9 +38,15 @@ runs the same shape whether or not its entry is found (BTND-01-009):
 
 Nothing is committed: a fault is replication signalling (SYNC-16-002), so
 each tree passes ``commits_lookup_case=False`` and the lookup's case only
-gates and guards.  Each tree's factory composes these stages through
+gates and guards.  The sender guard reads the case the lookup published, so
+each tree's ``SenderCheckContext`` names its sender and no case (BT-25-011).
+
+Each tree's factory composes these stages through
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
-itself, with its own declaration and effects (CLP-10-017).
+itself, with its own declaration and effects (CLP-10-017).  The call stays
+in each factory, not in a shared one, because the declaration is read from
+its call site (HP-01-038) and a shared factory taking the sender would be a
+new per-act parameter (BTND-01-009).
 """
 
 from typing import NamedTuple

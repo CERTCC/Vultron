@@ -69,13 +69,29 @@ def _is_store_annotation(annotation: ast.expr | None) -> bool:
 
 
 def _store_parameters(fn: _Function) -> frozenset[str]:
+    """The parameters of *fn* this scan checks as a store.
+
+    A parameter named for the store or annotated with a store port is one,
+    and so is the first parameter of every ``__init__`` under ``received/``:
+    the use-case protocol's store slot (``__init__(dl, request)``), whatever
+    it is called.
+    """
     args = fn.args
     params = [*args.posonlyargs, *args.args, *args.kwonlyargs]
-    return frozenset(
+    names = {
         p.arg
         for p in params
         if p.arg in _STORE_NAMES or _is_store_annotation(p.annotation)
-    )
+    }
+    positional = [*args.posonlyargs, *args.args]
+    if (
+        isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and fn.name == "__init__"
+        and len(positional) > 1
+        and positional[0].arg == "self"
+    ):
+        names.add(positional[1].arg)
+    return frozenset(names)
 
 
 def _parents(tree: ast.AST) -> dict[ast.AST, ast.AST]:
@@ -146,23 +162,46 @@ def _store_names_in_scope(
     return frozenset(names)
 
 
+def _self_attr_targets(node: ast.AST) -> list[ast.Attribute] | None:
+    """The ``self`` attributes an assignment *node* writes, or ``None`` when
+    it is no assignment or writes anything else."""
+    if isinstance(node, ast.Assign):
+        targets = node.targets
+    elif isinstance(node, ast.AnnAssign) and node.value is not None:
+        targets = [node.target]
+    else:
+        return None
+    attrs = [t for t in targets if isinstance(t, ast.Attribute)]
+    if len(attrs) != len(targets) or not all(_is_self_attr(t) for t in attrs):
+        return None
+    return attrs
+
+
 def _store_attributes(
-    tree: ast.AST, parents: dict[ast.AST, ast.AST]
+    tree: ast.AST,
+    parents: dict[ast.AST, ast.AST],
+    known: frozenset[str] = frozenset(),
 ) -> frozenset[str]:
-    """The ``self`` attributes *tree* assigns a store parameter to."""
-    attrs: set[str] = set()
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Assign)
-            and isinstance(node.value, ast.Name)
-            and node.value.id in _store_names_in_scope(node, parents)
-        ):
-            attrs |= {
-                t.attr
-                for t in node.targets
-                if isinstance(t, ast.Attribute) and _is_self_attr(t)
-            }
-    return frozenset(attrs)
+    """The ``self`` attributes *tree* keeps a store in.
+
+    One is assigned a store parameter, or another store attribute (from
+    *known* or found here), so a copy of a kept store is a store too.
+    """
+    attrs: set[str] = set(known)
+    while True:
+        before = len(attrs)
+        for node in ast.walk(tree):
+            targets = _self_attr_targets(node)
+            value = getattr(node, "value", None)
+            if targets is None or value is None:
+                continue
+            if (
+                isinstance(value, ast.Name)
+                and value.id in _store_names_in_scope(node, parents)
+            ) or _is_self_attr(value, frozenset(attrs)):
+                attrs |= {t.attr for t in targets}
+        if len(attrs) == before:
+            return frozenset(attrs - known)
 
 
 def _is_super_init(func: ast.expr) -> bool:
@@ -266,8 +305,10 @@ def _allowed_use(
     checked in turn.
     """
     parent = parents.get(node)
-    if isinstance(parent, ast.Assign) and all(
-        _is_self_attr(t) for t in parent.targets
+    if (
+        parent is not None
+        and _self_attr_targets(parent) is not None
+        and getattr(parent, "value", None) is node
     ):
         return True
     call = parents.get(parent) if isinstance(parent, ast.keyword) else parent
@@ -279,16 +320,46 @@ def _allowed_use(
         return False
     func = call.func
     if _is_super_init(func):
-        return True
-    if not isinstance(func, ast.Name):
+        callees = _base_initialisers(call, parents, definitions)
+    elif not isinstance(func, ast.Name):
         return False
-    if func.id == _RUNNER:
+    elif func.id == _RUNNER:
         return True
-    if func.id not in allowed_callees:
+    elif func.id not in allowed_callees:
         return False
-    callees = _initialisers(func.id, definitions)
+    else:
+        callees = _initialisers(func.id, definitions)
     return bool(callees) and all(
         _receives_a_store(fn, position, keyword) for fn in callees or ()
+    )
+
+
+def _base_initialisers(
+    call: ast.Call,
+    parents: dict[ast.AST, ast.AST],
+    definitions: _Definitions,
+) -> list[ast.FunctionDef | ast.AsyncFunctionDef] | None:
+    """The ``__init__`` a ``super().__init__`` *call* runs: its class's first
+    base, when that base is defined under ``received/``; else ``None``."""
+    current = parents.get(call)
+    while current is not None and not isinstance(current, ast.ClassDef):
+        current = parents.get(current)
+    if not isinstance(current, ast.ClassDef) or not current.bases:
+        return None
+    first = ast.unparse(current.bases[0]).partition("[")[0]
+    return _initialisers(first, definitions)
+
+
+def _store_getattr(node: ast.Call, attrs: frozenset[str]) -> bool:
+    """Whether *node* is ``getattr(self, "<a store attribute>", ...)``."""
+    return (
+        isinstance(node.func, ast.Name)
+        and node.func.id == "getattr"
+        and len(node.args) >= 2
+        and isinstance(node.args[0], ast.Name)
+        and node.args[0].id == "self"
+        and isinstance(node.args[1], ast.Constant)
+        and node.args[1].value in attrs
     )
 
 
@@ -325,7 +396,9 @@ def store_violations(
     """
     parents = _parents(tree)
     allowed = _local_definitions(tree) | _received_imports(tree, package)
-    attrs = _store_attributes(tree, parents) | store_attributes
+    attrs = (
+        _store_attributes(tree, parents, store_attributes) | store_attributes
+    )
     defs = definitions if definitions is not None else definitions_in([tree])
     found: list[str] = []
     for node in ast.walk(tree):
@@ -337,6 +410,9 @@ def store_violations(
             continue
         if isinstance(node, ast.Attribute) and node.attr == _BRIDGE:
             found.append(f"{rel}:{node.lineno}: names {_BRIDGE}")
+            continue
+        if isinstance(node, ast.Call) and _store_getattr(node, attrs):
+            found.append(f"{rel}:{node.lineno}: {ast.unparse(node)}")
             continue
         if _is_store_reference(node, parents, attrs) and not _allowed_use(
             node,  # type: ignore[arg-type]
@@ -380,9 +456,17 @@ def test_no_received_use_case_reaches_the_store_or_the_bridge() -> None:
     ]
     assert kept, "corpus drifted: no received use case keeps a store"
     definitions = definitions_in(tree for _, tree in modules)
-    attributes = frozenset().union(
-        *(_store_attributes(tree, _parents(tree)) for _, tree in modules)
-    )
+    attributes: frozenset[str] = frozenset()
+    while True:
+        grown = attributes.union(
+            *(
+                _store_attributes(tree, _parents(tree), attributes)
+                for _, tree in modules
+            )
+        )
+        if grown == attributes:
+            break
+        attributes = grown
     violations = [
         line
         for path, tree in modules
@@ -431,7 +515,7 @@ _PKG = f"{_RECEIVED_PACKAGE}.fault"
             id="method-call-on-the-store",
         ),
         pytest.param(
-            "from vultron.core.behaviors.sync.nodes.reseed import (\n"
+            "from vultron.core.behaviors.sync.nodes.refused_entry import (\n"
             "    announced_ledger_entry,\n"
             ")\n"
             "class UC:\n"
@@ -463,9 +547,56 @@ _PKG = f"{_RECEIVED_PACKAGE}.fault"
             "        self._dl = dl\n"
             "# the imported helper, as the corpus-wide index finds it\n"
             "def run_offer_reply_tree(*, dl: CaseOutboxPersistence, request):\n"
-            "    return run_received_tree(t, dl=dl, request=request)\n",
+            "    return run_received_tree(t, dl=dl, request=request)\n"
+            "class Base:\n"
+            "    def __init__(self, dl, request):\n"
+            "        self._dl = dl\n",
             [],
             id="handed-to-super-a-sibling-and-a-received-helper",
+        ),
+        pytest.param(
+            "class Sub(Outside):\n"
+            "    def __init__(self, dl: CasePersistence, request):\n"
+            "        super().__init__(dl, request)\n",
+            ["m.py:3: super().__init__(dl, request)"],
+            id="handed-to-super-of-a-base-outside-received",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def __init__(self, dl, request):\n"
+            "        self._dl = dl\n"
+            "        self._s = self._dl\n"
+            "    def execute(self):\n"
+            "        return self._s.read('x')\n",
+            ["m.py:6: self._s.read"],
+            id="store-copied-to-a-second-attribute",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def __init__(self, dl, request):\n"
+            "        self._dl = dl\n"
+            "    def execute(self):\n"
+            "        return getattr(self, '_dl').read('x')\n",
+            ["m.py:5: getattr(self, '_dl')"],
+            id="store-read-through-getattr",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def __init__(self, store, request):\n"
+            "        self._store = store\n"
+            "    def execute(self):\n"
+            "        return self._store.read('x')\n",
+            ["m.py:5: self._store.read"],
+            id="store-slot-under-another-name",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def __init__(self, dl, request):\n"
+            "        self._dl: CasePersistence = dl\n"
+            "    def execute(self):\n"
+            "        return run_received_tree(t, dl=self._dl, request=r)\n",
+            [],
+            id="annotated-keep-is-allowed",
         ),
         pytest.param(
             "def _peek(thing):\n"

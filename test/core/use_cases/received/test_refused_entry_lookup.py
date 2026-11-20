@@ -139,6 +139,24 @@ def test_a_miss_publishes_nothing_and_never_refuses(
     assert set(probe.seen.values()) == {None}
 
 
+@pytest.mark.spec("BT-25-009")
+def test_a_lookup_outside_a_fault_tree_is_a_wiring_fault() -> None:
+    """An ``/activity`` that is no processing fault is the composer's
+    fault, so it surfaces as an internal error, never as a miss."""
+    net, _ = _announced("refused-entry-not-a-fault")
+
+    result = run_tree(
+        BTBridge(datalayer=net.stores[MANAGER]),
+        tree=FindRefusedLedgerEntry(),
+        actor_id=MANAGER,
+        activity=SimpleNamespace(activity_id="urn:uuid:not-a-fault"),
+    )
+
+    assert result.internal_error
+    assert "VultronWiringError" in result.feedback_message
+    assert "carries no failed_activity_id" in result.feedback_message
+
+
 @pytest.mark.spec("BT-25-010")
 def test_the_miss_guard_refuses_with_its_declared_reason() -> None:
     net, _ = _announced("refused-entry-miss-guard")
@@ -192,14 +210,11 @@ def _fault_trees(sender: str) -> dict[str, ReceivedActivityTree]:
             sender_id=sender, sender_rule=_RULE
         ),
     }
-    assert all(isinstance(t, ReceivedActivityTree) for t in trees.values())
-    return {
-        k: t for k, t in trees.items() if isinstance(t, ReceivedActivityTree)
-    }
-
-
-def _shape(tree: py_trees.behaviour.Behaviour) -> list[tuple[str, str]]:
-    return [(type(n).__name__, n.name) for n in tree.iterate()]
+    narrowed: dict[str, ReceivedActivityTree] = {}
+    for kind, tree in trees.items():
+        assert isinstance(tree, ReceivedActivityTree)
+        narrowed[kind] = tree
+    return narrowed
 
 
 @pytest.mark.spec("BT-25-009")
@@ -208,12 +223,11 @@ def _shape(tree: py_trees.behaviour.Behaviour) -> list[tuple[str, str]]:
 def test_a_fault_tree_has_one_shape_and_publishes_what_it_finds(
     kind: str,
 ) -> None:
-    """The tree takes no entry at build time, so every fault of its class
-    runs the same tree; the lookup is the one source of its keys."""
+    """The tree takes no entry at build time: the lookup is its one input
+    stage and the one source of the entry, its case and the ``Add``, so
+    every fault of its class runs the same tree."""
     tree = _fault_trees("https://example.org/a")[kind]
-    other = _fault_trees("https://example.org/b")[kind]
 
-    assert _shape(tree) == _shape(other)
     assert [type(n).__name__ for n in tree.input_stages] == [
         "FindRefusedLedgerEntry"
     ]

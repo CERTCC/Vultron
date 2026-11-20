@@ -93,20 +93,12 @@ def create_case_diverged_fault_tree(
         case_id=None,
         precondition_guards=[],
         case_lookup=stages.case_lookup,
-        # The fault is replication signalling, never ledgered (SYNC-16-002):
-        # the case the lookup finds only gates and guards.
+        # Why each of these is fixed for every refused-entry fault:
+        # refused_entry_fault_stages (SYNC-16-002, BT-25-010, HP-01-041).
         commits_lookup_case=False,
-        # The fault answers an Add this store sent, so it reaches the
-        # CASE_MANAGER that holds the canonical ledger; a fault is never
-        # relayed to a replica, so the path stage refuses one (SYNC-16-002,
-        # HP-01-038).  A fault whose entry this store does not hold is on
-        # the no-case path, whose empty side admits no sender;
-        # ``case_resolution`` refuses it as naming no entry first
-        # (BT-25-010, HP-01-041).
         paths={ReceivedPath.CASE_MANAGER, ReceivedPath.NO_CASE},
         case_resolution=stages.case_resolution,
         sender_rule=sender_rule,
-        # The guard reads the case the lookup published (BT-25-011).
         sender_context=SenderCheckContext(sender_id=sender_id),
         manager_effects=[
             with_act_keys(

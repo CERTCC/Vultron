@@ -50,15 +50,51 @@ from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.behaviors.received_request import (
     ReceivedRequestInputMixin,
 )
-from vultron.core.behaviors.sync.nodes.reseed import announced_ledger_entry
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.errors import VultronNotFoundError
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronNotFoundError, VultronWiringError
+from vultron.primitives import same_actor_id
 
 __all__ = [
     "FindRefusedLedgerEntry",
     "RefusedLedgerEntryFound",
+    "announced_ledger_entry",
     "unnamed_entry_reason",
 ]
+
+
+def announced_ledger_entry(
+    datalayer: CasePersistence, announce_id: str, announcer_id: str
+) -> CaseLedgerEntry:
+    """The ``CaseLedgerEntry`` *announcer_id*'s ``Add`` *announce_id* carried.
+
+    A fault about a refused ledger entry names the refused
+    ``Add(CaseLedgerEntry)`` by reference and carries no case
+    (ASK-07-004, ASK-07-006).  The CASE_MANAGER stored that ``Add`` when it
+    sent it, so the entry, and with it the case and its index, is read from
+    there.  Only an ``Add`` *announcer_id* sent counts: one this store
+    merely received names nothing *announcer_id* sent the peer.
+
+    Raises:
+        VultronNotFoundError: This store holds no ``Add`` of a
+            ``CaseLedgerEntry`` by *announcer_id* under *announce_id*.
+    """
+    activity = datalayer.read(announce_id)
+    sender = _as_id(getattr(activity, "actor", None))
+    if (
+        getattr(activity, "type_", None) != "Add"
+        or not isinstance(sender, str)
+        or not same_actor_id(sender, announcer_id)
+    ):
+        raise VultronNotFoundError("Add(CaseLedgerEntry)", announce_id)
+    entry: object = getattr(activity, "object_", None)
+    if isinstance(entry, str):
+        entry = datalayer.read(entry)
+    if not isinstance(entry, CaseLedgerEntry):
+        raise VultronNotFoundError("Add(CaseLedgerEntry)", announce_id)
+    return entry
+
 
 #: The keys :class:`FindRefusedLedgerEntry` publishes on a hit.
 _PUBLISHED = (CASE_ID, REFUSED_ENTRY, ANNOUNCE_ID)
@@ -84,7 +120,7 @@ class FindRefusedLedgerEntry(
     Reads the fault from the ``/activity`` run key: its ``inReplyTo``
     (``failed_activity_id``) names the refused ``Add(CaseLedgerEntry)``.
     Only an ``Add`` the executing actor sent counts
-    (:func:`~vultron.core.behaviors.sync.nodes.reseed.announced_ledger_entry`):
+    (:func:`announced_ledger_entry`):
     one this store merely received names nothing it sent the peer.  On a
     hit it publishes the entry on ``/refused_entry``, its case on
     ``/case_id`` and the ``Add``'s id on ``/announce_id`` (BT-25-009).
@@ -155,8 +191,21 @@ class FindRefusedLedgerEntry(
         return Status.SUCCESS
 
     def _failed_activity_id(self) -> str | None:
-        """The fault's ``inReplyTo``, or ``None`` when it names none."""
-        value = getattr(self._received, "failed_activity_id", None)
+        """The fault's ``inReplyTo``, or ``None`` when it names none.
+
+        Raises:
+            VultronWiringError: The run's ``/activity`` is no processing
+                fault, so the node was composed into the wrong tree; that
+                is never the sender's doing, so it is not a miss.
+        """
+        if not hasattr(self._received, "failed_activity_id"):
+            raise VultronWiringError(
+                f"{self.name}: the run's activity"
+                f" {type(self._received).__name__} carries no"
+                " failed_activity_id; FindRefusedLedgerEntry belongs only in"
+                " a processing-fault tree"
+            )
+        value = self._received.failed_activity_id
         return value if isinstance(value, str) and value else None
 
 
