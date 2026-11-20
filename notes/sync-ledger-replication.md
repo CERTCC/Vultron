@@ -26,6 +26,7 @@ related_specs:
   - specs/received-status-handling.yaml
   - specs/idempotency.yaml
   - specs/embargo-policy.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/case-ledger-authority.md
   - notes/case-actor-cluster.md
@@ -457,18 +458,20 @@ same entry forever (ADR-0142).
   (SYNC-16-002).
 - **Find the case through the refused `Add`.** The fault carries no case
   (ASK-07-006); its `inReplyTo` names the `Add(CaseLedgerEntry)` the
-  CASE_MANAGER stored when it sent it, so `announced_ledger_entry()` reads the
-  entry, and with it the case and index, from there (SYNC-16-003).
+  CASE_MANAGER stored when it sent it, so the fault tree's lookup node
+  (`FindRefusedLedgerEntry`, via `announced_ledger_entry()`) reads the entry, and
+  with it the case and index, from there, and its miss guard refuses a fault
+  naming none (SYNC-16-003, BT-25-009, BT-25-010).
 - **A `Reject(CaseLedgerEntry)` names the Add that prompted it.** Its
   `object` is the entry, and `inReplyTo` is required and set by the sender: the
   `Add(CaseLedgerEntry)` on a mismatch or a genesis wait, the
   `Announce(VulnerabilityCase)` after a copy ahead of the chain (RF-08-004).
   `inReplyTo` does not key the derived id, so a resent body names the first copy.
 - **One response per failure class.** `CreateProcessingFaultReceivedUseCase`
-  maps each class with an effect to a `FaultResponse` (tree builder and verdict
-  reader) in `responses`; a new class adds an entry, never a branch in
-  `execute()`, which runs one tree whatever the class (CLP-10-005). Every acting
-  class shares the one declared sender rule (HP-01-007).
+  maps each class with an effect to a `FaultResponse` (tree builder and a reader
+  that never refuses, HP-01-045) in `responses`; a new class adds an entry, never
+  a branch in `execute()`, which runs one tree whatever the class (CLP-10-005).
+  Every acting class shares the one declared sender rule (HP-01-007).
 - **Re-seed a replica only through `ReseedPeerNode`.** It holds the CM-10-004
   gate, the per-peer cooldown and the record of the copy's position, so any other
   trigger for a fresh copy to a replica that holds the case (SYNC-18-005) composes

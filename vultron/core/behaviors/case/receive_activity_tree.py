@@ -93,8 +93,11 @@ from collections.abc import Collection, Sequence
 
 import py_trees
 
-from vultron.core.behaviors.act_inputs import declare_inputs
-from vultron.core.behaviors.act_keys import CASE_ID
+from vultron.core.behaviors.act_inputs import (
+    declare_inputs,
+    published_act_keys,
+)
+from vultron.core.behaviors.act_key_scope import unscoped
 from vultron.core.behaviors.act_transaction import (
     OneActExemption,
     received_act_stage,
@@ -174,6 +177,7 @@ from vultron.core.behaviors.sync.nodes.ledger_position import (
 from vultron.core.behaviors.sync.nodes.sender_sequence_exemptions import (
     SenderSequenceExemption,
 )
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +198,7 @@ def create_receive_activity_tree(
     sender_context: SenderContext | None = None,
     case_resolution: list[py_trees.behaviour.Behaviour] | None = None,
     case_lookup: py_trees.behaviour.Behaviour | None = None,
+    commits_lookup_case: bool = True,
     replica_effects: Sequence[py_trees.behaviour.Behaviour | OnPaths]
     | None = None,
     replica_emit_exemption: ReplicaEmitExemption | None = None,
@@ -524,6 +529,16 @@ def create_receive_activity_tree(
         case_resolution: Read-only ``CaseResolving`` steps that resolve the
             case the sender guard reads, run just before it; requires
             ``sender_rule``.
+        case_lookup: The lookup node that publishes the tree's case on
+            ``/case_id`` ahead of the path stage, for a tree whose case only
+            the store holds (BT-25-009, :func:`case_lookup_stage`).  Every
+            key it publishes is declared published (BT-25-011).
+        commits_lookup_case: Whether the received activity is committed to
+            the case ``case_lookup`` publishes; ``False`` for a tree whose
+            lookup finds the case only for its CASE_MANAGER gate and sender
+            guard, as ``manager_case_id`` does for a case named at build
+            time (a ledger fault, which is replication signalling and is
+            never ledgered, SYNC-16-002).  Requires ``case_lookup``.
         replica_effects: Ungated effects, run on every replica after the
             commit, and any path branches among them.
         replica_emit_exemption: The registered decision that lets an
@@ -564,7 +579,8 @@ def create_receive_activity_tree(
             (SYNC-21-008).
 
     Raises:
-        VultronWiringError: ``manager_effects`` has no ``manager_case_id``, a
+        VultronWiringError: ``commits_lookup_case`` is off with no
+            ``case_lookup``, ``manager_effects`` has no ``manager_case_id``, a
             gate argument is passed without ``manager_effects``, an exemption
             is unregistered, an emit-capable node sits in ``replica_effects``
             without one (BT-17-008), or a refusal effect is not emit-capable or
@@ -627,6 +643,15 @@ def create_receive_activity_tree(
     # A case only the store holds is found by the tree's own lookup, ahead
     # of the path stage that reads the receiver's role in it (BT-25-009).
     run_time_case = case_lookup is not None
+    if not commits_lookup_case and not run_time_case:
+        raise VultronWiringError(
+            f"{where}: commits_lookup_case names the case case_lookup"
+            " publishes, so it needs case_lookup (BT-25-009)"
+        )
+    # Whether the act commits to the case the lookup publishes; with
+    # ``commits_lookup_case`` off that case only gates and guards, as a
+    # ``manager_case_id`` named at build time does.
+    commits_run_time_case = run_time_case and commits_lookup_case
     stage_case_id = path_stage_case_id(
         case_id, manager_case_id, sender_context
     )
@@ -731,7 +756,7 @@ def create_receive_activity_tree(
         precondition_guards,
         refusal_effects or [],
         refusal_notice_exemption,
-        run_time_case=run_time_case,
+        run_time_case=commits_run_time_case,
     )
     guards = precondition_guard_nodes(
         name,
@@ -746,7 +771,7 @@ def create_receive_activity_tree(
         if effects
         else guards
     )
-    commits = case_id is not None or run_time_case
+    commits = case_id is not None or commits_run_time_case
     act: list[py_trees.behaviour.Behaviour] = []
     if commits:
         act.append(
@@ -789,9 +814,18 @@ def create_receive_activity_tree(
         nested=nested,
         input_stages=lookup,
     )
-    # The lookup is the one source of ``/case_id`` in its tree (BT-25-011):
-    # the runner checks it before the first tick.
-    return declare_inputs(tree, published=[CASE_ID] if lookup else [])
+    # The lookup is the one source of ``/case_id``, and of every other key it
+    # publishes, in its tree (BT-25-011): the runner checks it before the
+    # first tick.  A key its scope seeds for the lookup's own tick is the
+    # lookup's input, not the tree's.
+    return declare_inputs(
+        tree,
+        published=(
+            published_act_keys(unscoped(case_lookup))
+            if case_lookup is not None
+            else ()
+        ),
+    )
 
 
 # The stage builders moved to ``receive_stages`` (CS-18-005); the public

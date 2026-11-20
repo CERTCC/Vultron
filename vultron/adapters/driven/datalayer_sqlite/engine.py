@@ -306,6 +306,12 @@ _ENGINES: dict[str, Engine] = {}
 #: of which id claimed a store.
 _STORE_CLAIMANTS: dict[str, str] = {}
 
+#: Guards the check-then-insert on ``_ENGINES`` and ``_STORE_CLAIMANTS``.  A
+#: request thread and a background timer on the event loop can open one
+#: actor's store at once (#5999); unguarded, each could make an engine for
+#: the same URL, and two in-memory engines for one URL are two databases.
+_ENGINES_LOCK = threading.Lock()
+
 
 def get_actor_engine(db_url: str, actor_id: str) -> Engine:
     """Return the cached engine for *actor_id*, creating it if needed.
@@ -328,7 +334,12 @@ def get_actor_engine(db_url: str, actor_id: str) -> Engine:
         The :class:`~sqlalchemy.engine.Engine` backing that actor's own store.
     """
     key = actor_db_url(db_url, actor_id)
-    claimant = _STORE_CLAIMANTS.setdefault(key, actor_id)
+    with _ENGINES_LOCK:
+        claimant = _STORE_CLAIMANTS.setdefault(key, actor_id)
+        engine = _ENGINES.get(key)
+        if engine is None:
+            engine = make_engine(key)
+            _ENGINES[key] = engine
     if claimant != actor_id:
         logger.warning(
             "Store %s is shared by two distinct actor ids (%r and %r): "
@@ -338,10 +349,6 @@ def get_actor_engine(db_url: str, actor_id: str) -> Engine:
             claimant,
             actor_id,
         )
-    engine = _ENGINES.get(key)
-    if engine is None:
-        engine = make_engine(key)
-        _ENGINES[key] = engine
     return engine
 
 
@@ -358,19 +365,19 @@ def dispose_actor_engines(
         db_url: Restrict disposal to this URL template, or ``None`` for any.
         actor_id: Restrict disposal to this actor, or ``None`` for all actors.
     """
-    if actor_id is not None and db_url is not None:
-        targets = [actor_db_url(db_url, actor_id)]
-    elif db_url is not None and _is_memory_url(db_url):
-        prefix = _memory_store_prefix(db_url)
-        targets = [k for k in _ENGINES if k.startswith(prefix)]
-    elif db_url is not None:
-        stem = Path(db_url.partition("///")[2]).stem
-        targets = [k for k in _ENGINES if f"/{stem}-" in k or stem in k]
-    else:
-        targets = list(_ENGINES)
-
-    for key in targets:
-        engine = _ENGINES.pop(key, None)
+    with _ENGINES_LOCK:
+        if actor_id is not None and db_url is not None:
+            targets = [actor_db_url(db_url, actor_id)]
+        elif db_url is not None and _is_memory_url(db_url):
+            prefix = _memory_store_prefix(db_url)
+            targets = [k for k in _ENGINES if k.startswith(prefix)]
+        elif db_url is not None:
+            stem = Path(db_url.partition("///")[2]).stem
+            targets = [k for k in _ENGINES if f"/{stem}-" in k or stem in k]
+        else:
+            targets = list(_ENGINES)
+        engines = [_ENGINES.pop(key, None) for key in targets]
+    for engine in engines:
         if engine is not None:
             engine.dispose()
 
@@ -395,7 +402,9 @@ def open_memory_store_slugs(db_url: str) -> set[str]:
     """
     prefix = _memory_store_prefix(db_url)
     slugs: set[str] = set()
-    for key in list(_ENGINES):
+    with _ENGINES_LOCK:
+        keys = list(_ENGINES)
+    for key in keys:
         if not key.startswith(prefix):
             continue
         name = key[len(prefix) :].split("?", 1)[0]
@@ -464,6 +473,35 @@ def session_guard(engine: Engine) -> AbstractContextManager[bool | None]:
         lock = _SESSION_LOCKS.get(engine)
         if lock is None:
             lock = _SESSION_LOCKS[engine] = threading.RLock()
+    return lock
+
+
+_SCHEMA_LOCKS: weakref.WeakKeyDictionary[Engine, threading.Lock] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def schema_guard(engine: Engine) -> threading.Lock:
+    """Return the lock a store's opener holds to create *engine*'s schema.
+
+    ``create_all`` checks for each table and then creates it, on its own
+    connection.  Two openers of one new store that both check before either
+    creates fail one of them with ``table ... already exists`` (#5999,
+    #6761).  :func:`session_guard` does not prevent it: on a file-backed
+    engine it is a no-op.  This lock is per engine on both pool kinds, and
+    engines are shared per store by :func:`get_actor_engine`, so one store's
+    openers create its schema one at a time.  It is a thread lock: it does
+    not serialise another process, or another engine built outside
+    :func:`get_actor_engine`, opening the same file.  A deployment runs one
+    process per store volume, so neither arises.
+
+    Take it *inside* :func:`session_guard`, never around it, so the two
+    locks are always taken in one order.
+    """
+    with _SESSION_LOCKS_GUARD:
+        lock = _SCHEMA_LOCKS.get(engine)
+        if lock is None:
+            lock = _SCHEMA_LOCKS[engine] = threading.Lock()
     return lock
 
 
