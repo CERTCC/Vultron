@@ -79,7 +79,7 @@ So the case cannot be put under a new embargo.
 
 ## Recording Why an Embargo Ended
 
-Every termination records why the embargo ended, when the reason is known, as one of five kinds of cause:
+Every termination records why the embargo ended as one of five kinds of cause:
 
 | Cause | Detail | Who may name it |
 |---|---|---|
@@ -90,9 +90,9 @@ Every termination records why the embargo ended, when the reason is known, as on
 | `OTHER` | None; the termination message's human-readable summary gives the account | The Case Owner or the CASE_MANAGER |
 
 Every cause except `END_TIME_REACHED` means that the embargo ended early.
-A termination with no cause is valid, and it also means that the embargo ended early.
+A termination message that names no cause also means that the embargo ended early, and the ended embargo records the cause `OTHER` for it.
 The termination message carries the cause, and every Participant records it.
-The CASE_MANAGER records the cause on the entry of the ended embargo in the embargo register of the case.
+The CASE_MANAGER records the cause on the ended embargo itself, in the embargo register of the case.
 
 When the Case Owner names `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, the CASE_MANAGER records that cause as the Case Owner gave it.
 The CASE_MANAGER does not check it, because the decision to end early on a quorum of Vendors is the judgment of the Case Owner.
