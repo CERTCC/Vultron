@@ -81,22 +81,6 @@ def _carried_participant(
         return None
 
 
-def _target_case_id(node: _LedgerEffectNode, snapshot: dict) -> str | None:
-    """The case whose participant list the entry adds to, or ``None``.
-
-    Read from the activity's ``target`` (CM-11-025), never inferred from its
-    verb or object type (CM-23-044).  ``None`` sets the node's feedback.
-    """
-    case_id = _extract_id_from_field(snapshot.get("target"))
-    if not isinstance(case_id, str) or not case_id:
-        node.feedback_message = (
-            f"{node.name}: the entry names no case in 'target' to add the"
-            " participant record to (CM-11-025)"
-        )
-        return None
-    return case_id
-
-
 def _record_held(
     node: _LedgerEffectNode, case: VulnerabilityCase, record: CaseParticipant
 ) -> CaseParticipant | None:
@@ -130,14 +114,25 @@ class ApplyAddCaseParticipantToCaseFromLedgerNode(_LedgerEffectNode):
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
-        target_case_id = _target_case_id(self, entry.payload_snapshot)
-        if target_case_id is None or target_case_id != entry.context:
-            if target_case_id is not None:
-                self.feedback_message = (
-                    f"{self.name}: the entry adds the record to"
-                    f" '{target_case_id}', not to its own case"
-                    f" '{entry.context}' (CM-11-025, CLP-07-007)"
-                )
+        # The case whose participant list the record joins is the entry's
+        # ``target`` (CM-11-025), never inferred from the verb, the object's
+        # type or the entry's ``context`` (CM-23-044).
+        target_case_id = _extract_id_from_field(
+            entry.payload_snapshot.get("target")
+        )
+        if not target_case_id:
+            self.feedback_message = (
+                f"{self.name}: the entry names no case in 'target' to add the"
+                " participant record to (CM-11-025)"
+            )
+            self.logger.error("%s", self.feedback_message)
+            return Status.FAILURE
+        if target_case_id != entry.context:
+            self.feedback_message = (
+                f"{self.name}: the entry adds the record to"
+                f" '{target_case_id}', not to its own case"
+                f" '{entry.context}' (CM-11-025, CLP-07-007)"
+            )
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 

@@ -3,7 +3,8 @@
 
 Each actor has its own store (TB-06-007).  The ledger holds the wire messages
 exchanged (ADR-0114): sending the stub Invite commits the Invite and, separately,
-``add_case_participant_to_case`` for the inert record the CASE_MANAGER created; the invitee's own ``Accept`` and ``Reject`` messages are the entries for
+``add_case_participant_to_case`` for the inert record the CASE_MANAGER created;
+the invitee's own ``Accept`` and ``Reject`` messages are the entries for
 their effects (consent, ``joined``, ``DECLINED``), and a vendor's VF ``Vf`` and the
 reject's closing status are ``add_participant_status_to_participant`` entries.  A
 replica that never sees the Invite or the reply directly stores what those
