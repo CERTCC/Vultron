@@ -51,9 +51,14 @@ from datetime import datetime, timedelta
 from types import MappingProxyType
 
 from vultron.core.behaviors.bridge.act_instant import ACT_INSTANT_KEY
+from vultron.core.behaviors.chosen_termination import ChosenTermination
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    ThreatSignalTermination,
+)
 
 __all__ = [
     "ACT_KEYS",
@@ -64,6 +69,8 @@ __all__ = [
     "EMBARGO",
     "EMBARGO_ID",
     "EMBARGO_PROPOSER_ID",
+    "EXPECTED_SENDER_SEQUENCE",
+    "FAULT_PUBLISHED",
     "INVITEE_ID",
     "INVITE_ID",
     "NOTE_ID",
@@ -72,15 +79,19 @@ __all__ = [
     "OWNER_PROFILE",
     "PARTICIPANT_ACTOR_ID",
     "PARTICIPANT_ID",
+    "PAYLOAD_SNAPSHOT",
     "PROPOSAL_ID",
     "REFUSED_ACTIVITY_ID",
+    "REFUSAL_REASON",
     "REFUSED_ENTRY",
     "REPORT_ID",
+    "REQUESTING_ACTOR_ID",
     "RUN_KEYS",
     "SENDER_ID",
     "SENDER_PROPOSED_EMBARGO",
     "SENDER_PROPOSED_EMBARGO_DURATION",
     "TERMINATED_AT",
+    "TERMINATION",
     "ActKey",
     "RunKey",
     "require_act_key",
@@ -208,12 +219,44 @@ REFUSED_ACTIVITY_ID = _act_key(
     " CLP-06-006).",
 )
 
+REFUSAL_REASON = _act_key(
+    "refusal_reason",
+    str,
+    "Why the CASE_MANAGER refused the activity a refusal notice names: the"
+    " refusing guard's reason, carried as the notice's ``summary``"
+    " (CLP-06-006).  Unset when the notice gives none.",
+)
+
 REFUSED_ENTRY = _act_key(
     "refused_entry",
     CaseLedgerEntry,
     "The ledger entry a replica's processing fault reports it refused: the"
     " entry the fault's Add(CaseLedgerEntry) carried (SYNC-03-007,"
     " SYNC-16-008).",
+)
+
+FAULT_PUBLISHED = _act_key(
+    "fault_published",
+    datetime,
+    "The ``published`` time a replica's processing fault claims, on the"
+    " sender's own clock (SYNC-16-008).  Unset when the fault claims none.",
+)
+
+EXPECTED_SENDER_SEQUENCE = _act_key(
+    "expected_sender_sequence",
+    int,
+    "The sender sequence number a refusal notice says the CASE_MANAGER"
+    " expects next from the executing actor: its"
+    " ``expectedSenderSequence`` (SYNC-21-015).  Unset when the notice"
+    " names none.",
+)
+
+PAYLOAD_SNAPSHOT = _act_key(
+    "payload_snapshot",
+    dict,
+    "The activity a new ledger entry records, as its wire payload verbatim:"
+    " the entry's ``payload_snapshot`` (CLP-07-011).  Unset when the commit"
+    " has no payload to record.",
 )
 
 # --- Who takes part in the act ------------------------------------------------
@@ -250,6 +293,17 @@ EMBARGO_PROPOSER_ID = _act_key(
     "The id of the actor who proposed the embargo the act answers"
     " (CM-24-002).",
 )
+REQUESTING_ACTOR_ID = _act_key(
+    "requesting_actor_id",
+    str,
+    "The id of the actor whose request the CASE_MANAGER carries out in the"
+    " act: the sender of the received request, credited as ``attributedTo``"
+    " on what the CASE_MANAGER sends for it (CM-24-001, CM-24-020).  When no"
+    " other actor asked, it is unset or names the executing actor itself,"
+    " and either credits nobody.  A CASE_MANAGER trigger or cascade leaves"
+    " it unset, so it is not ``sender_id``: a cascade inside a received tree"
+    " credits no sender.",
+)
 OWNER_PROFILE = _act_key(
     "owner_profile",
     CoreActor | str,
@@ -282,6 +336,18 @@ TERMINATED_AT = _act_key(
     datetime,
     "The time a received termination claims: the ``published`` time of the"
     " ``Remove(EmbargoEvent)`` (ADR-0122).",
+)
+
+TERMINATION = _act_key(
+    "termination",
+    EmbargoTermination | ThreatSignalTermination | ChosenTermination,
+    "How the act ends the embargo in force: the termination's cause, or"
+    " none for an early end (ADR-0122, ADR-0203, EMB-13-005).  It is the"
+    " termination a received"
+    " ``Remove(EmbargoEvent)`` carries, the one a trigger requests, a"
+    " threat-signal termination resolved from the case at the write, or the"
+    " ``ChosenTermination`` a voluntary termination's reason call-out fills"
+    " earlier in the same run, read when the node runs (EMB-14-001).",
 )
 
 #: Every per-act key, by name.

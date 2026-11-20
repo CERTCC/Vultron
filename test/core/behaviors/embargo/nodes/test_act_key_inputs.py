@@ -39,6 +39,7 @@ from vultron.core.behaviors.act_keys import (
     EMBARGO_ID,
     INVITEE_ID,
     SENDER_ID,
+    TERMINATION,
     ActKey,
 )
 from vultron.core.behaviors.case.nodes.leave.settle import (
@@ -96,7 +97,6 @@ from vultron.core.behaviors.embargo.nodes.termination_commit import (
     CommitAndApplyEmbargoTerminationNode,
 )
 from vultron.core.models.embargo_termination import (
-    EmbargoTermination,
     TerminationCauseKind,
 )
 from vultron.errors import VultronWiringError
@@ -135,29 +135,31 @@ _NODES: list[tuple[NodeBuild, tuple[ActKey, ...]]] = [
     (ExpireOverdueInvitesNode, (CASE_ID,)),
     (ExpirePendingInvitesOnCloseNode, (CASE_ID,)),
     (
-        lambda: ClearActiveEmbargoNode(termination=EmbargoTermination.early()),
-        (CASE_ID, EMBARGO_ID),
+        ClearActiveEmbargoNode,
+        (CASE_ID, EMBARGO_ID, TERMINATION),
     ),
     (HasEmbargoActiveNode, (CASE_ID,)),
     (SendAnnounceEmbargoEventNode, (CASE_ID, EMBARGO_ID)),
     (
-        lambda: TerminationIsTimelyNode(
-            termination=EmbargoTermination.early()
-        ),
-        (CASE_ID,),
+        TerminationIsTimelyNode,
+        (CASE_ID, TERMINATION),
     ),
-    (SendTerminateEmbargoActivityNode, (CASE_ID, EMBARGO_ID, CASE_ACTOR_ID)),
+    (
+        # It reads /termination only after the stand-in case is read, so an
+        # unseeded /termination is never reached here: the ChosenTermination
+        # tests in test_terminate.py pin that read.
+        SendTerminateEmbargoActivityNode,
+        (CASE_ID, EMBARGO_ID, CASE_ACTOR_ID),
+    ),
     (TeardownAskPendingNode, (CASE_ID, EMBARGO_ID)),
     (
-        lambda: TerminationCauseIsAdmissibleNode(
-            termination=EmbargoTermination.early()
-        ),
-        (CASE_ID, SENDER_ID),
+        TerminationCauseIsAdmissibleNode,
+        (CASE_ID, SENDER_ID, TERMINATION),
     ),
     (
-        lambda: CommitAndApplyEmbargoTerminationNode(
-            result_out={}, termination=EmbargoTermination.early()
-        ),
+        # As above, /termination is read after the case
+        # (test_terminate_active_embargo_tree.py pins that read).
+        lambda: CommitAndApplyEmbargoTerminationNode(result_out={}),
         (CASE_ID,),
     ),
 ]

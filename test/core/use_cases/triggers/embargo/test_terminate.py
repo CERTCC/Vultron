@@ -345,7 +345,9 @@ def _run_cascade_ask(
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ),
-        tree=ask_case_manager_to_terminate_once(case.id_),
+        tree=ask_case_manager_to_terminate_once(
+            case.id_, EmbargoTermination.early()
+        ),
         actor_id=actor_id,
     )
 
