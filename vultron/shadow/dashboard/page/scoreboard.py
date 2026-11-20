@@ -15,7 +15,8 @@
 
 
 """The scoreboard: the case's standing, each state on a small map of its
-state machine (#6674), its participants, desiderata and move advice.
+state machine (#6674), its participants, desiderata and move advice, and
+the action rules beside the bands (ADR-0216).
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from vultron.measure.advice import case_advice
 from vultron.measure.standing import ParticipantStanding
 from vultron.shadow.analysis import CaseAnalysis
 from vultron.shadow.dashboard import minimap, view
+from vultron.shadow.dashboard.page.action_rules import _show_action_rules
 from vultron.shadow.dashboard.page.advice import _show_advice
 from vultron.shadow.dashboard.page.common import _table
 
@@ -85,6 +87,7 @@ def _show_standing(analysis: CaseAnalysis, past_point: bool) -> None:
     if desiderata:
         st.caption(view.DESIDERATA_NOTE)
     _show_advice(case_advice(standing), names)
+    _show_action_rules(standing, names)
 
 
 def _show_minimap(state_map: minimap.Minimap) -> None:

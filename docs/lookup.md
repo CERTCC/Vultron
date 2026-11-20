@@ -48,6 +48,10 @@ If this is your first visit, start from the [home page](index.md) instead: it se
 - [Architecture](reference/specs/architecture.md) — The architecture requirements of the reference implementation: structure that carries over to other languages but that Vultron compliance does not require.
 - [User Stories](reference/user_stories/index.md) — Requirements captured as user stories.
 
+## Research
+
+- [Measuring CVD](topics/measuring_cvd/index.md) — How to turn what a Vultron case records into desiderata and metrics that show how well CVD works.
+
 ## Project
 
 - [Versioning](reference/versioning.md) — The release versioning scheme for the Vultron repository.

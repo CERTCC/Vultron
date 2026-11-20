@@ -865,18 +865,23 @@ groups:
     adr:
     - ADR-0216
     statement: >-
-      The comparison MUST NOT join a publication to the public's awareness at
-      a position where a public exploit forces that awareness next.
+      The comparison MUST NOT join an authored rule to move advice at a position
+      where the state model forces the CS event of the rule's action next.
     rationale: >-
-      A public exploit means the public knows the vul exists; it does not mean
-      a participant published information defenders can use (user decision on
-      #6676, D10). Joining a deliberate publication to that forced event would
-      score the exploit as the publication's work.
+      A forced step comes next whatever anyone does: at `vfdP..` the vendor
+      becomes aware, and beside a public exploit the public does (CSB-17). No
+      band can say whether a rule serves it, so joined it would read as a
+      rule disagreement that says nothing about the rule. A public exploit is
+      no publication either (#6676, D10). The comparison shows such a rule as
+      not measured: the step happens anyway (#6676, D19).
     verification: >-
       A test compares a publish-vulnerability rule at a position whose
-      exploit is public and whose public is not yet aware, and asserts an
-      unscored-rule result; a second test asserts that the generated rules
-      mark each verdict on a forced event as forced.
+      exploit is public and whose public is not yet aware, and rules for the
+      vendor's awareness at `vfdP..`, and asserts an unscored-rule result that
+      says the step happens anyway; a second test asserts that no authored
+      rule gets a band on a forced step at any valid position of one vendor;
+      a third asserts that the generated rules mark each verdict on a forced
+      event as forced.
 - id: SHD-06
   title: Action Rules on the Page
   specs:
