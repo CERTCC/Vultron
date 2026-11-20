@@ -491,7 +491,7 @@ def test_the_walk_leaves_out_a_model_that_serializes_as_one_value() -> None:
 @pytest.mark.spec("VM-10-010")
 @pytest.mark.parametrize(
     "term",
-    ["proposedEmbargo", "suggestedRoles", "roles", "logIndex", "kind"],
+    ["proposedEmbargo", "roles", "logIndex", "kind"],
 )
 def test_review_table_terms_are_declared(term: str) -> None:
     """Fields the #6253 review left Vultron terms carry the marker,

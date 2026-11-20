@@ -2,7 +2,7 @@
 
 ## Ask the CASE_MANAGER to invite an actor { #request-invite-actor-to-case }
 
-Asks the CASE_MANAGER to invite the actor named by the object to the case named by the target, with the roles in `suggestedRoles`. For an actor with no record on the case, or an invitee that has not answered, the CASE_MANAGER answers with the Stub Invite to that actor, not with an offer to the Case Owner.
+Asks the CASE_MANAGER to invite the actor named by the object to the case named by the target, with the roles in `roles`. For an actor with no record on the case, or an invitee that has not answered, the CASE_MANAGER answers with the Stub Invite to that actor, not with an offer to the Case Owner.
 
 === "Details"
 
