@@ -70,10 +70,9 @@ from vultron.core.states.em import EM
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     remove_embargo_from_case_activity,
-    remove_participant_from_case_activity,
+    remove_participant_activity,
 )
 from vultron.wire.as2.parser import parse_activity
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._ledger_network import (
@@ -281,13 +280,11 @@ def test_the_event_declares_no_separate_termination_reason() -> None:
 
 @pytest.mark.spec("EMB-13-005")
 def test_parse_edge_refuses_a_cause_on_a_remove_that_ends_no_embargo() -> None:
-    """Only a termination ``Remove`` has a why: a ``Remove(CaseParticipant)``
-    naming one is refused, so the cause never reaches its ledger snapshot."""
-    participant = make(
-        as_CaseParticipant, attributed_to=VENDOR, context=CASE, name="vendor"
-    )
-    activity = remove_participant_from_case_activity(
-        participant, target=CASE, actor=OWNER, at=authored_at()
+    """Only a termination ``Remove`` has a why: the Owner's removal of an
+    actor naming one is refused, so the cause never reaches its ledger
+    snapshot."""
+    activity = remove_participant_activity(
+        VENDOR, CASE, actor=OWNER, at=authored_at()
     )
     body = activity.model_dump(mode="json", by_alias=True, exclude_none=True)
     body["terminationCause"] = {"kind": "THREAT_SIGNAL", "signals": ["X"]}

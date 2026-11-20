@@ -20,10 +20,12 @@ receipt stub; a door's (the path stage) leaves nothing, and the outcome stage
 writes the stub from the delivery's own body (CLP-10-018).
 """
 
+from typing import Any
+
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -35,27 +37,31 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.case_participant import (
-    AddCaseParticipantToCaseReceivedUseCase,
-    RemoveCaseParticipantFromCaseReceivedUseCase,
+    ReinstateParticipantInCaseReceivedUseCase,
+    RemoveParticipantFromCaseReceivedUseCase,
 )
-from vultron.wire.as2.factories import add_participant_to_case_activity
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Remove,
+from vultron.wire.as2.factories import (
+    reinstate_participant_activity,
+    remove_participant_activity,
 )
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 _OWNER = "https://example.org/users/owner"
 _CASE_ID = "https://example.org/cases/no-such-case"
 _STORE_ACTOR = "https://test.example/api/v2/actors/test-actor"
+_COORDINATOR = "https://example.org/users/coordinator"
 
-_MOVES = {
+_MOVES: dict[str, tuple[Any, ...]] = {
     "add": (
-        AddCaseParticipantToCaseReceivedUseCase,
-        "Add(CaseParticipant)[target=VulnerabilityCase]",
+        ReinstateParticipantInCaseReceivedUseCase,
+        "Add(<Actor>, target=VulnerabilityCase)",
+        reinstate_participant_activity,
+        "target",
     ),
     "remove": (
-        RemoveCaseParticipantFromCaseReceivedUseCase,
-        "Remove(CaseParticipant)[target=VulnerabilityCase]",
+        RemoveParticipantFromCaseReceivedUseCase,
+        "Remove(<Actor>, origin=VulnerabilityCase)",
+        remove_participant_activity,
+        "origin",
     ),
 }
 
@@ -65,41 +71,23 @@ def dl() -> SqliteDataLayer:
     return SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
 
 
-def _participant() -> as_CaseParticipant:
-    return make(
-        as_CaseParticipant,
-        id_=f"{_CASE_ID}/participants/coord",
-        attributed_to="https://example.org/users/coordinator",
-        context=_CASE_ID,
-    )
-
-
 def _move_event(make_payload, verb: str):
     """The move, addressed to the store's actor so it passes the addressee
     door (HP-01-005) and reaches the refusal under test."""
-    if verb == "add":
-        return make_payload(
-            add_participant_to_case_activity(
-                _participant(),
-                target=_CASE_ID,
-                actor=_OWNER,
-                to=[_STORE_ACTOR],
-                at=authored_at(),
-            )
-        )
+    build = _MOVES[verb][2]
     return make_payload(
-        make(
-            as_Remove,
+        build(
+            _COORDINATOR,
+            _CASE_ID,
             actor=_OWNER,
-            object_=_participant(),
-            target=_CASE_ID,
             to=[_STORE_ACTOR],
+            at=authored_at(),
         )
     )
 
 
 def _run_move(verb: str, dl: SqliteDataLayer, event):
-    use_case, _ = _MOVES[verb]
+    use_case = _MOVES[verb][0]
     return run_in_act(
         use_case(
             dl,
@@ -125,17 +113,18 @@ def _only_the_archive(
 @pytest.mark.spec("CLP-10-005")
 @pytest.mark.spec("CLP-10-018")
 @pytest.mark.parametrize("verb", sorted(_MOVES))
-@pytest.mark.parametrize("missing", ["target", "object_"])
+@pytest.mark.parametrize("missing", ["case", "object_"])
 def test_move_missing_an_id_is_refused_in_one_tree(
     dl, make_payload, tree_runs, verb, missing
 ):
-    event = _move_event(make_payload, verb).model_copy(update={missing: None})
+    slot = _MOVES[verb][3] if missing == "case" else missing
+    event = _move_event(make_payload, verb).model_copy(update={slot: None})
 
     result = _run_move(verb, dl, event)
 
     assert result.disposition == HandlerDisposition.REFUSED
     assert result.reason == (
-        f"{_MOVES[verb][1]} is missing its participant id or case id"
+        f"{_MOVES[verb][1]} is missing the actor it names or its case"
     )
     assert len(tree_runs) == 1
     _only_the_archive(dl, event.activity_id)

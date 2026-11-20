@@ -33,6 +33,8 @@ from vultron.core.use_cases.triggers.request_bodies import (
     CaseTriggerRequest,
     CreateCaseRequest,
     LeaveCaseRequest,
+    ReinstateParticipantRequest,
+    RemoveParticipantRequest,
     SetStubSummaryRequest,
     SyncLogEntryRequest,
 )
@@ -60,6 +62,28 @@ class LeaveCaseTriggerRequest(
     Case Actor can commit a ``close_case`` ledger entry and broadcast it
     to all participants (ADR-0050).  The ``leave-case`` route's body is
     ``LeaveCaseRequest`` (TRIG-13-001).
+    """
+
+
+class RemoveParticipantTriggerRequest(
+    TriggerRequest[ActivityResult], RemoveParticipantRequest
+):
+    """Trigger request for the Case Owner to remove an actor (CM-31-004).
+
+    Sends ``Remove(<Actor>, origin=<case>)`` to the CASE_MANAGER only
+    (ADR-0199).  The ``remove-participant`` route's body is
+    ``RemoveParticipantRequest``.
+    """
+
+
+class ReinstateParticipantTriggerRequest(
+    TriggerRequest[ActivityResult], ReinstateParticipantRequest
+):
+    """Trigger request for the Case Owner to reinstate an actor (CM-31-011).
+
+    Sends ``Add(<Actor>, target=<case>)`` to the CASE_MANAGER only
+    (ADR-0199).  The ``reinstate-participant`` route's body is
+    ``ReinstateParticipantRequest``.
     """
 
 

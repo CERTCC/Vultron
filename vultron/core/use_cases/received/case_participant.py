@@ -1,45 +1,65 @@
-"""Use cases for case participant management activities."""
+"""Use cases for the Case Owner's removal and reinstatement acts (ADR-0199).
+
+The Case Owner sends the CASE_MANAGER its own act, naming the actor:
+``Remove(<Actor>, origin=<case>)`` (CM-31-004) or
+``Add(<Actor>, target=<case>)`` (CM-31-011).  The CASE_MANAGER refuses an act
+from a sender that does not hold ``CASE_OWNER`` with no refusal notice
+(CLP-05-006), refuses an Owner's act that breaks the rules with one, or
+admits it as the move's one ledger entry, changes the record and announces
+the act to the actor it names with ``Announce(<the Owner's act>)``.  It sends
+no ``Accept`` and makes no act of its own.  The announced actor's replica
+records the ``Announce`` (:class:`AnnounceAdmittedActReceivedUseCase`) and
+takes the change from the ledger entry alone (CM-31-029, CM-31-045).
+"""
 
 import logging
 from typing import ClassVar
 
 import py_trees
 
+from vultron.core.behaviors.case.announce_admitted_act_received_tree import (
+    ANNOUNCE_ADMITTED_ACT_TREE,
+    announce_admitted_act_received_tree,
+)
 from vultron.core.behaviors.case.case_participant_received_tree import (
+    REINSTATEMENT_ACT,
+    REMOVAL_ACT,
     create_add_case_participant_received_tree,
     create_remove_case_participant_received_tree,
+    missing_ids_reason,
+)
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
 )
 from vultron.core.behaviors.case.nodes.case_participant_received import (
-    EmitParticipantRemovalNoticeNode,
-    RemoveCaseParticipantFromCaseReceivedNode,
+    AnnounceParticipantMoveNode,
+    RecordParticipantRemovalNode,
 )
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
-    EmitParticipantReinstatementNoticeNode,
-    ReinstateCaseParticipantReceivedNode,
+    ClearParticipantRemovalNode,
 )
-from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.received_run import (
     OutcomeReader,
     ReceivedOutcome,
     node_failed,
-    received_path,
     run_received_tree,
 )
 from vultron.core.behaviors.embargo.nodes.reinvite import (
     InviteReinstatedParticipantToEmbargoNode,
 )
+from vultron.core.behaviors.sender_check_context import SenderCheckContext
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
+    any_of,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.case_participant import (
-    AddCaseParticipantToCaseReceivedEvent,
-    RemoveCaseParticipantFromCaseReceivedEvent,
+    AnnounceAdmittedActReceivedEvent,
+    ReinstateParticipantInCaseReceivedEvent,
+    RemoveParticipantFromCaseReceivedEvent,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -49,7 +69,6 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.errors import VultronBTInternalError
 
 logger = logging.getLogger(__name__)
@@ -57,35 +76,30 @@ logger = logging.getLogger(__name__)
 
 class _CaseOwnerParticipantMoveUseCase[
     MoveEvent: (
-        AddCaseParticipantToCaseReceivedEvent,
-        RemoveCaseParticipantFromCaseReceivedEvent,
+        ReinstateParticipantInCaseReceivedEvent,
+        RemoveParticipantFromCaseReceivedEvent,
     )
 ]:
-    """Shared frame of the Case Owner's two participant moves (ADR-0116).
+    """Shared frame of the Case Owner's two participant moves (ADR-0199).
 
-    ``Remove(CaseParticipant)`` takes a participant out of active
-    participation (CM-31-004) and ``Add(CaseParticipant)`` reinstates it
-    (CM-31-011).  Both are the Case Owner's request to the CASE_MANAGER, run
+    Both are the Case Owner's own act, sent to the CASE_MANAGER only, run
     the same staged tree (intake, sender guard, guards, commit, gated
     effects), and are judged the same way: a guard failure is ``REFUSED``,
-    a failed effect after the commit is an internal fault, and at any other
-    replica the activity is stored and nothing else is written
-    (RSH-08-003) — the CASE_MANAGER's notice is ``APPLIED``, because the
-    replica is its addressee and takes the move from the ledger entry
-    (HP-01-005), its redelivery is ``SKIPPED``, and the same message from
-    anyone else is ``REFUSED`` by the sender guard.
+    a failed effect after the commit is an internal fault.  The trees
+    declare the manager path alone, so any other receiver refuses the act
+    at the path stage: a replica takes the move from the ledger entry
+    (HP-01-038, RSH-08-003).
     """
 
-    # The Case Owner asks the CASE_MANAGER; a participant takes the move
-    # from the CASE_MANAGER alone, which is how the moved participant's own
-    # replica accepts the direct notice (ADR-0116, PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+    # The Case Owner sends the act to the CASE_MANAGER only; no other
+    # receiver acts on it (HP-01-038, PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.CASE_OWNER
     )
 
     #: The tree's name, for log lines and refusals.
     _LABEL: ClassVar[str]
-    #: The move, in the activity's own words, for log lines.
+    #: The act, in its own words, for log lines and refusals.
     _MESSAGE: ClassVar[str]
     #: Effects whose ``FAILURE`` is an internal fault: the move is committed.
     _EFFECTS: ClassVar[tuple[type[py_trees.behaviour.Behaviour], ...]]
@@ -104,33 +118,27 @@ class _CaseOwnerParticipantMoveUseCase[
         self._trigger_activity = trigger_activity
         self._request: MoveEvent = request
 
-    def _claimed_actor_id(self) -> str | None:
-        """The actor the inline participant names, when it names one.
-
-        Normalised where it is extracted (OID-01-006): it is compared with
-        the stored record's actor, which is written without a trailing slash.
-        """
-        participant = self._request.participant
-        if isinstance(participant, CaseParticipant):
-            claimed = _as_id(participant.attributed_to)
-            return normalise_actor_id(claimed) if claimed else None
-        return None
-
-    def _build_tree(
-        self, participant_id: str | None, case_id: str | None
-    ) -> py_trees.behaviour.Behaviour:
+    def _build_tree(self, case_id: str | None) -> py_trees.behaviour.Behaviour:
         """The move's received tree; subclasses implement it.
 
-        The tree refuses a move naming no participant or no case itself
-        (CLP-10-005), so the ids may be ``None`` here.
+        The tree refuses a move naming no case itself (CLP-10-005), so the
+        id may be ``None`` here.
         """
         raise NotImplementedError
 
     def execute(self) -> HandlerResult:
         request = self._request
-        participant_id = request.participant_id
         case_id = request.case_id
-        tree = self._build_tree(participant_id, case_id)
+        tree: py_trees.behaviour.Behaviour
+        if request.participant_actor_id is None:
+            # The tree declares the named actor as a seeded input, so an act
+            # naming none is refused by the incomplete-activity tree instead
+            # (CLP-10-005, CLP-10-018).
+            tree = create_incomplete_activity_received_tree(
+                self._LABEL, missing_ids_reason(self._MESSAGE)
+            )
+        else:
+            tree = self._build_tree(case_id)
         # A guard failure that is an idempotent repeat (removing an
         # already-removed participant) the runner reports SKIPPED.
         verdict = run_received_tree(
@@ -143,50 +151,14 @@ class _CaseOwnerParticipantMoveUseCase[
             wire_render_port=self._wire_render_port,
             reader=_effect_fault_reader(self._EFFECTS),
         )
-        if participant_id is None or case_id is None:
-            # The tree refused the incomplete move itself (CLP-10-018).
-            return verdict
-        return self._replica_verdict(tree, verdict, participant_id, case_id)
-
-    def _replica_verdict(
-        self,
-        tree: py_trees.behaviour.Behaviour,
-        verdict: HandlerResult,
-        participant_id: str,
-        case_id: str,
-    ) -> HandlerResult:
-        label = self._LABEL
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            return verdict
-        if received_path(tree) is ReceivedPath.PARTICIPANT_REPLICA:
-            # The move declares the manager and participant-replica paths,
-            # so the path the stage resolved says which this receiver is on;
-            # the handler never infers it from a gate that skipped
-            # (HP-01-038, ADR-0153).  A case that names no CASE_MANAGER was
-            # refused by the sender guard, which requires one on this path
-            # (CM-02-014, CM-24-008).
-            # Only the CASE_MANAGER's notice passes the replica's sender
-            # guard; the replica stored it and applies the move from the
-            # ledger entry instead (CM-31-029, RSH-08-003).  The notice was
-            # sent to this participant, so its first receipt is APPLIED; a
-            # redelivery is answered SKIPPED by the seen-before door
-            # (HP-01-005).
+        if verdict.disposition is HandlerDisposition.APPLIED:
             logger.info(
-                "%s stored the %s notice for participant '%s' of case '%s';"
-                " a replica applies it from its ledger entry",
-                label,
+                "%s admitted %s naming '%s' in case '%s'",
+                self._LABEL,
                 self._MESSAGE,
-                participant_id,
+                request.participant_actor_id,
                 case_id,
             )
-            return verdict
-        logger.info(
-            "%s applied %s for participant '%s' of case '%s'",
-            label,
-            self._MESSAGE,
-            participant_id,
-            case_id,
-        )
         return verdict
 
 
@@ -195,8 +167,8 @@ def _effect_fault_reader(
 ) -> OutcomeReader:
     """Raise when an effect after the commit failed: the move is committed.
 
-    The guards admitted the move; a fact that could not be recorded, or a
-    notice that could not be built or queued, is our fault, not the
+    The guards admitted the move; a fact that could not be recorded, or an
+    announcement that could not be built or queued, is our fault, not the
     sender's (ADR-0095, BT-14-001).  The act's transaction keeps nothing of
     it (CLP-07-015).
     """
@@ -211,21 +183,23 @@ def _effect_fault_reader(
     return read
 
 
-class AddCaseParticipantToCaseReceivedUseCase(
-    _CaseOwnerParticipantMoveUseCase[AddCaseParticipantToCaseReceivedEvent]
+class ReinstateParticipantInCaseReceivedUseCase(
+    _CaseOwnerParticipantMoveUseCase[ReinstateParticipantInCaseReceivedEvent]
 ):
-    """The Case Owner asks the CASE_MANAGER to reinstate a participant (CM-31-011).
+    """The Case Owner reinstates a removed participant (CM-31-011).
 
-    ``Add(CaseParticipant)`` only reinstates (ADR-0116).  At the
-    CASE_MANAGER: a sender that does not hold ``CASE_OWNER``, an ``Add``
-    naming no participant of the case, one naming an invitee that never
-    joined, and one naming a participant that is not removed are all
-    ``REFUSED`` — joining is accepting a stub Invite (ADR-0114).  An
-    accepted reinstatement commits the owner's activity as the one ledger
-    entry, clears the removal fact without asking the participant to accept
-    again, backfills it once it is active (CM-10-006), sends it a direct
-    notice, and sends it the active embargo's Invite when it is not
-    a signatory to it (CM-31-040).
+    At the CASE_MANAGER: a sender that does not hold ``CASE_OWNER`` is
+    ``REFUSED`` with nothing committed and no refusal notice (CM-31-043,
+    CLP-05-006); the received runner logs it at WARNING (SL-03-002).  A
+    reinstatement naming the CASE_MANAGER, the Case Owner, an actor with no
+    record on the case, one that never joined, or one that is not removed
+    (CM-31-036), is ``REFUSED`` with a refusal notice and nothing
+    committed.  An admitted reinstatement commits the Owner's
+    act as the one ledger entry (CM-31-044), clears the removal fact without
+    asking the participant to accept again (CM-31-034, CM-31-035), backfills
+    it once it is active (CM-10-006), announces the Owner's act to it
+    (CM-31-044), and sends it the active embargo's Invite when it is not a
+    signatory to it (CM-31-040).
     """
 
     # Re-declared so ``request`` names this handler's own event class, the
@@ -233,7 +207,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
     def __init__(
         self,
         dl: CasePersistence,
-        request: AddCaseParticipantToCaseReceivedEvent,
+        request: ReinstateParticipantInCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: TriggerActivityPort | None = None,
         wire_render_port: WireRenderPort | None = None,
@@ -246,42 +220,39 @@ class AddCaseParticipantToCaseReceivedUseCase(
             wire_render_port=wire_render_port,
         )
 
-    _LABEL: ClassVar[str] = "AddCaseParticipantReceivedBT"
-    _MESSAGE: ClassVar[str] = "Add(CaseParticipant)[target=VulnerabilityCase]"
+    _LABEL: ClassVar[str] = "ReinstateParticipantReceivedBT"
+    _MESSAGE: ClassVar[str] = REINSTATEMENT_ACT
     _EFFECTS: ClassVar[tuple[type[py_trees.behaviour.Behaviour], ...]] = (
-        ReinstateCaseParticipantReceivedNode,
+        ClearParticipantRemovalNode,
         BackfillAdmittedParticipantsNode,
-        EmitParticipantReinstatementNoticeNode,
+        AnnounceParticipantMoveNode,
         InviteReinstatedParticipantToEmbargoNode,
     )
 
-    def _build_tree(
-        self, participant_id: str | None, case_id: str | None
-    ) -> py_trees.behaviour.Behaviour:
+    def _build_tree(self, case_id: str | None) -> py_trees.behaviour.Behaviour:
         return create_add_case_participant_received_tree(
-            participant_id=participant_id,
             case_id=case_id,
             sender_id=self._request.actor_id,
-            claimed_actor_id=self._claimed_actor_id(),
             activity_id=self._request.activity_id,
             sender_rule=self.sender_entitlement,
         )
 
 
-class RemoveCaseParticipantFromCaseReceivedUseCase(
-    _CaseOwnerParticipantMoveUseCase[
-        RemoveCaseParticipantFromCaseReceivedEvent
-    ]
+class RemoveParticipantFromCaseReceivedUseCase(
+    _CaseOwnerParticipantMoveUseCase[RemoveParticipantFromCaseReceivedEvent]
 ):
-    """The Case Owner asks the CASE_MANAGER to remove a participant (CM-31-004).
+    """The Case Owner removes a participant from active participation (CM-31-004).
 
-    At the CASE_MANAGER: a sender that does not hold ``CASE_OWNER``, a
-    removal naming the CASE_MANAGER's or the Case Owner's participant, and
-    one naming no participant of the case are ``REFUSED``; removing an
-    already-removed participant is ``SKIPPED``.  An accepted removal commits
-    the owner's activity as the one ledger entry (CM-31-005, CM-31-025), sets the
-    removal fact while keeping the record (CM-31-001, CM-31-015), and sends the removed
-    participant a direct notice (CM-31-006).
+    At the CASE_MANAGER: a sender that does not hold ``CASE_OWNER`` is
+    ``REFUSED`` with nothing committed and no refusal notice (CLP-05-006);
+    the received runner logs it at WARNING (SL-03-002).  A removal naming
+    the CASE_MANAGER, the Case Owner or an actor with no record on the case
+    is ``REFUSED`` with a refusal notice and nothing committed; removing an
+    already-removed participant is ``SKIPPED`` (CM-31-022).  An admitted
+    removal commits the Owner's act as the one ledger entry (CM-31-005,
+    CM-31-025), sets the removal fact while keeping the record (CM-31-001,
+    CM-31-015), and announces the Owner's act to the removed actor
+    (ADR-0199).
     """
 
     # Re-declared so ``request`` names this handler's own event class, the
@@ -289,7 +260,7 @@ class RemoveCaseParticipantFromCaseReceivedUseCase(
     def __init__(
         self,
         dl: CasePersistence,
-        request: RemoveCaseParticipantFromCaseReceivedEvent,
+        request: RemoveParticipantFromCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: TriggerActivityPort | None = None,
         wire_render_port: WireRenderPort | None = None,
@@ -302,23 +273,70 @@ class RemoveCaseParticipantFromCaseReceivedUseCase(
             wire_render_port=wire_render_port,
         )
 
-    _LABEL: ClassVar[str] = "RemoveCaseParticipantReceivedBT"
-    _MESSAGE: ClassVar[str] = (
-        "Remove(CaseParticipant)[target=VulnerabilityCase]"
-    )
+    _LABEL: ClassVar[str] = "RemoveParticipantReceivedBT"
+    _MESSAGE: ClassVar[str] = REMOVAL_ACT
     _EFFECTS: ClassVar[tuple[type[py_trees.behaviour.Behaviour], ...]] = (
-        RemoveCaseParticipantFromCaseReceivedNode,
-        EmitParticipantRemovalNoticeNode,
+        RecordParticipantRemovalNode,
+        AnnounceParticipantMoveNode,
     )
 
-    def _build_tree(
-        self, participant_id: str | None, case_id: str | None
-    ) -> py_trees.behaviour.Behaviour:
+    def _build_tree(self, case_id: str | None) -> py_trees.behaviour.Behaviour:
         return create_remove_case_participant_received_tree(
-            participant_id=participant_id,
             case_id=case_id,
             sender_id=self._request.actor_id,
-            removal_activity_id=self._request.activity_id,
-            claimed_actor_id=self._claimed_actor_id(),
             sender_rule=self.sender_entitlement,
+        )
+
+
+class AnnounceAdmittedActReceivedUseCase:
+    """Record the CASE_MANAGER's ``Announce`` of an act it admitted (ADR-0199).
+
+    Sent to an actor the act concerns that the entry's fan-out does not
+    reach, such as a removed or reinstated participant (CM-31-044).  Only
+    the case's CASE_MANAGER sends one, so any other sender, and any
+    ``Announce`` reaching the CASE_MANAGER itself, is refused (HP-01-006,
+    HP-01-038).  The participant records it and writes nothing else: it
+    takes the change from the ledger entry that carries the act (CM-31-029,
+    CM-31-045).  ``APPLIED`` on first receipt; a redelivery is ``SKIPPED``
+    by the seen-before door (HP-01-014).
+    """
+
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER)
+    )
+
+    def __init__(
+        self,
+        dl: CasePersistence,
+        request: AnnounceAdmittedActReceivedEvent,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+    ) -> None:
+        self._dl = dl
+        self._request = request
+        self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
+        self._wire_render_port = wire_render_port
+
+    def execute(self) -> HandlerResult:
+        request = self._request
+        tree = announce_admitted_act_received_tree(
+            sender_rule=self.sender_entitlement,
+            # A case naming no CASE_MANAGER refuses the sender rather than
+            # passing it (Regime 1, ADR-0087).
+            sender_context=SenderCheckContext(
+                sender_id=request.actor_id,
+                case_id=request.case_id,
+                case_manager_required=True,
+            ),
+        )
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label=ANNOUNCE_ADMITTED_ACT_TREE,
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )

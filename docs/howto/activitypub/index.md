@@ -82,7 +82,7 @@ Read it field by field.
 | `type` | The AS2 verb | Every guide names its activities by verb and object |
 | `actor` | The actor performing the activity | Case-management handshakes are sent by the CASE_MANAGER, with the requesting participant in `attributedTo` and the request in `inReplyTo` |
 | `object` | The thing acted on: a Vultron object, or an earlier activity being answered | `Accept`, `Reject`, `TentativeReject`, and `Read` carry the activity they answer, not the object inside it |
-| `target` | Where the object goes | `Add` names the case here, as does `Remove(CaseParticipant)`; `Offer(CaseParticipantRole)` names the actor being offered the role |
+| `target` | Where the object goes | `Add` names the case here; `Offer(CaseParticipantRole)` names the actor being offered the role |
 | `origin` | Where the object comes from | `Remove(Note)` and `Remove(EmbargoEvent)`, which terminates an embargo, name the case here rather than in `target` |
 | `context` | The case an activity belongs to | `Invite(EmbargoEvent)` names the case here, and so does the `Note` an `Add(Note)` carries |
 | `inReplyTo` | The earlier activity this one answers, when the verb alone does not say so | `Accept(Offer(Actor)[target=VulnerabilityCase])` names, in `inReplyTo`, the actor recommendation it accepts, and so does the CASE_MANAGER's forward of that recommendation, `Offer(CaseParticipant)` |

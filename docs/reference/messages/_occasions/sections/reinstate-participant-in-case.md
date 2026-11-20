@@ -1,13 +1,13 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-## Remove case participant from case { #remove-case-participant-from-case }
+## Reinstate participant in case { #reinstate-participant-in-case }
 
-Asks the CASE_MANAGER to remove the participant record named by the object. The removed Participant receives a direct notice.
+The Case Owner's own reinstatement of the removed actor named by the object. The CASE_MANAGER records it as the ledger entry and announces it to the actor, which becomes active again and receives the ledger entries it missed.
 
 === "Details"
 
-    - **When…** the Case Owner removes a Participant from active participation
-    - **Send:** `Remove(CaseParticipant)[target=VulnerabilityCase]`
+    - **When…** the Case Owner reinstates a removed Participant
+    - **Send:** `Add(Actor)[target=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the Case Owner
     - **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
@@ -18,5 +18,5 @@ Asks the CASE_MANAGER to remove the participant record named by the object. The 
     ```python exec="true" idprefix=""
     from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(render_example("remove_participant_from_case"))
+    print(render_example("reinstate_participant_in_case"))
     ```

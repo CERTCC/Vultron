@@ -13,13 +13,14 @@
 """The Case Owner's removal of a participant, beyond the CM-31 goal tests.
 
 The goal tests in ``test_participant_removal_planned.py`` pin each CM-31
-requirement once.  These cover the edges around them: what the notice
-carries, what a repeat removal leaves alone, what a removed participant
-stops receiving, and what a replica does with each of the two channels a
-removal arrives on (ADR-0116, #4080).
+requirement once.  These cover the edges around them: what the CASE_MANAGER
+sends the removed actor, what a repeat removal leaves alone, what a removed
+participant stops receiving, and what a replica does with the ``Announce``
+and with the entry (ADR-0116, ADR-0199).
 """
 
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -50,8 +51,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.core.behaviors.case.case_participant_received_tree import (
     create_remove_case_participant_received_tree,
 )
+from vultron.core.behaviors.case.nodes.announce_admitted_act import (
+    EmitAnnounceAdmittedActNode,
+)
 from vultron.core.behaviors.case.nodes.case_participant_received import (
-    RemoveCaseParticipantFromCaseReceivedNode,
+    RecordParticipantRemovalNode,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -64,13 +68,13 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.case_participant import (
-    RemoveCaseParticipantFromCaseReceivedUseCase,
+    RemoveParticipantFromCaseReceivedUseCase,
 )
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
+    announce_admitted_act_activity,
     reject_log_entry_activity,
-    remove_participant_from_case_activity,
+    remove_participant_activity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -86,11 +90,11 @@ def removal() -> _RemovalCase:
     return _RemovalCase(dl=dl, case=_seed(dl))
 
 
-def _owner_removes_vendor(case: _RemovalCase) -> Any:
-    return remove_participant_from_case_activity(
-        case.participant(VENDOR),
-        target=CASE_ID,
-        actor=OWNER,
+def _owner_removes(actor_id: str = VENDOR, *, by: str = OWNER) -> Any:
+    return remove_participant_activity(
+        actor_id,
+        CASE_ID,
+        actor=by,
         id_=_REMOVE_ACTIVITY_ID,
         to=[MANAGER],
         at=authored_at(),
@@ -102,38 +106,56 @@ def _owner_removes_vendor(case: _RemovalCase) -> Any:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("CM-31-006")
+@pytest.mark.spec("CM-31-005")
 @pytest.mark.spec("CM-31-026")
 @pytest.mark.spec("CM-24-001")
-@pytest.mark.spec("CM-24-002")
-@pytest.mark.spec("CM-24-020")
-def test_notice_is_delegated_names_the_participant_and_is_not_ledgered(
+def test_the_removed_actor_is_announced_the_owners_act(
     removal: _RemovalCase,
 ) -> None:
-    removal.route(_owner_removes_vendor(removal))
+    """The removed actor gets ``Announce(<the Owner's Remove>)`` (ADR-0199).
 
-    (notice,) = removal.activities_to("Remove", VENDOR)
-    assert _as_id(notice.actor) == MANAGER
-    assert notice.attributed_to == OWNER
-    # It names the owner's Remove it carries out (CM-24-020).
-    assert _as_id(notice.in_reply_to) == _REMOVE_ACTIVITY_ID
-    assert [_as_id(t) for t in notice.to] == [VENDOR]
-    assert _as_id(notice.object_) == _participant_id(VENDOR)
-    assert _as_id(notice.target) == CASE_ID
+    The ``Announce`` is the CASE_MANAGER's own act, credits nobody else,
+    carries the Owner's act inline and names it in ``inReplyTo`` too
+    (ADR-0204); its id is derived from the act, and it is not ledgered.
+    """
+    removal.route(_owner_removes())
+
+    (announce,) = removal.activities_to("Announce", VENDOR)
+    assert _as_id(announce.actor) == MANAGER
+    assert announce.attributed_to is None
+    assert _as_id(announce.object_) == _REMOVE_ACTIVITY_ID
+    assert _as_id(announce.in_reply_to) == _REMOVE_ACTIVITY_ID
+    assert [_as_id(t) for t in announce.to] == [VENDOR]
+    assert _as_id(announce.context) == CASE_ID
+    assert announce.id_ == EmitAnnounceAdmittedActNode.announce_id(
+        _REMOVE_ACTIVITY_ID
+    )
     ledgered = {entry.log_object_id for entry in removal.ledger()}
-    assert notice.id_ not in ledgered
     assert ledgered == {_REMOVE_ACTIVITY_ID}
+
+
+@pytest.mark.spec("CM-31-025")
+def test_the_case_manager_sends_no_accept_and_makes_no_act_of_its_own(
+    removal: _RemovalCase,
+) -> None:
+    """The Owner's act is the one entry: no ``Accept``, no CASE_MANAGER
+    ``Remove`` or ``Add`` of the actor (ADR-0199)."""
+    removal.route(_owner_removes())
+
+    for actor_id in (OWNER, VENDOR, OTHER):
+        assert removal.activities_to("Accept", actor_id) == []
+        assert removal.activities_to("Remove", actor_id) == []
+        assert removal.activities_to("Add", actor_id) == []
+    (entry,) = removal.ledger()
+    assert entry.log_object_id == _REMOVE_ACTIVITY_ID
 
 
 @pytest.mark.spec("CM-31-004")
 def test_only_the_case_owner_may_send_the_removal() -> None:
-    """The CASE_MANAGER admits a removal request only from the Case Owner.
-
-    The declared sender rule admits ``Remove(CaseParticipant)`` only from
-    the Case Owner, and only at the CASE_MANAGER (CM-31-004, HP-01-006).
-    """
-    assert RemoveCaseParticipantFromCaseReceivedUseCase.sender_entitlement == (
-        SenderRule.to_case_manager(SenderEntitlementKind.CASE_OWNER)
+    """The CASE_MANAGER admits a removal only from the Case Owner, and no
+    other receiver acts on one (CM-31-004, HP-01-038)."""
+    assert RemoveParticipantFromCaseReceivedUseCase.sender_entitlement == (
+        SenderRule.at_case_manager_only(SenderEntitlementKind.CASE_OWNER)
     )
 
 
@@ -141,7 +163,7 @@ def test_only_the_case_owner_may_send_the_removal() -> None:
 def test_removal_fact_is_the_owners_activity_id(
     removal: _RemovalCase,
 ) -> None:
-    removal.route(_owner_removes_vendor(removal))
+    removal.route(_owner_removes())
 
     assert removal.participant(VENDOR).removal_activity == (
         _REMOVE_ACTIVITY_ID
@@ -151,7 +173,7 @@ def test_removal_fact_is_the_owners_activity_id(
 
 @pytest.mark.spec("CM-31-022")
 @pytest.mark.spec("CLP-13-001")
-def test_second_removal_commits_nothing_and_sends_no_second_notice(
+def test_second_removal_commits_nothing_and_sends_no_second_announce(
     removal: _RemovalCase,
 ) -> None:
     removal.remove(VENDOR)
@@ -161,29 +183,78 @@ def test_second_removal_commits_nothing_and_sends_no_second_notice(
 
     assert second.disposition is HandlerDisposition.SKIPPED
     assert len(removal.ledger()) == entries
-    assert len(removal.activities_to("Remove", VENDOR)) == 1
+    assert len(removal.activities_to("Announce", VENDOR)) == 1
+
+
+@pytest.mark.spec("HP-01-014")
+def test_a_redelivered_removal_changes_nothing(removal: _RemovalCase) -> None:
+    """The same act delivered again is answered by the seen-before door."""
+    removal.route(_owner_removes())
+    entries = len(removal.ledger())
+
+    again = removal.route(_owner_removes())
+
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert len(removal.ledger()) == entries
+    assert len(removal.activities_to("Announce", VENDOR)) == 1
+
+
+def assert_one_refusal_warning(
+    caplog: pytest.LogCaptureFixture, activity_id: str, sender_id: str
+) -> None:
+    """The received runner logged one WARNING for the refused act, naming the
+    act and its sender (SL-03-002)."""
+    lines = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING
+        and r.name.endswith("received_run.runner")
+        and activity_id in r.getMessage()
+    ]
+    assert len(lines) == 1, [r.getMessage() for r in lines]
+    assert sender_id in lines[0].getMessage()
 
 
 @pytest.mark.spec("CM-31-004")
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.spec("SL-03-002")
 def test_refused_removal_writes_nothing_but_the_archive(
-    removal: _RemovalCase,
+    removal: _RemovalCase, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A non-owner's removal is archived (CLP-10-018) and changes nothing."""
-    activity = remove_participant_from_case_activity(
-        removal.participant(VENDOR),
-        target=CASE_ID,
-        actor=OTHER,
-        to=[MANAGER],
-        at=authored_at(),
-    )
+    """A non-owner's removal is archived (CLP-10-018) and changes nothing.
 
-    result = removal.route(activity)
+    The sender guard refuses it, so no refusal notice is sent (CLP-05-006);
+    the received runner logs one WARNING line for it (SL-03-002).
+    """
+    activity = _owner_removes(by=OTHER)
+
+    with caplog.at_level(logging.WARNING):
+        result = removal.route(activity)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert not removal.participant(VENDOR).removed
     assert removal.ledger() == []
-    assert removal.activities_to("Remove", VENDOR) == []
+    assert removal.activities_to("Announce", VENDOR) == []
+    assert removal.activities_to("Refuse", OTHER) == []
     assert removal.dl.read(ReceivedActivityRecord.build_id(activity.id_))
+    assert_one_refusal_warning(caplog, activity.id_, OTHER)
+
+
+@pytest.mark.spec("CM-31-004")
+@pytest.mark.spec("CLP-05-001")
+@pytest.mark.parametrize("removed", [MANAGER, OWNER])
+def test_a_refused_removal_is_answered_with_a_refusal_notice(
+    removal: _RemovalCase, removed: str
+) -> None:
+    """A removal naming the CASE_MANAGER or the Owner is refused with a
+    refusal notice to the Owner, and nothing is committed."""
+    result = removal.route(_owner_removes(removed))
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    (notice,) = removal.activities_to("Refuse", OWNER)
+    assert _as_id(notice.in_reply_to) == _REMOVE_ACTIVITY_ID
+    assert removal.ledger() == []
+    assert removal.activities_to("Announce", removed) == []
 
 
 @pytest.mark.spec("CM-31-028")
@@ -227,77 +298,40 @@ def test_replay_does_not_answer_the_removed_participant(
     assert len(removal.ledger_adds_to(VENDOR)) == to_vendor
 
 
-@pytest.mark.spec("CM-31-004")
-@pytest.mark.spec("CM-31-007")
-def test_removal_naming_another_actor_than_the_record_is_refused(
-    removal: _RemovalCase,
-) -> None:
-    """The inline ``attributedTo`` must name the record's own actor.
-
-    A replica resolves its copy of the record by that actor, so a mismatch
-    would remove a different participant there — here the CASE_MANAGER —
-    than the one judged at the CASE_MANAGER.
-    """
-    forged = removal.participant(VENDOR).model_copy(
-        update={"attributed_to": MANAGER}
-    )
-    activity = remove_participant_from_case_activity(
-        forged, target=CASE_ID, actor=OWNER, to=[MANAGER], at=authored_at()
-    )
-
-    result = removal.route(activity)
-
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert not removal.participant(VENDOR).removed
-    manager_record = removal.dl.read(
-        removal.read_case().actor_participant_index[MANAGER]
-    )
-    assert isinstance(manager_record, CaseParticipant)
-    assert not manager_record.removed
-    assert removal.ledger() == []
-
-
 @pytest.mark.spec("OID-01-006")
 @pytest.mark.spec("CM-31-007")
-def test_removal_naming_the_record_actor_with_a_trailing_slash_is_applied(
+def test_removal_naming_the_actor_with_a_trailing_slash_is_applied(
     removal: _RemovalCase,
 ) -> None:
-    """The inline ``attributedTo`` is extracted without its trailing slash,
-    so a removal spelling the record's own actor that way names it."""
-    spelled = removal.participant(VENDOR).model_copy(
-        update={"attributed_to": VENDOR + "/"}
-    )
-    activity = remove_participant_from_case_activity(
-        spelled, target=CASE_ID, actor=OWNER, to=[MANAGER], at=authored_at()
-    )
-
-    result = removal.route(activity)
+    """The named actor is read without its trailing slash, so a removal
+    spelling the actor that way names its record."""
+    result = removal.route(_owner_removes(VENDOR + "/"))
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert removal.participant(VENDOR).removed
 
 
-class _NoticeFailsAdapter(TriggerActivityAdapter):
-    """A trigger-activity port whose removal notice cannot be built."""
+class _AnnounceFailsAdapter(TriggerActivityAdapter):
+    """A trigger-activity port whose announcement cannot be built."""
 
-    def remove_participant_from_case(self, *args: Any, **kwargs: Any) -> Any:
+    def announce_admitted_act(self, *args: Any, **kwargs: Any) -> Any:
         raise RuntimeError("outbox unavailable")
 
 
-@pytest.mark.spec("CM-31-006")
 @pytest.mark.spec("BT-14-001")
-def test_notice_failure_after_commit_is_an_internal_error(
+@pytest.mark.spec("CLP-07-015")
+def test_announce_failure_after_commit_is_an_internal_error(
     removal: _RemovalCase,
 ) -> None:
-    """A failed notice is our fault, never a refusal; it fails the act,
+    """A failed announcement is our fault, never a refusal; it fails the act,
     which keeps no entry of the removal (CLP-07-015)."""
     with pytest.raises(VultronBTInternalError):
         route_received(
             removal.dl,
-            _owner_removes_vendor(removal),
+            _owner_removes(),
             receiving_actor_id=MANAGER,
             sync_port=SyncActivityAdapter(removal.dl),
-            trigger_activity=_NoticeFailsAdapter(removal.dl),
+            trigger_activity=_AnnounceFailsAdapter(removal.dl),
         )
 
     assert removal.ledger() == []
@@ -309,83 +343,14 @@ def test_failed_fact_write_after_commit_is_an_internal_error(
 ) -> None:
     """A removal fact that cannot be recorded is our fault, not the sender's."""
     monkeypatch.setattr(
-        RemoveCaseParticipantFromCaseReceivedNode,
-        "update",
-        lambda self: Status.FAILURE,
+        RecordParticipantRemovalNode, "update", lambda self: Status.FAILURE
     )
 
     with pytest.raises(VultronBTInternalError):
-        removal.route(_owner_removes_vendor(removal))
+        removal.route(_owner_removes())
 
     # The fact and the removal's own entry are one act (CLP-07-015).
     assert removal.ledger() == []
-
-
-def _replica_without_a_case_manager() -> tuple[
-    SqliteDataLayer, CaseParticipant
-]:
-    """VENDOR's replica of the case, its roster naming no CASE_MANAGER, and
-    OTHER's record on it."""
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
-    _seed(dl)
-    case = dl.read(CASE_ID)
-    assert isinstance(case, as_VulnerabilityCase)
-    manager_record = case.actor_participant_index[MANAGER]
-    case.case_participants = [
-        p for p in case.case_participants if _as_id(p) != manager_record
-    ]
-    case.actor_participant_index = {
-        actor: record
-        for actor, record in case.actor_participant_index.items()
-        if actor != MANAGER
-    }
-    dl.save(case)
-    record = dl.read(_participant_id(OTHER))
-    assert isinstance(record, CaseParticipant)
-    return dl, record
-
-
-@pytest.mark.spec("CM-24-014")
-def test_removal_on_a_case_without_a_case_manager_is_refused() -> None:
-    """With no CASE_MANAGER on the roster, nobody may apply the removal."""
-    dl, record = _replica_without_a_case_manager()
-
-    result = route_received(
-        dl,
-        remove_participant_from_case_activity(
-            record, target=CASE_ID, actor=OWNER, to=[VENDOR], at=authored_at()
-        ),
-        receiving_actor_id=VENDOR,
-        sync_port=SyncActivityAdapter(dl),
-    )
-
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert f"case '{CASE_ID}' names no CASE_MANAGER" in (result.reason or "")
-    stored = dl.read(_participant_id(OTHER))
-    assert isinstance(stored, CaseParticipant)
-    assert not stored.removed
-
-
-@pytest.mark.spec("CM-02-014", "CM-24-008")
-def test_add_on_a_case_without_a_case_manager_is_refused() -> None:
-    """The Add's sender guard requires a CASE_MANAGER on the replica path, so
-    a case whose roster names none refuses it (CM-02-014, #6394)."""
-    dl, record = _replica_without_a_case_manager()
-    before = len(dl.list_objects("CaseLedgerEntry"))
-
-    result = route_received(
-        dl,
-        add_participant_to_case_activity(
-            record, target=CASE_ID, actor=OWNER, to=[VENDOR], at=authored_at()
-        ),
-        receiving_actor_id=VENDOR,
-        sync_port=SyncActivityAdapter(dl),
-    )
-
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert f"case '{CASE_ID}' names no CASE_MANAGER" in (result.reason or "")
-    assert len(dl.list_objects("CaseLedgerEntry")) == before
-    assert dl.outbox_list() == []
 
 
 # ---------------------------------------------------------------------------
@@ -419,54 +384,73 @@ def _replica_state(dl: SqliteDataLayer) -> tuple[str, str]:
     )
 
 
-@pytest.mark.spec("HP-01-005")
-@pytest.mark.spec("RSH-08-003")
 @pytest.mark.spec("CM-31-029")
-def test_replica_stores_the_managers_notice_and_writes_nothing(
+@pytest.mark.spec("RSH-08-003")
+def test_replica_records_the_announce_and_writes_nothing(
     removal: _RemovalCase,
 ) -> None:
     removal.remove(VENDOR)
-    (notice,) = removal.activities_to("Remove", VENDOR)
+    (announce,) = removal.activities_to("Announce", VENDOR)
     replica = _vendor_replica()
     before = _replica_state(replica)
 
-    result = _route_to_replica(replica, notice)
+    result = _route_to_replica(replica, announce)
 
-    assert result.disposition is HandlerDisposition.APPLIED
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert _replica_state(replica) == before
-    assert replica.read(ReceivedActivityRecord.build_id(notice.id_))
+    assert replica.read(ReceivedActivityRecord.build_id(announce.id_))
     assert list(replica.list_objects("CaseLedgerEntry")) == []
 
 
-@pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("HP-01-014")
 @pytest.mark.spec("ID-04-004")
-def test_replica_skips_a_redelivered_notice(removal: _RemovalCase) -> None:
-    """Only the notice's first receipt is APPLIED; a repeat is a skip."""
+def test_replica_skips_a_redelivered_announce(removal: _RemovalCase) -> None:
+    """Only the Announce's first receipt is APPLIED; a repeat is a skip."""
     removal.remove(VENDOR)
-    (notice,) = removal.activities_to("Remove", VENDOR)
+    (announce,) = removal.activities_to("Announce", VENDOR)
     replica = _vendor_replica()
-    _route_to_replica(replica, notice)
+    _route_to_replica(replica, announce)
     before = _replica_state(replica)
 
-    result = _route_to_replica(replica, notice)
+    result = _route_to_replica(replica, announce)
 
     assert result.disposition is HandlerDisposition.SKIPPED
     assert _replica_state(replica) == before
     assert list(replica.list_objects("CaseLedgerEntry")) == []
 
 
-@pytest.mark.spec("RSH-08-003")
+@pytest.mark.spec("HP-01-006")
 @pytest.mark.spec("PCR-03-001")
-def test_replica_refuses_a_removal_not_from_the_case_manager() -> None:
+def test_replica_refuses_an_announce_not_from_the_case_manager() -> None:
+    """Only the case's CASE_MANAGER announces an admitted act."""
     replica = _vendor_replica()
-    record = replica.read(_participant_id(OTHER))
-    assert isinstance(record, CaseParticipant)
+    before = _replica_state(replica)
+    forged = announce_admitted_act_activity(
+        _owner_removes(),
+        CASE_ID,
+        actor=OWNER,
+        to=[VENDOR],
+        at=authored_at(),
+    )
+
+    result = _route_to_replica(replica, forged)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _replica_state(replica) == before
+
+
+@pytest.mark.spec("RSH-08-003")
+@pytest.mark.spec("HP-01-038")
+def test_replica_refuses_the_owners_removal_itself() -> None:
+    """The Owner sends its act to the CASE_MANAGER only; any other receiver
+    refuses it at the path stage and writes nothing."""
+    replica = _vendor_replica()
     before = _replica_state(replica)
 
     result = _route_to_replica(
         replica,
-        remove_participant_from_case_activity(
-            record, target=CASE_ID, actor=OWNER, to=[VENDOR], at=authored_at()
+        remove_participant_activity(
+            OTHER, CASE_ID, actor=OWNER, to=[VENDOR], at=authored_at()
         ),
     )
 
@@ -485,7 +469,7 @@ def test_replica_applies_the_removal_from_its_ledger_entry(
     The removed participant's replica applies its own removal, the same
     fact the CASE_MANAGER recorded; its consent rows stay (CM-31-008).
     """
-    removal.route(_owner_removes_vendor(removal))
+    removal.route(_owner_removes())
     (announce,) = removal.ledger_adds_to(replica_actor)
     replica = SqliteDataLayer("sqlite:///:memory:", actor_id=replica_actor)
     _seed(replica)
@@ -516,11 +500,9 @@ def test_replica_applies_the_removal_from_its_ledger_entry(
 def test_every_write_in_the_received_tree_is_case_manager_gated() -> None:
     """Structurally: the effect node sits under the CASE_MANAGER gate."""
     tree = create_remove_case_participant_received_tree(
-        sender_rule=RemoveCaseParticipantFromCaseReceivedUseCase.sender_entitlement,
-        participant_id=_participant_id(VENDOR),
+        sender_rule=RemoveParticipantFromCaseReceivedUseCase.sender_entitlement,
         case_id=CASE_ID,
         sender_id=OWNER,
-        removal_activity_id=_REMOVE_ACTIVITY_ID,
     )
     (gate,) = [
         node
@@ -528,6 +510,6 @@ def test_every_write_in_the_received_tree_is_case_manager_gated() -> None:
         if node.name == "GuardedRemoveParticipantBT"
     ]
     assert any(
-        isinstance(node, RemoveCaseParticipantFromCaseReceivedNode)
+        isinstance(node, RecordParticipantRemovalNode)
         for node in gate.iterate()
     )

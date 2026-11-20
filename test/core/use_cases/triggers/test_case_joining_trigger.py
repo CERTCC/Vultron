@@ -264,8 +264,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
 
     # The stub Invite's own entry records the creation: the record is made
     # in the same step, from the roles the Invite names (CM-11-006, CM-11-026).  No
-    # Add(CaseParticipant) follows it; that message only reinstates
-    # (CM-31-011, CM-31-012).
+    # Add(CaseParticipant) follows it (CM-31-012).
     creation_entries = [
         e
         for e in dl.list_objects("CaseLedgerEntry")

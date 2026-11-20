@@ -132,6 +132,11 @@ _BODIES: dict[str, dict[str, Any]] = {
     "engage-case": {"case_id": _CASE},
     "defer-case": {"case_id": _CASE},
     "leave-case": {"case_id": _CASE},
+    "remove-participant": {"case_id": _CASE, "participant_actor_id": _OTHER},
+    "reinstate-participant": {
+        "case_id": _CASE,
+        "participant_actor_id": _OTHER,
+    },
     "add-object-to-case": {"case_id": _CASE, "object_id": "urn:uuid:obj"},
     "create-case": {"name": "Case", "content": "Content"},
     "add-report-to-case": {"case_id": _CASE, "report_id": "urn:uuid:report"},

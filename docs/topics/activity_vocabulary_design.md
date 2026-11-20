@@ -215,7 +215,7 @@ The activity guides break the steps out individually because the individual step
 Participants that are not known when the case is created are not attached later with an `Add`.
 A Reporter may report a vulnerability to a Coordinator, who creates a case before the affected Vendors have been identified.
 The Coordinator seats itself and the Reporter at case creation, then invites each Vendor as it is identified, and each Vendor joins by accepting its Invite ([ADR-0114](../adr/0114-joining-a-case-stub-invite-inert-participant.md)).
-`Add(CaseParticipant)` has one meaning: the Case Owner reinstates a participant it removed ([ADR-0116](../adr/0116-removing-a-participant-withdraws-entitlement-not-membership.md)).
+The Case Owner's `Add(<Actor>)` has one meaning: it reinstates a participant the Case Owner removed, naming the actor rather than its record ([ADR-0116](../adr/0116-removing-a-participant-withdraws-entitlement-not-membership.md), [ADR-0199](../adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md)).
 
 ### `Create(VulnerabilityReport)` and `Offer(VulnerabilityReport)`
 

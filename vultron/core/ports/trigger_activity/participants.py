@@ -149,50 +149,60 @@ class TriggerParticipantsPort(Protocol):
         """
         ...
 
-    def add_participant_to_case(
+    def remove_participant(
         self,
-        participant_id: str,
+        removed_id: str,
         case_id: str,
         actor: str,
-        to: list[str] | None = None,
-        attributed_to: str | None = None,
+        to: list[str],
         *,
         at: datetime,
-        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(CaseParticipant)[target=VulnerabilityCase]`` activity.
+        """Create and persist the Case Owner's ``Remove(<Actor>, origin=<case>)``.
 
-        The CASE_MANAGER's direct notice to a reinstated participant
-        (CM-31-011): ``actor`` is the CASE_MANAGER, ``attributed_to`` the
-        Case Owner who asked for the reinstatement (CM-24-001, CM-24-002)
-        and ``in_reply_to`` the Owner's request (CM-24-020); neither is set
-        when the Owner is the CASE_MANAGER.
-        The notice is delivery, not a record, so the caller does not ledger
-        it.
+        The Case Owner's own act, sent to the CASE_MANAGER only (CM-31-004,
+        ADR-0199), naming the removed actor as a typed reference.
 
         Returns ``(activity_id, activity_blob)``.
         """
         ...
 
-    def remove_participant_from_case(
+    def reinstate_participant(
         self,
-        participant_id: str,
+        reinstated_id: str,
         case_id: str,
         actor: str,
-        attributed_to: str | None,
         to: list[str],
         *,
         at: datetime,
-        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Remove(CaseParticipant)[target=VulnerabilityCase]`` notice.
+        """Create and persist the Case Owner's ``Add(<Actor>, target=<case>)``.
 
-        The CASE_MANAGER's direct notice to a removed participant (CM-31-006):
-        ``actor`` is the CASE_MANAGER, ``attributed_to`` the Case Owner who
-        asked for the removal (CM-24-001, CM-24-002) and ``in_reply_to`` the
-        Owner's request (CM-24-020); neither is set when the Owner is the
-        CASE_MANAGER.  The notice is delivery,
-        not a record, so the caller does not ledger it.
+        The Case Owner's own act, sent to the CASE_MANAGER only (CM-31-011,
+        ADR-0199), naming the reinstated actor as a typed reference.
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def announce_admitted_act(
+        self,
+        admitted_act_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str],
+        id_: str,
+        *,
+        at: datetime,
+    ) -> tuple[str, str]:
+        """Create and persist the CASE_MANAGER's ``Announce(<the admitted act>)``.
+
+        Sent to the actors an admitted act concerns that the entry's fan-out
+        does not reach (ADR-0199).  The act, as this actor holds it, travels
+        inline and is named in ``inReplyTo`` (ADR-0204); ``context`` is the
+        case.  *id_* is derived from the act, so a re-run sends one
+        ``Announce`` (OX-06-002).  The ``Announce`` is delivery, not a
+        record, so the caller does not ledger it.
 
         Returns ``(activity_id, activity_blob)``.
         """

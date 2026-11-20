@@ -78,6 +78,8 @@ from .case import (
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
     LeaveCaseTriggerRequest,
+    ReinstateParticipantTriggerRequest,
+    RemoveParticipantTriggerRequest,
     SetStubSummaryTriggerRequest,
     SyncLogEntryTriggerRequest,
 )
@@ -120,6 +122,8 @@ __all__ = [
     "InvalidateReportTriggerRequest",
     "InviteActorToCaseTriggerRequest",
     "LeaveCaseTriggerRequest",
+    "ReinstateParticipantTriggerRequest",
+    "RemoveParticipantTriggerRequest",
     "OfferCaseOwnershipTransferTriggerRequest",
     "OfferCaseParticipantRoleTriggerRequest",
     "OfferTriggerRequest",

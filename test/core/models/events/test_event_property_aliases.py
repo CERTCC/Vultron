@@ -53,8 +53,9 @@ from vultron.core.models.events.case import (
     EngageCaseReceivedEvent,
 )
 from vultron.core.models.events.case_participant import (
-    AddCaseParticipantToCaseReceivedEvent,
-    RemoveCaseParticipantFromCaseReceivedEvent,
+    AnnounceAdmittedActReceivedEvent,
+    ReinstateParticipantInCaseReceivedEvent,
+    RemoveParticipantFromCaseReceivedEvent,
 )
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
@@ -134,6 +135,8 @@ _activity = make(
     actor=_ACTOR_URI,
 )
 _obj = make(CoreObject, id_="https://example.org/objects/o1")
+#: The actor a Case Owner's removal or reinstatement names (ADR-0199).
+_actor = make(CoreObject, id_="https://example.org/actors/carol")
 
 
 #: The stub Invite's object as core receives it: the case's reference
@@ -333,25 +336,32 @@ _CASES = [
     ),
     # ── case_participant.py ───────────────────────────────────────────────────
     (
-        AddCaseParticipantToCaseReceivedEvent,
-        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
-        {"object_": _participant, "target": _case},
+        ReinstateParticipantInCaseReceivedEvent,
+        MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
+        {"object_": _actor, "target": _case},
         [
-            ("participant_id", "object_id"),
-            ("participant", "object_"),
+            ("participant_actor_id", "object_id"),
             ("case_id", "target_id"),
             ("case", "target"),
         ],
     ),
     (
-        RemoveCaseParticipantFromCaseReceivedEvent,
-        MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
-        {"object_": _participant, "target": _case},
+        RemoveParticipantFromCaseReceivedEvent,
+        MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE,
+        {"object_": _actor, "origin": _case},
         [
-            ("participant_id", "object_id"),
-            ("participant", "object_"),
-            ("case_id", "target_id"),
-            ("case", "target"),
+            ("participant_actor_id", "object_id"),
+            ("case_id", "origin_id"),
+            ("case", "origin"),
+        ],
+    ),
+    (
+        AnnounceAdmittedActReceivedEvent,
+        MessageSemantics.ANNOUNCE_ADMITTED_ACT,
+        {"object_": _activity, "context": _case},
+        [
+            ("admitted_act_id", "object_id"),
+            ("case_id", "context_id"),
         ],
     ),
     # ── embargo.py ────────────────────────────────────────────────────────────
