@@ -231,8 +231,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "embargoId",
         "embargoRegister",
         "kind",
-        "offerActorId",
-        "offerId",
         "proposedEmbargo",
         "reason",
         "replaces",

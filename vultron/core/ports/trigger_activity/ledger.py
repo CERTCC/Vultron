@@ -83,15 +83,15 @@ class TriggerLedgerRecordsPort(Protocol):
         case_id: str,
         actor: str,
         offer_id: str | None = None,
-        offer_actor_id: str | None = None,
         *,
         at: datetime,
     ) -> tuple[str, str]:
         """``Add(VulnerabilityReport)[target=VulnerabilityCase]`` (``add_report_to_case``).
 
-        The stored report is carried inline.  ``offer_id`` and
-        ``offer_actor_id``, when given, are the report's Offer provenance
-        (CP-01-007), carried for participants who were never sent the Offer.
+        The stored report is carried inline.  ``offer_id``, when given, names
+        the report's Offer in the entry's ``inReplyTo`` (CP-01-007), for
+        participants who were never sent the Offer; its sender is the
+        report's ``attributedTo``.
         """
         ...
 

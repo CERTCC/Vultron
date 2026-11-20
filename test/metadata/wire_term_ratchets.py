@@ -44,16 +44,6 @@ KNOWN_ACTOR_KEY_TERM_VIOLATIONS = frozenset(
     {"CoreActor.assertionMethod: VM-10-007"}
 )
 
-# owner: #6419
-KNOWN_OFFER_REFERENCE_TERM_VIOLATIONS = frozenset(
-    {
-        "_AddReportToCaseActivity.offerActorId: VM-10-007",
-        "_AddReportToCaseActivity.offerId: VM-10-007",
-        "as_CaseProposal.offerActorId: VM-10-007",
-        "as_CaseProposal.offerId: VM-10-007",
-    }
-)
-
 # owner: #6421
 KNOWN_EMBARGO_TERMINATION_TERM_VIOLATIONS = frozenset(
     {"EmbargoTermination.reason: VM-10-007"}

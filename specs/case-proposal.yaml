@@ -100,8 +100,8 @@ groups:
     kind: project
     statement: >-
       When the proposing actor knows which `Offer(VulnerabilityReport)` brought it the
-      report, it MUST carry that provenance on the `as_CaseProposal` as `offerId` and
-      `offerActorId`.
+      report, it MUST name that Offer in the `as_CaseProposal`'s `inReplyTo`, inline
+      (CP-01-008) or by its id.
     rationale: >-
       The canonical `add_report_to_case` entry records which Offer brought the report
       into the case, so every replica and every auditor of the ledger can trace the
@@ -109,9 +109,11 @@ groups:
       provenance from storage: the `OfferRecord` belongs to the actor that received the
       Offer, and a co-located case-actor has its own store with no read into a sibling's
       (PCR-01-003, DL-07-005). So it travels on the proposal for the same reason and by
-      the same rule as the report itself (CP-01-004). A participant that joined through
-      an Invite does not use it to answer the Offer, which was never sent to it
-      (CM-11-018).
+      the same rule as the report itself (CP-01-004). AS2's `inReplyTo` is the one name
+      for it, since the proposal answers the submission; the Offer's sender is the
+      inline Offer's `actor`, or the report's `attributedTo` (#6245, #6419). A
+      participant that joined through an Invite does not use it to answer the Offer,
+      which was never sent to it (CM-11-018).
     verification: >-
       `test/core/behaviors/case/test_offer_provenance_on_proposal.py`
     adr:
@@ -122,8 +124,8 @@ groups:
     kind: project
     statement: >-
       If its own store holds no `OfferRecord` for the report, the case-actor MUST take
-      the `offerId` of its canonical `add_report_to_case` entry from the proposal
-      (CP-01-007).
+      the Offer that the `inReplyTo` of its canonical `add_report_to_case` entry names
+      from the proposal's `inReplyTo` (CP-01-007).
     rationale: >-
       The `OfferRecord` belongs to the actor that received the Offer, and a co-located
       case-actor cannot read a sibling's store (PCR-01-005, DL-07-005). Without the
@@ -135,8 +137,9 @@ groups:
     verification: >-
       `TestCaseActorCommitsTheProvenance` in
       `test/core/behaviors/case/test_offer_provenance_on_proposal.py` confirms the
-      canonical `add_report_to_case` snapshot names the Offer the proposal carried,
-      and that a record in the case-actor's own store is consulted first.
+      canonical `add_report_to_case` snapshot's `inReplyTo` names the Offer the
+      proposal carried, and that a record in the case-actor's own store is consulted
+      first.
     adr:
     - ADR-0073
     - ADR-0121
@@ -148,8 +151,9 @@ groups:
       report, it MUST carry that Offer whole and inline as the proposal's `inReplyTo`.
     rationale: >-
       The case-actor has never seen the Offer, and a sender inlines the objects it introduces
-      (ADR-0107); the bare `offerId` of CP-01-007 lets the case-actor *name* the submission but not
-      read it. Carrying the Offer whole is what lets the Reporter's terms arrive as the Reporter stated
+      (ADR-0107); the bare Offer id that CP-01-007 also admits lets the case-actor
+      *name* the submission but not read it.
+      Carrying the Offer whole is what lets the Reporter's terms arrive as the Reporter stated
       them — the same activity the report receiver received, not the receiver's paraphrase of one field — and it
       is the only path by which EP-04-003's shortest-wins comparison at case creation ever gets a sender
       candidate. `inReplyTo` is AS2's own name for the relationship: the proposal answers the report
@@ -162,28 +166,6 @@ groups:
       nested in a CaseProposal) and
       `test/core/behaviors/case/test_offer_provenance_on_proposal.py`
       (`TestProposalCarriesTheOfferItself`).
-    adr:
-    - ADR-0096
-    - ADR-0107
-  - id: CP-01-020
-    priority: MUST
-    kind: project
-    statement: >-
-      An `as_CaseProposal` that carries both `inReplyTo` and the bare provenance of
-      CP-01-007 MUST name the same Offer in both.
-    rationale: >-
-      Two names for the submission that disagree leave the case-actor no way to tell
-      which Offer brought the report. The ledger entry would record one Offer while
-      the terms came from another.
-    relationships:
-    - rel_type: extends
-      spec_id: CP-01-008
-    - rel_type: uses_definition
-      spec_id: CP-01-007
-    verification: >-
-      `test_case_proposal_refuses_provenance_that_names_a_different_offer` in
-      `test/wire/as2/test_report_offer_proposed_embargo.py` confirms a proposal whose
-      `offerId` names a different Offer from its `inReplyTo` is refused.
     adr:
     - ADR-0096
     - ADR-0107
