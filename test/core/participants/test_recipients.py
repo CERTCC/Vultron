@@ -292,7 +292,7 @@ def _entry(
 ) -> CaseLedgerEntry:
     return make(
         CaseLedgerEntry,
-        case_id=_CASE_ID,
+        context=_CASE_ID,
         log_index=log_index,
         log_object_id=object_id,
         semantic_type=semantic_type,

@@ -1362,7 +1362,7 @@ def test_an_entry_conflicting_with_the_case_position_is_refused_at_error(
     # The check declares the whole reason (#5775).
     assert result.reason == (
         f"ledger entry '{entries[2].id_}' (log_index=2) is not the entry"
-        f" case '{entries[2].case_id}' names at its ledger position; the"
+        f" case '{entries[2].context}' names at its ledger position; the"
         " chains conflict, so it is not stored (SYNC-16-025)"
     )
     assert dl.read(entries[2].id_) is None

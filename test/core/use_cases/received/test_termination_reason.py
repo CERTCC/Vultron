@@ -88,7 +88,7 @@ def _ledger(dl, case_id: str) -> list[CaseLedgerEntry]:
     return [
         cast(CaseLedgerEntry, obj)
         for obj in dl.list_objects("CaseLedgerEntry")
-        if cast(CaseLedgerEntry, obj).case_id == case_id
+        if cast(CaseLedgerEntry, obj).context == case_id
     ]
 
 

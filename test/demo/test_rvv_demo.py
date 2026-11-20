@@ -1134,7 +1134,7 @@ class TestEveryoneCloses:
         state = _three_party_state()
         ledger = [
             {
-                "case_id": state.case.id_,
+                "context": state.case.id_,
                 "log_index": index,
                 "semantic_type": "close_case",
                 "payload_snapshot": {"actor": state.actor_id(name)},
@@ -1653,7 +1653,7 @@ class TestWaitForContiguousLedgerCoverage:
         """The dict ``GET /datalayer/CaseLedgerEntrys/`` returns."""
         return {
             f"entry-{i}": {
-                "case_id": case_id,
+                "context": case_id,
                 "log_index": i,
                 "entry_hash": f"hash{i:04d}",
             }
@@ -1775,7 +1775,7 @@ class TestWaitForSemanticTypeInLedger:
         """One entry per semantic type, in log order."""
         return {
             f"e{i}": {
-                "case_id": case_id,
+                "context": case_id,
                 "log_index": i,
                 "entry_hash": f"hash{i:04d}",
                 "semantic_type": et,
@@ -1825,7 +1825,7 @@ class TestWaitForSemanticTypeInLedger:
         entries = self._make_entries(case_id, ["validate_report"])
         other_entries = {
             "other-e0": {
-                "case_id": other_case_id,
+                "context": other_case_id,
                 "log_index": 0,
                 "entry_hash": "hashOther",
                 "semantic_type": "close_case",

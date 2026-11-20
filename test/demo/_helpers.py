@@ -421,7 +421,7 @@ def check_entries_carry_registry_labels() -> None:
         count += len(entries)
         for entry in entries:
             REBUILD_FAILURES.extend(
-                label_mismatches([entry], managers.get(entry.case_id, dl))
+                label_mismatches([entry], managers.get(entry.context, dl))
             )
     LABELLED_ENTRIES.append(count)
 

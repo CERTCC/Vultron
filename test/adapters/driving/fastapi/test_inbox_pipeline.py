@@ -321,7 +321,7 @@ def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
     entry = make(
         as_CaseLedgerEntry,
         id_="https://example.org/log/entry-ibp-1",
-        case_id=CASE_ID,
+        context=CASE_ID,
         log_index=0,
         log_object_id="https://example.org/activities/a-1",
         semantic_type="announce",

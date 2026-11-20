@@ -266,7 +266,7 @@ def test_case_ledger_entry_to_core_returns_domain_model():
 
     entry = make(
         as_CaseLedgerEntry,
-        case_id="https://example.org/cases/1",
+        context="https://example.org/cases/1",
         log_index=1,
         log_object_id="https://example.org/activities/1",
         semantic_type="case_created",
@@ -276,7 +276,7 @@ def test_case_ledger_entry_to_core_returns_domain_model():
     )
 
     assert isinstance(entry, CaseLedgerEntry)
-    assert entry.case_id == "https://example.org/cases/1"
+    assert entry.context == "https://example.org/cases/1"
     assert entry.entry_hash is not None
 
 

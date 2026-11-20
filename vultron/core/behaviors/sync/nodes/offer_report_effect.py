@@ -106,7 +106,7 @@ class ApplyOfferReportFromLedgerNode(
 
         # The replica's report list converges on the manager's (RSH-08-004).
         self._maybe_restore_report(object_data, report_id)
-        self._attach_report_to_case(entry.case_id, report_id)
+        self._attach_report_to_case(entry.context, report_id)
 
         return Status.SUCCESS
 

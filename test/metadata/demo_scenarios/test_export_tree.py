@@ -324,7 +324,7 @@ def test_recordings_are_keyed_by_actor_then_case(
                 assert file.is_file(), rel_path
                 assert file.name == f"{actor}.jsonl"
                 case_ids = {
-                    json.loads(line)["caseId"]
+                    json.loads(line)["context"]
                     for line in file.read_text(encoding="utf-8").splitlines()
                 }
                 assert case_id in case_ids
@@ -353,13 +353,13 @@ def test_a_file_holding_two_cases_is_listed_under_each_in_order(
 ) -> None:
     _write(
         tmp_path / "split" / "case-actor.jsonl",
-        {"caseId": "urn:uuid:b", "logIndex": 0},
-        {"caseId": "urn:uuid:a", "logIndex": 0},
-        {"caseId": "urn:uuid:b", "logIndex": 1},
+        {"context": "urn:uuid:b", "logIndex": 0},
+        {"context": "urn:uuid:a", "logIndex": 0},
+        {"context": "urn:uuid:b", "logIndex": 1},
     )
     _write(
         tmp_path / "split" / "vendor.jsonl",
-        {"caseId": "urn:uuid:a", "logIndex": 0},
+        {"context": "urn:uuid:a", "logIndex": 0},
     )
     (tmp_path / "split" / "notes.txt").write_text("ignored", encoding="utf-8")
     files = recording_files("split", tmp_path, tmp_path)
@@ -383,7 +383,7 @@ def test_a_scenario_without_a_recording_is_refused(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "line",
-    ["not json", '{"logIndex": 0}', '{"caseId": ""}', '{"caseId": 7}', "[]"],
+    ["not json", '{"logIndex": 0}', '{"context": ""}', '{"context": 7}', "[]"],
     ids=[
         "not-json",
         "no-case-id",

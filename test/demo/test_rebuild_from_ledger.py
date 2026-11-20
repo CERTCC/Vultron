@@ -53,13 +53,13 @@ def test_a_mislabelled_entry_is_recorded_not_raised(monkeypatch):
     )
     entries = [
         SimpleNamespace(
-            case_id="c",
+            context="c",
             log_index=0,
             semantic_type="create_embargo_consent",
             payload_snapshot=snapshot,
         ),
         SimpleNamespace(
-            case_id="c",
+            context="c",
             log_index=1,
             semantic_type="consent_row_written",
             payload_snapshot=snapshot,
@@ -90,9 +90,9 @@ def test_each_entry_is_labelled_against_its_case_managers_store(monkeypatch):
     the store holding them; the count covers every store's entries.
     """
     manager, replica = object(), object()
-    held = SimpleNamespace(case_id="managed")
-    copied = SimpleNamespace(case_id="managed")
-    foreign = SimpleNamespace(case_id="elsewhere")
+    held = SimpleNamespace(context="managed")
+    copied = SimpleNamespace(context="managed")
+    foreign = SimpleNamespace(context="elsewhere")
     stores = [(manager, [held]), (replica, [copied, foreign])]
     monkeypatch.setattr(
         helpers, "_hosted_ledger_entries", lambda: iter(stores)

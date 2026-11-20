@@ -982,7 +982,7 @@ def test_entry_carries_no_disposition_fields(key: str) -> None:
             with_times(
                 CaseLedgerEntry,
                 {
-                    "caseId": CASE_ID,
+                    "context": CASE_ID,
                     "logIndex": 0,
                     "logObjectId": OBJECT_ID,
                     "semanticType": "invite_actor_to_case",

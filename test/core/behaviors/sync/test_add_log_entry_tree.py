@@ -2667,7 +2667,7 @@ def test_an_unheld_early_entry_inside_the_interval_names_the_withheld_reject(
     assert result.reason is not None and "SYNC-15-016" in result.reason
     # The Reject node declares the whole reason (#5775).
     assert result.reason == (
-        f"case '{second.case_id}' is not seeded here; a Reject for replay"
+        f"case '{second.context}' is not seeded here; a Reject for replay"
         " from genesis was already sent within the interval, so none is"
         " sent again (SYNC-15-016)"
     )
@@ -2696,7 +2696,7 @@ def test_an_unheld_early_entry_names_the_genesis_reject_it_sent(
     )
 
     assert result == HandlerResult.refused(
-        f"case '{first.case_id}' is not seeded here; Reject sent for replay"
+        f"case '{first.context}' is not seeded here; Reject sent for replay"
         " from genesis (SYNC-15-001)"
     )
     assert len(_queued_rejects(datalayer)) == 1

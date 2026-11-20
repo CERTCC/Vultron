@@ -68,7 +68,7 @@ def _make_announce_body() -> dict:
     entry = make(
         CaseLedgerEntry,
         id_=_ENTRY_ID,
-        case_id=_CASE_ID,
+        context=_CASE_ID,
         log_object_id=_INVITEE_ID,
         semantic_type="accept_invite_actor_to_case",
         payload_snapshot={"id": _INVITEE_ID, "actor": _INVITEE_ID},
@@ -165,7 +165,7 @@ def test_replayed_ledger_entry_announce_routes_and_keeps_fields(
         "Replayed Add must carry a typed CaseLedgerEntry;"
         f" got {type(replayed_object).__name__}"
     )
-    assert replayed_object.case_id == _CASE_ID
+    assert replayed_object.context == _CASE_ID
     assert replayed_object.semantic_type == "accept_invite_actor_to_case"
     assert (
         find_matching_semantics(replayed)

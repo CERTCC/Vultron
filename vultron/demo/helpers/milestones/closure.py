@@ -298,7 +298,7 @@ def case_manager_ledger(
     return [
         v
         for v in raw.values()
-        if isinstance(v, dict) and v.get("case_id") == case_id
+        if isinstance(v, dict) and v.get("context") == case_id
     ]
 
 

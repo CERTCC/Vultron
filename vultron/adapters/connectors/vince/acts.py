@@ -149,7 +149,7 @@ def _entry(ids: CaseIds, index: int, act: Act) -> CaseLedgerEntry:
         by_alias=True, mode="json", exclude_none=True
     )
     return CaseLedgerEntry(
-        case_id=ids.case_id,
+        context=ids.case_id,
         log_index=index,
         log_object_id=activity.id_,
         semantic_type=act.semantic_type.value,
@@ -179,7 +179,7 @@ def _content_digest(
     give the same digest.
     """
     content = {
-        "caseId": case_id,
+        "context": case_id,
         "logIndex": log_index,
         "semanticType": semantic_type,
         "published": at.isoformat(),

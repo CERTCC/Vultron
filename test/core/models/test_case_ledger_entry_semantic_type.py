@@ -33,7 +33,7 @@ SEMANTIC_TYPE = "invite_actor_to_case"
 def test_entry_serializes_semantic_type_under_semantic_type_key() -> None:
     entry = make(
         CaseLedgerEntry,
-        case_id=CASE_ID,
+        context=CASE_ID,
         log_index=0,
         log_object_id=OBJECT_ID,
         semantic_type=SEMANTIC_TYPE,

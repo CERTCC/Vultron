@@ -1494,7 +1494,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1
         assert cast(CaseLedgerEntry, entries[0]).semantic_type == (
@@ -1557,7 +1557,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert entries == []
 
@@ -1625,7 +1625,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert entries == []
 
@@ -1736,7 +1736,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1
 
@@ -1803,7 +1803,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert entries == []
 
@@ -1867,7 +1867,7 @@ class TestParticipantStatusLogEntryCascade:
             cast(CaseLedgerEntry, obj)
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1
         assert entries[0].payload_snapshot.get("actor") == reporter_actor_id
@@ -1951,7 +1951,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1, (
             "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"

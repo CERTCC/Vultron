@@ -95,7 +95,7 @@ def _entries(net: LedgerNetwork, actor_id: str) -> list[CaseLedgerEntry]:
         (
             cast(CaseLedgerEntry, e)
             for e in net.stores[actor_id].list_objects("CaseLedgerEntry")
-            if getattr(e, "case_id", None) == net.case_id
+            if getattr(e, "context", None) == net.case_id
         ),
         key=lambda e: e.log_index,
     )
