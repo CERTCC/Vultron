@@ -751,7 +751,7 @@ types are URIs. CORE §4.2: Link properties are hints about the referenced resou
 type, and only `related` is IANA-registered, so it stays a bare name. The wire
 `as_Link.rel` takes one value or a list, because `rel` is not functional.
 
-**Touches.** CM-05-004, CM-05-005, CM-05-010, CM-05-012, CM-34-003, CSAF-03-009, and
+**Touches.** CM-05-004, CM-05-005, CM-05-012, CM-34-003, CSAF-03-009, and
 a future FIRST VRDX-SIG vxref Idea (`FIRSTdotorg/vrdx-sig-vxref-wip`), which may
 supply more `rel` values. A new value joins `CVE_REFERENCE_TAG_RELS` (or the
 vocabulary beside it) and the `docs/ns/` relation table together.

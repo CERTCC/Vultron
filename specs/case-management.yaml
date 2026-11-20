@@ -1001,27 +1001,6 @@ groups:
       CERT/CC VU# ID)
     stories:
     - story_2022_030
-  - id: CM-05-010
-    priority: MUST
-    kind: protocol
-    statement: >-
-      When a vulnerability item carries a CVE record as its content, that content MUST
-      conform to the CVE JSON schema (<https://github.com/CVEProject/cve-schema>).
-    rationale: >-
-      Tools that read a CVE record expect the CVE JSON schema, and they refuse or misread
-      data that does not conform. A CVE ID on its own is an identifier, not a CVE record,
-      so it carries no data for the schema to check (CM-05-008, ADR-0187). A case
-      reference borrows only the schema's reference tag names, as the `rel` values of
-      its `url` Link (CM-05-012); that is a vocabulary, not CVE record content, so this
-      rule does not reach it.
-    verification: >-
-      A test marked `CM-05-010` gives a vulnerability item CVE record content that fails
-      the CVE JSON schema and asserts it is refused, and gives an item a CVE ID with no
-      content and asserts it is accepted.
-    adr:
-    - ADR-0187
-    stories:
-    - story_2022_030
   - id: CM-05-011
     priority: SHOULD
     kind: protocol

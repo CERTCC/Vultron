@@ -169,6 +169,12 @@ new case field fails the profile check until it is classified.
   delivery, while this one takes the preview with the call site's inputs
   (settings, projecting actor, dates, acknowledgments).
   A missing port is a wiring error, never a fallback.
+- **The projection port names no format; each format is an adapter.** The
+  profile and its cut stay in core, and the port takes the cut preview with the
+  call site's inputs. CSAF is its first adapter; a CVE record drafted at the CVE
+  ID assignment call-out and a CERT Vulnerability Note in the VINCE publication
+  format are later ones (ADR-0219 names other formats). A port shaped for CSAF
+  would make each later format build a port of its own (CS-22-001).
 - **The operator endpoint is a read.** It reads the actor's replica, cuts it with
   the joined profile and returns the rendered JSON. It writes nothing to the
   DataLayer, adds no ledger entry and sends no activity. The operator gives the
