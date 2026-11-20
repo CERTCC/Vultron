@@ -20,11 +20,10 @@
 Case proposals: create, reject, accept, and the prepared Create.
 """
 
-from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol
 
-from vultron.enums.roles import CVDRole
+from vultron.core.models.case_proposal import CaseProposal
 
 
 class TriggerProposalsPort(Protocol):
@@ -32,44 +31,35 @@ class TriggerProposalsPort(Protocol):
 
     def create_case_proposal(
         self,
-        actor: str,
-        report_id: str,
-        case_actor_id: str,
-        summary: str | None = None,
+        proposal: CaseProposal,
         to: list[str] | None = None,
-        offer_id: str | None = None,
-        proposer_case_roles: Sequence[CVDRole] = (),
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist a ``Create(CaseProposal)`` activity.
+        """Render and persist *proposal* as a ``Create(CaseProposal)``.
 
-        Builds an ``CaseProposal`` from the ``VulnerabilityReport``
-        identified by ``report_id``, addressed to the case-actor service at
-        ``case_actor_id``, and persists ``Create(CaseProposal)`` to the
-        DataLayer.
+        *proposal* is the core ``CaseProposal`` the report receiver built
+        (:func:`~vultron.core.services.report_case_proposal.case_proposal_from_report`)
+        and may have changed since; it is sent as given, addressed to *to*,
+        else to its ``target``, the case-actor service (CP-04-001).
 
-        ``offer_id`` names the ``Offer(VulnerabilityReport)`` that brought the
-        report, which the proposal's ``inReplyTo`` carries: inline when this
-        store holds the Offer (CP-01-008), else by id (CP-01-007).  The
-        CaseActor cannot recover it on its own; see
-        ``CaseProposal.in_reply_to`` for why it has to travel on the wire.
+        When its ``inReplyTo`` names an ``Offer(VulnerabilityReport)`` this
+        store holds, the Offer is carried whole, as received (CP-01-008);
+        otherwise the id alone travels (CP-01-007).  The CaseActor cannot
+        recover it on its own; see ``CaseProposal.in_reply_to`` for why it
+        has to travel on the wire.
 
-        The Create's ``actor`` is ``actor``'s own full profile, read from this
-        DataLayer with its ``embargo_policy``: the CASE_MANAGER reads the
-        CASE_OWNER's actor default from that inline profile and nowhere else
-        (CP-01-010).
-
-        ``proposer_case_roles`` are the sender's own ``default_case_roles``,
-        stated on the proposal so the CASE_MANAGER can seat the sender with
-        them (CP-01-011, CP-01-013, ADR-0133).
+        The Create's ``actor`` is the proposal's ``attributedTo``, sent as
+        its own full profile read from this DataLayer with its
+        ``embargo_policy``: the CASE_MANAGER reads the CASE_OWNER's actor
+        default from that inline profile and nowhere else (CP-01-010).
 
         Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
         Returns ``(activity_id, activity_dict)``.
 
         Raises:
-            ValueError: when the report, or ``actor``'s own profile, is not
-                in this DataLayer.
+            ValueError: when the proposer's own profile is not in this
+                DataLayer.
         """
         ...
 

@@ -40,6 +40,7 @@ from test.wire.csaf._documents import (
     minimal_csaf_document,
     vulnerability_report_document,
 )
+from vultron.config.actor import ActorConfig
 from vultron.core.models.attached_document import (
     AttachedDocument,
     AttachedImage,
@@ -187,10 +188,11 @@ def test_an_omitted_field_with_a_schema_default_has_no_stored_value() -> None:
 
 @pytest.mark.spec("CSAF-04-004")
 def test_the_report_keeps_a_record_of_what_its_csaf_claimed() -> None:
+    """A receiver that proposes no case keeps every value display only."""
     attachment = csaf(vulnerability_report_document())
     receipt = Receipt(attachment)
 
-    receipt.handle()
+    receipt.handle(actor_config=ActorConfig(auto_create_case=False))
 
     record = receipt.record()
     assert record.activity_id == receipt.event.activity_id

@@ -128,7 +128,7 @@ permission and obligation attaches to one (CM-26-001). Two doors create a
 participant that holds only authority today, and both close in the same change
 as the invariant, so the tree is never red in between.
 
-- **The report receiver's proposal.** `ProposeReportCaseToActorNode` stops
+- **The report receiver's proposal.** `ConvertReportToCaseProposalNode` stops
   reading `get_config()`. Its caller, the received-report tree, passes the claim
   in, reading the value from `ActorConfig.default_case_roles`. A claim naming no
   position refuses the proposal, and the wire model drops its "empty means owner

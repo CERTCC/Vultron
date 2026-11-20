@@ -103,22 +103,29 @@ groups:
     note: >-
       The receiver is the coordinating function that received the report: the
       report receiver that proposes the case and the CASE_MANAGER that creates it
-      are two of its roles. In this codebase the CASE_MANAGER reads the document
-      on the Offer its `Create(CaseProposal)` carries (CP-01-008, CP-01-021) when
-      the proposal creates a new case, and records what became of each value; the
-      proposer's own record keeps every value display only, so no record says a
-      value shaped a case it did not shape. A proposer may also fill the values
-      itself and carry them on the proposal; nothing here forbids it. When a
-      report carries several `csaf_vulnerability_report` documents, the first
-      one fills the case and the others stay display only.
+      are two of its roles. In this codebase the report receiver converts the
+      document into the `caseInputs` of its `Create(CaseProposal)` (CP-01-026)
+      and marks on its own record each value the conversion used; the
+      CASE_MANAGER builds the case from those inputs and reads no document
+      (CP-01-024, CP-01-028). Only for a proposal that carries no `caseInputs`
+      does the CASE_MANAGER read the document on the Offer the proposal carries
+      (CP-01-008, CP-01-021, CP-01-025) and record what became of each value
+      itself. Only the side that read the document marks a value: the
+      receiver's marks say what its conversion used, with the disclosure date
+      unjudged, and the CASE_MANAGER's what the case took. When a report
+      carries several `csaf_vulnerability_report` documents, the first one fills
+      the case and the others stay display only.
     verification: >-
       `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_missing_name_and_summary_come_from_the_csaf_document`
       offers a report with no case yet, a `csaf_vulnerability_report` attachment
       and no name, and checks that the case a separate CASE_MANAGER creates takes
       its inputs from the document;
-      `::test_only_the_creating_side_marks_what_shaped_the_case` checks that the
-      receiver's record keeps every value display only while the CASE_MANAGER's
-      record marks what the case took.
+      `::test_the_side_that_converts_the_document_marks_what_it_used` checks that
+      the receiver's record marks what its conversion used while the CASE_MANAGER
+      keeps no record, and
+      `::test_the_case_manager_marks_what_it_read_when_no_inputs_are_stated` that
+      the CASE_MANAGER's record marks what the case took when the proposal states
+      no `caseInputs`.
     adr:
     - ADR-0184
     stories:
@@ -553,8 +560,12 @@ groups:
       (ADR-0218).
     verification: >-
       `test/core/use_cases/received/test_submit_report_csaf.py::test_the_report_keeps_a_record_of_what_its_csaf_claimed`
-      reads the stored record, checks that each value read starts display only,
-      and stores an overridden and an applied outcome on it.
+      reads the stored record of a receiver that proposes no case, checks that
+      each value read is display only, and stores an overridden and an applied
+      outcome on it.
+      `test/core/services/test_report_case_inputs.py::test_the_date_free_half_marks_what_it_used`
+      checks the outcomes a report receiver marks for the values its proposal
+      takes.
       `test/core/models/test_report_claims.py::test_each_outcome_is_recorded_and_survives_the_store`
       checks that each outcome survives the store.
   - id: CSAF-04-005

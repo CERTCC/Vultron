@@ -413,6 +413,10 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # StoreCaseInputClaimsRecordsNode on the new-case arm: one
                 # proposal's inputs must never fill another's case.
                 "report_case_inputs",
+                # Published by ConvertReportToCaseProposalNode, read by
+                # ProposeReportCaseToActorNode: one report's proposal must
+                # never be sent for another (CP-01-026).
+                "case_proposal",
                 # Intra-tree handoffs: each is published by one node for a
                 # later sibling in the same tree (BTND-03-004).  A run whose
                 # writer does not tick (a short-circuited Sequence, a skipped

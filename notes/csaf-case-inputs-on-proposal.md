@@ -3,7 +3,6 @@ title: "The Report Receiver States a CSAF Report's Case Inputs on Its Proposal"
 status: draft
 kind: plan
 tracks:
-  - "#6723"
   - "#6725"
   - "#5130"
   - "#3188"
@@ -35,9 +34,10 @@ relevant_packages:
 # The Report Receiver States a CSAF Report's Case Inputs on Its Proposal
 
 The report receiver converts the CSAF report it received into the case inputs of
-its `CaseProposal`, and the CASE_MANAGER applies them (ADR-0184). The
-CASE_MANAGER's side is built; the receiver's conversion (#6723) and a passed
-end recorded as an ended embargo (#6725) are not.
+its `CaseProposal`, and the CASE_MANAGER applies them (ADR-0184). Both sides are
+built: `case_proposal_from_report` in `vultron/core/services/report_case_proposal.py`
+converts, and the CASE_MANAGER's own reading stays for a proposal with no
+`caseInputs`. A passed end recorded as an ended embargo (#6725) is not built.
 
 ## Who Computes What
 
@@ -96,13 +96,7 @@ These land with the code that tests them, so no requirement states a rule a test
 does not check. Each cites ADR-0184. The IDs are the next free ones at planning
 time; re-check them against `origin/main` before landing.
 
-CP-01-022 to CP-01-029 are in `specs/case-proposal.yaml`; CP-01-026, the
-receiver sending `caseInputs`, is held by a strict `xfail` until #6723 builds it.
-
-Issue #6723 also rewrites the CSAF-02-001 note in
-`specs/csaf-report-content.yaml`. It says the proposer's own record keeps every
-value display only, which stops being true once the proposer converts the
-document.
+CP-01-022 to CP-01-029 are in `specs/case-proposal.yaml`.
 
 In `specs/embargo-policy.yaml`, group EP-04 (#6725):
 

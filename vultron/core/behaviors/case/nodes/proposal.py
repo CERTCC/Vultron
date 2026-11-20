@@ -16,73 +16,273 @@
 """
 CaseProposal action nodes for the slimmed receive-report tree.
 
-Provides :class:`ProposeReportCaseToActorNode`, the ADR-0041 variant of the
-proposal send that operates directly from a ``report_id`` without requiring a
-``VulnerabilityCase`` to already exist in the DataLayer.
+The report receiver proposes a case in steps, so it may change the
+proposal between the conversion and the send (CP-01-026):
 
-The pre-ADR-0041 node (``ProposeCaseToActorNode``, now deleted — issue #4353)
-read ``case_id`` and ``case_actor_id`` from the blackboard (written by
-``CreateCaseActorNode``).  This module's node reads the CaseActor's identity from
-:func:`~vultron.core.behaviors.case.case_actor_identity.case_actor_identity`
-instead — the container's identity, not a per-case one derived from the report
+- :class:`ConvertReportToCaseProposalNode` converts the received report into
+  the core ``CaseProposal``
+  (:func:`~vultron.core.services.report_case_proposal.case_proposal_from_report`),
+  its ``caseInputs`` filled from the first ``csaf_vulnerability_report``
+  reading;
+- :class:`ProposeReportCaseToActorNode` hands that proposal to the adapter,
+  which renders and sends it as ``Create(CaseProposal)`` (ADR-0041);
+- :class:`MarkProposedClaimsNode` then marks on the receiver's own claims
+  record each value the conversion used (CSAF-04-004).
+
+Both run from a ``report_id`` without a ``VulnerabilityCase`` in the
+DataLayer.  The CaseActor's identity comes from
+:func:`~vultron.core.behaviors.case.case_actor_identity.case_actor_identity`:
+the container's identity, not a per-case one derived from the report
 (#1872).
 """
+
+from collections.abc import Sequence
 
 from py_trees.common import Status
 
 from vultron.config import get_config
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import REPORT_ID
 from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
+from vultron.core.behaviors.node_logger import fail_with_fault
+from vultron.core.models.case_proposal import CaseProposal
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_claims import (
+    ClaimsReading,
+    ReportClaimsRecord,
+)
+from vultron.core.services.report_case_proposal import (
+    case_proposal_from_report,
+    used_claims,
+)
+from vultron.errors import VultronError, VultronNotFoundError
+
+#: Blackboard key for the receiver's core ``CaseProposal``, written by
+#: :class:`ConvertReportToCaseProposalNode` and sent by
+#: :class:`ProposeReportCaseToActorNode`.  A node between them may replace
+#: it with a changed copy (CP-01-026).
+CASE_PROPOSAL_KEY = "case_proposal"
+
+
+class _ReceivedReportNode(DataLayerActionWithPorts):
+    """A receiver node that reads the report the act names (``report_id``)."""
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(REPORT_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(REPORT_ID)
+
+    def __init__(
+        self,
+        readings: Sequence[ClaimsReading] = (),
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._readings = list(readings)
+
+    def _held_report(self, report_id: str) -> VulnerabilityReport:
+        """The report *report_id* as this store holds it.
+
+        Raises:
+            VultronNotFoundError: when it is not held as a report.
+        """
+        assert self.datalayer is not None
+        report = self.datalayer.read(report_id)
+        if not isinstance(report, VulnerabilityReport):
+            raise VultronNotFoundError("VulnerabilityReport", report_id)
+        return report
+
+
+class ConvertReportToCaseProposalNode(_ReceivedReportNode):
+    """Convert the received report into the receiver's ``CaseProposal``.
+
+    Reads the report the act names (``report_id``) from this store, and the
+    Offer that brought it from this store's offer record (CP-01-007).  The
+    proposal is addressed to the container's CaseActor,
+    ``{ActorConfig.case_actor_service_url}/actors/case-actor`` (CP-04-003,
+    CP-04-005), and states this actor's ``default_case_roles`` (CFG-07-002),
+    which the CASE_MANAGER seats it with alongside ``CASE_OWNER`` (CP-01-011,
+    CP-01-013, CP-09-007, ADR-0133).  When the first
+    ``csaf_vulnerability_report`` of *readings* fills case inputs, the
+    proposal carries them as ``caseInputs`` (CP-01-026).
+
+    Writes the proposal to ``case_proposal`` and nothing to the store.
+    Returns ``FAILURE`` when the DataLayer or ``actor_id`` is unavailable,
+    ``case_actor_service_url`` is not configured, or the report is not held.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_ReceivedReportNode.INPUT_PORTS,
+    }
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        CASE_PROPOSAL_KEY: PortInformation(
+            data_type=CaseProposal, required=True
+        ),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            CASE_PROPOSAL_KEY: f"/{CASE_PROPOSAL_KEY}",
+            **super()._domain_port_remappings(),
+        }
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None and self.actor_id is not None
+        report_id = act_value(self, REPORT_ID, str)
+        case_actor_id = case_actor_identity()
+        if case_actor_id is None:
+            return fail_with_fault(
+                self,
+                "case_actor_service_url is not configured"
+                " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)",
+            )
+        try:
+            converted = case_proposal_from_report(
+                self._held_report(report_id),
+                proposer_id=self.actor_id,
+                case_actor_id=case_actor_id,
+                readings=self._readings,
+                # CP-01-007: this store has the OfferRecord because this
+                # actor received the Offer; the CaseActor's store never will.
+                offer_id=find_offer_for_report(self.datalayer, report_id),
+                # CP-01-013, ADR-0133: this actor's own roles, which the
+                # CASE_MANAGER cannot read from its own configuration.
+                proposer_case_roles=get_config().actor.default_case_roles,
+                at=self._require_act_instant(),
+            )
+        except (VultronError, ValueError) as exc:
+            return fail_with_fault(
+                self,
+                f"cannot convert report '{report_id}' into a proposal, which"
+                f" carries it whole (CP-01-004): {exc}",
+            )
+        self._set_output(CASE_PROPOSAL_KEY, converted.proposal)
+        self.logger.info(
+            "%s: converted report '%s' into proposal '%s' for case-actor"
+            " '%s', %s",
+            self.name,
+            report_id,
+            converted.proposal.id_,
+            case_actor_id,
+            (
+                f"caseInputs from document '{converted.reading.document_id}'"
+                " (CP-01-026)"
+                if converted.reading is not None
+                else "with no caseInputs"
+            ),
+        )
+        return Status.SUCCESS
+
+
+class MarkProposedClaimsNode(_ReceivedReportNode):
+    """Mark on the receiver's record the values its conversion used.
+
+    Runs after ``ProposeReportCaseToActorNode``, so no record says a value
+    was used by a proposal that was never sent.  The marks are the
+    conversion's account, not a reading of the sent proposal: a change a
+    node makes between the conversion and the send is the owner's own
+    (CP-01-026).  The claims record of the reading that filled
+    ``caseInputs`` gets the outcomes of
+    :func:`~vultron.core.services.report_case_proposal.used_claims`:
+    ``applied`` or ``overridden`` for each value the conversion used
+    (CSAF-04-004).  The record stays this actor's own (CSAF-04-005).
+
+    Returns ``FAILURE`` when the report or the claims record of the filling
+    reading is not held: the effects that keep the report write the record
+    first, so its absence is a fault.  Does nothing when no reading filled
+    the proposal.
+    """
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        report_id = act_value(self, REPORT_ID, str)
+        try:
+            reading, outcomes = used_claims(
+                self._held_report(report_id), self._readings
+            )
+            if reading is None:
+                return Status.SUCCESS
+            record_id = ReportClaimsRecord.build_id(
+                report_id, reading.document_digest
+            )
+            record = self.datalayer.read(record_id)
+            if not isinstance(record, ReportClaimsRecord):
+                return fail_with_fault(
+                    self,
+                    f"the claims record '{record_id}' of document"
+                    f" '{reading.document_id}' on report '{report_id}' is"
+                    " not held, so the values the proposal took cannot be"
+                    " marked (CSAF-04-004)",
+                )
+            self.datalayer.save(record.with_outcomes(outcomes))
+        except (VultronError, ValueError, KeyError) as exc:
+            return fail_with_fault(
+                self, f"cannot mark the claims of '{report_id}': {exc}"
+            )
+        self.logger.info(
+            "%s: marked %d value(s) of document '%s' on report '%s' as"
+            " taken by the sent proposal (CSAF-04-004)",
+            self.name,
+            len(outcomes),
+            reading.document_id,
+            report_id,
+        )
+        return Status.SUCCESS
 
 
 class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
-    """Send ``Create(CaseProposal)`` from ``report_id`` without a prior case.
+    """Send the receiver's ``CaseProposal`` as ``Create(CaseProposal)``.
 
-    Used by the slimmed ``receive_report_case_tree`` (ADR-0041).  Unlike
-    the deleted ``ProposeCaseToActorNode`` (issue #4353),
-    this node does not require a ``VulnerabilityCase`` to exist — it uses
-    ``report_id`` directly and addresses the container's CaseActor identity,
-    ``{ActorConfig.case_actor_service_url}/actors/case-actor`` (CP-04-003,
-    CP-04-005).
+    Used by the slimmed ``receive_report_case_tree`` (ADR-0041): it needs no
+    ``VulnerabilityCase``.  It sends the proposal on ``case_proposal``, as
+    :class:`ConvertReportToCaseProposalNode` built it or as a node between
+    them changed it, to the CaseActor the proposal names as its ``target``
+    (CP-04-001, CP-04-002).  The adapter renders it, carrying the Offer
+    whole when its store holds it (CP-01-008).
 
     Returns ``FAILURE`` when:
 
     - DataLayer, ``actor_id``, or ``trigger_activity_factory`` is unavailable.
-    - ``case_actor_service_url`` is not configured.
     - ``trigger_activity_factory.create_case_proposal()`` raises an exception.
-
-    The proposal states this actor's ``default_case_roles`` (CFG-07-002), which
-    the CASE_MANAGER seats it with alongside ``CASE_OWNER`` (CP-01-011,
-    CP-01-013, CP-09-007, ADR-0133).
 
     Per specs/case-proposal.yaml CP-04-001, CP-04-002 and ADR-0041.
     """
 
-    def __init__(self, report_id: str, name: str | None = None) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_EmitSingleActivityBase.INPUT_PORTS,
+        CASE_PROPOSAL_KEY: PortInformation(
+            data_type=CaseProposal, required=True
+        ),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {CASE_PROPOSAL_KEY: f"/{CASE_PROPOSAL_KEY}"}
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.report_id = report_id
-
-    def _derive_case_actor_id(self) -> str | None:
-        """Return the CaseActor to address, or ``None`` when unconfigured.
-
-        The identity is the container's — ``.../actors/case-actor`` — and carries
-        no case. It used to be ``.../actors/case-actor-{slug}``, derived here from
-        ``report_id``, which made it a phantom: this node computed it and no
-        container hosted it, so delivery 404'd permanently and the round-trip
-        never began (#1872). Which case a message concerns travels in
-        ``activity.context``, so the slug carried nothing the payload lacked.
-        """
-        identity = case_actor_identity()
-        if identity is None:
-            self.feedback_message = (
-                f"{self.name}: case_actor_service_url is not configured"
-                " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
-            )
-            self.logger.error("%s", self.feedback_message)
-        return identity
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -91,28 +291,12 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return f
 
-        case_actor_id = self._derive_case_actor_id()
-        if case_actor_id is None:
-            return Status.FAILURE
-
         assert self.trigger_activity_factory is not None
-        assert self.actor_id is not None
-        assert self.datalayer is not None
-        # CP-01-007: this store has the OfferRecord because this actor received
-        # the Offer; the CaseActor's own store never will, so the Offer has to
-        # be found here and named on the proposal (#2548).
-        offer_id = find_offer_for_report(self.datalayer, self.report_id)
+        proposal: CaseProposal = self.get_input(CASE_PROPOSAL_KEY)
         try:
             activity_id, _ = (
                 self.trigger_activity_factory.create_case_proposal(
-                    actor=self.actor_id,
-                    report_id=self.report_id,
-                    case_actor_id=case_actor_id,
-                    offer_id=offer_id,
-                    # CP-01-013, ADR-0133: this actor's own roles, which the
-                    # CASE_MANAGER cannot read from its own configuration.
-                    proposer_case_roles=get_config().actor.default_case_roles,
-                    at=self._require_act_instant(),
+                    proposal, at=self._require_act_instant()
                 )
             )
             # Route through the shared emit seam (OX-14-001, ASK-04-008).
@@ -127,7 +311,7 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
             " for case-actor '%s' (report '%s')",
             self.name,
             activity_id,
-            case_actor_id,
-            self.report_id,
+            proposal.target,
+            getattr(proposal.object_, "id_", proposal.object_),
         )
         return Status.SUCCESS

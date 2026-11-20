@@ -39,12 +39,13 @@ it builds the case, and the receiver's receipt time travels on no message
 :class:`ResolveReportCaseInputsNode` resolves the inputs ahead of
 ``CreateCaseFromProposalNode``, which builds the case from its result;
 :class:`StoreCaseInputClaimsRecordsNode` records, after the case exists, what
-became of each claimed value of a document it read (CSAF-04-004).  Only this
-creating side marks a value ``applied`` or ``overridden``; the receiver's own
-record keeps every value display only, so no stored record says a value
-shaped a case it did not shape.  Both run only on the new-case arm, so a
-proposal that resolves to an existing case changes nothing from its inputs
-(CSAF-02-002, EP-04-029).
+became of each claimed value of a document it read (CSAF-04-004).  Only the
+side that read the document marks a value ``applied`` or ``overridden``: the
+receiver, for the ``caseInputs`` it converted
+(:class:`~vultron.core.behaviors.case.nodes.proposal.ConvertReportToCaseProposalNode`),
+or this CASE_MANAGER, for a document it read itself.  Both run only on the
+new-case arm, so a proposal that resolves to an existing case changes nothing
+from its inputs (CSAF-02-002, EP-04-029).
 """
 
 from collections.abc import Sequence
@@ -69,23 +70,11 @@ from vultron.core.services.report_case_inputs import (
     StatedReportFields,
     case_inputs_from_claims,
     case_inputs_from_proposal,
-    fills_case_inputs,
+    filling_reading,
 )
 
 #: Blackboard key for the resolved :class:`ReportCaseInputs`.
 REPORT_CASE_INPUTS_KEY = "report_case_inputs"
-
-
-def filling_reading(
-    readings: Sequence[ClaimsReading],
-) -> ClaimsReading | None:
-    """The one reading that fills case inputs: the first of the right category.
-
-    A report may carry several CSAF documents.  Only the first of category
-    ``csaf_vulnerability_report`` speaks for the case; every other value stays
-    display only, so two documents never compete for one input.
-    """
-    return next((r for r in readings if fills_case_inputs(r.claims)), None)
 
 
 def csaf_proposed_embargo_id(proposal_id: str) -> str:

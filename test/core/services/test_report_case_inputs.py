@@ -39,6 +39,7 @@ from vultron.core.services.report_case_inputs import (
     case_reference_from_link,
     claims_signals,
     proposed_case_inputs_from_claims,
+    proposed_claim_outcomes,
     proposed_item_from_claims,
     vulnerability_item_from_claims,
     vulnerability_item_from_proposed,
@@ -430,6 +431,46 @@ def test_the_date_free_half_of_another_category_is_the_stated_values() -> None:
         claims, stated=StatedReportFields(name="Stated")
     )
     assert proposed == ProposedCaseInputs(name="Stated")
+
+
+@pytest.mark.spec("CSAF-04-004", "CP-01-023")
+def test_the_date_free_half_marks_what_it_used() -> None:
+    """The receiver's outcomes: the earliest date is applied, as carried,
+    though it has passed; a later one, and a stated name's rival, are not."""
+    claims = _claims(
+        VulnerabilityClaims(
+            cve="CVE-2026-0001", disclosure_date=_LATER, exploitation="P"
+        ),
+        VulnerabilityClaims(
+            title="Unnamed",
+            disclosure_date=_EARLIER,
+            first_known_exploitation_dates=[_EARLIER],
+        ),
+    )
+
+    outcomes = proposed_claim_outcomes(
+        claims, stated=StatedReportFields(name="Stated")
+    )
+
+    assert outcomes == {
+        "name": ClaimOutcome.OVERRIDDEN,
+        "summary": ClaimOutcome.APPLIED,
+        "vulnerabilities[0].cve": ClaimOutcome.APPLIED,
+        "vulnerabilities[0].exploitation": ClaimOutcome.APPLIED,
+        "vulnerabilities[1].disclosure_date": ClaimOutcome.APPLIED,
+        "vulnerabilities[1].first_known_exploitation_dates[0]": (
+            ClaimOutcome.APPLIED
+        ),
+    }
+
+
+@pytest.mark.spec("CSAF-02-002")
+def test_the_date_free_half_of_another_category_marks_nothing() -> None:
+    claims = _claims(
+        VulnerabilityClaims(cve="CVE-2026-0001", disclosure_date=_LATER),
+        category="csaf_security_advisory",
+    )
+    assert proposed_claim_outcomes(claims) == {}
 
 
 @pytest.mark.spec("CSAF-03-001", "CP-01-024")

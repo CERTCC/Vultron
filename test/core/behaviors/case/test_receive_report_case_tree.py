@@ -17,9 +17,12 @@
 Tests for the slimmed vendor receive-report case-proposal tree (ADR-0041).
 
 The tree no longer creates a VulnerabilityCase.  Instead it:
-1. Writes a pending VultronReportCaseLink (WritePendingReportCaseLinkNode).
-2. Sends Create(CaseProposal) to the CaseActor service
+1. Converts the report into a CaseProposal
+   (ConvertReportToCaseProposalNode).
+2. Writes a pending VultronReportCaseLink (WritePendingReportCaseLinkNode).
+3. Sends Create(CaseProposal) to the CaseActor service
    (ProposeReportCaseToActorNode).
+4. Marks the receiver's claims record (MarkProposedClaimsNode).
 
 Tests are grouped by concern:
 - TestTreeStructure       — root shape, child count, node types
@@ -45,7 +48,9 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
     CheckProposalAlreadySentForReport,
+    ConvertReportToCaseProposalNode,
     EnsureCaseActorHostedNode,
+    MarkProposedClaimsNode,
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
@@ -219,15 +224,15 @@ class TestTreeStructure:
         assert isinstance(flow, py_trees.composites.Sequence)
         assert flow.name == "ReceiveReportProposalFlow"
 
-    def test_flow_has_three_children(self, report, offer, reporter_actor_id):
-        """ReceiveReportProposalFlow has exactly 3 children."""
+    def test_flow_has_five_children(self, report, offer, reporter_actor_id):
+        """ReceiveReportProposalFlow has exactly 5 children."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[-1].children[1]
-        assert len(flow.children) == 3
+        assert len(flow.children) == 5
 
     def test_flow_first_child_ensures_case_actor_hosted(
         self, report, offer, reporter_actor_id
@@ -247,29 +252,41 @@ class TestTreeStructure:
         flow = tree.children[-1].children[1]
         assert isinstance(flow.children[0], EnsureCaseActorHostedNode)
 
-    def test_flow_second_child_is_write_link(
+    def test_flow_third_child_is_write_link(
         self, report, offer, reporter_actor_id
     ):
-        """Flow's second child is WritePendingReportCaseLinkNode (AC-2)."""
+        """The pending link is written after the conversion (AC-2): a report
+        that cannot be converted leaves no link to read as already sent."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[-1].children[1]
-        assert isinstance(flow.children[1], WritePendingReportCaseLinkNode)
+        assert isinstance(flow.children[2], WritePendingReportCaseLinkNode)
 
-    def test_flow_third_child_is_propose(
+    @pytest.mark.spec("CP-01-026")
+    def test_flow_converts_sends_then_marks(
         self, report, offer, reporter_actor_id
     ):
-        """Flow's third child is ProposeReportCaseToActorNode."""
+        """The conversion runs ahead of the pending link and the send, as its
+        own leaf, so the receiver may change the proposal before it is sent;
+        the claims record is marked only once the proposal is sent."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[-1].children[1]
-        assert isinstance(flow.children[2], ProposeReportCaseToActorNode)
+
+        def leaf(index: int) -> object:
+            return next(
+                n for n in flow.children[index].iterate() if not n.children
+            )
+
+        assert isinstance(leaf(1), ConvertReportToCaseProposalNode)
+        assert isinstance(flow.children[3], ProposeReportCaseToActorNode)
+        assert isinstance(leaf(4), MarkProposedClaimsNode)
 
     def test_no_create_case_node(self, report, offer, reporter_actor_id):
         """Tree does NOT contain CreateCaseNode (AC-1)."""
@@ -448,6 +465,31 @@ class TestHappyPath:
         assert link.report_id == report.id_
         assert link.case_id is None, "Link must be pending (case_id=None)"
         assert not link.proposal_rejected
+
+    @pytest.mark.spec("CP-04-001")
+    def test_a_report_it_cannot_convert_leaves_no_pending_link(
+        self,
+        datalayer,
+        actor,
+        offer,
+        reporter_actor_id,
+        bridge,
+    ):
+        """A failed conversion writes no link, so the report is not taken
+        for one already proposed (CheckProposalAlreadySentForReport)."""
+        not_held = "https://example.org/reports/not-held"
+        tree = create_receive_report_case_tree(
+            report_id=not_held,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        result = run_tree(
+            bridge, tree=tree, actor_id=actor.id_, activity=_event(offer)
+        )
+
+        assert result.status == Status.FAILURE
+        assert datalayer.read(VultronReportCaseLink.build_id(not_held)) is None
+        assert list(datalayer.list_objects("VultronReportCaseLink")) == []
 
     @pytest.mark.spec("BT-10-002")
     @pytest.mark.spec("BT-10-008")

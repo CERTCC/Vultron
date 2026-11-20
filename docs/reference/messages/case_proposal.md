@@ -46,6 +46,7 @@ That is how a Reporter's proposed embargo terms reach the case-actor (EP-04-004)
   Each entry in `referenceLinks` is an AS2 `Link` to the referenced resource, and the Link's `name` becomes the case reference's name.
   `disclosureDate` is the earliest CSAF `vulnerabilities[].disclosure_date`, as the document states it.
   No field states whether the vulnerability is public (CP-01-023, CP-01-027).
+  In this implementation, a report receiver whose report carries a CSAF document of category `csaf_vulnerability_report` always sends `caseInputs`, converted from the first such document (CP-01-026).
 - **When the case-actor reads the CSAF document:** `caseInputs` is all or nothing.
   When the proposal carries it, the case-actor builds a new case from it and reads no CSAF document on the carried Offer (CP-01-024, CP-01-028).
   An empty `proposedItems` list, or a false `exploitPublic` or `attacksObserved`, stays so, even when the document states otherwise.

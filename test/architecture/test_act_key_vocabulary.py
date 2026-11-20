@@ -105,6 +105,7 @@ _NOT_PER_ACT: dict[str, str] = {
     "/append_status_participant": _HANDOFF,
     "/append_status_status_obj": _HANDOFF,
     "/case_copy_replaces": _HANDOFF,
+    "/case_proposal": _HANDOFF,
     "/create_case_activity_id": _HANDOFF,
     "/creation_time_revision_candidate": _HANDOFF,
     "/default_embargo": _HANDOFF,

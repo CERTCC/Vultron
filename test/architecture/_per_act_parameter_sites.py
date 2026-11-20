@@ -218,7 +218,6 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/case/create_case_trigger_tree.py::_CreateCaseRecordNode::case_content": 6575,
         "vultron/core/behaviors/case/create_case_trigger_tree.py::_CreateCaseRecordNode::case_name": 6575,
         "vultron/core/behaviors/case/create_case_trigger_tree.py::_CreateCaseRecordNode::report_id": 6575,
-        "vultron/core/behaviors/case/nodes/proposal.py::ProposeReportCaseToActorNode::report_id": 6575,
         "vultron/core/behaviors/case/nodes/proposal_admission_actions.py::EmitRejectCaseProposalNode::proposal_dict": 6575,
         "vultron/core/behaviors/case/nodes/proposal_admission_actions.py::EmitRejectCaseProposalNode::proposal_id": 6575,
         "vultron/core/behaviors/case/nodes/proposal_admission_actions.py::EmitRejectCaseProposalNode::proposer_uri": 6575,
