@@ -1093,8 +1093,13 @@ class TestLedgerApplyCopiesTheStatus:
     """A replicated entry's status is copied as carried (CM-23-016, ADR-0124)."""
 
     @staticmethod
-    def _apply(dl: Any, actor_id: str = ACTOR_ID) -> Status:
-        entry = _status_snapshot_entry(rm_state="VALID", vf_state="Vf")
+    def _apply(
+        dl: Any,
+        actor_id: str = ACTOR_ID,
+        entry: CaseLedgerEntry | None = None,
+    ) -> Status:
+        if entry is None:
+            entry = _status_snapshot_entry(rm_state="VALID", vf_state="Vf")
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -1154,6 +1159,43 @@ class TestLedgerApplyCopiesTheStatus:
         )
         assert first == second
         assert first["id_"] == ASSERTED_STATUS_ID
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-35: participant tracking IDs are not built yet."
+            " Tracked by #6762."
+        ),
+    )
+    @pytest.mark.spec("CM-35-006")
+    def test_an_admitted_statuss_tracking_ids_reach_another_replica(
+        self, store_for, make_payload
+    ):
+        """The CASE_MANAGER admits a status with tracking IDs; the entry it
+        commits carries them, and another participant's replica stores them."""
+        tracking_ids = [{"value": "SEC-1234", "tracker": "PSIRT"}]
+        current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
+        asserted = make(
+            as_ParticipantStatus,
+            id_=ASSERTED_STATUS_ID,
+            context=CASE_ID,
+            rm=RmDimension(state=RM.ACCEPTED),
+            tracking_ids=tracking_ids,
+        )
+        manager_dl = store_for(CASE_MANAGER_ID)
+        _seed_case(manager_dl, current, asserted)
+        result = _run_tree(manager_dl, asserted, CASE_MANAGER_ID, make_payload)
+        assert result.status == Status.SUCCESS, result.feedback_message
+        (entry,) = _receipt_entries(manager_dl)
+
+        replica_dl = store_for(STRANGER_ID)
+        _seed_case(replica_dl, current.model_copy(deep=True), None)
+        assert self._apply(replica_dl, STRANGER_ID, entry) == Status.SUCCESS
+
+        latest = _latest_status(replica_dl, PARTICIPANT_ID)
+        assert latest.id_ == ASSERTED_STATUS_ID
+        wire = latest.model_dump(by_alias=True, exclude_none=True, mode="json")
+        assert wire["trackingIds"] == tracking_ids
 
     @pytest.mark.spec("CM-23-016")
     def test_a_status_already_stored_locally_is_appended_as_carried(

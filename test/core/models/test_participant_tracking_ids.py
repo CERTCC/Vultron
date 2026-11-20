@@ -58,7 +58,7 @@ def test_a_status_carries_a_list_of_value_and_optional_tracker_entries():
         {"value": "SEC-1234", "tracker": "PSIRT Jira"},
         {"value": "48812"},
     ]
-    assert _status().tracking_ids == []
+    assert _status().tracking_ids == []  # type: ignore[attr-defined]
 
 
 @pytest.mark.xfail(strict=True, reason=TRACKING_IDS_PENDING)
@@ -107,9 +107,7 @@ def test_a_status_keeps_its_tracking_ids_through_the_wire_form():
 @pytest.mark.xfail(strict=True, reason=TRACKING_IDS_PENDING)
 @pytest.mark.spec("CM-35-007")
 def test_a_tracking_id_and_a_vulnerability_id_never_parse_as_each_other():
-    from vultron.core.models.participant_status import (  # type: ignore[attr-defined]
-        ParticipantTrackingId,
-    )
+    from vultron.core.models.participant_status import ParticipantTrackingId  # type: ignore[attr-defined]
 
     tracking = ParticipantTrackingId(value="SEC-1234", tracker="PSIRT")
     vul_id = VulnerabilityItemId(system_name="VINCE", text="VU#123456")
@@ -121,4 +119,11 @@ def test_a_tracking_id_and_a_vulnerability_id_never_parse_as_each_other():
     with pytest.raises(ValidationError):
         ParticipantTrackingId.model_validate(
             vul_id.model_dump(by_alias=True, mode="json")
+        )
+    # Each direction above also lacks a required field, so check the unknown
+    # key on its own: an entry that holds all it needs and one key of the
+    # other type is refused too.
+    with pytest.raises(ValidationError, match="systemName"):
+        ParticipantTrackingId.model_validate(
+            {"value": "SEC-1234", "systemName": "VINCE"}
         )
