@@ -10,7 +10,12 @@ from itertools import pairwise
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from test.shadow.dashboard._support import RCVV, TIMEOUT, texts
+from test.shadow.dashboard._support import (
+    RCVV,
+    TIMEOUT,
+    recording_analysis,
+    texts,
+)
 from test.shadow.dashboard.page._support import (
     BACKGROUND,
     FAKE_PAGE,
@@ -20,11 +25,10 @@ from test.shadow.dashboard.page._support import (
 )
 from test.support.ledger_stream import recording_rows
 from vultron.config import config_override
-from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.advice import case_advice
 from vultron.measure.baselines import scope_desiderata
 from vultron.measure.standing import DesideratumStatus
-from vultron.shadow.analysis import analyse, point_analysis
+from vultron.shadow.analysis import point_analysis
 from vultron.shadow.dashboard import minimap, view
 from vultron.shadow.dashboard.app import APP_PATH
 from vultron.shadow.dashboard.page import END_UNCONFIRMED_NOTE, POINT_KEY
@@ -34,7 +38,6 @@ from vultron.shadow.dashboard.view import (
     LATEST_POINT,
     LEGEND_BETTER,
 )
-from vultron.shadow.readers import VultronCaseReader
 
 
 def _cut_page(tmp_path, recording, count: int) -> AppTest:
@@ -136,7 +139,7 @@ def test_the_state_maps_and_band_legends_follow_the_picked_point(
     point_picker(at).select(log_index).run()
     assert not at.exception
     analysis = point_analysis(
-        analyse(VultronCaseReader(root=RECORDINGS_DIR).read_case(str(RCVV))),
+        recording_analysis(),
         log_index,
     )
     standing = analysis.standing

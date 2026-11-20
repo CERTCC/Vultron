@@ -11,20 +11,16 @@ Spec: SHD-06-001, SHD-06-003, SHD-06-006.
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Iterator
+from collections.abc import Hashable
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from test.shadow.dashboard._support import RV, TIMEOUT
+from test.shadow.dashboard._support import RV, TIMEOUT, recording_analysis
 from test.shadow.dashboard.page._support import point_picker
-from vultron.config import config_override
-from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.action_rules import ResultKind
-from vultron.shadow.analysis import analyse, point_analysis
+from vultron.shadow.analysis import point_analysis
 from vultron.shadow.dashboard import view
-from vultron.shadow.dashboard.app import APP_PATH
-from vultron.shadow.readers import VultronCaseReader
 
 #: Just after this entry of the rv recording the vendor stands at the
 #: #6492 extension position.
@@ -71,9 +67,7 @@ def _rule_tables(at: AppTest) -> dict[str, list[dict[Hashable, object]]]:
 
 def _expected(log_index: int | None) -> view.RuleRows:
     """The rows the view gives the rv case at *log_index*, or now."""
-    analysis = analyse(
-        VultronCaseReader(root=RECORDINGS_DIR).read_case(str(RV))
-    )
+    analysis = recording_analysis(RV)
     if log_index is not None:
         analysis = point_analysis(analysis, log_index)
     assert analysis.standing is not None
@@ -83,12 +77,12 @@ def _expected(log_index: int | None) -> view.RuleRows:
 
 
 @pytest.fixture
-def rv_page() -> Iterator[AppTest]:
-    with config_override(VULTRON_SHADOW__LEDGER_DIR=str(RECORDINGS_DIR)):
-        at = AppTest.from_file(str(APP_PATH), default_timeout=TIMEOUT).run()
-        at.selectbox[0].select("rv/case-actor.jsonl").run()
-        assert not at.exception
-        yield at
+def rv_page(recordings_app: AppTest) -> AppTest:
+    """The page over the rv recording, run."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rv/case-actor.jsonl").run()
+    assert not at.exception
+    return at
 
 
 @pytest.mark.spec("SHD-06-001")

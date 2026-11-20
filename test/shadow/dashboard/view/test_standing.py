@@ -7,7 +7,8 @@ Spec: CRD-02-005, DRPT-03-009.
 import pytest
 
 from test.adapters.connectors.vince._support import ACTIVE, translate
-from test.shadow.dashboard.view._support import NAMES, VENDOR, rcvv_analysis
+from test.shadow.dashboard._support import recording_analysis
+from test.shadow.dashboard.view._support import NAMES, VENDOR
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM
@@ -66,7 +67,7 @@ def test_the_public_state_reads_as_three_badges():
 
 
 def test_participant_rows_show_report_state_fix_path_and_tally():
-    analysis = rcvv_analysis()
+    analysis = recording_analysis()
     assert analysis.standing is not None
     rows = view.participant_rows(
         analysis.standing.participants, analysis.actor_names
@@ -102,7 +103,7 @@ def test_an_invitee_with_no_roles_reads_as_invited_with_none():
 
 
 def test_a_tally_with_no_unknown_desideratum_shows_no_unknown_count():
-    analysis = rcvv_analysis()
+    analysis = recording_analysis()
     assert analysis.standing is not None
     rows = view.participant_rows(
         analysis.standing.participants, analysis.actor_names

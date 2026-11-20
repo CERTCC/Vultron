@@ -11,13 +11,17 @@ from __future__ import annotations
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from test.shadow.dashboard._support import TIMEOUT, texts
+from test.shadow.dashboard._support import (
+    RV,
+    TIMEOUT,
+    recording_analysis,
+    texts,
+)
 from test.shadow.dashboard.page._support import page_table
 from vultron.config import config_override
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.advice import Band
 from vultron.measure.baselines import scope_desiderata
-from vultron.shadow.analysis import analyse
 from vultron.shadow.dashboard import minimap
 from vultron.shadow.dashboard.app import APP_PATH
 from vultron.shadow.dashboard.view import (
@@ -26,7 +30,6 @@ from vultron.shadow.dashboard.view import (
     EM_BADGES,
     RM_BADGES,
 )
-from vultron.shadow.readers import VultronCaseReader
 
 _EMPTY_PAGE = """
 from vultron.core.models.case_reading import (
@@ -107,11 +110,7 @@ def test_each_state_is_shown_on_its_machines_map(recordings_app):
     at = recordings_app.run()
     at.selectbox[0].select(case).run()
     assert not at.exception
-    analysis = analyse(
-        VultronCaseReader(root=RECORDINGS_DIR).read_case(
-            str(RECORDINGS_DIR / case)
-        )
-    )
+    analysis = recording_analysis(RECORDINGS_DIR / case)
     standing = analysis.standing
     assert standing is not None and standing.case is not None
     participants = minimap.participant_minimaps(
@@ -239,9 +238,7 @@ def test_a_reading_with_no_entry_shows_its_report_and_no_standing():
 
 
 def test_a_ledger_with_a_hole_shows_the_hole_not_a_standing(tmp_path):
-    rows = (
-        (RECORDINGS_DIR / "rv" / "case-actor.jsonl").read_text().splitlines()
-    )
+    rows = RV.read_text().splitlines()
     (tmp_path / "holed.jsonl").write_text(
         "\n".join(rows[:2] + rows[3:]) + "\n"
     )

@@ -7,14 +7,13 @@ from __future__ import annotations
 
 import re
 
-from test.shadow.dashboard._support import texts
+from test.shadow.dashboard._support import RCVV, texts
 from test.shadow.dashboard.page._support import (
     BACKGROUND,
     page_frame,
     page_table,
 )
 from test.support.ledger_stream import recording_rows
-from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.advice import BAND_COLOUR_MAPS
 from vultron.shadow.dashboard import view
 from vultron.shadow.dashboard.page import HINDSIGHT_NOTE, NARRATIVE_NOTE
@@ -31,9 +30,7 @@ def test_a_recorded_case_shows_its_narrative_one_line_per_entry(
     assert "Case narrative" in texts(at.subheader)
     assert NARRATIVE_NOTE in texts(at.caption)
     narrative = page_table(at, "Case narrative")
-    entries = recording_rows(
-        RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
-    )
+    entries = recording_rows(RCVV)
     assert narrative["#"].tolist() == list(range(len(entries)))
     assert narrative["Activity"].tolist()[0] == "Case Actor created the case"
     changes = " ".join(narrative["State changes"])

@@ -9,11 +9,11 @@ from datetime import UTC, datetime
 import pytest
 
 from test.adapters.connectors.vince._support import ACTIVE, translate
+from test.shadow.dashboard._support import recording_analysis
 from test.shadow.dashboard.view._support import (
     NAMES,
     VENDOR,
     narrative_line,
-    rcvv_analysis,
 )
 from vultron.core.models._helpers import format_timestamp
 from vultron.core.states.cs_invariants import CSEvent
@@ -30,7 +30,7 @@ _T1 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=UTC)
 
 def test_each_narrative_line_reads_as_a_row_keyed_by_its_log_index():
     """AC-1 and AC-2: one row per line, in order, by log index."""
-    analysis = rcvv_analysis()
+    analysis = recording_analysis()
     rows = view.narrative_rows(analysis.narrative, analysis.actor_names)
     assert [row["#"] for row in rows] == [
         line.log_index for line in analysis.narrative

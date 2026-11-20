@@ -1,7 +1,8 @@
 """The page following a case through the live reader, run headless with
 Streamlit's ``AppTest`` over a scripted stream: each entry is shown as
-it arrives, and a refused entry, a dropped stream or a gone node keeps
-the last reading, marked not live.
+it arrives, a point picked while following stays put as entries arrive
+(#6671), and a refused entry, a dropped stream or a gone node keeps the
+last reading, marked not live.
 
 Spec: SHD-04-003, SHD-04-005.
 """
@@ -41,10 +42,10 @@ from test.support.ledger_stream import (
     CLOSE, Dropping, Quiet, ScriptedStream, recording_rows, sse_event,
     sse_rows,
 )
-from vultron.demo.recordings.layout import RECORDINGS_DIR
+from test.shadow.dashboard._support import RV
 from vultron.shadow.dashboard.page import LAST_READING_KEY, render
 
-every_row = recording_rows(RECORDINGS_DIR / "rv" / "case-actor.jsonl")
+every_row = recording_rows(RV)
 rows = every_row[:3]
 bad = sse_event({"type": "CaseLedgerEntry"}, 1)
 

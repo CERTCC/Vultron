@@ -8,13 +8,14 @@ from fractions import Fraction
 
 import pytest
 
-from test.shadow.dashboard.view._support import NAMES, VENDOR, rcvv_analysis
-from vultron.core.models.case_reading import CaseReading, UnobservableFact
+from test.shadow.dashboard._support import (
+    reading_with_d_unobservable,
+    recording_analysis,
+)
+from test.shadow.dashboard.view._support import NAMES, VENDOR
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.advice import scope_shift
 from vultron.measure.baselines import (
     EXTENDED,
@@ -31,11 +32,10 @@ from vultron.measure.standing import (
 )
 from vultron.shadow.analysis import analyse
 from vultron.shadow.dashboard import view
-from vultron.shadow.readers import VultronCaseReader
 
 
 def test_a_desideratum_reads_in_words_and_in_event_letters():
-    standing = rcvv_analysis().standing
+    standing = recording_analysis().standing
     assert standing is not None
     vendor = next(p for p in standing.participants if p.desiderata)
     first = vendor.desiderata[0]
@@ -49,7 +49,7 @@ def test_a_desideratum_reads_in_words_and_in_event_letters():
 
 
 def test_a_report_handling_desideratum_reads_in_its_own_events():
-    standing = rcvv_analysis().standing
+    standing = recording_analysis().standing
     assert standing is not None
     vendor = next(p for p in standing.participants if p.desiderata)
     (accepted,) = [
@@ -62,7 +62,7 @@ def test_a_report_handling_desideratum_reads_in_its_own_events():
 
 
 def test_desiderata_rows_give_each_scored_vendor_its_own_column():
-    analysis = rcvv_analysis()
+    analysis = recording_analysis()
     assert analysis.standing is not None
     rows = view.desiderata_rows(
         analysis.standing.participants, analysis.actor_names
@@ -87,7 +87,7 @@ def _counted_by_move_advice() -> list[str]:
 def test_the_table_shows_exactly_the_desiderata_move_advice_sums():
     """#6669 AC-2: the table's rows and move advice's scope are one list, so
     a desideratum added to either and not the other fails here."""
-    analysis = rcvv_analysis()
+    analysis = recording_analysis()
     assert analysis.standing is not None
     participants = analysis.standing.participants
     rows = view.desiderata_rows(participants, analysis.actor_names)
@@ -101,7 +101,7 @@ def test_the_table_shows_exactly_the_desiderata_move_advice_sums():
 def test_each_group_of_equivalent_desiderata_shows_once():
     """#6669 AC-3: ``E ≺ P`` stands for ``E ≺ X`` and ``E ≺ A``, and
     ``ExOwn ≺ P`` for its two (ADR-0200)."""
-    analysis = rcvv_analysis()
+    analysis = recording_analysis()
     assert analysis.standing is not None
     codes = [
         row["Events"]
@@ -140,7 +140,7 @@ def test_an_unwalked_vendor_reads_not_scored_and_its_tally_counts_them():
 
 
 def test_vendors_that_share_a_label_keep_their_own_columns():
-    analysis = rcvv_analysis()
+    analysis = recording_analysis()
     assert analysis.standing is not None
     vendors = [p for p in analysis.standing.participants if p.desiderata]
     same = {p.participant: "Events" for p in vendors}
@@ -155,7 +155,7 @@ def test_vendors_that_share_a_label_keep_their_own_columns():
 
 @pytest.mark.spec("CRD-02-005")
 def test_an_unknown_desideratum_shows_its_own_badge_and_count():
-    analysis = analyse(_reading_with_d_unobservable())
+    analysis = analyse(reading_with_d_unobservable())
     unseen, names = analysis.standing, analysis.actor_names
     assert unseen is not None
     rows = view.desiderata_rows(unseen.participants, names)
@@ -171,22 +171,6 @@ def test_an_unknown_desideratum_shows_its_own_badge_and_count():
     assert "❔ 3" in str(vendor["Desiderata"])
     # The fix path reads D, which the source cannot see, as unknown.
     assert vendor["Fix path"] == "❔ Fix ready or fix deployed"
-
-
-def _reading_with_d_unobservable() -> CaseReading:
-    path = RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
-    recorded = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(path))
-    return CaseReading(
-        ledger=recorded.ledger,
-        citations=recorded.citations,
-        unobservable=(
-            UnobservableFact(
-                fact="Fix Deployed (D)",
-                why="no field",
-                events=frozenset({CSEvent.D}),
-            ),
-        ),
-    )
 
 
 def test_no_scored_vendor_gives_no_desiderata_rows():
