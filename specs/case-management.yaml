@@ -12549,21 +12549,27 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An actor that writes or receives a participant status that supplies no tracking
-      IDs MUST give that status the participant's previous set of tracking IDs.
+      An actor writing a participant status, or the CASE_MANAGER recording a received
+      one, that supplies no tracking IDs MUST give it the participant's previous set.
     rationale: >-
       A participant sends a new status for many reasons, such as an RM move or a fix
       becoming ready, and the tracking IDs exist to route messages about the case to
       its tracker. A status sent for another reason must not drop them. Leaving the
       field out therefore means no change, and only an empty list clears the set
-      (CM-35-005). The stored status always holds the resolved set, so the rule binds
-      the status writer and the receiving edge, not storage.
+      (CM-35-005). The CASE_MANAGER interprets the omission and records the resolved
+      set in the ledger, the one exception to recording a status as sent (RSH-09-010).
+      The participant then sees which tracking IDs the case holds for it and corrects
+      any mistake with a new status. A replica copies the recorded set (CM-23-016)
+      and fills nothing itself.
     verification: >-
       A test marked `CM-35-004` gives a participant a status with tracking IDs, then
       writes a status for an RM move with no tracking IDs supplied, and asserts the new
       status holds the earlier set; and delivers a received status whose wire form has
       no `trackingIds` key, and asserts the stored status holds the participant's
       previous set.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-09-010
     stories:
     - story_2026_101
   - id: CM-35-005
