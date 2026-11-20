@@ -84,7 +84,7 @@ def _seed_case(dl: Any, owner_id: str, case_manager_id: str):
 
 
 def _proposal(case_id: str, name: str, owner_id: str, to: list[str] | None):
-    """The owner's proposal, as the offer trigger builds it (ADR-0148)."""
+    """The Owner's own Offer, as the offer trigger builds it (ADR-0199)."""
     return offer_case_ownership_transfer_activity(
         as_VulnerabilityCase.model_validate(
             with_times(
@@ -102,7 +102,8 @@ def _proposal(case_id: str, name: str, owner_id: str, to: list[str] | None):
 def _owners_offer(
     dl: Any, case, case_manager_id: str, owner_id: str, transferee_id: str
 ):
-    """The proposal as the offer trigger stored it in the owner's store."""
+    """The Owner's Offer as the offer trigger stored it in its store
+    (ADR-0199)."""
     proposal = offer_case_ownership_transfer_activity(
         as_VulnerabilityCase.model_validate(
             with_times(
@@ -218,7 +219,7 @@ def test_raises_when_proposal_names_no_case():
     dl = MagicMock()
     dl.read.side_effect = lambda id_: actor if id_ == actor_id else offer
 
-    with pytest.raises(VultronNotFoundError):
+    with pytest.raises(VultronNotFoundError, match="this actor sent"):
         _execute(dl, actor_id, "https://example.org/activities/offer-nocase")
 
 
@@ -257,31 +258,56 @@ def test_the_owners_offer_is_recognised_whatever_form_its_type_takes(
     assert use_case._held_case_id("https://example.org/p/1") == case_id
 
 
+_HELD_OWNER_ID = "https://example.org/actors/owner-held"
+_HELD_CASE = SimpleNamespace(
+    id_="https://example.org/cases/held", type_="VulnerabilityCase"
+)
+
+
 @pytest.mark.spec("TRIG-11-006")
-def test_naming_an_offer_of_something_else_is_refused():
-    """An Offer this actor sent that offers no case, such as a report, is
-    not an ownership-transfer Offer: refused before any tree runs."""
-    owner_id = "https://example.org/actors/owner-report-offer"
-    own_offer = SimpleNamespace(
-        type_="Offer",
-        actor=owner_id,
-        object_=SimpleNamespace(
-            id_="https://example.org/reports/r1", type_="VulnerabilityReport"
+@pytest.mark.parametrize(
+    "held",
+    [
+        pytest.param(
+            SimpleNamespace(
+                type_="Offer",
+                actor=_HELD_OWNER_ID,
+                object_=SimpleNamespace(
+                    id_="https://example.org/reports/r1",
+                    type_="VulnerabilityReport",
+                ),
+            ),
+            id="offer-of-a-report",
         ),
-    )
+        pytest.param(
+            SimpleNamespace(
+                type_="Invite", actor=_HELD_OWNER_ID, object_=_HELD_CASE
+            ),
+            id="invite-of-the-case",
+        ),
+        pytest.param(
+            SimpleNamespace(type_="Offer", actor=None, object_=_HELD_CASE),
+            id="offer-naming-no-actor",
+        ),
+    ],
+)
+def test_naming_an_activity_that_is_not_the_owners_offer_is_refused(held):
+    """An activity this actor holds that is not its own ownership-transfer
+    Offer (an Offer of something else, an Invite of the case, or an Offer
+    naming no sender) is refused before any tree runs."""
     dl = MagicMock()
-    dl.read.return_value = own_offer
+    dl.read.return_value = held
     use_case = SvcWithdrawCaseOwnershipTransferUseCase.__new__(
         SvcWithdrawCaseOwnershipTransferUseCase
     )
     use_case._dl = dl
-    use_case._actor_id = owner_id
+    use_case._actor_id = _HELD_OWNER_ID
     cast(Any, use_case)._trigger_activity = SimpleNamespace(
         load_received_activity=lambda _activity_id: None
     )
 
     with pytest.raises(VultronNotFoundError, match="this actor sent"):
-        use_case._held_case_id("https://example.org/p/report")
+        use_case._held_case_id("https://example.org/p/held")
 
 
 @pytest.mark.spec("TRIG-11-006")

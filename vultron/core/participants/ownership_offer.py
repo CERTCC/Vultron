@@ -20,8 +20,9 @@ the Owner's Offer in ``inReplyTo`` (CM-21-028).  The CASE_MANAGER ledgers
 both as ``offer_case_ownership_transfer`` entries; its own, committed once it
 is queued, is the one the transferee holds and answers, and the one that is
 closed and expired.  Every reader here reads only the CASE_MANAGER's Offers,
-told from the Owner's by the entry's ``actor`` (:func:`_offer_entries`), so
-an answer naming the Owner's Offer names nothing that can be accepted.
+told from the Owner's by the id derived from the Owner's Offer
+(:func:`_offer_entries`), so an answer naming the Owner's Offer names nothing
+that can be accepted.
 "Recorded" means ledgered, and whether the Offer is still open is read from
 the same ledger and the ``end_time`` the ledgered Offer carries (CM-21-014,
 CM-21-017, CLP-11-001).
@@ -43,6 +44,7 @@ Spec: CM-21-005, CM-21-011, CM-21-013, CM-21-014, CM-21-015, CM-21-016,
 CLP-11-001.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -80,9 +82,8 @@ class RecordedOwnershipOffer:
         offer_actor_id: The ledgered Offer's ``actor``, the CASE_MANAGER
             that made it.
         offer_attributed_to: The ledgered Offer's ``attributedTo``, the Case
-            Owner whose proposal it carries out (CM-24-002).  Read through
-            :meth:`offerer_id`, never on its own: it is honoured only on an
-            Offer the CASE_MANAGER sent.
+            Owner whose Offer it was made from (CM-24-002), read as
+            :attr:`offerer_id`.
         pair: The Offer's request/reply state, read from the ledger.
         end_time: The ledgered Offer's activity-level ``end_time``, in UTC:
             the deadline to answer it (CM-21-016).  ``None`` when the Offer
@@ -97,24 +98,16 @@ class RecordedOwnershipOffer:
     pair: ProtocolPair
     end_time: datetime | None = None
 
-    def offerer_id(self, manager_id: str) -> str | None:
-        """The participant that made the Offer, as *manager_id* recorded it.
+    @property
+    def offerer_id(self) -> str | None:
+        """The Case Owner the Offer speaks for: its ``attributedTo``.
 
-        The CASE_MANAGER's Offer carries itself as ``actor`` and the Case
-        Owner whose proposal it made as ``attributedTo`` (CM-24-001,
-        CM-24-002), so it speaks for that owner.  Any other Offer speaks for
-        its ``actor``: an ``attributedTo`` on an Offer the CASE_MANAGER did
-        not send is a claim nothing checks (CLP-07-003 validates only
-        ``actor``), so it is ignored.  ``None`` when the entry names no
-        offerer.
-
-        Args:
-            manager_id: The case's CASE_MANAGER.
+        Every recorded Offer is one the CASE_MANAGER made from an Owner's
+        Offer, with itself as ``actor`` and that Owner as ``attributedTo``
+        (CM-24-001, CM-24-002, :func:`_offer_entries`), so it speaks for that
+        Owner.
         """
-        actor_id = self.offer_actor_id
-        if actor_id is not None and same_actor_id(actor_id, manager_id):
-            return self.offer_attributed_to
-        return actor_id
+        return self.offer_attributed_to
 
     @property
     def answer_id(self) -> str | None:
@@ -161,29 +154,57 @@ class RecordedOwnershipOffer:
         return self.answer_id is not None and self.answer_id != answer_id
 
 
+def _case_manager_of(dl: CasePersistence, case_id: str) -> str | None:
+    """The CASE_MANAGER of *case_id* as *dl* holds it, or ``None``.
+
+    ``None`` when the store does not hold the case or the case names no
+    CASE_MANAGER.
+    """
+    case = dl.read_case(case_id)
+    return resolve_case_manager_id(case, dl) if case is not None else None
+
+
 def _offer_entries(dl: CasePersistence, case_id: str) -> list[CaseLedgerEntry]:
     """The case's CASE_MANAGER-made ownership-transfer Offers, oldest first.
 
-    The ``offer_case_ownership_transfer`` entries whose ``actor`` is the
-    case's CASE_MANAGER.  The Case Owner's own Offer is ledgered under the
-    same semantic type (ADR-0199), but it is the proposal, never the Offer
-    that is answered, closed or expired (CM-21-029), so it is left out.  A
-    case this store does not hold, or one that names no CASE_MANAGER, has
-    none.
+    The ``offer_case_ownership_transfer`` entries the CASE_MANAGER made from
+    an Owner's Offer: its ``actor`` is the case's CASE_MANAGER and its id is
+    the one :func:`ownership_offer_id` derives from its ``inReplyTo`` (the
+    Owner's Offer) and ``attributedTo`` (the Owner), as CM-21-028 builds it.
+    The Case Owner's own Offer is ledgered under the same semantic type
+    (ADR-0199), but it is the proposal, never the Offer that is answered,
+    closed or expired (CM-21-029), so it is left out.  The derived id, not
+    the ``actor`` alone, tells them apart: an Owner that is also the
+    CASE_MANAGER (CM-02-010) sends its own Offer as the CASE_MANAGER.  A case
+    this store does not hold, or one that names no CASE_MANAGER, has none.
     """
-    case = dl.read_case(case_id)
-    manager_id = (
-        resolve_case_manager_id(case, dl) if case is not None else None
-    )
+    manager_id = _case_manager_of(dl, case_id)
     if manager_id is None:
         return []
     return [
         entry
         for entry in recorded_entries_for_case(case_id=case_id, dl=dl)
         if entry.semantic_type == OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE
-        and (actor_id := _entry_actor(entry)) is not None
-        and same_actor_id(actor_id, manager_id)
+        and _made_by(entry, manager_id, case_id)
     ]
+
+
+def _made_by(entry: CaseLedgerEntry, manager_id: str, case_id: str) -> bool:
+    """Return ``True`` when *entry* is an Offer *manager_id* made (CM-21-028).
+
+    Its ``actor`` is *manager_id*, and its id is the one *manager_id* derives
+    from the Owner's Offer it names in ``inReplyTo`` and the Owner it names
+    in ``attributedTo``.
+    """
+    actor_id = _entry_actor(entry)
+    owner_id = _entry_attributed_to(entry)
+    owners_offer_id = _entry_in_reply_to(entry)
+    if actor_id is None or owner_id is None or owners_offer_id is None:
+        return False
+    return same_actor_id(actor_id, manager_id) and (
+        entry.log_object_id
+        == ownership_offer_id(manager_id, case_id, owners_offer_id, owner_id)
+    )
 
 
 def _entry_actor(entry: CaseLedgerEntry) -> str | None:
@@ -196,6 +217,14 @@ def _entry_attributed_to(entry: CaseLedgerEntry) -> str | None:
     return snapshot_actor_id(
         entry.payload_snapshot.get(wire_key("attributed_to"))
     )
+
+
+def _entry_in_reply_to(entry: CaseLedgerEntry) -> str | None:
+    """The id of the activity the ledgered Offer answers, if any."""
+    raw = entry.payload_snapshot.get(wire_key("in_reply_to"))
+    if isinstance(raw, Mapping):
+        raw = raw.get("id")
+    return raw if isinstance(raw, str) and raw else None
 
 
 def _entry_end_time(entry: CaseLedgerEntry) -> datetime | None:
@@ -315,10 +344,7 @@ def offer_made_from_proposal(
     whose Offer the ledger records is a redelivery (HP-01-014); its standing
     is that Offer's offerer (CM-21-019).
     """
-    case = dl.read_case(case_id)
-    manager_id = (
-        resolve_case_manager_id(case, dl) if case is not None else None
-    )
+    manager_id = _case_manager_of(dl, case_id)
     if manager_id is None:
         return None
     try:

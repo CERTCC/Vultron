@@ -52,9 +52,6 @@ from vultron.core.behaviors.sender_entitlement.declarations import (
     SenderEntitlementKind,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.participants.authority import (
-    resolve_case_manager_id,
-)
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
     offer_made_from_proposal,
@@ -230,8 +227,8 @@ class SenderIsOwnershipOffererNode(
     _spec = "CM-21-015"
 
     def _recorded_request(self) -> RecordedRequest:
-        manager_id, offer = self._recorded_offer()
-        offerer_id = offer.offerer_id(manager_id)
+        _manager_id, offer = self._recorded_offer()
+        offerer_id = offer.offerer_id
         return RecordedRequest(
             description=f"ownership-transfer Offer '{offer.offer_id}'",
             position="the offerer",
@@ -319,12 +316,7 @@ class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
         made = offer_made_from_proposal(
             self.datalayer, self._case_id, self._proposal_id, sender
         )
-        manager_id = resolve_case_manager_id(case, self.datalayer)
-        offerer = (
-            made.offerer_id(manager_id)
-            if made is not None and manager_id is not None
-            else None
-        )
+        offerer = made.offerer_id if made is not None else None
         if offerer is not None and same_actor_id(offerer, sender):
             self.logger.debug(
                 "%s: proposal '%s' was made into Offer '%s' for '%s'"

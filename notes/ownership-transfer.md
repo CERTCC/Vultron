@@ -62,8 +62,11 @@ the Offer the transferee answers (ADR-0148, ADR-0199).
   `Offer(VulnerabilityCase)` with the transferee as `target`, one semantic type and
   one received tree; the receiver's path tells them apart (HP-01-038). Both are
   ledgered as `offer_case_ownership_transfer`, so every reader of "the Offer"
-  (`ownership_offer.py`) keeps only entries whose `actor` is the CASE_MANAGER:
-  an answer naming the Owner's Offer names nothing that can be accepted.
+  (`ownership_offer.py`) keeps only the CASE_MANAGER's own: its `actor` is the
+  CASE_MANAGER and its id is the one derived from its `inReplyTo` and
+  `attributedTo` (CM-21-028). The `actor` alone is not enough, because an Owner
+  that is also the CASE_MANAGER (CM-02-010) sends its own Offer as the
+  CASE_MANAGER. An answer naming the Owner's Offer names nothing to accept.
 
 ### Proposal and Offer flow
 
@@ -238,8 +241,8 @@ sender guard admits the CASE_MANAGER alone. Nothing is committed there.
 
 - **At the transferee, take the offerer from `attributed_to`, not `actor_id`**
   (#3012): the Offer is delegated, so its `actor` is the CASE_MANAGER. Honour
-  `attributed_to` only when the sender is the case's CASE_MANAGER
-  (`RecordedOwnershipOffer.offerer_id()`); nothing downstream re-checks it
+  `attributed_to` only on an Offer the case's CASE_MANAGER made
+  (`RecordedOwnershipOffer.offerer_id`); nothing downstream re-checks it
   (CLP-07-003 checks `payloadSnapshot.actor`).
 - **The snapshot builder's `_get_id` never falls back to `str(field)`**
   (`vultron/wire/as2/extractor/_builders/fields.py`): `attributedTo` may be an

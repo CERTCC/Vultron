@@ -15,7 +15,8 @@
 The Case Owner proposes a transfer to the CASE_MANAGER with its own
 ``Offer(VulnerabilityCase)``; the CASE_MANAGER makes its own
 ``Offer(VulnerabilityCase)`` from it, the one the transferee answers, under an
-id it derives from the Owner's.  The harness delivers proposals and hands back that Offer.
+id it derives from the Owner's.  The harness delivers proposals and hands back
+that Offer.
 """
 
 import json
@@ -418,13 +419,14 @@ class TestOwnershipTransferUseCases:
         ],
     )
     @pytest.mark.spec("CM-21-026")
-    def test_an_inner_offer_the_case_manager_cannot_make_is_refused(
+    def test_an_owners_offer_naming_a_transferee_it_cannot_take_is_refused(
         self, make_payload, label, reason
     ):
         """The Owner's Offer must name an actor the CASE_MANAGER can address;
-        otherwise it is answered with the refusal notice, nothing is ledgered
-        and no Offer is made."""
-        case_id = f"https://example.org/cases/case_ot_inner_{label}"
+        otherwise it is refused, nothing is ledgered and no Offer is made.
+        The refusal notice is pinned by
+        ``TestRefusedOwnersOfferIsAnsweredWithANotice``."""
+        case_id = f"https://example.org/cases/case_ot_target_{label}"
         dl, _, trigger_activity = _ownership_offer_harness(
             make_payload, case_id
         )
@@ -439,7 +441,7 @@ class TestOwnershipTransferUseCases:
             target=target,
             actor=_VENDOR_ID,
             to=[_CASE_ACTOR_ID],
-            id_=f"https://example.org/activities/proposal_inner_{label}",
+            id_=f"https://example.org/activities/proposal_target_{label}",
             at=authored_at(),
         )
         roles_before = _owner_roles(dl, case_id)
