@@ -29,6 +29,7 @@ through CM-31-013 once.  These cover the edges around them (ADR-0116, #4081,
   member from the ``Accept(Invite)`` entry alone (CM-31-012).
 """
 
+import logging
 from itertools import pairwise
 from typing import Any
 
@@ -45,6 +46,9 @@ from test.core.use_cases.received.actor.test_case_joining_replies import (
 from test.core.use_cases.received.conftest import (
     refusal_notices_since,
     seed_inert_invitee,
+)
+from test.core.use_cases.received.test_participant_removal import (
+    assert_one_refusal_warning,
 )
 from test.core.use_cases.received.test_participant_removal_planned import (
     CASE_ID,
@@ -299,16 +303,26 @@ def test_reinstatement_asks_for_no_new_acceptance(
 
 
 @pytest.mark.spec("CM-31-043")
-def test_add_from_a_non_owner_is_refused(case: _RemovalCase) -> None:
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.spec("SL-03-002")
+def test_add_from_a_non_owner_is_refused(
+    case: _RemovalCase, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The sender guard refuses it: nothing committed, no refusal notice
+    (CLP-05-006), and one WARNING line naming the act and the sender."""
     case.remove(VENDOR)
     before = len(case.ledger())
+    activity = _owner_reinstates(case, by=OTHER)
 
-    result = case.route(_owner_reinstates(case, by=OTHER))
+    with caplog.at_level(logging.WARNING):
+        result = case.route(activity)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert case.participant(VENDOR).removed
     assert len(case.ledger()) == before
     assert _reinstatement_announces(case) == []
+    assert case.activities_to("Refuse", OTHER) == []
+    assert_one_refusal_warning(caplog, activity.id_, OTHER)
 
 
 @pytest.mark.spec("CM-31-036")

@@ -5,10 +5,13 @@ status_override: >-
   Householder, issue #6487 planning interview, 2026-11-17, and issue #6626
   planning interview, 2026-11-19); neither the announced ownership Offer of
   revision 2 nor any of revision 1 was built, and the implementation issues
-  rewrite the dependent requirements.
+  rewrite the dependent requirements. One sentence edited in place on
+  2026-11-20 with the decider's approval (#6465 build, epic run #6509): an
+  Owner that is also the CASE_MANAGER sends its removal or reinstatement to
+  its own inbox, which admits it through the same received tree.
 date: 2026-11-13
 created: 2026-11-13
-updated: 2026-11-19
+updated: 2026-11-20
 revision: 3
 deciders: Allen D. Householder
 consulted: >-
@@ -110,6 +113,7 @@ The Case Owner decides these, and sends each as the act, to the CASE_MANAGER:
 - **Removal and reinstatement.** `Remove(<Actor>, origin=<case>)` and `Add(<Actor>, target=<case>)`.
   The act names the actor the Owner decided about, as a typed reference, not the participant record.
   Each actor has one participant record per case, so the actor identifies the record, and a reinstatement reuses it, which keeps the participant's history and consent (ADR-0116).
+  An Owner that also holds the CASE_MANAGER role sends the act to itself: ordinary outbox delivery brings it to its own inbox, and the same received tree admits or refuses it under the same rules.
 - **Putting a proposed embargo in force.** `Update(EmbargoEvent)` setting its `status` to active, for a first proposal or a revision, with `inReplyTo` naming the `Invite(EmbargoEvent)` that proposed it.
   The proposal already put the embargo on the case's register, so its activation is a change of its status (ADR-0202).
 - **Rejecting a proposed embargo.** `Update(EmbargoEvent)` setting its `status` to rejected, with `inReplyTo` naming the proposal's `Invite(EmbargoEvent)`.
@@ -230,7 +234,7 @@ Revision 3 has the CASE_MANAGER make its own Offer from the Owner's, so that an 
 The announced Offer of revision 2 was not built.
 
 This record partially supersedes ADR-0116 in its choice of the removal and reinstatement messages.
-These ADR-0116 statements no longer hold: the message names the participant record with the case as its `target`; the CASE_MANAGER sends the removed party a separate, unledgered notice; and an Owner that is also the CASE_MANAGER posts the request to its own inbox.
+These ADR-0116 statements no longer hold: the message names the participant record with the case as its `target`; the CASE_MANAGER sends the removed party a separate, unledgered notice.
 ADR-0116's decision that removal is a stored fact that withdraws entitlement, not membership, stands, and so does its rule that the Owner's admitted act is the ledger entry.
 
 It partially supersedes ADR-0148 in the Owner's transfer message: the Owner's `Offer(Offer(VulnerabilityCase))` gives way to the Owner's own `Offer(VulnerabilityCase)` naming the transferee, sent to the CASE_MANAGER and ledgered as the Owner's decision.

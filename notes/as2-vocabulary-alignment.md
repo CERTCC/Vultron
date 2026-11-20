@@ -309,8 +309,9 @@ Issues: #6293, #6487. Record: ADR-0199 revision 2.
   act>)`. It replaces the separate unledgered notice (CM-31-006, CM-31-026). A
   replica still applies the change only from the entry (CM-31-007, CM-31-029), so the
   notice and the entry's fan-out apply it once.
-- An Owner that is also the CASE_MANAGER sends the same act and admits it under the
-  same rules, without posting to its own inbox.
+- An Owner that is also the CASE_MANAGER sends the same act to itself: ordinary
+  outbox delivery brings it to its own inbox, whose received tree admits it under
+  the same rules (OX-12-001).
 
 **AS2 basis.** An activity states what its sender did. The Owner's removal is its
 decision, which it makes, so the bare act is true of it; the CASE_MANAGER's ledger

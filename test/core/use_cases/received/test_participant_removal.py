@@ -20,6 +20,7 @@ and with the entry (ADR-0116, ADR-0199).
 """
 
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -198,20 +199,45 @@ def test_a_redelivered_removal_changes_nothing(removal: _RemovalCase) -> None:
     assert len(removal.activities_to("Announce", VENDOR)) == 1
 
 
-@pytest.mark.spec("CM-31-004")
-def test_refused_removal_writes_nothing_but_the_archive(
-    removal: _RemovalCase,
+def assert_one_refusal_warning(
+    caplog: pytest.LogCaptureFixture, activity_id: str, sender_id: str
 ) -> None:
-    """A non-owner's removal is archived (CLP-10-018) and changes nothing."""
+    """The received runner logged one WARNING for the refused act, naming the
+    act and its sender (SL-03-002)."""
+    lines = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING
+        and r.name.endswith("received_run.runner")
+        and activity_id in r.getMessage()
+    ]
+    assert len(lines) == 1, [r.getMessage() for r in lines]
+    assert sender_id in lines[0].getMessage()
+
+
+@pytest.mark.spec("CM-31-004")
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.spec("SL-03-002")
+def test_refused_removal_writes_nothing_but_the_archive(
+    removal: _RemovalCase, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-owner's removal is archived (CLP-10-018) and changes nothing.
+
+    The sender guard refuses it, so no refusal notice is sent (CLP-05-006);
+    the received runner logs one WARNING line for it (SL-03-002).
+    """
     activity = _owner_removes(by=OTHER)
 
-    result = removal.route(activity)
+    with caplog.at_level(logging.WARNING):
+        result = removal.route(activity)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert not removal.participant(VENDOR).removed
     assert removal.ledger() == []
     assert removal.activities_to("Announce", VENDOR) == []
+    assert removal.activities_to("Refuse", OTHER) == []
     assert removal.dl.read(ReceivedActivityRecord.build_id(activity.id_))
+    assert_one_refusal_warning(caplog, activity.id_, OTHER)
 
 
 @pytest.mark.spec("CM-31-004")

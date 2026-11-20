@@ -10602,17 +10602,21 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST refuse a CM-31-011 reinstatement from a sender that does
-      not hold `CASE_OWNER`, with a refusal notice, committing nothing.
+      not hold `CASE_OWNER`, committing nothing.
     rationale: >-
-      Reinstatement is the Case Owner's decision, as removal is (CM-31-004).
+      Reinstatement is the Case Owner's decision, as removal is (CM-31-004). The
+      sender guard refuses it, so no refusal notice is sent (CLP-05-006); the
+      received runner logs the refusal at WARNING (SL-03-002).
     verification: >-
       `test_add_from_a_non_owner_is_refused` in
       `test/core/use_cases/received/test_participant_reinstatement.py` asserts that
-      a non-owner's reinstatement is refused with no ledger entry and no
-      `Announce`.
+      a non-owner's reinstatement is refused with no ledger entry, no `Announce`
+      and no refusal notice, and that the refusal is logged once at WARNING.
     relationships:
     - rel_type: extends
       spec_id: CM-31-011
+    - rel_type: uses_definition
+      spec_id: CLP-05-006
     adr:
     - ADR-0199
     stories:
