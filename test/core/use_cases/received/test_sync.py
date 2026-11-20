@@ -1349,6 +1349,7 @@ class TestAddLedgerEntryShapeAtTheEdge:
 
     @pytest.mark.spec("SYNC-02-008")
     @pytest.mark.spec("CLP-14-012")
+    @pytest.mark.spec("HP-08-015")
     def test_an_add_naming_another_case_is_refused_at_the_parse_edge(self):
         """The entry names its case in ``context``, so the Add's own
         ``context`` naming another case is two cases on one act, refused

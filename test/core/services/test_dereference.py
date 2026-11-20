@@ -587,7 +587,7 @@ class TestCaseObjectForParticipant:
         assert getattr(found, "id_", None) == scoped.id_
 
     @pytest.mark.spec("AKM-05-006")
-    @pytest.mark.spec("IE-02-003")
+    @pytest.mark.spec("SYNC-02-006")
     def test_a_ledger_entry_is_not_served_though_it_names_the_case(self):
         """An entry's ``context`` is its case (CLP-14-012), but the ledger
         has no read surface: entries reach a participant by replication."""

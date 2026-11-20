@@ -283,7 +283,7 @@ def case_object_for_participant(
     an active participant of the case (CM-10-004) that has not closed, as
     case content is sent only to one (CM-23-004, :func:`may_act_on_case`),
     and only an object the case names, or one scoped to it by its
-    ``context`` (AKM-05-006).
+    ``context`` other than a ledger entry (AKM-05-006).
     *requester_id* is the actor the request claims to be: a fetch request
     carries no proof, so the prototype does not authenticate it (HTTP-level
     request authentication is #509).
@@ -307,9 +307,9 @@ def case_object_for_participant(
         raise VultronNotACaseParticipantError(case.id_, requester)
     if object_id == case.id_:
         return case
-    # A ledger entry names its case in ``context`` (CLP-14-012), but the
-    # ledger has no read surface (IE-02-003): entries reach a participant
-    # only by replication (SYNC-02-005).
+    # A ledger entry names its case in ``context`` (CLP-14-012), but it is
+    # not a case object: no route serves the ledger (AKM-05-006,
+    # SYNC-02-006), so entries reach a participant only by replication.
     if _is_ledger_entry_id(case.id_, object_id):
         raise VultronNotFoundError("Object", object_id)
     found = dl.read(object_id)
