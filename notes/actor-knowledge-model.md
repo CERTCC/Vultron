@@ -49,8 +49,7 @@ dereferences narrowly: the inbox fetches an object only for an activity no
 pattern matches because of it (`UNKNOWN_UNRESOLVABLE_OBJECT`), a replica's
 replaced embargo, and a proposer's profile (AKM-05-007). A bare `object` matches
 no pattern that tests the object by its type (SE-01-006), so an activity whose
-`object` the recipient lacks is fetched for before it reaches a handler; only
-`Read(CaseLedgerEntry)`, told apart by its `ledgerPosition`, matches one. A bare
+`object` the recipient lacks is fetched for before it reaches a handler. A bare
 `target` or `context` still matches (SE-01-007) and its handler decides. A typed
 reference (`id` and `type` only) of any type routes by its type. In the `object`
 chain, rehydration puts the held object of that type in its place; a reference the

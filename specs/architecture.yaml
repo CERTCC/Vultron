@@ -192,10 +192,9 @@ groups:
       `SyncActivityPort` MUST be defined as a `typing.Protocol` in
       `vultron/core/ports/sync_activity.py` with fire-and-forget methods, one
       per sync activity it builds: `send_reject_log_entry(entry, tail_hash,
-      actor_id, to, *, in_reply_to)`, `send_genesis_replay_reject(case_id,
-      copy_tail_hash, actor_id, to, *, in_reply_to)`,
-      `send_read_ledger_entry(case_id, ledger_position,
-      actor_id, to)` and
+      actor_id, to, *, in_reply_to)`, `send_read_ledger(case_id,
+      ledger_position, actor_id, to)`, `send_empty_chain_read(case_id,
+      copy_tail_hash, actor_id, to, *, in_reply_to)` and
       `send_add_log_entry(entry, actor_id, to)`. `send_add_log_entry`
       reports whether a row was queued (`bool`; `False` when an identical row was
       already pending, SYNC-15-012); callers need not use the result, and no other
@@ -3060,7 +3059,7 @@ groups:
       gives every slot the same resolution rule.
     verification: >-
       `test_rehydrate_materialises_object_slots` and
-      `test_rehydrate_materialises_from_a_bare_case_id` in
+      `test_rehydrate_materialises_from_a_bare_id` in
       `test/wire/as2/test_rehydration_materialisation.py` assert `rehydrate()` resolves
       references through the `DataLayer` it is given, and
       `test/architecture/test_core_no_to_core_duck_typing.py` asserts core keeps no
@@ -3105,10 +3104,11 @@ groups:
       A placeholder or a synthesized actor states facts that no actor asserted, and
       activity can then be attributed to the wrong actor.
     verification: >-
-      `test_unresolvable_activity_id_is_kept_as_string` in
-      `test/wire/as2/test_rehydration_materialisation.py` asserts a `case_activity`
-      reference stays an IRI rather than an activity fabricated and attributed to the
-      Case Owner.
+      `test_unresolvable_activity_id_is_refused_not_fabricated` in
+      `test/wire/as2/test_rehydration_materialisation.py` asserts an unresolvable
+      activity reference is refused rather than replaced by a stub activity, and
+      `test_materialised_activity_carries_its_own_actor` asserts a resolved activity
+      keeps its stored actor rather than one attributed to the Case Owner.
     relationships:
     - rel_type: extends
       spec_id: ARCH-25-029

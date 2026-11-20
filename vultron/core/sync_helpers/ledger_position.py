@@ -51,9 +51,9 @@ def store_ledger_entry(
             names, with another hash (SYNC-16-025).
     """
     with dl.transaction():
-        case = dl.read_case(entry.case_id)
+        case = dl.read_case(entry.context)
         if case is None:
-            raise VultronNotFoundError("VulnerabilityCase", entry.case_id)
+            raise VultronNotFoundError("VulnerabilityCase", entry.context)
         held = case.ledger_position
         if (
             entry.log_index == held.log_index
@@ -62,7 +62,7 @@ def store_ledger_entry(
             raise VultronEntryRefusedError(
                 f"ledger entry '{entry.id_}' is at index {entry.log_index}"
                 f" with hash {entry.entry_hash:.16}…, but case"
-                f" '{entry.case_id}' names {held.entry_hash:.16}… there: the"
+                f" '{entry.context}' names {held.entry_hash:.16}… there: the"
                 " chains conflict (SYNC-16-025)"
             )
         dl.save(entry)
@@ -115,7 +115,7 @@ def holds_ledger_position(
                 obj.entry_hash
                 for obj in dl.list_objects("CaseLedgerEntry")
                 if isinstance(obj, CaseLedgerEntry)
-                and obj.case_id == case_id
+                and obj.context == case_id
                 and obj.log_index == position.log_index
             ),
             "",

@@ -80,7 +80,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
 
         note_data = snapshot.get("object")
         note_id = _extract_id_from_field(note_data)
-        case_id = entry.case_id
+        case_id = entry.context
 
         if not note_id or not case_id:
             self.logger.debug(
@@ -187,7 +187,7 @@ class ApplyRemoveNoteFromLedgerNode(_LedgerEffectNode):
 
         entry = self._get_entry()
         note_id = _extract_id_from_field(entry.payload_snapshot.get("object"))
-        case_id = entry.case_id
+        case_id = entry.context
         if not note_id or not case_id:
             self.logger.debug(
                 "%s: payload_snapshot missing 'object' id or case_id"

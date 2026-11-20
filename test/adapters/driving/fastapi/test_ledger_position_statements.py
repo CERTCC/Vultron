@@ -81,10 +81,10 @@ def _queued_reads(store: SqliteDataLayer) -> list[as_Read]:
 
 
 @pytest.mark.spec("SYNC-17-007")
-def test_restart_queues_one_read_naming_the_tail(
+def test_restart_queues_one_read_stating_the_tail(
     participant_dl, hosted
 ) -> None:
-    """After a restart the participant queues one Read naming its tail."""
+    """After a restart the participant queues one Read stating its tail."""
     total = asyncio.run(lps.state_hosted_ledger_positions())
 
     assert total == 1
@@ -95,9 +95,10 @@ def test_restart_queues_one_read_naming_the_tail(
         participant_dl.list_objects("CaseLedgerEntry"),
         key=lambda entry: entry.log_index,
     )
-    assert _as_id(read.object_) == tail.id_
+    assert _as_id(read.object_) == f"{tail.context}/ledger"
     assert read.to == [MANAGER_ID]
     assert read.ledger_position is not None
+    assert read.ledger_position.log_index == tail.log_index
     assert read.ledger_position.entry_hash == tail.entry_hash
     assert hosted == [SIGNATORY_ID]  # its outbox is drained after
 
@@ -137,11 +138,11 @@ def test_each_statement_is_a_new_activity(participant_dl) -> None:
         log_index=tail.log_index, entry_hash=tail.entry_hash
     )
 
-    adapter.send_read_ledger_entry(
-        tail.case_id, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
+    adapter.send_read_ledger(
+        tail.context, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
     )
-    adapter.send_read_ledger_entry(
-        tail.case_id, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
+    adapter.send_read_ledger(
+        tail.context, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
     )
 
     reads = _queued_reads(participant_dl)

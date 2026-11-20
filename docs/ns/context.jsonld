@@ -34,11 +34,6 @@
         "@type": "@id",
         "@container": "@index"
       },
-      "caseActivity": {
-        "@id": "vultron:caseActivity",
-        "@type": "@id",
-        "@container": "@set"
-      },
       "caseEngagement": "vultron:caseEngagement",
       "caseParticipants": {
         "@id": "vultron:caseParticipants",

@@ -248,7 +248,7 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
             return f
         assert self.datalayer is not None
         entry = self._get_entry()
-        case = self._resolve_case_replica(entry.case_id)
+        case = self._resolve_case_replica(entry.context)
         if case is None:
             return super().update()  # Regime 2, or a malformed entry
         try:
@@ -259,7 +259,7 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
             self.feedback_message = (
                 f"{self.name}: '{entry.semantic_type}' entry '{entry.id_}' names"
                 f" embargo '{step.embargo_id}', which is not the one in force"
-                f" on case '{entry.case_id}' — nothing to copy (ADR-0122)"
+                f" on case '{entry.context}' — nothing to copy (ADR-0122)"
             )
             self.logger.info("%s", self.feedback_message)
             return Status.SUCCESS
@@ -278,7 +278,7 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
         if violations:
             self.feedback_message = (
                 f"Refused teardown entry '{entry.id_}' on case"
-                f" '{entry.case_id}': " + "; ".join(violations)
+                f" '{entry.context}': " + "; ".join(violations)
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

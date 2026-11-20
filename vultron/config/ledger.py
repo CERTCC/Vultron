@@ -54,7 +54,7 @@ class LedgerConfig(BaseModel):
             it.  CLP-14-015 sets the default at seven days.
         position_statement_interval_seconds: How often a hosted participant
             states its ledger position for each case it holds, with
-            ``Read(CaseLedgerEntry)``, beyond the statement it sends after
+            ``Read(<case>/ledger)``, beyond the statement it sends after
             every restart (SYNC-17-007).  When it is ``None`` the periodic
             statement is off, because a periodic check costs traffic a
             deployment should choose.  Default ``None``.
@@ -116,7 +116,7 @@ class LedgerConfig(BaseModel):
         description=(
             "SYNC-17-007 interval at which each hosted participant states its "
             "ledger position to each case's CASE_MANAGER with "
-            "Read(CaseLedgerEntry), after the statement every restart sends. "
+            "Read(<case>/ledger), after the statement every restart sends. "
             "Default: None (off)."
         ),
     )

@@ -175,7 +175,7 @@ def entry_reflected_by_case_copy(
     entry is.  A replica in step with its chain stores each new entry past
     its position, so this is ``False`` for it.
     """
-    case = dl.read_case(entry.case_id)
+    case = dl.read_case(entry.context)
     if case is None:
         return False
     position = case.ledger_position
@@ -200,7 +200,7 @@ def entry_conflicts_with_case_position(
     position carry no hash the case names, so a divergence among them shows
     here, when the chain reaches the position.
     """
-    case = dl.read_case(entry.case_id)
+    case = dl.read_case(entry.context)
     if case is None:
         return False
     position = case.ledger_position
@@ -284,7 +284,7 @@ def records_a_reflected_entry_adds(
     left out; one that does not validate as its type is left out with a
     WARNING.
     """
-    case = dl.read_case(entry.case_id)
+    case = dl.read_case(entry.context)
     if case is None:
         return []
     named = _named_by(case)

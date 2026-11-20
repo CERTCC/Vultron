@@ -23,6 +23,7 @@ from sqlmodel import select
 
 from vultron.adapters.driven.db_record import Record
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -380,7 +381,7 @@ def find_protocol_pair(
         (
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if getattr(e, "case_id", None) == case_id
+            if isinstance(e, CaseLedgerEntry) and e.context == case_id
         ),
         key=lambda e: getattr(e, "log_index", 0),
     )

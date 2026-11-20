@@ -173,7 +173,7 @@ class _RemovalCase:
         return [
             entry
             for entry in self.dl.list_objects("CaseLedgerEntry")
-            if isinstance(entry, CaseLedgerEntry) and entry.case_id == CASE_ID
+            if isinstance(entry, CaseLedgerEntry) and entry.context == CASE_ID
         ]
 
     def activities_to(self, type_: str, actor_id: str) -> list[Any]:

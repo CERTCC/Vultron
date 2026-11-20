@@ -30,11 +30,11 @@ from vultron.wire.as2.factories import (
     stamp_sender_sequence,
 )
 from vultron.wire.as2.factories.sync import (
-    genesis_replay_reject_activity,
     read_ledger_position_activity,
     reject_log_entry_activity,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Read
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
@@ -57,7 +57,7 @@ def _note(*, positioned: bool = True):
 def _entry() -> as_CaseLedgerEntry:
     core = make(
         CaseLedgerEntry,
-        case_id=_CASE,
+        context=_CASE,
         log_index=4,
         log_object_id=f"{_CASE}/activities/4",
         semantic_type="add_note_to_case",
@@ -135,18 +135,29 @@ def test_the_ledger_requests_take_no_number() -> None:
         ),
         _TAIL,
     )
-    genesis = genesis_replay_reject_activity(
-        _CASE,
-        _EMPTY,
-        actor=_ACTOR,
-        in_reply_to="https://example.org/activities/prompting-announce",
-        at=authored_at(),
+    genesis = read_ledger_position_activity(
+        _CASE, _EMPTY, actor=_ACTOR, at=authored_at()
     )
 
     for request in (read, reject, genesis):
         assert is_ledger_request(request)
         assert list(sender_sequence_case_ids(request)) == []
     assert not is_ledger_request(_note())
+
+
+@pytest.mark.spec("SYNC-21-001")
+def test_a_read_of_anything_but_its_case_ledger_is_no_request() -> None:
+    """Only a ``Read`` of the ledger of a case it names asks about a ledger."""
+    other = make(
+        as_Read,
+        actor=_ACTOR,
+        object_=make(as_Note, content="not a ledger", context=_CASE),
+        context=_CASE,
+        ledger_position=_TAIL,
+    )
+
+    assert not is_ledger_request(other)
+    assert list(sender_sequence_case_ids(other)) != []
 
 
 @pytest.mark.spec("SYNC-21-001")

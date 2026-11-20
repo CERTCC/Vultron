@@ -70,12 +70,12 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
         """The missing case, and whether its genesis Reject was sent."""
         if self.withheld:
             return (
-                f"case '{entry.case_id}' is not seeded here; a Reject for"
+                f"case '{entry.context}' is not seeded here; a Reject for"
                 " replay from genesis was already sent within the interval,"
                 " so none is sent again (SYNC-15-016)"
             )
         return (
-            f"case '{entry.case_id}' is not seeded here; Reject sent for"
+            f"case '{entry.context}' is not seeded here; Reject sent for"
             " replay from genesis (SYNC-15-001)"
         )
 
@@ -85,7 +85,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
         sync_port: SyncActivityPort,
         actor_id: str,
         sender_id: str,
-        announce_id: str,
+        add_id: str,
     ) -> None:
         if self.datalayer is None:
             raise VultronWiringError(
@@ -98,7 +98,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
         # cannot both find no recent Reject and both send one.
         with self.datalayer.transaction():
             last_sent_at = last_genesis_reject_at(
-                self.datalayer, entry.case_id
+                self.datalayer, entry.context
             )
             if not cooldown_elapsed(
                 last_sent_at, MAX_REPLAY_COOLDOWN_SECONDS, at=at
@@ -110,7 +110,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
                     self.name,
                     entry.id_,
                     entry.log_index,
-                    entry.case_id,
+                    entry.context,
                     actor_id,
                     last_sent_at,
                     MAX_REPLAY_COOLDOWN_SECONDS,
@@ -122,7 +122,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
                 "%s: case '%s' of log entry '%s' is not held; sending a"
                 " genesis Reject(CaseLedgerEntry) to '%s' (SYNC-15-001)",
                 self.name,
-                entry.case_id,
+                entry.context,
                 entry.id_,
                 sender_id,
             )
@@ -131,8 +131,8 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
                 tail_hash=self.tail_hash,
                 actor_id=actor_id,
                 to=[sender_id],
-                in_reply_to=announce_id,
+                in_reply_to=add_id,
                 asked_at=asked_at,
                 at=self._require_act_instant(),
             )
-            record_genesis_reject(self.datalayer, entry.case_id, asked_at)
+            record_genesis_reject(self.datalayer, entry.context, asked_at)

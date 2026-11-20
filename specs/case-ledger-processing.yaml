@@ -4091,7 +4091,7 @@ groups:
     statement: >-
       When `find_protocol_pair()` searches for a reply entry, it SHOULD use the
       `semantic_type` field of `CaseLedgerEntry` (derived from `MessageSemantics.value`)
-      as the primary key, scoped to `case_id`.
+      as the primary key, scoped to the entry's case (its `context`).
     rationale: >-
       The semantic type of an entry names the reply exactly, and the case scope keeps
       the search inside one ledger. A search that follows `in_reply_to` chains depends
@@ -4307,12 +4307,11 @@ groups:
     verification: >-
       Holds by construction: a holder files each entry in the ledger of the case the
       entry names, so no ledger can take another case's entry.
-      `test_clp_14_012_an_entry_joins_only_the_ledger_its_case_id_names` in
+      `test_clp_14_012_an_entry_joins_only_the_ledger_its_context_names` in
       `test/core/models/test_clp_14_15_invariants.py` asserts another case's entry
       moves only that case's ledger, and
       `test_clp_14_012_an_entry_names_its_case_in_context` requires the entry to name
-      its case in a required `context` with no `case_id`; it is a strict `xfail` until
-      #6411 moves the case.
+      its case in a required `context` with no `case_id`.
     relationships:
     - rel_type: implements
       spec_id: CLP-14-004

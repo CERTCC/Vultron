@@ -690,7 +690,6 @@ class TestInvalidateReportReceivedTree:
         event = _make_invalidate_report_event()
         tree = create_invalidate_report_received_tree(
             event,
-            case_id=CASE_ID,
             sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
         )
         bridge = BTBridge(datalayer=dl)
@@ -719,7 +718,6 @@ class TestInvalidateReportReceivedTree:
         event = _make_invalidate_report_event()
         tree = create_invalidate_report_received_tree(
             event,
-            case_id=None,
             sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
         )
         bridge = BTBridge(datalayer=dl)
@@ -747,7 +745,6 @@ class TestInvalidateReportReceivedTree:
         for _ in range(2):
             tree = create_invalidate_report_received_tree(
                 event,
-                case_id=CASE_ID,
                 sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
             )
             result = run_tree(
@@ -821,16 +818,16 @@ def test_report_verdict_tree_runs_case_clock_decisions_after_sender_guard():
     """
     tree = create_invalidate_report_received_tree(
         _make_invalidate_report_event(),
-        case_id=CASE_ID,
         sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
     )
-    assert [c.name for c in tree.children[:11]] == [
+    assert [c.name for c in tree.children[:12]] == [
         "ActivityAddressedToReceiverNode",
         "ActivityNotSeenBeforeNode",
+        "FindCaseForReport",
         "ReceivedPathNode",
         "CaseOpenToExternalWrites",
         "RequireCaseForReport",
-        "SenderIsParticipantNode",
+        "SenderRuleGuard",
         "IntakeReceivedActivityNode",
         "LedgerPositionIfCaseManager",
         "SenderSequenceIfCaseManager",

@@ -99,6 +99,12 @@ REFUSAL_UNREACHABLE: dict[MessageSemantics, str] = {
         " which is SKIPPED with no effects, or on an unknown case, which a"
         " door refuses first"
     ),
+    MessageSemantics.CLOSE_REPORT: (
+        "the tree declares the no-case path alone, so the CASE_MANAGER, the"
+        " only receiver that runs refusal effects, is refused at the path"
+        " stage before the guards; its refusal stage is the run-time-case"
+        " refusal notice the factory builds for every lookup tree (BT-25-009)"
+    ),
     MessageSemantics.ADD_CASE_STATUS_TO_CASE: (
         "the tree declares the participant-replica path alone, so the"
         " CASE_MANAGER, the only receiver that runs refusal effects, is"

@@ -211,7 +211,6 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
             PropertyValueKind.IRI,
         ),
     )
-    participant_case_name: NonEmptyString | None = None
 
     @field_validator("embargo_consents", mode="after")
     @classmethod

@@ -76,7 +76,7 @@ def create_hash_mismatch_fault_tree(
         sender_id: The fault's ``actor``: the replica that refused it.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
-    case_id = refused_entry.case_id
+    case_id = refused_entry.context
     return create_receive_activity_tree(
         name="HashMismatchFaultReceivedBT",
         case_id=None,

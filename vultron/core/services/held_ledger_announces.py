@@ -152,7 +152,7 @@ def _make_room(
     Returns ``False`` when *entry* is itself the farthest ahead of the gap,
     so it is the one dropped (SYNC-14-013).
     """
-    held = held_ledger_announces(dl, entry.case_id)
+    held = held_ledger_announces(dl, entry.context)
     if len(held) < max_per_case:
         return True
     if not held or entry.log_index >= held[-1].log_index:
@@ -160,7 +160,7 @@ def _make_room(
             "held ledger announces: holding area full for case %s (max=%d,"
             " actor %s); not holding Add '%s' of far-future entry"
             " index=%d",
-            entry.case_id,
+            entry.context,
             max_per_case,
             actor_id,
             activity_id,
@@ -173,7 +173,7 @@ def _make_room(
         "held ledger announces: holding area full for case %s (max=%d,"
         " actor %s); dropped the Add '%s' of farthest-ahead entry"
         " index=%d to hold Add '%s' of index=%d",
-        entry.case_id,
+        entry.context,
         max_per_case,
         actor_id,
         farthest.activity_id,
@@ -212,7 +212,7 @@ def hold_ledger_announce(
     Raises:
         VultronWiringError: When intake recorded no body for *activity_id*.
     """
-    existing = held_successor(dl, entry.case_id, entry.prev_log_hash)
+    existing = held_successor(dl, entry.context, entry.prev_log_hash)
     if existing is not None and existing.entry_hash == entry.entry_hash:
         if holds_held_body(dl, existing):
             logger.debug(
@@ -239,7 +239,7 @@ def hold_ledger_announce(
             "held ledger announces: replacing forked held entry for case %s"
             " (actor %s) prev_log_hash=%.16s… (old index=%d in '%s', new"
             " index=%d in '%s')",
-            entry.case_id,
+            entry.context,
             actor_id,
             entry.prev_log_hash,
             existing.log_index,
@@ -269,7 +269,7 @@ def hold_ledger_announce(
         )
         dl.save(
             HeldLedgerAnnounce(
-                case_id=entry.case_id,
+                case_id=entry.context,
                 prev_log_hash=entry.prev_log_hash,
                 log_index=entry.log_index,
                 entry_hash=entry.entry_hash,
@@ -282,7 +282,7 @@ def hold_ledger_announce(
         " %s (actor %s, index=%d, prev_log_hash=%.16s…)",
         activity_id,
         entry.id_,
-        entry.case_id,
+        entry.context,
         actor_id,
         entry.log_index,
         entry.prev_log_hash,

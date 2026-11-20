@@ -319,11 +319,14 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         "create_validate_report_received_tree",
         0,
     ): frozenset({CM}),
+    # The tree finds its case at run time, so a receiver with no case for
+    # the report is on the no-case path, where the tree refuses an unknown
+    # case (#2255, HP-01-041, BT-25-009).
     (
         f"{_R}/received_report_trees/verdicts.py",
         "create_invalidate_report_received_tree",
         0,
-    ): frozenset({CM}),
+    ): frozenset({CM, NC}),
     (
         f"{_R}/received_report_trees/receipt.py",
         "create_report_received_tree",
@@ -447,7 +450,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     (f"{_SY}/reject_tree.py", "create_reject_log_entry_tree", 0): frozenset(
         {CM}
     ),
-    (f"{_SY}/read_tree.py", "create_read_log_entry_tree", 0): frozenset({CM}),
+    (f"{_SY}/read_tree.py", "create_read_ledger_tree", 0): frozenset({CM}),
     (
         f"{_SY}/divergence_tree.py",
         "create_case_diverged_fault_tree",
@@ -468,15 +471,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
 #: is still one declaration per message type (HP-01-038).
 # permanent: HP-01-036 (a tree that names no case can be on the no-case path
 # alone; a tree in this set is not waiting for a migration)
-CONDITIONAL_DECLARATION_EXEMPTIONS: frozenset[Site] = frozenset(
-    {
-        (
-            f"{_R}/received_report_trees/verdicts.py",
-            "create_invalidate_report_received_tree",
-            0,
-        ),
-    }
-)
+CONDITIONAL_DECLARATION_EXEMPTIONS: frozenset[Site] = frozenset()
 
 #: Sites that declare no paths by decision, each with the reason.  The
 #: discriminator is not whether a delivery runs the tree — several of these run
@@ -789,26 +784,26 @@ def test_a_conditional_declaration_is_listed_with_its_reason() -> None:
 
 
 @pytest.mark.spec("HP-01-036", "HP-01-041")
-def test_a_conditional_site_with_no_case_judges_the_outside_case_side() -> (
-    None
-):
-    """InvalidateReport with no case declares the no-case path alone, and its
-    guard is the rule's empty ``outside_case`` side, which admits no
-    sender."""
+def test_a_report_verdict_judges_the_outside_case_side_with_no_case() -> None:
+    """InvalidateReport finds its case at run time, so it declares the
+    manager path and the no-case path, and on the no-case path its guard is
+    the rule's empty ``outside_case`` side, which admits no sender."""
     report_event = MagicMock(name="request")
     report_event.report_id = "https://example.org/reports/no-case"
     report_event.actor_id = "https://example.org/actors/sender"
     tree = create_invalidate_report_received_tree(
         report_event,
-        case_id=None,
         sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
     )
     assert isinstance(tree, ReceivedActivityTree)
     stage = next(n for n in tree.iterate() if isinstance(n, ReceivedPathNode))
     guard = next(n for n in tree.door_guards if is_composed_sender_guard(n))
 
-    assert stage.declared == frozenset({NC})
-    assert isinstance(guard, NoSenderAdmittedNode)
+    assert stage.declared == frozenset({CM, NC})
+    outside_case = next(n for n in guard.children if n.name == "OutsideCase")
+    assert any(
+        isinstance(n, NoSenderAdmittedNode) for n in outside_case.iterate()
+    )
 
 
 @pytest.mark.spec("HP-08-014", "HP-01-038")

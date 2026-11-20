@@ -557,7 +557,7 @@ def _rebuild_case_file(
             # from its own entry (ADR-0157).
             record = case_naming_its_records(record)
         records[record.id_] = record
-        case = records.get(entry.case_id)
+        case = records.get(entry.context)
         if isinstance(case, VulnerabilityCase):
             case.ledger_position = LedgerPosition(
                 log_index=entry.log_index, entry_hash=entry.entry_hash

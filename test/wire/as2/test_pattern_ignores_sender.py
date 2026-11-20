@@ -32,7 +32,6 @@ _BASE_FIELDS = {
     "description",
     "activity_",
     "strict",
-    "accepts_bare_object",
     # The form of the object as received, never its sender (SE-01-009).
     "object_form",
     "to_",

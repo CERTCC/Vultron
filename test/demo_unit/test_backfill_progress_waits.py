@@ -79,7 +79,7 @@ def clock(monkeypatch) -> list[float]:
 def _entry(index: int, case_id: str = CASE_ID) -> CaseLedgerEntry:
     return make(
         CaseLedgerEntry,
-        case_id=case_id,
+        context=case_id,
         log_index=index,
         log_object_id=f"http://example.com/activities/a{index}",
         semantic_type="test",

@@ -205,7 +205,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
                     "%s: %s", self.name, exc
                 )
                 return Status.FAILURE
-            case_id = entry.case_id
+            case_id = entry.context
         sender_id = self._sender_actor_id or getattr(
             self.activity, "actor_id", None
         )

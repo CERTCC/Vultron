@@ -41,7 +41,7 @@ whatever the act's merits (CLP-10-005)::
                 ├─ LedgerPositionIs[split]
                 └─ ReseedPeer                  # SYNC-16-003/004
 
-The record and the replay are the nodes ``Read(CaseLedgerEntry)`` answers
+The record and the replay are the nodes ``Read(<case>/ledger)`` answers
 with (SYNC-18-007), and the re-seed is the one rate-bounded re-seed send
 (SYNC-18-005).  A held position also has the CASE_MANAGER resend each Invite
 the sender still owes an answer to, before the active check, so an inert
@@ -91,7 +91,7 @@ def _is(*expect: PositionStanding) -> LedgerPositionIsNode:
 
 
 def create_ledger_position_stage(
-    case_id: str,
+    case_id: str | None,
     sender_id: str,
 ) -> CaseManagerGate:
     """The CASE_MANAGER's answer to *sender_id*'s stamped position in *case_id*.

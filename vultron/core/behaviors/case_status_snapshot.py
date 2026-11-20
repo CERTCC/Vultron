@@ -37,8 +37,17 @@ from typing import Any, cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, OBJECT_ID
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
@@ -167,7 +176,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     1. Reads the VulnerabilityCase from the DataLayer (post-mutation).
     2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa`` state,
        its ``published`` strictly after the current status's (CM-29-005).
-       With ``reported_status_id`` set, the ``pxa`` also sets every P/X/A
+       With ``adopts_reported_status``, the ``pxa`` also sets every P/X/A
        latch the adopted ``ParticipantStatus`` reports, clearing none
        (RSH-01-003).  A snapshot whose EM and PXA equal the last committed
        status's is no change: the node returns ``SUCCESS`` having written
@@ -182,26 +191,47 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     MUST NOT route through the inbox seam (RSH-04-006).
     Per RSH-04-002 (EM mutations) and RSH-04-003 (PXA mutations).
 
+    The case is read from ``/case_id`` (BTND-01-008); with none there the
+    node fails, naming the missing case.
+
     Args:
-        case_id: The case whose status is snapshotted.
         name: Node name; defaults to the class name.
-        reported_status_id: The adopted ``ParticipantStatus``, read at tick
-            time, whose embedded ``case_status`` reports P/X/A.  Every latch it
-            sets is added to the case's, and none is cleared
-            (:func:`adopted_pxa`, RSH-01-003).  ``None`` for trees that mutate
-            the case before the snapshot (EM lifecycle).
+        adopts_reported_status: Read the adopted ``ParticipantStatus`` from
+            ``/object_id`` at tick time, whose embedded ``case_status``
+            reports P/X/A.  Every latch it sets is added to the case's, and
+            none is cleared (:func:`adopted_pxa`, RSH-01-003).  ``False`` for
+            trees that mutate the case before the snapshot (EM lifecycle).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, OBJECT_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, OBJECT_ID)
 
     def __init__(
         self,
-        case_id: str | None,
         name: str | None = None,
-        reported_status_id: str | None = None,
+        *,
+        adopts_reported_status: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.reported_status_id = reported_status_id
+        self._adopts_reported_status = adopts_reported_status
+        self.case_id: str | None = None
+        self.reported_status_id: str | None = None
         self._committed_status_id: str | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id = optional_act_value(self, CASE_ID, str)
+        self.reported_status_id = (
+            optional_act_value(self, OBJECT_ID, str)
+            if self._adopts_reported_status
+            else None
+        )
 
     def _reported(self) -> CaseStatus | None:
         """The case status the adopted ``ParticipantStatus`` embeds.

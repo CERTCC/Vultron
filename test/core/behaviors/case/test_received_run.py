@@ -541,11 +541,7 @@ def test_no_change_is_not_read_on_a_failed_run():
 
 @pytest.mark.spec("RSH-08-002")
 def test_the_rm_repeat_guard_declares_no_change_on_success():
-    node = CheckParticipantRMState(
-        case_id="https://example.org/cases/c",
-        actor_id="https://example.org/actors/a",
-        target_rm=RM.ACCEPTED,
-    )
+    node = CheckParticipantRMState(target_rm=RM.ACCEPTED)
     assert isinstance(node, ReportsNoChange)
     node.status = Status.SUCCESS
     assert node.succeeded_without_change

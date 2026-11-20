@@ -94,9 +94,7 @@ def test_the_inbox_extraction_never_dispatches_a_message_missing_the_slot(
 
     Where the pattern still matches, the inbox's extraction raises naming
     the slot.  Elsewhere the pattern itself refuses the cut message, which
-    is classified unknown; a ``Reject(EmbargoEvent)`` with no object is the
-    genesis-replay ``Reject`` of a ledger entry (SYNC-16-027), a different
-    message.
+    is classified unknown.
     """
     activity = without_slot(case)
     assert find_matching_semantics(activity) is case.cut_matches

@@ -40,7 +40,7 @@ def node_dl() -> Iterator[SqliteDataLayer]:
 def demo_case(node_dl: SqliteDataLayer) -> str:
     """The rv recording's case and ledger, held by the node."""
     rows = recording_rows(RECORDING)
-    case_id = str(rows[0]["caseId"])
+    case_id = str(rows[0]["context"])
     node_dl.create(
         make(
             as_VulnerabilityCase,

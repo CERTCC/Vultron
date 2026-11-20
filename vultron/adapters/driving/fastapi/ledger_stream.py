@@ -89,7 +89,7 @@ def case_ledger_entries(
     entries = [
         e
         for e in dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, CaseLedgerEntry) and e.case_id == canonical_case_id
+        if isinstance(e, CaseLedgerEntry) and e.context == canonical_case_id
     ]
     entries.sort(key=lambda e: e.log_index)
     return entries

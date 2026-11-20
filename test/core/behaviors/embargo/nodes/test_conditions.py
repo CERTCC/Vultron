@@ -22,6 +22,8 @@ from test.core.behaviors.embargo.nodes.conftest import (
     setup_blackboard,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
     IsActiveEmbargoNode,
@@ -146,7 +148,9 @@ class TestHasActiveEmbargoNode:
 
         setup_blackboard(dl)
         result_out: dict = {}
-        node = HasActiveEmbargoNode(case_id=case.id_, result_out=result_out)
+        node = with_act_keys(
+            HasActiveEmbargoNode(result_out=result_out), {CASE_KEY: case.id_}
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -165,7 +169,9 @@ class TestHasActiveEmbargoNode:
 
         setup_blackboard(dl)
         result_out: dict = {}
-        node = HasActiveEmbargoNode(case_id=case.id_, result_out=result_out)
+        node = with_act_keys(
+            HasActiveEmbargoNode(result_out=result_out), {CASE_KEY: case.id_}
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -184,9 +190,9 @@ class TestHasActiveEmbargoNode:
         setup_blackboard(dl)
 
         result_out: dict = {}
-        node = HasActiveEmbargoNode(
-            case_id="https://example.org/cases/nonexistent",
-            result_out=result_out,
+        node = with_act_keys(
+            HasActiveEmbargoNode(result_out=result_out),
+            {CASE_KEY: "https://example.org/cases/nonexistent"},
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
@@ -205,7 +211,9 @@ class TestHasActiveEmbargoNode:
 
         setup_blackboard(dl)
         result_out: dict = {}
-        node = HasActiveEmbargoNode(case_id=case.id_, result_out=result_out)
+        node = with_act_keys(
+            HasActiveEmbargoNode(result_out=result_out), {CASE_KEY: case.id_}
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()

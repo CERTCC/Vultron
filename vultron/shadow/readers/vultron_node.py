@@ -321,7 +321,7 @@ class VultronNodeCaseReader:
             unobservable=self.unobservable,
             refuse=lambda problems: self._refused(case_id, problems),
         )
-        served = reading.ledger[0].case_id
+        served = reading.ledger[0].context
         if not _names(case_id, served):
             raise self._refused(
                 case_id,
@@ -350,7 +350,7 @@ class VultronNodeCaseReader:
         )
         logger.info(
             "Read case %s: %d ledger entries from the Vultron node at %s",
-            reading.ledger[0].case_id,
+            reading.ledger[0].context,
             len(reading.ledger),
             self._node_url,
         )

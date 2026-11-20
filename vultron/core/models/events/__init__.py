@@ -108,7 +108,7 @@ from vultron.core.models.events.status import (
 )
 from vultron.core.models.events.sync import (
     AddLogEntryReceivedEvent,
-    ReadLogEntryReceivedEvent,
+    ReadLedgerReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
 from vultron.core.models.events.unknown import (
@@ -195,7 +195,7 @@ AnyReceivedEvent = (
     |
     # sync
     AddLogEntryReceivedEvent
-    | ReadLogEntryReceivedEvent
+    | ReadLedgerReceivedEvent
     | RejectLogEntryReceivedEvent
     |
     # fault
@@ -292,7 +292,7 @@ __all__ = [
     "UnresolvableObjectReceivedEvent",
     # sync
     "AddLogEntryReceivedEvent",
-    "ReadLogEntryReceivedEvent",
+    "ReadLedgerReceivedEvent",
     "RejectLogEntryReceivedEvent",
     # fault
     "CreateProcessingFaultReceivedEvent",

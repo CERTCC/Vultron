@@ -180,7 +180,7 @@ from vultron.wire.as2.vocab.examples.status import (
 from vultron.wire.as2.vocab.examples.sync import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.sync import (
     add_case_ledger_entry,
-    read_case_ledger_entry,
+    read_case_ledger,
     reject_case_ledger_entry,
 )
 
@@ -291,7 +291,7 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     # ledger replication (SYNC substrate, ADR-0077)
     (add_case_ledger_entry, None),
     (reject_case_ledger_entry, None),
-    (read_case_ledger_entry, None),
+    (read_case_ledger, None),
     # one example per occasion (MSM-08-003, ADR-0128): each collapsed
     # occasion shows its own distinguishing value
     (add_vendor_awareness_to_participant, None),

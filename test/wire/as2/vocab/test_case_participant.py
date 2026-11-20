@@ -269,37 +269,6 @@ class TestCaseParticipantNameField(unittest.TestCase):
             )
         assert "must be a non-empty string" in str(exc_info.value)
 
-    def test_participant_case_name_none_accepted(self):
-        """participant_case_name=None is valid."""
-        participant = make(
-            as_CaseParticipant,
-            attributed_to=self.actor_id,
-            context=self.case_id,
-            participant_case_name=None,
-        )
-        self.assertIsNone(participant.participant_case_name)
-
-    def test_participant_case_name_non_empty_accepted(self):
-        """participant_case_name with a non-empty string is valid."""
-        participant = make(
-            as_CaseParticipant,
-            attributed_to=self.actor_id,
-            context=self.case_id,
-            participant_case_name="My Case",
-        )
-        self.assertEqual("My Case", participant.participant_case_name)
-
-    def test_participant_case_name_empty_string_rejected(self):
-        """participant_case_name must not be an empty string (CS-08-001)."""
-        with pytest.raises(ValidationError) as exc_info:
-            make(
-                as_CaseParticipant,
-                attributed_to=self.actor_id,
-                context=self.case_id,
-                participant_case_name="",
-            )
-        assert "must be a non-empty string" in str(exc_info.value)
-
 
 class TestParticipantStatusProperty(unittest.TestCase):
     """Tests for as_CaseParticipant.participant_status selection (bug #659).

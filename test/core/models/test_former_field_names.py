@@ -60,7 +60,7 @@ def _case_data() -> dict[str, Any]:
 
 def _entry_data() -> dict[str, Any]:
     return {
-        "caseId": "https://example.org/cases/c-1",
+        "context": "https://example.org/cases/c-1",
         "logIndex": 0,
         "logObjectId": "https://example.org/activities/act-1",
         "semanticType": "invite_actor_to_case",
@@ -73,6 +73,8 @@ def _entry_data() -> dict[str, Any]:
 _FORMER: list[tuple[type[BaseModel], dict[str, Any], str]] = [
     (VulnerabilityCase, _case_data(), "recommendation_recommender_index"),
     (CaseLedgerEntry, _entry_data(), "event_type"),
+    # The entry names its case in AS2 ``context`` (CLP-14-012, #6411).
+    (CaseLedgerEntry, _entry_data(), "case_id"),
     (
         ReceivedActivityRecord,
         {

@@ -304,7 +304,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
         e
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
-        and e.case_id == case.id_
+        and e.context == case.id_
         and e.semantic_type == "invite_actor_to_case"
         and invitee.id_ in json.dumps(e.payload_snapshot, default=str)
     ]

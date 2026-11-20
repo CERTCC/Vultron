@@ -85,7 +85,7 @@ class MessageSemantics(StrEnum):
 
     ADD_CASE_LEDGER_ENTRY_TO_LEDGER = auto()
     REJECT_CASE_LEDGER_ENTRY = auto()
-    READ_CASE_LEDGER_ENTRY = auto()
+    READ_CASE_LEDGER = auto()
 
     REMOVE_PARTICIPANT_FROM_CASE = auto()
     REINSTATE_PARTICIPANT_IN_CASE = auto()

@@ -892,8 +892,9 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST emit `Reject(CaseLedgerEntry)` when an entry's `prev_log_hash`
-      does not match its local tail. The CASE_MANAGER then replays all entries after the
-      last accepted hash.
+      does not match its local tail. Its `object` is that entry and its `inReplyTo` the
+      `Add(CaseLedgerEntry)` that carried it. The CASE_MANAGER then replays all entries
+      after the last accepted hash.
     rationale: >-
       The mismatch is the one event the sender cannot see for itself. The Reject names
       where the receiver's chain ends, so the replay fills the gap.
@@ -903,6 +904,11 @@ groups:
       behaviour. `test/test_message_semantics_mapping.py`
       (`test_ledger_hash_mismatch_rejects_and_replays_from_last_accepted`) confirms
       the mismatch guard, the Reject emitter and the replaying use case are wired.
+      `test_the_gap_nak_rejects_the_entry_and_names_the_add` in
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts the sent Reject's
+      `object` and `inReplyTo`.
+    adr:
+    - ADR-0204
     relationships:
     - rel_type: extends
       spec_id: MSM-05-002

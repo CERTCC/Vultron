@@ -264,7 +264,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     assert peer_entry is not None, (
         "Expected peer replica to contain the announced as_CaseLedgerEntry."
     )
-    assert peer_entry.case_id == case.id_
+    assert peer_entry.context == case.id_
     assert peer_entry.log_index == payload["log_index"]
     assert peer_entry.entry_hash == payload["entry_hash"]
     assert peer_entry.log_object_id == case.id_
@@ -547,7 +547,7 @@ def test_sync_duplicate_delivery_idempotency(
     stored_entries = [
         e
         for e in peer_dl.list_objects("CaseLedgerEntry")
-        if getattr(e, "case_id", None) == case.id_
+        if getattr(e, "context", None) == case.id_
     ]
     assert len(stored_entries) == 1, (
         f"Expected exactly 1 as_CaseLedgerEntry replica, got {len(stored_entries)}"
@@ -569,7 +569,7 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
     The CASE_MANAGER holds three entries; the peer's replica received only
     the first two, and nothing further is committed, so no later entry
     arrives with a gap and the peer sends no ``Reject``.  Its
-    ``Read(CaseLedgerEntry)``, delivered through the CASE_MANAGER's inbox,
+    ``Read(<case>/ledger)``, delivered through the CASE_MANAGER's inbox,
     records its position and replays the lost entry, so the peer's tail
     reaches the CASE_MANAGER's (ADR-0155).
     """
@@ -675,7 +675,7 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
         (
             e
             for e in peer_dl.list_objects("CaseLedgerEntry")
-            if getattr(e, "case_id", None) == case.id_
+            if getattr(e, "context", None) == case.id_
         ),
         key=lambda e: e.log_index,
     )

@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The CASE_MANAGER resends each Invite a participant owes an answer to (SYNC-20).
 
-When a participant states its ledger position, in ``Read(CaseLedgerEntry)``
+When a participant states its ledger position, in ``Read(<case>/ledger)``
 or as an activity's ``ledgerPosition``, the CASE_MANAGER resends each Invite
 it still owes an answer to, as first sent (ADR-0163).  These tests run the
 CASE_MANAGER's store alone: the joiner is admitted through the real accept
@@ -94,12 +94,12 @@ from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    ReadLedgerEntryReceivedUseCase,
+    ReadLedgerReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
-    read_ledger_entry_activity,
+    read_ledger_at_entry_activity,
     rm_accept_full_case_invite_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -152,7 +152,7 @@ def _tail(dl: SqliteDataLayer, case_id: str) -> CaseLedgerEntry:
         (
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == case_id
+            if isinstance(e, CaseLedgerEntry) and e.context == case_id
         ),
         key=lambda e: e.log_index,
     )
@@ -172,11 +172,11 @@ def _state_position(
 ) -> HandlerResult:
     """*sender* states its position at the CASE_MANAGER's tail, in an act at
     *at* (the runner's clock when ``None``)."""
-    read = read_ledger_entry_activity(
+    read = read_ledger_at_entry_activity(
         _tail(dl, case_id), actor=sender, to=[MANAGER], at=authored_at()
     )
     return run_in_act(
-        ReadLedgerEntryReceivedUseCase(
+        ReadLedgerReceivedUseCase(
             dl,
             make_payload(read, receiving_actor_id=MANAGER, at=dl),
             sync_port=SyncActivityAdapter(dl),
@@ -863,7 +863,7 @@ def test_an_owed_invite_with_no_sync_port_is_a_wiring_error(make_payload):
     silent skip (VultronWiringError)."""
     case_id = "https://example.org/cases/resend-no-port"
     dl, _ = _joined(case_id, make_payload)
-    read = read_ledger_entry_activity(
+    read = read_ledger_at_entry_activity(
         _tail(dl, case_id), actor=JOINER, to=[MANAGER], at=authored_at()
     )
 

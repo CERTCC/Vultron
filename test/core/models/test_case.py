@@ -70,7 +70,6 @@ class TestVulnerabilityCaseBasics:
         assert case.case_participants == []
         assert case.vulnerability_reports == []
         assert case.notes == []
-        assert case.case_activity == []
         assert case.parent_cases == []
         assert case.child_cases == []
         assert case.sibling_cases == []
@@ -330,24 +329,6 @@ class TestVulnerabilityCaseActiveEmbargoView:
         terminate(case)
         assert case.active_embargo is None
         assert case.em_state == EM.EXITED
-
-
-class TestVulnerabilityCaseRecordActivity:
-    """record_activity appends activity IDs idempotently."""
-
-    def test_record_activity_appends(self, case: VulnerabilityCase):
-        case.record_activity("urn:uuid:activity-1")
-        assert "urn:uuid:activity-1" in case.case_activity
-
-    def test_record_activity_is_idempotent(self, case: VulnerabilityCase):
-        case.record_activity("urn:uuid:activity-1")
-        case.record_activity("urn:uuid:activity-1")
-        assert case.case_activity.count("urn:uuid:activity-1") == 1
-
-    def test_record_multiple_activities(self, case: VulnerabilityCase):
-        case.record_activity("urn:uuid:activity-1")
-        case.record_activity("urn:uuid:activity-2")
-        assert len(case.case_activity) == 2
 
 
 class TestVulnerabilityCaseAddCaseStatus:

@@ -56,7 +56,7 @@ def ledger_entry_row(case_id: str, log_index: int) -> dict[str, Any]:
     """A bare ledger entry of *case_id* at *log_index*, as a node sends it."""
     entry = make(
         CaseLedgerEntry,
-        case_id=case_id,
+        context=case_id,
         log_index=log_index,
         log_object_id=f"{case_id}/objects/{log_index}",
         semantic_type=f"test_event_{log_index}",

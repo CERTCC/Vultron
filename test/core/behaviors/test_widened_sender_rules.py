@@ -484,7 +484,6 @@ def _relabelled_trees() -> dict[str, tuple[type, Callable[[], object]]]:
             InvalidateReportReceivedUseCase,
             lambda: create_invalidate_report_received_tree(
                 request,  # type: ignore[arg-type]
-                CASE_ID,
                 sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
             ),
         ),

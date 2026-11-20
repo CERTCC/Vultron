@@ -64,6 +64,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
@@ -1881,7 +1883,7 @@ class TestEmitCaseStatusUpdateNodePromotion:
         case_obj.case_statuses.append(pxa_seed)
         dl.save(case_obj)
 
-        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        node = with_act_keys(EmitCaseStatusUpdateNode(), {CASE_KEY: CASE_ID})
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),

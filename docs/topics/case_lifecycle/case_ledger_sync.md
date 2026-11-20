@@ -39,7 +39,7 @@ These are the fields that carry the ordering and integrity guarantees this page 
 
 | Field | Meaning |
 |---|---|
-| `case_id` | The case this entry belongs to |
+| `context` | The case this entry belongs to (the AS2 `context` every case object uses) |
 | `log_index` | Position in the case history; starts at 0 and counts up |
 | `published` | When the CASE_MANAGER stamped the entry, by its own clock |
 | `prevLogHash` | Hash of the previous entry |
@@ -347,7 +347,7 @@ The next entry that does not match the replica's tail produces a `Reject`, and t
 
 A `Reject` needs a later entry to arrive.
 When the lost entry is the last one before a quiet period, nothing follows it, so the replica has no gap to see and sends no `Reject`.
-The replica closes that gap itself by stating its position: `Read(CaseLedgerEntry)` names the last entry it applied ([SYNC-17-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-17-001)).
+The replica closes that gap itself by stating its position: `Read(<case>/ledger)`, a `Read` of the case's ledger, states the last entry it applied, or index -1 when it holds none ([SYNC-17-001](../../reference/vultron-spec/requirements/ledger-replication.md#sync-17-001)).
 The CASE_MANAGER records that position and replays every entry after it, under the same cooldown as a `Reject` replay ([SYNC-17-004](../../reference/vultron-spec/requirements/ledger-replication.md#sync-17-004)).
 The reference participant sends one for each case it holds after every restart, the moment it is most likely to have missed an entry.
 A participant also states its position once a case copy first seeds its replica, so the CASE_MANAGER learns the replica is ready ([SYNC-17-008](../../reference/vultron-spec/requirements/ledger-replication.md#sync-17-008)).

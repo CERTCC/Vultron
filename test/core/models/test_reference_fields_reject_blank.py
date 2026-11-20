@@ -136,15 +136,6 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
         ),
     ),
     (
-        "VulnerabilityCase.case_activity",
-        lambda v: make(
-            VulnerabilityCase,
-            attributed_to=CASE_OWNER_ID,
-            id_=CASE,
-            case_activity=[v],
-        ),
-    ),
-    (
         "VultronOfferRecord.offer_to",
         lambda v: VultronOfferRecord(
             offer_id=URI, report_id=URI, offer_actor_id=ACTOR, offer_to=[v]
@@ -163,10 +154,10 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
         ),
     ),
     (
-        "CaseLedgerEntry.case_id",
+        "CaseLedgerEntry.context",
         lambda v: make(
             CaseLedgerEntry,
-            case_id=v,
+            context=v,
             log_object_id=URI,
             semantic_type="note_added",
             received_at=ACT_AT,
@@ -177,7 +168,7 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
         "CaseLedgerEntry.log_object_id",
         lambda v: make(
             CaseLedgerEntry,
-            case_id=CASE,
+            context=CASE,
             log_object_id=v,
             semantic_type="note_added",
             received_at=ACT_AT,
