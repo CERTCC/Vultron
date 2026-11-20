@@ -15,6 +15,9 @@ from vultron.core.models.embargo_register import (
 )
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
+    EndTimeReachedCause,
+    FixDeployedCause,
+    TerminationCause,
     TerminationCauseKind,
     ThreatSignal,
     ThreatSignalCause,
@@ -23,11 +26,7 @@ from vultron.core.models.embargo_termination import (
     threat_signals_of,
 )
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.embargo_register import (
-    EmbargoRegisterStatus,
-    TerminationReason,
-    termination_reason_from_content,
-)
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 
 S = EmbargoRegisterStatus
 A = "https://example.org/embargoes/a"
@@ -39,25 +38,46 @@ B = "https://example.org/embargoes/b"
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("EMB-13-004")
-def test_the_wire_what_has_exactly_two_values() -> None:
-    assert [r.value for r in TerminationReason] == [
+@pytest.mark.spec("EMB-13-010")
+def test_end_time_reached_is_a_cause_kind_like_the_others() -> None:
+    assert [k.value for k in TerminationCauseKind] == [
         "END_TIME_REACHED",
-        "EARLY",
+        "THREAT_SIGNAL",
+        "FIX_READY",
+        "FIX_DEPLOYED",
+        "OTHER",
     ]
+    termination = EmbargoTermination.end_time_reached()
+    assert termination.cause == EndTimeReachedCause()
+    assert termination.is_end_time_reached
 
 
-@pytest.mark.spec("EMB-13-004")
-@pytest.mark.parametrize("content", [None, "", "THREAT_SIGNAL", "early", 1])
-@pytest.mark.spec("EMB-13-009")
-def test_content_that_is_not_a_reason_is_refused(content) -> None:
-    with pytest.raises(ValueError, match="END_TIME_REACHED"):
-        termination_reason_from_content(content)
+@pytest.mark.spec("EMB-13-010")
+def test_a_termination_declares_no_separate_reason() -> None:
+    """The END_TIME_REACHED/EARLY what is folded into the cause (ADR-0203)."""
+    assert set(EmbargoTermination.model_fields) == {"cause"}
+    with pytest.raises(ValidationError, match="reason"):
+        EmbargoTermination.model_validate(
+            {"reason": "EARLY", "cause": {"kind": "OTHER"}}
+        )
+
+
+@pytest.mark.parametrize(
+    "termination",
+    [
+        EmbargoTermination.early(),
+        EmbargoTermination(cause=FixDeployedCause()),
+        EmbargoTermination.threat([ThreatSignal.P]),
+    ],
+    ids=["no-cause", "fix-deployed", "threat"],
+)
+def test_every_other_termination_ends_the_embargo_early(termination) -> None:
+    assert not termination.is_end_time_reached
 
 
 def test_a_threat_cause_names_its_signals_in_order() -> None:
     termination = EmbargoTermination.threat([ThreatSignal.P, ThreatSignal.A])
-    assert termination.reason is TerminationReason.EARLY
+    assert not termination.is_end_time_reached
     assert termination.cause == ThreatSignalCause(
         signals=[ThreatSignal.P, ThreatSignal.A]
     )
@@ -76,22 +96,37 @@ def test_a_threat_cause_refuses_empty_repeated_or_unordered_signals(
         ThreatSignalCause(signals=signals)
 
 
-def test_a_threat_cause_cannot_end_an_embargo_at_its_end_time() -> None:
-    with pytest.raises(ValidationError, match="cannot have"):
-        EmbargoTermination(
-            reason=TerminationReason.END_TIME_REACHED,
-            cause=ThreatSignalCause(signals=[ThreatSignal.P]),
-        )
-
-
-def test_the_termination_round_trips_through_its_wire_spelling() -> None:
-    termination = EmbargoTermination.threat([ThreatSignal.X])
-    dumped = termination.model_dump(mode="json", by_alias=True)
-    assert dumped == {
-        "reason": "EARLY",
-        "cause": {"kind": "THREAT_SIGNAL", "signals": ["X"]},
-    }
+@pytest.mark.parametrize(
+    ("termination", "dumped"),
+    [
+        (
+            EmbargoTermination.threat([ThreatSignal.X]),
+            {"cause": {"kind": "THREAT_SIGNAL", "signals": ["X"]}},
+        ),
+        (
+            EmbargoTermination.end_time_reached(),
+            {"cause": {"kind": "END_TIME_REACHED"}},
+        ),
+        (EmbargoTermination.early(), {"cause": None}),
+    ],
+    ids=["threat", "end-time", "no-cause"],
+)
+def test_the_termination_round_trips_through_its_wire_spelling(
+    termination, dumped
+) -> None:
+    assert termination.model_dump(mode="json", by_alias=True) == dumped
     assert EmbargoTermination.model_validate(dumped) == termination
+
+
+def test_an_end_time_cause_carries_no_detail() -> None:
+    cause: TerminationCause = EndTimeReachedCause()
+    assert cause.model_dump(mode="json", by_alias=True) == {
+        "kind": "END_TIME_REACHED"
+    }
+    with pytest.raises(ValidationError):
+        EndTimeReachedCause.model_validate(
+            {"kind": "END_TIME_REACHED", "signals": ["P"]}
+        )
 
 
 @pytest.mark.parametrize(
@@ -241,5 +276,6 @@ def test_given_threat_signals_are_checked_when_built(signals) -> None:
         ThreatSignalTermination(signals=signals)
 
 
-def test_a_threat_request_is_an_early_termination_on_the_wire() -> None:
-    assert ThreatSignalTermination().reason is TerminationReason.EARLY
+def test_a_resolved_threat_termination_ends_the_embargo_early() -> None:
+    resolved = ThreatSignalTermination().resolve(CS_pxa.Pxa)
+    assert not resolved.is_end_time_reached

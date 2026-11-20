@@ -57,10 +57,7 @@ from vultron.core.models.embargo_termination import (
     ThreatSignalTermination,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import (
-    EmbargoRegisterStatus,
-    TerminationReason,
-)
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._ledger_network import (
@@ -144,7 +141,6 @@ def _trigger(net: LedgerNetwork) -> py_trees.common.Status:
             embargo_id=net.initial_embargo_id,
             case_id=net.case_id,
             actor=MANAGER,
-            reason=TerminationReason.EARLY,
             to=to,
             at=authored_at(),
         )
@@ -370,7 +366,7 @@ class TestReplicaCopiesTheTermination:
         assert _cascade(net) == py_trees.common.Status.SUCCESS
         recorded = net.case(MANAGER).embargo_termination
         assert recorded is not None
-        assert recorded.reason is TerminationReason.EARLY
+        assert not recorded.is_end_time_reached
         assert recorded.cause is not None
         assert recorded.cause.kind is TerminationCauseKind.THREAT_SIGNAL
 

@@ -53,6 +53,7 @@ from vultron.core.behaviors.embargo.nodes.teardown_guards import (
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import (
+    EndTimeReachedCause,
     OtherCause,
     TerminationCause,
     ThreatSignal,
@@ -65,7 +66,6 @@ from vultron.core.models.pending_assertion import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import (
     INTERNAL_FAULTS,
     VultronBTInternalError,
@@ -353,7 +353,6 @@ def test_an_owner_activation_with_pxa_set_gets_the_notice():
 def _owner_remove(
     net: LedgerNetwork,
     *,
-    reason: TerminationReason = TerminationReason.EARLY,
     cause: TerminationCause | None = None,
     tag: str = "remove",
 ) -> tuple[Any, str]:
@@ -366,7 +365,6 @@ def _owner_remove(
         context=net.case_id,
         actor=OWNER,
         to=[MANAGER],
-        reason=reason,
         cause=cause,
         id_=f"{OWNER}/removes/{tag}",
         at=authored_at(),
@@ -382,9 +380,7 @@ def test_an_untimely_end_time_remove_gets_the_notice():
     net = _net("remove-untimely")
     before = _entries(net)
 
-    verdict, remove_id = _owner_remove(
-        net, reason=TerminationReason.END_TIME_REACHED
-    )
+    verdict, remove_id = _owner_remove(net, cause=EndTimeReachedCause())
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert net.case(MANAGER).em_state is EM.ACTIVE

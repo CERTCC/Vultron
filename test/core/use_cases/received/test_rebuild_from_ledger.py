@@ -50,10 +50,7 @@ from vultron.core.models.embargo_termination import TerminationCauseKind
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import (
-    EmbargoRegisterStatus,
-    TerminationReason,
-)
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -228,14 +225,9 @@ def test_an_embargo_no_entry_carries_is_caught(make_payload):
         assert_rebuilds_from_ledger(dl, case_id, as_actor=_VENDOR_URI)
 
 
-def _terminated(cause: bool, reason: TerminationReason) -> VulnerabilityCase:
-    """A case whose one register entry is TERMINATED as given."""
-    termination: dict[str, Any] = {"reason": reason}
-    if cause:
-        termination["cause"] = {
-            "kind": TerminationCauseKind.THREAT_SIGNAL,
-            "signals": ["P"],
-        }
+def _terminated(cause: dict[str, Any] | None) -> VulnerabilityCase:
+    """A case whose one register entry is TERMINATED with *cause*."""
+    termination: dict[str, Any] = {"cause": cause}
     return VulnerabilityCase.model_validate(
         with_times(
             VulnerabilityCase,
@@ -259,15 +251,17 @@ def _terminated(cause: bool, reason: TerminationReason) -> VulnerabilityCase:
 @pytest.mark.parametrize(
     "replica",
     [
-        _terminated(False, TerminationReason.EARLY),
-        _terminated(False, TerminationReason.END_TIME_REACHED),
+        _terminated(None),
+        _terminated({"kind": TerminationCauseKind.END_TIME_REACHED}),
     ],
-    ids=["cause", "reason"],
+    ids=["no-cause", "end-time"],
 )
 def test_a_termination_difference_is_caught(replica):
-    """A replica must copy the cause the ``Remove`` carries as well as the
-    reason (EMB-13-005), so a missing cause is a difference too."""
-    manager = _terminated(True, TerminationReason.EARLY)
+    """A replica must copy the cause the ``Remove`` carries (EMB-13-005),
+    so a missing or different cause is a difference."""
+    manager = _terminated(
+        {"kind": TerminationCauseKind.THREAT_SIGNAL, "signals": ["P"]}
+    )
 
     assert ledger_rebuild.register_rows(replica) != (
         ledger_rebuild.register_rows(manager)

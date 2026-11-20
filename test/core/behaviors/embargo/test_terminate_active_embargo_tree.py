@@ -83,7 +83,6 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
-    TerminationReason,
 )
 from vultron.core.states.rm import RM
 from vultron.demo.fuzzer.bundles.embargo import EMBARGO_STOCHASTIC
@@ -616,12 +615,10 @@ def test_the_chosen_reason_is_recorded_as_the_cause(field, expected):
 
     assert result.status == Status.SUCCESS, result.feedback_message
     cause: TerminationCause = expected(world)
-    assert world.termination() == EmbargoTermination(
-        reason=TerminationReason.EARLY, cause=cause
-    )
+    assert world.termination() == EmbargoTermination(cause=cause)
     # The committed Remove carries the same cause (EMB-13-005).
     snapshot = world.teardown_snapshot()
-    assert snapshot["content"] == "EARLY"
+    assert "content" not in snapshot
     assert snapshot["terminationCause"] == cause.model_dump(
         mode="json", by_alias=True
     )
@@ -638,9 +635,7 @@ def test_fix_ready_with_no_fix_ready_vendor_tries_the_next_reason():
     result = world.run(bundle)
 
     assert result.status == Status.SUCCESS, result.feedback_message
-    assert world.termination() == EmbargoTermination(
-        reason=TerminationReason.EARLY, cause=OtherCause()
-    )
+    assert world.termination() == EmbargoTermination(cause=OtherCause())
 
 
 @pytest.mark.spec("EMB-14-001")

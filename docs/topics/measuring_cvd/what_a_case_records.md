@@ -197,7 +197,7 @@ The claimed time of the termination is also the time that the CASE_MANAGER handl
 
 The record keeps each deadline.
 The embargo carries its end time, and the Invite carries its RSVP deadline.
-Each termination records its reason, and `END_TIME_REACHED` is the reason for an embargo that ended because its end time passed.
+Each termination records its cause, and `END_TIME_REACHED` is the cause for an embargo that ended because its end time passed.
 For an `END_TIME_REACHED` termination, the end time on the embargo is the actual end of the embargo.
 The commit stamp of the termination is only the latest possible end.
 

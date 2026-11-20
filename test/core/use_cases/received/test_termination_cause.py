@@ -50,8 +50,8 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.embargo_termination import (
-    _CAUSE_KINDS_BY_REASON,
     EmbargoTermination,
+    EndTimeReachedCause,
     FixDeployedCause,
     FixReadyCause,
     OtherCause,
@@ -67,13 +67,11 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     remove_embargo_from_case_activity,
     remove_participant_activity,
 )
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -113,30 +111,30 @@ _OWNER_CAUSES: list[TerminationCause] = [
 def test_an_early_termination_records_each_new_cause_kind(
     cause: dict[str, object],
 ) -> None:
-    recorded = EmbargoTermination.model_validate(
-        {"reason": TerminationReason.EARLY, "cause": cause}
-    )
+    recorded = EmbargoTermination.model_validate({"cause": cause})
 
     assert recorded.model_dump(mode="json")["cause"] == cause
-    with pytest.raises(ValidationError):
-        EmbargoTermination.model_validate(
-            {"reason": TerminationReason.END_TIME_REACHED, "cause": cause}
-        )
+    assert not recorded.is_end_time_reached
 
 
-@pytest.mark.spec("EMB-13-004")
 @pytest.mark.spec("EMB-13-011")
-def test_every_cause_kind_is_early_and_end_time_has_none() -> None:
-    assert _CAUSE_KINDS_BY_REASON[TerminationReason.EARLY] == set(
-        TerminationCauseKind
-    )
-    assert _CAUSE_KINDS_BY_REASON[TerminationReason.END_TIME_REACHED] == set()
+def test_end_time_reached_is_the_one_cause_kind_that_is_not_early() -> None:
     assert {kind.value for kind in TerminationCauseKind} == {
+        "END_TIME_REACHED",
         "THREAT_SIGNAL",
         "FIX_READY",
         "FIX_DEPLOYED",
         "OTHER",
     }
+    end_time = EmbargoTermination.model_validate(
+        {"cause": {"kind": "END_TIME_REACHED"}}
+    )
+    assert end_time == EmbargoTermination.end_time_reached()
+    assert end_time.is_end_time_reached
+    assert not any(
+        EmbargoTermination(cause=cause).is_end_time_reached
+        for cause in _OWNER_CAUSES
+    )
 
 
 @pytest.mark.spec("EMB-13-004")
@@ -167,17 +165,16 @@ def test_every_cause_kind_is_early_and_end_time_has_none() -> None:
 )
 def test_a_malformed_cause_is_refused(cause: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
-        EmbargoTermination.model_validate(
-            {"reason": TerminationReason.EARLY, "cause": cause}
-        )
+        EmbargoTermination.model_validate({"cause": cause})
 
 
-@pytest.mark.spec("EMB-13-004")
 @pytest.mark.spec("EMB-13-011")
-def test_an_early_termination_with_no_cause_records_the_what_alone() -> None:
-    assert EmbargoTermination.from_reason(TerminationReason.EARLY) == (
-        EmbargoTermination.early()
-    )
+def test_a_termination_with_no_cause_ended_early() -> None:
+    recorded = EmbargoTermination.model_validate({})
+
+    assert recorded == EmbargoTermination.early()
+    assert recorded.cause is None
+    assert not recorded.is_end_time_reached
 
 
 # ---------------------------------------------------------------------------
@@ -191,12 +188,10 @@ def _extract(activity: Any) -> RemoveEmbargoEventFromCaseReceivedEvent:
     return event
 
 
-def _remove_body(
-    reason: TerminationReason = TerminationReason.EARLY,
-) -> dict[str, Any]:
+def _remove_body(cause: TerminationCause | None = None) -> dict[str, Any]:
     embargo = make(as_EmbargoEvent, context=CASE, end_time=now_utc())
     activity = remove_embargo_from_case_activity(
-        embargo, origin=CASE, actor=OWNER, reason=reason, at=authored_at()
+        embargo, origin=CASE, actor=OWNER, cause=cause, at=authored_at()
     )
     return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
 
@@ -252,33 +247,35 @@ def test_parse_edge_refuses_a_malformed_cause(cause: object) -> None:
 
 
 @pytest.mark.spec("EMB-13-005")
-@pytest.mark.spec("EMB-13-012")
-def test_parse_edge_refuses_a_cause_on_an_end_time_termination() -> None:
-    body = _remove_body(TerminationReason.END_TIME_REACHED)
-    body["terminationCause"] = {"kind": "OTHER"}
+def test_parse_edge_promotes_an_end_time_cause_onto_the_event() -> None:
+    """End time reached is a cause like the others (ADR-0203)."""
+    body = _remove_body(EndTimeReachedCause())
+    assert "content" not in body
 
-    with pytest.raises(VultronParseValidationError, match="END_TIME_REACHED"):
-        _extract(parse_activity(body))
+    event = _extract(parse_activity(signed_body(body)))
+
+    assert event.termination_cause == EndTimeReachedCause()
 
 
 @pytest.mark.spec("EMB-13-005")
-def test_the_event_refuses_a_cause_on_an_end_time_termination() -> None:
-    """The event checks the fit itself, so one built past the parse edge
-    cannot carry a cause its what cannot have."""
-    with pytest.raises(ValidationError, match="END_TIME_REACHED"):
-        RemoveEmbargoEventFromCaseReceivedEvent(
-            ledger_position=TEST_SENDER_POSITION,
-            activity_id="urn:uuid:tc-event-end-time",
-            actor_id=OWNER,
-            termination_reason=TerminationReason.END_TIME_REACHED,
-            termination_cause=OtherCause(),
-            object_=make(
-                CoreObject,
-                id_="https://example.org/embargoes/tc-end-time",
-                type_="EmbargoEvent",
-            ),
-            origin=named_case(CASE),
-        )
+def test_the_event_declares_no_separate_termination_reason() -> None:
+    """The END_TIME_REACHED/EARLY what is folded into the cause (ADR-0203)."""
+    assert "termination_reason" not in (
+        RemoveEmbargoEventFromCaseReceivedEvent.model_fields
+    )
+    event = RemoveEmbargoEventFromCaseReceivedEvent(
+        ledger_position=TEST_SENDER_POSITION,
+        activity_id="urn:uuid:tc-event-end-time",
+        actor_id=OWNER,
+        termination_cause=EndTimeReachedCause(),
+        object_=make(
+            CoreObject,
+            id_="https://example.org/embargoes/tc-end-time",
+            type_="EmbargoEvent",
+        ),
+        origin=named_case(CASE),
+    )
+    assert event.termination_cause == EndTimeReachedCause()
 
 
 @pytest.mark.spec("EMB-13-005")
@@ -306,7 +303,6 @@ def test_the_factory_carries_the_cause_as_termination_cause(
         embargo,
         origin=CASE,
         actor=OWNER,
-        reason=TerminationReason.EARLY,
         cause=cause,
         at=authored_at(),
     )
@@ -322,18 +318,22 @@ def test_the_factory_carries_the_cause_as_termination_cause(
 
 
 @pytest.mark.spec("EMB-13-005")
-def test_the_factory_refuses_a_cause_on_an_end_time_termination() -> None:
+def test_the_factory_carries_the_end_time_as_its_cause() -> None:
+    """End time reached is a cause like the others, so the Remove carries it
+    as terminationCause and no separate what in content (ADR-0203)."""
     embargo = make(as_EmbargoEvent, context=CASE, end_time=now_utc())
 
-    with pytest.raises(VultronActivityConstructionError):
-        remove_embargo_from_case_activity(
-            embargo,
-            origin=CASE,
-            actor=OWNER,
-            reason=TerminationReason.END_TIME_REACHED,
-            cause=OtherCause(),
-            at=authored_at(),
-        )
+    remove = remove_embargo_from_case_activity(
+        embargo,
+        origin=CASE,
+        actor=OWNER,
+        cause=EndTimeReachedCause(),
+        at=authored_at(),
+    )
+
+    body = remove.model_dump(mode="json", by_alias=True, exclude_none=True)
+    assert body["terminationCause"] == {"kind": "END_TIME_REACHED"}
+    assert "content" not in body
 
 
 # ---------------------------------------------------------------------------
@@ -352,7 +352,6 @@ def _owner_remove(net: LedgerNetwork, cause: TerminationCause) -> Any:
         context=net.case_id,
         actor=OWNER,
         to=[MANAGER],
-        reason=TerminationReason.EARLY,
         cause=cause,
         at=authored_at(),
     )
@@ -375,9 +374,7 @@ def test_case_manager_records_an_owner_cause_as_given(
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     ended = net.case(MANAGER)
     assert ended.em_state is EM.EXITED
-    assert ended.embargo_termination == EmbargoTermination(
-        reason=TerminationReason.EARLY, cause=cause
-    )
+    assert ended.embargo_termination == EmbargoTermination(cause=cause)
     # The ledger entry that records the Remove carries the cause with it.
     (entry,) = [
         e
@@ -452,9 +449,7 @@ def test_a_replica_copies_an_owner_fix_ready_cause() -> None:
     result = _owner_remove(net, cause)
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
-    _assert_replicas_copy_the_termination(
-        net, EmbargoTermination(reason=TerminationReason.EARLY, cause=cause)
-    )
+    _assert_replicas_copy_the_termination(net, EmbargoTermination(cause=cause))
 
 
 @pytest.mark.spec("EMB-13-005")
@@ -602,9 +597,7 @@ def test_a_participant_ask_carries_the_cause_it_may_name() -> None:
 
     (ask,) = _owner_ask(
         net,
-        EmbargoTermination.from_reason(
-            TerminationReason.EARLY, FixDeployedCause()
-        ),
+        EmbargoTermination(cause=FixDeployedCause()),
     )
 
     assert ask["terminationCause"] == FixDeployedCause().model_dump(

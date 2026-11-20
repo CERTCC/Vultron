@@ -33,7 +33,6 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
@@ -106,7 +105,6 @@ _ACTIVITIES: dict[type, Callable[[Any], Any]] = {
             e,
             origin=_CASE,
             context=_CASE,
-            reason=TerminationReason.EARLY,
             **_ADDRESSING,
             at=authored_at(),
         )

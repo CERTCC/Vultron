@@ -129,20 +129,19 @@ def terminate_embargo_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Shared BT for terminating the active embargo (BT-19-001, EP-09-008).
 
-    *termination* is how the embargo ends (ADR-0122): ``EARLY`` with the
+    *termination* is how the embargo ends (ADR-0122, ADR-0203): an early
     cause the requester names, or none, for a participant's own decision;
     :class:`ThreatSignalTermination` for the CS ``P``/``X``/``A`` cascades
-    (``EARLY``, caused by the signals the case carries at the write);
+    (caused by the signals the case carries at the write);
     :class:`ChosenTermination` for an actor's voluntary termination, whose
     reason call-out chose the cause earlier in the same run (EMB-14-001); and
-    ``END_TIME_REACHED``, with no cause, for the end-time paths, claimed at
-    the act's instant (ADR-0176) and refused before the embargo's end time.  The
-    CASE_MANAGER's ``Remove`` carries the what in ``content`` and the cause
-    its ``TERMINATED`` entry records as ``terminationCause`` (EMB-13-005).
-    A participant's ask carries the what and any cause it may name
-    (``participant_cause``): only the CASE_MANAGER may name a
-    ``THREAT_SIGNAL`` cause, and it learns the signals from the case status
-    update instead.
+    the ``END_TIME_REACHED`` cause for the end-time paths, claimed at the
+    act's instant (ADR-0176) and refused before the embargo's end time.  The
+    CASE_MANAGER's ``Remove`` carries the cause its ``TERMINATED`` entry
+    records as ``terminationCause`` (EMB-13-005).  A participant's ask
+    carries any cause it may name (``participant_cause``): only the
+    CASE_MANAGER may name a ``THREAT_SIGNAL`` cause, and it learns the
+    signals from the case status update instead.
 
     Satisfies the routing-gated state-mutation ordering:
 
@@ -186,13 +185,12 @@ def terminate_embargo_bt(
             ],
         )
     else:
-        # The ask carries the what and any cause a participant may name.  A
-        # threat-signal termination is EARLY and its ask names no cause: a
+        # The ask carries any cause a participant may name.  A threat-signal
+        # termination's ask names no cause, so it ends the embargo early: a
         # THREAT_SIGNAL cause from anyone but the CASE_MANAGER is refused
         # (EMB-13-005).
         ask = ask_case_manager_to_terminate_once(
             case_id,
-            termination.reason,
             termination
             if isinstance(termination, ChosenTermination)
             else termination.participant_cause,

@@ -56,7 +56,6 @@ from vultron.core.models.participant_status import (
 from vultron.core.participants.recipients import case_content_participants
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import is_vf_fix_ready
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 from vultron.primitives import NormalisedActorId
 
@@ -64,7 +63,7 @@ from vultron.primitives import NormalisedActorId
 class ChosenTermination:
     """The termination a reason call-out chooses, read at the write.
 
-    Every chosen cause is ``EARLY``.  It is set by
+    Every chosen cause ends the embargo early.  It is set by
     :class:`ChooseTerminationCauseNode` and read by the termination's commit
     and ask nodes in the same run.
     """
@@ -72,16 +71,9 @@ class ChosenTermination:
     def __init__(self) -> None:
         self._termination: EmbargoTermination | None = None
 
-    @property
-    def reason(self) -> TerminationReason:
-        """The what: a voluntary termination ends the embargo early."""
-        return TerminationReason.EARLY
-
     def choose(self, cause: TerminationCause) -> None:
         """Record *cause* as the termination's why."""
-        self._termination = EmbargoTermination(
-            reason=TerminationReason.EARLY, cause=cause
-        )
+        self._termination = EmbargoTermination(cause=cause)
 
     @property
     def termination(self) -> EmbargoTermination:

@@ -78,7 +78,6 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             case_id=case_id,
             embargo_id=embargo_id,
             sender_actor_id=request.actor_id,
-            termination_reason=request.termination_reason,
             termination_cause=request.termination_cause,
             terminated_at=(
                 request.activity.published

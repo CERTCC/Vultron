@@ -81,7 +81,6 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -563,7 +562,6 @@ def test_removed_signatory_is_sent_the_termination(removal_case) -> None:
             origin=CASE_ID,
             actor=OWNER,
             to=[MANAGER],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
     )
@@ -595,7 +593,6 @@ def _paused_replica_receives_ending_notice(
             origin=CASE_ID,
             actor=sender,
             to=[VENDOR],
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         ),
         receiving_actor_id=VENDOR,

@@ -55,7 +55,6 @@ from vultron.core.states.cs_invariants import (
     replay_cs_history,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.rm import RM
 from vultron.measure.baselines import (
     RM_EVENTS,
@@ -150,7 +149,7 @@ def embargo_end(exit_: CaseEvent | None) -> EmbargoEnd:
     """
     if exit_ is None:
         return EmbargoEnd.OTHER
-    if exit_.exit_reason is TerminationReason.END_TIME_REACHED:
+    if exit_.ended_at_end_time:
         return EmbargoEnd.OWN_TERMS
     kind = (exit_.exit_cause or {}).get("kind")
     for cause, end in _END_OF_CAUSE.items():

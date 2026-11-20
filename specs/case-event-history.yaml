@@ -589,7 +589,7 @@ groups:
       hold one, and the row has already moved to `TIMED_OUT`. The layer must carry that
       deadline forward from the earlier invitation entry.
     verification: >-
-      `test/measure/history/test_derive.py::test_an_end_time_exit_carries_its_reason_and_deadline_and_no_cause`
+      `test/measure/history/test_derive.py::test_an_end_time_exit_carries_its_cause_and_deadline`
       asserts an exit at its end time carries that end time, and
       `test/measure/history/test_derive.py::test_a_timed_out_invitation_carries_the_earlier_rsvp_deadline`
       that a timed-out invitation carries the RSVP deadline stated on the earlier entry,
@@ -691,10 +691,12 @@ groups:
       that ran to its end time ended on its own terms, and one that ended early ended
       with time left that a measure can report as the cost.
     verification: >-
-      `test/measure/history/test_derive.py::test_an_end_time_exit_carries_its_reason_and_deadline_and_no_cause`
+      `test/measure/history/test_derive.py::test_an_end_time_exit_carries_its_cause_and_deadline`
       and
       `test/measure/history/test_derive.py::test_an_early_exit_carries_its_cause_as_recorded`
-      assert the reason on an exit at the end time and on an early exit.
+      assert it on an exit at the end time and on an early exit, and
+      `test/measure/history/test_derive.py::test_an_exit_with_no_cause_ended_early`
+      on an exit that names no cause.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-005
@@ -706,13 +708,14 @@ groups:
       that cause as recorded.
     rationale: >-
       An early exit caused by a threat signal says something different about the case
-      from one caused by every fix being ready. Only an early termination carries a
-      cause, and a replica never works one out from its own state.
+      from one caused by every fix being ready. An exit at the end time carries the
+      `END_TIME_REACHED` cause (ADR-0203), and a replica never works one out from its
+      own state.
     verification: >-
       `test/measure/history/test_derive.py::test_an_early_exit_carries_its_cause_as_recorded`
       asserts a threat-signal cause is carried with its signals, and
-      `test/measure/history/test_derive.py::test_an_end_time_exit_carries_its_reason_and_deadline_and_no_cause`
-      that an exit at the end time carries none.
+      `test/measure/history/test_derive.py::test_an_end_time_exit_carries_its_cause_and_deadline`
+      that an exit at the end time carries the `END_TIME_REACHED` cause.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-006
