@@ -1199,8 +1199,9 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     # shown whole, every term as the inviter holds it (CM-17-011).
     entry = preview_in_force_entry(stub)
     assert entry is not None
-    assert is_loose_form_of(entry.embargo, as_EmbargoEvent)
-    assert _as2(entry.embargo) == _as2(embargo)
+    shown = getattr(entry, "embargo", None)
+    assert is_loose_form_of(shown, as_EmbargoEvent)
+    assert _as2(shown) == _as2(embargo)
     assert is_loose_form_of(preview_current_status(stub), as_CaseStatus)
     assert preview_em_state(stub) is EM.ACTIVE
 
@@ -1317,12 +1318,15 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     assert isinstance(stub, as_CasePreview)
     entry = preview_in_force_entry(stub)
     assert entry is not None
-    assert is_loose_form_of(entry.embargo, as_EmbargoEvent)
+    assert is_loose_form_of(getattr(entry, "embargo", None), as_EmbargoEvent)
     assert preview_embargo_id(stub) == in_force.id_
     # The register is reduced to the in-force entry: the revision is not in
     # it (CM-17-014).
+    shown_register = stub.embargo_register
+    assert isinstance(shown_register, list)
     assert [preview_embargo_id(stub)] == [
-        getattr(shown.embargo, "id_", None) for shown in stub.embargo_register
+        getattr(getattr(shown, "embargo", None), "id_", None)
+        for shown in shown_register
     ]
     assert is_loose_form_of(preview_current_status(stub), as_CaseStatus)
     assert preview_em_state(stub) is EM.REVISE
