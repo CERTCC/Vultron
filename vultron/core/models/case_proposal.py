@@ -44,11 +44,13 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 from vultron.core.models._helpers import timestamp_serializer
+from vultron.core.models._helpers.inbound import project_wire_snapshot_to_core
 from vultron.core.models.activity import VultronOffer
 from vultron.core.models.base import (
     CoreObject,
     NonEmptyString,
     PropertyValueKind,
+    ValidatedAssignmentMixin,
     vultron_property,
 )
 from vultron.core.models.base.core_object import CoreObjectOrIri
@@ -60,6 +62,7 @@ from vultron.core.models.vulnerability_item import (
     VulnerabilityItemId,
     VulnerabilityItemNote,
 )
+from vultron.core.models.wire_keys import wire_key
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 
 #: The one declaration of ``referenceLinks``, shared by the case inputs and
@@ -74,14 +77,11 @@ _REFERENCE_LINKS_PROPERTY = vultron_property(
 )
 
 
-class _ProposalValue(BaseModel):
+class _ProposalValue(ValidatedAssignmentMixin, BaseModel):
     """A value a proposal carries: camelCase on the wire, no unknown key."""
 
     model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        extra="forbid",
-        frozen=True,
+        alias_generator=to_camel, populate_by_name=True, extra="forbid"
     )
 
 
@@ -264,7 +264,9 @@ class CaseProposal(CoreObject):
     @field_validator("proposer_case_roles", mode="before")
     @classmethod
     def _validate_proposer_case_roles(cls, value: object) -> list[CVDRole]:
-        return validate_roles(value, field_name="proposerCaseRoles")
+        return validate_roles(
+            value, field_name=wire_key("proposer_case_roles")
+        )
 
     @field_validator("proposer_case_roles")
     @classmethod
@@ -278,8 +280,8 @@ class CaseProposal(CoreObject):
         """
         if CVDRole.CASE_MANAGER in value:
             raise ValueError(
-                "CaseProposal proposerCaseRoles claims CASE_MANAGER, which"
-                " only the CaseActor holds (CP-01-012)"
+                f"CaseProposal {wire_key('proposer_case_roles')} claims"
+                " CASE_MANAGER, which only the CaseActor holds (CP-01-012)"
             )
         return value
 
@@ -293,7 +295,10 @@ class CaseProposal(CoreObject):
         takes.
         """
         if isinstance(value, Mapping):
-            return VultronOffer.model_validate(value, context=info.context)
+            return VultronOffer.model_validate(
+                project_wire_snapshot_to_core(VultronOffer, value),
+                context=info.context,
+            )
         return value
 
     @field_validator("in_reply_to")

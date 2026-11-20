@@ -772,7 +772,7 @@ def _noisy_document() -> dict[str, Any]:
     return data
 
 
-@pytest.mark.spec("CP-01-022", "CP-01-024")
+@pytest.mark.spec("CP-01-022", "CP-01-024", "CP-01-028")
 def test_a_case_is_built_from_the_case_inputs_a_proposal_states() -> None:
     """The case takes the owner's inputs, and no document is read: no claims
     record is written and nothing of the document reaches the case."""
@@ -865,7 +865,7 @@ def test_the_offers_proposed_embargo_beats_the_stated_date() -> None:
     assert _embargo_end(manager, case) == proposed_end
 
 
-@pytest.mark.spec("CP-01-025", "CP-01-026")
+@pytest.mark.spec("CP-01-025", "CP-01-029")
 def test_a_proposal_with_no_case_inputs_is_filled_from_the_document() -> None:
     """The CASE_MANAGER's fallback: it reads the carried Offer's document and
     records what each claimed value became."""

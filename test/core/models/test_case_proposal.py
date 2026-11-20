@@ -154,10 +154,10 @@ def test_case_inputs_round_trip_through_a_dump() -> None:
     assert again.in_reply_to is not None
 
 
-@pytest.mark.spec("CP-01-022", "CP-01-024")
+@pytest.mark.spec("CP-01-022", "CP-01-028")
 def test_case_inputs_survive_the_parser_and_reach_the_event() -> None:
     """A received proposal's caseInputs reach core whole, and the edge reads
-    no CSAF document for it (CP-01-024)."""
+    no CSAF document for it (CP-01-028)."""
     parsed = parse_activity(_create_body(_proposal(_inputs())))
     proposal = getattr(parsed, "object_", None)
     assert isinstance(proposal, CaseProposal)
@@ -181,7 +181,7 @@ def test_a_proposal_without_case_inputs_omits_them() -> None:
     assert event.case_inputs is None
 
 
-@pytest.mark.spec("CP-01-023")
+@pytest.mark.spec("CP-01-027")
 def test_case_inputs_state_no_public_flag() -> None:
     """P is judged when the case is built, so caseInputs has no field for it."""
     with pytest.raises(ValidationError, match="public"):

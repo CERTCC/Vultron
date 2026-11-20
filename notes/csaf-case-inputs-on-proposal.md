@@ -96,8 +96,8 @@ These land with the code that tests them, so no requirement states a rule a test
 does not check. Each cites ADR-0184. The IDs are the next free ones at planning
 time; re-check them against `origin/main` before landing.
 
-CP-01-022 to CP-01-026 are in `specs/case-proposal.yaml`; CP-01-026's
-receiver half is held by a strict `xfail` until #6723 builds it.
+CP-01-022 to CP-01-029 are in `specs/case-proposal.yaml`; CP-01-026, the
+receiver sending `caseInputs`, is held by a strict `xfail` until #6723 builds it.
 
 Issue #6723 also rewrites the CSAF-02-001 note in
 `specs/csaf-report-content.yaml`. It says the proposer's own record keeps every
