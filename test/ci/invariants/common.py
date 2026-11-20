@@ -832,7 +832,7 @@ def check_nested_objects_inlined(
 def check_payload_context_uses_case_uri(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """payloadSnapshot.context matches the entry's case_id for recorded entries (Invariant 11)."""
+    """payloadSnapshot.context matches the entry's context for recorded entries (Invariant 11)."""
     auth = auth_entries(replicas)
     mismatches: list[str] = []
     for e in auth:
@@ -846,7 +846,7 @@ def check_payload_context_uses_case_uri(
         if isinstance(context, str) and context != cid:
             mismatches.append(
                 f"logIndex={log_index(e)} semanticType={semantic_type(e)!r}: "
-                f"context={context[:60]!r} != case_id={cid[:60]!r}"
+                f"payload context={context[:60]!r} != entry context={cid[:60]!r}"
             )
     return mismatches
 

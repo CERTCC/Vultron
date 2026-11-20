@@ -307,6 +307,11 @@ def case_object_for_participant(
         raise VultronNotACaseParticipantError(case.id_, requester)
     if object_id == case.id_:
         return case
+    # A ledger entry names its case in ``context`` (CLP-14-012), but the
+    # ledger has no read surface (IE-02-003): entries reach a participant
+    # only by replication (SYNC-02-005).
+    if _is_ledger_entry_id(case.id_, object_id):
+        raise VultronNotFoundError("Object", object_id)
     found = dl.read(object_id)
     if found is None:
         raise VultronNotFoundError("Object", object_id)

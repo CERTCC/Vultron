@@ -1085,7 +1085,7 @@ class TestLoadDevlogsManifestHandling:
         When devlogs/ accumulates ledger files from multiple runs, the
         hash-chain invariant fails because entries from different cases are
         concatenated into one log.  The manifest's caseId identifies the
-        current run; load_devlogs must drop any entry whose caseId differs.
+        current run; load_devlogs must drop any entry whose context differs.
         Regression: issue #2273.
         """
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)

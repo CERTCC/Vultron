@@ -331,7 +331,7 @@ def _count_case_ledger_entries(client: DataLayerClient, case_id: str) -> int:
     """Count *case_id*'s ledger entries in *client*'s store.
 
     Read from the ``CaseLedgerEntrys/`` collection, which serves the stored
-    rows by field name (``case_id``) without rehydrating them, the same read
+    rows by field name (``context``) without rehydrating them, the same read
     :func:`wait_for_contiguous_ledger_coverage` makes.  It still transfers every
     entry, ``payload_snapshot`` included, on each poll; only the rehydration
     and the rest of the store are saved (#4600).
