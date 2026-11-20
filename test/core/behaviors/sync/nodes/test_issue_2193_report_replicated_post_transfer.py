@@ -137,8 +137,8 @@ def _add_report_record(prev_hash: str) -> HashChainLedgerRecord:
     """add_report_to_case entry with the full report embedded in the snapshot.
 
     Mirrors what ``record_report_added_to_case`` seals: type=Add, embedded
-    object with the VulnerabilityReport and inReplyTo naming the Offer (#6419),
-    so the report-backfill block (#2187) can execute.
+    object with the VulnerabilityReport (which the report-backfill block, #2187,
+    reads) and inReplyTo naming the Offer (#6419), which the node ignores.
     """
     return HashChainLedgerRecord(
         case_id=CASE_ID,

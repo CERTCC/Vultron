@@ -307,6 +307,7 @@ class TestCaseActorCommitsTheProvenance:
     This is the CP-01-019 use of the CP-01-007 provenance, in another container.
     """
 
+    @pytest.mark.spec("AKM-02-007")
     def test_the_snapshot_names_the_offer_the_proposal_carried(self):
         dl = _case_actor_store()
         _run_received_bt(dl, in_reply_to=_OFFER_URI)
