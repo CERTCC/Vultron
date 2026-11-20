@@ -116,14 +116,18 @@ class ConditionalBranch(BaseModel):
     @property
     def caveat(self) -> str:
         """The branch as text: its band, and when it holds."""
-        when = []
-        if self.open:
-            when.append(f"while {', '.join(self.open)} are still open")
-        if self.settled:
-            when.append(
-                f"once {', '.join(self.settled)} are already met or broken"
-            )
-        return f"{self.band} {' and '.join(when)}"
+        return f"{self.band} {history_condition(self.open, self.settled)}"
+
+
+def history_condition(open_: Sequence[str], settled: Sequence[str]) -> str:
+    """When a branch holds, in words: while *open_* are still open, and once
+    *settled* are already met or broken."""
+    when = []
+    if open_:
+        when.append(f"while {', '.join(open_)} are still open")
+    if settled:
+        when.append(f"once {', '.join(settled)} are already met or broken")
+    return " and ".join(when)
 
 
 class ConditionalVerdict(BaseModel):
@@ -301,32 +305,61 @@ def _variants(
     return found
 
 
-def _conditional(
-    move: str, position: PositionKey, variants: Sequence[_Variant]
-) -> ConditionalVerdict:
-    """The verdict *variants* give *move* at *position*, by band."""
-    every_open = frozenset.intersection(*(v.open for v in variants))
-    deciding = frozenset.union(*(v.open for v in variants)) - every_open
-    order = list(move_advice_desiderata())
+class HistoryBranch[T](NamedTuple):
+    """One outcome of several at one position, and the history that gives
+    it (:func:`history_branches`)."""
+
+    outcome: T
+    open: tuple[str, ...]
+    settled: tuple[str, ...]
+
+
+def history_branches[T](
+    variants: Sequence[tuple[T, frozenset[str]]], order: Sequence[T]
+) -> tuple[HistoryBranch[T], ...]:
+    """Each outcome of *variants*, in *order*, with the desiderata whose
+    state gives it.
+
+    Each variant is one history's outcome with the desiderata still open
+    on it.  A deciding desideratum is open on some histories and not on
+    others.  An outcome's branch names the deciding desiderata open on
+    every history that gives it, and those met or broken on every one.
+    """
+    every_open = frozenset.intersection(*(o for _, o in variants))
+    deciding = frozenset.union(*(o for _, o in variants)) - every_open
+    catalog = list(move_advice_desiderata())
     branches = []
-    for band in BAND_ORDER:
-        mine = [v.open for v in variants if v.band is band]
+    for outcome in order:
+        mine = [o for v, o in variants if v == outcome]
         if not mine:
             continue
         always = frozenset.intersection(*mine) & deciding
         never = deciding - frozenset.union(*mine)
         branches.append(
-            ConditionalBranch(
-                band=band,
-                open=tuple(d for d in order if d in always),
-                settled=tuple(d for d in order if d in never),
+            HistoryBranch(
+                outcome,
+                tuple(d for d in catalog if d in always),
+                tuple(d for d in catalog if d in never),
             )
         )
+    return tuple(branches)
+
+
+def _conditional(
+    move: str, position: PositionKey, variants: Sequence[_Variant]
+) -> ConditionalVerdict:
+    """The verdict *variants* give *move* at *position*, by band."""
+    branches = history_branches(
+        [(v.band, v.open) for v in variants], BAND_ORDER
+    )
     return ConditionalVerdict(
         move=move,
         role=move_role(move),
         position=position,
-        branches=tuple(branches),
+        branches=tuple(
+            ConditionalBranch(band=b.outcome, open=b.open, settled=b.settled)
+            for b in branches
+        ),
     )
 
 

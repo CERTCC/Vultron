@@ -386,6 +386,25 @@ class RulePattern(BaseModel):
         """Whether the pattern has a PEC part."""
         return self.in_force is not None or self.proposal is not None
 
+    @property
+    def label(self) -> str:
+        """The pattern as text: its CS part, then each part that names
+        states, its states in their enum order: ``VFdpx. · RM ACCEPTED,
+        DEFERRED · EM ACTIVE``."""
+        parts = [self.cs]
+        named: list[tuple[str, frozenset[StrEnum] | None]] = [
+            ("RM", self.rm),
+            ("EM", self.em),
+            ("in-force PEC", self.in_force),
+            ("proposal PEC", self.proposal),
+        ]
+        for title, part in named:
+            if part is not None:
+                members = type(next(iter(part)))
+                states = [m.name for m in members if m in part]
+                parts.append(f"{title} {', '.join(states)}")
+        return " · ".join(parts)
+
     def matches_cs(self, state: CS) -> bool:
         """Whether the CS part matches *state*."""
         return cs_pattern_matches(self.cs, state)
@@ -610,6 +629,18 @@ class AuthoredRule(BaseModel):
         return self.action if isinstance(self.action, str) else None
 
     @property
+    def action_label(self) -> str:
+        """Its action as text: the ``Actions`` member it names or carries
+        over, in words, with the move it names in parentheses: ``Create fix
+        (cs.fix_is_ready)``, ``Monitor for attacks``, or a new rule's bare
+        move name."""
+        if isinstance(self.action, Actions):
+            return action_words(self.action)
+        if self.source is None:
+            return self.action
+        return f"{action_words(self.source.action)} ({self.action})"
+
+    @property
     def roles_label(self) -> str:
         """Its roles as text: ``any``, or the roles in ``CVDRole`` order."""
         if self.roles == ANY_ROLE:
@@ -620,6 +651,11 @@ class AuthoredRule(BaseModel):
         """Whether the rule's roles include *role*; ``None`` is any role,
         which every rule's roles include."""
         return role is None or self.roles == ANY_ROLE or role in self.roles
+
+
+def action_words(action: Actions) -> str:
+    """*action* in words: ``Actions.CREATE_FIX`` is ``Create fix``."""
+    return action.name.replace("_", " ").capitalize()
 
 
 def _within[S: StrEnum](

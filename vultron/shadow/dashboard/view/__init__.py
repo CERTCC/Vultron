@@ -42,12 +42,25 @@ Each concern has its own module, and every name is imported from here:
 * :mod:`~vultron.shadow.dashboard.view.bands` — the move advice's bands.
 * :mod:`~vultron.shadow.dashboard.view.shades` — each move's shade and a
   band's legend.
+* :mod:`~vultron.shadow.dashboard.view.action_rules` — the authored action
+  rules beside the bands, compared with them (ADR-0216).
 * :mod:`~vultron.shadow.dashboard.view.narrative` — the case narrative.
 * :mod:`~vultron.shadow.dashboard.view.points` — the point picker's words.
 * :mod:`~vultron.shadow.dashboard.view.reader_report` — the case reader's
   report: untranslated, inferred and unobservable facts.
 """
 
+from vultron.shadow.dashboard.view.action_rules import (
+    ACTION_RULES_NOTE,
+    NO_CHECKED_RULE,
+    RESULT_FLAGS,
+    UNDECIDED_FLAG,
+    UNDECIDED_REASON,
+    RuleRows,
+    action_rule_rows,
+    flagged_note,
+    rule_comparisons,
+)
 from vultron.shadow.dashboard.view.bands import (
     BAND_EMPTY,
     BAND_TITLES,
@@ -56,6 +69,7 @@ from vultron.shadow.dashboard.view.bands import (
     BandView,
     band_views,
     harm_text,
+    size_text,
     unbanded_rows,
 )
 from vultron.shadow.dashboard.view.desiderata import (
@@ -108,6 +122,16 @@ from vultron.shadow.dashboard.view.standing import (
 )
 
 __all__ = [
+    "ACTION_RULES_NOTE",
+    "NO_CHECKED_RULE",
+    "RESULT_FLAGS",
+    "UNDECIDED_FLAG",
+    "UNDECIDED_REASON",
+    "RuleRows",
+    "action_rule_rows",
+    "flagged_note",
+    "rule_comparisons",
+    "size_text",
     "BAND_EMPTY",
     "BAND_TITLES",
     "COLOUR_STOPS",

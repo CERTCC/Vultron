@@ -98,6 +98,10 @@ _TERMS_ADVICE = (
     " negotiate a longer one by revision"
     " (docs/topics/process_models/em/defaults.md)"
 )
+#: R16's reason: publishing before any vendor is aware stays unconditional
+#: (D2), and is mostly worth it when the case has no vendor to wait for.
+_R16_REASON = "Defense; mostly relevant when no vendor is in the case"
+
 _REJECT_REASON = (
     f"Coordination; rejection is rarely the advised answer: {_TERMS_ADVICE}"
 )
@@ -416,13 +420,13 @@ def authored_rules() -> tuple[AuthoredRule, ...]:
         _carry(
             "vfdp..",
             a.PUBLISH_VULNERABILITY,
-            reason="Defense (if no vendor exists)",
+            reason=_R16_REASON,
             desiderata=("P≺X", "P≺A"),
         ),
         _carry(
             "vfdp..",
             a.PUBLISH_MITIGATION,
-            reason="Defense (if no vendor exists)",
+            reason=_R16_REASON,
             desiderata=("P≺X", "P≺A"),
         ),
         # R17 Vfd...: no F at VfdpX., where pX forces P

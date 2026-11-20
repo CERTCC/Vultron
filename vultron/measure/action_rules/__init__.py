@@ -22,8 +22,13 @@
 * :mod:`.generated` — those bands grouped into generated rules.
 * :mod:`.compare` — the comparison, position by position, and its five
   results.
+* :mod:`.report` — the comparison over every valid position of one vendor,
+  rule by rule, for the generated docs page.
+* :mod:`.pages` — the command that rebuilds the generated docs fragments
+  (``uv run action-rules-docs``).
 
-Everything here reads; nothing fires a trigger or writes (CEH-01-002).
+Everything here reads; nothing fires a trigger or writes (CEH-01-002),
+except the command of :mod:`.pages`, which writes only the docs fragments.
 """
 
 from vultron.measure.action_rules.authored import (
@@ -32,7 +37,7 @@ from vultron.measure.action_rules.authored import (
     authored_rules,
 )
 from vultron.measure.action_rules.compare import (
-    FORCED_AWARENESS,
+    FORCED_STEP,
     NO_STATE_CHANGE,
     NOT_MEASURED,
     DesideratumShift,
@@ -99,7 +104,7 @@ __all__ = [
     "ConditionalVerdict",
     "ConsentReading",
     "DesideratumShift",
-    "FORCED_AWARENESS",
+    "FORCED_STEP",
     "GeneratedRule",
     "Machine",
     "MatchStatus",

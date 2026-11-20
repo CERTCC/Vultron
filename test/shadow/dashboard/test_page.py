@@ -316,7 +316,9 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
     # No move of this recording trades off or is unhelpful: each band says
     # so, the unhelpful one inside its closed group.
     assert BAND_EMPTY[Band.TRADE_OFF] in _texts(at.caption)
-    (unhelpful,) = at.expander
+    (unhelpful,) = [
+        e for e in at.expander if str(e.label).startswith("Unhelpful")
+    ]
     assert _texts(unhelpful.caption) == [BAND_EMPTY[Band.UNHELPFUL]]
     # The recording ends on the CASE_MANAGER's closure: nothing follows.
     assert not any("moved on" in c for c in _texts(at.caption))
@@ -715,7 +717,9 @@ def test_the_bands_are_shown_in_order_with_the_unhelpful_one_collapsed(
         m for m in markdowns if m.startswith("**") and m.endswith("**")
     ]
     assert band_titles[:2] == ["**Harm-free**", "**Trade-off**"]
-    (unhelpful,) = at.expander
+    (unhelpful,) = [
+        e for e in at.expander if str(e.label).startswith("Unhelpful")
+    ]
     assert unhelpful.label.startswith("Unhelpful (")
     assert unhelpful.proto.expanded is False
     (inside,) = unhelpful.dataframe
