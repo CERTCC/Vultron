@@ -29,14 +29,17 @@ Ceiling/floor mapping (BT-23-002):
 - ``prepare_exploit_factory``               — PrepareExploit               (p=0.90) → AlwaysSucceed
 - ``prepare_fix_factory``                   — PrepareFix                   (p=0.90) → AlwaysSucceed
 - ``prepare_report_factory``                — PrepareReport                (p=0.90) → AlwaysSucceed
-- ``draft_advisory_artifact_factory``       — DraftAdvisoryArtifact        (p=0.90) → AlwaysSucceed
+- ``draft_advisory_artifact_factory``       — DraftAdvisoryArtifact        (p=0.90) → DraftAdvisoryArtifactByProjection
 - ``review_advisory_draft_factory``         — ReviewAdvisoryDraft          (p=1.0) → AlwaysSucceed
 - ``revise_advisory_draft_factory``         — ReviseAdvisoryDraft          (p=0.90) → AlwaysSucceed
 - ``submit_advisory_artifact_factory``      — SubmitAdvisoryArtifact       (p=0.90) → AlwaysSucceed
 
-Every default binds to its capability's core declaration
+Every other default binds to its capability's core declaration
 (:func:`~vultron.core.behaviors.call_out.nodes.always_succeed_as`), so its
-*yes* writes the declared output ports (BT-23-013).  For
+*yes* writes the declared output ports (BT-23-013).  The draft default,
+:class:`DraftAdvisoryArtifactByProjection`, writes a real draft: the CSAF
+projection of the case by the public profile (ADR-0219), rendered through
+the ``case_projection_port`` the tree's runner places on the blackboard.  For
 ``prioritize_publication_intents_factory`` that is the default
 :class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`
 (publish the fix and the report, withhold the exploit), which the
@@ -45,10 +48,17 @@ Every default binds to its capability's core declaration
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from typing import cast
 
+import py_trees
+from py_trees.common import Access
+
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.capabilities.report_management.publication.advisory import (
+    DRAFT_CASE_ID_KEY,
     DraftAdvisoryArtifactCapability,
     ReviewAdvisoryDraftCapability,
     ReviseAdvisoryDraftCapability,
@@ -64,6 +74,93 @@ from vultron.core.behaviors.call_out.nodes import (
     always_succeed_as,
 )
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
+from vultron.core.behaviors.helpers.messages import (
+    DATALAYER_OR_ACTOR_UNAVAILABLE,
+)
+from vultron.core.behaviors.report.advisory_review import DRAFT_ARTIFACT_KEY
+from vultron.core.models.case_projection import PublicationStatus
+from vultron.core.models.case_projection_profile import PUBLIC_PROFILE
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.case_projection import (
+    PROJECTION_FAILURES,
+    project_case,
+    require_projection_port,
+)
+from vultron.errors import VultronWiringError
+
+#: The blackboard key the runner places the projection port under.
+CASE_PROJECTION_PORT_KEY = "case_projection_port"
+
+#: The run keys the draft backend reads beside its input port.
+_RUN_KEYS = ("datalayer", "actor_id", CASE_PROJECTION_PORT_KEY)
+
+
+class DraftAdvisoryArtifactByProjection(DraftAdvisoryArtifactCapability):
+    """DETERMINISTIC DraftAdvisoryArtifact: the case's public projection.
+
+    Reads the case id from its input port, and the store, the executing
+    actor and the ``case_projection_port`` from the run's blackboard
+    (BTBridge places them).  It cuts the case with the public profile and
+    renders it with ``tracking.status`` ``final`` (ADR-0219), through
+    :func:`~vultron.core.services.case_projection.project_case`, and answers
+    *yes* with the document's JSON text as the draft (BT-23-013).
+
+    A missing port, store or actor is a wiring fault and raises
+    :class:`~vultron.errors.VultronWiringError`: no fallback draft is made.
+    A replica that cannot be projected, such as one that does not hold the
+    case, is *error*: the backend could not draft, it did not decline
+    (ADR-0183).
+    """
+
+    #: Read-only rate interface parity with the simulation backends.
+    success_rate: float = 1.0
+
+    def __init__(self, name: str = "") -> None:
+        super().__init__(name)
+        self._run = self.attach_blackboard_client(
+            name=f"{type(self).__name__}_{self.name}_run"
+        )
+        for key in _RUN_KEYS:
+            self._run.register_key(key, Access.READ)
+
+    def _run_value(self, key: str) -> object | None:
+        try:
+            value: object = self._run.get(key)
+        except KeyError:
+            return None
+        return value
+
+    def answer(self) -> CallOutAnswer:
+        """Answer *yes* with the case's public projection, or *error*."""
+        case_id = str(self.get_input(DRAFT_CASE_ID_KEY))
+        port = require_projection_port(
+            self._run_value(CASE_PROJECTION_PORT_KEY)
+        )
+        dl = self._run_value("datalayer")
+        actor_id = self._run_value("actor_id")
+        if dl is None or not isinstance(actor_id, str) or not actor_id:
+            raise VultronWiringError(
+                f"{self.name}: {DATALAYER_OR_ACTOR_UNAVAILABLE}"
+            )
+        try:
+            document = project_case(
+                cast(CasePersistence, dl),
+                case_id,
+                actor_id,
+                PUBLIC_PROFILE,
+                PublicationStatus.FINAL,
+                port,
+            )
+        except PROJECTION_FAILURES as exc:
+            return CallOutAnswer.error(
+                f"drafting the public projection of case '{case_id}'"
+                f" failed: {exc}"
+            )
+        return CallOutAnswer.yes({DRAFT_ARTIFACT_KEY: json.dumps(document)})
+
+
+def _draft_by_projection(name: str) -> py_trees.behaviour.Behaviour:
+    return DraftAdvisoryArtifactByProjection(name)
 
 
 @dataclass(frozen=True)
@@ -89,7 +186,7 @@ class PublicationCallOutBundle(CallOutBundle):
         default=always_succeed_as(PrepareReportCapability)  # type: ignore[assignment]
     )
     draft_advisory_artifact_factory: CallOutBackendFactory = field(
-        default=always_succeed_as(DraftAdvisoryArtifactCapability)  # type: ignore[assignment]
+        default=_draft_by_projection  # type: ignore[assignment]
     )
     review_advisory_draft_factory: CallOutBackendFactory = field(
         default=always_succeed_as(ReviewAdvisoryDraftCapability)  # type: ignore[assignment]
@@ -105,13 +202,17 @@ class PublicationCallOutBundle(CallOutBundle):
 PUBLICATION_DETERMINISTIC = PublicationCallOutBundle()
 """Deterministic bundle: happy-path default for production use (BT-23-001, BT-23-002).
 
-Every factory is an :class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed`
-bound to its capability, so each *yes* writes the declared outputs
-(BT-23-013); ``prioritize_publication_intents_factory`` writes the standard
+Every factory but the draft's is an
+:class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed` bound to its
+capability, so each *yes* writes the declared outputs (BT-23-013); the draft
+is :class:`DraftAdvisoryArtifactByProjection`;
+``prioritize_publication_intents_factory`` writes the standard
 CVD :class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`.
 """
 
 __all__ = [
+    "CASE_PROJECTION_PORT_KEY",
+    "DraftAdvisoryArtifactByProjection",
     "PublicationCallOutBundle",
     "PUBLICATION_DETERMINISTIC",
 ]

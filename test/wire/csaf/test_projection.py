@@ -18,13 +18,9 @@ inputs (CSAF-06).
 
 import json
 from datetime import UTC, datetime
-from functools import cache
 from typing import Any
 
 import pytest
-from jsonschema import Draft202012Validator, FormatChecker
-from referencing import Registry
-from referencing.jsonschema import DRAFT202012
 
 from test.support.case_projection import (
     CASE_ID,
@@ -43,6 +39,7 @@ from test.support.case_projection import (
     projected_case,
     projected_ledger,
 )
+from test.support.csaf_schema import csaf_schema_validator
 from test.support.objects import make
 from vultron.core.models.case_preview import CasePreview
 from vultron.core.models.case_projection import (
@@ -68,10 +65,10 @@ from vultron.core.models.vulnerability_item import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
-from vultron.metadata.csaf.pin import PINNED_COPY_DIR, load_pin
 from vultron.wire.csaf.projection import (
     ACTION_CATEGORIES,
     ACTION_SUMMARIES,
+    csaf_category,
     render_csaf,
     role_category,
     tracking_id,
@@ -89,29 +86,6 @@ def _position(log_index: object, entry_hash: str) -> Any:
     return CasePreview.model_validate(
         {"ledgerPosition": {"logIndex": log_index, "entryHash": entry_hash}}
     ).ledger_position
-
-
-@cache
-def _validator() -> Draft202012Validator:
-    """A validator of the pinned CSAF 2.1 schema, reading every schema it
-    references from the pinned local copy."""
-    pin = load_pin()
-    # Every schema of the copy is read as draft 2020-12, the dialect the
-    # CSAF meta-schema extends.
-    resources = [
-        (
-            url,
-            DRAFT202012.create_resource(
-                json.loads((PINNED_COPY_DIR / path).read_bytes())
-            ),
-        )
-        for url, path in pin.sources.items()
-    ]
-    registry: Registry[Any] = Registry().with_resources(resources)
-    root = json.loads((PINNED_COPY_DIR / pin.root).read_bytes())
-    return Draft202012Validator(
-        root, registry=registry, format_checker=FormatChecker()
-    )
 
 
 def _inputs(profile: ProjectionProfile, **fields: Any) -> ProjectionInputs:
@@ -174,7 +148,10 @@ def test_each_profiles_projection_passes_the_pinned_schema(
 ) -> None:
     rendered = _render(profile)
 
-    errors = [error.message for error in _validator().iter_errors(rendered)]
+    errors = [
+        error.message
+        for error in csaf_schema_validator().iter_errors(rendered)
+    ]
     assert errors == []
     assert _document(rendered)["category"] == "csaf_base"
 
@@ -186,7 +163,7 @@ def test_the_schema_check_is_not_vacuous() -> None:
     rendered = _render(PUBLIC_PROFILE)
     rendered["vulnerabilities"] = [{}]
 
-    assert not _validator().is_valid(rendered)
+    assert not csaf_schema_validator().is_valid(rendered)
 
 
 @pytest.mark.spec("CSAF-06-001")
@@ -201,7 +178,7 @@ def test_the_renderer_needs_no_case_only_a_preview_and_inputs() -> None:
 
     rendered = _csaf(preview, _inputs(PUBLIC_PROFILE))
 
-    assert _validator().is_valid(rendered)
+    assert csaf_schema_validator().is_valid(rendered)
     assert _document(rendered)["title"] == "A hand-built preview"
 
 
@@ -646,7 +623,7 @@ def test_a_case_with_no_vul_items_has_no_vulnerabilities() -> None:
     rendered = _csaf(preview, _inputs(PUBLIC_PROFILE))
 
     assert "vulnerabilities" not in rendered
-    assert _validator().is_valid(rendered)
+    assert csaf_schema_validator().is_valid(rendered)
 
 
 def test_a_case_with_no_name_is_titled_by_its_id() -> None:
@@ -740,7 +717,7 @@ def test_a_vul_items_own_references_render_on_its_vulnerability() -> None:
             }
         ],
     }
-    assert _validator().is_valid(rendered)
+    assert csaf_schema_validator().is_valid(rendered)
 
 
 def test_a_vul_item_with_nothing_shown_is_left_out() -> None:
@@ -897,3 +874,14 @@ def test_an_actor_the_preview_does_not_show_is_an_other_entity() -> None:
     (entity,) = _joined_document(preview)["involvement"]["entities"]
 
     assert (entity["category"], entity["name"]) == ("other", REPORTER)
+
+
+# --- AC-3a: one category selection for every call site --------------------
+
+
+@pytest.mark.spec("CSAF-06-004")
+@pytest.mark.parametrize("profile", _PROFILES, ids=lambda p: p.name)
+def test_the_shared_selection_gives_csaf_base_while_no_case_holds_products(
+    profile: ProjectionProfile,
+) -> None:
+    assert csaf_category(_preview(profile)) == "csaf_base"

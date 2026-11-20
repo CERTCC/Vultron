@@ -1080,6 +1080,40 @@ def test_bridge_wire_render_port_is_correct_object(datalayer, test_actor_id):
 
 
 # ---------------------------------------------------------------------------
+# case_projection_port injection (ADR-0219)
+# ---------------------------------------------------------------------------
+
+
+def test_bridge_places_the_case_projection_port_for_the_run_only(
+    datalayer, test_actor_id
+):
+    """The port is on the blackboard while the tree runs, and the run's end
+    restores the key, so it does not reach the next run."""
+    stub = object()
+    seen: list[object] = []
+
+    class _Read(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            storage = py_trees.blackboard.Blackboard.storage
+            seen.append(storage.get("/case_projection_port"))
+            return Status.SUCCESS
+
+    py_trees.blackboard.Blackboard.storage.pop("/case_projection_port", None)
+    bridge = BTBridge(datalayer=datalayer, case_projection_port=stub)  # type: ignore[arg-type]
+
+    result = bridge.execute_with_setup(
+        tree=_Read(name="Read"), actor_id=test_actor_id
+    )
+
+    assert result.status == Status.SUCCESS
+    assert seen == [stub]
+    assert (
+        py_trees.blackboard.Blackboard.storage.get("/case_projection_port")
+        is None
+    )
+
+
+# ---------------------------------------------------------------------------
 # Delegated emit: the ports follow the executing actor too (DL-07-009, #2548)
 # ---------------------------------------------------------------------------
 

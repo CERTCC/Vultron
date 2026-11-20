@@ -889,7 +889,13 @@ groups:
       validates a projection cut by each profile against the pinned local copy of
       the CSAF 2.1 schema and checks its category;
       `::test_the_schema_check_is_not_vacuous` checks that the same validator
-      refuses an invalid document.
+      refuses an invalid document. Both call sites take the category from one
+      selection: `::test_the_shared_selection_gives_csaf_base_while_no_case_holds_products`
+      checks it, and
+      `test/core/behaviors/report/test_publication_draft_projection.py::test_the_draft_takes_its_category_from_the_shared_selection`
+      and
+      `test/adapters/driving/fastapi/routers/test_case_csaf_route.py::test_the_endpoint_takes_its_category_from_the_shared_selection`
+      check that each call site asks it.
     relationships:
     - rel_type: refines
       spec_id: CSAF-05-001
@@ -1030,3 +1036,50 @@ groups:
     verification: >-
       `test/wire/csaf/test_projection.py::test_the_tlp_label_is_fixed_by_the_profile`
       checks the label of a projection cut by each profile.
+  - id: CSAF-06-012
+    priority: MUST
+    kind: project
+    statement: >-
+      The draft step of the publication pipeline MUST use the public profile,
+      and the operator CSAF endpoint MUST use the joined profile.
+    rationale: >-
+      Each call site's audience fixes what may leave the case: a publication
+      is read by anyone, while the operator hands the coordination document to
+      a party the case already trusts. A call site that chose its profile per
+      request could publish what only a joined participant may see.
+    adr:
+    - ADR-0219
+    lint_suppress:
+    # one rule: each call site is bound to its own profile
+    - compound_statement
+    verification: >-
+      `test/core/behaviors/report/test_publication_draft_projection.py::test_the_publication_tree_drafts_a_schema_valid_public_projection`
+      runs the publication tree on a stored replica and checks that the draft
+      is a schema-valid `final` document of the public profile, and
+      `::test_the_public_draft_holds_none_of_the_joined_only_content` that it
+      holds none of the case content, report text, Case Owner or notes that only
+      the joined profile includes;
+      `test/adapters/driving/fastapi/routers/test_case_csaf_route.py::test_the_endpoint_returns_the_joined_interim_projection`
+      checks that the endpoint returns a schema-valid `interim` document of the
+      joined profile.
+  - id: CSAF-06-013
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The operator CSAF endpoint MUST NOT write to the DataLayer, add a ledger
+      entry or send an activity.
+    rationale: >-
+      The endpoint is a read of the actor's replica. The operator gives the
+      document to the outside party out of band, so a projection is no case
+      event and no message.
+    adr:
+    - ADR-0219
+    lint_suppress:
+    # the three are one rule: the endpoint is a read
+    - compound_statement
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_case_csaf_route.py::test_the_endpoint_writes_nothing`
+      compares every row of the actor's store, its ledger entries and its inbox
+      and outbox queues before and after a request, and
+      `::test_the_write_check_is_not_vacuous` checks that the comparison sees a
+      write.

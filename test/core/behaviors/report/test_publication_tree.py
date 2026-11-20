@@ -209,7 +209,11 @@ def test_stochastic_prepare_nodes_are_fuzzers():
 
 
 def test_default_publish_pipeline_nodes_are_deterministic():
-    """DETERMINISTIC default: pipeline factories produce AlwaysSucceed per arm."""
+    """DETERMINISTIC default: the draft is the case's public projection, and
+    the other pipeline factories produce AlwaysSucceed per arm."""
+    from vultron.core.behaviors.call_out.bundles.publication import (
+        DraftAdvisoryArtifactByProjection,
+    )
     from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
     tree = create_publication_tree(case_id=CASE_ID)
@@ -218,7 +222,10 @@ def test_default_publish_pipeline_nodes_are_deterministic():
     ):
         pipeline = arm.children[0].children[2]  # PublishArtifactBT_<label>
         assert pipeline.name == f"PublishArtifactBT_{label}"
-        assert isinstance(unwrap_call_out(pipeline.children[0]), AlwaysSucceed)
+        assert isinstance(
+            unwrap_call_out(pipeline.children[0]),
+            DraftAdvisoryArtifactByProjection,
+        )
         assert isinstance(unwrap_call_out(pipeline.children[1]), AlwaysSucceed)
         assert isinstance(unwrap_call_out(pipeline.children[3]), AlwaysSucceed)
 

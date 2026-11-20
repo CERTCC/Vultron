@@ -31,6 +31,7 @@ from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
 
 if TYPE_CHECKING:
+    from vultron.core.ports.case_projection import CaseProjectionPort
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
@@ -49,6 +50,7 @@ class _BridgeSetup:
     trigger_activity: TriggerActivityPort | None
     sync_port: SyncActivityPort | None
     wire_render_port: WireRenderPort | None
+    case_projection_port: CaseProjectionPort | None
     logger: logging.Logger
 
     def _store_for_actor(self, actor_id: str) -> CasePersistence:
@@ -238,6 +240,15 @@ class _BridgeSetup:
                     access=py_trees.common.Access.WRITE,
                 )
                 blackboard.wire_render_port = wire_render_port
+
+            # Holds no store, so nothing to rebind (DL-07-009); a bridge not
+            # given one leaves the key as the outer run set it.
+            if self.case_projection_port is not None:
+                blackboard.register_key(
+                    key="case_projection_port",
+                    access=py_trees.common.Access.WRITE,
+                )
+                blackboard.case_projection_port = self.case_projection_port
 
             # Write is_leader to the blackboard only when this bridge carries an
             # explicit (non-default) guard.  Default bridges do NOT overwrite the

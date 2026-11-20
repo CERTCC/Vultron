@@ -34,16 +34,23 @@ from vultron.core.behaviors.report.advisory_review import (
     AdvisoryReviewDecision,
 )
 
+#: The input key naming the case a draft is of.
+DRAFT_CASE_ID_KEY = "case_id"
+
 
 class DraftAdvisoryArtifactCapability(ComposerCapability):
     """Draft the advisory artifact from case data.
 
     Blackboard contract (BT-18-001):
-      Input keys:  (none — reads case context from caller's DataLayer)
+      Input keys:  case_id: str  (the case the draft is of)
+                   (the backend reads the case from the caller's DataLayer)
       Output keys: draft_advisory_artifact: str  (yes only)
       Refusal keys: call_out_refusal_reason: str  (no only)
     """
 
+    INPUT_PORTS = {
+        DRAFT_CASE_ID_KEY: PortInformation(data_type=str, required=True),
+    }
     OUTPUT_PORTS = {
         DRAFT_ARTIFACT_KEY: PortInformation(data_type=str, required=True),
     }
@@ -99,6 +106,7 @@ class SubmitAdvisoryArtifactCapability(ActuatorCapability):
 
 
 __all__ = [
+    "DRAFT_CASE_ID_KEY",
     "DraftAdvisoryArtifactCapability",
     "ReviewAdvisoryDraftCapability",
     "ReviseAdvisoryDraftCapability",

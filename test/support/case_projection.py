@@ -21,11 +21,18 @@ the ones no document renders, and the embargo end :data:`EMBARGO_END`.
 one with none.
 """
 
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, datetime
 from typing import Any
 
+import py_trees
+
 from test.support.embargo_register import register
 from test.support.objects import make
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.datalayer_sqlite.engine import fresh_memory_url
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -235,3 +242,69 @@ def projected_ledger() -> list[CaseLedgerEntry]:
             to=[VENDOR, REPORTER, COORDINATOR],
         ),
     ]
+
+
+def position_of(ledger: list[CaseLedgerEntry]) -> LedgerPosition:
+    """The position of *ledger*'s last entry."""
+    tail = ledger[-1]
+    return LedgerPosition(log_index=tail.log_index, entry_hash=tail.entry_hash)
+
+
+def store_projected_replica(dl: Any, **case_fields: Any) -> VulnerabilityCase:
+    """Store :func:`projected_case` in *dl* as a replica does: its
+    participants as records the case names by id, its ledger as entries,
+    the case at the ledger's last position, and the projecting actor's
+    record.  Returns the stored case."""
+    ledger = projected_ledger()
+    case = projected_case(ledger_position=position_of(ledger), **case_fields)
+    participants = [
+        p for p in case.case_participants if isinstance(p, CaseParticipant)
+    ]
+    case.case_participants = [p.id_ for p in participants]
+    for participant in participants:
+        case.actor_participant_index[str(participant.attributed_to)] = (
+            participant.id_
+        )
+        dl.create(participant)
+    dl.save(case)
+    for entry in ledger:
+        dl.create(entry)
+    dl.save(make(VultronOrganization, id_=PROJECTOR.id_, name=PROJECTOR.name))
+    return case
+
+
+class StubProjectionPort:
+    """A projection port that renders every cut as one fixed document."""
+
+    def render(self, cut: Any, inputs: Any) -> dict[str, Any]:
+        return {"profile": cut.profile_name, "status": inputs.status.value}
+
+
+@contextmanager
+def publication_draft_run() -> Iterator[None]:
+    """The run context the publication draft backend reads, outside a tree.
+
+    A fresh store holding :func:`store_projected_replica`, and on the
+    blackboard the store, the executing actor, a projection port and the
+    case id, as ``BTBridge`` and the tree's runner place them.  For a test
+    that ticks the DETERMINISTIC draft backend directly.
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    with SqliteDataLayer(
+        fresh_memory_url("publication-draft-run"), actor_id=COORDINATOR
+    ) as dl:
+        store_projected_replica(dl)
+        storage["/datalayer"] = dl
+        storage["/actor_id"] = COORDINATOR
+        storage["/case_projection_port"] = StubProjectionPort()
+        storage["/case_id"] = CASE_ID
+        yield
+
+
+#: The bundle fields whose DETERMINISTIC backend reads a run's context, by
+#: the context a test that ticks it alone gives it (ADR-0219).
+CALL_OUT_RUN_CONTEXTS: dict[
+    str, Callable[[], AbstractContextManager[None]]
+] = {
+    "draft_advisory_artifact_factory": publication_draft_run,
+}

@@ -88,6 +88,21 @@ from vultron.wire.csaf.reader import CSAF_21_SCHEMA, CSAF_21_VERSION
 #: statuses (ADR-0187, ADR-0219).
 CsafCategory = Literal["csaf_base"]
 
+
+def csaf_category(preview: CasePreview) -> CsafCategory:
+    """The CSAF category a projection of *preview* takes.
+
+    The one selection every call site uses, so the call sites cannot
+    disagree.  A case holds no products (ADR-0187), and the Vulnerability
+    Report and Security Advisory profiles need a product tree and product
+    statuses, so every preview gives ``csaf_base`` (CSAF-06-004).  The
+    category a preview whose case holds products meets is chosen here
+    (#6785), never at a call site.
+    """
+    del preview  # no case holds products yet (ADR-0187)
+    return "csaf_base"
+
+
 #: The CSAF action category of each act with a CSAF meaning, by the
 #: crosswalk concept mapping.  An entry of any other act is left out.
 ACTION_CATEGORIES: dict[str, str] = {
@@ -597,6 +612,7 @@ __all__ = [
     "ACTION_SUMMARIES",
     "CsafCategory",
     "acknowledgments_digest",
+    "csaf_category",
     "render_csaf",
     "role_category",
     "tracking_id",

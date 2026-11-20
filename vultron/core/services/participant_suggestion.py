@@ -39,29 +39,10 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.participant_suggestion import (
     ParticipantSuggestionPort,
 )
+from vultron.core.services.held_references import read_held
 from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
-
-
-def _resolved[T](
-    refs: list[str | T], kind: type[T], dl: CasePersistence
-) -> list[T]:
-    """*refs* with every bare id read from *dl* as a *kind*.
-
-    Raises:
-        VultronNotFoundError: A reference names no *kind* in *dl*.
-    """
-    resolved: list[T] = []
-    for ref in refs:
-        if not isinstance(ref, str):
-            resolved.append(ref)
-            continue
-        record = dl.read(ref)
-        if not isinstance(record, kind):
-            raise VultronNotFoundError(kind.__name__, ref)
-        resolved.append(record)
-    return resolved
 
 
 def suggestion_context(
@@ -80,10 +61,10 @@ def suggestion_context(
     """
     inline = case.model_copy(
         update={
-            "vulnerability_reports": _resolved(
+            "vulnerability_reports": read_held(
                 list(case.vulnerability_reports), VulnerabilityReport, dl
             ),
-            "case_participants": _resolved(
+            "case_participants": read_held(
                 list(case.case_participants), CaseParticipant, dl
             ),
         }

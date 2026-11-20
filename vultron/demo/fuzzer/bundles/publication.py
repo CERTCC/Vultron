@@ -24,7 +24,7 @@ Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 - ``prepare_exploit_factory``               — PrepareExploit               (p=0.90) → AlwaysSucceed
 - ``prepare_fix_factory``                   — PrepareFix                   (p=0.90) → AlwaysSucceed
 - ``prepare_report_factory``                — PrepareReport                (p=0.90) → AlwaysSucceed
-- ``draft_advisory_artifact_factory``       — DraftAdvisoryArtifact        (p=0.90) → AlwaysSucceed
+- ``draft_advisory_artifact_factory``       — DraftAdvisoryArtifact        (p=0.90) → DraftAdvisoryArtifactByProjection
 - ``review_advisory_draft_factory``         — ReviewAdvisoryDraft          (p=1.0) → AlwaysSucceed
 - ``revise_advisory_draft_factory``         — ReviseAdvisoryDraft          (p=0.90) → AlwaysSucceed
 - ``submit_advisory_artifact_factory``      — SubmitAdvisoryArtifact       (p=0.90) → AlwaysSucceed
