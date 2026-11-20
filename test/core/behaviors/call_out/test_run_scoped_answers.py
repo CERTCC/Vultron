@@ -111,13 +111,6 @@ def _peek_only() -> tuple[py_trees.behaviour.Behaviour, _Peek]:
     return tree, peek
 
 
-@pytest.fixture(autouse=True)
-def _clean_blackboard():
-    py_trees.blackboard.Blackboard.clear()
-    yield
-    py_trees.blackboard.Blackboard.clear()
-
-
 @pytest.fixture
 def bridge() -> BTBridge:
     return BTBridge(

@@ -1433,8 +1433,9 @@ groups:
       `test/architecture/test_bridge_managed_keys_cover_published_keys.py` fail on a
       published key that is neither restored nor exempt; the probes there show that
       they can fail. The tree scan reads each node's own blackboard clients too,
-      and `test_every_key_a_call_out_contract_writes_is_restored` there holds one
-      seam per capability declaration to the same rule;
+      and `test_every_key_a_call_out_contract_writes_is_restored` there builds one
+      seam per capability declaration and asserts the bridge restores exactly
+      that contract's keys;
       `test_a_call_out_whose_written_keys_are_not_restored_fails_the_check` and
       `test_a_backend_writing_its_own_key_fails_the_check` are its probes, and
       `test_the_bridge_restores_every_seams_written_keys` fails if

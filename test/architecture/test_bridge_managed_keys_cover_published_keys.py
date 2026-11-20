@@ -38,7 +38,9 @@ A node publishes a key in three ways, and the scans read each:
   later sibling reads it, so ``execute_with_setup`` restores every key
   ``call_out_written_keys()`` finds in the tree it runs.  A key the runner
   restores that way is covered; any other client write must be restored
-  like a port binding.  The tree scan reads the clients of every built
+  like a port binding.  The scans read clients as built and call no
+  ``setup()``, so a key a node registers only in ``setup()`` is not seen;
+  the seam registers its keys when it is built.  The tree scan reads the clients of every built
   received tree, and :func:`_call_out_contract_trees` holds one seam per
   capability declaration, so a contract no received tree builds is read
   too.
@@ -448,9 +450,16 @@ def test_every_key_a_built_received_tree_publishes_is_restored() -> None:
 
 
 def _restores_call_out_keys(fn: ast.FunctionDef) -> bool:
-    """Whether *fn* extends ``managed_keys`` with ``call_out_written_keys``."""
-    return any(
-        isinstance(node, ast.AugAssign)
+    """Whether *fn* extends ``managed_keys`` with the seams' keys in time.
+
+    The extension must read ``call_out_written_keys(tree)``, the tree the
+    run executes, and come before ``snapshot_keys`` reads ``managed_keys``,
+    or the snapshot would not hold the keys it restores.
+    """
+    extensions = [
+        node.lineno
+        for node in ast.walk(fn)
+        if isinstance(node, ast.AugAssign)
         and isinstance(node.target, ast.Name)
         and node.target.id == "managed_keys"
         and isinstance(node.value, ast.List)
@@ -459,10 +468,19 @@ def _restores_call_out_keys(fn: ast.FunctionDef) -> bool:
             and isinstance(elt.value, ast.Call)
             and isinstance(elt.value.func, ast.Name)
             and elt.value.func.id == call_out_written_keys.__name__
+            and [ast.dump(a) for a in elt.value.args]
+            == [ast.dump(ast.Name(id="tree", ctx=ast.Load()))]
             for elt in node.value.elts
         )
+    ]
+    snapshots = [
+        node.lineno
         for node in ast.walk(fn)
-    )
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "snapshot_keys"
+    ]
+    return bool(extensions and snapshots) and max(extensions) < min(snapshots)
 
 
 @pytest.mark.spec("BT-17-020")
@@ -480,10 +498,18 @@ def test_the_bridge_restores_every_seams_written_keys() -> None:
 
 @pytest.mark.spec("BT-17-020")
 def test_every_key_a_call_out_contract_writes_is_restored() -> None:
-    """Every declared contract, built or not, so a new one cannot leak."""
-    unrestored = _unrestored(
-        _tree_publications(_call_out_contract_trees()), _bridge_managed()
-    )
+    """Every declared contract, built or not: the keys the bridge restores
+    for a tree holding its seam are exactly the contract's outputs and
+    refusal ports, and the seam's client writes no other key."""
+    trees = _call_out_contract_trees()
+    for tree, declaration in zip(
+        trees, capability_declarations(), strict=True
+    ):
+        contract = declaration.contract
+        assert call_out_written_keys(tree) == sorted(
+            {*contract.outputs, *contract.refusal_ports}
+        ), declaration.__name__
+    unrestored = _unrestored(_tree_publications(trees), _bridge_managed())
     assert unrestored == [], _FAILURE + "\n  ".join(unrestored)
 
 

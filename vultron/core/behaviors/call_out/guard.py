@@ -83,6 +83,7 @@ from py_trees.common import Access, Status
 from vultron.config.app import load_actor_config
 from vultron.core.behaviors.call_out.answer import (
     CallOutAnswer,
+    CallOutContract,
     CallOutVerdict,
     is_of_port_type,
 )
@@ -129,6 +130,11 @@ def _check_data(
             )
 
 
+def _contract_keys(contract: CallOutContract) -> tuple[str, ...]:
+    """Every key *contract* lets a seam write: outputs, then refusal ports."""
+    return (*contract.outputs, *contract.refusal_ports)
+
+
 class SynchronousCallOut(py_trees.decorators.Decorator):
     """The call-out seam: turns its backend's answer into tree behaviour.
 
@@ -154,13 +160,12 @@ class SynchronousCallOut(py_trees.decorators.Decorator):
         # visualizations; the backend is reachable via ``self.decorated``.
         super().__init__(name=child.name, child=child)
         self._backend: CallOutBackend = child
-        contract = child.contract
         # Built here, not in setup(), so a tick without setup() still writes
         # the declared data (BT-23-013).
         self._bb = self.attach_blackboard_client(
             name=f"{type(self).__name__}_{child.name}"
         )
-        for key in (*contract.outputs, *contract.refusal_ports):
+        for key in _contract_keys(child.contract):
             self._bb.register_key(key, Access.WRITE)
 
     def written_keys(self) -> tuple[str, ...]:
@@ -171,8 +176,7 @@ class SynchronousCallOut(py_trees.decorators.Decorator):
         keys when its own tick ends; the runner restores them when the run
         ends (BT-17-020), reading them through :func:`call_out_written_keys`.
         """
-        contract = self._backend.contract
-        return (*contract.outputs, *contract.refusal_ports)
+        return _contract_keys(self._backend.contract)
 
     def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
         """Tick the backend armed for this one tick, then interpret it.
