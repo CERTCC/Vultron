@@ -4195,9 +4195,10 @@ groups:
     statement: >-
       This rule covers the Case Owner's `Invite(<case preview>)[target=<invitee>]`
       received by the CASE_MANAGER (CM-17-007). The CASE_MANAGER MUST commit an
-      admitted Invite as one ledger entry, then send the invitee its own stub Invite
-      with the same `object` and `target` and the offered roles, `attributedTo` the
-      Case Owner and `inReplyTo` the Owner's Invite (CM-24-002, CM-24-020).
+      admitted Invite as one ledger entry, then send the invitee its own stub Invite.
+      That stub Invite carries the same `object`, `target` and roles, with
+      `attributedTo` the Case Owner and `inReplyTo` the Owner's Invite (CM-24-002,
+      CM-24-020).
     rationale: >-
       The decider's act is ledgered as the decision, and the CASE_MANAGER makes the
       ask the invitee answers (ADR-0199). The two fields let the invitee and every
@@ -4225,9 +4226,9 @@ groups:
     kind: project
     statement: >-
       The CASE_MANAGER MUST refuse the Case Owner's Invite with a refusal notice,
-      committing nothing, when its sender does not hold `CASE_OWNER`, its `target`
-      is the CASE_MANAGER or the Owner, or the invitee has joined, is at
-      `RM.CLOSED` or was removed.
+      committing nothing, in each of these cases. The sender does not hold
+      `CASE_OWNER`. The `target` is the CASE_MANAGER or the Owner. The invitee has
+      joined, is at `RM.CLOSED` or was removed.
     rationale: >-
       Only the Case Owner decides whom the case invites, and a refused decision is
       answered so the sender learns why (CLP-05-001). The CASE_MANAGER never
