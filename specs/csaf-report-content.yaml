@@ -1000,15 +1000,27 @@ groups:
     kind: project
     statement: >-
       The status of each `document.involvement` action of a CSAF projection MUST
-      be `completed` for a ledger fact, and MUST NOT be `attempted` or
-      `planned`.
+      be `completed` for a ledger fact. An invitee's unanswered invitation to an
+      embargo that the register shows as proposed or in force MUST give an
+      `outstanding` `confirmation`. A participant in RM `DEFERRED` MUST give a
+      `deferred` `assessment`, or a `deferred` `coordination` once it had
+      accepted the report. Each such action MUST be `discontinued` instead when
+      its participant has left the case, by removal or RM `CLOSED`. A deferral
+      that the participant closed the report from MUST also be `discontinued`.
+      An action MUST NOT be `attempted` or `planned`.
     rationale: >-
-      A ledger entry records a completed act. A failed delivery is a fact about
+      A ledger entry records a completed act, and the open work at the position
+      is read from the participants the preview shows: their consent rows,
+      status histories and removal facts, and the embargo register, never the
+      case (CSAF-06-001). An answer to a rejected, cancelled or replaced
+      embargo version changes nothing (CM-18-003), and a participant that has
+      left answers nothing more (CM-23-018). A failed delivery is a fact about
       the outbox, not about the case, and Vultron records no intentions.
     adr:
     - ADR-0219
     lint_suppress:
-    # the status a ledger fact takes and the two it never takes are one rule
+    # the status each source of an action takes and the two no action takes are
+    # one rule
     - compound_statement
     verification: >-
       `test/wire/csaf/test_projection.py::test_each_act_with_a_csaf_meaning_is_one_completed_action`
@@ -1016,6 +1028,17 @@ groups:
       CSAF meaning and checks each action's category and status, and
       `::test_the_public_projection_has_no_involvement` checks that the public
       profile, which omits the ledger, gives no involvement.
+      `test/wire/csaf/test_projection_state_actions.py::test_an_unanswered_invitation_is_an_outstanding_confirmation`
+      checks an invitation to the embargo in force and to a proposal, and
+      `::test_an_invitation_to_a_closed_embargo_version_is_not_open` that one
+      to a rejected, cancelled or replaced version gives no action;
+      `::test_a_deferred_participant_gives_a_deferred_action` checks the
+      category before and after accepting the report;
+      `::test_a_removed_participant_discontinues_its_open_actions`,
+      `::test_a_closed_participant_discontinues_its_open_invitation` and
+      `::test_closing_the_report_from_a_deferral_discontinues_it` check
+      `discontinued`; and `::test_no_action_is_attempted_or_planned` checks
+      every status of a projection with open and left work.
   - id: CSAF-06-011
     priority: MUST
     kind: project

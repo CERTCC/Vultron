@@ -45,6 +45,15 @@ value the preview shows because CSAF cannot express it.
   category loses a Vultron distinction says it in its ``summary``: whether an
   assessment found the report valid, and that a confirmation records
   acceptance, not only receipt.
+- **Involvement from the state at the position.**  The participants the
+  preview shows give the work still open at its position, by the same
+  mapping (:func:`_state_actions`): an invitation to an embargo the register
+  shows as proposed or in force, with no answer, is an ``outstanding``
+  ``confirmation`` by the invitee, and a participant in RM ``DEFERRED`` gives
+  a ``deferred`` ``assessment``, or a ``coordination`` once it had accepted
+  the report.  A participant that has left, removed or in RM ``CLOSED``,
+  answers nothing more, so each of its open actions is ``discontinued``,
+  a deferral it closed the report from included.
 
 The document is built with the generated models (CSAF-05-002).  This module
 imports only core models (ARCH-22-001).
@@ -52,7 +61,7 @@ imports only core models (ARCH-22-001).
 
 import hashlib
 import json
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -75,6 +84,11 @@ from vultron.core.models.vulnerability_item import (
     VulnerabilityItemId,
     csaf_cve_and_ids,
 )
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
@@ -482,11 +496,229 @@ def _participants(preview: CasePreview) -> dict[str, tuple[str, str]]:
     return parties
 
 
-def _involvement(preview: CasePreview) -> dict[str, JsonValue] | None:
-    """The coordination timeline of the cut ledger; ``None`` when no act
-    maps, because its lists may not be empty."""
+#: The register statuses of an embargo an invitee can still answer: a
+#: proposal, or the embargo in force.  An answer to a rejected, cancelled,
+#: replaced or ended version changes nothing (CM-18-003), so an invitation
+#: to one is no longer open.
+ANSWERABLE_EMBARGO_STATUSES = frozenset(
+    {EmbargoRegisterStatus.PROPOSED, EmbargoRegisterStatus.ACTIVE}
+)
+
+#: The ``summary`` of each action the state at the position gives, keyed on
+#: its category and status.  A confirmation's names the embargo it answers
+#: by its register status (:data:`EMBARGO_PHRASES`), so two invitations of
+#: one participant, to the embargo in force and to a revision, differ.
+STATE_ACTION_SUMMARIES: dict[tuple[str, str], str] = {
+    ("confirmation", "outstanding"): (
+        "The participant has not answered its invitation to {embargo}."
+    ),
+    ("confirmation", "discontinued"): (
+        "The participant left the case without answering its invitation to"
+        " {embargo}."
+    ),
+    ("assessment", "deferred"): (
+        "The participant put the valid report aside before accepting it."
+    ),
+    ("coordination", "deferred"): (
+        "The participant put the report aside after accepting it."
+    ),
+    ("assessment", "discontinued"): (
+        "The participant left the case with the valid report put aside"
+        " before accepting it."
+    ),
+    ("coordination", "discontinued"): (
+        "The participant left the case with the report put aside after"
+        " accepting it."
+    ),
+}
+
+
+#: How a confirmation's summary names the embargo it answers.
+EMBARGO_PHRASES: dict[EmbargoRegisterStatus, str] = {
+    EmbargoRegisterStatus.PROPOSED: "the proposed embargo",
+    EmbargoRegisterStatus.ACTIVE: "the embargo in force",
+}
+
+
+@dataclass(frozen=True)
+class _StateAction:
+    """One action the state at the preview's position gives: work still
+    open there, or open work its participant left."""
+
+    actor: str
+    category: str
+    status: Literal["outstanding", "deferred", "discontinued"]
+    date: str
+    embargo: EmbargoRegisterStatus | None = None
+
+    @property
+    def summary(self) -> str:
+        template = STATE_ACTION_SUMMARIES[(self.category, self.status)]
+        if self.embargo is None:
+            return template
+        return template.format(embargo=EMBARGO_PHRASES[self.embargo])
+
+
+def _embargo_id(embargo: object) -> str | None:
+    """The id a register entry's ``embargo`` names: itself as an id, else
+    the shown object's ``id``."""
+    embargo = _shown(embargo)
+    if isinstance(embargo, str):
+        return embargo or None
+    return _shown_text(getattr(embargo, "id_", None))
+
+
+def _answerable_embargoes(
+    preview: CasePreview,
+) -> dict[str, EmbargoRegisterStatus]:
+    """The register status of each embargo the register shows that an
+    invitee can still answer, by its id."""
+    answerable: dict[str, EmbargoRegisterStatus] = {}
+    for entry in _shown_items(preview.embargo_register):
+        status = _shown(getattr(entry, "status", None))
+        embargo_id = _embargo_id(getattr(entry, "embargo", None))
+        if status in ANSWERABLE_EMBARGO_STATUSES and embargo_id is not None:
+            answerable[embargo_id] = EmbargoRegisterStatus(str(status))
+    return answerable
+
+
+def _rm_history(participant: object) -> list[tuple[object, object]]:
+    """The RM state and time of each status of *participant*, oldest
+    first; a value the preview withholds is ``None``.  A status withheld
+    whole keeps its place, so a withheld current status is not read as the
+    one before it."""
+    statuses = _shown(getattr(participant, "participant_statuses", None))
+    history: list[tuple[object, object]] = []
+    for status in statuses if isinstance(statuses, list) else []:
+        rm = _shown(getattr(_shown(status), "rm", None))
+        history.append(
+            (
+                _shown(getattr(rm, "state", None)),
+                _shown(getattr(status, "published", None)),
+            )
+        )
+    return history
+
+
+def _has_left(participant: object, rm_state: object) -> bool:
+    """Whether *participant* has left the case: it was removed (CM-31-001)
+    or closed the report, so it answers nothing more (CM-23-018)."""
+    removed = _shown_text(getattr(participant, "removal_activity", None))
+    return removed is not None or rm_state == RM.CLOSED
+
+
+def _unanswered_invitations(
+    participant: object, answerable: Mapping[str, EmbargoRegisterStatus]
+) -> Iterator[EmbargoRegisterStatus]:
+    """The register status of each embargo *participant* is invited to and
+    has not answered, of those it can still answer, in row order."""
+    for row in _shown_items(getattr(participant, "embargo_consents", None)):
+        state = _shown(getattr(row, "state", None))
+        embargo_id = _shown_text(getattr(row, "embargo_id", None))
+        if state != EmbargoConsentState.INVITED or embargo_id is None:
+            continue
+        status = answerable.get(embargo_id)
+        if status is not None:
+            yield status
+
+
+def _run_start(
+    history: Sequence[tuple[object, object]], end: int, state: RM
+) -> int:
+    """The index at which the run of *state* that ends just before *end*
+    starts: *end* itself when ``history[end - 1]`` is not *state*."""
+    while end > 0 and history[end - 1][0] == state:
+        end -= 1
+    return end
+
+
+def _deferral(
+    history: Sequence[tuple[object, object]],
+) -> tuple[str, object] | None:
+    """The category and start time of the deferral *history* ends in, or
+    that the participant closed the report from; ``None`` when there is
+    none.
+
+    A participant that had accepted the report defers its coordination;
+    one that had not, its assessment of what to do with the valid report.
+    """
+    closed = _run_start(history, len(history), RM.CLOSED)
+    run = _run_start(history, closed, RM.DEFERRED)
+    if run == closed:
+        return None
+    accepted = any(state == RM.ACCEPTED for state, _ in history[:run])
+    return ("coordination" if accepted else "assessment"), history[run][1]
+
+
+def _closed_at(history: Sequence[tuple[object, object]]) -> object:
+    """The time of the status that closed the report, when *history* ends
+    in RM ``CLOSED``; ``None`` otherwise."""
+    closed = _run_start(history, len(history), RM.CLOSED)
+    return history[closed][1] if closed < len(history) else None
+
+
+def _state_actions(
+    preview: CasePreview, position_date: str
+) -> list[_StateAction]:
+    """The actions the state at the preview's position gives, by the
+    crosswalk concept mapping, in the order the preview shows the
+    participants.
+
+    An action's date is when the state it derives from began, when the
+    preview shows that time, else the commit time of the position.  A
+    deferral began with its first ``DEFERRED`` status; a ``discontinued``
+    action, when its participant closed the report.  A consent row and the
+    removal fact carry no time.  No clock is read (ADR-0176).
+    """
+    answerable = _answerable_embargoes(preview)
+    actions: list[_StateAction] = []
+    for participant in _shown_items(preview.case_participants):
+        actor = _shown_text(getattr(participant, "attributed_to", None))
+        if actor is None:
+            continue
+        history = _rm_history(participant)
+        current = history[-1][0] if history else None
+        left = _has_left(participant, current)
+        left_date = _act_date(_closed_at(history), None) or position_date
+        for embargo in _unanswered_invitations(participant, answerable):
+            actions.append(
+                _StateAction(
+                    actor=actor,
+                    category="confirmation",
+                    status="discontinued" if left else "outstanding",
+                    date=left_date if left else position_date,
+                    embargo=embargo,
+                )
+            )
+        deferral = _deferral(history)
+        if deferral is not None:
+            category, began = deferral
+            actions.append(
+                _StateAction(
+                    actor=actor,
+                    category=category,
+                    status="discontinued" if left else "deferred",
+                    date=(
+                        left_date
+                        if left
+                        else _act_date(began, None) or position_date
+                    ),
+                )
+            )
+    return actions
+
+
+def _involvement(
+    preview: CasePreview, inputs: ProjectionInputs
+) -> dict[str, JsonValue] | None:
+    """The coordination timeline: the acts of the cut ledger, then the
+    actions the state at the position gives; ``None`` when there are
+    none, because its lists may not be empty."""
     acts = _acts(preview)
-    if not acts:
+    state_actions = _state_actions(
+        preview, inputs.position_committed_at.isoformat()
+    )
+    if not acts and not state_actions:
         return None
     parties = _participants(preview)
     entity_ids: dict[str, str] = {}
@@ -513,6 +745,17 @@ def _involvement(preview: CasePreview) -> dict[str, JsonValue] | None:
         if act.in_reply_to in by_act:
             action["referenced_action_ids"] = [by_act[act.in_reply_to]]
         actions.append(action)
+    for number, state_action in enumerate(state_actions, start=1):
+        actions.append(
+            {
+                "acting_entity_refs": [entity(state_action.actor)],
+                "action_id": f"STATE-{number}",
+                "category": state_action.category,
+                "date": state_action.date,
+                "status": state_action.status,
+                "summary": state_action.summary,
+            }
+        )
     entities: list[JsonValue] = []
     for actor, entity_id in entity_ids.items():
         category, name = parties.get(actor, ("other", actor))
@@ -532,7 +775,7 @@ def _sections(
     acknowledgments = _acknowledgments(inputs)
     if acknowledgments:
         yield "acknowledgments", list[JsonValue](acknowledgments)
-    involvement = _involvement(preview)
+    involvement = _involvement(preview, inputs)
     if involvement is not None:
         yield "involvement", involvement
 
@@ -594,6 +837,9 @@ __all__ = [
     "ACKNOWLEDGMENTS_DIGEST_LENGTH",
     "ACTION_CATEGORIES",
     "ACTION_SUMMARIES",
+    "ANSWERABLE_EMBARGO_STATUSES",
+    "EMBARGO_PHRASES",
+    "STATE_ACTION_SUMMARIES",
     "CsafCategory",
     "acknowledgments_digest",
     "render_csaf",

@@ -5,7 +5,6 @@ kind: plan
 tracks:
   - "#6706"
   - "#6785"   # products and statuses in the projection
-  - "#6791"
   - "#5130"
   - "#6758"   # epic: CVE record and Vulnerability Note adapters on the same port
 description: >
@@ -76,11 +75,6 @@ states their rules. No call site uses them yet.
 
 ## Rendering Rules Not Built Yet
 
-- **Derived involvement statuses (#6791).** The renderer makes only `completed`
-  actions, one per act the joined profile keeps. `outstanding`, `deferred` and
-  `discontinued` derive from the state at the preview's position (the crosswalk
-  concept mapping, `docs/reference/csaf_crosswalk/concept_mapping.md`); adding one
-  bumps the joined profile's version.
 - **A category other than `csaf_base` (#6785).** The renderer takes the category
   from its call site, and `csaf_base` is the only one while the case holds no
   products (ADR-0187). Once a vendor's record holds products and authored product

@@ -17,6 +17,7 @@ table of ``notes/csaf-projection.md`` lists it, and what it does with the
 ledger list, the one preview field that is not a case field (ADR-0219).
 """
 
+import re
 from types import MappingProxyType
 from typing import Any
 
@@ -147,15 +148,29 @@ def test_a_profiles_rows_cannot_be_changed(
     assert isinstance(profile.fields, MappingProxyType)
 
 
-def test_each_profile_has_a_versioned_name_and_its_label() -> None:
-    assert (PUBLIC_PROFILE.name, PUBLIC_PROFILE.distribution) == (
-        "public-v1",
-        DistributionLabel.CLEAR,
-    )
-    assert (JOINED_PROFILE.name, JOINED_PROFILE.distribution) == (
-        "joined-v1",
-        DistributionLabel.AMBER_STRICT,
-    )
+@pytest.mark.parametrize(
+    ("profile", "stem", "label"),
+    [
+        (PUBLIC_PROFILE, "public", DistributionLabel.CLEAR),
+        (JOINED_PROFILE, "joined", DistributionLabel.AMBER_STRICT),
+    ],
+    ids=["public", "joined"],
+)
+def test_each_profile_has_a_versioned_name_and_its_label(
+    profile: ProjectionProfile, stem: str, label: DistributionLabel
+) -> None:
+    """The name is the profile's stem and a version, whatever the version
+    is now: a renderer change bumps it (ADR-0219)."""
+    assert re.fullmatch(rf"{stem}-v[1-9][0-9]*", profile.name)
+    assert profile.distribution == label
+
+
+def test_the_joined_profile_is_past_its_first_version() -> None:
+    """The derived involvement statuses changed what a joined projection
+    holds, so its version moved past ``v1`` (#6791)."""
+    version = int(JOINED_PROFILE.name.removeprefix("joined-v"))
+
+    assert version >= 2
 
 
 # --- AC-1: the ledger list ---------------------------------------------------

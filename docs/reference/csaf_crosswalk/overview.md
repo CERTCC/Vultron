@@ -122,7 +122,8 @@ A projection takes case information out of the protocol.
 For this reason, a projection must not include information that the recipient is not entitled to see.
 The place that makes the projection selects a fixed profile, and the profile cuts the case into a preview before a CSAF renderer reads it.
 Each projection also states the ledger position that it shows, because the case continues to change after the projection.
-The `involvement` timeline of a projection is a filtered view of the case ledger.
+The `involvement` timeline of a projection is a filtered view of the case ledger, plus the work that is still open at the ledger position.
+For example, an embargo invitation with no answer is an `outstanding` action, and a deferred report is a `deferred` action.
 That agrees with the CSAF design, in which the issuing party selects the events that its audience needs.
 The case holds no product data, so each projection is a CSAF Base document (`csaf_base`), not a Security Advisory, a VEX document, or a Vulnerability Report.
 Issue [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} planned these rules.

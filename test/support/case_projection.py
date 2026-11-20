@@ -18,11 +18,18 @@ can look for it in a cut or a rendered document: :data:`JOINED_ONLY_VALUES`
 for the fields a joined document renders, :data:`JOINED_ONLY_UNRENDERED` for
 the ones no document renders, and the embargo end :data:`EMBARGO_END`.
 :func:`projected_ledger` holds one entry per act with a CSAF meaning, and
-one with none.
+one with none.  :func:`csaf_schema_validator` checks a rendered document
+against the pinned CSAF 2.1 schema.
 """
 
+import json
 from datetime import UTC, datetime
+from functools import cache
 from typing import Any
+
+from jsonschema import Draft202012Validator, FormatChecker
+from referencing import Registry
+from referencing.jsonschema import DRAFT202012
 
 from test.support.embargo_register import register
 from test.support.objects import make
@@ -42,6 +49,7 @@ from vultron.core.models.vulnerability_item import (
     VulnerabilityItemNote,
 )
 from vultron.enums.roles import CVDRole
+from vultron.metadata.csaf.pin import PINNED_COPY_DIR, load_pin
 
 CASE_ID = "https://coordinator.example.org/cases/projected"
 COORDINATOR = "https://coordinator.example.org/actors/coordinator"
@@ -235,3 +243,26 @@ def projected_ledger() -> list[CaseLedgerEntry]:
             to=[VENDOR, REPORTER, COORDINATOR],
         ),
     ]
+
+
+@cache
+def csaf_schema_validator() -> Draft202012Validator:
+    """A validator of the pinned CSAF 2.1 schema, reading every schema it
+    references from the pinned local copy."""
+    pin = load_pin()
+    # Every schema of the copy is read as draft 2020-12, the dialect the
+    # CSAF meta-schema extends.
+    resources = [
+        (
+            url,
+            DRAFT202012.create_resource(
+                json.loads((PINNED_COPY_DIR / path).read_bytes())
+            ),
+        )
+        for url, path in pin.sources.items()
+    ]
+    registry: Registry[Any] = Registry().with_resources(resources)
+    root = json.loads((PINNED_COPY_DIR / pin.root).read_bytes())
+    return Draft202012Validator(
+        root, registry=registry, format_checker=FormatChecker()
+    )
