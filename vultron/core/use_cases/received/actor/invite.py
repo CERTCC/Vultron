@@ -108,7 +108,7 @@ class InviteActorToCaseReceivedUseCase:
             invitee_id=request.invitee_id,
             inviter_id=request.actor_id,
             invite_id=request.activity_id,
-            roles=request.roles,
+            offered_roles=request.roles,
             actor_config=self._actor_config,
             sender_rule=self.sender_entitlement,
         )

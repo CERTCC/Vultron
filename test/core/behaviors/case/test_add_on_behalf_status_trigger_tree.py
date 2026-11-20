@@ -184,5 +184,7 @@ def test_tree_with_no_dimension_fails_fast() -> None:
         _make_tree()
     with pytest.raises(ValueError, match="at least one"):
         CheckOnBehalfTargetIsParticipantNode(
-            case_id=CASE_ID, target_actor_id=TARGET_ACTOR_ID, required_roles=[]
+            case_id=CASE_ID,
+            target_actor_id=TARGET_ACTOR_ID,
+            on_behalf_roles=[],
         )

@@ -86,7 +86,9 @@ def _scenario(roles: list[CVDRole], embargo: bool) -> BTTestScenario:
     s.assert_success(
         s.run(
             with_act_keys(
-                SeatOwnerInvitedInviteeNode(roles=[r.value for r in roles]),
+                SeatOwnerInvitedInviteeNode(
+                    offered_roles=[r.value for r in roles]
+                ),
                 {INVITEE_ID_KEY: INVITEE_ID},
             ),
             case_id=CASE_ID,

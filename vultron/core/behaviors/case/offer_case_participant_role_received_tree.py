@@ -81,7 +81,7 @@ logger = logging.getLogger(__name__)
 def create_offer_case_participant_role_received_tree(
     offer_id: str,
     case_id: str | None,
-    role: CVDRole | None,
+    offered_role: CVDRole | None,
     target_actor_id: str | None,
     sender_id: str,
     *,
@@ -113,7 +113,7 @@ def create_offer_case_participant_role_received_tree(
         case_id: ID of the VulnerabilityCase context; ``None`` for an Offer
             that names no case, which intake records and the
             incomplete-activity guard refuses (CLP-10-018).
-        role: The CVDRole offered; ``None`` when the Offer carries none,
+        offered_role: The CVDRole offered; ``None`` when the Offer carries none,
             which is refused, never read as a default (CM-33-014).
         target_actor_id: Actor ID of the target the role is offered to.
         sender_id: The Offer's sender, which the sender guard checks.
@@ -136,10 +136,10 @@ def create_offer_case_participant_role_received_tree(
     admissible = RoleOfferAdmissibleNode(
         case_id=case_id,
         offer_id=offer_id,
-        role=role,
+        offered_role=offered_role,
         target_actor_id=target_actor_id,
     )
-    if role is None or not target_actor_id:
+    if offered_role is None or not target_actor_id:
         # Nothing to forward or answer: the guard refuses the Offer
         # (CM-33-003), so the tree is the door and the guards.
         return create_receive_activity_tree(
@@ -183,7 +183,7 @@ def create_offer_case_participant_role_received_tree(
     )
     forward = ForwardRoleOfferToTargetNode(
         case_id=case_id,
-        role=role,
+        offered_role=offered_role,
         target_actor_id=target_actor_id,
         offer_id=offer_id,
         owner_id=sender_id,

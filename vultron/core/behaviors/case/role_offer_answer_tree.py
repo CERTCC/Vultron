@@ -164,7 +164,7 @@ def create_accept_case_participant_role_tree(
             ),
             GrantCaseParticipantRoleNode(
                 case_id=case_id,
-                role=carried_role,
+                granted_role=carried_role,
                 target_actor_id=carried_target_id,
             ),
         ]
