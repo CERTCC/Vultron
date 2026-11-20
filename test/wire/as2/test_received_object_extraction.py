@@ -269,6 +269,7 @@ def test_a_whole_participant_reaches_core_with_the_statuses_it_carries(
                 ParticipantStatus,
                 context=case_id,
                 rm=RM.ACCEPTED,
+                tracking_id="VND-7",
             )
         ],
     )
