@@ -14,10 +14,12 @@
 
 ``ConvertReportToCaseProposalNode`` fails, and so nothing is sent, when the
 CaseActor service is not configured or the report is not held
-(CP-01-026).  ``MarkProposedClaimsNode`` fails when the claims record it
-marks is not held, and changes nothing when no reading filled the proposal
-(CSAF-04-004).
+(CP-01-026).  ``MarkProposedClaimsNode`` fails when the report or the
+claims record it marks is not held, or the record cannot take the outcomes,
+and changes nothing when no reading filled the proposal (CSAF-04-004).
 """
+
+from datetime import UTC, datetime
 
 import pytest
 from py_trees.common import Status
@@ -33,6 +35,7 @@ from vultron.core.behaviors.case.nodes import (
 from vultron.core.models.report_claims import (
     ClaimsReading,
     ReportClaims,
+    ReportClaimsRecord,
     SchemaVerdict,
 )
 
@@ -100,7 +103,8 @@ def test_a_report_not_held_is_a_fault(case_actor_url, bridge, actor):
 @pytest.mark.spec("CSAF-04-004")
 def test_a_claims_record_not_held_is_a_fault(bridge, datalayer, actor, report):
     """The effects that keep the report write the record first, so its
-    absence is a fault, not a proposal sent with nothing marked."""
+    absence is a fault: the node runs after the send, so the proposal
+    stays queued and the record is left unmarked."""
     result, node = _convert(
         bridge,
         actor.id_,
@@ -132,3 +136,54 @@ def test_no_filling_reading_marks_nothing(bridge, datalayer, actor, report):
 
     assert result.status is Status.SUCCESS
     assert list(datalayer.list_objects("ReportClaimsRecord")) == []
+
+
+@pytest.mark.spec("CSAF-04-004")
+def test_a_report_not_held_at_marking_is_a_fault(bridge, datalayer, actor):
+    report_id = "https://example.org/reports/not-held"
+
+    result, node = _convert(
+        bridge,
+        actor.id_,
+        report_id,
+        readings=[_reading(report_id)],
+        node_type=MarkProposedClaimsNode,
+    )
+
+    assert result.status is Status.FAILURE
+    assert "not found" in node.feedback_message
+    assert list(datalayer.list_objects("ReportClaimsRecord")) == []
+
+
+@pytest.mark.spec("CSAF-04-004")
+def test_a_record_that_cannot_take_the_outcomes_is_a_fault(
+    bridge, datalayer, actor, report
+):
+    """A record whose reading claimed no ``name`` cannot mark one, so the
+    node fails and leaves the record as it was."""
+    reading = _reading(report.id_)
+    held = ReportClaimsRecord(
+        report_id=report.id_,
+        activity_id="https://example.org/activities/offer-1",
+        received_at=datetime(2026, 11, 1, tzinfo=UTC),
+        reading=reading.model_copy(
+            update={
+                "claims": ReportClaims(
+                    document_category="csaf_vulnerability_report"
+                )
+            }
+        ),
+    )
+    datalayer.create(held)
+
+    result, node = _convert(
+        bridge,
+        actor.id_,
+        report.id_,
+        readings=[reading],
+        node_type=MarkProposedClaimsNode,
+    )
+
+    assert result.status is Status.FAILURE
+    assert "name no value the document claimed" in node.feedback_message
+    assert datalayer.read(held.id_) == held

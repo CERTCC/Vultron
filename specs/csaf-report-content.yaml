@@ -111,7 +111,7 @@ groups:
       does the CASE_MANAGER read the document on the Offer the proposal carries
       (CP-01-008, CP-01-021, CP-01-025) and record what became of each value
       itself. Only the side that read the document marks a value: the
-      receiver's marks say what its proposal took, with the disclosure date
+      receiver's marks say what its conversion used, with the disclosure date
       unjudged, and the CASE_MANAGER's what the case took. When a report
       carries several `csaf_vulnerability_report` documents, the first one fills
       the case and the others stay display only.
@@ -121,7 +121,7 @@ groups:
       and no name, and checks that the case a separate CASE_MANAGER creates takes
       its inputs from the document;
       `::test_the_side_that_converts_the_document_marks_what_it_used` checks that
-      the receiver's record marks what its proposal took while the CASE_MANAGER
+      the receiver's record marks what its conversion used while the CASE_MANAGER
       keeps no record, and
       `::test_the_case_manager_marks_what_it_read_when_no_inputs_are_stated` that
       the CASE_MANAGER's record marks what the case took when the proposal states

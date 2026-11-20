@@ -423,7 +423,7 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
 
     Provisioning the CaseActor's own record is a *sibling* leaf,
     :class:`~vultron.core.behaviors.case.nodes.case_setup.EnsureCaseActorHostedNode`,
-    which runs immediately before this node in ``ReceiveReportProposalFlow``.
+    which runs before this node in ``ReceiveReportProposalFlow``.
     This node only writes the link (BTND-02-001, "No God Nodes").
 
     Always returns ``SUCCESS`` so the enclosing ``Sequence`` continues to

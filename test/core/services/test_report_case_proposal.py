@@ -29,6 +29,7 @@ from vultron.core.models.report_claims import (
 from vultron.core.services.report_case_proposal import (
     ConvertedCaseProposal,
     case_proposal_from_report,
+    used_claims,
 )
 from vultron.enums.roles import CVDRole
 
@@ -93,9 +94,10 @@ def test_the_first_report_document_fills_the_case_inputs() -> None:
     assert inputs.name == "title aaaa"
     assert inputs.disclosure_date == _PAST
     assert converted.reading is first
+    reading, outcomes = used_claims(_report(), [first, second])
+    assert reading is first
     assert (
-        converted.outcomes["vulnerabilities[0].disclosure_date"]
-        is ClaimOutcome.APPLIED
+        outcomes["vulnerabilities[0].disclosure_date"] is ClaimOutcome.APPLIED
     )
 
 
@@ -105,7 +107,8 @@ def test_the_reports_own_name_beats_the_documents() -> None:
 
     assert converted.proposal.case_inputs is not None
     assert converted.proposal.case_inputs.name == "Widget overflow"
-    assert converted.outcomes["name"] is ClaimOutcome.OVERRIDDEN
+    _, outcomes = used_claims(_report("Widget overflow"), [_reading()])
+    assert outcomes["name"] is ClaimOutcome.OVERRIDDEN
 
 
 @pytest.mark.spec("CP-01-026")
@@ -120,7 +123,8 @@ def test_no_report_document_states_no_case_inputs(
     converted = _convert(*readings)
 
     assert converted.proposal.case_inputs is None
-    assert (converted.reading, converted.outcomes) == (None, {})
+    assert converted.reading is None
+    assert used_claims(_report(), readings) == (None, {})
 
 
 @pytest.mark.spec("CP-01-003", "CP-01-005", "CP-01-007", "CP-01-013")

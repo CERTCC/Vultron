@@ -28,14 +28,14 @@ case, which may be well after this receipt.
 
 The result is a core object (ARCH-01-001): the receiver may change it before
 its adapter renders and sends it, and nothing here reads a clock or the
-store (ADR-0176).  :class:`ConvertedCaseProposal` also names the claimed
-values the conversion used, for the receiver's own record (CSAF-04-004).
+store (ADR-0176).  :func:`used_claims` names the claimed values the
+conversion used, for the receiver's own record (CSAF-04-004).
 """
 
 from collections.abc import Sequence
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from vultron.core.models._helpers import authored_times
 from vultron.core.models.case_proposal import CaseProposal
@@ -48,7 +48,6 @@ from vultron.core.services.report_case_inputs import (
     proposed_claim_outcomes,
 )
 from vultron.enums.roles import CVDRole
-from vultron.primitives import NonEmptyString
 
 
 class ConvertedCaseProposal(BaseModel):
@@ -59,16 +58,12 @@ class ConvertedCaseProposal(BaseModel):
             reading fills them.
         reading: The reading that filled ``caseInputs``; ``None`` when none
             did.
-        outcomes: The outcome of each value of *reading* the conversion
-            used, by its path (CSAF-04-004); empty when *reading* is
-            ``None``.
     """
 
     model_config = ConfigDict(frozen=True)
 
     proposal: CaseProposal
     reading: ClaimsReading | None = None
-    outcomes: dict[NonEmptyString, ClaimOutcome] = Field(default_factory=dict)
 
 
 def case_proposal_from_report(
@@ -104,7 +99,7 @@ def case_proposal_from_report(
     with no reading that fills case inputs the proposal states none, and the
     CASE_MANAGER starts the case from the report (CP-01-026).
     """
-    reading, outcomes = used_claims(report, readings)
+    reading = filling_reading(readings)
     proposal = CaseProposal(
         attributed_to=proposer_id,
         object_=report,
@@ -120,9 +115,7 @@ def case_proposal_from_report(
         ),
         **authored_times(at),
     )
-    return ConvertedCaseProposal(
-        proposal=proposal, reading=reading, outcomes=outcomes
-    )
+    return ConvertedCaseProposal(proposal=proposal, reading=reading)
 
 
 def _stated(report: VulnerabilityReport) -> StatedReportFields:

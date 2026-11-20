@@ -195,11 +195,14 @@ class ConvertReportToCaseProposalNode(_ReceivedReportNode):
 
 
 class MarkProposedClaimsNode(_ReceivedReportNode):
-    """Mark on the receiver's record the values its sent proposal took.
+    """Mark on the receiver's record the values its conversion used.
 
     Runs after ``ProposeReportCaseToActorNode``, so no record says a value
-    was used by a proposal that was never sent.  The claims record of the
-    reading that filled ``caseInputs`` gets the outcomes of
+    was used by a proposal that was never sent.  The marks are the
+    conversion's account, not a reading of the sent proposal: a change a
+    node makes between the conversion and the send is the owner's own
+    (CP-01-026).  The claims record of the reading that filled
+    ``caseInputs`` gets the outcomes of
     :func:`~vultron.core.services.report_case_proposal.used_claims`:
     ``applied`` or ``overridden`` for each value the conversion used
     (CSAF-04-004).  The record stays this actor's own (CSAF-04-005).

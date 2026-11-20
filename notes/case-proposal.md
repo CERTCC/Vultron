@@ -138,6 +138,9 @@ default embargo and the canonical ledger entries natively — no back-fill, no p
   and `ProposeReportCaseToActorNode` hands it to the adapter, which only renders it
   and inlines the held Offer. Keep the two apart, so a node between them can
   change the proposal before it is sent (CP-01-026).
+- Convert before writing the pending `VultronReportCaseLink`: the conversion writes
+  nothing to the store, while a pending link left by a failed conversion reads as a
+  proposal already sent and the report is never proposed (CP-04-001).
 - A new case starts from the proposal's `caseInputs` when it carries them, whole,
   with no CSAF document read (CP-01-024); else from its report, filled from a CSAF
   document on the carried Offer's report where the report is silent (CP-01-025,

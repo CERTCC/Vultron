@@ -45,14 +45,17 @@ Structure (ADR-0041):
        ├─ CheckProposalAlreadySentForReport # Early exit if proposal already sent
        └─ ReceiveReportProposalFlow (Sequence)
           ├─ EnsureCaseActorHostedNode        # CaseActor record in its own store
-          ├─ WritePendingReportCaseLinkNode   # VultronReportCaseLink(case_id=None)
           ├─ ConvertReportToCaseProposalNode  # core CaseProposal, caseInputs
+          ├─ WritePendingReportCaseLinkNode   # VultronReportCaseLink(case_id=None)
           ├─ ProposeReportCaseToActorNode     # Create(CaseProposal) → CaseActor
           └─ MarkProposedClaimsNode           # claims record: what it took
 
 The conversion fills the proposal's ``caseInputs`` from the first
 ``csaf_vulnerability_report`` document on the report, and the receiver may
-change the proposal before it is sent (CP-01-026, ADR-0184).
+change the proposal before it is sent (CP-01-026, ADR-0184).  The
+conversion writes nothing to the store, so it runs ahead of the pending
+link: a report it cannot convert leaves no link for
+``CheckProposalAlreadySentForReport`` to read as a proposal already sent.
 
 Both trees here take the ordinary door order and declare the no-case path
 alone (ADR-0154, HP-01-041): an ``Offer(VulnerabilityReport)`` precedes its
@@ -161,11 +164,11 @@ def create_receive_report_case_tree(
         memory=False,
         children=[
             EnsureCaseActorHostedNode(),
-            WritePendingReportCaseLinkNode(report_id=report_id),
             with_act_keys(
                 ConvertReportToCaseProposalNode(readings=claims_readings),
                 {REPORT_ID: report_id},
             ),
+            WritePendingReportCaseLinkNode(report_id=report_id),
             ProposeReportCaseToActorNode(),
             with_act_keys(
                 MarkProposedClaimsNode(readings=claims_readings),
