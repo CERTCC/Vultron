@@ -35,7 +35,9 @@ from vultron.core.behaviors.embargo.end_time_tree import (
 __all__ = ["case_clock_decisions"]
 
 
-def case_clock_decisions(case_id: str) -> list[py_trees.behaviour.Behaviour]:
+def case_clock_decisions(
+    case_id: str | None,
+) -> list[py_trees.behaviour.Behaviour]:
     """The case-wide clock decisions for *case_id*.
 
     Each decides against the act's instant, read from the tree run when it

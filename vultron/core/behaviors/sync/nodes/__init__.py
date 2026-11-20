@@ -30,7 +30,7 @@ Submodules:
 - ``replay_case``: the case a replay or position statement is about
 - ``ledger_position``: the CASE_MANAGER's answer to the ``ledgerPosition``
   every case activity stamps: lag, split, inert sender (SYNC-18)
-- ``position_statement``: the ``Read(CaseLedgerEntry)`` position check and
+- ``position_statement``: the ``Read(<case>/ledger)`` position check and
   the participant's position statements (SYNC-17)
 - ``invite_resend``: the resend of each Invite a participant that states its
   position still owes an answer to (SYNC-20)

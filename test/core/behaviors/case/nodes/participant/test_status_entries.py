@@ -113,9 +113,7 @@ def test_a_followed_step_that_is_not_stored_is_refused(dl):
 
 
 def test_the_commit_node_finds_the_case_from_the_status(dl):
-    node = CommitParticipantStatusEntriesNode(
-        subject_actor_id=_ACTOR, case_id=None, status_ids=[_stored(dl)]
-    )
+    node = CommitParticipantStatusEntriesNode(status_ids=[_stored(dl)])
     node.datalayer = dl
 
     assert node._written_case_id() == _CASE
@@ -126,9 +124,7 @@ def test_an_id_that_names_no_status_is_a_fault(dl):
     record = _context().participant
     assert isinstance(record, CaseParticipant)
     dl.create(record)
-    node = CommitParticipantStatusEntriesNode(
-        subject_actor_id=_ACTOR, case_id=None, status_ids=[record.id_]
-    )
+    node = CommitParticipantStatusEntriesNode(status_ids=[record.id_])
     node.datalayer = dl
 
     with pytest.raises(VultronBTInternalError):

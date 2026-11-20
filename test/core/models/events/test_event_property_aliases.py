@@ -695,7 +695,8 @@ def test_the_stub_invite_event_carries_the_case_preview():
 )
 def test_a_stamped_events_accepted_hash(log_index, expected):
     """Every stamped event names the last entry its sender accepted, ``""``
-    when the sender holds none, as a ``Reject`` does (SYNC-16-027)."""
+    when the sender holds none, as a ``Read`` of the ledger at -1 does
+    (SYNC-16-027)."""
     from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
     from vultron.core.models.ledger_position import LedgerPosition
 

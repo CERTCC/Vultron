@@ -208,7 +208,7 @@ class UpdateReplicationStateNode(CaseNamedReplayNode):
 
     The position is the activity's ``last_accepted_hash``: the one a
     ``Reject(CaseLedgerEntry)`` reports (SYNC-04-001), a
-    ``Read(CaseLedgerEntry)`` states (SYNC-17-003), or any case activity
+    ``Read(<case>/ledger)`` states (SYNC-17-003), or any case activity
     stamps (SYNC-18-007).  The case is ``/case_id`` when the tree seeds it,
     else the activity's ``replay_case_id``.  The ``published`` time the
     sender claims for the statement is kept beside it, the earliest claim

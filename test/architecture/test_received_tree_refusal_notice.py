@@ -198,7 +198,7 @@ NO_COMMIT_TREES: dict[_Site, str] = {
     ),
     (
         "vultron/core/behaviors/sync/read_tree.py",
-        "create_read_log_entry_tree",
+        "create_read_ledger_tree",
     ): (
         "a participant's stated ledger position is ledger mechanics, answered"
         " by a replay of the entries after it, never by a refusal"

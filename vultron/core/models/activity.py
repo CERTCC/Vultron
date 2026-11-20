@@ -119,7 +119,7 @@ class VultronActivity(CoreObject):
     # the Remove carries it with it.
     termination_cause: TerminationCause | None = None
     # The sender's ledger tail every case activity states (SYNC-18-001); a
-    # Read(CaseLedgerEntry) states it as the entry it names (SYNC-17-001).
+    # Read(<case>/ledger) states it as its whole act (SYNC-17-001).
     # The wire dump carries it as ``ledgerPosition``.
     ledger_position: LedgerPosition | None = None
     # The sender's number for a case activity to the CASE_MANAGER

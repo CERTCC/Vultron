@@ -17,6 +17,12 @@
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
@@ -212,17 +218,31 @@ class HasActiveEmbargoNode(DataLayerConditionWithPorts):
     Used as the first precondition child in ``terminate_embargo_bt`` so that
     the "no active embargo" state-transition error is produced by a named BT
     node rather than inline use-case guard code (LST-05 / AC-5).
+
+    The case is read from ``/case_id`` (BTND-01-008).
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID)
 
     def __init__(
         self,
-        case_id: str,
         result_out: dict[str, object],
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+        self.case_id = ""
         self._result_out = result_out
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id = act_value(self, CASE_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

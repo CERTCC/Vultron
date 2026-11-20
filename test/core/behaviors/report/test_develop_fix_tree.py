@@ -35,6 +35,8 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.call_out import tick_call_out
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
@@ -511,7 +513,7 @@ class TestCheckRMStateAccepted:
     ) -> None:
         _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
         result = bt_scenario.run(
-            CheckRMStateAccepted(case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID),
+            with_act_keys(CheckRMStateAccepted(), {CASE_KEY: CASE_ID}),
             actor_id=VENDOR_ACTOR_ID,
         )
         assert result.status == Status.SUCCESS
@@ -524,7 +526,7 @@ class TestCheckRMStateAccepted:
     ) -> None:
         _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.RECEIVED)
         result = bt_scenario.run(
-            CheckRMStateAccepted(case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID),
+            with_act_keys(CheckRMStateAccepted(), {CASE_KEY: CASE_ID}),
             actor_id=VENDOR_ACTOR_ID,
         )
         assert result.status == Status.FAILURE
@@ -533,7 +535,7 @@ class TestCheckRMStateAccepted:
         self, bt_scenario: BTTestScenario
     ) -> None:
         result = bt_scenario.run(
-            CheckRMStateAccepted(case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID),
+            with_act_keys(CheckRMStateAccepted(), {CASE_KEY: CASE_ID}),
             actor_id=VENDOR_ACTOR_ID,
         )
         assert result.status == Status.FAILURE

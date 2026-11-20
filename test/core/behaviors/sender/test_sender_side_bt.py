@@ -27,6 +27,8 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.behaviors.act_key_scope import unscoped, with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender.nodes import (
     ConstructActivitiesNode,
@@ -137,7 +139,7 @@ class TestSenderSideBT:
         assert isinstance(tree, py_trees.composites.Sequence)
         children = tree.children
         assert len(children) == 3
-        assert isinstance(children[0], ResolveCaseManagerNode)
+        assert isinstance(unscoped(children[0]), ResolveCaseManagerNode)
         assert isinstance(children[1], ConstructActivitiesNode)
         assert isinstance(children[2], QueueToOutboxNode)
 
@@ -245,7 +247,10 @@ class TestSenderSideStaleKeyRegression:
         tree = py_trees.composites.Selector(
             name="ResolveOrProbe",
             memory=False,
-            children=[ResolveCaseManagerNode(case_id=case_id), probe],
+            children=[
+                with_act_keys(ResolveCaseManagerNode(), {CASE_KEY: case_id}),
+                probe,
+            ],
         )
         storage["/case_manager_id"] = "https://example.org/actors/stale"
         try:

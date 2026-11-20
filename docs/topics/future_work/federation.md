@@ -104,7 +104,6 @@ classDiagram
     class Case {
         +attributedTo
         +caseParticipants
-        +caseActivity
     }
     Actor "1" --> "*" Participant : attributedTo
     Case "1" --> "*" Participant : caseParticipants
@@ -124,7 +123,7 @@ The `attributedTo` field of a case holds an actor identifier, and it does not ho
 The CASE_MANAGER that makes the case is the value of that field (CP-09-001).
 Ownership is unambiguous for a different reason: one Actor holds `CVDRole.CASE_OWNER` at a given time (CM-21-001).
 A transfer of that role uses an `Offer` and `Accept` cycle.
-The Case Activity Log gives the full history of ownership.
+The case ledger gives the full history of ownership.
 
 Any Participant Actor can accept a report and make a case from it.
 The Actor that makes the case supplies the CASE_MANAGER for it.

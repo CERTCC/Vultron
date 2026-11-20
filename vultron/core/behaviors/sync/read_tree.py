@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-"""Behavior tree factory for inbound Read(CaseLedgerEntry) handling (SYNC-17).
+"""Behavior tree factory for inbound Read(<case>/ledger) handling (SYNC-17).
 
-``Read(CaseLedgerEntry)`` is a participant's statement that it has applied the
-case's ledger up to the entry it names (ADR-0155).  The tree here answers it
-at the CASE_MANAGER; ``state_positions_tree`` sends one (SYNC-17-007).
+``Read(<case>/ledger)`` is a participant's statement that it has applied the
+case's ledger up to the position it states (ADR-0155, ADR-0204).  The tree
+here answers it at the CASE_MANAGER; ``state_positions_tree`` sends one
+(SYNC-17-007).
 """
 
 from vultron.core.behaviors.act_key_scope import with_act_keys
@@ -32,19 +33,21 @@ from vultron.core.behaviors.sync.nodes.sender_sequence_exemptions import (
 )
 
 
-def create_read_log_entry_tree(
+def create_read_ledger_tree(
     case_id: str,
     *,
     sender_id: str,
     sender_rule: SenderRule,
 ) -> ReceivedActivityTree:
-    """Create the BT for inbound ``Read(CaseLedgerEntry)`` handling.
+    """Create the BT for inbound ``Read(<case>/ledger)`` handling.
 
     The answer is the one a ``Reject(CaseLedgerEntry)`` gets, composed from
     the same nodes (``create_reject_log_entry_tree``): record the stated
     position as the sender's acknowledged position (SYNC-17-003) and replay
     every entry after it, under the replay rate bound and the outbox
-    de-duplication (SYNC-17-004).  At the tail the replay sends nothing.
+    de-duplication (SYNC-17-004).  A position at index -1, the empty
+    ledger's, says the sender holds no entry, so every entry is replayed
+    (SYNC-16-027).  At the tail the replay sends nothing.
     Before either, :class:`CheckStatedPositionInLedgerNode` turns away a
     position the ledger does not hold, logging it at WARNING, so nothing is
     recorded or sent (SYNC-17-005).
@@ -82,10 +85,10 @@ def create_read_log_entry_tree(
     """
     keys = {CASE_ID: case_id, SENDER_ID: sender_id}
     return create_receive_activity_tree(
-        name="ReadLogEntryReceivedBT",
+        name="ReadLedgerReceivedBT",
         case_id=None,
         precondition_guards=[],
-        # A Read(CaseLedgerEntry) states a position to the holder of the
+        # A Read(<case>/ledger) states a position to the holder of the
         # canonical ledger, so it reaches that CASE_MANAGER and nobody else,
         # and every step of the answer is the CASE_MANAGER's (SYNC-17-003,
         # HP-01-038).
@@ -124,4 +127,4 @@ def create_read_log_entry_tree(
     )
 
 
-__all__ = ["create_read_log_entry_tree"]
+__all__ = ["create_read_ledger_tree"]
