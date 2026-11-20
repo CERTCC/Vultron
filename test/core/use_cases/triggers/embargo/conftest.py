@@ -88,7 +88,7 @@ def _build_active_embargo_case(
         owner_id: owner_participant.id_,
         participant_id: participant.id_,
     }
-    activate(case, embargo.id_)
+    activate(case, embargo)
 
     dl.create(case)
     dl.create(embargo)
@@ -120,7 +120,7 @@ def _build_exited_case(
     embargo = make(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
     )
-    activate(case, embargo.id_)
+    activate(case, embargo)
     terminate(case)
     dl.create(case)
     dl.create(owner_participant)
@@ -177,7 +177,7 @@ def _build_active_embargo_case_with_case_manager(
 
     case.case_participants = [owner_participant.id_]
     case.actor_participant_index = {actor_id: owner_participant.id_}
-    activate(case, embargo.id_)
+    activate(case, embargo)
 
     dl.create(case)
     dl.create(embargo)
@@ -297,9 +297,7 @@ def _add_participant(
         embargo_consents=rows,
     )
     # A row for every register entry (ADR-0122); the explicit one is kept.
-    participant.write_uninvited_rows(
-        e.embargo_id for e in case.embargo_register
-    )
+    participant.write_uninvited_rows(e.id_ for e in case.embargo_register)
     dl.create(participant)
     case.case_participants = [*case.case_participants, participant.id_]
     case.actor_participant_index = {
@@ -327,7 +325,7 @@ def _case_with_open_proposal(
     )
     dl.create(embargo)
     dl.create(proposal)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     dl.save(case)
     write_consent_rows(dl, case)
@@ -357,7 +355,7 @@ def _open_revision(
         invitee=owner_id,
         at=authored_at(),
     )
-    propose(case, revision.id_)
+    propose(case, revision)
     case.pending_embargo_proposal_index[revision.id_] = proposal.id_
     participant = cast(ReporterParticipant, dl.read(participant_id))
     participant.embargo_consents = [
@@ -429,7 +427,7 @@ def _case_owned_by_non_manager(
         owner_id: owner_participant.id_,
         manager_id: manager_participant.id_,
     }
-    propose(case, embargo.id_)
+    propose(case, embargo)
     case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     dl.create(case)
     dl.create(embargo)

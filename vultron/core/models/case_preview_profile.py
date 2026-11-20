@@ -50,7 +50,6 @@ from vultron.core.models._helpers import new_object_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.preview_object import to_loose
 from vultron.core.models.redacted import Redacted
 from vultron.errors import VultronActivityConstructionError
@@ -204,23 +203,16 @@ def current_status(case: VulnerabilityCase) -> object:
 
 
 def _in_force_embargo(case: VulnerabilityCase) -> object:
-    """The register reduced to the in-force entry, whole (CM-17-011).
+    """The register reduced to the in-force embargo, whole (CM-17-011).
 
-    Raises:
-        VultronActivityConstructionError: When the entry names its embargo
-            by id alone: the preview carries the embargo whole, and the
-            invitee has no way to read the terms by id (CM-17-024).
+    The register holds each embargo whole (ADR-0202), so the preview carries
+    its terms and status and the invitee need not read them by id
+    (CM-17-024).
     """
-    entry = case.active_register_entry
-    if entry is None:
+    embargo = case.active_embargo
+    if embargo is None:
         return None
-    if not isinstance(entry.embargo, EmbargoEvent):
-        raise VultronActivityConstructionError(
-            f"case {case.id_!r} has embargo {entry.embargo!r} in force but"
-            " holds only its id, so the preview cannot carry it whole"
-            " (CM-17-011, CM-17-024)"
-        )
-    return [to_loose(entry)]
+    return [to_loose(embargo)]
 
 
 def _item_ids(case: VulnerabilityCase) -> object:

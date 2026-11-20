@@ -660,7 +660,7 @@ class TestInviteeIsTheAddressee:
             case_roles=[CVDRole.VENDOR],
         )
         # Every participant holds a row for every register entry (ADR-0122).
-        register_ids = [e.embargo_id for e in case.embargo_register]
+        register_ids = [e.id_ for e in case.embargo_register]
         coord_cp.write_uninvited_rows(register_ids)
 
         dl.create(case)
@@ -1323,7 +1323,7 @@ class TestInviteeIsTheAddressee:
         )
         dl.create(revision)
         case_obj = cast(VulnerabilityCase, dl.read(case_id))
-        propose(case_obj, revision.id_)
+        propose(case_obj, revision)
         dl.save(case_obj)
         write_consent_rows(dl, case_obj)
         invitee = self._read_participant(dl, invitee_p_id)
@@ -1406,7 +1406,7 @@ class TestInviteeIsTheAddressee:
         dl.create(revision)
         case_obj = cast(VulnerabilityCase, dl.read(case_id))
         # An open revision of the active embargo puts the case in REVISE.
-        propose(case_obj, revision.id_)
+        propose(case_obj, revision)
         case_obj.pending_embargo_proposal_index = {
             revision.id_: f"{case_id}/proposals/revision"
         }
@@ -1874,7 +1874,7 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
             context=case_id,
             end_time=days_from_now(90),
         )
-        propose(case, revision.id_)
+        propose(case, revision)
         coord_cp = make(
             WireCP,
             attributed_to=_COORD,
@@ -2821,7 +2821,7 @@ class TestLateAcceptHandling:
             end_time=days_from_now(90),
         )
         dl.create(revision)
-        propose(case, revision.id_)
+        propose(case, revision)
         assert case.em_state == EM.REVISE
         dl.save(case)
 
@@ -3497,7 +3497,7 @@ class TestOwnerAnswerToRelayedInvite:
             proposal_days=10,
             policy_days=30,
         )
-        propose(case, embargo.id_)
+        propose(case, embargo)
         decide(case, embargo.id_)
         dl.save(case)
 

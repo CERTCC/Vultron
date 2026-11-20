@@ -83,6 +83,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.sync_activity import ResendOutcome
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -462,9 +463,11 @@ def test_an_invite_for_a_withdrawn_proposal_is_not_resent(make_payload):
     dl, revision_id = _joined(case_id, make_payload)
     case = cast(VulnerabilityCase, dl.read(case_id))
     case.embargo_register = [
-        entry.model_copy(update={"status": "CANCELLED"})
-        if entry.embargo_id == revision_id
-        else entry
+        (
+            entry.with_register_state(EmbargoRegisterStatus.CANCELLED)
+            if entry.id_ == revision_id
+            else entry
+        )
         for entry in case.embargo_register
     ]
     dl.save(case)

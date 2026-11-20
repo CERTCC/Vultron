@@ -172,7 +172,7 @@ class _ActivationDecisionMixin(_ActivationArmMixin):
         """
         case = case_file.case
         if embargo_id not in case.proposed_embargo_ids:
-            entry = case.embargo_register_entry(embargo_id)
+            entry = case.registered_embargo(embargo_id)
             held = (
                 f" (its register entry is {entry.status.value})"
                 if entry is not None

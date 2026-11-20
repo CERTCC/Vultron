@@ -32,9 +32,9 @@ The case carries **one** embargo, and each Participant has its **own consent** t
 The distinction is not bookkeeping.
 "The case is under embargo" and "this Participant is bound by it" are different facts.
 A case routinely holds both at once: an active embargo with one Participant who declined it.
-The case keeps one embargo register entry for every embargo ever proposed on it.
-The EM state is a read of the entries' statuses ([§7.1.1 The Embargo Register in the specification](../../../reference/vultron-spec/tracking-models.md#711-the-embargo-register)).
-A Participant is a [signatory](../../../reference/glossary.md#embargo-and-timing) when its consent row for the register's `ACTIVE` entry is `AGREED`.
+The case keeps every embargo ever proposed on it in its embargo register, and each embargo stores its own status.
+The EM state is a read of those statuses ([§7.1.1 The Embargo Register in the specification](../../../reference/vultron-spec/tracking-models.md#711-the-embargo-register)).
+A Participant is a [signatory](../../../reference/glossary.md#embargo-and-timing) when its consent row for the register's `ACTIVE` embargo is `AGREED`.
 Signatory status is a lookup, not a second record, so the embargo and the Participant's position can never drift apart ([ADR-0122](../../../adr/0122-per-embargo-participant-consent.md)).
 A Participant has lapsed when it agreed to an embargo that has since been replaced by one it has not agreed to.
 Lapsed status is also read from the rows and the register, and it needs three conditions (CM-18-001):
@@ -318,7 +318,7 @@ An implementer who reads only the code sees three similar nodes.
 The probabilities record the editorial judgment.
 When an Evaluator says *yes*, the node after it records the termination's cause: `FIX_DEPLOYED`, `FIX_READY` with the Vendors whose fix is ready, or `OTHER` (EMB-14-001, EMB-14-004).
 When no Vendor's fix is ready, the `FIX_READY` branch fails, and the tree tries the next reason.
-The termination message and the ended embargo's register entry record that cause.
+The termination message and the ended embargo record that cause.
 
 **Whose answer it is.** A Participant's answer to an embargo Invite is its own consent, so the response seam asks no other actor to approve it (EMB-15-013).
 `EvaluateEmbargoProposal` alone decides whether the accept arm runs, from the deciding actor's own policy.

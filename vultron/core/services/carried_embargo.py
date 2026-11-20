@@ -51,8 +51,8 @@ def store_carried_embargo(
 ) -> None:
     """Make the embargo *case_obj* names readable in *store*, or raise.
 
-    An inline ``EmbargoEvent`` is stored as its own record when *store* does
-    not hold it yet; a bare reference must already resolve.  Either way the
+    The embargo in force, which the register holds whole (ADR-0202), is
+    stored as its own record when *store* does not hold it yet.  The
     named embargo is read back through :func:`read_embargo_event`, so a
     caller that saves the case afterwards never writes a dangling
     ``active_embargo``.  A case with no active embargo needs nothing.
@@ -60,16 +60,13 @@ def store_carried_embargo(
     An inline embargo whose ``context`` is not *case_obj* is refused before
     anything is written: a first write wins, so a sender must not be able to
     plant another case's embargo under an id that case will later name.  The
-    record *store* already holds under the named id is checked the same way,
-    whether the case carries the embargo inline or names it by bare id.  An
+    record *store* already holds under the named id is checked the same way.  An
     embargo about one of *case_obj*'s reports counts as the case's: a
     Reporter's proposal names its report until the case exists (EP-04-009,
     EMB-18-004).
 
     Raises:
-        VultronNotFoundError: If the case names, by bare reference, an
-            embargo *store* does not hold.
-        VultronValidationError: If the named record is not an
+        VultronValidationError: If the held record is not an
             ``EmbargoEvent``, or the inline embargo or the held record
             belongs to another case.
     """
@@ -77,20 +74,32 @@ def store_carried_embargo(
         hold_embargo_for_case(store, case_obj, named)
 
 
-def _named_embargo(case_obj: object) -> EmbargoEvent | str | None:
-    """The embargo *case_obj* names, inline or by id, or ``None``."""
+def _named_embargo(case_obj: object) -> EmbargoEvent | None:
+    """The embargo in force *case_obj*'s register holds, or ``None``.
+
+    The register holds each embargo whole (ADR-0202).
+    """
     # A received event's ``case`` property is a cast, so the object handed
     # in may be a bare reference stub with no case fields.
     if not isinstance(case_obj, VulnerabilityCase):
         return None
-    embargo_ref = case_obj.active_embargo
-    if embargo_ref is None:
-        return None
-    return (
-        embargo_ref
-        if isinstance(embargo_ref, EmbargoEvent)
-        else str(embargo_ref)
-    )
+    return case_obj.active_embargo
+
+
+def create_held_embargo(
+    store: CasePersistence | DataLayer, embargo: EmbargoEvent
+) -> None:
+    """Create *embargo*'s held record: its terms, with no register state.
+
+    The register's copy carries the embargo's ``status``, ``replaces`` and
+    ``termination``; the held record never does, so every store holds the
+    same record for one embargo (ADR-0202).
+
+    Raises:
+        VultronAlreadyExistsError: *store* already holds a record under
+            *embargo*'s id.
+    """
+    store.create(embargo.with_register_state())
 
 
 def hold_embargo_for_case(
@@ -100,10 +109,11 @@ def hold_embargo_for_case(
 ) -> EmbargoEvent:
     """Hold *embargo* in *store* as *case*'s, and return the held record.
 
-    An inline ``EmbargoEvent`` is stored when *store* lacks it; a bare id
-    must already resolve.  The inline copy and the held record must both be
-    *case*'s, about *case* or one of its reports (EMB-18-004), and the inline
-    copy is checked before anything is written.
+    An inline ``EmbargoEvent`` is stored, as its terms with no register
+    state, when *store* lacks it; a bare id must already resolve.  The
+    inline copy and the held record must both be *case*'s, about *case* or
+    one of its reports (EMB-18-004), and the inline copy is checked before
+    anything is written.
 
     Raises:
         VultronNotFoundError: *embargo* is a bare id *store* does not hold.
@@ -113,7 +123,7 @@ def hold_embargo_for_case(
     record, held = _vet_embargo_for_case(store, case, embargo)
     if held:
         return record
-    store.save(record)
+    create_held_embargo(store, record)
     return _held_embargo(store, _case_subjects(case), case.id_, record.id_)
 
 
@@ -315,6 +325,7 @@ def carried_entry_embargo(
 
 __all__ = [
     "carried_entry_embargo",
+    "create_held_embargo",
     "embargo_for_case",
     "entry_embargo",
     "hold_embargo_for_case",

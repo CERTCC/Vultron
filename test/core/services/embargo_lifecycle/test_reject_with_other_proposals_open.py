@@ -158,7 +158,7 @@ def test_the_owners_rejection_writes_no_consent(
         dl, owner.id_, extra_participant_ids=[finder.id_]
     )
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
     finder_pid = case.actor_participant_index[finder.id_]

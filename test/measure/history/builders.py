@@ -206,9 +206,7 @@ class Ledger:
             "caseParticipants": participants,
             "caseStatuses": [case_status("cs-genesis", pxa)],
             "embargoRegister": (
-                [{"embargo": embargo(), "status": "ACTIVE"}]
-                if with_embargo
-                else []
+                [{**embargo(), "status": "ACTIVE"}] if with_embargo else []
             ),
         }
         return self.add("create_case", "Create", CM, case)
@@ -268,9 +266,7 @@ class Ledger:
                     "type": "CasePreview",
                     "attributedTo": "https://example.org/actors/vendor",
                     "summary": "A case to join",
-                    "embargoRegister": [
-                        {"embargo": embargo(), "status": "ACTIVE"}
-                    ],
+                    "embargoRegister": [{**embargo(), "status": "ACTIVE"}],
                 },
             },
             "target": {"id": invitee, "type": "Organization"},

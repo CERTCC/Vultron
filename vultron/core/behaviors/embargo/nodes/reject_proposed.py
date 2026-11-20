@@ -172,9 +172,7 @@ class OwnerRejectionAppliesNode(DataLayerConditionWithPorts):
         try:
             if rejection_ends_embargo(case, self.embargo_id):
                 changes.append(
-                    decide_termination(
-                        self.datalayer, case, ThreatSignalTermination(), None
-                    )
+                    decide_termination(case, ThreatSignalTermination(), None)
                 )
             trial_apply(
                 read_embargo_case_file(self.datalayer, self.case_id), changes

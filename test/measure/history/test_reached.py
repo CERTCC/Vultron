@@ -265,8 +265,8 @@ def test_a_carried_register_never_reopens_a_final_entry():
             "id": "urn:uuid:case-1",
             "type": "VulnerabilityCase",
             "embargoRegister": [
-                {"embargo": embargo(), "status": "PROPOSED"},
-                {"embargo": embargo(EMBARGO_2), "status": "PROPOSED"},
+                {**embargo(), "status": "PROPOSED"},
+                {**embargo(EMBARGO_2), "status": "PROPOSED"},
             ],
         },
     )
@@ -313,8 +313,8 @@ def test_a_stale_carried_status_never_moves_an_entry_back():
             "id": "urn:uuid:case-1",
             "type": "VulnerabilityCase",
             "embargoRegister": [
-                {"embargo": embargo(), "status": "ACTIVE"},
-                {"embargo": embargo(EMBARGO_2), "status": "PROPOSED"},
+                {**embargo(), "status": "ACTIVE"},
+                {**embargo(EMBARGO_2), "status": "PROPOSED"},
             ],
         },
     )

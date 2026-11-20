@@ -1111,9 +1111,9 @@ def _embargo_case(
     # The register derives *em_state*: the embargo in force when *active*,
     # an open proposal at PROPOSED, and no entry at all at NONE.
     if active:
-        activate(case, embargo.id_)
+        activate(case, embargo)
     elif em_state == EM.PROPOSED:
-        propose(case, embargo.id_)
+        propose(case, embargo)
     assert case.em_state == em_state
     cm_store.create(case)
     cm_store.create(embargo)

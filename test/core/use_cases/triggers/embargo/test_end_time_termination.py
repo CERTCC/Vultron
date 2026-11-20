@@ -159,8 +159,8 @@ class _World:
             self.manager.id_: owner.id_,
             self.finder.id_: finder.id_,
         }
-        activate(case, self.embargo.id_)
-        propose(case, self.revision.id_)
+        activate(case, self.embargo)
+        propose(case, self.revision)
         self.case_id = case.id_
         self.finder_participant = finder
         for obj in (case, self.embargo, self.revision, owner, finder):
@@ -242,7 +242,7 @@ class _World:
 def _assert_full_cascade(world: _World, termination: EmbargoTermination):
     """AC-5: TERMINATED with its cause, proposals CANCELLED, EM EXITED, ET."""
     case = world.case()
-    entry = case.embargo_register_entry(world.embargo.id_)
+    entry = case.registered_embargo(world.embargo.id_)
     assert entry is not None
     assert entry.status is S.TERMINATED
     assert entry.termination == termination

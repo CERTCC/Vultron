@@ -24,8 +24,9 @@ In that example, the row is `INVITED` because the participant has been invited t
 
 #### 7.1.1 The Embargo Register
 
-A case keeps one **embargo register entry** for every embargo ever proposed on it.
-An entry names the embargo, holds its status, and, for an activated revision, names the embargo it replaced.
+A case keeps an ordered list of every embargo ever proposed on it, its **embargo register**.
+Each embargo in the register is one **embargo register entry**.
+The embargo stores its own status, and, for an activated revision, the embargo it replaced ([ADR-0202](../../adr/0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md)).
 Entries are appended and never removed, so the register is the whole embargo history of the case, including rejected and canceled proposals.
 
 | Status | Meaning |
@@ -46,7 +47,7 @@ Six triggers move an entry:
 | `ACTIVATE` | `PROPOSED` → `ACTIVE` |
 | `REJECT` | `PROPOSED` → `REJECTED` |
 | `SUPERSEDE` | `ACTIVE` → `SUPERSEDED`, in the step that activates another entry |
-| `TERMINATE` | `ACTIVE` → `TERMINATED`, recording, when known, why the embargo ended |
+| `TERMINATE` | `ACTIVE` → `TERMINATED`, recording on the embargo why it ended |
 | `CANCEL` | `PROPOSED` → `CANCELLED`, in the step that terminates the embargo in force, or on a threat signal while no entry is `ACTIVE` |
 
 A **register step** is the whole change that one act causes.
@@ -72,7 +73,7 @@ The `kind` of the cause is one of these values:
 - `OTHER`
 
 Every cause except `END_TIME_REACHED` means that the embargo ended early.
-A termination with no cause also means that the embargo ended early.
+A termination with no cause also means that the embargo ended early, and the ended embargo records the cause `OTHER` for it.
 The termination message carries the cause as `terminationCause`.
 
 ```python exec="true" idprefix=""

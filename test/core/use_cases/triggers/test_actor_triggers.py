@@ -237,7 +237,7 @@ def _activate_embargo(
     )
     dl.create(embargo)
     case = cast(Any, dl.read(case_id))
-    activate(case, embargo.id_)
+    activate(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
     agree_to_active_embargo(dl, case, *signatories)
@@ -265,7 +265,7 @@ def _open_revision(dl: SqliteDataLayer, case_id: str) -> str:
     )
     dl.create(revision)
     case = cast(Any, dl.read(case_id))
-    propose(case, revision.id_)
+    propose(case, revision)
     dl.save(case)
     write_consent_rows(dl, case)
     assert case.em_state == EM.REVISE

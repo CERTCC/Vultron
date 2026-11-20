@@ -156,7 +156,7 @@ class _Revision:
             third_p.id_,
         ]
         self.case.actor_participant_index = dict(self.participants)
-        activate(self.case, self.active.id_)
+        activate(self.case, self.active)
         self.dl.create(self.case)
         self.dl.create(self.active)
         for p in (owner_p, proposer_p, third_p):

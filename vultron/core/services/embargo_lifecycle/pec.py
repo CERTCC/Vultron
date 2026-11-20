@@ -307,7 +307,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
         if resolved is None:
             return []
         participant_id, participant = resolved
-        if case.embargo_register_entry(embargo_id) is None:
+        if case.registered_embargo(embargo_id) is None:
             logger.info(
                 "Embargo '%s' is not in the register of case '%s'; actor"
                 " '%s' agreement records nothing (ADR-0122)",

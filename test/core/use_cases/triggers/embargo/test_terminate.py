@@ -337,7 +337,9 @@ def _run_cascade_ask(
 ) -> BTExecutionResult:
     """Run the received P/X/A cascade's ask, as ThreatTerminationBranchNode
     does for a non-manager receiver."""
-    py_trees.blackboard.Blackboard.storage["/embargo_id"] = case.active_embargo
+    py_trees.blackboard.Blackboard.storage["/embargo_id"] = (
+        case.active_embargo_id
+    )
     py_trees.blackboard.Blackboard.storage["/case_actor_id"] = manager_id
     return run_tree(
         BTBridge(
@@ -346,7 +348,7 @@ def _run_cascade_ask(
             wire_render_port=As2WireRenderAdapter(),
         ),
         tree=ask_case_manager_to_terminate_once(
-            case.id_, EmbargoTermination.early()
+            case.id_, EmbargoTermination.other()
         ),
         actor_id=actor_id,
     )
@@ -471,7 +473,7 @@ def test_an_early_request_records_its_cause_or_other(
 
     expected = EmbargoTermination(cause=recorded)
     updated = cast(VulnerabilityCase, owner_dl.read(case.id_))
-    entry = updated.embargo_register_entry(embargo_id)
+    entry = updated.registered_embargo(embargo_id)
     assert entry is not None
     assert entry.termination == expected
     assert result.activity is not None

@@ -23,14 +23,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from vultron.core.models._helpers import (
-    _as_id,
-)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
-    EmbargoRegisterEntry,
     RegisterChange,
     apply_register_step,
 )
@@ -56,7 +52,7 @@ class EmbargoRegisterMixin:
         id_: NonEmptyString
         case_participants: list[NonEmptyString | CaseParticipant]
         case_statuses: list[NonEmptyString | CaseStatus]
-        embargo_register: list[EmbargoRegisterEntry]
+        embargo_register: list[EmbargoEvent]
         pending_embargo_proposal_index: dict[NonEmptyString, NonEmptyString]
 
         def _last_materialized_status(self) -> CaseStatus | None: ...
@@ -72,7 +68,7 @@ class EmbargoRegisterMixin:
         The step is checked whole by
         :func:`~vultron.core.models.embargo_register.apply_register_step`
         and refused, leaving the case untouched, when any rule breaks.  An
-        entry that has left ``PROPOSED`` takes its relay record out of
+        embargo that has left ``PROPOSED`` takes its relay record out of
         ``pending_embargo_proposal_index`` with it (EP-08-003); a record for
         an embargo the register has not recorded yet stays (EP-09-007).  The
         current :class:`CaseStatus` is stamped with the derived EM, so the
@@ -85,11 +81,11 @@ class EmbargoRegisterMixin:
         register = apply_register_step(
             self.embargo_register, changes, threat_signal=threat_signal
         )
-        # A participant held inline must already hold the new entries' rows
+        # A participant held inline must already hold the new embargoes' rows
         # when the register is assigned, or the row check refuses the
         # assignment (validate_assignment).  Stored participants get theirs
         # from the lifecycle service, which persists them (ADR-0122).
-        embargo_ids = [entry.embargo_id for entry in register]
+        embargo_ids = [embargo.id_ for embargo in register]
         for participant in self.case_participants:
             if isinstance(participant, CaseParticipant):
                 participant.write_uninvited_rows(embargo_ids)
@@ -118,20 +114,20 @@ class EmbargoRegisterMixin:
     def proposal_is_undecided(self, embargo_id: str) -> bool:
         """Whether *embargo_id* may still be answered as a proposal.
 
-        True for a ``PROPOSED`` entry, and for an embargo the register has
+        True for a ``PROPOSED`` embargo, and for one the register has
         not recorded yet: a replica indexes a relayed Invite when it arrives,
         which can be before ledger replay records the proposal (EP-09-007).
-        False once the entry has left ``PROPOSED`` (EP-08-003), and for every
+        False once the embargo has left ``PROPOSED`` (EP-08-003), and for every
         embargo once one has terminated: nothing is proposed after that
         (EP-08-004, register invariant 4).
         """
-        entry = self.embargo_register_entry(embargo_id)
-        if entry is None:
+        embargo = self.registered_embargo(embargo_id)
+        if embargo is None:
             return not any(
                 e.status == EmbargoRegisterStatus.TERMINATED
                 for e in self.embargo_register
             )
-        return entry.status == EmbargoRegisterStatus.PROPOSED
+        return embargo.status == EmbargoRegisterStatus.PROPOSED
 
     def _em_stamped_statuses(
         self,
@@ -164,15 +160,13 @@ class EmbargoRegisterMixin:
 
     @property
     def register_embargo_ids(self) -> list[str]:
-        """The embargo id of every register entry, in register order."""
-        return [entry.embargo_id for entry in self.embargo_register]
+        """The id of every embargo in the register, in register order."""
+        return [embargo.id_ for embargo in self.embargo_register]
 
-    def embargo_register_entry(
-        self, embargo_id: str
-    ) -> EmbargoRegisterEntry | None:
-        """The register entry for *embargo_id*, or ``None`` when it has none."""
+    def registered_embargo(self, embargo_id: str) -> EmbargoEvent | None:
+        """The register's embargo *embargo_id*, or ``None`` when it holds none."""
         return next(
-            (e for e in self.embargo_register if e.embargo_id == embargo_id),
+            (e for e in self.embargo_register if e.id_ == embargo_id),
             None,
         )
 
@@ -182,71 +176,62 @@ class EmbargoRegisterMixin:
         """The register status of *embargo_id*, the input every consent write needs.
 
         Raises:
-            VultronNotFoundError: the register has no entry for *embargo_id*;
-                a consent row exists only for a register entry (ADR-0122).
+            VultronNotFoundError: the register does not hold *embargo_id*;
+                a consent row exists only for a registered embargo (ADR-0122).
         """
-        entry = self.embargo_register_entry(embargo_id)
-        if entry is None:
+        embargo = self.registered_embargo(embargo_id)
+        if embargo is None:
             raise VultronNotFoundError(
-                "EmbargoRegisterEntry", f"{embargo_id} on case {self.id_}"
+                "EmbargoEvent", f"{embargo_id} in the register of {self.id_}"
             )
-        return entry.status
+        return embargo.status
 
     @property
     def em_state(self) -> EM:
         """The case's EM state, derived from its embargo register (ADR-0122)."""
-        return derive_em(entry.status for entry in self.embargo_register)
+        return derive_em(embargo.status for embargo in self.embargo_register)
 
     def em_state_without_proposal(self, embargo_id: str) -> EM:
         """The EM state derived with *embargo_id*'s open proposal set aside.
 
-        A proposal's own ``PROPOSE`` entry is not "another embargo": a
+        A proposal's own ``PROPOSED`` embargo is not "another embargo": a
         decision about that proposal reads the case as it stands apart from
-        it, so it is the same whether the entry has reached this replica
-        yet or not (SYNC-19-001).  Only a ``PROPOSED`` entry is set aside; a
-        decided one counts like any other.  Dropping a ``PROPOSED`` entry
+        it, so it is the same whether the proposal has reached this replica
+        yet or not (SYNC-19-001).  Only a ``PROPOSED`` embargo is set aside; a
+        decided one counts like any other.  Dropping a ``PROPOSED`` embargo
         leaves a legal register, whereas dropping an ``ACTIVE`` or
-        ``TERMINATED`` one beside a ``SUPERSEDED`` entry would not (ADR-0122).
+        ``TERMINATED`` one beside a ``SUPERSEDED`` one would not (ADR-0122).
         """
         return derive_em(
-            entry.status
-            for entry in self.embargo_register
+            embargo.status
+            for embargo in self.embargo_register
             if not (
-                entry.embargo_id == embargo_id
-                and entry.status == EmbargoRegisterStatus.PROPOSED
+                embargo.id_ == embargo_id
+                and embargo.status == EmbargoRegisterStatus.PROPOSED
             )
         )
 
     @property
-    def active_register_entry(self) -> EmbargoRegisterEntry | None:
-        """The register's ``ACTIVE`` entry, the embargo in force, or ``None``.
+    def active_embargo(self) -> EmbargoEvent | None:
+        """The register's ``ACTIVE`` embargo, the embargo in force, or ``None``.
 
-        The one entry a stub Invite's preview shows of the register: never an
-        open proposal (CM-17-002, CM-17-014).
+        The one embargo a stub Invite's preview shows of the register: never
+        an open proposal (CM-17-002, CM-17-014).
         """
         return next(
             (
-                entry
-                for entry in self.embargo_register
-                if entry.status == EmbargoRegisterStatus.ACTIVE
+                embargo
+                for embargo in self.embargo_register
+                if embargo.status == EmbargoRegisterStatus.ACTIVE
             ),
             None,
         )
 
     @property
-    def active_embargo(self) -> str | EmbargoEvent | None:
-        """The embargo in force — the object when one was carried, else its id.
-
-        A view of :attr:`active_register_entry`.  Most callers want the id
-        and should use :attr:`active_embargo_id`.
-        """
-        entry = self.active_register_entry
-        return entry.embargo if entry is not None else None
-
-    @property
     def active_embargo_id(self) -> str | None:
-        """The id of the register's ``ACTIVE`` entry, or ``None``."""
-        return _as_id(self.active_embargo)
+        """The id of the register's ``ACTIVE`` embargo, or ``None``."""
+        active = self.active_embargo
+        return active.id_ if active is not None else None
 
     @property
     def embargo_termination(
@@ -254,24 +239,25 @@ class EmbargoRegisterMixin:
     ) -> EmbargoTermination | None:
         """How the case's embargo ended, or ``None`` while none has (ADR-0122).
 
-        The ``termination`` of the register's ``TERMINATED`` entry.
+        The ``termination`` the register's ``TERMINATED`` embargo stores
+        (ADR-0202).
         """
         return next(
             (
-                entry.termination
-                for entry in self.embargo_register
-                if entry.status == EmbargoRegisterStatus.TERMINATED
+                embargo.termination
+                for embargo in self.embargo_register
+                if embargo.status == EmbargoRegisterStatus.TERMINATED
             ),
             None,
         )
 
     @property
     def proposed_embargo_ids(self) -> list[str]:
-        """The ids of the open proposals: the register's ``PROPOSED`` entries."""
+        """The ids of the open proposals: the register's ``PROPOSED`` embargoes."""
         return [
-            entry.embargo_id
-            for entry in self.embargo_register
-            if entry.status == EmbargoRegisterStatus.PROPOSED
+            embargo.id_
+            for embargo in self.embargo_register
+            if embargo.status == EmbargoRegisterStatus.PROPOSED
         ]
 
     def can_answer_embargo(self, embargo_id: str) -> bool:
@@ -279,7 +265,7 @@ class EmbargoRegisterMixin:
 
         The two embargoes an ``Accept`` or a ``Reject`` of an embargo Invite
         may name: the embargo in force and the open proposals (MSM-07-003,
-        MSM-07-004).  A row for any other entry is final and accepts no
+        MSM-07-004).  A row for any other embargo is final and accepts no
         trigger (CM-18-003).  The register half of an embargo's
         availability, which adds its end time to decide an ``Accept``
         (``vultron.core.services.embargo_availability``, MSM-07-012); the
@@ -292,10 +278,10 @@ class EmbargoRegisterMixin:
 
     @property
     def embargo_in_force(self) -> bool:
-        """True when this case's register has an ``ACTIVE`` entry.
+        """True when this case's register has an ``ACTIVE`` embargo.
 
         Read from :attr:`active_embargo_id`, the same fact the consent
-        bookkeeping keys on (``embargo_lifecycle.pec``): an entry is
+        bookkeeping keys on (``embargo_lifecycle.pec``): an embargo is
         ``ACTIVE`` from its activation until a revision supersedes it or the
         embargo is terminated, so it holds through a revision (EM
         ``REVISE``).  A proposal alone does not make one.

@@ -103,7 +103,7 @@ def _step(kind: RegisterStepKind, embargo: EmbargoEvent) -> RegisterStep:
         return RegisterStep(
             kind=kind,
             embargo=embargo.id_,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
         )
     return RegisterStep(kind=kind, embargo=embargo.id_)
 
@@ -154,13 +154,13 @@ def _apply_all(
 
 
 def _entry(case_file: EmbargoCaseFile, embargo: EmbargoEvent):
-    entry = case_file.case.embargo_register_entry(embargo.id_)
+    entry = case_file.case.registered_embargo(embargo.id_)
     assert entry is not None
     return entry
 
 
 def _statuses(case_file: EmbargoCaseFile) -> dict[str, EmbargoRegisterStatus]:
-    return {e.embargo_id: e.status for e in case_file.case.embargo_register}
+    return {e.id_: e.status for e in case_file.case.embargo_register}
 
 
 def _dump(case_file: EmbargoCaseFile) -> dict:
@@ -249,7 +249,9 @@ class TestRegisterSteps:
 
     def test_a_proposal_carries_its_embargo_inline(self):
         after = apply_embargo_change(_case_file(), _step(_K.PROPOSE, E1))
-        assert _entry(after, E1).embargo == E1
+        registered = _entry(after, E1)
+        assert registered.with_register_state() == E1
+        assert registered.status is EmbargoRegisterStatus.PROPOSED
 
     def test_terminate_ends_only_the_embargo_it_names(self):
         """Never "whatever is active locally" (#4294 AC-3)."""
@@ -278,7 +280,7 @@ class TestRegisterSteps:
         [(_K.TERMINATE, None), (_K.ACTIVATE, "termination")],
     )
     def test_the_termination_fits_the_kind(self, kind, field):
-        termination = EmbargoTermination.early() if field else None
+        termination = EmbargoTermination.other() if field else None
         with pytest.raises(ValueError, match="termination"):
             RegisterStep(kind=kind, embargo=E1.id_, termination=termination)
 
@@ -505,7 +507,7 @@ def test_a_dropped_entry_refuses_the_next_and_is_never_patched_over():
             RegisterStep(
                 kind=_K.TERMINATE,
                 embargo=E1.id_,
-                termination=EmbargoTermination.early(),
+                termination=EmbargoTermination.other(),
             ),
         )
     assert _dump(replica) == before

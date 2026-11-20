@@ -63,6 +63,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.services.carried_embargo import (
     carried_entry_embargo,
+    create_held_embargo,
     entry_embargo,
 )
 from vultron.errors import VultronError, VultronNotFoundError
@@ -132,7 +133,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
             return False
         if embargo is None:
             return True
-        self.datalayer.create(embargo)
+        create_held_embargo(self.datalayer, embargo)
         self.logger.debug(
             "%s: stored embargo '%s' from the canonical entry",
             self.name,
@@ -235,7 +236,7 @@ def _store_carried_embargo(
 ) -> None:
     """Store *embargo* unless this store already holds it."""
     if datalayer.read(embargo.id_) is None:
-        datalayer.create(embargo)
+        create_held_embargo(datalayer, embargo)
 
 
 class _CopiedEmbargoEntryNode(ApplyEmbargoChangeFromLedgerNode):
@@ -415,7 +416,7 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        if case.embargo_register_entry(embargo_id) is None:
+        if case.registered_embargo(embargo_id) is None:
             # The proposal is committed before its relay (EP-09-001, EP-09-002), so a
             # replica replaying the relay holds the entry; one that does not
             # has a gap, and the entry is not marked applied (SYNC-12-001).

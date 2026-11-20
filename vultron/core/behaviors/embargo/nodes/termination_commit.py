@@ -200,7 +200,7 @@ class CommitAndApplyEmbargoTerminationNode(
         termination = act_termination(self)
         try:
             step = decide_termination(
-                dl, case, termination, self._require_act_instant()
+                case, termination, self._require_act_instant()
             )
         except INTERNAL_FAULTS:
             raise  # never a refusal, so never answered (ADR-0095)

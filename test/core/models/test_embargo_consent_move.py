@@ -81,7 +81,7 @@ def _case_file(
                     embargo_id=e,
                     state=held.get(e, _S.UNINVITED),
                 )
-                for e in (e.embargo_id for e in case.embargo_register)
+                for e in (e.id_ for e in case.embargo_register)
             ],
         )
         case.actor_participant_index[actor_id] = record.id_

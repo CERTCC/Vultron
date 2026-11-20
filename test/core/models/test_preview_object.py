@@ -47,7 +47,7 @@ from vultron.core.models.case_reference import CaseReference, CaseReferenceLink
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.preview_object import (
     PreviewObject,
     PreviewValue,
@@ -76,7 +76,7 @@ OMIT_ONLY = {
 
 @pytest.mark.parametrize(
     "full",
-    [VulnerabilityItem, CaseParticipant, CaseStatus, EmbargoRegisterEntry],
+    [VulnerabilityItem, CaseParticipant, CaseStatus, EmbargoTermination],
 )
 def test_a_loose_form_has_every_field_of_its_class_under_its_names(
     full: type[BaseModel],
@@ -115,7 +115,7 @@ def test_each_class_has_one_loose_form() -> None:
 
 def test_a_loose_form_derives_from_the_base_its_kind_takes() -> None:
     assert issubclass(loose_form(VulnerabilityItem), PreviewObject)
-    assert issubclass(loose_form(EmbargoRegisterEntry), PreviewValue)
+    assert issubclass(loose_form(EmbargoTermination), PreviewValue)
 
 
 def test_a_loose_form_names_its_full_class() -> None:
@@ -316,10 +316,10 @@ def test_the_preview_identity_and_summary_hold_no_marker(field: str) -> None:
         CasePreview.model_validate(data)
 
 
-def _in_force(embargo: object) -> PreviewValue:
-    """A preview's register entry for *embargo*, in force."""
-    return loose_form(EmbargoRegisterEntry).model_validate(
-        {"embargo": embargo, "status": "ACTIVE"}
+def _shown(status: str, **fields: object) -> PreviewObject:
+    """A preview's registered embargo, showing *status* (ADR-0202)."""
+    return loose_form(EmbargoEvent).model_validate(
+        {"status": status, **fields}
     )
 
 
@@ -346,31 +346,19 @@ def test_the_preview_status_and_embargo_readers_skip_a_marker(
     assert preview_embargo_id(preview) is None
 
 
-def test_the_preview_embargo_reader_reads_an_id_or_a_shown_embargo() -> None:
-    embargo_form = loose_form(EmbargoEvent)
-    by_id = CasePreview(
-        summary="a case", embargo_register=[_in_force("urn:uuid:e1")]
-    )
+def test_the_preview_embargo_reader_reads_the_shown_active_embargo() -> None:
     shown = CasePreview(
         summary="a case",
-        embargo_register=[
-            _in_force(embargo_form.model_validate({"id": "urn:uuid:e2"}))
-        ],
+        embargo_register=[_shown("ACTIVE", id="urn:uuid:e2")],
     )
     without_id = CasePreview(
-        summary="a case",
-        embargo_register=[_in_force(embargo_form.model_validate({}))],
+        summary="a case", embargo_register=[_shown("ACTIVE")]
     )
     proposed_only = CasePreview(
         summary="a case",
-        embargo_register=[
-            loose_form(EmbargoRegisterEntry).model_validate(
-                {"embargo": "urn:uuid:e3", "status": "PROPOSED"}
-            )
-        ],
+        embargo_register=[_shown("PROPOSED", id="urn:uuid:e3")],
     )
 
-    assert preview_embargo_id(by_id) == "urn:uuid:e1"
     assert preview_embargo_id(shown) == "urn:uuid:e2"
     assert preview_embargo_id(without_id) is None
     assert preview_embargo_id(proposed_only) is None

@@ -892,7 +892,7 @@ class TestFullValidateReportLedgerChain:
             end_time=days_from_now(45),
         )
         case_actor_dl.create(embargo)
-        activate(ca_case, embargo.id_)
+        activate(ca_case, embargo)
 
         ca_participant = make(
             as_CaseParticipant,

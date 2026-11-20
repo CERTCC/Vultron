@@ -362,7 +362,7 @@ def test_the_register_is_reduced_to_the_in_force_entry_whole(
 
     (entry,) = _dump(preview)["embargoRegister"]
     assert entry["status"] == "ACTIVE"
-    assert entry["embargo"] == _dump(embargo)
+    assert entry == {**_dump(embargo), "status": "ACTIVE"}
     assert preview_embargo_id(preview) == embargo.id_
     assert preview_em_state(preview) is (EM.REVISE if revising else EM.ACTIVE)
 
@@ -420,11 +420,11 @@ def test_a_case_holding_no_status_object_is_refused() -> None:
 
 @pytest.mark.spec("CM-17-011")
 @pytest.mark.spec("CM-17-024")
-def test_an_in_force_embargo_held_by_id_is_refused() -> None:
-    case = _case(embargo_register=register(active=_embargo().id_))
-
-    with pytest.raises(VultronActivityConstructionError, match="CM-17-024"):
-        CasePreview.from_case(case, INVITATION_PROFILE)
+def test_a_register_naming_an_embargo_by_id_alone_is_refused() -> None:
+    """The register holds each embargo whole (ADR-0202), so the cut always
+    has the in-force embargo to embed."""
+    with pytest.raises(ValueError, match="embargo_register"):
+        _case(embargo_register=[_embargo().id_])
 
 
 def test_a_profile_missing_a_case_field_is_refused() -> None:
@@ -446,7 +446,7 @@ def test_a_profile_whose_cut_breaks_the_envelope_is_refused() -> None:
         permitted=frozenset({_OP.SUBSTITUTE}),
         chosen=_OP.SUBSTITUTE,
         substitution=lambda case: [
-            {"embargo": e.embargo_id, "status": e.status.value}
+            {"id": e.id_, "status": e.status.value}
             for e in case.embargo_register
         ],
     )
@@ -462,16 +462,16 @@ def test_a_profile_whose_cut_breaks_the_envelope_is_refused() -> None:
 
 
 @pytest.mark.spec("CM-17-002")
-def test_active_register_entry_is_the_active_one() -> None:
+def test_active_embargo_is_the_active_one() -> None:
     embargo = _embargo()
     case = _case(
         embargo_register=register(active=embargo, proposed=[_embargo()])
     )
 
-    entry = case.active_register_entry
+    active = case.active_embargo
 
-    assert entry is not None and entry.embargo_id == embargo.id_
-    assert _case().active_register_entry is None
+    assert active is not None and active.id_ == embargo.id_
+    assert _case().active_embargo is None
 
 
 # --- The envelope check a cut passes ------------------------------------
@@ -484,7 +484,11 @@ def _shown(**fields: Any) -> CasePreview:
 
 
 _ACTIVE_STATUS = {"type": "CaseStatus", "emState": "ACTIVE"}
-_ACTIVE_ENTRY = {"embargo": "urn:uuid:e1", "status": "ACTIVE"}
+_ACTIVE_ENTRY = {
+    "id": "urn:uuid:e1",
+    "endTime": "2099-01-01T00:00:00+00:00",
+    "status": "ACTIVE",
+}
 
 
 @pytest.mark.spec("MV-10-007")
@@ -507,11 +511,9 @@ _ACTIVE_ENTRY = {"embargo": "urn:uuid:e1", "status": "ACTIVE"}
         (
             {
                 "caseStatuses": [_ACTIVE_STATUS],
-                "embargoRegister": [
-                    {"embargo": {"type": "Redacted"}, "status": "ACTIVE"}
-                ],
+                "embargoRegister": [{"type": "Redacted"}],
             },
-            "lacks or marks the in-force embargo",
+            "lacks the in-force entry",
         ),
         ({"embargoRegister": [_ACTIVE_ENTRY]}, "lacks or marks the EM state"),
         (
@@ -527,7 +529,7 @@ _ACTIVE_ENTRY = {"embargo": "urn:uuid:e1", "status": "ACTIVE"}
             {
                 "embargoRegister": [
                     _ACTIVE_ENTRY,
-                    {"embargo": "urn:uuid:e2", "status": "PROPOSED"},
+                    {"id": "urn:uuid:e2", "status": "PROPOSED"},
                 ],
                 "caseStatuses": [{"type": "CaseStatus", "emState": "REVISE"}],
             },

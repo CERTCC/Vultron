@@ -56,7 +56,7 @@ The table below shows which kind each part of the case state is.
 !!! note "Embargo register and consent rows"
 
     The embargo register is the list of every embargo that anyone proposed for the case.
-    Each entry in the register has a status, such as proposed, active, or ended.
+    Each embargo in the register stores its own status, such as proposed, active, or ended (ADR-0202).
     The case derives its EM state from the statuses in the register.
 
     A consent row records the answer of one participant to one embargo in the register.

@@ -121,7 +121,7 @@ class _InviteExpiryOperationsMixin(_PecEffectsMixin):
             return False, False
         _, participant = resolved
         is_expired = not participant.is_signatory(case.active_embargo_id)
-        entry = case.embargo_register_entry(embargo_id)
+        entry = case.registered_embargo(embargo_id)
         if entry is not None and entry.status in FINAL_REGISTER_STATUSES:
             # The terms were superseded, rejected, cancelled or terminated:
             # the invitation is closed whatever its deadline, and its row is
@@ -168,7 +168,7 @@ class _InviteExpiryOperationsMixin(_PecEffectsMixin):
             for row in participant.embargo_consents:
                 if row.state != EmbargoConsentState.INVITED:
                     continue
-                entry = case.embargo_register_entry(row.embargo_id)
+                entry = case.registered_embargo(row.embargo_id)
                 if (
                     entry is not None
                     and entry.status in FINAL_REGISTER_STATUSES

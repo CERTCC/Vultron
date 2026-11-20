@@ -77,7 +77,7 @@ def change_is_in_place(
     """
     case = case_file.case
     if isinstance(change, RegisterStep):
-        entry = case.embargo_register_entry(change.embargo_id)
+        entry = case.registered_embargo(change.embargo_id)
         return (
             entry is not None
             and entry.status == _STEP_RESULT[change.kind]
@@ -161,7 +161,7 @@ def case_file_is_past(
         if isinstance(change, RegisterStep)
         else change.row.embargo_id
     )
-    entry = case.embargo_register_entry(embargo_id)
+    entry = case.registered_embargo(embargo_id)
     if entry is None:
         return False
     if isinstance(change, RegisterStep):

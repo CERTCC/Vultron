@@ -24,6 +24,7 @@ unreadable record fails closed before the case is mutated.
 import logging
 
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
     activation_changes,
     apply_register_step,
@@ -47,17 +48,17 @@ logger = logging.getLogger(__name__)
 
 
 def _propose_then_activate_is_legal(
-    case: VulnerabilityCase, embargo_id: str
+    case: VulnerabilityCase, embargo: EmbargoEvent
 ) -> bool:
-    """Whether proposing *embargo_id* and then activating it are both legal."""
+    """Whether proposing *embargo* and then activating it are both legal."""
     try:
         proposed = apply_register_step(
-            case.embargo_register, proposal_changes(embargo_id)
+            case.embargo_register, proposal_changes(embargo)
         )
     except VultronInvalidStateTransitionError:
         return False
     return register_step_is_legal(
-        proposed, activation_changes(proposed, embargo_id)
+        proposed, activation_changes(proposed, embargo.id_)
     )
 
 
@@ -143,13 +144,14 @@ class _ActivationArmMixin(_LifecycleBase):
         """
         if (
             transition_mode == TransitionMode.OBSERVED
-            and case.embargo_register_entry(embargo_id) is None
+            and case.registered_embargo(embargo_id) is None
         ):
             # Check both steps before the first one lands: proposing saves
             # the new UNINVITED rows on every participant, and a refused
             # activation after it would leave those rows for an entry the
             # unsaved case never records (ADR-0122).
-            if not _propose_then_activate_is_legal(case, embargo_id):
+            embargo = read_embargo_event(self._persistence, embargo_id)
+            if not _propose_then_activate_is_legal(case, embargo):
                 logger.warning(
                     "OBSERVED mode: activation of unrecorded embargo '%s' on"
                     " case '%s' refused, case left unchanged",
@@ -159,7 +161,7 @@ class _ActivationArmMixin(_LifecycleBase):
                 return False
             self._apply_register_step(
                 case,
-                proposal_changes(embargo_id),
+                proposal_changes(embargo),
                 transition_mode=transition_mode,
                 actor_id=actor_id,
             )

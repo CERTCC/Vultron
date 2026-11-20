@@ -149,21 +149,17 @@ def consent_row_changes(
 def _dumped(case_file: EmbargoCaseFile) -> tuple[Any, dict[str, Any]]:
     """*case_file* as comparable data.
 
-    A register entry may hold its embargo inline or by id (the lifecycle
-    names it by id, a ``PROPOSE`` entry carries it inline), so each is
-    compared by id.
+    Each registered embargo is compared by its id and the state the register
+    gives it (ADR-0202), not its terms: the lifecycle reads the embargo from
+    the store, and a ``PROPOSE`` entry carries it inline.
     """
-    case = case_file.case
-    by_id = case.model_copy(
-        update={
-            "embargo_register": [
-                entry.model_copy(update={"embargo": entry.embargo_id})
-                for entry in case.embargo_register
-            ]
-        }
-    )
+    dumped = case_file.case.model_dump(mode="json")
+    dumped["embargo_register"] = [
+        (embargo.id_, embargo.status, embargo.replaces, embargo.termination)
+        for embargo in case_file.case.embargo_register
+    ]
     return (
-        by_id.model_dump(mode="json"),
+        dumped,
         {
             actor_id: record.model_dump(mode="json")
             for actor_id, record in case_file.participants.items()

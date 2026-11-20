@@ -396,8 +396,8 @@ class _Deriver:
         The history's own record of the register wins, since the embargo the
         Invite named may have ended before the answer; the Invite's preview
         is read only when the history has seen no embargo start or end, as
-        in a merge missing the genesis entry.  The terms are the in-force
-        entry of the ``embargoRegister`` in the preview the Invite's case
+        in a merge missing the genesis entry.  The terms are the ``ACTIVE``
+        embargo of the ``embargoRegister`` in the preview the Invite's case
         reference carries (CM-17-002, ADR-0205).
         """
         if self.started or self.exited:
@@ -558,12 +558,12 @@ class _Deriver:
     def _register_entry(
         self, context: _Entry, register_entry: Mapping[str, Any]
     ) -> None:
-        """A carried case's register: an ``ACTIVE`` entry is in force, and
-        any other status is carried unless it is behind the one held
-        (:meth:`.RebuiltRegister.carry`)."""
-        embargo = register_entry.get("embargo")
-        self._remember_end_time(embargo)
-        embargo_id = actor_uri(embargo)
+        """A carried case's registered embargo: an ``ACTIVE`` one is in
+        force, and any other status is carried unless it is behind the one
+        held (:meth:`.RebuiltRegister.carry`).  Each embargo carries its own
+        status (ADR-0202)."""
+        self._remember_end_time(register_entry)
+        embargo_id = actor_uri(register_entry)
         status = member_of(EmbargoRegisterStatus, register_entry.get("status"))
         if embargo_id is None:
             return
@@ -862,8 +862,9 @@ def _case_invitee(invite: object) -> str | None:
 def _in_force_embargo_of(preview: Mapping[str, object]) -> str | None:
     """The id of the embargo a stub Invite's *preview* shows in force.
 
-    The embargo of its ``embargoRegister`` entry whose status is ``ACTIVE``
-    (CM-17-002); ``None`` when it shows none, or withholds the register.
+    The embargo of its ``embargoRegister`` whose status is ``ACTIVE``
+    (CM-17-002, ADR-0202); ``None`` when it shows none, or withholds the
+    register.
     """
     register = first_present(preview, "embargoRegister", "embargo_register")
     if not isinstance(register, list):
@@ -873,7 +874,7 @@ def _in_force_embargo_of(preview: Mapping[str, object]) -> str | None:
             isinstance(entry, dict)
             and entry.get("status") == EmbargoRegisterStatus.ACTIVE.value
         ):
-            return actor_uri(entry.get("embargo"))
+            return actor_uri(entry)
     return None
 
 

@@ -7,16 +7,22 @@ state either drive the register through its steps (:func:`propose`,
 — the same step builders ``EmbargoLifecycle`` applies — or build entries for
 a constructor (:func:`register`).  Both go through the register's own rules,
 so a fixture cannot hold a register no protocol event could have produced.
+
+The register holds each embargo whole, with its own status (ADR-0202).  A
+helper given an embargo id alone registers a stand-in ``EmbargoEvent`` under
+that id (:func:`stand_in`), for a test that needs only the id; a test whose
+code under test reads the embargo's terms passes the ``EmbargoEvent``.
 """
 
 from collections.abc import Iterable
+from datetime import UTC, datetime
 
+from test.support.objects import make
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
-    EmbargoRegisterEntry,
     RegisterChange,
     activation_changes,
     apply_register_step,
@@ -34,16 +40,43 @@ from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 EmbargoRef = str | EmbargoEvent
 
+#: The terms a stand-in embargo carries: published long ago, ending far ahead.
+STAND_IN_PUBLISHED = datetime(2026, 1, 1, tzinfo=UTC)
+STAND_IN_END_TIME = datetime(2099, 1, 1, tzinfo=UTC)
+_STAND_IN_CONTEXT = "urn:uuid:stand-in-case"
+
 
 def _id(embargo: EmbargoRef) -> str:
     return embargo.id_ if isinstance(embargo, EmbargoEvent) else embargo
 
 
+def stand_in(embargo: EmbargoRef, context: str | None = None) -> EmbargoEvent:
+    """*embargo* itself, or a stand-in ``EmbargoEvent`` under the id it is.
+
+    The stand-in starts, is published and updated at
+    :data:`STAND_IN_PUBLISHED` and ends at :data:`STAND_IN_END_TIME`; its
+    context is *context*, else a fixed one.
+    """
+    if isinstance(embargo, EmbargoEvent):
+        return embargo
+    return make(
+        EmbargoEvent,
+        id_=embargo,
+        context=context or _STAND_IN_CONTEXT,
+        published=STAND_IN_PUBLISHED,
+        updated=STAND_IN_PUBLISHED,
+        start_time=STAND_IN_PUBLISHED,
+        end_time=STAND_IN_END_TIME,
+    )
+
+
 def propose(case: VulnerabilityCase, *embargoes: EmbargoRef) -> None:
     """Add each embargo to *case*'s register as an open proposal."""
     for embargo in embargoes:
-        if case.embargo_register_entry(_id(embargo)) is None:
-            case.apply_embargo_register_step(proposal_changes(embargo))
+        if case.registered_embargo(_id(embargo)) is None:
+            case.apply_embargo_register_step(
+                proposal_changes(stand_in(embargo, case.id_))
+            )
 
 
 def activate(case: VulnerabilityCase, embargo: EmbargoRef) -> None:
@@ -65,11 +98,11 @@ def terminate(
 ) -> None:
     """End the embargo in force and cancel every open proposal.
 
-    *termination* defaults to an early end with no recorded cause.
+    *termination* defaults to an early end for an ``OTHER`` cause.
     """
     case.apply_embargo_register_step(
         termination_changes(
-            case.embargo_register, termination or EmbargoTermination.early()
+            case.embargo_register, termination or EmbargoTermination.other()
         )
     )
 
@@ -90,8 +123,8 @@ def register(
     active: EmbargoRef | None = None,
     proposed: Iterable[EmbargoRef] = (),
     terminated: EmbargoRef | None = None,
-) -> list[EmbargoRegisterEntry]:
-    """Register entries for a ``VulnerabilityCase(embargo_register=...)``.
+) -> list[EmbargoEvent]:
+    """A register for a ``VulnerabilityCase(embargo_register=...)``.
 
     *active* is the embargo in force and each of *proposed* an open proposal;
     *terminated* is an embargo that has ended, which no other entry may
@@ -102,22 +135,61 @@ def register(
         if active is not None or proposed:
             raise ValueError("a terminated register holds no open entry")
         return [
-            EmbargoRegisterEntry(
-                embargo=terminated,
-                status=EmbargoRegisterStatus.TERMINATED,
-                termination=EmbargoTermination.early(),
-            )
+            registered(terminated, status=EmbargoRegisterStatus.TERMINATED)
         ]
-    entries: list[EmbargoRegisterEntry] = []
+    entries: list[EmbargoEvent] = []
     if active is not None:
-        entries.append(
-            EmbargoRegisterEntry(
-                embargo=active, status=EmbargoRegisterStatus.ACTIVE
-            )
-        )
+        entries.append(registered(active, status=EmbargoRegisterStatus.ACTIVE))
     for embargo in proposed:
-        entries = apply_register_step(entries, proposal_changes(embargo))
+        entries = apply_register_step(
+            entries, proposal_changes(stand_in(embargo))
+        )
     return entries
+
+
+def registered(
+    embargo: EmbargoRef,
+    *,
+    status: EmbargoRegisterStatus,
+    replaces: str | None = None,
+    termination: EmbargoTermination | None = None,
+) -> EmbargoEvent:
+    """*embargo* (or its :func:`stand_in`) holding the register state given.
+
+    For a register built whole, which no step produced; a ``TERMINATED``
+    embargo given no *termination* ends for an ``OTHER`` cause.  Validated,
+    so a state no embargo may hold is refused (ADR-0202).
+    """
+    if status == EmbargoRegisterStatus.TERMINATED and termination is None:
+        termination = EmbargoTermination.other()
+    return stand_in(embargo).with_register_state(
+        status, replaces=replaces, termination=termination
+    )
+
+
+def retime(
+    dl: CasePersistence, case_id: str, embargo_id: str, end_time: datetime
+) -> None:
+    """Move *embargo_id*'s end time to *end_time* wherever *dl* holds it.
+
+    The stored record, when there is one, and the case's registered copy,
+    which the protocol reads (ADR-0202), so a fixture never holds two end
+    times for one embargo.
+    """
+    stored = dl.read(embargo_id)
+    if isinstance(stored, EmbargoEvent):
+        dl.save(stored.model_copy(update={"end_time": end_time}))
+    case = dl.read(case_id)
+    assert isinstance(case, VulnerabilityCase), case_id
+    case.embargo_register = [
+        (
+            embargo.model_copy(update={"end_time": end_time})
+            if embargo.id_ == embargo_id
+            else embargo
+        )
+        for embargo in case.embargo_register
+    ]
+    dl.save(case)
 
 
 def write_consent_rows(dl: CasePersistence, case: VulnerabilityCase) -> None:
@@ -128,7 +200,7 @@ def write_consent_rows(dl: CasePersistence, case: VulnerabilityCase) -> None:
     only the case.  Reads every participant record *case* lists from *dl* and
     saves the ones that gained a row; rows already held are kept.
     """
-    embargo_ids = [entry.embargo_id for entry in case.embargo_register]
+    embargo_ids = case.register_embargo_ids
     for entry in case.case_participants:
         participant_id = _as_id(entry)
         record = dl.read(participant_id) if participant_id else None
@@ -177,7 +249,10 @@ __all__ = [
     "cancel_on_threat",
     "propose",
     "register",
+    "registered",
     "reject",
+    "retime",
+    "stand_in",
     "terminate",
     "write_consent_rows",
 ]

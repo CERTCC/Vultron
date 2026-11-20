@@ -20,7 +20,19 @@ from typing import ClassVar, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.base import (
+    CoreObject,
+    NonEmptyString,
+    PropertyValueKind,
+    vultron_property,
+)
+from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
+
+_S = EmbargoRegisterStatus
+
+#: Statuses an embargo reaches only by having been ``ACTIVE``.
+_WAS_ACTIVE = frozenset({_S.ACTIVE, _S.SUPERSEDED, _S.TERMINATED})
 
 
 class EmbargoEvent(CoreObject):
@@ -30,6 +42,14 @@ class EmbargoEvent(CoreObject):
     ``type_`` is ``"EmbargoEvent"`` to match the wire vocabulary key, enabling
     proper DataLayer round-trips via ``dl.read()`` and ``dl.list_objects()``,
     and to auto-register this class in :data:`CORE_VOCABULARY`.
+
+    Beyond its terms, an embargo stores its own state (ADR-0202): its
+    ``status`` in its case's register (ADR-0122's statuses; every embargo
+    starts ``PROPOSED``), the embargo an activated revision ``replaces``, and
+    how it ended once ``TERMINATED`` (``termination``).  A case's
+    ``embargo_register`` is its ordered list of embargoes, and only a
+    register step (:func:`~vultron.core.models.embargo_register.apply_register_step`)
+    changes these three fields.
 
     A Vultron extension type and a subtype of AS2 ``Event`` (ADR-0201): its
     AS2 dump writes ``"type": ["EmbargoEvent", "Event"]`` (VM-03-005), so a
@@ -57,6 +77,55 @@ class EmbargoEvent(CoreObject):
     start_time: datetime | None  # pyright: ignore[reportGeneralTypeIssues]
     end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
+    status: EmbargoRegisterStatus = Field(
+        default=_S.PROPOSED,
+        json_schema_extra=vultron_property(
+            (
+                "The status of an embargo in its case's embargo register, "
+                "such as PROPOSED, ACTIVE or TERMINATED"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
+    )
+    replaces: NonEmptyString | None = Field(
+        default=None,
+        json_schema_extra=vultron_property(
+            "The id of the embargo that an activated revision replaced",
+            PropertyValueKind.IRI,
+        ),
+    )
+    termination: EmbargoTermination | None = Field(
+        default=None,
+        json_schema_extra=vultron_property(
+            (
+                "How a terminated embargo ended: its cause, END_TIME_REACHED "
+                "included, the act that caused it when known, and a reason"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
+    )
+
+    def with_register_state(
+        self,
+        status: EmbargoRegisterStatus = _S.PROPOSED,
+        *,
+        replaces: str | None = None,
+        termination: EmbargoTermination | None = None,
+    ) -> EmbargoEvent:
+        """Return this embargo holding the register state given, terms kept.
+
+        With no arguments, the embargo's terms alone, as proposed.  The copy
+        goes through validation, so a state no embargo may hold is refused
+        (ADR-0202).
+        """
+        return type(self).model_validate(
+            {
+                **self.model_dump(),
+                "status": status,
+                "replaces": replaces,
+                "termination": termination,
+            }
+        )
 
     def with_subject(self, subject_id: str) -> EmbargoEvent:
         """Return this embargo re-scoped to *subject_id*, identity kept.
@@ -82,6 +151,26 @@ class EmbargoEvent(CoreObject):
             parts.append(f"start: {self.start_time.isoformat()}")
         parts.append(f"end: {self.end_time.isoformat()}")
         return " ".join(parts)
+
+    @model_validator(mode="after")
+    def _status_fields_agree(self) -> EmbargoEvent:
+        """Refuse a ``replaces`` or ``termination`` the status cannot carry."""
+        problems: list[str] = []
+        if (self.termination is None) == (self.status == _S.TERMINATED):
+            problems.append(
+                "a termination is required on a TERMINATED embargo and"
+                " refused otherwise"
+            )
+        if self.replaces is not None and self.status not in _WAS_ACTIVE:
+            problems.append(
+                f"replaces is set on a {self.status} embargo, which was never"
+                " activated"
+            )
+        if self.replaces is not None and self.replaces == self.id_:
+            problems.append("an embargo cannot replace itself")
+        if problems:
+            raise ValueError(f"Embargo '{self.id_}': " + "; ".join(problems))
+        return self
 
     @model_validator(mode="after")
     def _set_name(self) -> EmbargoEvent:

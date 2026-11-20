@@ -193,7 +193,7 @@ def _with_embargo(dl: SqliteDataLayer) -> None:
     )
     dl.save(embargo)
     case = cast(VulnerabilityCase, dl.read(CASE_ID))
-    activate(case, embargo.id_)
+    activate(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
 

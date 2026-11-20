@@ -59,7 +59,7 @@ def _case_with_signatory(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
     )
     dl.create(embargo)
-    activate(case, embargo.id_)
+    activate(case, embargo)
     dl.create(case)
     _add_case_manager(case, dl)
     participant = make(

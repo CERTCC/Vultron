@@ -61,7 +61,9 @@ from urllib.parse import urlsplit
 from pydantic import AwareDatetime, JsonValue, TypeAdapter, ValidationError
 
 from vultron.core.models.case_preview import CasePreview
-from vultron.core.models.case_preview_envelope import preview_in_force_entry
+from vultron.core.models.case_preview_envelope import (
+    preview_in_force_embargo,
+)
 from vultron.core.models.case_projection import (
     Acknowledgment,
     ProjectingActor,
@@ -331,8 +333,7 @@ def _item_notes(item: object) -> list[dict[str, JsonValue]]:
 
 def _disclosure_date(preview: CasePreview) -> str | None:
     """The end time of the embargo in force the preview shows, if any."""
-    entry = preview_in_force_entry(preview)
-    embargo = _shown(getattr(entry, "embargo", None))
+    embargo = preview_in_force_embargo(preview)
     end_time = _shown(getattr(embargo, "end_time", None))
     return end_time.isoformat() if isinstance(end_time, datetime) else None
 

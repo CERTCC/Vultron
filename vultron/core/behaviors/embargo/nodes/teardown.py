@@ -164,7 +164,7 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
 
         try:
             step = decide_termination(
-                dl, before.case, self._termination, self._terminated_at
+                before.case, self._termination, self._terminated_at
             )
             after = apply_embargo_change(before, step)
         except (
@@ -211,16 +211,16 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
     the cause the ``Remove`` carries as ``terminationCause``,
     ``END_TIME_REACHED`` included, copied as the entry states it: a replica
     never works a cause out from its own case state, and an entry with no
-    ``terminationCause`` records an early end with no cause (EMB-13-005).
+    ``terminationCause`` records an early end with an ``OTHER`` cause
+    (EMB-13-005, ADR-0202).
 
     As on the CASE_MANAGER, where such a ``Remove`` is ledgered with no
     effect (CLP-02-013), an entry naming an embargo that is not the one in
     force changes nothing: SUCCESS, nothing written.  An entry whose
     ``terminationCause`` is malformed (EMB-13-012), that names no
     embargo, or that claims ``END_TIME_REACHED`` before the embargo's end
-    time (its ``published`` time, ADR-0122), or against an embargo this
-    store cannot read (EMB-18-003), is refused: FAILURE, which keeps the
-    entry from being persisted (SYNC-12-001).  A step the apply function
+    time (its ``published`` time, ADR-0122), is refused: FAILURE, which
+    keeps the entry from being persisted (SYNC-12-001).  A step the apply function
     refuses is held for gap handling, as the frame does for every copied
     entry.
     """
@@ -230,11 +230,14 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
         embargo_id = _extract_id_from_field(snapshot.get("object"))
         if embargo_id is None:
             raise TypeError("the Remove names no EmbargoEvent")
+        cause = snapshot.get(_TERMINATION_CAUSE)
         return RegisterStep(
             kind=RegisterStepKind.TERMINATE,
             embargo=embargo_id,
-            termination=EmbargoTermination.model_validate(
-                {"cause": snapshot.get(_TERMINATION_CAUSE)}
+            termination=(
+                EmbargoTermination.from_cause(None)
+                if cause is None
+                else EmbargoTermination.model_validate({"cause": cause})
             ),
         )
 
@@ -258,18 +261,11 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
             )
             self.logger.info("%s", self.feedback_message)
             return Status.SUCCESS
-        try:
-            violations = termination_timing_violations(
-                cast(CasePersistence, self.datalayer),
-                case,
-                cast(EmbargoTermination, step.termination),
-                parse_published(
-                    (entry.payload_snapshot or {}).get("published")
-                ),
-            )
-        except VultronError as exc:
-            # An embargo that cannot be read fails closed (EMB-18-003).
-            violations = [str(exc)]
+        violations = termination_timing_violations(
+            case,
+            cast(EmbargoTermination, step.termination),
+            parse_published((entry.payload_snapshot or {}).get("published")),
+        )
         if violations:
             self.feedback_message = (
                 f"Refused teardown entry '{entry.id_}' on case"

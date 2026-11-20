@@ -40,7 +40,6 @@ from test.core.use_cases.received.test_embargo_revision_relay import (
     _relayed_invites,
     _unbound_case,
 )
-from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
 from test.support.objects import authored_at, make
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
@@ -366,26 +365,3 @@ def test_the_guard_does_not_match_a_proposal_against_its_own_entry():
     in_force = cast(as_EmbargoEvent, dl.read(_active_id(dl, case_id)))
 
     assert _guard_status(dl, case_id, in_force) == (Status.SUCCESS, False)
-
-
-@pytest.mark.spec("EP-09-032")
-def test_an_unreadable_pending_entry_is_left_out_with_a_warning(caplog):
-    """A pending entry whose terms do not resolve cannot be compared, so it
-    is skipped with a WARNING and the proposal is judged by the rest."""
-    case_id = "https://example.org/cases/repeat-guard-unreadable"
-    dl, _ = _active_case_with_revision(
-        case_id, store_actor=MANAGER, participants=[PROPOSER]
-    )
-    case = cast(VulnerabilityCase, dl.read(case_id))
-    missing_id = f"{case_id}/embargo_events/never-stored"
-    propose(case, missing_id)
-    dl.save(case)
-    terms = _terms(dl, case_id, "judged", days_from_now(60))
-
-    with caplog.at_level(logging.WARNING):
-        assert _guard_status(dl, case_id, terms) == (Status.SUCCESS, False)
-
-    assert any(
-        missing_id in r.getMessage() and r.levelno == logging.WARNING
-        for r in caplog.records
-    )

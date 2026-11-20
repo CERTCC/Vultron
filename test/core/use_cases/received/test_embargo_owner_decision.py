@@ -108,9 +108,9 @@ def _store(
             end_time=days_from_now(60),
         )
         dl.create(prior)
-        activate(case, prior.id_)
+        activate(case, prior)
     if proposed:
-        propose(case, embargo.id_)
+        propose(case, embargo)
     seed_case_manager_participant(dl, case, _MANAGER)
     seed_case_owner_participant(dl, case, _OWNER)
     dl.create(case)

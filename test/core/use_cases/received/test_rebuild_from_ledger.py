@@ -31,6 +31,7 @@ import pytest
 
 from test.support import ledger_rebuild
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import stand_in
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
@@ -225,8 +226,8 @@ def test_an_embargo_no_entry_carries_is_caught(make_payload):
         assert_rebuilds_from_ledger(dl, case_id, as_actor=_VENDOR_URI)
 
 
-def _terminated(cause: dict[str, Any] | None) -> VulnerabilityCase:
-    """A case whose one register entry is TERMINATED with *cause*."""
+def _terminated(cause: dict[str, Any]) -> VulnerabilityCase:
+    """A case whose one registered embargo is TERMINATED with *cause*."""
     termination: dict[str, Any] = {"cause": cause}
     return VulnerabilityCase.model_validate(
         with_times(
@@ -237,7 +238,9 @@ def _terminated(cause: dict[str, Any] | None) -> VulnerabilityCase:
                 "name": "Register",
                 "embargo_register": [
                     {
-                        "embargo": "https://example.org/embargo_events/e1",
+                        **stand_in(
+                            "https://example.org/embargo_events/e1"
+                        ).model_dump(),
                         "status": EmbargoRegisterStatus.TERMINATED,
                         "termination": termination,
                     }
@@ -251,14 +254,14 @@ def _terminated(cause: dict[str, Any] | None) -> VulnerabilityCase:
 @pytest.mark.parametrize(
     "replica",
     [
-        _terminated(None),
+        _terminated({"kind": TerminationCauseKind.OTHER}),
         _terminated({"kind": TerminationCauseKind.END_TIME_REACHED}),
     ],
-    ids=["no-cause", "end-time"],
+    ids=["other", "end-time"],
 )
 def test_a_termination_difference_is_caught(replica):
     """A replica must copy the cause the ``Remove`` carries (EMB-13-005),
-    so a missing or different cause is a difference."""
+    so a different cause is a difference."""
     manager = _terminated(
         {"kind": TerminationCauseKind.THREAT_SIGNAL, "signals": ["P"]}
     )

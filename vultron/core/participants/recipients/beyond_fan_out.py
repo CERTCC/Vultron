@@ -145,7 +145,7 @@ def embargo_ending_notice_recipients(
     ``is_signatory`` would have no row to read.  Return nothing rather than
     reading a row that cannot exist.
     """
-    if case.embargo_register_entry(embargo_id) is None:
+    if case.registered_embargo(embargo_id) is None:
         return []
     return [
         actor_id

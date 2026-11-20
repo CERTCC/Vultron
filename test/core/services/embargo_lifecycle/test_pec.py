@@ -191,7 +191,7 @@ def test_record_actor_rejection_of_proposed_terms_keeps_a_signatory(
     case, (owner_p,) = _make_case(dl, owner.id_)
     active = _make_embargo(dl, case.id_)
     proposed_id = "https://example.org/embargoes/proposed"
-    activate(case, active.id_)
+    activate(case, active)
     propose(case, proposed_id)
     dl.save(case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
@@ -317,8 +317,8 @@ def test_assert_rejectable_classifies_active_proposed_and_unknown(
     active = _make_embargo(dl, case.id_)
     proposed = _make_embargo(dl, case.id_, days=60)
     stranger = _make_embargo(dl, case.id_, days=10)
-    activate(case, active.id_)
-    propose(case, proposed.id_)
+    activate(case, active)
+    propose(case, proposed)
     dl.save(case)
 
     assert EmbargoLifecycle._assert_rejectable(case, active.id_) is True
@@ -409,7 +409,7 @@ def test_record_actor_rejection_withdrawal_declines_every_agreed_proposal(
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
     unanswered = _make_embargo(dl, case.id_, days=120)
-    activate(case, active.id_)
+    activate(case, active)
     propose(case, revision.id_, unanswered.id_)
     dl.save(case)
     write_consent_rows(dl, case)
@@ -527,8 +527,8 @@ def test_shorter_revision_carries_every_agreeing_signatory_over(
     owner_p, signer_p, decliner_p, bystander_p = participants
     active = _make_embargo(dl, case.id_, days=90)
     shorter = _make_embargo(dl, case.id_, days=30)
-    activate(case, active.id_)
-    propose(case, shorter.id_)
+    activate(case, active)
+    propose(case, shorter)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
@@ -577,8 +577,8 @@ def test_longer_revision_writes_only_the_owners_row_and_lapses_by_derivation(
     owner_p, signer_p, early_p = participants
     active = _make_embargo(dl, case.id_)
     longer = _make_embargo(dl, case.id_, days=90)
-    activate(case, active.id_)
-    propose(case, longer.id_)
+    activate(case, active)
+    propose(case, longer)
     dl.save(case)
     write_consent_rows(dl, case)
     for p in (owner_p, signer_p, early_p):
@@ -626,7 +626,7 @@ def test_first_activation_advances_nobody_and_holders_are_signatories(
     )
     owner_p, early_p, late_p = participants
     proposal = _make_embargo(dl, case.id_)
-    propose(case, proposal.id_)
+    propose(case, proposal)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, proposal.id_, ECS.AGREED)
@@ -708,7 +708,7 @@ def test_first_activation_promotes_an_inert_participant_only_by_its_own_reply(
     )
     owner_p, replied_p, silent_p = participants
     embargo = _make_embargo(dl, case.id_)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, replied_p.id_, embargo.id_, ECS.AGREED)
@@ -753,8 +753,8 @@ def test_longer_revision_lapses_an_inert_signatory_too(
     owner_p, inert_p = participants
     active = _make_embargo(dl, case.id_)
     longer = _make_embargo(dl, case.id_, days=90)
-    activate(case, active.id_)
-    propose(case, longer.id_)
+    activate(case, active)
+    propose(case, longer)
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)

@@ -73,12 +73,15 @@ The reader-facing explanation is
 
 An embargo operation touches two records:
 
-1. **The embargo register** (`VulnerabilityCase.embargo_register`) — one entry
-   per embargo ever proposed, appended and never removed. EM is *derived* from
-   it (`case.em_state`). `active_embargo`, `active_embargo_id` and
-   `proposed_embargo_ids` are views of its `ACTIVE` and `PROPOSED` entries.
+1. **The embargo register** (`VulnerabilityCase.embargo_register`) — the
+   ordered list of every embargo ever proposed, each held whole and storing
+   its own `status`, `replaces` and `termination` (ADR-0202), appended and
+   never removed. EM is *derived* from the statuses (`case.em_state`).
+   `active_embargo`, `active_embargo_id` and `proposed_embargo_ids` are views
+   of its `ACTIVE` and `PROPOSED` embargoes; a stored `EmbargoEvent` record
+   holds only the terms (`with_register_state()`).
 2. **The consent rows** (`CaseParticipant.embargo_consents`) — one per
-   participant per register entry (ADR-0122). "Signatory" and "lapsed" are read
+   participant per registered embargo (ADR-0122). "Signatory" and "lapsed" are read
    from the rows, never stored.
 
 A correct operation changes both consistently; EM and the views follow.
@@ -117,11 +120,12 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   EMB-13-010).** The cause (`vultron/core/models/embargo_termination.py`) is a
   union discriminated on `kind`: `END_TIME_REACHED`, `THREAT_SIGNAL`
   (`P`/`X`/`A`), `FIX_READY` (the quorum's vendors), `FIX_DEPLOYED` and `OTHER`;
-  no cause is an early end with none named. Read "ended at the end time" only
+  the stored cause is required, and a `Remove` naming none records `OTHER`
+  (`EmbargoTermination.from_cause`, EMB-13-011). Read "ended at the end time" only
   through `is_end_time_reached`, never from `content`, which carries no what
   (EMB-13-009), so no second value can disagree with the cause. It sits on the
-  `TERMINATED` entry as one `EmbargoTermination`, required there and refused
-  elsewhere. The
+  `TERMINATED` embargo as one `EmbargoTermination`, required there and refused
+  elsewhere (ADR-0202). The
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
   write. A voluntary termination passes `ChosenTermination`, set by the

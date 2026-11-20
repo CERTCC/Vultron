@@ -145,7 +145,7 @@ def _make_case_with_embargo(
     dl.create(embargo)
 
     case = make(VulnerabilityCase, name="Test Case", attributed_to=vendor_id)
-    activate(case, embargo.id_)
+    activate(case, embargo)
     case.vulnerability_reports.append(report_id)
 
     vendor_participant = make(

@@ -25,7 +25,7 @@ import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import activate, propose, registered
 from test.support.objects import make
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
@@ -33,7 +33,6 @@ from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -79,11 +78,9 @@ def _participant(
 
 #: ``_EMBARGO_ID`` is the embargo in force; it replaced ``_EARLIER_EMBARGO_ID``.
 _REGISTER = [
-    EmbargoRegisterEntry(
-        embargo=_EARLIER_EMBARGO_ID, status=EmbargoRegisterStatus.SUPERSEDED
-    ),
-    EmbargoRegisterEntry(
-        embargo=_EMBARGO_ID,
+    registered(_EARLIER_EMBARGO_ID, status=EmbargoRegisterStatus.SUPERSEDED),
+    registered(
+        _EMBARGO_ID,
         status=EmbargoRegisterStatus.ACTIVE,
         replaces=_EARLIER_EMBARGO_ID,
     ),

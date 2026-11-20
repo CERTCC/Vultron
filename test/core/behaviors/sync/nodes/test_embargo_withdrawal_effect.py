@@ -143,7 +143,7 @@ def _rows(datalayer, actor_id: str) -> dict[str, str]:
 
 def _register(datalayer) -> list[tuple[str, str]]:
     case = cast(VulnerabilityCase, datalayer.read(CASE_ID))
-    return [(e.embargo_id, e.status.value) for e in case.embargo_register]
+    return [(e.id_, e.status.value) for e in case.embargo_register]
 
 
 @pytest.mark.spec("MSM-07-010")

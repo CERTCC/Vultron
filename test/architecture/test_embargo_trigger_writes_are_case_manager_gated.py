@@ -133,7 +133,7 @@ _FACTORIES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
     "terminate_embargo_bt": lambda: trigger_tree.terminate_embargo_bt(
         case_id=_CASE,
         result_out={},
-        termination=EmbargoTermination.early(),
+        termination=EmbargoTermination.other(),
         activity_builder=_builder,
     ),
     "terminate_embargo_bt (cascade)": lambda: (

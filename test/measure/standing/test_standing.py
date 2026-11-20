@@ -502,7 +502,7 @@ def test_a_broken_register_names_the_gap(tmp_path):
             "id": "urn:uuid:case-1",
             "type": "VulnerabilityCase",
             "embargoRegister": [
-                {"embargo": embargo(EMBARGO_2), "status": "TERMINATED"}
+                {**embargo(EMBARGO_2), "status": "TERMINATED"}
             ],
         },
     )

@@ -149,7 +149,7 @@ def _register(
 ) -> list[tuple[str | None, EmbargoRegisterStatus]]:
     """Each embargo register entry *actor_id*'s case holds, as (id, status)."""
     return [
-        (_as_id(entry.embargo), entry.status)
+        (entry.id_, entry.status)
         for entry in net.case(actor_id).embargo_register
     ]
 
@@ -311,7 +311,7 @@ def _propose_revision_everywhere(
     for dl in net.stores.values():
         dl.create(revision)
         case = cast(VulnerabilityCase, dl.read(net.case_id))
-        propose(case, revision.id_)
+        propose(case, revision)
         dl.save(case)
         # The UNINVITED rows the proposal writes in production (ADR-0122).
         write_consent_rows(dl, case)

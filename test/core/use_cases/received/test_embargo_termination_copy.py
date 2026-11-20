@@ -31,9 +31,13 @@ import pytest
 
 from test.support.act_runner import run_tree
 from test.support.clock_decisions import run_end_time_check
-from test.support.embargo_register import propose, write_consent_rows
+from test.support.embargo_register import (
+    propose,
+    retime,
+    write_consent_rows,
+)
 from test.support.ledger import committed_semantic_types, fail_commits
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -58,7 +62,6 @@ from vultron.core.models.embargo_termination import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._ledger_network import (
     MANAGER,
@@ -90,15 +93,9 @@ def _net(name: str) -> LedgerNetwork:
 def _end_time_passed(net: LedgerNetwork) -> None:
     """Move the embargo in force's end time an hour into the past, in every
     store."""
+    ended = now_utc() - timedelta(hours=1)
     for dl in net.stores.values():
-        dl.save(
-            make(
-                as_EmbargoEvent,
-                id_=net.initial_embargo_id,
-                context=net.case_id,
-                end_time=now_utc() - timedelta(hours=1),
-            )
-        )
+        retime(dl, net.case_id, net.initial_embargo_id, ended)
 
 
 def _bridge(net: LedgerNetwork) -> BTBridge:
@@ -150,7 +147,7 @@ def _trigger(net: LedgerNetwork) -> py_trees.common.Status:
         terminate_embargo_bt(
             case_id=net.case_id,
             result_out={},
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=_builder,
         ),
         actor_id=MANAGER,
@@ -228,7 +225,7 @@ class TestCaseManagerCommitsFirst:
         assert em_at_commit == [EM.REVISE]
         ended = net.case(MANAGER)
         assert ended.em_state is EM.EXITED
-        assert {e.embargo_id: e.status for e in ended.embargo_register} == {
+        assert {e.id_: e.status for e in ended.embargo_register} == {
             net.initial_embargo_id: EmbargoRegisterStatus.TERMINATED,
             f"{net.case_id}/embargo_events/revision": (
                 EmbargoRegisterStatus.CANCELLED
@@ -336,7 +333,7 @@ class TestReplicaCopiesTheTermination:
         assert _trigger(net) == py_trees.common.Status.SUCCESS
 
         assert net.case(MANAGER).embargo_termination == (
-            EmbargoTermination.early()
+            EmbargoTermination.other()
         )
         self._replay_and_compare(net)
 

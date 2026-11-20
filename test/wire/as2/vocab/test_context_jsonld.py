@@ -30,7 +30,6 @@ from vultron.core.models.case_reference import (
     CVE_REFERENCE_TAG_RELS,
 )
 from vultron.core.models.dimensions import EmDimension
-from vultron.core.models.embargo_register.entry import EmbargoRegisterEntry
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     FixReadyCause,
@@ -483,7 +482,6 @@ def test_the_walk_reaches_nested_models() -> None:
     """Nested models count: their fields reach the wire inside a wire class."""
     reached = set(wire_field_classes())
     nested = {
-        EmbargoRegisterEntry,
         EmbargoTermination,
         ThreatSignalCause,
         FixReadyCause,

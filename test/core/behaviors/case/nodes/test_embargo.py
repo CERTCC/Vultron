@@ -468,7 +468,7 @@ class TestInitializeCreationEmbargoNodeAC1:
         bt_scenario.dl.create(attached)
         bt_scenario.dl.create(default)
         stored = cast(VulnerabilityCase, bt_scenario.dl.read(case_obj.id_))
-        activate(stored, attached.id_)
+        activate(stored, attached)
         bt_scenario.dl.save(stored)
 
         result = bt_scenario.run(

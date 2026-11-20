@@ -77,6 +77,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
     EndTimeReachedCause,
     FixReadyCause,
     TerminationCause,
@@ -223,6 +224,11 @@ def _embargo(dl: SqliteDataLayer, embargo_id: str = EMBARGO_ID) -> Any:
     embargo = dl.read(embargo_id)
     assert isinstance(embargo, as_EmbargoEvent)
     return embargo
+
+
+def _expire(dl: SqliteDataLayer) -> None:
+    """Move the embargo in force's end time into the past."""
+    embargo_register.retime(dl, CASE_ID, EMBARGO_ID, days_from_now(-1))
 
 
 class _Manager:
@@ -550,14 +556,7 @@ def test_expiry_on_or_after_the_agreed_end_sends_no_unreached_notice() -> None:
     """
     manager = _Manager()
     # The agreed end passes after REMOVED was removed.
-    manager.dl.save(
-        make(
-            as_EmbargoEvent,
-            id_=EMBARGO_ID,
-            context=CASE_ID,
-            end_time=days_from_now(-1),
-        )
-    )
+    _expire(manager.dl)
 
     manager.terminate_as_owner()
 
@@ -595,14 +594,7 @@ def test_case_manager_termination_sends_no_announce(
 def test_owner_termination_after_the_end_time_sends_no_announce() -> None:
     """The end-time check ends the embargo first, so nothing is announced."""
     manager = _Manager()
-    manager.dl.save(
-        make(
-            as_EmbargoEvent,
-            id_=EMBARGO_ID,
-            context=CASE_ID,
-            end_time=days_from_now(-1),
-        )
-    )
+    _expire(manager.dl)
 
     manager.terminate_as_owner()
 
@@ -1074,7 +1066,7 @@ def test_paused_replica_ends_a_longer_revision_it_was_not_told_of() -> None:
     case = replica.case()
     assert case.active_embargo_id is None
     assert case.current_status.em.state == EM.EXITED
-    assert [(e.embargo_id, e.status) for e in case.embargo_register] == [
+    assert [(e.id_, e.status) for e in case.embargo_register] == [
         (EMBARGO_ID, EmbargoRegisterStatus.SUPERSEDED),
         (REVISION_ID, EmbargoRegisterStatus.TERMINATED),
     ]
@@ -1130,12 +1122,12 @@ def test_paused_replica_ends_an_expired_revision_it_has_not_activated(
     case = replica.case()
     assert case.active_embargo_id is None
     assert case.current_status.em.state == EM.EXITED
-    assert [(e.embargo_id, e.status) for e in case.embargo_register] == [
+    assert [(e.id_, e.status) for e in case.embargo_register] == [
         (EMBARGO_ID, EmbargoRegisterStatus.SUPERSEDED),
         (REVISION_ID, EmbargoRegisterStatus.TERMINATED),
     ]
     assert case.embargo_termination is not None
-    assert case.embargo_termination.cause == cause
+    assert case.embargo_termination == EmbargoTermination.from_cause(cause)
 
 
 @pytest.mark.spec("CM-31-042")

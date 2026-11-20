@@ -20,7 +20,6 @@ claimed time with the end time of the embargo in force (ADR-0122,
 EMB-13-003).
 """
 
-import logging
 from datetime import datetime, timedelta
 from typing import cast
 
@@ -31,6 +30,7 @@ from py_trees.common import Status
 from test.core.behaviors.embargo.nodes.conftest import setup_blackboard
 from test.support.act_runner import in_act
 from test.support.embargo_register import activate
+from test.support.future_dates import days_from_now
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors import act_keys
@@ -52,23 +52,20 @@ ACTOR = "https://example.org/actors/manager"
 
 
 def _store(end_time=None) -> tuple[SqliteDataLayer, VulnerabilityCase]:
-    """A case whose register names its embargo in force by id.
+    """A case whose register holds its embargo in force, ending *end_time*.
 
-    With *end_time* the embargo is stored; without, it cannot be read.
+    With no *end_time* the embargo ends far ahead.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR)
     case = make(VulnerabilityCase, name="End-time nodes", attributed_to=ACTOR)
-    embargo_id = f"{case.id_}/embargo_events/e1"
-    if end_time is not None:
-        dl.create(
-            make(
-                as_EmbargoEvent,
-                id_=embargo_id,
-                context=case.id_,
-                end_time=end_time,
-            )
-        )
-    activate(case, embargo_id)
+    embargo = make(
+        as_EmbargoEvent,
+        id_=f"{case.id_}/embargo_events/e1",
+        context=case.id_,
+        end_time=end_time or days_from_now(90),
+    )
+    dl.create(embargo)
+    activate(case, embargo)
     dl.create(case)
     return dl, case
 
@@ -82,23 +79,6 @@ def _tick(node, dl, at: datetime | None = None) -> Status:
     return cast(Status, node.status)
 
 
-@pytest.mark.spec("EMB-13-003")
-def test_timely_guard_fails_closed_on_an_unreadable_embargo() -> None:
-    dl, case = _store()
-    node = TerminationIsTimelyNode()
-    seeded = with_act_keys(
-        node,
-        {
-            act_keys.CASE_ID: case.id_,
-            act_keys.TERMINATED_AT: now_utc(),
-            act_keys.TERMINATION: EmbargoTermination.end_time_reached(),
-        },
-    )
-
-    assert _tick(seeded, dl) == Status.FAILURE
-    assert "Refused termination" in node.feedback_message
-
-
 def test_timely_guard_has_nothing_to_check_for_an_early_termination() -> None:
     dl, case = _store()
     node = TerminationIsTimelyNode()
@@ -106,7 +86,7 @@ def test_timely_guard_has_nothing_to_check_for_an_early_termination() -> None:
         node,
         {
             act_keys.CASE_ID: case.id_,
-            act_keys.TERMINATION: EmbargoTermination.early(),
+            act_keys.TERMINATION: EmbargoTermination.other(),
         },
     )
 
@@ -145,22 +125,6 @@ def test_end_time_passed_node_refuses_a_run_with_no_act_instant() -> None:
         tree.tick()
 
 
-@pytest.mark.spec("EMB-18-003")
-def test_end_time_passed_node_never_ends_an_embargo_it_cannot_read(
-    caplog,
-) -> None:
-    dl, case = _store()
-    node = with_case_id(EmbargoEndTimePassedNode(), case.id_)
-
-    with caplog.at_level(logging.WARNING):
-        assert _tick(node, dl) == Status.FAILURE
-
-    assert any(
-        r.levelno == logging.WARNING and case.id_ in r.getMessage()
-        for r in caplog.records
-    )
-
-
 @pytest.mark.spec("CLP-10-006")
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.parametrize("trial_refuses", [False, True])
@@ -182,7 +146,7 @@ def test_timely_guard_trial_applies_the_step_the_remove_names(
         TerminationIsTimelyNode(),
         {
             act_keys.CASE_ID: case.id_,
-            act_keys.TERMINATION: EmbargoTermination.early(),
+            act_keys.TERMINATION: EmbargoTermination.other(),
             act_keys.EMBARGO_ID: f"{case.id_}/embargo_events/e1",
         },
     )

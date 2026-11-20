@@ -172,6 +172,7 @@
     "name": "Embargo for urn:test:context:1 start: 2026-01-02T03:04:05+00:00 end: 2026-01-02T03:04:05+00:00",
     "published": "2026-01-02T03:04:05.000000+00:00",
     "startTime": "2026-01-02T03:04:05.000000+00:00",
+    "status": "PROPOSED",
     "type": [
       "EmbargoEvent",
       "Event"

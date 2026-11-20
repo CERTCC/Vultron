@@ -119,10 +119,10 @@ def _case_with_owner(
         case_roles=[CVDRole.CASE_OWNER],
         embargo_consents=[
             EmbargoConsent(
-                embargo_id=entry.embargo_id,
+                embargo_id=entry.id_,
                 state=(
                     owner_consent
-                    if entry.embargo_id == open_id
+                    if entry.id_ == open_id
                     else EmbargoConsentState.UNINVITED
                 ),
             )

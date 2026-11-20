@@ -211,7 +211,7 @@ def _rows(dl: SqliteDataLayer, actor_id: str) -> dict[str, str]:
 
 
 def _register(dl: SqliteDataLayer) -> list[tuple[str, str]]:
-    return [(e.embargo_id, e.status.value) for e in _case(dl).embargo_register]
+    return [(e.id_, e.status.value) for e in _case(dl).embargo_register]
 
 
 def _announced_to(dl: SqliteDataLayer) -> set[str]:

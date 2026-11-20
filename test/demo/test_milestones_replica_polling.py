@@ -88,7 +88,14 @@ def _receiver_case_payload() -> dict:
             }
         ],
         "embargoRegister": [
-            {"embargo": "urn:uuid:embargo-1", "status": "ACTIVE"}
+            {
+                "type": "EmbargoEvent",
+                "id": "urn:uuid:embargo-1",
+                "context": _CASE_ID,
+                "published": CASE_PUBLISHED.isoformat(),
+                "endTime": "2099-01-01T00:00:00+00:00",
+                "status": "ACTIVE",
+            }
         ],
     }
 
@@ -436,7 +443,11 @@ def _pxa_case_payload(em_state: str = "EXITED") -> dict:
     """
     register_status = {"EXITED": "TERMINATED", "ACTIVE": "ACTIVE"}[em_state]
     entry: dict = {
-        "embargo": "urn:uuid:pxa-embargo",
+        "type": "EmbargoEvent",
+        "id": "urn:uuid:pxa-embargo",
+        "context": _PXA_CASE_ID,
+        "published": CASE_PUBLISHED.isoformat(),
+        "endTime": "2099-01-01T00:00:00+00:00",
         "status": register_status,
     }
     if register_status == "TERMINATED":

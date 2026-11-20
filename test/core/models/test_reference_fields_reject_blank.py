@@ -31,6 +31,7 @@ from pydantic import ValidationError
 from test.support.act_clock import ACT_AT
 from test.support.blank_strings import BLANKS
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import registered
 from test.support.objects import make
 from vultron.core.models.activity import (
     VultronAccept,
@@ -40,7 +41,6 @@ from vultron.core.models.activity import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -106,22 +106,14 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
             attributed_to=CASE_OWNER_ID,
             id_=CASE,
             embargo_register=[
-                EmbargoRegisterEntry(
-                    embargo=v, status=EmbargoRegisterStatus.ACTIVE
-                )
+                registered(v, status=EmbargoRegisterStatus.ACTIVE)
             ],
         ),
     ),
     (
-        "EmbargoRegisterEntry.embargo",
-        lambda v: EmbargoRegisterEntry(
-            embargo=v, status=EmbargoRegisterStatus.PROPOSED
-        ),
-    ),
-    (
-        "EmbargoRegisterEntry.replaces",
-        lambda v: EmbargoRegisterEntry(
-            embargo=f"{CASE}/embargoes/revision",
+        "EmbargoEvent.replaces",
+        lambda v: registered(
+            f"{CASE}/embargoes/revision",
             status=EmbargoRegisterStatus.ACTIVE,
             replaces=v,
         ),

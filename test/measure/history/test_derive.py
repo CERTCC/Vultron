@@ -1272,29 +1272,17 @@ def test_a_stub_case_status_in_an_invite_target_is_not_the_cases(place):
     ("preview", "expected"),
     [
         (
-            {
-                "embargoRegister": [
-                    {"embargo": {"id": "urn:uuid:e1"}, "status": "ACTIVE"}
-                ]
-            },
+            {"embargoRegister": [{"id": "urn:uuid:e1", "status": "ACTIVE"}]},
             "urn:uuid:e1",
         ),
         (
-            {
-                "embargoRegister": [
-                    {"embargo": "urn:uuid:e2", "status": "ACTIVE"}
-                ]
-            },
+            {"embargoRegister": [{"id": "urn:uuid:e2", "status": "ACTIVE"}]},
             "urn:uuid:e2",
         ),
         ({"embargoRegister": {"type": "Redacted"}}, None),
         ({"embargoRegister": ["urn:uuid:not-an-entry"]}, None),
         (
-            {
-                "embargoRegister": [
-                    {"embargo": "urn:uuid:e3", "status": "PROPOSED"}
-                ]
-            },
+            {"embargoRegister": [{"id": "urn:uuid:e3", "status": "PROPOSED"}]},
             None,
         ),
         ({}, None),

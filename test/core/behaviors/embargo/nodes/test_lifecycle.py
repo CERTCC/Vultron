@@ -161,7 +161,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out={},
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=builder if use_builder else None,
         )
         result = run_tree(bridge, tree, actor_id=CASE_MANAGER_ACTOR)
@@ -289,7 +289,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=builder,
         )
         result = run_tree(bridge, tree, actor_id=OTHER_PARTICIPANT_ACTOR)
@@ -338,7 +338,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=builder,
         )
         result = run_tree(bridge, tree, actor_id=ACTOR_ID)
@@ -366,7 +366,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
             activity_builder=lambda _to: ("", ""),
         )
         result = run_tree(bridge, tree, actor_id=ACTOR_ID)
@@ -406,7 +406,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
         )
         result = run_tree(bridge, tree, actor_id=ACTOR_ID)
 
@@ -446,7 +446,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            termination=EmbargoTermination.early(),
+            termination=EmbargoTermination.other(),
         )
         result = run_tree(bridge, tree, actor_id=ACTOR_ID)
 
@@ -754,6 +754,41 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
         assert revision_id not in self._accepted(
             dl, case.id_, CASE_MANAGER_ACTOR
         )
+
+    def test_an_embargo_the_store_lacks_is_refused(self):
+        """No embargo given and none stored: FAILURE, nothing proposed."""
+        dl, case, _ = self._case()
+        missing = f"{case.id_}/embargo_events/missing"
+        result = self._run(
+            dl,
+            ProposeEmbargoLifecycleNode(
+                case_id=case.id_, embargo_id=missing, result_out={}
+            ),
+            embargo_proposer_id=CASE_MANAGER_ACTOR,
+        )
+        assert result.status is py_trees.common.Status.FAILURE
+        stored = cast(VulnerabilityCase, dl.read(case.id_))
+        assert missing not in [e.id_ for e in stored.embargo_register]
+
+    def test_the_stored_embargo_is_read_once(self):
+        """The register step and the transition share one store read."""
+        dl, case, revision_id = self._case()
+        reads: list[str] = []
+        read = dl.read
+
+        def counting_read(object_id: str, *args: Any, **kwargs: Any) -> Any:
+            if object_id == revision_id:
+                reads.append(object_id)
+            return read(object_id, *args, **kwargs)
+
+        node = ProposeEmbargoLifecycleNode(
+            case_id=case.id_, embargo_id=revision_id, result_out={}
+        )
+        node.datalayer = dl
+        dl.read = counting_read  # type: ignore[method-assign]
+        node._register_step()
+        node._proposed_embargo()
+        assert reads == [revision_id]
 
 
 class TestLifecycleNodeInternalFaults:

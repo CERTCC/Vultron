@@ -180,7 +180,7 @@ class TestThreatTerminationBranchNodeProposedEmPath:
             name="Test Case",
             attributed_to=ACTOR_ID,
         )
-        propose(case, embargo.id_)
+        propose(case, embargo)
         case.pending_embargo_proposal_index = {embargo.id_: invite.id_}
 
         participant = make(

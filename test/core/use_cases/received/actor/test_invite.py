@@ -1090,7 +1090,7 @@ class TestInviteActorUseCases:
             context=case.id_,
             end_time=days_from_now(45),
         )
-        activate(case, embargo.id_)
+        activate(case, embargo)
         seed_store_owner_as_case_manager(dl, case)
         seed_inert_invitee(dl, case, invitee_id)
         invite = rm_invite_to_case_activity(

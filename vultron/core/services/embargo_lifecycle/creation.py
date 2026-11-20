@@ -37,6 +37,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import proposal_changes
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.carried_embargo import create_held_embargo
 from vultron.core.services.embargo_lifecycle.pec import (
     owner_declined_embargo,
 )
@@ -82,7 +83,7 @@ def persist_creation_time_embargo(
             *case_id* with the same ``end_time``.
     """
     try:
-        persistence.create(embargo)
+        create_held_embargo(persistence, embargo)
     except VultronAlreadyExistsError:
         stored = persistence.read(embargo.id_)
         if (
@@ -234,7 +235,7 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         )
         work._apply_register_step(
             case,
-            proposal_changes(embargo_id),
+            proposal_changes(embargo),
             transition_mode=TransitionMode.STRICT,
             actor_id=actor_id,
         )
@@ -261,6 +262,7 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
                 case_id=case_id,
                 embargo_id=revision.embargo.id_,
                 actor_id=revision.proposer_id,
+                embargo=revision.embargo,
             ).em_after
         staged.flush()
 

@@ -29,11 +29,9 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.adapters.received_archive import load_received_view
 from vultron.core.models.base import CoreObject
-from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronAlreadyExistsError,
@@ -42,7 +40,6 @@ from vultron.errors import (
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import declared_wire_type
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -126,15 +123,10 @@ def _case_for_wire(dl: CasePersistence, case_id: str) -> as_VulnerabilityCase:
     hold the object, and this codebase dereferences only a few references
     (AKM-05-007), never a case's own (AKM-02-004, the same rule as CP-01-004).
     Sending an id alone therefore hands the recipient a case pointing at an
-    object it can never read. These fields
-    carry references the recipient needs:
+    object it can never read.  The embargo register needs no carrying: it
+    holds each embargo whole (ADR-0202).  These fields carry references the
+    recipient needs:
 
-    - ``active_embargo``: a CaseActor holding a case with only the id tore the
-      embargo down locally and then could not announce it — ``terminate_embargo``
-      begins by reading the ``EmbargoEvent``, so it raised
-      ``VultronNotFoundError`` mid-sequence and no ``Remove(EmbargoEvent)``
-      was ever emitted; every other replica kept an embargo the manager had
-      already removed.
     - ``case_participants``: the recipient of a bootstrap ``Create`` or
       ``Announce`` stores each embedded participant as its own record
       (CBT-05-005, CBT-01-007, AKM-02-004). With ids alone it has no participant at
@@ -162,17 +154,12 @@ def _case_for_wire(dl: CasePersistence, case_id: str) -> as_VulnerabilityCase:
     there, and a sender-side gap is the business of whoever wrote the
     dangling reference. ``announce_vulnerability_case`` then refuses to send
     a case whose report is missing (AKM-02-004), and ``create_case`` one with
-    any bare participant (CBT-01-007, :func:`_require_bootstrap_inline`). An
-    unreadable active embargo is the exception: it raises (EMB-18-003,
-    :func:`_carried_embargo`).
+    any bare participant (CBT-01-007, :func:`_require_bootstrap_inline`).  The
+    case's embargoes need no carrying: its register holds each one whole
+    (ADR-0202).
     """
     case = _to_wire(dl.read(case_id), as_VulnerabilityCase)
     updates: dict[str, Any] = {}
-    embargo = _carried_embargo(dl, case, case_id)
-    if embargo is not None:
-        updates["embargo_register"] = carry_embargo_inline(
-            case.embargo_register, embargo
-        )
     for field_name in _CARRIED_LIST_FIELDS:
         carried = _carried_list(dl, case, case_id, field_name)
         if carried is not None:
@@ -229,40 +216,6 @@ def _require_bootstrap_inline(case: Any, case_id: str) -> None:
             " cannot carry them inline (CBT-01-007, CBT-05-008); refusing to"
             " send it"
         )
-
-
-def _carried_embargo(dl: CasePersistence, case: Any, case_id: str) -> Any:
-    """The case's ``active_embargo`` as a wire object, or ``None`` to leave it.
-
-    Fails closed (EMB-18-003): a sender whose case names an active embargo
-    its own store cannot read has already broken the invariant, and sending
-    the bare id would hand every recipient a case it must refuse.
-
-    Raises:
-        VultronValidationError: If the sender does not hold the record, the
-            record is not an ``EmbargoEvent``, or it cannot be projected to
-            its wire shape -- one error carrying the context, logged once at
-            the caller's boundary.
-    """
-    embargo_ref = getattr(case, "active_embargo", None)
-    if not isinstance(embargo_ref, str) or not embargo_ref:
-        return None  # already an object, or no embargo at all
-    try:
-        stored = read_embargo_event(dl, embargo_ref)
-    except (VultronNotFoundError, VultronValidationError) as exc:
-        raise VultronValidationError(
-            f"_case_for_wire: case '{case_id}' names active embargo"
-            f" '{embargo_ref}', which the sending actor's own store cannot"
-            f" read (EMB-18-003); refusing to send an unresolvable"
-            f" reference: {exc}"
-        ) from exc
-    try:
-        return _to_wire(stored, as_EmbargoEvent)
-    except Exception as exc:
-        raise VultronValidationError(
-            f"_case_for_wire: could not project active_embargo"
-            f" '{embargo_ref}' of case '{case_id}' to its wire shape: {exc}"
-        ) from exc
 
 
 def _carried_list(

@@ -147,7 +147,8 @@ class SnapshotRecords(BaseModel):
             outside an offer.
         consents: Every consent row outside a participant record and outside
             an offer.
-        register_entries: Every embargo register entry of a carried case.
+        register_entries: Every registered embargo of a carried case, each
+            carrying its own status (ADR-0202).
         nameless_participants: How many participant records named no actor.
     """
 

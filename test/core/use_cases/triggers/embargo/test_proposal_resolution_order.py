@@ -171,8 +171,8 @@ def _build_case_with_two_open_proposals(
         end_time=start + timedelta(days=120),
     )
     if with_embargo_in_force:
-        propose(case, in_force.id_)
-        activate(case, in_force.id_)
+        propose(case, in_force)
+        activate(case, in_force)
     # Insertion order is load-bearing: the later-expiring proposal is recorded
     # first, so a resolver that returns the first entry returns the wrong one.
     propose(case, later.id_, earlier.id_)
@@ -315,7 +315,7 @@ def _build_case_with_one_open_proposal(
         owner_id: owner_participant.id_,
         participant_id: participant.id_,
     }
-    propose(case, embargo.id_)
+    propose(case, embargo)
     case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
 
     dl.create(case)
@@ -406,7 +406,7 @@ def test_three_open_proposals_resolve_to_the_earliest_expiring(
             invitee=owner.id_,
             at=authored_at(),
         )
-        propose(case, embargo.id_)
+        propose(case, embargo)
         case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         finder_dl.create(embargo)
         finder_dl.create(proposal)

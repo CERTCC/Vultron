@@ -258,7 +258,7 @@ def with_fetched_object(
 def _case_names(case: VulnerabilityCase, object_id: str) -> bool:
     """True when *case*'s own file names *object_id*."""
     named = [
-        *(entry.embargo_id for entry in case.embargo_register),
+        *(embargo.id_ for embargo in case.embargo_register),
         *(_id_of(p) for p in case.case_participants),
         *(_id_of(r) for r in case.vulnerability_reports),
         *(_id_of(i) for i in case.vulnerability_items),

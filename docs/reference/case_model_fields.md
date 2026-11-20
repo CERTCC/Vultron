@@ -31,7 +31,7 @@ Defined in `vultron/core/models/case/vulnerability_case.py`.
 | `case_references` | The case's `CaseReference` entries (objects or URIs). Empty by default ([CM-05-021](vultron-spec/requirements/case-management.md#cm-05-021)) |
 | `case_statuses` | Append-only history of `CaseStatus` snapshots |
 | `notes` | URIs of notes attached to the case |
-| `embargo_register` | One entry per embargo ever proposed on the case, appended and never removed: the embargo (object or URI), its status (`PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`) and the embargo an activated revision replaced. The case's Embargo Management (EM) state, its active embargo and its open proposals are all read from it (ADR-0122) |
+| `embargo_register` | The ordered list of every embargo ever proposed on the case, appended and never removed, each an `EmbargoEvent` held whole. Each embargo stores its own `status` (`PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`), the embargo an activated revision `replaces`, and, once terminated, its `termination` (ADR-0202). The case's Embargo Management (EM) state, its active embargo and its open proposals are all read from it (ADR-0122) |
 | `pending_embargo_proposal_index` | Map: embargo URI → the proposal activity that offered it, for open proposals only |
 | `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity: the case id, creation time and owner (`attributed_to`), computed when the case is created; a replica keeps the hash it receives, or derives the same value from the carried case when none arrives ([CLP-08-002](vultron-spec/requirements/ledger-replication.md#clp-08-002)) |
 | `ledger_position` | The ledger position the case file is a projection of: the `log_index` and `entry_hash` of the last ledger entry applied to it, or `log_index` -1 with `genesis_hash` before any. Every case has one, since every case has an owner and so a genesis hash. Committing an entry, or a replica storing one, moves it to that entry, and it travels with the case on the wire as `ledgerPosition` ([SYNC-16-005](vultron-spec/requirements/ledger-replication.md#sync-16-005)) |
@@ -58,7 +58,7 @@ For each case field the profile names the operations the protocol permits and th
 | `attributed_to` | The Case Owner, always |
 | `name`, `published`, `updated` | The case's values |
 | `case_statuses` | The current status alone, whole, so its EM and Public aware, eXploit public, Attacks observed (PXA) states are the case's ([CM-17-013](vultron-spec/requirements/case-management.md#cm-17-013)) |
-| `embargo_register` | The entry in force alone, with the embargo whole; left out when no embargo is in force ([CM-17-002](vultron-spec/requirements/case-management.md#cm-17-002), [CM-17-011](specs/project.md#cm-17-011)) |
+| `embargo_register` | The embargo in force alone, whole and with its status; left out when no embargo is in force ([CM-17-002](vultron-spec/requirements/case-management.md#cm-17-002), [CM-17-011](specs/project.md#cm-17-011)) |
 | `vulnerability_items` | Each item cut to its `ids`; an item the case holds only by URI is marked `Redacted` |
 | `content`, `case_participants`, `vulnerability_reports`, `notes`, `case_references`, `parent_cases`, `child_cases`, `sibling_cases`, and every other AS2 property | A `Redacted` marker when the case holds a value; left out when it holds none ([MV-12-004](vultron-spec/requirements/messages.md#mv-12-004)) |
 
@@ -83,7 +83,7 @@ Defined in `vultron/core/models/case_participant/participant.py`.
 | `attributed_to` | The actor this record stands for; `actor_participant_index` is keyed on it |
 | `case_roles` | `list[CVDRole]` — the roles this actor holds in this case |
 | `participant_statuses` | Append-only history of `ParticipantStatus` snapshots |
-| `embargo_consents` | `list[EmbargoConsent]` — one Participant Embargo Consent (PEC) row for every entry in the case's embargo register, each holding the embargo URI, one of `UNINVITED`, `INVITED`, `AGREED`, `DECLINED` or `TIMED_OUT`, and, on an `INVITED` row only, that invitation's `rsvp_deadline` (ADR-0122). A row is written `UNINVITED` when an embargo is proposed and when the participant joins the case; a missing row is a defect. Each row is an AS2 object of type `EmbargoConsent`, attributed to the participant's actor (`attributedTo`) under an id derived from that actor and the embargo, so the `CASE_MANAGER` can commit a changed row as its own ledger entry and every replica copies it. "Signatory" and "lapsed" are read from these rows and the register, never stored |
+| `embargo_consents` | `list[EmbargoConsent]` — one Participant Embargo Consent (PEC) row for every embargo in the case's embargo register, each holding the embargo URI, one of `UNINVITED`, `INVITED`, `AGREED`, `DECLINED` or `TIMED_OUT`, and, on an `INVITED` row only, that invitation's `rsvp_deadline` (ADR-0122). A row is written `UNINVITED` when an embargo is proposed and when the participant joins the case; a missing row is a defect. Each row is an AS2 object of type `EmbargoConsent`, attributed to the participant's actor (`attributedTo`) under an id derived from that actor and the embargo, so the `CASE_MANAGER` can commit a changed row as its own ledger entry and every replica copies it. "Signatory" and "lapsed" are read from these rows and the register, never stored |
 | `joined` | Whether the participant has joined the case: it was seated by case initialization or accepted its stub Invite. Defaults to `true`. One input to `VulnerabilityCase.is_active_participant`, which decides whether the participant is sent case content (CM-10-004, ADR-0114) |
 | `removal_activity` | The removal fact: the id of the Case Owner's `Remove(<Actor>)` activity that took this participant out of active participation, or `None` when it is not removed. The record stays on the roster. One input to `VulnerabilityCase.is_active_participant`: a removed participant is inert whatever its embargo consent (CM-31-001, ADR-0116) |
 
@@ -165,7 +165,7 @@ classDiagram
         vulnerability_items list~str|VulnerabilityItem~
         case_references list~str|CaseReference~
         case_statuses list~CaseStatus~
-        embargo_register list~EmbargoRegisterEntry~
+        embargo_register list~EmbargoEvent~
         genesis_hash str
         ledger_position LedgerPosition
     }

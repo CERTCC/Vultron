@@ -343,7 +343,7 @@ def test_a_clock_decision_outside_an_act_is_an_internal_error() -> None:
         )
     )
     stored = cast(VulnerabilityCase, store.read(case.id_))
-    activate(stored, embargo.id_)
+    activate(stored, embargo)
     store.save(stored)
     gate = create_clock_decision_gate(_CASE, case_clock_decisions(_CASE))
     tree = py_trees.composites.Sequence(

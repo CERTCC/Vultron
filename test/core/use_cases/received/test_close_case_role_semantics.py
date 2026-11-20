@@ -819,7 +819,7 @@ def _seed_pending_invite(
         end_time=days_from_now(45),
     )
     dl.create(embargo)
-    propose(case, embargo.id_)
+    propose(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
     invitee = dl.read(case.actor_participant_index[invitee_id])
@@ -1054,7 +1054,7 @@ class TestOwnerCloseSettlesPendingInvites:
             end_time=days_from_now(45),
         )
         dl.create(embargo)
-        activate(case, embargo.id_)
+        activate(case, embargo)
         dl.save(case)
         write_consent_rows(dl, case)
         invitee = dl.read(case.actor_participant_index[VENDOR_ID])
@@ -2588,7 +2588,7 @@ def _seed_active_embargo(
         end_time=days_from_now(45),
     )
     dl.save(embargo)
-    activate(case, embargo.id_)
+    activate(case, embargo)
     if em_state == EM.REVISE:
         revision = make(
             EmbargoEvent,
@@ -2597,7 +2597,7 @@ def _seed_active_embargo(
             end_time=days_from_now(60),
         )
         dl.save(revision)
-        propose(case, revision.id_)
+        propose(case, revision)
     assert case.em_state == em_state
     dl.save(case)
     write_consent_rows(dl, case)

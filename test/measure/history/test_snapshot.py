@@ -50,7 +50,7 @@ _PREVIEWED_CASE = {
         "summary": "A case to join",
         "caseStatuses": [_STATUS],
         "embargoRegister": [
-            {"embargo": "https://example.org/embargoes/e1", "status": "ACTIVE"}
+            {"id": "https://example.org/embargoes/e1", "status": "ACTIVE"}
         ],
     },
 }

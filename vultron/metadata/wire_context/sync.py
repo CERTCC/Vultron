@@ -355,7 +355,7 @@ def _nested_models(annotation: object) -> Iterator[type[BaseModel]]:
     """Yield every Pydantic model a field annotation can hold.
 
     Walks type aliases, unions, ``Annotated``, lists and dict values, so a
-    case's ``embargoRegister`` yields ``EmbargoRegisterEntry``.  It answers
+    case's ``embargoRegister`` yields ``EmbargoEvent``.  It answers
     "which models can this field hold", so unlike the parse edge's
     ``_model_candidates`` (``vultron.wire.as2.unknown_keys``), which asks
     which model *decides* a dict's keys and so gives up on a union that also
@@ -387,8 +387,8 @@ def wire_field_classes() -> list[type[BaseModel]]:
 
     Starts from :func:`_wire_object_classes` and follows each field's
     annotation into the models it holds, so the fields of an
-    ``EmbargoRegisterEntry``, a ``LedgerPosition`` or an embargo termination's
-    cause count (VM-10-007), however deep.  An excluded field is not
+    ``EmbargoEvent`` in a case's register, a ``LedgerPosition`` or an
+    embargo termination's cause count (VM-10-007), however deep.  An excluded field is not
     followed, since nothing under it is sent, and a model that serializes as
     one value is left out (:func:`_serializes_its_fields`).  Ordered by
     qualified name so the walk, and any error it raises, is deterministic.

@@ -5,18 +5,22 @@ from datetime import timedelta
 import pytest
 from pydantic import ValidationError
 
-from test.support.embargo_register import activate, propose, terminate
+from test.support.embargo_register import (
+    activate,
+    propose,
+    stand_in,
+    terminate,
+)
 from test.support.objects import make, with_times
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.embargo_register import (
-    EmbargoRegisterEntry,
-    termination_changes,
-)
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_register import termination_changes
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     EndTimeReachedCause,
     FixDeployedCause,
+    OtherCause,
     TerminationCause,
     TerminationCauseKind,
     ThreatSignal,
@@ -54,8 +58,16 @@ def test_end_time_reached_is_a_cause_kind_like_the_others() -> None:
 
 @pytest.mark.spec("EMB-13-010")
 def test_a_termination_declares_no_separate_reason() -> None:
-    """The END_TIME_REACHED/EARLY what is folded into the cause (ADR-0203)."""
-    assert set(EmbargoTermination.model_fields) == {"cause"}
+    """The END_TIME_REACHED/EARLY what is folded into the cause (ADR-0203).
+
+    Beside the cause it holds only the causing act and the human reason
+    (ADR-0202).
+    """
+    assert set(EmbargoTermination.model_fields) == {
+        "cause",
+        "caused_by",
+        "summary",
+    }
     with pytest.raises(ValidationError, match="reason"):
         EmbargoTermination.model_validate(
             {"reason": "EARLY", "cause": {"kind": "OTHER"}}
@@ -65,7 +77,7 @@ def test_a_termination_declares_no_separate_reason() -> None:
 @pytest.mark.parametrize(
     "termination",
     [
-        EmbargoTermination.early(),
+        EmbargoTermination.other(),
         EmbargoTermination(cause=FixDeployedCause()),
         EmbargoTermination.threat([ThreatSignal.P]),
     ],
@@ -101,21 +113,64 @@ def test_a_threat_cause_refuses_empty_repeated_or_unordered_signals(
     [
         (
             EmbargoTermination.threat([ThreatSignal.X]),
-            {"cause": {"kind": "THREAT_SIGNAL", "signals": ["X"]}},
+            {
+                "cause": {"kind": "THREAT_SIGNAL", "signals": ["X"]},
+                "causedBy": None,
+                "summary": None,
+            },
         ),
         (
             EmbargoTermination.end_time_reached(),
-            {"cause": {"kind": "END_TIME_REACHED"}},
+            {
+                "cause": {"kind": "END_TIME_REACHED"},
+                "causedBy": None,
+                "summary": None,
+            },
         ),
-        (EmbargoTermination.early(), {"cause": None}),
+        (
+            EmbargoTermination(
+                cause=OtherCause(),
+                caused_by="https://example.org/acts/1",
+                summary="The vendor shipped early.",
+            ),
+            {
+                "cause": {"kind": "OTHER"},
+                "causedBy": "https://example.org/acts/1",
+                "summary": "The vendor shipped early.",
+            },
+        ),
     ],
-    ids=["threat", "end-time", "no-cause"],
+    ids=["threat", "end-time", "other-with-act-and-reason"],
 )
 def test_the_termination_round_trips_through_its_wire_spelling(
     termination, dumped
 ) -> None:
     assert termination.model_dump(mode="json", by_alias=True) == dumped
     assert EmbargoTermination.model_validate(dumped) == termination
+
+
+@pytest.mark.spec("EMB-13-010")
+def test_a_stored_termination_requires_its_cause() -> None:
+    """The stored termination always names its cause kind (ADR-0202)."""
+    with pytest.raises(ValidationError, match="cause"):
+        EmbargoTermination.model_validate({})
+    with pytest.raises(ValidationError, match="cause"):
+        EmbargoTermination.model_validate({"cause": None})
+
+
+@pytest.mark.spec("EMB-13-011")
+def test_a_remove_naming_no_cause_records_other() -> None:
+    assert EmbargoTermination.from_cause(None) == EmbargoTermination.other()
+    cause = FixDeployedCause()
+    assert EmbargoTermination.from_cause(cause).cause == cause
+
+
+@pytest.mark.parametrize("field", ["causedBy", "summary"])
+def test_a_termination_refuses_a_blank_act_or_reason(field: str) -> None:
+    with pytest.raises(ValidationError):
+        EmbargoTermination.model_validate(
+            {"cause": {"kind": "OTHER"}, field: ""}
+        )
 
 
 def test_an_end_time_cause_carries_no_detail() -> None:
@@ -167,7 +222,7 @@ def test_a_threat_request_with_no_signal_anywhere_is_refused() -> None:
 @pytest.mark.parametrize(
     "termination",
     [
-        EmbargoTermination.early(),
+        EmbargoTermination.other(),
         EmbargoTermination.end_time_reached(),
         EmbargoTermination.threat([ThreatSignal.P]),
     ],
@@ -181,7 +236,7 @@ def test_the_terminated_entry_records_the_termination(termination) -> None:
 
     terminate(case, termination)
 
-    entry = case.embargo_register_entry(A)
+    entry = case.registered_embargo(A)
     assert entry is not None and entry.status is S.TERMINATED
     assert entry.termination == termination
     assert case.embargo_termination == termination
@@ -194,14 +249,17 @@ def test_the_terminated_entry_records_the_termination(termination) -> None:
     assert restored.embargo_termination == termination
 
 
-def test_only_a_terminated_entry_carries_a_termination() -> None:
+def test_only_a_terminated_embargo_carries_a_termination() -> None:
+    embargo = stand_in(A).model_dump()
     with pytest.raises(ValidationError, match="termination is required"):
-        EmbargoRegisterEntry(embargo=A, status=S.TERMINATED)
+        EmbargoEvent.model_validate({**embargo, "status": S.TERMINATED})
     with pytest.raises(ValidationError, match="refused otherwise"):
-        EmbargoRegisterEntry(
-            embargo=A,
-            status=S.ACTIVE,
-            termination=EmbargoTermination.early(),
+        EmbargoEvent.model_validate(
+            {
+                **embargo,
+                "status": S.ACTIVE,
+                "termination": EmbargoTermination.other(),
+            }
         )
 
 
@@ -262,7 +320,7 @@ def test_end_time_reached_needs_the_time_it_was_claimed_at() -> None:
 def test_an_early_termination_has_no_time_rule() -> None:
     assert (
         end_time_violations(
-            EmbargoTermination.early(), end_time=now_utc(), at=None
+            EmbargoTermination.other(), end_time=now_utc(), at=None
         )
         == []
     )

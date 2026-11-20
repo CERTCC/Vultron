@@ -18,6 +18,26 @@ A participant's `Accept` or `Reject` of an embargo Invite is that participant's 
 
 An embargo is a Vultron `EmbargoEvent`, a subtype of AS2 `Event`, and is sent as `"type": ["EmbargoEvent", "Event"]` ([ADR-0201](../../adr/0201-an-embargoevent-is-a-vultron-extension-type-and-a-subtype-of-event.md), VM-03-005).
 A receiver reads that list, in either order, or `"EmbargoEvent"` alone, as an embargo, and does not read a plain `Event` as one (VM-03-006).
+
+An embargo stores its own state beside its terms ([ADR-0202](../../adr/0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md)).
+Its `status` is one of `PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` and `TERMINATED`, and every embargo starts `PROPOSED`.
+An activated revision names the embargo it replaced in `replaces`.
+A `TERMINATED` embargo holds its `termination`: the `cause`, the `causedBy` act when known, and a `summary` when one is given (EMB-13-010).
+The case's `embargoRegister` is its ordered list of embargoes, each with its own `status`.
+An activated revision in a register reads:
+
+```json
+{
+  "type": ["EmbargoEvent", "Event"],
+  "id": "https://example.org/cases/1/embargoes/2",
+  "context": "https://example.org/cases/1",
+  "published": "2026-03-01T00:00:00Z",
+  "endTime": "2026-06-01T00:00:00Z",
+  "status": "ACTIVE",
+  "replaces": "https://example.org/cases/1/embargoes/1"
+}
+```
+
 An embargo proposal carries its `EmbargoEvent` inline on the `Invite` that proposes it.
 The protocol names `Invite(EmbargoEvent)` as the one form.
 A received `Create(EmbargoEvent)` is not a protocol message, and its receiver must not change the case file because of it ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-019).
@@ -202,10 +222,11 @@ If the CASE_MANAGER refuses the termination, it commits neither entry.
 - **Triggering transition:** Active or Revise → eXited ({A,R} → X).
   The same register step cancels every open proposal and writes no participant's consent (EP-08-004, MSM-07-025).
 - **Why it ended:** `terminationCause` gives the cause, when the sender names one.
-  The CASE_MANAGER's embargo register records the cause (EMB-13-010, EMB-13-005).
+  The terminated embargo stores the cause in its `termination` (EMB-13-010, EMB-13-005).
   Its `kind` is `END_TIME_REACHED`, `THREAT_SIGNAL` (with the `signals` `P`, `X` or `A`), `FIX_READY` (with the `vendors` whose readiness made the quorum), `FIX_DEPLOYED`, or `OTHER` (whose account is the `summary`).
   `END_TIME_REACHED` means the embargo reached its end time.
   Every other cause, and a `Remove` that names no cause, means the embargo ended early (EMB-13-004, EMB-13-011).
+  The embargo stores the cause `OTHER` for a `Remove` that names none.
   A receiver does not read `content` as what ended the embargo (EMB-13-009).
   `summary` is a human-readable account that the protocol does not read.
   A receiver refuses a `Remove` with an unknown `kind` or a missing or malformed detail (EMB-13-012).
@@ -214,7 +235,7 @@ If the CASE_MANAGER refuses the termination, it commits neither entry.
   Only the CASE_MANAGER's own `Remove` may name `THREAT_SIGNAL`.
   A Case Owner reports public awareness, a public exploit or observed attacks as a case status update that sets `P`, `X` or `A`.
   The CASE_MANAGER then ends the embargo with the signals the case carries.
-  Each replica copies the cause from the ledger entry onto its own register.
+  Each replica copies the cause from the ledger entry onto the terminated embargo in its own register.
   A replica never derives a cause from its own case state.
 - **At the end time:** when the end time of the embargo in force has passed, the CASE_MANAGER ends that embargo with `END_TIME_REACHED`.
   The CASE_MANAGER does this the next time it handles the case, or when an outside service such as a [Sentinel](../glossary.md) asks it to.

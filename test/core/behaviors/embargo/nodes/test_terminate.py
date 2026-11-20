@@ -53,6 +53,7 @@ from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     FixDeployedCause,
     FixReadyCause,
+    OtherCause,
     ThreatSignal,
     ThreatSignalTermination,
 )
@@ -217,7 +218,7 @@ class TestSendTerminateEmbargoActivityNodePorts:
                 SendTerminateEmbargoActivityNode(),
                 {
                     act_keys.CASE_ID: CASE_ID,
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                 },
             ),
             actor_id=ACTOR_ID,
@@ -234,7 +235,7 @@ class TestSendTerminateEmbargoActivityNodePorts:
                 SendTerminateEmbargoActivityNode(),
                 {
                     act_keys.CASE_ID: CASE_ID,
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                 },
             ),
             _VENDOR_ID,
@@ -258,7 +259,7 @@ class TestTeardownAsk:
                 SendTerminateEmbargoActivityNode(),
                 {
                     act_keys.CASE_ID: CASE_ID,
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                 },
             ),
             _VENDOR_ID,
@@ -279,7 +280,7 @@ class TestTeardownAsk:
                 SendTerminateEmbargoActivityNode(),
                 {
                     act_keys.CASE_ID: CASE_ID,
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                 },
             ),
             _VENDOR_ID,
@@ -313,7 +314,7 @@ class TestTeardownAsk:
                 SendTerminateEmbargoActivityNode(),
                 {
                     act_keys.CASE_ID: CASE_ID,
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                 },
             ),
             _VENDOR_ID,
@@ -344,7 +345,7 @@ class TestTeardownAsk:
                 SendTerminateEmbargoActivityNode(),
                 {
                     act_keys.CASE_ID: CASE_ID,
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                 },
             ),
             _VENDOR_ID,
@@ -367,7 +368,7 @@ class TestTeardownAsk:
                 SendTerminateEmbargoActivityNode(),
                 {
                     act_keys.CASE_ID: CASE_ID,
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                 },
             ),
             _MANAGER_ID,
@@ -391,7 +392,7 @@ class TestAskCaseManagerToTerminateOnce:
 
         dl, result = _run(
             ask_case_manager_to_terminate_once(
-                CASE_ID, EmbargoTermination.early()
+                CASE_ID, EmbargoTermination.other()
             ),
             _VENDOR_ID,
             factory,
@@ -407,7 +408,7 @@ class TestAskCaseManagerToTerminateOnce:
 
         dl, _ = _run(
             ask_case_manager_to_terminate_once(
-                CASE_ID, EmbargoTermination.early()
+                CASE_ID, EmbargoTermination.other()
             ),
             _VENDOR_ID,
             _factory(),
@@ -424,7 +425,7 @@ class TestAskCaseManagerToTerminateOnce:
 
         dl, _ = _run(
             ask_case_manager_to_terminate_once(
-                CASE_ID, EmbargoTermination.early()
+                CASE_ID, EmbargoTermination.other()
             ),
             _VENDOR_ID,
             _factory(),
@@ -439,7 +440,7 @@ class TestAskCaseManagerToTerminateOnce:
 
         dl, _ = _run(
             ask_case_manager_to_terminate_once(
-                CASE_ID, EmbargoTermination.early()
+                CASE_ID, EmbargoTermination.other()
             ),
             _VENDOR_ID,
             _factory(),
@@ -454,7 +455,7 @@ class TestAskCaseManagerToTerminateOnce:
 
         _, result = _run(
             ask_case_manager_to_terminate_once(
-                CASE_ID, EmbargoTermination.early()
+                CASE_ID, EmbargoTermination.other()
             ),
             _VENDOR_ID,
             factory,
@@ -536,8 +537,8 @@ class TestParticipantCause:
         assert ThreatSignalTermination().participant_cause is None
 
     @pytest.mark.spec("EMB-13-005")
-    def test_no_cause_stays_none(self) -> None:
-        assert EmbargoTermination.early().participant_cause is None
+    def test_an_other_cause_is_carried(self) -> None:
+        assert EmbargoTermination.other().participant_cause == OtherCause()
 
     @pytest.mark.spec("EMB-13-005")
     def test_any_other_cause_passes_through(self) -> None:
@@ -562,7 +563,7 @@ class TestActTermination:
 
     @pytest.mark.spec("BTND-01-008")
     def test_a_termination_comes_back_as_it_is(self) -> None:
-        termination = EmbargoTermination.early()
+        termination = EmbargoTermination.other()
         assert act_termination(_Ports(termination)) is termination
 
     @pytest.mark.spec("EMB-14-001")

@@ -63,16 +63,16 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `caseStatuses` | list of iri | The statuses of a case, oldest first, each a CaseStatus or its id; the last is its current status |
 | `category` | plain | The CSAF category of a vulnerability note, such as description or summary |
 | `cause` | plain | Why an embargo ended: an object whose kind names the cause, END_TIME_REACHED included |
+| `causedBy` | iri | The id of the act that caused an embargo to end, when known |
 | `childCases` | set of iri | The ids of a case's child cases |
 | `cvdRole` | set | The CVD roles a participant status reports its participant holding in the case |
 | `dState` | plain | A deployer participant's fix-deployed (D) dimension of the Case State (CS) |
 | `disclosureDate` | plain | The earliest disclosure date a case proposer's CSAF document states, as the document states it |
 | `emState` | plain | The Embargo Management (EM) state of a case: NONE, PROPOSED, ACTIVE, REVISE or EXITED |
-| `embargo` | iri | The embargo an embargo-register entry records: an EmbargoEvent or its id |
 | `embargoConsents` | set | A participant's consent rows, one for each embargo in its case's embargo register |
 | `embargoId` | iri | The id of the embargo a consent row records an answer to |
 | `embargoPolicy` | plain | The embargo policy an actor publishes in its profile: an EmbargoPolicy object |
-| `embargoRegister` | list | Every embargo ever proposed on a case, in the order proposed, each an entry that gives its status |
+| `embargoRegister` | list | Every embargo ever proposed on a case, in the order proposed, each an EmbargoEvent that gives its own status |
 | `entryHash` | plain | The SHA-256 hash, in hex, of a case ledger entry's canonical content; the case's genesis hash in a ledger position that names no entry |
 | `expectedSenderSequence` | plain | On a refusal notice for an activity's senderSequence: the positive integer the CASE_MANAGER expects next from that sender, so the sender numbers its next activity for the case no lower |
 | `exploitPublic` | plain | Whether a case proposer states that an exploit is public |
@@ -118,7 +118,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `stubSummary` | plain | The summary a case owner chose for the case stub it sends to invitees, which may say less than the case's name |
 | `systemName` | plain | The name of the system that issued a vulnerability identifier |
 | `term` | plain | The cluster term in which the CASE_MANAGER committed a case ledger entry; absent on a single-node deployment |
-| `termination` | plain | How a terminated embargo ended: an object that gives its cause when recorded, END_TIME_REACHED included |
+| `termination` | plain | How a terminated embargo ended: its cause, END_TIME_REACHED included, the act that caused it when known, and a reason |
 | `terminationCause` | plain | Why an embargo ended, on the Remove that terminates it: an object whose kind is END_TIME_REACHED, THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
 | `trackingId` | plain | A participant's own tracking identifier for a case, such as its internal ticket number |
 | `vendors` | set of iri | The ids of the vendors whose readiness to fix made the quorum that ended an embargo |

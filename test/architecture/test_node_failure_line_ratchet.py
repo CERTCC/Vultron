@@ -75,7 +75,6 @@ KNOWN_NODE_FEEDBACK_WARNINGS: frozenset[str] = frozenset(
         "vultron/core/behaviors/case/nodes/vfd_role_guards.py::CheckSomeVendorAtVFNode.update",
         "vultron/core/behaviors/case/nodes/vfd_role_guards.py::CheckVendorRoleNode.update",
         "vultron/core/behaviors/case_status_snapshot.py::EmitCaseStatusUpdateNode.update",
-        "vultron/core/behaviors/embargo/end_time_tree.py::EmbargoEndTimePassedNode.update",
         "vultron/core/behaviors/embargo/nodes/abandon.py::ReadOpenEmbargoProposalsNode.update",
         "vultron/core/behaviors/embargo/nodes/activation_effect.py::ApplyEmbargoActivationFromLedgerNode.update",
         "vultron/core/behaviors/embargo/nodes/answer_record.py::EmbargoDecisionAppliesNode.update",

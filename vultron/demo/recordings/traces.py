@@ -234,6 +234,7 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "vfState",
         # Embargoes, consent to them, and how they end.
         "cause",
+        "causedBy",
         "duration",
         "embargo",
         "embargoConsents",

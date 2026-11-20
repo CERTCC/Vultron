@@ -318,7 +318,7 @@ class TestVulnerabilityCaseActiveEmbargoView:
         self, case: VulnerabilityCase
     ):
         activate(case, "urn:uuid:embargo-1")
-        assert case.active_embargo == "urn:uuid:embargo-1"
+        assert case.active_embargo is not None
         assert case.active_embargo_id == "urn:uuid:embargo-1"
         assert case.em_state == EM.ACTIVE
 
@@ -428,7 +428,7 @@ class TestVulnerabilityCaseWireRoundTrip:
             attributed_to="https://example.org/actor",
         )
         activate(core_case, "urn:uuid:embargo-1")
-        assert core_case.active_embargo == "urn:uuid:embargo-1"
+        assert core_case.active_embargo_id == "urn:uuid:embargo-1"
         restored = VulnerabilityCase.model_validate(
             with_times(VulnerabilityCase, core_case.model_dump(by_alias=True))
         )

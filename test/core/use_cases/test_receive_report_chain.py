@@ -127,7 +127,7 @@ def _build_case(
         end_time=days_from_now(45),
     )
     dl.create(embargo)
-    activate(case, embargo.id_)
+    activate(case, embargo)
 
     vendor_p = make(
         as_CaseParticipant,

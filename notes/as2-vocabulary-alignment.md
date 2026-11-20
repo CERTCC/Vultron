@@ -331,6 +331,12 @@ Issue: #6246. Records: ADR-0201, ADR-0202, ADR-0203.
 and the embargo patterns match `EmbargoEvent` only, so a plain `Event` is no
 embargo (#6480).
 
+**Built (embargo state).** `EmbargoEvent` stores `status`, `replaces` and, once
+terminated, `termination` (cause required, `causedBy`, `summary`); the case's
+`embargoRegister` is a list of whole embargoes, with no entry type (#6481). A
+`Remove` naming no cause stores `OTHER`. The `Update`, `Announce` and the
+termination's `causedBy` and `summary` are still to build (#6625, #6482, #6483).
+
 **Decision.**
 
 - **The embargo is its own wire type.** `"type": ["EmbargoEvent", "Event"]`, a
@@ -373,8 +379,8 @@ natural language summarization of the object".
 included, in the Vultron `terminationCause`
 (`vultron/wire/as2/vocab/activities/embargo.py`,
 `vultron/core/models/embargo_termination.py`); `content` carries no what. The status,
-`replaces` and termination are on the register entry
-(`vultron/core/models/embargo_register/entry.py`), not the embargo. The Owner's
+`replaces` and termination are on the embargo
+(`vultron/core/models/embargo_event.py`, ADR-0202). The Owner's
 `Remove` is ledgered as received (EMB-13-003, EMB-13-013). Teardown:
 `vultron/core/behaviors/embargo/nodes/teardown.py`; EMB-19.
 

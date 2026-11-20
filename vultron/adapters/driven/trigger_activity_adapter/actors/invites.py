@@ -51,7 +51,6 @@ from .._base import (
     _stamped,
 )
 from ._helpers import (
-    _active_embargo_of,
     _held_actor,
     _stored_case_invite,
 )
@@ -130,7 +129,6 @@ class _InvitesMixin:
             invitee=_held_actor(self._dl, invitee_id),
             case=_with_items_carried(self._dl, resolved),
             roles=roles,
-            embargo_obj=_active_embargo_of(self._dl, resolved),
             **extra,
             at=at,
         )

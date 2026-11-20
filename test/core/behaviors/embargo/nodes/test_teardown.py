@@ -224,7 +224,7 @@ class TestTerminationCauseIsAdmissibleNode:
     @pytest.mark.parametrize(
         "termination",
         [
-            EmbargoTermination.early(),
+            EmbargoTermination.other(),
             EmbargoTermination(
                 cause=FixReadyCause(vendors=[OTHER_PARTICIPANT_ACTOR]),
             ),
@@ -309,7 +309,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: _e1(case),
                 },
@@ -358,7 +358,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: _e1(case),
                 },
@@ -375,9 +375,9 @@ class TestClearActiveEmbargoNode:
         assert updated.proposed_embargo_ids == []
         assert updated.pending_embargo_proposal_index == {}
         assert {
-            e.embargo_id: e.status
+            e.id_: e.status
             for e in updated.embargo_register
-            if e.embargo_id in revisions
+            if e.id_ in revisions
         } == {rid: EmbargoRegisterStatus.CANCELLED for rid in revisions}
 
     def test_teardown_logged_in_narrative_form(self, caplog):
@@ -395,7 +395,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: _e1(case),
                 },
@@ -435,7 +435,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: _e1(case),
                 },
@@ -471,7 +471,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: _e1(case),
                 },
@@ -501,7 +501,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: _e1(case),
                 },
@@ -534,7 +534,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: _e1(case),
                 },
@@ -573,7 +573,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: f"{case.id_}/embargo_events/e2",
                 },
@@ -602,7 +602,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: "https://example.org/cases/nonexistent",
                     act_keys.EMBARGO_ID: "https://example.org/cases/nonexistent/embargo_events/e1",
                 },
@@ -629,7 +629,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: _e1(case),
                 },
@@ -676,7 +676,7 @@ class TestClearActiveEmbargoNode:
             root=with_act_keys(
                 node,
                 {
-                    act_keys.TERMINATION: EmbargoTermination.early(),
+                    act_keys.TERMINATION: EmbargoTermination.other(),
                     act_keys.CASE_ID: case.id_,
                     act_keys.EMBARGO_ID: _e1(case),
                 },
@@ -768,7 +768,7 @@ class TestApplyEmbargoTeardownNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
-        assert updated.embargo_termination == EmbargoTermination.early()
+        assert updated.embargo_termination == EmbargoTermination.other()
 
     def test_teardown_logged_at_info(self, caplog):
         """The copied teardown is a lifecycle milestone, logged at INFO."""
@@ -796,7 +796,7 @@ class TestApplyEmbargoTeardownNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
         assert updated.proposed_embargo_ids == []
-        statuses = {e.embargo_id: e.status for e in updated.embargo_register}
+        statuses = {e.id_: e.status for e in updated.embargo_register}
         assert statuses[f"{case.id_}/embargo_events/e2"] is (
             EmbargoRegisterStatus.CANCELLED
         )

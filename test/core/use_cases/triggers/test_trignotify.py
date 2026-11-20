@@ -474,7 +474,7 @@ class TestEmbargoTriggerToField:
             at=authored_at(),
         )
         self.dl.create(proposal)
-        propose(self.case, embargo.id_)
+        propose(self.case, embargo)
         self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
         # Every register entry has a row on every participant (ADR-0122); the
@@ -514,7 +514,7 @@ class TestEmbargoTriggerToField:
             as_EmbargoEvent, context=self.case.id_, end_time=days_from_now(45)
         )
         self.dl.create(embargo)
-        activate(self.case, embargo.id_)
+        activate(self.case, embargo)
         self.dl.save(self.case)
 
         request = TerminateEmbargoTriggerRequest(
@@ -557,7 +557,7 @@ class TestEmbargoTriggerToField:
             at=authored_at(),
         )
         self.dl.create(proposal)
-        propose(self.case, embargo.id_)
+        propose(self.case, embargo)
         self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
 
@@ -593,7 +593,7 @@ class TestEmbargoTriggerToField:
             as_EmbargoEvent, context=self.case.id_, end_time=days_from_now(45)
         )
         self.dl.create(embargo)
-        activate(self.case, embargo.id_)
+        activate(self.case, embargo)
         self.dl.save(self.case)
 
         request = ProposeEmbargoRevisionTriggerRequest(

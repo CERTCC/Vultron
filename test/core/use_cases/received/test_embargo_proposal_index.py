@@ -353,7 +353,7 @@ class TestAcceptRejectFromCoreState:
         )
         dl.create(proposal)
         case_obj = dl.read(case.id_)
-        propose(case_obj, embargo.id_)
+        propose(case_obj, embargo)
         case_obj.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         dl.save(case_obj)
         write_consent_rows(dl, case_obj)
@@ -426,7 +426,7 @@ class TestAcceptRejectFromCoreState:
         dl.create(counter_proposal)
         case_obj = dl.read(case.id_)
         assert isinstance(case_obj, VulnerabilityCase)
-        propose(case_obj, counter.id_)
+        propose(case_obj, counter)
         case_obj.pending_embargo_proposal_index[counter.id_] = (
             counter_proposal.id_
         )
@@ -594,7 +594,7 @@ class TestReceivedRejectPrunesOpenProposals:
         )
         dl.create(proposal)
         case_obj = cast(VulnerabilityCase, dl.read(case.id_))
-        propose(case_obj, embargo.id_)
+        propose(case_obj, embargo)
         case_obj.pending_embargo_proposal_index = {embargo.id_: proposal.id_}
         dl.save(case_obj)
         write_consent_rows(dl, case_obj)
@@ -799,7 +799,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         dl.create(proposal)
         # A Reject must name an open proposal (or the active embargo).
         case_obj = cast(VulnerabilityCase, dl.read(case.id_))
-        propose(case_obj, embargo.id_)
+        propose(case_obj, embargo)
         dl.save(case_obj)
         write_consent_rows(dl, case_obj)
 

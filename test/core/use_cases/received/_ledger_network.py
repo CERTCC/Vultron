@@ -157,9 +157,9 @@ class LedgerNetwork:
         # EM is derived from the register (ADR-0122): the embargo is open as
         # a proposal at PROPOSED and in force at ACTIVE.
         if em_state is EM.PROPOSED:
-            propose(case_read, embargo.id_)
+            propose(case_read, embargo)
         elif em_state is EM.ACTIVE:
-            activate(case_read, embargo.id_)
+            activate(case_read, embargo)
         assert case_read.em_state == em_state
         manager_dl.save(case_read)
         write_consent_rows(manager_dl, case_read)
@@ -255,7 +255,7 @@ class LedgerNetwork:
         ids = [
             self.case_id,
             *(str(p) for p in case.actor_participant_index.values()),
-            *(str(_as_id(e.embargo)) for e in case.embargo_register),
+            *(e.id_ for e in case.embargo_register),
         ]
         records = (dl.read(record_id) for record_id in ids)
         return [

@@ -54,7 +54,7 @@ from vultron.core.models.case_preview_envelope import (
     invitation_preview_faults,
     preview_current_status,
     preview_em_state,
-    preview_in_force_entry,
+    preview_in_force_embargo,
 )
 from vultron.core.models.case_preview_profile import (
     CasePreviewProfile,
@@ -63,7 +63,6 @@ from vultron.core.models.case_preview_profile import (
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.preview_object import (
     PreviewObject,
@@ -87,7 +86,6 @@ if TYPE_CHECKING:
     CaseReferencePreview = PreviewObject
     CaseStatusPreview = PreviewObject
     EmbargoEventPreview = PreviewObject
-    EmbargoRegisterEntryPreview = PreviewValue
     LedgerPositionPreview = PreviewValue
     VulnerabilityItemPreview = PreviewObject
     VulnerabilityReportPreview = PreviewObject
@@ -97,7 +95,6 @@ else:
     CaseReferencePreview = loose_form(CaseReference)
     CaseStatusPreview = loose_form(CaseStatus)
     EmbargoEventPreview = loose_form(EmbargoEvent)
-    EmbargoRegisterEntryPreview = loose_form(EmbargoRegisterEntry)
     LedgerPositionPreview = loose_form(LedgerPosition)
     VulnerabilityItemPreview = loose_form(VulnerabilityItem)
     VulnerabilityReportPreview = loose_form(VulnerabilityReport)
@@ -233,7 +230,7 @@ class CasePreview(PreviewObject):
         default=None, json_schema_extra=_case_property("notes")
     )
     embargo_register: (
-        Redactable[list[Redactable[EmbargoRegisterEntryPreview]]] | None
+        Redactable[list[Redactable[EmbargoEventPreview]]] | None
     ) = Field(
         default=None, json_schema_extra=_case_property("embargo_register")
     )
@@ -354,17 +351,13 @@ class PreviewedCaseReference(CoreObject):
 def preview_embargo_id(preview: object) -> str | None:
     """The id of the embargo *preview* carries as its terms (CM-17-002).
 
-    The embargo of the in-force entry of its ``embargoRegister``.  ``None``
-    when *preview* is no case preview, carries no in-force entry, or shows
-    the embargo without its id or withholds it with a marker: a withheld
-    value names no embargo.
+    The ``ACTIVE`` embargo of its ``embargoRegister``.  ``None`` when
+    *preview* is no case preview, carries no in-force embargo, or shows it
+    without its id.
     """
     if not isinstance(preview, CasePreview):
         return None
-    embargo = getattr(preview_in_force_entry(preview), "embargo", None)
-    if isinstance(embargo, str):
-        return embargo
-    embargo_id = getattr(embargo, "id_", None)
+    embargo_id = getattr(preview_in_force_embargo(preview), "id_", None)
     return embargo_id if isinstance(embargo_id, str) else None
 
 
@@ -399,6 +392,6 @@ __all__ = [
     "preview_current_status",
     "preview_em_state",
     "preview_embargo_id",
-    "preview_in_force_entry",
+    "preview_in_force_embargo",
     "previewed_case_id",
 ]

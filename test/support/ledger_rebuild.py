@@ -169,7 +169,8 @@ def case_naming_its_records(case: VulnerabilityCase) -> VulnerabilityCase:
     The genesis entry is the delivered ``Create``, which carries the case's
     participants, reports and active embargo inline (ADR-0157).  Each of them
     is also carried by an entry of its own, which the rebuild copies it from,
-    so the seeded case only names them.
+    so the seeded case only names them.  The register holds each embargo
+    whole, with its status (ADR-0202), so it is kept as carried.
     """
     return case.model_copy(
         update={
@@ -178,10 +179,6 @@ def case_naming_its_records(case: VulnerabilityCase) -> VulnerabilityCase:
             ],
             "vulnerability_reports": [
                 str(_as_id(r)) for r in case.vulnerability_reports
-            ],
-            "embargo_register": [
-                entry.model_copy(update={"embargo": entry.embargo_id})
-                for entry in case.embargo_register
             ],
         }
     )
@@ -323,7 +320,7 @@ def _embargo_differences(
     holds differently: compared whole, its times included, since a replica's
     own embargo decisions read them (CLP-07-013, #5122)."""
     found: list[str] = []
-    for embargo_id in (entry.embargo_id for entry in manager.embargo_register):
+    for embargo_id in (entry.id_ for entry in manager.embargo_register):
         held = manager_dl.read(embargo_id)
         copied = replica_dl.read(embargo_id)
         if not isinstance(held, EmbargoEvent):

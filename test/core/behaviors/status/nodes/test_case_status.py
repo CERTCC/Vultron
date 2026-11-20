@@ -29,6 +29,7 @@ from py_trees.common import Status
 
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.embargo_register import stand_in
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -395,6 +396,7 @@ class TestEmitCaseStatusUpdateNode:
                 RegisterChange(
                     embargo_id="https://example.org/embargoes/e1",
                     trigger=RegisterTrigger.PROPOSE,
+                    embargo=stand_in("https://example.org/embargoes/e1"),
                 )
             ]
         )
@@ -449,6 +451,7 @@ class TestEmitCaseStatusUpdateNode:
                 RegisterChange(
                     embargo_id="https://example.org/embargoes/e1",
                     trigger=RegisterTrigger.PROPOSE,
+                    embargo=stand_in("https://example.org/embargoes/e1"),
                 )
             ]
         )

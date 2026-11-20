@@ -617,7 +617,7 @@ def _reseed(net: LedgerNetwork, replica: str) -> None:
     for obj_id in (
         case.id_,
         *(str(p) for p in case.actor_participant_index.values()),
-        *(entry.embargo_id for entry in case.embargo_register),
+        *(entry.id_ for entry in case.embargo_register),
     ):
         obj = net.stores[MANAGER].read(obj_id)
         assert obj is not None, obj_id

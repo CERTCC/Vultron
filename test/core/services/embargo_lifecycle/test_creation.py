@@ -310,7 +310,7 @@ def test_a_case_that_has_left_none_is_refused_unchanged(
     stored = _stored_case(dl, case.id_)
     assert stored.em_state == em_state
     assert stored.embargo_register == case.embargo_register
-    assert stored.embargo_register_entry(embargo.id_) is None
+    assert stored.registered_embargo(embargo.id_) is None
 
 
 @pytest.mark.spec("EMB-01-002")

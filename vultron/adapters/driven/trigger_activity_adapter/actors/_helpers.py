@@ -16,13 +16,10 @@
 
 """Store reads the actor-domain trigger activity mixins share."""
 
-from typing import Any
-
 from vultron.adapters.received_archive import (
     read_received_as_received,
 )
 from vultron.core.models.actor import CoreActor
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import (
     VultronValidationError,
@@ -31,22 +28,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
-
-def _active_embargo_of(
-    dl: CaseOutboxPersistence, case: VulnerabilityCase
-) -> Any:
-    """The case's active embargo as an object, whichever shape the field holds.
-
-    ``active_embargo`` is id-or-object: a case seeded from a sealed Announce
-    carries the ``EmbargoEvent`` inline (it is in the case's
-    ``inline_required_refs``), a locally built one holds the id.  Only the id
-    needs a store read.
-    """
-    active_embargo = case.active_embargo
-    if isinstance(active_embargo, str):
-        return dl.read(active_embargo)
-    return active_embargo
 
 
 def _held_actor(
