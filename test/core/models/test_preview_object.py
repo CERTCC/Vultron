@@ -157,10 +157,10 @@ def test_a_nested_object_takes_its_own_loose_form() -> None:
 @pytest.mark.spec("MV-12-001")
 def test_a_loose_form_holds_a_marker_in_a_field_and_a_list_item() -> None:
     item: Any = loose_form(VulnerabilityItem).model_validate(
-        {"title": Redacted(), "ids": [Redacted(summary="withheld")]}
+        {"name": Redacted(), "ids": [Redacted(summary="withheld")]}
     )
 
-    assert item.title == Redacted()
+    assert item.name == Redacted()
     assert item.ids == [Redacted(summary="withheld")]
 
 

@@ -24,7 +24,7 @@ from vultron.core.behaviors.act_key_ports import (
     act_key_remappings,
     act_value,
 )
-from vultron.core.behaviors.act_keys import CASE_ID
+from vultron.core.behaviors.act_keys import CASE_ACTOR_ID, CASE_ID
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -37,7 +37,8 @@ from vultron.core.use_cases._helpers import add_activity_to_outbox
 class ResolveCaseManagerNode(DataLayerActionWithPorts):
     """Look up the CASE_MANAGER actor ID and write it to the blackboard.
 
-    The case is read from ``/case_id`` (BTND-01-008).
+    The case is read from ``/case_id`` (BTND-01-008), and the manager's id
+    is published on ``/case_actor_id``, the one key for it (BTND-03-022).
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -49,7 +50,7 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
         **act_key_ports(CASE_ID),
     }
     OUTPUT_PORTS: dict[str, PortInformation] = {
-        "case_manager_id": PortInformation(
+        CASE_ACTOR_ID.name: PortInformation(
             data_type=str | None, required=True
         ),
     }
@@ -57,7 +58,7 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
-            "case_manager_id": "/case_manager_id",
+            CASE_ACTOR_ID.name: CASE_ACTOR_ID.path,
             **act_key_remappings(CASE_ID),
         }
 
@@ -67,7 +68,7 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
-            self._set_output("case_manager_id", None)  # BT-17-003
+            self._set_output(CASE_ACTOR_ID.name, None)  # BT-17-003
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
@@ -77,7 +78,7 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
         # FAILURE from _require_case.
         case, failure = self._require_case(self.case_id)
         if failure is not None:
-            self._set_output("case_manager_id", None)  # BT-17-003
+            self._set_output(CASE_ACTOR_ID.name, None)  # BT-17-003
             return failure
 
         case_manager_id = resolve_case_manager_id(case, self.datalayer)
@@ -85,10 +86,10 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"No CASE_MANAGER participant found in case '{self.case_id}'"
             )
-            self._set_output("case_manager_id", None)  # BT-17-003
+            self._set_output(CASE_ACTOR_ID.name, None)  # BT-17-003
             return Status.FAILURE
 
-        self._set_output("case_manager_id", case_manager_id)
+        self._set_output(CASE_ACTOR_ID.name, case_manager_id)
         self.logger.debug(
             "Resolved CASE_MANAGER actor for case '%s'", self.case_id
         )
@@ -96,7 +97,11 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
 
 
 class ConstructActivitiesNode(DataLayerActionWithPorts):
-    """Build outbound AS2 activities and write their IDs to the blackboard."""
+    """Build outbound AS2 activities and write their IDs to the blackboard.
+
+    The builder is called with the CASE_MANAGER's id, read from
+    ``/case_actor_id`` (BTND-03-022).
+    """
 
     def __init__(
         self,
@@ -108,7 +113,7 @@ class ConstructActivitiesNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_manager_id": PortInformation(data_type=str, required=True),
+        CASE_ACTOR_ID.name: PortInformation(data_type=str, required=True),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
@@ -118,13 +123,13 @@ class ConstructActivitiesNode(DataLayerActionWithPorts):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
-            "case_manager_id": "/case_manager_id",
+            CASE_ACTOR_ID.name: CASE_ACTOR_ID.path,
             "activity_ids": "/activity_ids",
         }
 
     def initialise(self) -> None:
         super().initialise()
-        self.case_manager_id_bb: str = self.get_input("case_manager_id")
+        self.case_manager_id_bb: str = self.get_input(CASE_ACTOR_ID.name)
 
     def update(self) -> Status:
         case_manager_id = self.case_manager_id_bb

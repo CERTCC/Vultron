@@ -333,16 +333,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#6413](https://github.com/CERTCC/Vultron/issues/6413)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CM-05-018",
-    "CSAF-03-008",
-))
-```
-
 ### Tracked by [#6465](https://github.com/CERTCC/Vultron/issues/6465)
 
 ```python exec="true" idprefix=""
