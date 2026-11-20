@@ -254,7 +254,7 @@ class TestEmitCloseCaseNode:
     def test_succeeds_when_no_factory(self, populated_bridge):
         """No trigger_activity_factory → best-effort SUCCESS (receive-side)."""
         # Seed blackboard with a case_manager_id
-        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
+        py_trees.blackboard.Blackboard.storage["/case_actor_id"] = (
             CASE_MANAGER_ID
         )
         node = EmitCloseCaseNode(case_id=CASE_ID)
@@ -305,7 +305,7 @@ class TestEmitCloseCaseNode:
         factory = MagicMock()
         factory.close_case.return_value = (activity_id, {})
 
-        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
+        py_trees.blackboard.Blackboard.storage["/case_actor_id"] = (
             CASE_MANAGER_ID
         )
         bridge = BTBridge(
@@ -332,7 +332,7 @@ class TestEmitCloseCaseNode:
         factory = MagicMock()
         factory.close_case.side_effect = RuntimeError("boom")
 
-        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
+        py_trees.blackboard.Blackboard.storage["/case_actor_id"] = (
             CASE_MANAGER_ID
         )
         bridge = BTBridge(

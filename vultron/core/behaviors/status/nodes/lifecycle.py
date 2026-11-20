@@ -29,6 +29,7 @@ import logging
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
+from vultron.core.behaviors.act_keys import CASE_ACTOR_ID
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -47,7 +48,7 @@ logger = logging.getLogger(__name__)
 class EmitCloseCaseNode(_EmitSingleActivityBase):
     """Step 5 emit: Queue a ``Leave(VulnerabilityCase)`` to the Case Manager.
 
-    Reads ``case_manager_id`` from the blackboard (written by the preceding
+    Reads ``case_actor_id`` from the blackboard (written by the preceding
     :class:`~vultron.core.behaviors.sender.nodes.actions.ResolveCaseManagerNode`)
     and calls ``trigger_activity_factory.close_case(...)`` to create and queue
     the activity.
@@ -70,18 +71,18 @@ class EmitCloseCaseNode(_EmitSingleActivityBase):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_manager_id": PortInformation(data_type=str, required=False),
+        CASE_ACTOR_ID.name: PortInformation(data_type=str, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_manager_id": "/case_manager_id"}
+        return {CASE_ACTOR_ID.name: CASE_ACTOR_ID.path}
 
     def initialise(self) -> None:
         super().initialise()
         try:
             self.case_manager_id: str | None = self.get_input(
-                "case_manager_id"
+                CASE_ACTOR_ID.name
             )
         except NoDataAvailable, NotImplementedError:
             self.case_manager_id = None
