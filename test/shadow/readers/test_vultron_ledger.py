@@ -193,8 +193,8 @@ def test_entries_out_of_log_index_order_are_refused(tmp_path):
 
 
 def test_entries_of_two_cases_are_refused(tmp_path):
-    case_id = _rows(_RECORDING)[0]["caseId"]
-    other = next(p for p in _RECORDINGS if _rows(p)[0]["caseId"] != case_id)
+    case_id = _rows(_RECORDING)[0]["context"]
+    other = next(p for p in _RECORDINGS if _rows(p)[0]["context"] != case_id)
     rows = _rows(_RECORDING)[:2] + _rows(other)[2:3]
     path = _write(tmp_path / "mixed.jsonl", [json.dumps(r) for r in rows])
     with pytest.raises(CaseLedgerFileError, match="holds entries of"):

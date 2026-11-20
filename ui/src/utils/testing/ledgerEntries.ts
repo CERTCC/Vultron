@@ -27,7 +27,7 @@ export function ledgerEntry(logIndex: number, semanticType: string, payloadSnaps
     id: `${CASE}/log/${logIndex}`,
     type: 'CaseLedgerEntry',
     published: '2026-01-01T00:00:00Z',
-    caseId: CASE,
+    context: CASE,
     logIndex,
     logObjectId: `${CASE}/activity/${logIndex}`,
     semanticType,

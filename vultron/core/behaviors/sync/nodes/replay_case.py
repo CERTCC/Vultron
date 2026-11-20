@@ -51,7 +51,7 @@ def replay_case_id(activity: Any, node_name: str) -> str:
     case_id = getattr(activity, "replay_case_id", None)
     if isinstance(case_id, str) and case_id:
         return case_id
-    return require_rejected_entry(activity, node_name).case_id
+    return require_rejected_entry(activity, node_name).context
 
 
 def require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:

@@ -65,7 +65,7 @@ def _write_fixture(path: Path, state: str) -> Path:
                 lines.append(
                     json.dumps(
                         {
-                            "caseId": "urn:case:1",
+                            "context": "urn:case:1",
                             "logIndex": index,
                             "entryHash": f"h{index}",
                             "dimension": dimension.value,
@@ -116,8 +116,8 @@ def test_a_non_list_case_statuses_is_ignored():
 class TestEnvelopeAccessors:
     @pytest.mark.spec("DRPT-02-003")
     def test_both_spellings_are_read(self):
-        camel = {"caseId": "c", "logIndex": 3, "entryHash": "h"}
-        snake = {"case_id": "c", "log_index": 3, "entry_hash": "h"}
+        camel = {"context": "c", "logIndex": 3, "entryHash": "h"}
+        snake = {"context": "c", "log_index": 3, "entry_hash": "h"}
         for entry in (camel, snake):
             assert case_id_of(entry) == "c"
             assert log_index_of(entry) == 3
@@ -129,7 +129,7 @@ class TestEnvelopeAccessors:
 
     @pytest.mark.parametrize("value", [None, "", "   ", 7])
     def test_a_blank_or_non_string_id_is_none(self, value):
-        assert case_id_of({"caseId": value}) is None
+        assert case_id_of({"context": value}) is None
         assert entry_hash_of({"entryHash": value}) is None
 
     def test_a_non_dict_payload_reads_as_empty(self):

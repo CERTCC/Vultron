@@ -136,7 +136,7 @@ def _case_entries(dl: SqliteDataLayer, case_id: str) -> list[str]:
     return sorted(
         obj.id_
         for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+        if isinstance(obj, CaseLedgerEntry) and obj.context == case_id
     )
 
 

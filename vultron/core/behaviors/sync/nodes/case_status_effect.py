@@ -134,7 +134,7 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
         assert self.datalayer is not None
 
         entry = self._get_entry()
-        case = self._resolve_case_replica(entry.case_id)
+        case = self._resolve_case_replica(entry.context)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
 

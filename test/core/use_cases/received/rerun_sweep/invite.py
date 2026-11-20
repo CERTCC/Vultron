@@ -244,7 +244,7 @@ def _full_reply(kind: str, name: str, *, behind: bool = False) -> Scenario:
             (
                 e
                 for e in dl.list_objects("CaseLedgerEntry")
-                if isinstance(e, CaseLedgerEntry) and e.case_id == net.case_id
+                if isinstance(e, CaseLedgerEntry) and e.context == net.case_id
             ),
             key=lambda e: e.log_index,
         )

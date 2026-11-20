@@ -79,7 +79,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
         snapshot = entry.payload_snapshot
         # Normalised: the snapshot keeps the sender's spelling (OID-01-008).
         actor_id = snapshot_actor_id(snapshot.get("actor"))
-        if not actor_id or not entry.case_id:
+        if not actor_id or not entry.context:
             self.logger.debug(
                 "%s: payload_snapshot missing the replying actor or the case"
                 " id — skipping (non-fatal)",
@@ -87,7 +87,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
             )
             return Status.SUCCESS
 
-        case = self._resolve_case_replica(entry.case_id)
+        case = self._resolve_case_replica(entry.context)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
@@ -96,7 +96,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
         if not isinstance(record, CaseParticipant):
             self.feedback_message = (
                 f"{entry.semantic_type} entry {entry.log_index} for '{actor_id}'"
-                f" in case '{entry.case_id}' but this replica holds no"
+                f" in case '{entry.context}' but this replica holds no"
                 " participant record: the create_case_participant entry has"
                 " not been applied, so the chain is incomplete or out of"
                 " order (CM-11-006, CM-11-021, SYNC-14)"
@@ -122,7 +122,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
                 " case '%s' (SYNC-02-001)",
                 self.name,
                 actor_id,
-                entry.case_id,
+                entry.context,
             )
         else:
             self.logger.debug(

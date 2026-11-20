@@ -185,7 +185,7 @@ def _add_entry_body() -> dict[str, Any]:
     entry = make(
         CaseLedgerEntry,
         id_=f"{CASE_ID}/log/entry-1",
-        case_id=CASE_ID,
+        context=CASE_ID,
         log_object_id=ACTOR,
         semantic_type="accept_invite_actor_to_case",
         payload_snapshot={"id": ACTOR, "actor": ACTOR},

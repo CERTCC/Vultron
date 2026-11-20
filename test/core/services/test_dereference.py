@@ -17,6 +17,7 @@ from typing import Any
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_manager import (
     CASE_MANAGER_ID,
     make_case_with_case_manager,
@@ -29,6 +30,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.dimensions import RmDimension
@@ -583,6 +585,28 @@ class TestCaseObjectForParticipant:
         )
 
         assert getattr(found, "id_", None) == scoped.id_
+
+    @pytest.mark.spec("AKM-05-006")
+    @pytest.mark.spec("SYNC-02-006")
+    def test_a_ledger_entry_is_not_served_though_it_names_the_case(self):
+        """An entry's ``context`` is its case (CLP-14-012), but the ledger
+        has no read surface: entries reach a participant by replication."""
+        dl, case = self._host()
+        entry = make(
+            CaseLedgerEntry,
+            context=case.id_,
+            log_index=0,
+            log_object_id=case.id_,
+            semantic_type="create_case",
+            published=ACT_AT,
+            received_at=ACT_AT,
+        )
+        dl.save(entry)
+
+        with pytest.raises(VultronNotFoundError):
+            case_object_for_participant(
+                dl, CASE_MANAGER_ID, case.id_, entry.id_, _PARTICIPANT
+            )
 
     @pytest.mark.spec("AKM-05-006")
     def test_an_object_the_host_does_not_hold_is_not_found(self):

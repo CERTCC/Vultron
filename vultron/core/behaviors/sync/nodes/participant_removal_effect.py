@@ -121,7 +121,7 @@ class _ParticipantMoveLedgerEffectNode(_LedgerEffectNode):
 
         entry = self._get_entry()
         snapshot = entry.payload_snapshot
-        case_id = entry.case_id
+        case_id = entry.context
         activity_id = (
             _extract_id_from_field(snapshot.get("id")) or entry.log_object_id
         )

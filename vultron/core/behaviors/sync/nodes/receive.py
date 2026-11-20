@@ -94,7 +94,7 @@ class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
             # the entry is not stored and the position has nothing to move.
             self.feedback_message = (
                 f"cannot store received log entry '{entry.id_}' for case"
-                f" '{entry.case_id}': {exc}"
+                f" '{entry.context}': {exc}"
             )
             self.logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -102,7 +102,7 @@ class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
             "%s: stored received log entry '%s' for case '%s'",
             self.name,
             entry.id_,
-            entry.case_id,
+            entry.context,
         )
         return Status.SUCCESS
 
@@ -148,7 +148,7 @@ class CheckEntryHashIntactNode(
             " its entry_hash %.16s…",
             self.name,
             entry.id_,
-            entry.case_id,
+            entry.context,
             entry.log_index,
             getattr(self.activity, "activity_id", None),
             getattr(self.activity, "actor_id", None),
@@ -328,7 +328,7 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
                 getattr(self.activity, "activity_id", None),
                 entry.id_,
                 entry.log_index,
-                entry.case_id,
+                entry.context,
                 self.actor_id,
             )
             return Status.SUCCESS

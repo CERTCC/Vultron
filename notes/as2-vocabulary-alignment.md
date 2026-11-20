@@ -21,7 +21,6 @@ tracks:
   - "#6408"   # PR may not close a ratchet's open owner
   - "#6409"   # typed term for every Vultron field
   - "#6422"   # term check and owned ratchets
-  - "#6411"   # ledger entry case in context
   - "#6413"   # vulnerability item title -> name
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
@@ -604,7 +603,6 @@ them.
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
-| `caseId` (`CaseLedgerEntry`) | AS2 duplicate | `context` | #6411 |
 | `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
 | `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
@@ -869,14 +867,14 @@ received one is refused as unrecognized (VAM-01-017).
   `Add(<Actor>, target=<case>)`, naming the actor (CM-31-011, ADR-0199 revision 2).
   The object type tells the two `Add`s apart.
 - **The replica** stores the record in the case the entry's `target` names, not one
-  taken from `entry.case_id` or the verb.
+  taken from the entry's `context` or the verb.
 
 **AS2 basis.** CORE App. B: the AS1 "post" verb maps to `Create` without a target and
 to `Add` with one.
 
 **Today.** `create_participant_activity` builds `Create(CaseParticipant)` with
 `target=case_target_ref(target)` (`vultron/wire/as2/factories/case_participant.py`);
-`ApplyCreateCaseParticipantFromLedgerNode` seats the record from `entry.case_id`.
+`ApplyCreateCaseParticipantFromLedgerNode` seats the record from the entry's `context`.
 
 **Touches.** The factory and wire class, `record_case_participant_created`, the
 `create_participant` example, the semantic registry and canonical signatures, the

@@ -138,7 +138,7 @@ def _ledger(net: LedgerNetwork, actor_id: str) -> list[str]:
     entries = [
         cast(CaseLedgerEntry, e)
         for e in net.stores[actor_id].list_objects("CaseLedgerEntry")
-        if getattr(e, "case_id", None) == net.case_id
+        if getattr(e, "context", None) == net.case_id
     ]
     return [
         e.semantic_type for e in sorted(entries, key=lambda e: e.log_index)
@@ -696,7 +696,7 @@ def _note_entries(net: LedgerNetwork, actor_id: str) -> list[CaseLedgerEntry]:
     entries = [
         cast(CaseLedgerEntry, e)
         for e in net.stores[actor_id].list_objects("CaseLedgerEntry")
-        if getattr(e, "case_id", None) == net.case_id
+        if getattr(e, "context", None) == net.case_id
         and "note" in cast(CaseLedgerEntry, e).semantic_type
     ]
     return sorted(entries, key=lambda e: e.log_index)
@@ -862,7 +862,7 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
     entries = [
         cast(CaseLedgerEntry, e)
         for e in net.stores[MANAGER].list_objects("CaseLedgerEntry")
-        if getattr(e, "case_id", None) == net.case_id
+        if getattr(e, "context", None) == net.case_id
         and cast(CaseLedgerEntry, e).semantic_type == semantic_type
     ]
     assert [e.log_object_id for e in entries] == [add_id]

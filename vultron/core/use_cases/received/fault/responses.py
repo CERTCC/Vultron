@@ -178,7 +178,7 @@ def _reseed_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
     """
     if refused_entry is None:
         return _unnamed_entry_refusal(answer="re-seed", spec_id="SYNC-16-003")
-    case_id = refused_entry.case_id
+    case_id = refused_entry.context
 
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:
         tree = outcome.tree

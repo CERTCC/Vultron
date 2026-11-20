@@ -196,7 +196,7 @@ def _place(row: LedgerRow) -> PlacedRow | UnusableRow:
     missing = [
         name
         for name, value in (
-            ("caseId", case_id),
+            ("context", case_id),
             ("logIndex", log_index),
             ("entryHash", entry_hash),
         )
