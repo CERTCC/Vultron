@@ -63,9 +63,11 @@ from vultron.core.behaviors.act_key_ports import (
     act_key_ports,
     act_key_remappings,
     act_value,
+    optional_act_value,
 )
 from vultron.core.behaviors.act_keys import (
     CASE_ID,
+    REFUSAL_REASON,
     REFUSED_ACTIVITY_ID,
     SENDER_ID,
 )
@@ -361,25 +363,27 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
     state (CLP-06-002), so the node is not a state writer.
 
     The case, the refused activity and the notice's sender are read from
-    ``/case_id``, ``/refused_activity_id`` and ``/sender_id`` (BTND-01-008).
+    ``/case_id``, ``/refused_activity_id`` and ``/sender_id``, and the
+    notice's reason from ``/refusal_reason``, which a notice that gives none
+    leaves unset (BTND-01-008).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        **act_key_ports(CASE_ID, REFUSED_ACTIVITY_ID, SENDER_ID),
+        **act_key_ports(
+            CASE_ID, REFUSED_ACTIVITY_ID, SENDER_ID, REFUSAL_REASON
+        ),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return act_key_remappings(CASE_ID, REFUSED_ACTIVITY_ID, SENDER_ID)
+        return act_key_remappings(
+            CASE_ID, REFUSED_ACTIVITY_ID, SENDER_ID, REFUSAL_REASON
+        )
 
-    def __init__(
-        self,
-        reason: str | None,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.reason = reason
+        self.reason: str | None = None
         self.cleared: list[PendingAssertion] = []
         """The pending entries the last run cleared."""
 
@@ -390,6 +394,7 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
             self, REFUSED_ACTIVITY_ID, str
         )
         self.sender_id: str = act_value(self, SENDER_ID, str)
+        self.reason = optional_act_value(self, REFUSAL_REASON, str)
 
     def update(self) -> Status:
         self.cleared = []
@@ -463,6 +468,7 @@ class ResumeOutboundSequenceNode(DataLayerActionWithPorts):
         super().initialise()
         self.case_id: str = act_value(self, CASE_ID, str)
         self.sender_id: str = act_value(self, SENDER_ID, str)
+        self.reason = optional_act_value(self, REFUSAL_REASON, str)
 
     def update(self) -> Status:
         self.moved = False

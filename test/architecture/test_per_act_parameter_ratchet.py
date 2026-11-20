@@ -34,8 +34,7 @@ helper whether the parameter goes or becomes a stated exemption.
 
 The reading is by parameter name, so it can miss a per-act value passed under
 a name it does not know (``case``, ``report``, ``reason``); it cannot invent
-one.  A
-``**kwargs`` parameter is not read here; the one-channel check
+one.  A ``**kwargs`` parameter is not read here; the one-channel check
 (``test_act_key_one_channel.py``) fails closed on it for a node with an
 act-key port.
 """
@@ -65,10 +64,11 @@ _PER_ACT_SUFFIX = re.compile(r"_(?:id|ids|uri|obj|content)$")
 #: it carries or requests ends the embargo, or the actor whose request it
 #: carries out.  A bare domain name (``case``, ``participant``, ``status``)
 #: is not listed: it is most often a record a node read at tick time and
-#: hands to a helper, which no tree builds in.  Nor is a bare ``reason``: a
-#: sender exemption's declaration (``no_sender_check``) and the refusal and
-#: log helpers take one as diagnostic text, which no act carries, so the
-#: termination's what is listed by its qualified names instead.
+#: hands to a helper, which no tree builds in.  Nor is a bare ``reason``: most
+#: often it is text a declaration (``no_sender_check``), a refusal node or a
+#: log helper states itself, so a per-act reason goes by a qualified name
+#: (``termination_reason``, ``rejection_reason``, the ``refusal_reason``
+#: key) that the rule reads.
 _PER_ACT_NAMES: frozenset[str] = frozenset(
     {
         "activity",

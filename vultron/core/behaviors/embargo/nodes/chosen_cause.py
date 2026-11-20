@@ -32,7 +32,7 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.act_key_ports import (
-    _ReadsOptionalPorts,
+    ReadsOptionalPorts,
     act_key_ports,
     act_key_remappings,
     act_value,
@@ -45,14 +45,12 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_termination import (
-    EmbargoTermination,
     FixDeployedCause,
     FixReadyCause,
     OtherCause,
     TerminationCause,
     TerminationCauseKind,
     TerminationRequest,
-    ThreatSignalTermination,
 )
 from vultron.core.models.participant_status import (
     participant_status_vf_state,
@@ -64,7 +62,7 @@ from vultron.errors import VultronWiringError
 from vultron.primitives import NormalisedActorId
 
 
-def act_termination(node: _ReadsOptionalPorts) -> TerminationRequest:
+def act_termination(node: ReadsOptionalPorts) -> TerminationRequest:
     """The termination on *node*'s ``/termination`` port, read when it runs.
 
     A :class:`ChosenTermination` is resolved to the termination its reason
@@ -77,14 +75,14 @@ def act_termination(node: _ReadsOptionalPorts) -> TerminationRequest:
             does not admit, or no reason call-out has chosen a cause yet.
     """
     value = act_value(node, TERMINATION, object)
+    if not TERMINATION.admits(value):
+        raise VultronWiringError(
+            f"{node.name}: '{TERMINATION.path}' holds a"
+            f" {type(value).__name__}, not a termination (BTND-03-022)"
+        )
     if isinstance(value, ChosenTermination):
         return value.termination
-    if isinstance(value, (EmbargoTermination, ThreatSignalTermination)):
-        return value
-    raise VultronWiringError(
-        f"{node.name}: '{TERMINATION.path}' holds a {type(value).__name__},"
-        " not a termination (BTND-03-022)"
-    )
+    return cast(TerminationRequest, value)
 
 
 def fix_ready_vendors(

@@ -26,7 +26,7 @@ When a site moves to a vocabulary key, delete its entry here; the ratchet
 fails until you do.  Never add an entry: a new site reads its key instead.
 The one deliberate growth is a widened name rule: the sites it newly finds
 predate the rule too, so each is tagged to its family's Task (#6699 added
-the termination and requesting-actor names).
+the termination, requesting-actor and refusal-reason names).
 """
 
 from collections.abc import Mapping
@@ -978,6 +978,7 @@ KNOWN_PER_ACT_PARAMETERS: Mapping[str, int] = MappingProxyType(
         "vultron/core/behaviors/case/participant_ledger.py::commit_participant_status_added::actor_id": 6586,
         "vultron/core/behaviors/case/participant_ledger.py::commit_participant_status_added::case_id": 6586,
         "vultron/core/behaviors/case/refusal_notice_received_tree.py::refusal_notice_received_tree::case_id": 6586,
+        "vultron/core/behaviors/case/refusal_notice_received_tree.py::refusal_notice_received_tree::refusal_reason": 6586,
         "vultron/core/behaviors/case/refusal_notice_received_tree.py::refusal_notice_received_tree::refused_activity_id": 6586,
         "vultron/core/behaviors/case/refusal_notice_received_tree.py::refusal_notice_received_tree::sender_id": 6586,
         "vultron/core/behaviors/case/reject_case_proposal_received_tree.py::create_reject_case_proposal_received_tree::rejection_reason": 6586,

@@ -78,6 +78,7 @@ __all__ = [
     "PARTICIPANT_ID",
     "PROPOSAL_ID",
     "REFUSED_ACTIVITY_ID",
+    "REFUSAL_REASON",
     "REFUSED_ENTRY",
     "REPORT_ID",
     "REQUESTING_ACTOR_ID",
@@ -212,6 +213,14 @@ REFUSED_ACTIVITY_ID = _act_key(
     "The id of the activity a refusal notice says the CASE_MANAGER refused:"
     " the one its ``inReplyTo`` names, else its ``object`` (CLP-05-001,"
     " CLP-06-006).",
+)
+
+REFUSAL_REASON = _act_key(
+    "refusal_reason",
+    str,
+    "Why the CASE_MANAGER refused the activity a refusal notice names: the"
+    " refusing guard's reason, carried as the notice's ``summary``"
+    " (CLP-06-006).  Unset when the notice gives none.",
 )
 
 REFUSED_ENTRY = _act_key(

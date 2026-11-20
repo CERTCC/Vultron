@@ -82,7 +82,7 @@ _NODES: list[tuple[NodeBuild, tuple[ActKey, ...]]] = [
     (ActivityNotYetLedgeredNode, (CASE_ID,)),
     (ReplicaRefusalNode, (CASE_ID,)),
     (
-        lambda: ClearRefusedAssertionNode(reason=None),
+        ClearRefusedAssertionNode,
         (CASE_ID, REFUSED_ACTIVITY_ID, SENDER_ID),
     ),
     (lambda: ResumeOutboundSequenceNode(expected=1), (CASE_ID, SENDER_ID)),
