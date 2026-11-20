@@ -117,12 +117,12 @@ sharing restricted content.
 ### The stub object pattern
 
 The protocol specification defines the stub the protocol uses, the **case stub**, in [§12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n).
-In the specification's words, it is "a minimal description of the case carrying enough for the invitee to decide, and no vulnerability detail."
+In the specification's words, it is "the case cut down for an invited actor: enough to decide whether to join, such as its summary, its Case Owner and the embargo in force, with the case's content withheld."
 The specification, not this page, says what that description contains.
 At the wire level a stub carries at least an `id` and a `type` ([MV-10-001](../reference/vultron-spec/requirements/messages.md#mv-10-001)).
 The case stub's `type` is `CasePreview`, so a recipient tells it from a full case by its type alone, and messages are routed and matched correctly.
 The stub travels as the case's `preview`: the stub Invite's `object` is a typed reference to the case, whose `id` names the case and whose `preview` is the stub ([MV-10-012](../reference/vultron-spec/requirements/messages.md#mv-10-012)).
-The stub's own `id` names only the stub, and the stub carries no field naming the case.
+The stub's own `id` names only the stub; the reference that carries it names the case.
 
 A minimal stub is still valid ActivityStreams 2.0.
 Almost all AS2 properties are optional, so an object with only `id` and `type` is standards-conformant.
@@ -138,7 +138,7 @@ A stub never overwrites a full case the recipient already holds ([MV-10-003](../
 | Normal protocol messages (Create, Accept, Announce) | Full inline object |
 | Inviting a participant before embargo acceptance | Case stub ([§12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)) |
 | Case content already confirmed with recipient | Full inline object |
-| Privacy-sensitive fields must be withheld | A preview with each such field left out or marked `Redacted`; only a preview's field may carry the marker, and the case stub is the only preview ([MV-10-001](../reference/vultron-spec/requirements/messages.md#mv-10-001), [MV-12-002](../reference/vultron-spec/requirements/messages.md#mv-12-002)) |
+| Privacy-sensitive fields must be withheld | A preview with each such field left out or marked `Redacted`; a marker may sit anywhere inside a preview and nowhere else, and the case stub is the only preview ([MV-10-001](../reference/vultron-spec/requirements/messages.md#mv-10-001), [MV-12-001](../reference/vultron-spec/requirements/messages.md#mv-12-001), [MV-12-002](../reference/vultron-spec/requirements/messages.md#mv-12-002)) |
 
 ### `None` is not the same as redacted
 

@@ -27,6 +27,7 @@ from typing import Any
 
 from vultron.adapters.connectors.vince import translate_case
 from vultron.core.models.case_reading import CaseReading
+from vultron.core.models.type_terms import type_terms
 from vultron.measure.history.derive import derive_case
 from vultron.measure.history.model import CaseEventHistory
 from vultron.measure.history.reached import ReachedState
@@ -91,7 +92,7 @@ def projected(reading: CaseReading) -> tuple[CaseEventHistory, ReachedState]:
     ]
     read = case_ledgers_from_files([LedgerFile(path=path, rows=rows)])
     assert read.unusable_rows == []
-    return derive_case(read.cases[reading.ledger[0].case_id])
+    return derive_case(read.cases[reading.ledger[0].context])
 
 
 def _records(node: object, kind: str) -> Iterator[Mapping[str, Any]]:
@@ -99,19 +100,26 @@ def _records(node: object, kind: str) -> Iterator[Mapping[str, Any]]:
         for item in node:
             yield from _records(item, kind)
     elif isinstance(node, dict):
-        if node.get("type") == kind:
+        if kind in type_terms(node.get("type")):
             yield node
         for child in node.values():
             yield from _records(child, kind)
 
 
 def records(reading: CaseReading, kind: str) -> list[Mapping[str, Any]]:
-    """Every object of type *kind* any entry's payload carries."""
+    """Every object any entry's payload carries whose type names *kind*."""
     return [
         record
         for entry in reading.ledger
         for record in _records(entry.payload_snapshot.get("object"), kind)
     ]
+
+
+def cve_of(item: Mapping[str, Any]) -> str | None:
+    """The CVE ID a wire item's ``ids`` holds, or ``None`` (CM-05-018)."""
+    return next(
+        (i["text"] for i in item["ids"] if i["systemName"] == "CVE"), None
+    )
 
 
 def actors_by_name(reading: CaseReading) -> dict[str, str]:

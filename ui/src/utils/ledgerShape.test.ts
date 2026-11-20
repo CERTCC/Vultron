@@ -51,7 +51,7 @@ function entry(object: unknown = participantStatus()): Record<string, unknown> {
     id: `${CASE}/log/1`,
     type: 'CaseLedgerEntry',
     published: '2026-01-01T00:00:01.000000+00:00',
-    caseId: CASE,
+    context: CASE,
     logIndex: 1,
     logObjectId: `${CASE}/activity/1`,
     semanticType: 'add_participant_status_to_participant',
@@ -213,6 +213,14 @@ describe('ledgerLineProblems', () => {
     ])
   })
 
+  it('checks an object sent with a type list by its own type, the first term', () => {
+    const status: Record<string, unknown> = { ...participantStatus(), type: ['ParticipantStatus', 'Object'] }
+    delete status.context
+    expect(ledgerLineProblems(entry(status))).toContain(
+      'payloadSnapshot.object.context: missing (ParticipantStatus requires it)',
+    )
+  })
+
   it('requires the sender time of a received CaseStatus', () => {
     const status = caseStatus()
     delete status.published
@@ -237,15 +245,15 @@ describe('ledgerLineProblems', () => {
   })
 
   it('finds a status at any depth of the payload, such as a participant list', () => {
-    const target = {
+    const record = {
       type: 'CaseParticipant',
       published: '2026-01-01T00:00:00.000000+00:00',
       participantStatuses: [participantStatus(), { ...participantStatus(), rmState: 'DONE' }],
     }
     const line = entry()
-    line.payloadSnapshot = { type: 'Add', object: participantStatus(), target }
+    line.payloadSnapshot = { type: 'Create', object: record }
     expect(ledgerLineProblems(line)).toEqual([
-      'payloadSnapshot.target.participantStatuses[1].rmState: "DONE" is not a RmState ' +
+      'payloadSnapshot.object.participantStatuses[1].rmState: "DONE" is not a RmState ' +
         '(START, RECEIVED, INVALID, VALID, DEFERRED, ACCEPTED, CLOSED)',
     ])
   })
@@ -268,7 +276,7 @@ describe('ledgerLineProblems', () => {
   })
 
   it('reports every problem of a line, not only the first', () => {
-    const line = { ...entry({ ...participantStatus(), rmState: 1 }), logIndex: -0.5, caseId: 3 }
+    const line = { ...entry({ ...participantStatus(), rmState: 1 }), logIndex: -0.5, context: 3 }
     expect(ledgerLineProblems(line)).toHaveLength(3)
   })
 })

@@ -64,8 +64,8 @@ LEDGER_CASE_ID = "https://example.org/cases/case-ledger"
 
 #: The ledger-entry handoff key, with the physical blackboard key its
 #: logical port is remapped to (static, not execution-scoped).  The replay
-#: hands off the case id instead (``replay_case_id``): the Reject that names
-#: no entry has none to hand off (SYNC-16-027).
+#: hands off the case id instead (``replay_case_id``): a position statement,
+#: ``Read(<case>/ledger)``, names no entry to hand off (SYNC-17-001).
 LEDGER_PORTS: dict[str, str] = {
     "log_entry": "/log_entry",
 }
@@ -265,7 +265,7 @@ class TestCollectLogEntryRecipientsNodeOutputPorts:
         bt_scenario.seed(case)
         entry = make(
             CaseLedgerEntry,
-            case_id=case_id,
+            context=case_id,
             log_object_id="https://example.org/activities/act-001",
             semantic_type="close_case",
             received_at=ACT_AT,
@@ -311,7 +311,7 @@ class TestFanoutCollectorsRequireCase:
         # from the unresolved case, not from a missing hand-off value.
         entry = make(
             CaseLedgerEntry,
-            case_id=case_id,
+            context=case_id,
             log_object_id="https://example.org/activities/act-001",
             semantic_type="close_case",
             received_at=ACT_AT,
@@ -341,7 +341,7 @@ class TestFanoutCollectorsRequireCase:
 def _make_ledger_entry() -> CaseLedgerEntry:
     return make(
         CaseLedgerEntry,
-        case_id=LEDGER_CASE_ID,
+        context=LEDGER_CASE_ID,
         log_object_id="https://example.org/activities/act-001",
         semantic_type="close_case",
         received_at=ACT_AT,

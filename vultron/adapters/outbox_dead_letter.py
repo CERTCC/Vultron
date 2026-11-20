@@ -60,7 +60,7 @@ class OutboxDeadLetterEntry(CoreRecord):
         failed_recipients: Actor IDs that could not be reached.
         ledger_entry_id: ID of the ``CaseLedgerEntry`` whose event this activity
             was replicating, or ``None`` when the activity is not an
-            ``Announce(CaseLedgerEntry)`` (OX-14-001, OX-14-003).
+            ``Add(CaseLedgerEntry)`` (OX-14-001, OX-14-003).
         recorded_at: UTC timestamp when the dead-letter was recorded, read
             from the store's bookkeeping clock (ADR-0176).
     """

@@ -66,6 +66,7 @@ def clock_decision_stage(
     *,
     sender_guarded: bool,
     post_close_exemption: PostCloseExemption | None,
+    run_time_case: bool = False,
 ) -> CaseManagerGate:
     """The tree's clock decisions, run only at the case's CASE_MANAGER.
 
@@ -86,13 +87,14 @@ def clock_decision_stage(
     computes a clock decision (CM-28-014).
 
     Raises:
-        VultronWiringError: *case_id* is ``None`` — there is no case whose
+        VultronWiringError: *case_id* is ``None`` and no lookup publishes
+            the case (*run_time_case*) — there is no case whose
             CASE_MANAGER could take the decision — the tree has no sender
             guard or is exempt from the post-close boundary, or a decision
             holds the received activity's commit.
     """
     where = f"create_receive_activity_tree({name})"
-    if case_id is None:
+    if case_id is None and not run_time_case:
         raise VultronWiringError(
             f"{where}: clock_decisions need a case_id or manager_case_id,"
             " the case whose CASE_MANAGER takes them (CLP-10-050)"
@@ -131,11 +133,14 @@ def case_and_tree_decisions(
     *,
     sender_guarded: bool,
     post_close_exemption: PostCloseExemption | None,
+    run_time_case: bool = False,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The case-wide clock decisions, then the tree's own.
 
     The case-wide decisions (the embargo end-time check, EMB-13-003) run on
-    every tree that names a case, has a sender guard and keeps the
+    every tree that names a case, at build time or through its lookup
+    (*run_time_case*, whose decisions read the published ``/case_id``), has
+    a sender guard and keeps the
     post-close boundary, because both door guards must run before the
     CASE_MANAGER writes (HP-01-006, CM-23-013).  A tree with no sender guard
     takes them once it declares its sender rule (HP-01-008); a tree exempt
@@ -143,7 +148,8 @@ def case_and_tree_decisions(
     decisions are returned as given, so :func:`clock_decision_stage`
     refuses them on a tree where they cannot run.
     """
-    if case_id is None or not sender_guarded or post_close_exemption:
+    named = case_id is not None or run_time_case
+    if not named or not sender_guarded or post_close_exemption:
         return tree_decisions
     return [*case_clock_decisions(case_id), *tree_decisions]
 
@@ -152,12 +158,16 @@ def ledger_position_stage(
     name: str,
     sender_context: SenderContext | None,
     exemption: LedgerPositionExemption | None,
+    *,
+    run_time_case: bool = False,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The CASE_MANAGER's answer to the sender's stamped ledger position.
 
     Placed in every tree whose sender guard checks a named sender against a
     named case, the case and sender the position is about (SYNC-18-004,
-    SYNC-18-005, SYNC-18-007).  A tree with no sender guard (a subtree of
+    SYNC-18-005, SYNC-18-007); a case the tree's lookup publishes
+    (*run_time_case*) is named too, and the stage reads it from
+    ``/case_id``.  A tree with no sender guard (a subtree of
     one that has it, or a tree that names no case) has no position to
     answer; a tree whose sender and case are read from a received ledger
     activity at run time is about an activity outside SYNC-18-001's scope.
@@ -182,7 +192,7 @@ def ledger_position_stage(
         return []
     if not isinstance(sender_context, SenderCheckContext):
         return []
-    if sender_context.case_id is None:
+    if sender_context.case_id is None and not run_time_case:
         return []
     return [
         create_ledger_position_stage(
@@ -195,6 +205,8 @@ def sender_sequence_stage(
     name: str,
     sender_context: SenderContext | None,
     exemption: SenderSequenceExemption | None,
+    *,
+    run_time_case: bool = False,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The CASE_MANAGER's judgment of the received ``senderSequence``.
 
@@ -225,7 +237,7 @@ def sender_sequence_stage(
         return []
     if not isinstance(sender_context, SenderCheckContext):
         return []
-    if sender_context.case_id is None:
+    if sender_context.case_id is None and not run_time_case:
         return []
     return [
         create_sender_sequence_stage(

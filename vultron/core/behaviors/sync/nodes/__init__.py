@@ -23,14 +23,14 @@ continue to work without modification.
 Submodules:
 - ``conditions``: Idempotency guard and sender verification condition nodes
 - ``receive``: Log entry delivery and validation action nodes
-- ``replay_held``: Replay the held Announce of a ledger successor (SYNC-14-009)
+- ``replay_held``: Replay the held Add of a ledger successor (SYNC-14-009)
 - ``chain``: Chain reconstruction and log entry creation action nodes
 - ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
 - ``replay``: Reject- and Read-driven replay action nodes for replication
 - ``replay_case``: the case a replay or position statement is about
 - ``ledger_position``: the CASE_MANAGER's answer to the ``ledgerPosition``
   every case activity stamps: lag, split, inert sender (SYNC-18)
-- ``position_statement``: the ``Read(CaseLedgerEntry)`` position check and
+- ``position_statement``: the ``Read(<case>/ledger)`` position check and
   the participant's position statements (SYNC-17)
 - ``invite_resend``: the resend of each Invite a participant that states its
   position still owes an answer to (SYNC-20)
@@ -40,7 +40,7 @@ Submodules:
   peer acknowledged that re-seed's position, WARNING before (SYNC-16)
 - ``hash_mismatch``: the CASE_MANAGER's ERROR report of a replica's
   hash-mismatch fault, with a re-check of its own copy (SYNC-03-010)
-- ``verified_send``: the one ``send_announce_log_entry`` call, behind the
+- ``verified_send``: the one ``send_add_log_entry`` call, behind the
   CASE_MANAGER's send-side hash check (SYNC-03-009)
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
 - ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)

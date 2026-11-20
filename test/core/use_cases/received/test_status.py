@@ -137,7 +137,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_case_activity(
             status,
-            target=case,
+            case=case,
             actor=_CASE_MANAGER_ID,
             to=[dl.actor_id],
             at=authored_at(),
@@ -206,7 +206,7 @@ class TestStatusUseCases:
         dl.create(status)
         activity = add_status_to_case_activity(
             status,
-            target=case,
+            case=case,
             actor=_CASE_MANAGER_ID,
             to=[dl.actor_id],
             at=authored_at(),
@@ -275,7 +275,7 @@ class TestStatusUseCases:
                 make_payload(
                     add_status_to_case_activity(
                         carried,
-                        target=case,
+                        case=case,
                         actor=_CASE_MANAGER_ID,
                         to=[dl.actor_id],
                         at=authored_at(),
@@ -333,7 +333,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_case_activity(
             bad_status,
-            target=case,
+            case=case,
             actor=_CASE_MANAGER_ID,
             to=[dl.actor_id],
             at=authored_at(),
@@ -401,7 +401,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_case_activity(
             bad_status,
-            target=case,
+            case=case,
             actor=sender_id,
             to=[receiver_id],
             at=authored_at(),
@@ -461,7 +461,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_case_activity(
             bad_status,
-            target=case,
+            case=case,
             actor=_CASE_MANAGER_ID,
             to=["https://test.example/api/v2/actors/test-actor"],
             at=authored_at(),
@@ -537,7 +537,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_participant_activity(
             dup_status,
-            target=participant,
+            participant=participant,
             actor=sender_id,
             to=[receiver_id],
             context=case,
@@ -619,7 +619,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_participant_activity(
             dup_status,
-            target=participant,
+            participant=participant,
             actor=sender_id,
             to=[receiver_id],
             context=case,
@@ -685,7 +685,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_case_activity(
             asserted_status,
-            target=case,
+            case=case,
             actor=_CASE_MANAGER_ID,
             to=["https://test.example/api/v2/actors/test-actor"],
             at=authored_at(),
@@ -751,7 +751,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor="https://example.org/users/vendor",
             context=case_ps2,
             at=authored_at(),
@@ -822,7 +822,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_participant_activity(
             make(as_ParticipantStatus, id_=status_id, context=status_ctx),
-            target=as_CaseParticipant.model_validate(
+            participant=as_CaseParticipant.model_validate(
                 with_times(
                     as_CaseParticipant,
                     target.model_dump(by_alias=True, mode="json"),
@@ -953,7 +953,7 @@ class TestStatusUseCases:
                             id_=f"{unheld.id_}/statuses/s1",
                             context=case.id_,
                         ),
-                        target=unheld,
+                        participant=unheld,
                         actor=sender,
                         to=[dl.actor_id],
                         context=case.id_,
@@ -981,14 +981,15 @@ class TestStatusUseCases:
         assert dl.read(unheld.id_) is None
 
     @pytest.mark.spec("HP-08-013")
-    @pytest.mark.spec("HP-01-039")
-    def test_add_participant_status_carried_by_reference_is_refused_at_the_path_stage(
+    @pytest.mark.spec("HP-08-007")
+    def test_add_participant_status_carried_by_reference_is_refused_before_the_commit(
         self, make_payload
     ):
-        """A status carried by reference names no case, so the tree is built
-        with none and its path stage refuses the no-case path before
-        anything is committed: the status does not say it is the target's
-        case (HP-08-013, HP-01-039)."""
+        """The tree is built on the Add's ``context`` (ADR-0204), but a status
+        carried by reference that the receiver does not hold names no case,
+        so the carried-object guard refuses it before anything is committed:
+        the status does not say it is the target's case (HP-08-007,
+        HP-08-013)."""
         from unittest.mock import PropertyMock, patch
 
         dl = SqliteDataLayer(
@@ -1009,7 +1010,7 @@ class TestStatusUseCases:
         event = make_payload(
             add_status_to_participant_activity(
                 make(as_ParticipantStatus, id_=status_id, context=case.id_),
-                target=make(
+                participant=make(
                     as_CaseParticipant,
                     id_=participant.id_,
                     context=case.id_,
@@ -1044,9 +1045,8 @@ class TestStatusUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
-        assert "holds no replica of the case this activity names" in (
-            result.reason
-        ), result.reason
+        assert "names no case" in result.reason, result.reason
+        assert "HP-08-007" in result.reason, result.reason
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         stored = cast(as_CaseParticipant, dl.read(participant.id_))
         assert status_id not in [
@@ -1084,7 +1084,7 @@ class TestStatusUseCases:
                     id_=f"{case.id_}/statuses/s1",
                     context=case.id_,
                 ),
-                target=make(
+                participant=make(
                     as_CaseParticipant,
                     id_=participant.id_,
                     context=case.id_,
@@ -1117,9 +1117,71 @@ class TestStatusUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason == (
-            "Add(ParticipantStatus) is missing its status id or participant id"
+            "Add(ParticipantStatus) is missing its status id or a"
+            " participant status history target (ADR-0204)"
         )
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+
+    @pytest.mark.spec("VAM-08-004")
+    def test_add_participant_status_to_the_record_itself_is_refused(
+        self, make_payload
+    ):
+        """ADR-0204: the pre-history form, a status added to the participant
+        record rather than to its status history, names no participant
+        history, so the incomplete-activity tree refuses it even when it
+        names its case in ``context``; nothing is committed or appended."""
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Add,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        sender = "https://example.org/users/vendor"
+        case = make(
+            as_VulnerabilityCase,
+            id_="https://example.org/cases/case_ps_record_target",
+            name="Case",
+            attributed_to=dl.actor_id,
+        )
+        seed_store_owner_as_case_manager(dl, case)
+        participant = seed_case_participant(dl, case, sender)
+        dl.create(case)
+        status_id = f"{participant.id_}/statuses/old-form"
+        built = add_status_to_participant_activity(
+            make(as_ParticipantStatus, id_=status_id, context=case.id_),
+            participant=participant.id_,
+            actor=sender,
+            to=[dl.actor_id],
+            at=authored_at(),
+        )
+        old_form = as_Add.model_validate(
+            built.model_dump(by_alias=True) | {"target": participant.id_}
+        )
+        event = make_payload(old_form, receiving_actor_id=dl.actor_id, at=dl)
+        assert event.participant_id is None
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = run_in_act(
+            AddParticipantStatusToParticipantReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == (
+            "Add(ParticipantStatus) is missing its status id or a"
+            " participant status history target (ADR-0204)"
+        )
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+        stored = cast(as_CaseParticipant, dl.read(participant.id_))
+        assert status_id not in [
+            getattr(s, "id_", s) for s in stored.participant_statuses
+        ]
 
     @pytest.mark.spec("HP-08-008")
     def test_add_participant_status_to_a_record_naming_no_case_is_refused(
@@ -1158,7 +1220,7 @@ class TestStatusUseCases:
                             id_=status_id,
                             context=case.id_,
                         ),
-                        target=as_CaseParticipant.model_validate(
+                        participant=as_CaseParticipant.model_validate(
                             with_times(
                                 as_CaseParticipant,
                                 target.model_dump(by_alias=True, mode="json"),
@@ -1236,7 +1298,7 @@ class TestStatusUseCases:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=vendor_id,
             to=[vendor_id],
             context=case,
@@ -1303,7 +1365,8 @@ class TestStatusUseCases:
         guard = find_node(tree, ActivityIncompleteNode)
         assert guard is not None
         assert guard.reason == (
-            "Add(ParticipantStatus) is missing its status id or participant id"
+            "Add(ParticipantStatus) is missing its status id or a"
+            " participant status history target (ADR-0204)"
         )
 
 
@@ -1410,7 +1473,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[case_actor_id],
             context=case,
@@ -1431,7 +1494,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1
         assert cast(CaseLedgerEntry, entries[0]).semantic_type == (
@@ -1465,7 +1528,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[case_actor_id],
             context=case,
@@ -1494,7 +1557,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert entries == []
 
@@ -1537,7 +1600,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             duplicate_closed_status,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[case_actor_id],
             context=case,
@@ -1562,7 +1625,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert entries == []
 
@@ -1604,7 +1667,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[case_actor_id],
             context=case,
@@ -1651,7 +1714,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[case_actor_id],
             context=case,
@@ -1673,7 +1736,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1
 
@@ -1713,7 +1776,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=case_actor_id,
             to=[non_case_actor_id],
             context=case,
@@ -1740,7 +1803,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert entries == []
 
@@ -1777,7 +1840,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=reporter_actor_id,
             to=[case_actor_id],
             context=case,
@@ -1804,7 +1867,7 @@ class TestParticipantStatusLogEntryCascade:
             cast(CaseLedgerEntry, obj)
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1
         assert entries[0].payload_snapshot.get("actor") == reporter_actor_id
@@ -1817,7 +1880,7 @@ class TestParticipantStatusLogEntryCascade:
             if (
                 queued is None
                 or getattr(queued, "type_", None)
-                != as_TransitiveActivityType.ANNOUNCE
+                != as_TransitiveActivityType.ADD
             ):
                 continue
             queued_object = getattr(queued, "object_", None)
@@ -1867,7 +1930,7 @@ class TestParticipantStatusLogEntryCascade:
 
         activity = add_status_to_participant_activity(
             pstatus,
-            target=participant,
+            participant=participant,
             actor=actor_id,
             to=[_case_actor_id],
             context=case,
@@ -1888,7 +1951,7 @@ class TestParticipantStatusLogEntryCascade:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1, (
             "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
@@ -1989,7 +2052,7 @@ class TestParticipantStatusSubjectIsTheSender:
         target = cast(as_CaseParticipant, dl.read(target_id))
         activity = add_status_to_participant_activity(
             status,
-            target=as_CaseParticipant.model_validate(
+            participant=as_CaseParticipant.model_validate(
                 with_times(
                     as_CaseParticipant,
                     target.model_dump(by_alias=True, mode="json"),

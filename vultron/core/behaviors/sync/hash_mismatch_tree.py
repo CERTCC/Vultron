@@ -24,11 +24,7 @@ SYNC-03-010).
 import py_trees
 
 from vultron.core.behaviors.act_key_scope import with_act_keys
-from vultron.core.behaviors.act_keys import (
-    ANNOUNCE_ID,
-    REFUSED_ENTRY,
-    SENDER_ID,
-)
+from vultron.core.behaviors.act_keys import SENDER_ID
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -38,29 +34,30 @@ from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sync.nodes.hash_mismatch import (
     ReportHashMismatchNode,
 )
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.behaviors.sync.refused_entry_fault_stages import (
+    refused_entry_fault_stages,
+)
 
 __all__ = ["create_hash_mismatch_fault_tree"]
 
 
 def create_hash_mismatch_fault_tree(
-    refused_entry: CaseLedgerEntry,
     *,
-    announce_id: str,
     sender_id: str,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Create the BT that reports a replica's hash-mismatch fault.
 
-    *refused_entry* is the entry the fault's ``inReplyTo`` ``Announce``
-    (*announce_id*) carried; its case is the case the fault concerns.  A
-    fault that names no ``Announce(CaseLedgerEntry)`` this store sent has no
-    case to answer for: the use case archives it with the intake-only tree
-    and refuses it, never calling this factory (ADR-0032).  At that case's
-    CASE_MANAGER the tree logs
-    the fault at ERROR with a re-check of the CASE_MANAGER's own copy of the
-    entry (:class:`ReportHashMismatchNode`, SYNC-03-010), in
-    ``manager_effects`` (BT-17-008); any other receiver does nothing.
+    The tree has the one shape of every refused-entry fault
+    (:mod:`~vultron.core.behaviors.sync.refused_entry_fault_stages`):
+    it finds the entry the fault's ``inReplyTo`` ``Add`` carried, and with
+    it the case the fault concerns, with a lookup node (BT-25-009), and
+    refuses a fault that names no ``Add(CaseLedgerEntry)`` this store sent,
+    since there is no case to report on (SYNC-03-008, BT-25-010).  At that
+    case's CASE_MANAGER the tree logs the fault at ERROR with a re-check of
+    the CASE_MANAGER's own copy of the entry (:class:`ReportHashMismatchNode`,
+    SYNC-03-010), in ``manager_effects`` (BT-17-008); any other receiver
+    does nothing.
 
     The sender guard is composed from the use case's declared rule on the
     entry's case, so a sender that is not an active participant is refused
@@ -71,35 +68,26 @@ def create_hash_mismatch_fault_tree(
     post-close boundary, as every received tree does (CM-23-013).
 
     Args:
-        refused_entry: The ``CaseLedgerEntry`` the replica refused.
-        announce_id: The fault's ``inReplyTo``: the refused ``Announce``.
         sender_id: The fault's ``actor``: the replica that refused it.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
-    case_id = refused_entry.case_id
+    stages = refused_entry_fault_stages(
+        answer="report on", requirement="SYNC-03-008"
+    )
     return create_receive_activity_tree(
         name="HashMismatchFaultReceivedBT",
         case_id=None,
         precondition_guards=[],
-        # The fault answers an Announce this store sent, so it reaches the
-        # CASE_MANAGER that holds the canonical ledger and nobody else; a
-        # fault is replication signalling and is never relayed to a replica
-        # (SYNC-16-002, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER},
+        case_lookup=stages.case_lookup,
+        # Why each of these is fixed for every refused-entry fault:
+        # refused_entry_fault_stages (SYNC-16-002, BT-25-010, HP-01-041).
+        commits_lookup_case=False,
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.NO_CASE},
+        case_resolution=stages.case_resolution,
         sender_rule=sender_rule,
-        sender_context=SenderCheckContext(
-            sender_id=sender_id, case_id=case_id
-        ),
+        sender_context=SenderCheckContext(sender_id=sender_id),
         manager_effects=[
-            with_act_keys(
-                ReportHashMismatchNode(),
-                {
-                    REFUSED_ENTRY: refused_entry,
-                    SENDER_ID: sender_id,
-                    ANNOUNCE_ID: announce_id,
-                },
-            ),
+            with_act_keys(ReportHashMismatchNode(), {SENDER_ID: sender_id}),
         ],
-        manager_case_id=case_id,
         manager_gate_name="ReportIfCaseManager",
     )

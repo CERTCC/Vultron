@@ -19,9 +19,11 @@ trigger-side tests for the same requirements are in
 ``test_case_joining_trigger.py``.
 """
 
+import dataclasses
 from contextlib import nullcontext
 from datetime import datetime, timedelta
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -43,10 +45,12 @@ from test.core.use_cases.triggers.test_case_joining_trigger import (
 )
 from test.support.act_clock import clock_at
 from test.support.act_runner import FixedClock, run_in_act, run_tree
+from test.support.case_preview import in_force_embargo, wire_preview
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import (
     activate,
     propose,
+    register,
     reject,
     terminate as terminate_register,
     write_consent_rows,
@@ -55,7 +59,6 @@ from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
 from test.support.objects import authored_at, make
 from test.support.received import received_event
-from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -63,9 +66,12 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     RecordedStubInvite,
+    current_preview_embargo_end,
     outstanding_stale_stubs,
     recorded_stub_invites,
     replacement_for,
@@ -73,7 +79,11 @@ from vultron.core.behaviors.case.stub_invite_lifetime import (
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.events.actor import OfferActorToCaseReceivedEvent
+from vultron.core.models.case_preview import preview_embargo_id
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events.actor import (
+    InviteActorToCaseReceivedEvent,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_EXPIRY,
@@ -87,17 +97,17 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
-from vultron.core.use_cases.received.actor.suggest import (
-    OfferActorToCaseReceivedUseCase,
+from vultron.core.use_cases.received.actor.invite import (
+    InviteActorToCaseReceivedUseCase,
 )
-from vultron.core.use_cases.triggers.actor import SvcSuggestActorToCaseUseCase
 from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
-    SuggestActorToCaseTriggerRequest,
     TerminateEmbargoTriggerRequest,
 )
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import remove_embargo_from_case_activity
+from vultron.wire.as2.factories import (
+    remove_embargo_from_case_activity,
+    rm_invite_to_case_activity,
+)
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -262,7 +272,8 @@ def test_a_revise_stub_deadline_is_capped_by_the_embargo_in_force(
 
     invite = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
 
-    assert invite["object"]["preview"]["activeEmbargo"]["id"] == in_force.id_
+    shown = in_force_embargo(wire_preview(invite))
+    assert shown is not None and shown["id"] == in_force.id_
     assert _deadline(invite) == in_force.end_time
 
 
@@ -480,32 +491,24 @@ def test_manager_refuses_a_reinvite_of_a_closed_participant(
         dl, manager.id_, invitee.id_, RM.CLOSED
     )
     _hold_case_owner(dl, case.id_, manager.id_)
-    offer = activity_of(
-        run_in_act(
-            SvcSuggestActorToCaseUseCase(
-                dl,
-                SuggestActorToCaseTriggerRequest(
-                    actor_id=manager.id_,
-                    case_id=case.id_,
-                    suggested_actor_id=invitee.id_,
-                    roles=[CVDRole.VENDOR],
-                ),
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=SyncActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                clock=SystemClock(),
-            )
-        )
+    # The Case Owner's own Invite, as it arrives (CM-17-007); the trigger
+    # would refuse it before sending, so it is built here.
+    owner_invite = rm_invite_to_case_activity(
+        invitee,
+        case=dl.read_case(case.id_),
+        roles=["vendor"],
+        actor=manager.id_,
+        to=[manager.id_],
+        at=authored_at(),
     )
-    stored = dl.read(offer["id"])
-    event = received_event(stored, at=dl).model_copy(
+    event = received_event(owner_invite, at=dl).model_copy(
         update={"receiving_actor_id": manager.id_}
     )
-    assert isinstance(event, OfferActorToCaseReceivedEvent)
+    assert isinstance(event, InviteActorToCaseReceivedEvent)
     before = set(dl.outbox_list())
 
     result = run_in_act(
-        OfferActorToCaseReceivedUseCase(
+        InviteActorToCaseReceivedUseCase(
             dl,
             event,
             trigger_activity=TriggerActivityAdapter(dl),
@@ -584,7 +587,7 @@ def test_a_replacement_carries_a_new_deadline_and_current_terms_and_roles(
     dl.create(invitee)
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
     original = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
-    assert original["object"]["preview"].get("activeEmbargo") is not None
+    assert in_force_embargo(wire_preview(original)) is not None
     roster_before = dl.read_case(case.id_)
     assert roster_before is not None
 
@@ -800,7 +803,8 @@ def _send_stub_invite_during_revision(
     invite = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
 
     # The stub carries the embargo in force, not the open revision (CM-17-002, CM-17-014).
-    assert invite["object"]["preview"]["activeEmbargo"]["id"] == in_force
+    shown = in_force_embargo(wire_preview(invite))
+    assert shown is not None and shown["id"] == in_force
     stored = dl.read_case(case.id_)
     assert stored is not None
     return owner, invitee, dl, stored, revision.id_, invite
@@ -819,7 +823,7 @@ def _run_reissue(dl: Any, case_id: str, owner_id: str) -> BTExecutionResult:
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ),
-        tree=ReissueStubInvitesNode(case_id=case_id),
+        tree=with_act_keys(ReissueStubInvitesNode(), {CASE_KEY: case_id}),
         actor_id=owner_id,
     )
 
@@ -874,10 +878,8 @@ def test_an_activated_revision_reissues_a_stub_sent_in_revise(
         i for i in _invites_to(dl, invitee.id_) if i.id_ != invite["id"]
     ]
     assert replacement.in_reply_to == invite["id"]
-    carried = getattr(
-        getattr(replacement.object_, "preview", None), "active_embargo", None
-    )
-    assert getattr(carried, "id_", carried) == revision_id
+    carried = preview_embargo_id(getattr(replacement.object_, "preview", None))
+    assert carried == revision_id
 
 
 @pytest.mark.spec("CM-11-016")
@@ -1089,3 +1091,97 @@ def test_the_end_time_decision_commits_the_reissued_stub_invite_last(
     ]
     assert all(e.payload_snapshot["actor"] == owner.id_ for e in added)
     assert added[-1].payload_snapshot["inReplyTo"] == original["id"]
+
+
+class _Built(Exception):
+    """Stops the re-issue once the build's inputs are captured."""
+
+
+@pytest.mark.spec("CM-11-044")
+@pytest.mark.spec("CM-24-020")
+@pytest.mark.parametrize(
+    ("asker", "credited"),
+    [
+        ("https://example.org/actors/owner", True),
+        ("https://example.org/actors/manager", False),
+    ],
+    ids=["delegated", "self-asked"],
+)
+def test_a_re_issue_credits_the_asker_and_names_the_stub_it_supersedes(
+    monkeypatch: pytest.MonkeyPatch, asker: str, credited: bool
+) -> None:
+    """A replacement continues the thread of stub Invites (CM-11-044).
+
+    It credits whoever asked for the stub it replaces, carrying out what that
+    stub carried out, and on the wire names the stub it supersedes.  A stub
+    the CASE_MANAGER asked for itself credits no one (CM-24-021).
+    """
+    from vultron.core.behaviors.case.nodes import stub_reissue
+
+    captured: dict[str, Any] = {}
+
+    def _capture(**kwargs: Any) -> tuple[str, str]:
+        captured.update(kwargs)
+        raise _Built
+
+    monkeypatch.setattr(stub_reissue, "build_stub_invite", _capture)
+    node = stub_reissue.ReissueStubInvitesNode()
+    # The node reads its case from /case_id when it ticks (BTND-01-008);
+    # this test calls the build step directly, so it sets the case read.
+    node.case_id = "https://example.org/cases/c"
+    node.actor_id = "https://example.org/actors/manager"
+    node.trigger_activity_factory = object()  # type: ignore[assignment]
+    node._require_act_instant = now_utc  # type: ignore[method-assign]
+    stale = dataclasses.replace(
+        _stub(
+            "https://example.org/invites/stale",
+            minutes=0,
+            in_reply_to="https://example.org/activities/request",
+        ),
+        attributed_to=asker,
+    )
+
+    with pytest.raises(_Built):
+        node._build_send_and_commit(MagicMock(), stale, None)
+
+    assert captured["in_reply_to"] == "https://example.org/invites/stale"
+    authorship = captured["authorship"]
+    if credited:
+        assert authorship.attributed_to == asker
+        assert (
+            authorship.in_reply_to == "https://example.org/activities/request"
+        )
+    else:
+        assert authorship.attributed_to is None
+        assert authorship.in_reply_to is None
+
+
+@pytest.mark.spec("CM-11-014")
+@pytest.mark.parametrize("held_inline", [True, False], ids=["inline", "by-id"])
+def test_the_deadline_cap_reads_the_in_force_embargo_however_it_is_held(
+    held_inline: bool,
+) -> None:
+    """The cap is the end of the embargo the stub carries: read from the
+    register when it holds the embargo whole, else from the store; a case
+    with no embargo in force has no cap."""
+    case_id = "https://example.org/cases/deadline-cap"
+    embargo = make(EmbargoEvent, context=case_id, end_time=days_from_now(3))
+    case = make(
+        VulnerabilityCase,
+        id_=case_id,
+        attributed_to="https://example.org/actors/owner",
+        embargo_register=register(
+            active=embargo if held_inline else embargo.id_
+        ),
+    )
+    store = MagicMock()
+    store.read.return_value = embargo
+
+    assert current_preview_embargo_end(store, case) == embargo.end_time
+    assert store.read.called is not held_inline
+    bare = make(
+        VulnerabilityCase,
+        id_=case_id,
+        attributed_to="https://example.org/actors/owner",
+    )
+    assert current_preview_embargo_end(store, bare) is None

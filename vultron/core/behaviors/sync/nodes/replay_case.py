@@ -44,15 +44,14 @@ def replay_case_id(activity: Any, node_name: str) -> str:
     """Return the case whose ledger a peer's activity asks to have replayed.
 
     The activity's ``replay_case_id``: for a ``Reject(CaseLedgerEntry)`` the
-    rejected entry's case, or the ``target`` of the Reject that names no
-    entry because its sender holds none (SYNC-16-027); for a
-    ``Read(CaseLedgerEntry)`` the case its ``context`` names (SYNC-17-001).
+    rejected entry's case; for a ``Read(<case>/ledger)`` the case its
+    ``context`` names (SYNC-17-001).
     Raises ``VultronError`` when the activity names none (BT-HELPER-01).
     """
     case_id = getattr(activity, "replay_case_id", None)
     if isinstance(case_id, str) and case_id:
         return case_id
-    return require_rejected_entry(activity, node_name).case_id
+    return require_rejected_entry(activity, node_name).context
 
 
 def require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:

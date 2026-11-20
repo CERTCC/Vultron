@@ -45,7 +45,10 @@ from typing import Any
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.case_preview import previewed_case_id
+from vultron.core.models.case_preview import (
+    preview_embargo_id,
+    previewed_case_id,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
@@ -109,12 +112,9 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
     invite_id = getattr(obj, "id_", None)
     if not isinstance(case_id, str) or not invitee_id or not invite_id:
         return None
-    # Plain attribute access, not ``getattr`` with a string: no core string
-    # constant names a retired key (MV-11-012).
-    try:
-        embargo = reference.preview.active_embargo
-    except AttributeError:
-        embargo = None
+    # The embargo terms the preview's in-force register entry shows, by id;
+    # a withheld or id-less embargo names none (ADR-0217).
+    embargo_id = preview_embargo_id(getattr(reference, "preview", None))
     return RecordedStubInvite(
         invite_id=invite_id,
         invitee_id=invitee_id,
@@ -122,7 +122,7 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
         published=getattr(obj, "published", None) or _EARLIEST,
         end_time=getattr(obj, "end_time", None),
         in_reply_to=_as_id(getattr(obj, "in_reply_to", None)),
-        embargo_id=_as_id(embargo) if embargo is not None else None,
+        embargo_id=embargo_id,
         roles=tuple(getattr(obj, "roles", None) or ()),
         attributed_to=_as_id(getattr(obj, "attributed_to", None)),
     )
@@ -210,9 +210,9 @@ def superseded_reason(
 def current_preview_embargo_id(case: VulnerabilityCase) -> str | None:
     """The embargo whose terms a stub Invite sent now would carry.
 
-    A stub carries the embargo in force whenever there is one: EM ``ACTIVE``
-    or ``REVISE``, never the open revision (CM-17-002, CM-17-014).  With none in force it
-    carries none.
+    The embargo of the one register entry a preview's ``embargoRegister``
+    keeps, the in-force one: EM ``ACTIVE`` or ``REVISE``, never the open
+    revision (CM-17-002, CM-17-014).  With none in force it carries none.
     """
     return case.active_embargo_id
 
@@ -220,11 +220,14 @@ def current_preview_embargo_id(case: VulnerabilityCase) -> str | None:
 def current_preview_embargo_end(
     dl: CasePersistence, case: VulnerabilityCase
 ) -> datetime | None:
-    """The end of the embargo a stub sent now would carry; caps its deadline."""
-    embargo_id = current_preview_embargo_id(case)
-    if embargo_id is None:
-        return None
-    embargo = dl.read(embargo_id)
+    """The end of the embargo a stub sent now would carry; caps its deadline.
+
+    Read from the in-force entry's embargo when the register holds it whole,
+    as the preview carries it, else from the store.
+    """
+    embargo: object = case.active_embargo
+    if isinstance(embargo, str):
+        embargo = dl.read(embargo)
     return embargo.end_time if isinstance(embargo, EmbargoEvent) else None
 
 

@@ -60,7 +60,11 @@ from vultron.core.models.base import (
     ValidatedAssignmentMixin,
     with_record_id,
 )
-from vultron.core.models.vulnerability_item import CveId, NoteCategory
+from vultron.core.models.vulnerability_item import (
+    CveId,
+    NoteCategory,
+    require_cve_entry_format,
+)
 from vultron.errors import VultronValidationError
 
 
@@ -143,11 +147,18 @@ class ClaimedAcknowledgment(_ClaimsModel):
 class ClaimedVulnerabilityId(_ClaimsModel):
     """One tracking ID the document states: a named system and its label.
 
-    ``text`` is copied as written and never parsed (CM-05-008).
+    ``text`` is copied as written and never parsed (CM-05-008), except that a
+    ``CVE`` entry's must be a CVE ID, as the item it becomes requires
+    (CM-05-019).
     """
 
     system_name: NonEmptyString
     text: NonEmptyString
+
+    @model_validator(mode="after")
+    def _cve_entry_has_the_cve_id_format(self) -> ClaimedVulnerabilityId:
+        require_cve_entry_format(self.system_name, self.text)
+        return self
 
 
 class ClaimedNote(_ClaimsModel):
@@ -168,10 +179,12 @@ class VulnerabilityClaims(_ClaimsModel):
 
     ``cve``, ``ids``, ``title``, ``notes`` and ``references`` are the
     vulnerability's identity fields, the ones a vulnerability item takes
-    (CM-05-018, CSAF-03-008): ``cve`` is its CVE ID, in the format CSAF
-    gives it (CM-05-019), and ``ids`` its other tracking IDs, each with the
-    system that names it.  ``exploitation`` is the SSVC Exploitation value
-    key as written (``N``, ``P`` or ``A`` in SSVC v2): the wire edge copies
+    (CM-05-018, CSAF-03-008), as the document states them: ``cve`` is its
+    CVE ID, in the format CSAF gives it (CM-05-019), and ``ids`` its other
+    tracking IDs, each with the system that names it.  The item keeps the
+    CVE ID among its ``ids`` (:func:`ids_from_csaf`).  ``exploitation`` is
+    the SSVC Exploitation value key as written (``N``, ``P`` or ``A`` in
+    SSVC v2): the wire edge copies
     it as a string, and core maps it onto its own SSVC type, because wire
     code may not import the scoring package (ARCH-22-001).
     ``first_known_exploitation_dates`` lists the exploitation dates of the

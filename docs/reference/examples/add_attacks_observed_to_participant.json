@@ -6,11 +6,12 @@
   ],
   "type": "Add",
   "id": "urn:uuid:259b3fb9-430d-4e80-9a25-a852cb0e8354",
-  "name": "https://vultron.example/organizations/finder Add ACCEPTED NONE pxA to https://vultron.example/cases/1/participants/finder",
+  "name": "https://vultron.example/organizations/finder Add ACCEPTED NONE pxA to https://vultron.example/cases/1/participants/finder/statuses",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/organizations/finder",
-  "target": "https://vultron.example/cases/1/participants/finder",
+  "target": "https://vultron.example/cases/1/participants/finder/statuses",
   "object": {
     "id": "https://vultron.example/cases/1/participants/finder/status/7",
     "type": "ParticipantStatus",
@@ -28,7 +29,7 @@
       "id": "https://vultron.example/cases/1/status/7",
       "type": "CaseStatus",
       "name": "NONE pxA",
-      "context": "https://vultron.example/cases/1",
+      "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
       "published": "2026-06-01T19:18:00.000000+00:00",
       "emState": "NONE",
       "pxaState": "pxA"
@@ -45,6 +46,6 @@
     "verificationMethod": "https://vultron.example/organizations/finder#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5E7ar5k61NwB9KtmiczsNayi4G4PJxUX4LWXz68P8BUfv1jWMAB8P7RoJNTL6YJz4WcBQpDiaznSAcHjVqxrCHtL"
+    "proofValue": "z2hTNpV2FpwHiHJZJ765B9oxpRr7e7Y51LG7d7xjrJkJsPiQRCjrDXdwr1auFKQc21Jt9geK1rzfpneBEmMwojrqJ"
   }
 }

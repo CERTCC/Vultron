@@ -100,7 +100,7 @@ def reject_proposed_embargo_bt(
         children=[
             ReadEmStateNode(case_id=case_id, result_out=result_out),
             IsProposedEmbargoNode(case_id=case_id, result_out=result_out),
-            ResolveCaseManagerNode(case_id=case_id),
+            with_case_id(ResolveCaseManagerNode(), case_id),
             *_by_role(
                 "AbandonProposedEmbargo",
                 case_id,
@@ -120,7 +120,7 @@ def reject_proposed_embargo_bt(
 
 def terminate_embargo_bt(
     *,
-    case_id: str,
+    case_id: str | None,
     result_out: dict[str, object],
     termination: TerminationRequest | ChosenTermination,
     activity_builder: EmbargoActivityBuilder | None = None,
@@ -205,9 +205,9 @@ def terminate_embargo_bt(
         name="TerminateEmbargoBT",
         memory=True,
         children=[
-            HasActiveEmbargoNode(case_id=case_id, result_out=result_out),
-            ReadEmbargoIdNode(case_id=case_id),
-            ResolveCaseManagerNode(case_id=case_id),
+            with_case_id(HasActiveEmbargoNode(result_out=result_out), case_id),
+            with_case_id(ReadEmbargoIdNode(), case_id),
+            with_case_id(ResolveCaseManagerNode(), case_id),
             *_by_role(
                 "TerminateEmbargo",
                 case_id,
@@ -226,11 +226,21 @@ def terminate_embargo_bt(
                     notices,
                     # Termination changes the terms of every stub Invite still
                     # outstanding (CM-11-016).
-                    ReissueStubInvitesNode(
-                        case_id=case_id, actor_config=actor_config
+                    with_case_id(
+                        ReissueStubInvitesNode(actor_config=actor_config),
+                        case_id,
                     ),
                 ],
-                otherwise=[ask],
+                # The ask reads the manager's id off ``/case_actor_id``, a key
+                # several nodes in this tree publish.  Until it has one
+                # source, a reader follows its own publisher in its own arm
+                # (``notes/bt-integration.md``), so the manager is resolved
+                # again here.  Today the value is the top-level resolve's: the
+                # failed role guards ahead of this arm write nothing.
+                otherwise=[
+                    with_case_id(ResolveCaseManagerNode(), case_id),
+                    ask,
+                ],
             ),
         ],
     )

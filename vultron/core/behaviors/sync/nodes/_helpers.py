@@ -31,6 +31,7 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.held_ledger_announces import hold_ledger_announce
 from vultron.errors import VultronWiringError
@@ -44,9 +45,9 @@ def hold_received_announce(
     activity: object,
     actor_id: str | None = None,
 ) -> bool:
-    """Hold the received ``Announce`` that carried *activity*'s ledger entry.
+    """Hold the received ``Add`` that carried *activity*'s ledger entry.
 
-    Holds the ``Announce`` as it was received, never its entry alone
+    Holds the ``Add`` as it was received, never its entry alone
     (:func:`~vultron.core.services.held_ledger_announces.hold_ledger_announce`,
     SYNC-14-001).  Returns whether it is now held.
 
@@ -79,7 +80,7 @@ def _extract_id_from_field(value: Any) -> str | None:
 
 
 class _LedgerEffectNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Base class for Announce(CaseLedgerEntry) received-side effect nodes.
+    """Base class for Add(CaseLedgerEntry) received-side effect nodes.
 
     Declares an ``activity`` input port and exposes ``_get_entry()`` to
     retrieve the log entry without repeating the import in every subclass.
@@ -103,8 +104,8 @@ class _LedgerEffectNode(DataLayerActionWithPorts, StateWriteCapable):
         except NoDataAvailable, NotImplementedError:
             self.activity = None
 
-    def _get_entry(self):  # type: ignore[return]
-        """Return the HashChainLedgerRecord from the blackboard activity."""
+    def _get_entry(self) -> CaseLedgerEntry:
+        """Return the CaseLedgerEntry from the blackboard activity."""
         return require_log_entry(self.activity, self.name)
 
     def update(self) -> Status:  # pragma: no cover

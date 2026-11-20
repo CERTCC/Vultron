@@ -634,7 +634,7 @@ class TestNoteUseCases:
         """A non-manager receiving Add(Note)[target=VulnerabilityCase] neither attaches
         nor commits.
 
-        Case replica updates arrive exclusively via Announce(CaseLedgerEntry)
+        Case replica updates arrive exclusively via Add(CaseLedgerEntry)
         fan-out (SYNC-02-001, SYNC-02-003). The tree declares the
         CASE_MANAGER path alone, so its path stage refuses the misaddressed
         note before anything is attached or committed (HP-01-039, #3752).
@@ -975,7 +975,7 @@ class TestNoteUseCases:
         # in the ledger store: the entry is recorded before it is fanned
         # out (VP-18-003).
         stored_at_fan_out: list[bool] = []
-        send_announce = sync_port.send_announce_log_entry
+        send_announce = sync_port.send_add_log_entry
 
         def recording_send_announce(
             entry: CaseLedgerEntry, actor_id: str, to: list[str], *, at
@@ -983,7 +983,7 @@ class TestNoteUseCases:
             stored_at_fan_out.append(dl.read(entry.id_) is not None)
             return bool(send_announce(entry, actor_id, to, at=at))
 
-        sync_port.send_announce_log_entry = recording_send_announce  # type: ignore[method-assign]
+        sync_port.send_add_log_entry = recording_send_announce  # type: ignore[method-assign]
         run_in_act(
             AddNoteToCaseReceivedUseCase(
                 dl,
@@ -1000,7 +1000,7 @@ class TestNoteUseCases:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert len(entries) == 1
         entry = cast(CaseLedgerEntry, entries[0])
@@ -1013,7 +1013,7 @@ class TestNoteUseCases:
             for queued in (
                 dl.read(activity_id) for activity_id in dl.outbox_list()
             )
-            if getattr(queued, "type_", None) == "Announce"
+            if getattr(queued, "type_", None) == "Add"
             and _as_id(getattr(queued, "object_", None)) == entry.id_
         ]
         assert announces
@@ -1122,7 +1122,7 @@ class TestNoteUseCases:
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
-            and cast(CaseLedgerEntry, obj).case_id == case_id
+            and cast(CaseLedgerEntry, obj).context == case_id
         ]
         assert entries == []
 

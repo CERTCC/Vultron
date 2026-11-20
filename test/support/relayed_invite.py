@@ -127,8 +127,7 @@ def seed_invitee_case(
             if policy_days is None
             else make(
                 EmbargoPolicy,
-                actor_id=INVITEE,
-                inbox=f"{INVITEE}/inbox",
+                attributed_to=INVITEE,
                 preferred_duration=timedelta(days=policy_days),
             )
         ),

@@ -701,7 +701,7 @@ class TestVendor1InvitesTheSecondVendor:
         """Bug #2135: the join broadcasts to every participant.
 
         Vendor2's reply to the full-case Invite and its RM triage both
-        broadcast ``Announce(CaseLedgerEntry)`` to all participants, so a
+        broadcast ``Add(CaseLedgerEntry)`` to all participants, so a
         Reporter without the case replica has no genesis hash to anchor the
         chain on.  The shared step owns the wait; this scenario is the one
         that reaches it through a Vendor as inviter.
@@ -1134,7 +1134,7 @@ class TestEveryoneCloses:
         state = _three_party_state()
         ledger = [
             {
-                "case_id": state.case.id_,
+                "context": state.case.id_,
                 "log_index": index,
                 "semantic_type": "close_case",
                 "payload_snapshot": {"actor": state.actor_id(name)},
@@ -1642,7 +1642,7 @@ class TestWaitForContiguousLedgerCoverage:
     """The pre-dump ledger coverage gate (issue #1363).
 
     The bug: the closure phase waited only for the tail entry hash before
-    dumping the logs.  Because ``Announce(CaseLedgerEntry)`` activities arrive
+    dumping the logs.  Because ``Add(CaseLedgerEntry)`` activities arrive
     independently, an intermediate entry (e.g. ``logIndex=17``) could arrive
     after the tail, leaving the JSONL with a gap.
     ``wait_for_contiguous_ledger_coverage`` closes the race by verifying that
@@ -1653,7 +1653,7 @@ class TestWaitForContiguousLedgerCoverage:
         """The dict ``GET /datalayer/CaseLedgerEntrys/`` returns."""
         return {
             f"entry-{i}": {
-                "case_id": case_id,
+                "context": case_id,
                 "log_index": i,
                 "entry_hash": f"hash{i:04d}",
             }
@@ -1775,7 +1775,7 @@ class TestWaitForSemanticTypeInLedger:
         """One entry per semantic type, in log order."""
         return {
             f"e{i}": {
-                "case_id": case_id,
+                "context": case_id,
                 "log_index": i,
                 "entry_hash": f"hash{i:04d}",
                 "semantic_type": et,
@@ -1825,7 +1825,7 @@ class TestWaitForSemanticTypeInLedger:
         entries = self._make_entries(case_id, ["validate_report"])
         other_entries = {
             "other-e0": {
-                "case_id": other_case_id,
+                "context": other_case_id,
                 "log_index": 0,
                 "entry_hash": "hashOther",
                 "semantic_type": "close_case",

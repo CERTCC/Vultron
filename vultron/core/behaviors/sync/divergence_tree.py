@@ -25,10 +25,7 @@ from datetime import datetime
 import py_trees
 
 from vultron.core.behaviors.act_key_scope import with_act_keys
-from vultron.core.behaviors.act_keys import CASE_ID, REFUSED_ENTRY, SENDER_ID
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_intake_only_received_tree,
-)
+from vultron.core.behaviors.act_keys import SENDER_ID
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -39,7 +36,9 @@ from vultron.core.behaviors.sync.nodes.reseed import (
     ReportRepeatDivergenceNode,
     ReseedPeerNode,
 )
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.behaviors.sync.refused_entry_fault_stages import (
+    refused_entry_fault_stages,
+)
 
 __all__ = ["RESEED_GATE_NAME", "create_case_diverged_fault_tree"]
 
@@ -48,7 +47,6 @@ RESEED_GATE_NAME = "ReseedIfCaseManager"
 
 
 def create_case_diverged_fault_tree(
-    refused_entry: CaseLedgerEntry | None,
     *,
     sender_id: str,
     sender_rule: SenderRule,
@@ -56,65 +54,61 @@ def create_case_diverged_fault_tree(
 ) -> py_trees.composites.Sequence:
     """Create the BT that re-seeds a replica reporting its case diverged.
 
-    *refused_entry* is the entry the fault's ``inReplyTo`` ``Announce``
-    carried; its case is the case the fault concerns.  ``None`` when the
-    fault names no ``Announce(CaseLedgerEntry)`` this store sent: there is no
-    case to answer for, so the tree only archives the fault and the handler
-    refuses it.  At that case's
-    CASE_MANAGER the tree logs a divergence the last re-seed's copy already
-    reflected, at ERROR once the peer acknowledged that copy's position and at
-    WARNING before, or when the fault's claimed time is at or before that
-    acknowledgement's (:class:`ReportRepeatDivergenceNode`, SYNC-16-008),
-    then sends the sender ``Announce(VulnerabilityCase)`` of its current
-    case, rate-bounded per peer (:class:`ReseedPeerNode`, SYNC-16-003,
-    SYNC-16-004).  Both are the CASE_MANAGER's own acts, so they sit in
-    ``manager_effects`` (BT-17-008); any other receiver does nothing.
+    The tree has the one shape of every refused-entry fault
+    (:mod:`~vultron.core.behaviors.sync.refused_entry_fault_stages`):
+    it finds the entry the fault's ``inReplyTo`` ``Add`` carried, and with
+    it the case the fault concerns, with a lookup node (BT-25-009), and
+    refuses a fault that names no ``Add(CaseLedgerEntry)`` this store sent,
+    since there is no case to re-seed (SYNC-16-003, BT-25-010).  At that
+    case's CASE_MANAGER the tree logs a divergence the last re-seed's copy
+    already reflected, at ERROR once the peer acknowledged that copy's
+    position and at WARNING before, or when the fault's claimed time is at
+    or before that acknowledgement's (:class:`ReportRepeatDivergenceNode`,
+    SYNC-16-008), then sends the sender ``Announce(VulnerabilityCase)`` of
+    its current case, rate-bounded per peer (:class:`ReseedPeerNode`,
+    SYNC-16-003, SYNC-16-004).  Both are the CASE_MANAGER's own acts, so
+    they sit in ``manager_effects`` (BT-17-008); any other receiver does
+    nothing.
 
     The sender guard is composed from the use case's declared rule on the
     entry's case, so a sender that is not an active participant is refused
-    before anything is recorded or sent (SYNC-16-011, HP-01-007).  Nothing is
-    committed: the fault is replication signalling (SYNC-16-002).  The tree
-    keeps the post-close boundary: once the case is fully closed the fault is
-    dropped like any other activity, since CM-23-042 lets only the ledger
-    replay keep serving.
+    before anything is recorded or sent (SYNC-16-011, HP-01-007); the
+    re-seed declares the same refusal should it ever be reached (CM-10-004).
+    Nothing is committed: the fault is replication signalling (SYNC-16-002).
+    The tree keeps the post-close boundary: once the case is fully closed
+    the fault is dropped like any other activity, since CM-23-042 lets only
+    the ledger replay keep serving.
 
     Args:
-        refused_entry: The ``CaseLedgerEntry`` the replica refused, or
-            ``None`` when the fault names none this store sent.
         sender_id: The fault's ``actor``: the replica to re-seed.
         sender_rule: The use case's declared sender rule (HP-01-008).
         fault_published: The ``published`` time the fault's sender claims,
             or ``None`` when it claims none (SYNC-16-008).
     """
-    if refused_entry is None:
-        return create_intake_only_received_tree("CaseDivergedFaultReceivedBT")
-    case_id = refused_entry.case_id
+    stages = refused_entry_fault_stages(
+        answer="re-seed", requirement="SYNC-16-003"
+    )
     return create_receive_activity_tree(
         name="CaseDivergedFaultReceivedBT",
         case_id=None,
         precondition_guards=[],
-        # The fault answers an Announce this store sent, so it reaches the
-        # CASE_MANAGER that holds the canonical ledger and nobody else; a
-        # fault is replication signalling and is never relayed to a replica
-        # (SYNC-16-002, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER},
+        case_lookup=stages.case_lookup,
+        # Why each of these is fixed for every refused-entry fault:
+        # refused_entry_fault_stages (SYNC-16-002, BT-25-010, HP-01-041).
+        commits_lookup_case=False,
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.NO_CASE},
+        case_resolution=stages.case_resolution,
         sender_rule=sender_rule,
-        sender_context=SenderCheckContext(
-            sender_id=sender_id, case_id=case_id
-        ),
+        sender_context=SenderCheckContext(sender_id=sender_id),
         manager_effects=[
             with_act_keys(
                 ReportRepeatDivergenceNode(fault_published=fault_published),
-                {
-                    CASE_ID: case_id,
-                    SENDER_ID: sender_id,
-                    REFUSED_ENTRY: refused_entry,
-                },
+                {SENDER_ID: sender_id},
             ),
             with_act_keys(
-                ReseedPeerNode(), {CASE_ID: case_id, SENDER_ID: sender_id}
+                ReseedPeerNode(refuses_withheld_peer=True),
+                {SENDER_ID: sender_id},
             ),
         ],
-        manager_case_id=case_id,
         manager_gate_name=RESEED_GATE_NAME,
     )

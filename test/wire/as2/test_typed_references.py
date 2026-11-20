@@ -37,8 +37,14 @@ from test.support.received import TEST_SENDER_POSITION
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_preview import (
+    CasePreview,
+    preview_in_force_entry,
+)
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.preview_object import is_loose_form_of
 from vultron.semantic_registry import extract_event, find_matching_semantics
 from vultron.wire.as2.errors import (
     VultronParseError,
@@ -245,9 +251,19 @@ def _stub(**extra: Any) -> dict[str, Any]:
     """A case preview (ADR-0205), as a stub Invite's case reference carries it."""
     return {
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "id": "https://example.org/previews/1",
         "summary": "A remote code execution vulnerability in widget.",
         **extra,
+    }
+
+
+def _in_force(embargo: dict[str, Any]) -> dict[str, Any]:
+    """A preview's fields showing *embargo* in force, with its EM state, as
+    a stub Invite's preview must (CM-17-002, CM-17-013)."""
+    return {
+        "embargoRegister": [{"embargo": embargo, "status": "ACTIVE"}],
+        "caseStatuses": [{"type": "CaseStatus", "emState": "ACTIVE"}],
     }
 
 
@@ -269,7 +285,7 @@ def test_a_case_preview_carries_no_time_of_its_own() -> None:
     ``published``, is a projection of the case it names, so neither the
     reference nor it is refused for one; the embargo it carries is a whole
     object and has its own."""
-    stub = _stub(activeEmbargo=_stub_embargo(published=PUBLISHED))
+    stub = _stub(**_in_force(_stub_embargo(published=PUBLISHED)))
 
     parsed = parse_activity(_stub_invite(stub))
 
@@ -279,15 +295,21 @@ def test_a_case_preview_carries_no_time_of_its_own() -> None:
 
 
 @pytest.mark.spec("CLP-15-011")
-def test_an_embargo_in_a_case_preview_without_published_is_refused() -> None:
-    """The rule reaches the whole objects inside a preview, naming where."""
-    stub = _stub(activeEmbargo=_stub_embargo())
+@pytest.mark.spec("MV-12-006")
+def test_an_embargo_in_a_case_preview_without_published_is_read_as_shown() -> (
+    None
+):
+    """A preview's contents are read as its sender showed them (ADR-0217),
+    so the rule does not reach an object inside a preview."""
+    stub = _stub(**_in_force(_stub_embargo()))
 
-    with pytest.raises(
-        VultronParseMissingPublishedError,
-        match=r"at 'object\.preview\.activeEmbargo'.*CLP-15-011",
-    ):
-        parse_activity(_stub_invite(stub))
+    activity = parse_activity(_stub_invite(stub))
+
+    preview = getattr(_object_of(activity), "preview", None)
+    assert isinstance(preview, CasePreview)
+    embargo = getattr(preview_in_force_entry(preview), "embargo", None)
+    assert is_loose_form_of(embargo, EmbargoEvent)
+    assert getattr(embargo, "published", None) is None
 
 
 def _object_of(activity: object) -> object:
@@ -365,15 +387,21 @@ def test_an_object_with_one_more_key_is_a_whole_object_not_a_reference() -> (
     [
         (
             "Remove",
-            "CaseParticipant",
-            {"target": CASE_ID},
-            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
+            "Organization",
+            {"origin": CASE_ID},
+            MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE,
         ),
         (
             "Add",
-            "CaseParticipant",
+            "Person",
             {"target": CASE_ID},
-            MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+            MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
+        ),
+        (
+            "Update",
+            "CaseParticipant",
+            {"context": CASE_ID},
+            MessageSemantics.UPDATE_CASE_PARTICIPANT,
         ),
         (
             "Announce",
@@ -395,8 +423,9 @@ def test_an_object_with_one_more_key_is_a_whole_object_not_a_reference() -> (
         ),
     ],
     ids=[
-        "Remove(CaseParticipant)",
-        "Add(CaseParticipant)",
+        "Remove(Organization)",
+        "Add(Person)",
+        "Update(CaseParticipant)",
         "Announce(EmbargoEvent)",
         "Add(Note)",
         "Offer(VulnerabilityReport)",
@@ -580,6 +609,7 @@ def test_a_case_reference_carrying_a_preview_is_no_case_reference() -> None:
             "type": "VulnerabilityCase",
             "preview": {
                 "type": "CasePreview",
+                "attributedTo": "https://example.org/actors/vendor",
                 "id": "https://example.org/previews/1",
                 "summary": "A remote code execution vulnerability.",
             },
@@ -641,12 +671,13 @@ def test_a_typed_reference_target_reaches_core_as_a_reference() -> None:
         context=CASE_ID,
         attributed_to=ACTOR,
     )
-    participant_id = "https://example.org/participants/p1"
+    # The participant's status history (ADR-0204), by typed reference.
+    history_id = "https://example.org/participants/p1/statuses"
     activity = parse_activity(
         _body(
             status.model_dump(mode="json", by_alias=True, exclude_none=True),
             "Add",
-            target={"id": participant_id, "type": "CaseParticipant"},
+            target={"id": history_id, "type": "OrderedCollection"},
             context=CASE_ID,
             ledgerPosition=TEST_SENDER_POSITION.model_dump(by_alias=True),
         )
@@ -661,7 +692,7 @@ def test_a_typed_reference_target_reaches_core_as_a_reference() -> None:
     snapshot_target = getattr(event.activity, "target", None)
     assert isinstance(snapshot_target, CoreObject)
     assert not isinstance(snapshot_target, as_TypedReference)
-    assert snapshot_target.id_ == participant_id
+    assert snapshot_target.id_ == history_id
 
 
 @pytest.mark.spec("EP-04-004")
@@ -690,3 +721,26 @@ def test_a_proposed_embargo_by_reference_is_no_proposal(
 
     assert found is None
     assert any("by reference" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("VAM-06-008")
+def test_a_received_announce_with_a_mismatched_reply_is_taken_as_received():
+    """The receiver is lenient about the Announce's ``inReplyTo``: it acts on
+    neither the field nor the Announce, so a mismatch is not refused."""
+    import json
+    from pathlib import Path
+
+    body = json.loads(
+        (
+            Path(__file__).parents[3]
+            / "docs/reference/examples/announce_participant_removal.json"
+        ).read_text(encoding="utf-8")
+    )
+    body["inReplyTo"] = "https://example.org/activities/other"
+
+    parsed = parse_activity(body)
+
+    assert (
+        find_matching_semantics(parsed)
+        is MessageSemantics.ANNOUNCE_ADMITTED_ACT
+    )

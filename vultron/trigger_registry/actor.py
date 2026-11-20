@@ -126,6 +126,9 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=_PARTICIPANT,
+        # An Owner that is the CASE_MANAGER stamps the stub Invite's reply
+        # deadline itself (CM-11-014).
+        takes_actor_config=True,
     ),
     TriggerEntry(
         verb="accept-actor-recommendation",

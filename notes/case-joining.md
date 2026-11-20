@@ -173,14 +173,27 @@ from its role (CLP-09).
   participant record (CM-11-018, CM-11-021) — never a silent no-op, never creates a
   participant; a full-case Invite reply from a participant that has not joined
   (CM-11-012).
-- **No roles means refuse, never default to VENDOR (CM-11-048, CM-11-050).**
-  `EvaluateDefaultRolesNode` returns `[]`, which the trigger turns into REFUSED;
-  `CreateInertInviteeParticipantNode` enforces the same rule.
+- **No roles means refuse, never default to VENDOR (CM-11-048, CM-11-050).** The
+  trigger refuses an Owner's Invite with none, the CASE_MANAGER refuses one that
+  arrives (`OwnerInviteRolesAreGrantableNode`), and
+  the seating node (`_SeatInertInviteeBase`) enforces the same rule.
+- **The Owner's Invite is the decision; the stub Invite is the ask (ADR-0199).** The
+  Case Owner sends its own `Invite(<case preview>)[target=<invitee>]` to the
+  CASE_MANAGER only (CM-17-007). Both share one wire shape, so the received tree tells
+  them apart by path: at the CASE_MANAGER an Invite is the Owner's; anywhere else it is
+  the stub. The CASE_MANAGER ledgers the Owner's Invite and makes the stub with
+  `attributedTo` = the Owner and `inReplyTo` = the Owner's Invite (CM-17-018), through
+  `owner_decided_stub_invite`, which an Owner holding the CASE_MANAGER role runs from
+  its trigger with neither field (CM-17-017). Refused with a notice: a sender without
+  `CASE_OWNER`, a `target` that is the CASE_MANAGER or the Owner, a removed, joined or
+  closed invitee, or no role (CM-17-026). The Owner's `Offer(Actor)` is refused too
+  (CM-17-027), so a recommendation is only ever a suggestion.
 - **Re-invite.** Same record, fresh stub Invite and deadline, `inReplyTo` the earlier
-  stub. Refused for a `CLOSED` participant (no rejoin, ADR-0085) and for one already
-  joined, before anything is queued or committed (`SuggestedActorIsInvitableNode`,
-  CM-16-006). The re-invite arm sits ahead of the duplicate arms, because an inert
-  record is on the roster and its stub is "in flight".
+  stub (CM-11-044 wins over CM-24-020). Refused for a `CLOSED` participant (no rejoin,
+  ADR-0085) and for one already joined, before anything is queued or committed
+  (`not_invitable_refusal`, CM-11-043). The re-invite arm comes first in
+  `owner_decided_stub_invite`, because an inert record is on the roster and needs no
+  second one.
 - **Embargo changes during the invitation window (CM-11-016).** The CASE_MANAGER
   re-issues an *outstanding* stub (unanswered, unexpired) with current terms, naming
   the one it supersedes. `Accept` of a superseded stub is refused with the replacement
@@ -200,15 +213,17 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 
 | Step | Message | Ledger | Effect |
 |---|---|---|---|
-| 1 | Case Owner sends `Remove(CaseParticipant)[target=VulnerabilityCase]` to the CASE_MANAGER | the received `Remove` is the one entry | removal fact set; participant leaves `activeParticipants` |
-| 2 | CASE_MANAGER sends the removed party a direct `Remove(CaseParticipant)` naming it | not ledgered | notice only |
+| 1 | Case Owner sends its own `Remove(<Actor>, origin=<case>)` to the CASE_MANAGER (`remove-participant` trigger) | the received `Remove` is the one entry | removal fact set; participant leaves `activeParticipants` |
+| 2 | CASE_MANAGER sends the removed actor `Announce(<the Owner's Remove>)` | not ledgered | notice only; the replica records it and writes nothing |
 | 3 | Removal entry fans out, the removed party included | — | each replica applies the fact by replay; it is the removed party's last entry |
 | 4 | Embargo terminated or shortened while it is removed | not sent to it | direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)`; its paused replica applies it |
-| 5 | Case Owner sends `Add(CaseParticipant)[target=VulnerabilityCase]` (today; #6465 makes it the Owner's own `Add(<Actor>, target=<case>)`, CM-31-011) | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
+| 5 | Case Owner sends its own `Add(<Actor>, target=<case>)` (`reinstate-participant` trigger, CM-31-011) | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006); `Announce(<the Owner's Add>)` to the actor |
 
-- **Only the Case Owner asks.** The CASE_MANAGER refuses anyone else, and a removal of
-  itself or the Case Owner; it never removes on its own. Self-removal is
-  `Leave(VulnerabilityCase)`.
+- **Only the Case Owner decides, and names the actor.** The act names the actor as a
+  typed reference, never its record (ADR-0199); the CASE_MANAGER finds the record
+  through `actor_participant_index` (CM-19-003). It refuses anyone else, and a move
+  naming itself or the Case Owner; it sends no `Accept`, makes no act of its own, and
+  never removes on its own. Self-removal is `Leave(VulnerabilityCase)`.
 - **Consent is untouched.** A removed or departed signatory stays bound and gets the
   direct embargo-ending notices (CM-31-009).
 - **Removal is not deletion and not a consent state.** Keep the record in
@@ -220,16 +235,16 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   reference, and persistence never stores it.
 - **Removal and reinstatement share one frame.** Both received trees
   (`create_remove_case_participant_received_tree`,
-  `create_add_case_participant_received_tree`) run the sender guard the factory
-  composes from the declared rule (Case Owner at the manager, CASE_MANAGER at a
-  replica, HP-01-008), their admission guard, the guarded
-  commit, then CASE_MANAGER-gated effects and notice, built on
-  `ParticipantMoveGuardNode` / `ParticipantMoveEffectNode` /
-  `EmitParticipantMoveNoticeNode`. A reinstatement guard failure is `REFUSED`,
-  except a repeat of an `Add` the ledger already records, which
-  `ActivityNotYetLedgeredNode` skips first (CLP-05-006). At a replica the
-  received tree writes nothing; the entry is replayed by the apply nodes, which
-  resolve the record through `actor_participant_index`.
+  `create_add_case_participant_received_tree`) declare the manager path alone, so
+  any other receiver refuses the act at the path stage (HP-01-038). They run the
+  sender guard (Case Owner only, HP-01-008), the admission guards, the guarded
+  commit, then the effects and the `Announce`, built on `ParticipantMoveGuardNode`
+  / `ParticipantMoveEffectNode` / `EmitAnnounceAdmittedActNode`. The named actor
+  is the `/participant_actor_id` key the runner seeds (BT-25-007). A guard failure
+  is `REFUSED` with a refusal notice, except a repeat of an `Add` the ledger
+  already records, which `ActivityNotYetLedgeredNode` skips first. The replica
+  records the `Announce` (`ANNOUNCE_ADMITTED_ACT`) and writes nothing; the entry is
+  replayed by the apply nodes, which resolve the record by the actor.
 - **A reinstatement request never seats a member** (CM-31-036). It is refused for
   a participant not removed or never joined. An acceptance of a stub Invite adds no
   record (CM-31-012): the record was added when the Invite went out (CM-11-023), and
@@ -256,7 +271,8 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 
 | What happens | Entry | A replica |
 |---|---|---|
-| the CASE_MANAGER sends the stub Invite | `invite_actor_to_case` | applies nothing |
+| the CASE_MANAGER admits the Case Owner's Invite | `invite_actor_to_case`, the Owner's Invite | applies nothing |
+| the CASE_MANAGER sends the stub Invite | `invite_actor_to_case`, its own Invite | applies nothing |
 | the CASE_MANAGER creates the inert record and adds it to the case | `add_case_participant_to_case`, `Add(CaseParticipant)` with the case as `target` | stores the record carried in the case `target` names |
 | the invitee sends `Accept(Invite(VulnerabilityCase preview)[target=Actor])`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
 | VF to `Vf` (VENDOR role only) | `add_participant_status_to_participant` | stores the status |

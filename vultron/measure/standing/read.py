@@ -163,7 +163,7 @@ def _unobservable_reason(
     )
 
 
-def _scored(
+def scored_move(
     prefix: CasePrefix | None,
     numbers: dict[str, int],
     move: RMMove | CSMove | EMMove,
@@ -263,7 +263,7 @@ def case_standing(
         participants=participants,
         vendors=list(numbers),
         moves=[
-            _scored(prefix, numbers, move, unobservable)
+            scored_move(prefix, numbers, move, unobservable)
             for p in participants
             for move in _moves_of(p)
         ],

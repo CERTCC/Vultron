@@ -14,19 +14,21 @@
   "actor": "https://vultron.example/organizations/vendorco",
   "ledgerPosition": {
     "logIndex": 0,
-    "entryHash": "a1c020aef39b15d839e36dc5f5563000c56d6f4e4fdbb669a807fab20c0736dd"
+    "entryHash": "f09b79ec9013551751a903a361bf0358df5739b769a2f5e908a4d98bd51ed483"
   },
   "object": {
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/2",
     "type": "CaseLedgerEntry",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2024-01-01T12:00:00.000000+00:00",
-    "caseId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "logIndex": 2,
     "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000003",
     "semanticType": "engage_case",
-    "payloadSnapshot": {},
-    "prevLogHash": "67bc0404dc325f47fc23af06c78abf9369264c0402873628dff816ca198875bb",
-    "entryHash": "7ccc3adbe7043d8a31cb0022f126812fabe1b4ead409c2710cf8f63e4ae76e9d",
+    "payloadSnapshot": {
+      "id": "https://vultron.example/activities/00000000-0000-0000-0000-000000000003"
+    },
+    "prevLogHash": "6d51c69e0b6e2ce33c464ece5ff0ec4b486b29f62734ba6123dead2a3f577633",
+    "entryHash": "d2c075a87b6930e11d5a09e41ded4d9c318a5e48797f5d3824b82d4ea8aade95",
     "receivedAt": "2024-01-01T12:00:00.000000+00:00"
   },
   "proof": {
@@ -40,6 +42,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5QwbPDq85MRDFXDa2Nr3kKNm33sGYX5KovMu9WxEHqsi35fYf4us3EKeG3YKCJ8kitaTMb2AgFG4s17QC884jt7Z"
+    "proofValue": "z2V8KVXkPnG3KCT7evV1zof49k3Np2m9v47bo7mzq7o7msGasy8vDHjfdu7CHrnG15xRCEiVrph418gWyBYVLrawL"
   }
 }

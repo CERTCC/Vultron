@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Ownership-transfer side-effect node for Announce(CaseLedgerEntry) processing.
+"""Ownership-transfer side-effect node for Add(CaseLedgerEntry) processing.
 
 Provides :class:`ApplyOwnershipTransferFromLedgerNode`, which copies the new
 Case Owner onto the local ``VulnerabilityCase.attributed_to`` when a
@@ -72,7 +72,7 @@ class ApplyOwnershipTransferFromLedgerNode(_LedgerEffectNode):
         assert self.datalayer is not None
 
         entry = self._get_entry()
-        case_id = entry.case_id
+        case_id = entry.context
         carried = entry.payload_snapshot.get("object")
         # The entry carries the owner in its writer's spelling; the replica
         # stores the canonical one (OID-01-006, #5919).

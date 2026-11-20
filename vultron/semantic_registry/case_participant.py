@@ -16,14 +16,16 @@
 from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case_participant import (
-    AddCaseParticipantToCaseReceivedEvent,
+    AnnounceAdmittedActReceivedEvent,
     CreateCaseParticipantReceivedEvent,
-    RemoveCaseParticipantFromCaseReceivedEvent,
+    ReinstateParticipantInCaseReceivedEvent,
+    RemoveParticipantFromCaseReceivedEvent,
     UpdateCaseParticipantReceivedEvent,
 )
 from vultron.core.use_cases.received.case_participant import (
-    AddCaseParticipantToCaseReceivedUseCase,
-    RemoveCaseParticipantFromCaseReceivedUseCase,
+    AnnounceAdmittedActReceivedUseCase,
+    ReinstateParticipantInCaseReceivedUseCase,
+    RemoveParticipantFromCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
@@ -32,51 +34,30 @@ from vultron.semantic_registry._occasion import (
     Occasion,
 )
 from vultron.wire.as2.extractor import (
-    AddCaseParticipantToCasePattern,
+    AnnounceAdmittedActPattern,
     CreateCaseParticipantPattern,
-    RemoveCaseParticipantFromCasePattern,
+    ReinstateParticipantInCasePattern,
+    RemoveParticipantFromCasePattern,
     UpdateCaseParticipantPattern,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
-    _AddParticipantToCaseActivity,
+    _AnnounceAdmittedActActivity,
     _CreateParticipantActivity,
-    _RemoveParticipantFromCaseActivity,
+    _ReinstateParticipantActivity,
+    _RemoveParticipantActivity,
     _UpdateParticipantActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [
+    # The Case Owner's own acts, naming the actor (ADR-0199): sent to the
+    # CASE_MANAGER only, which admits each as its ledger entry or refuses it.
     SemanticEntry(
-        semantics=MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
-        pattern=AddCaseParticipantToCasePattern,
-        event_class=AddCaseParticipantToCaseReceivedEvent,
-        use_case_class=AddCaseParticipantToCaseReceivedUseCase,
-        phrase="{actor} added {object} as a case participant",
-        wire_activity_class=_AddParticipantToCaseActivity,
-        include_activity=True,
-        occasions=(
-            Occasion(
-                when="the Case Owner reinstates a removed Participant",
-                anchor="add-case-participant-to-case",
-                addressee=AddresseeSide.CASE_MANAGER,
-                heading="Add case participant to case",
-                description=(
-                    "Asks the CASE_MANAGER to reinstate the participant record"
-                    " named by the object. The Participant becomes active "
-                    "again and receives the ledger entries it missed."
-                ),
-                example="add_coordinator_participant_to_case",
-                howto=HowToGuide.MANAGE_PARTICIPANTS,
-            ),
-        ),
-        page=MessagePage.CASE_MANAGEMENT,
-    ),
-    SemanticEntry(
-        semantics=MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
-        pattern=RemoveCaseParticipantFromCasePattern,
-        event_class=RemoveCaseParticipantFromCaseReceivedEvent,
-        use_case_class=RemoveCaseParticipantFromCaseReceivedUseCase,
+        semantics=MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE,
+        pattern=RemoveParticipantFromCasePattern,
+        event_class=RemoveParticipantFromCaseReceivedEvent,
+        use_case_class=RemoveParticipantFromCaseReceivedUseCase,
         phrase="{actor} removed {object} from the case",
-        wire_activity_class=_RemoveParticipantFromCaseActivity,
+        wire_activity_class=_RemoveParticipantActivity,
         include_activity=True,
         occasions=(
             Occasion(
@@ -84,15 +65,76 @@ ENTRIES: list[SemanticEntry] = [
                     "the Case Owner removes a Participant from active "
                     "participation"
                 ),
-                anchor="remove-case-participant-from-case",
+                anchor="remove-participant-from-case",
                 addressee=AddresseeSide.CASE_MANAGER,
-                heading="Remove case participant from case",
+                heading="Remove participant from case",
                 description=(
-                    "Asks the CASE_MANAGER to remove the participant record "
-                    "named by the object. The removed Participant receives a "
-                    "direct notice."
+                    "The Case Owner's own removal of the actor named by the "
+                    "object, from the case named by the origin. The "
+                    "CASE_MANAGER records it as the ledger entry and "
+                    "announces it to the removed actor."
                 ),
                 example="remove_participant_from_case",
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
+        pattern=ReinstateParticipantInCasePattern,
+        event_class=ReinstateParticipantInCaseReceivedEvent,
+        use_case_class=ReinstateParticipantInCaseReceivedUseCase,
+        phrase="{actor} reinstated {object} in the case",
+        wire_activity_class=_ReinstateParticipantActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when="the Case Owner reinstates a removed Participant",
+                anchor="reinstate-participant-in-case",
+                addressee=AddresseeSide.CASE_MANAGER,
+                heading="Reinstate participant in case",
+                description=(
+                    "The Case Owner's own reinstatement of the removed actor "
+                    "named by the object. The CASE_MANAGER records it as the "
+                    "ledger entry and announces it to the actor, which "
+                    "becomes active again and receives the ledger entries it "
+                    "missed."
+                ),
+                example="reinstate_participant_in_case",
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
+    ),
+    # The CASE_MANAGER's Announce of an act it admitted (ADR-0199): the most
+    # general Announce of an activity, so it follows every Announce entry
+    # that nests a specific act (SE-03-002).
+    SemanticEntry(
+        semantics=MessageSemantics.ANNOUNCE_ADMITTED_ACT,
+        pattern=AnnounceAdmittedActPattern,
+        event_class=AnnounceAdmittedActReceivedEvent,
+        use_case_class=AnnounceAdmittedActReceivedUseCase,
+        phrase="{actor} announced an act it admitted",
+        wire_activity_class=_AnnounceAdmittedActActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the CASE_MANAGER has admitted an act that concerns an "
+                    "actor the ledger fan-out does not reach, such as a "
+                    "removed or reinstated Participant"
+                ),
+                anchor="announce-admitted-act",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Announce admitted act",
+                description=(
+                    "Carries the admitted act inline, as it was received, and "
+                    "names it in inReplyTo. It informs and asks nothing: the "
+                    "receiver takes the change from the ledger entry that "
+                    "carries the act, never from the Announce."
+                ),
+                example="announce_participant_removal",
                 howto=HowToGuide.MANAGE_PARTICIPANTS,
             ),
         ),

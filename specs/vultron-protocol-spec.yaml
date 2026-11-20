@@ -2096,7 +2096,7 @@ groups:
     statement: >-
       Recipients SHOULD acknowledge the $E*$ messages they receive. Once a case exists,
       the acknowledgment ($EK$) is the CASE_MANAGER's ledger entry for the message,
-      fanned out to the participants as `Announce(CaseLedgerEntry)`; no $EK$ message
+      fanned out to the participants as `Add(CaseLedgerEntry)`; no $EK$ message
       exists (EP-09-009).
     rationale: >-
       An embargo message changes what participants may disclose. Acknowledging it tells
@@ -2867,7 +2867,7 @@ groups:
     kind: protocol
     statement: >-
       A participant MUST update its local case replica only by replaying ledger entries
-      from `Announce(CaseLedgerEntry)` fan-out.
+      from `Add(CaseLedgerEntry)` fan-out.
     rationale: >-
       Ledger replay is the intended propagation mechanism for keeping participant
       replicas consistent with canonical case state, in the ledger's order.
@@ -2900,7 +2900,7 @@ groups:
       `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
       confirms the path from the CASE_MANAGER on: a note a participant sends to
       the CASE_MANAGER is committed as a CaseLedgerEntry and broadcast to the
-      participants in an `Announce` of that entry. The first step, a participant
+      participants in an `Add` of that entry. The first step, a participant
       addressing the CASE_MANAGER alone, is the PCR-08-001 rule this one refines,
       and its own tests check it.
     relationships:
@@ -2939,8 +2939,8 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
       confirms that a participant's note is committed as a CaseLedgerEntry, that
-      the entry is already in the ledger store when each `Announce` of it is
-      queued, and that the `Announce` fanned out to the participants carries that
+      the entry is already in the ledger store when each `Add` of it is
+      queued, and that the `Add` fanned out to the participants carries that
       committed entry.
     relationships:
     - rel_type: refines

@@ -112,17 +112,16 @@ def _make_announce_event(
 def _make_offer_report_snapshot() -> dict:
     """Build a payload_snapshot for an add_report_to_case ledger entry.
 
-    Mirrors what build_add_report_to_case_snapshot produces when offer_id is
+    Mirrors what ``record_report_added_to_case`` seals when the Offer is
     known: type=Add, object={id=REPORT_ID, type=VulnerabilityReport},
-    actor=case-owner, offerId=OFFER_ID, offerActorId=REPORTER_ACTOR_ID.
+    actor=case-owner, inReplyTo=OFFER_ID (#6419).
     """
     return {
         "type": "Add",
         "published": "2026-01-01T00:00:00+00:00",
         "actor": CASE_OWNER_ACTOR_ID,
         "context": CASE_ID,
-        "offerId": OFFER_ID,
-        "offerActorId": REPORTER_ACTOR_ID,
+        "inReplyTo": OFFER_ID,
         "object": {
             "id": REPORT_ID,
             "type": "VulnerabilityReport",
@@ -146,7 +145,7 @@ def _make_offer_report_ledger_entry():
             log_index=1,
             object_id=REPORT_ID,
             semantic_type="add_report_to_case",
-            payload_snapshot=snapshot,
+            payload_snapshot={"id": REPORT_ID, **snapshot},
             prev_log_hash=CASE_GENESIS_HASH,
             received_at=ACT_AT,
         )

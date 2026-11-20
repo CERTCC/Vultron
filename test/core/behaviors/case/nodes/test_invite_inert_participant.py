@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for ``CreateInertInviteeParticipantNode`` (CM-11-006, BTND-05-003).
+"""Unit tests for seating an inert invitee, ``SeatOwnerInvitedInviteeNode`` (CM-11-006, BTND-05-003).
 
 The node seats the stub-Invite invitee as an inert participant and builds and
 attaches the record through the shared ``_create_and_attach_participant``
@@ -31,9 +31,11 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
 from test.support.objects import make
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import INVITEE_ID as INVITEE_ID_KEY
 from vultron.core.behaviors.case.nodes import invite_inert_participant
-from vultron.core.behaviors.case.nodes.invite_inert_participant import (
-    CreateInertInviteeParticipantNode,
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    SeatOwnerInvitedInviteeNode,
 )
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
@@ -71,8 +73,9 @@ def scenario() -> BTTestScenario:
 
 def _run(scenario: BTTestScenario, roles: list[str] | None) -> Any:
     return scenario.run(
-        CreateInertInviteeParticipantNode(
-            invitee_id=INVITEE_ID, case_id=CASE_ID, roles=roles
+        with_act_keys(
+            SeatOwnerInvitedInviteeNode(roles=roles or []),
+            {INVITEE_ID_KEY: INVITEE_ID},
         ),
         case_id=CASE_ID,
     )
@@ -143,10 +146,9 @@ class TestSeating:
         """
         scenario.assert_success(
             scenario.run(
-                CreateInertInviteeParticipantNode(
-                    invitee_id=f"{INVITEE_ID}/",
-                    case_id=CASE_ID,
-                    roles=["VENDOR"],
+                with_act_keys(
+                    SeatOwnerInvitedInviteeNode(roles=["VENDOR"]),
+                    {INVITEE_ID_KEY: f"{INVITEE_ID}/"},
                 ),
                 case_id=CASE_ID,
             )

@@ -776,16 +776,19 @@ class TestInviteActorUseCases:
         assert calls[0]["actor_id"] == owner_id
         assert calls[0]["tree"].name == "InviteActorToCaseReceivedBT"
 
-    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CM-17-026")
     @pytest.mark.spec("CLP-10-017")
-    def test_case_actor_redelivered_invite_is_skipped(self, make_payload):
-        """An Invite reaching the CASE_MANAGER's inbox reports SKIPPED on redelivery.
+    def test_case_actors_own_invite_at_its_inbox_is_refused(
+        self, make_payload
+    ):
+        """An Invite at the CASE_MANAGER's inbox is judged as an Owner's Invite.
 
-        The CASE_MANAGER emits and commits its own Invite and is never mailed
-        a copy (CM-17-006, ADR-0109).  Should one arrive anyway, the
-        invitee-only effects stay behind the replica gate — no trust anchor
-        is written — so the first delivery is APPLIED by intake and a
-        redelivery is the benign no-op of HP-01-003, never REFUSED.
+        The CASE_MANAGER emits and commits its own stub Invite and is never
+        mailed a copy (CM-17-006, ADR-0109), so an Invite that reaches it is
+        the Case Owner's decision (CM-17-007).  One whose sender is the
+        CASE_MANAGER, which does not hold ``CASE_OWNER``, is refused, with no
+        trust anchor written and nothing committed, and a redelivery is
+        refused again from its receipt stub (ADR-0154).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.received_activity_record import (
@@ -851,16 +854,20 @@ class TestInviteActorUseCases:
             )
         )
 
-        assert first.disposition is HandlerDisposition.APPLIED
-        assert second.disposition is HandlerDisposition.SKIPPED
+        assert first.disposition is HandlerDisposition.REFUSED
+        assert "CASE_OWNER" in (first.reason or ""), first.reason
+        assert second.disposition is HandlerDisposition.REFUSED
         from vultron.core.models.pending_case_inbox import (
             VultronPendingCaseInbox,
         )
 
         assert dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
-        archived = dl.read(ReceivedActivityRecord.build_id(invite.id_))
-        assert isinstance(archived, ReceivedActivityRecord)
-        assert archived.activity_id == invite.id_
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
+        # The CASE_MANAGER sends itself no refusal notice (CLP-05-001).
+        assert dl.outbox_list() == []
+        record = dl.read(ReceivedActivityRecord.build_id(invite.id_))
+        assert isinstance(record, ReceivedActivityRecord)
+        assert record.activity_id == invite.id_
 
     def test_reject_invite_actor_to_case_commits_ledger_entry(
         self, make_payload
@@ -926,7 +933,7 @@ class TestInviteActorUseCases:
         )
 
         # Seed the inert participant record the reject will close (CM-11-018).
-        # CreateInertInviteeParticipantNode would create this at invite-send
+        # The CASE_MANAGER would create this at invite-send
         # time; we seed it directly for the received-side test.
         inert_participant_id = f"{case_id}/participants/coordinator"
         inert_status = make(
@@ -979,7 +986,7 @@ class TestInviteActorUseCases:
         entries = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_id
+            if isinstance(e, WireCaseLedgerEntry) and e.context == case_id
         ]
         assert len(entries) >= 1, (
             "Expected at least one CaseLedgerEntry after reject-invite"
@@ -1473,7 +1480,7 @@ class TestInviteActorUseCases:
         entries = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, WireCaseLedgerEntry) and e.case_id == case.id_
+            if isinstance(e, WireCaseLedgerEntry) and e.context == case.id_
         ]
         assert len(entries) >= 1
         assert any(
@@ -1508,11 +1515,11 @@ class TestInviteActorUseCases:
 
         announced_log_indices = [
             kwargs["entry"].log_index
-            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+            for _, kwargs in sync_port.send_add_log_entry.call_args_list
         ]
         announced_entries = [
             kwargs["entry"]
-            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+            for _, kwargs in sync_port.send_add_log_entry.call_args_list
         ]
         # Entry 2 (accept_invite): committed while the invitee is inert, so
         #   its fan-out does NOT include the invitee.  It is the invitee's
@@ -1658,7 +1665,7 @@ class TestInviteActorUseCases:
         self, make_payload
     ):
         """CM-17-004 (5) then (6): Announce(VulnerabilityCase) precedes every
-        Announce(CaseLedgerEntry) addressed to the invitee.
+        Add(CaseLedgerEntry) addressed to the invitee.
 
         A late joiner that receives a ledger entry before its case seed enters
         the SYNC-15 pre-genesis path — Reject, then a from-genesis replay that
@@ -1691,14 +1698,14 @@ class TestInviteActorUseCases:
             for name, _args, kwargs in manager.mock_calls
             if name == "trigger.announce_vulnerability_case"
             or (
-                name == "sync.send_announce_log_entry"
+                name == "sync.send_add_log_entry"
                 and invitee_id in kwargs.get("to", [])
             )
         ]
         assert ordered, "neither channel reached the invitee"
         assert ordered[0] == "trigger.announce_vulnerability_case", (
             "the invitee must receive Announce(VulnerabilityCase) before any"
-            f" Announce(CaseLedgerEntry); observed order: {ordered}"
+            f" Add(CaseLedgerEntry); observed order: {ordered}"
         )
         assert ordered.count("trigger.announce_vulnerability_case") == 1
 
@@ -1720,7 +1727,7 @@ class TestInviteActorUseCases:
         first, second = lj["first"], lj["second"]
         sync_port = MagicMock()
         # The backfill sends 0, 1, then the Accept's own entry (2).
-        sync_port.send_announce_log_entry.side_effect = [
+        sync_port.send_add_log_entry.side_effect = [
             None,
             None,
             RuntimeError("delivery refused"),
@@ -1738,11 +1745,11 @@ class TestInviteActorUseCases:
                 )
             )
 
-        assert sync_port.send_announce_log_entry.call_count == 3
+        assert sync_port.send_add_log_entry.call_count == 3
         ledger = [
             e.entry_hash
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == case.id_
+            if isinstance(e, CaseLedgerEntry) and e.context == case.id_
         ]
         assert ledger == [first.entry_hash, second.entry_hash], (
             "the Accept's own entry is rolled back with the backfill"
@@ -1766,7 +1773,7 @@ class TestInviteActorUseCases:
         assert result.disposition is HandlerDisposition.APPLIED, result
         sent = [
             call.kwargs["entry"].log_index
-            for call in sync_port.send_announce_log_entry.call_args_list
+            for call in sync_port.send_add_log_entry.call_args_list
         ]
         assert sent[:3] == [0, 1, 2]
         record = dl.read(case.actor_participant_index[invitee_id])
@@ -1810,14 +1817,14 @@ class TestInviteActorUseCases:
         assert dl.outbox_list() == []
         sent_to_invitee = [
             call.kwargs["entry"].log_index
-            for call in sync_port.send_announce_log_entry.call_args_list
+            for call in sync_port.send_add_log_entry.call_args_list
             if call.kwargs["to"] == [invitee_id]
         ]
         assert sent_to_invitee == [0]
         ledger = [
             e.log_index
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == case.id_
+            if isinstance(e, CaseLedgerEntry) and e.context == case.id_
         ]
         assert sorted(ledger) == [first.log_index, second.log_index], (
             "the Accept's own entry is rolled back with the backfill"
@@ -1932,7 +1939,7 @@ class TestInviteActorUseCases:
 
         announced_entries = [
             kwargs["entry"]
-            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+            for _, kwargs in sync_port.send_add_log_entry.call_args_list
         ]
         # The Accept's own entry (2) fans out while the invitee is inert, so
         # it skips the invitee; the backfill then sends 0, 1 and 2, and the
@@ -1964,7 +1971,7 @@ def _assert_a_duplicate_answer(
     ledger = [
         e.entry_hash
         for e in dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, CaseLedgerEntry) and e.case_id == case_id
+        if isinstance(e, CaseLedgerEntry) and e.context == case_id
     ]
     assert ledger == ledger_before, "a duplicate commits no ledger entry"
     stored = dl.read(record_before.id_)
@@ -1973,7 +1980,7 @@ def _assert_a_duplicate_answer(
         "a duplicate changes no participant record or consent row"
     )
     assert dl.outbox_list() == []
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     trigger.announce_vulnerability_case.assert_not_called()
     trigger.invite_actor_to_full_case.assert_not_called()
 
@@ -2688,7 +2695,7 @@ class TestInviteDispositions:
         assert not any(
             e.semantic_type == "accept_invite_actor_to_case" for e in ledger
         )
-        sync_port.send_announce_log_entry.assert_not_called()
+        sync_port.send_add_log_entry.assert_not_called()
 
     @pytest.mark.spec("HP-01-003")
     def test_accept_invite_redelivery_is_skipped(self, make_payload):

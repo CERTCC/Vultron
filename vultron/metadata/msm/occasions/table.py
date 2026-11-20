@@ -8,7 +8,6 @@ from pathlib import Path
 
 import yaml
 
-from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.metadata.base import (
     markdown_files,
     mkdocs_config,
@@ -36,7 +35,6 @@ from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
     MessagePage,
 )
-from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.extractor._pattern import ActivityPattern, ObjectForm
 
 #: Command that regenerates every artifact, quoted in every failure message.
@@ -119,24 +117,6 @@ TABLE_GROUPS: tuple[TableGroup, ...] = (
 # ---------------------------------------------------------------------------
 
 
-#: Object types a pattern matches on that the sender emits under another
-#: ``type``.  The embargo patterns match AS2 ``Event``, and the matcher accepts
-#: a plain ``as:Event`` as an embargo, which is a defect: the sender always
-#: emits ``EmbargoEvent``, receivers must accept only that, and Wire Activity
-#: notation writes the type the sender puts on the wire (Annex C).  This is a
-#: rendering override only.  #5155 owns fixing the patterns and the matcher,
-#: after which this table should become empty.
-_EMITTED_TYPE: Mapping[str, str] = {
-    str(AOtype.EVENT): str(VOtype.EMBARGO_EVENT),
-}
-
-
-def emitted_type(type_name: object) -> str:
-    """Return the ``type`` a sender emits for the pattern type *type_name*."""
-    name = str(type_name)
-    return _EMITTED_TYPE.get(name, name)
-
-
 def _formed(form: ObjectForm | None, type_name: str) -> str:
     """*type_name* as Wire Activity notation writes an object of *form*.
 
@@ -154,16 +134,16 @@ def _formed(form: ObjectForm | None, type_name: str) -> str:
 def format_pattern(pattern: ActivityPattern) -> str:
     """Render *pattern* as a compact wire-form string.
 
-    Object types are rendered as the sender emits them (:data:`_EMITTED_TYPE`),
-    and the form a pattern requires of its object (SE-01-009) is written
-    beside the type (:func:`_formed`), so two patterns that differ only in
-    form render apart.
+    Object types are rendered as the pattern names them, which is the type
+    the sender emits (Annex C), and the form a pattern requires of its object
+    (SE-01-009) is written beside the type (:func:`_formed`), so two patterns
+    that differ only in form render apart.
 
     Examples::
 
         Offer(VulnerabilityReport)
         Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
-        Add(CaseStatus)[target=VulnerabilityCase]
+        Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]
         Remove(Note)[origin=VulnerabilityCase]
         Invite(VulnerabilityCase preview)[target=Actor]
         Invite(whole VulnerabilityCase)[target=Actor]
@@ -174,7 +154,7 @@ def format_pattern(pattern: ActivityPattern) -> str:
             parts.append(f"({format_pattern(pattern.object_)})")
         else:
             parts.append(
-                f"({_formed(pattern.object_form, emitted_type(pattern.object_))})"
+                f"({_formed(pattern.object_form, str(pattern.object_))})"
             )
 
     qualifiers: list[str] = []
@@ -186,7 +166,7 @@ def format_pattern(pattern: ActivityPattern) -> str:
         if isinstance(value, ActivityPattern):
             qualifiers.append(f"{label}={format_pattern(value)}")
         elif value is not None:
-            qualifiers.append(f"{label}={emitted_type(value)}")
+            qualifiers.append(f"{label}={value}")
 
     qualifier_str = "[" + ", ".join(qualifiers) + "]" if qualifiers else ""
     return f"{pattern.activity_}" + "".join(parts) + qualifier_str

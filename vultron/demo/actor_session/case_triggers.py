@@ -131,25 +131,22 @@ class CaseTriggers(SessionBinding):
 
     def invite_actor_to_case(
         self, *, invitee_id: str, roles: list[CVDRole] | None = None
-    ) -> WireActivityResult:
-        """Ask the CASE_MANAGER to invite *invitee_id* (invite-actor-to-case).
+    ) -> WireTriggerResult:
+        """Send the CASE_MANAGER this Case Owner's Invite (invite-actor-to-case).
 
-        The result is the owner's own Offer to the CASE_MANAGER, not the
-        Invite: the CASE_MANAGER emits the Invite (CM-17-007, ADR-0109), so a
-        caller finds it on the invitee's side with
-        :func:`~vultron.demo.helpers.polling.find_case_invite_for_actor`.
+        The result's ``activity`` is the owner's own Invite to the
+        CASE_MANAGER, not the stub Invite: the CASE_MANAGER makes that from it
+        (CM-17-007, ADR-0199), so a caller finds it on the invitee's side with
+        :func:`~vultron.demo.helpers.polling.find_case_invite_for_actor`.  It
+        stays the wire ``dict``: its ``object`` is the case's previewed
+        reference, which only the case-Invite wire class reads (CM-11-013).
         """
         body: dict[str, Any] = {
             "case_id": self._require_case_id(),
             "invitee_id": invitee_id,
             **self._roles_body(roles),
         }
-        return cast(
-            WireActivityResult,
-            self._post(
-                "invite-actor-to-case", body, result_cls=WireActivityResult
-            ),
-        )
+        return self._post("invite-actor-to-case", body)
 
     def suggest_actor_to_case(
         self, *, suggested_actor_id: str, roles: list[CVDRole] | None = None
@@ -173,6 +170,38 @@ class CaseTriggers(SessionBinding):
     def accept_full_case_invite(self, *, invite_id: str) -> WireTriggerResult:
         """Judge the case valid: Accept the full-case Invite (RV, CM-11-011)."""
         return self._post("accept-full-case-invite", {"invite_id": invite_id})
+
+    def remove_participant(
+        self, *, participant_actor_id: str
+    ) -> WireTriggerResult:
+        """Remove an actor from the bound case, as Case Owner (remove-participant).
+
+        Sends ``Remove(<Actor>, origin=<case>)`` to the CASE_MANAGER
+        (CM-31-004, ADR-0199).
+        """
+        return self._post(
+            "remove-participant",
+            {
+                "case_id": self._require_case_id(),
+                "participant_actor_id": participant_actor_id,
+            },
+        )
+
+    def reinstate_participant(
+        self, *, participant_actor_id: str
+    ) -> WireTriggerResult:
+        """Reinstate a removed actor, as Case Owner (reinstate-participant).
+
+        Sends ``Add(<Actor>, target=<case>)`` to the CASE_MANAGER
+        (CM-31-011, ADR-0199).
+        """
+        return self._post(
+            "reinstate-participant",
+            {
+                "case_id": self._require_case_id(),
+                "participant_actor_id": participant_actor_id,
+            },
+        )
 
     def accept_actor_recommendation(
         self, *, cp_offer_id: str, case_actor_id: str

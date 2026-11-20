@@ -108,7 +108,7 @@ def _harness_entry(
     semantic_type: str = "add_note_to_case",
 ) -> dict:
     entry: dict = {
-        "caseId": CASE_ID,
+        "context": CASE_ID,
         "logIndex": log_index,
         "semanticType": semantic_type,
         "payloadSnapshot": {"actor": ACTOR_ID},
@@ -148,7 +148,7 @@ def test_clp_14_002_published_non_null_enforced_by_model():
     with pytest.raises(ValidationError):
         make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_object_id=OBJ_ID,
             semantic_type="test",
             published=None,  # type: ignore[arg-type]
@@ -207,8 +207,8 @@ def test_clp_14_004_same_case_id_enforced_by_ledger():
 
 
 @pytest.mark.spec("CLP-14-012")
-def test_clp_14_012_an_entry_joins_only_the_ledger_its_case_id_names():
-    """No ledger takes an entry whose ``case_id`` is another case's.
+def test_clp_14_012_an_entry_joins_only_the_ledger_its_context_names():
+    """No ledger takes an entry whose ``context`` is another case's.
 
     A holder files a received entry in the ledger of the case the entry
     names (``store_ledger_entry``), so an entry for another case it holds
@@ -249,18 +249,29 @@ def test_clp_14_012_an_entry_joins_only_the_ledger_its_case_id_names():
     assert ledger_tail_position(CASE_ID, dl).log_index == -1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CLP-14-012: a ledger entry still names its case in case_id. "
-    "Tracked by #6411.",
-)
 @pytest.mark.spec("CLP-14-012")
 def test_clp_14_012_an_entry_names_its_case_in_context():
     """The case a ledger entry belongs to is its AS2 ``context`` (ADR-0194)."""
     fields = CaseLedgerEntry.model_fields
     assert "case_id" not in fields
     assert fields["context"].is_required()
+
+
+@pytest.mark.spec("CLP-14-012")
+def test_clp_14_012_an_entry_id_is_its_context_and_log_index():
+    """The entry id is derived from its ``context`` and ``logIndex``."""
+    entry = CaseLedgerEntry.model_validate(
+        {
+            "context": CASE_ID,
+            "logIndex": 4,
+            "logObjectId": OBJ_ID,
+            "semanticType": "test",
+            "published": ACT_AT,
+            "receivedAt": ACT_AT,
+        }
+    )
+    assert entry.id_ == f"{CASE_ID}/log/4"
+    assert entry.model_dump(by_alias=True, mode="json")["context"] == CASE_ID
 
 
 @pytest.mark.spec("CLP-14-005")

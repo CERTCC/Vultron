@@ -60,7 +60,6 @@ __all__ = [
     "ANNOUNCE_ID",
     "CASE_ACTOR_ID",
     "CASE_ID",
-    "CASE_MANAGER_ID",
     "CAUSE_ID",
     "EMBARGO",
     "EMBARGO_ID",
@@ -71,8 +70,10 @@ __all__ = [
     "OBJECT_ID",
     "OFFER_ID",
     "OWNER_PROFILE",
+    "PARTICIPANT_ACTOR_ID",
     "PARTICIPANT_ID",
     "PROPOSAL_ID",
+    "REFUSED_ACTIVITY_ID",
     "REFUSED_ENTRY",
     "REPORT_ID",
     "RUN_KEYS",
@@ -170,8 +171,9 @@ PROPOSAL_ID = _act_key(
 ANNOUNCE_ID = _act_key(
     "announce_id",
     str,
-    "The id of the Announce activity the act answers or names, such as the"
-    " Announce(CaseLedgerEntry) a replica's processing fault refers to.",
+    "The id of the activity that carried a ledger entry the act answers or"
+    " names, such as the Add(CaseLedgerEntry) a replica's processing fault"
+    " refers to.",
 )
 PARTICIPANT_ID = _act_key(
     "participant_id",
@@ -198,11 +200,19 @@ OBJECT_ID = _act_key(
     " seeds it; a tree reads a narrower key above when one names the value.",
 )
 
+REFUSED_ACTIVITY_ID = _act_key(
+    "refused_activity_id",
+    str,
+    "The id of the activity a refusal notice says the CASE_MANAGER refused:"
+    " the one its ``inReplyTo`` names, else its ``object`` (CLP-05-001,"
+    " CLP-06-006).",
+)
+
 REFUSED_ENTRY = _act_key(
     "refused_entry",
     CaseLedgerEntry,
     "The ledger entry a replica's processing fault reports it refused: the"
-    " entry the fault's Announce(CaseLedgerEntry) carried (SYNC-03-007,"
+    " entry the fault's Add(CaseLedgerEntry) carried (SYNC-03-007,"
     " SYNC-16-008).",
 )
 
@@ -219,17 +229,20 @@ INVITEE_ID = _act_key(
     str,
     "The id of the actor an invitation names as its invitee.",
 )
-CASE_MANAGER_ID = _act_key(
-    "case_manager_id",
+PARTICIPANT_ACTOR_ID = _act_key(
+    "participant_actor_id",
     str,
-    "The id of the CASE_MANAGER actor of the case a trigger acts on, as"
-    " ``ResolveCaseManagerNode`` publishes it.",
+    "The id of the actor whose participant record the act names, such as"
+    " the actor a Case Owner's removal or reinstatement names; the record is"
+    " read from the case's ``actor_participant_index`` (CM-19-003).",
 )
 CASE_ACTOR_ID = _act_key(
     "case_actor_id",
     str,
-    "The id of the CASE_MANAGER actor of the case, as the path stage, the"
-    " manager-role guard and the replay stage publish it.",
+    "The id of the CASE_MANAGER actor of the case the act is about, as the"
+    " path stage, the manager-role guard, the replay stage and"
+    " ``ResolveCaseManagerNode`` publish it.  The one key for that id:"
+    " every tree reads the manager from it.",
 )
 EMBARGO_PROPOSER_ID = _act_key(
     "embargo_proposer_id",

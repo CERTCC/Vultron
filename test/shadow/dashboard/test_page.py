@@ -1,7 +1,8 @@
 """The case shadow tool's page, run headless with Streamlit's ``AppTest``.
 
 The real script over a committed recording shows the case's states,
-desiderata and open moves (AC-1); the move advice reads band by band, with
+desiderata and open moves (AC-1), and each narrative line its hindsight
+mark (#6672); the move advice reads band by band, with
 its shades, marks, harms and unbanded moves (#6603); a fake reader's
 untranslated facts, inferences and unobservable facts are shown beside the
 analysis (AC-2); a read the reader refuses, a ledger with a hole, a reading
@@ -25,6 +26,7 @@ from vultron.config import clear_config_cache, config_override
 from vultron.config.shadow import ShadowConfig
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.advice import (
+    BAND_COLOUR_MAPS,
     CHANCE_EVENT,
     DOMINATED_BY_HARM_FREE,
     HARM_NOTE,
@@ -40,6 +42,7 @@ from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
     END_UNCONFIRMED_NOTE,
     HEARTBEAT_KEY,
+    HINDSIGHT_NOTE,
     LAST_READING_KEY,
     LIVE_NOTE,
     NARRATIVE_NOTE,
@@ -101,7 +104,7 @@ _ADVICE_PAGE = """
 from test.measure.history.builders import two_vendors_ledger
 from vultron.measure.advice import case_advice
 from vultron.measure.standing import case_standing
-from vultron.shadow.dashboard.page import _show_advice
+from vultron.shadow.dashboard.page.advice import _show_advice
 
 _show_advice(case_advice(case_standing(two_vendors_ledger().case_ledger())), {})
 """
@@ -181,7 +184,7 @@ render(Watched([__ANSWERS__]))
 
 def _follow_page(answers: str) -> AppTest:
     """The follow page over *answers*, its case entered and followed."""
-    case_id = recording_rows(_RV)[0]["caseId"]
+    case_id = recording_rows(_RV)[0]["context"]
     script = _FOLLOW_PAGE.replace("__ANSWERS__", answers)
     at = AppTest.from_string(script, default_timeout=_TIMEOUT).run()
     at.text_input[0].input(case_id).run()
@@ -236,12 +239,14 @@ _COLUMNS = {
     ],
     "Case narrative": [
         "#",
+        "Hindsight",
         "Time",
         "Committed",
         "Actor",
         "Activity",
         "Object",
         "State changes",
+        "Hindsight note",
     ],
     "Not translated": ["Source record", "Fact", "Why"],
     "Inferred": ["Entry", "Rule", "Caveat"],
@@ -316,7 +321,9 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
     # No move of this recording trades off or is unhelpful: each band says
     # so, the unhelpful one inside its closed group.
     assert BAND_EMPTY[Band.TRADE_OFF] in _texts(at.caption)
-    (unhelpful,) = at.expander
+    (unhelpful,) = [
+        e for e in at.expander if str(e.label).startswith("Unhelpful")
+    ]
     assert _texts(unhelpful.caption) == [BAND_EMPTY[Band.UNHELPFUL]]
     # The recording ends on the CASE_MANAGER's closure: nothing follows.
     assert not any("moved on" in c for c in _texts(at.caption))
@@ -365,7 +372,7 @@ def test_each_state_is_shown_on_its_machines_map(recordings_app):
 
 
 _NO_PARTICIPANTS_PAGE = """
-from vultron.shadow.dashboard.page import _show_participant_minimaps
+from vultron.shadow.dashboard.page.scoreboard import _show_participant_minimaps
 
 _show_participant_minimaps([], {})
 """
@@ -381,7 +388,7 @@ from vultron.measure.sequences import (
     UnprojectableReason,
 )
 from vultron.measure.standing import CaseStanding, ParticipantStanding
-from vultron.shadow.dashboard.page import _show_participant_minimaps
+from vultron.shadow.dashboard.page.scoreboard import _show_participant_minimaps
 
 VENDOR = "https://vendor.example/actors/vendor"
 _show_participant_minimaps(
@@ -479,6 +486,43 @@ def test_a_recorded_case_shows_its_narrative_one_line_per_entry(
     assert narrative["Activity"].tolist()[0] == "Case Actor created the case"
     changes = " ".join(narrative["State changes"])
     assert "EM: " in changes and "VFD: " in changes and "PXA: " in changes
+
+
+def test_each_narrative_line_carries_its_hindsight_mark_in_its_shade(
+    recordings_app,
+):
+    """#6672 AC-1: one mark per line, each an icon from the mark table,
+    with the note saying what it graded; a best, good or sub-optimal mark's
+    cell alone takes a shade from its band's legend."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    assert not at.exception
+    assert HINDSIGHT_NOTE in _texts(at.caption)
+    narrative = _table(at, "Case narrative")
+    marks = narrative[view.HINDSIGHT_COLUMN].tolist()
+    labels = {f"{icon} {mark}" for mark, icon in view.HINDSIGHT_ICONS.items()}
+    assert set(marks) <= labels
+    assert "⭐ best" in marks and "💬 not a move" in marks
+    notes = narrative[view.HINDSIGHT_NOTE_COLUMN].tolist()
+    assert all(
+        note for mark, note in zip(marks, notes, strict=True) if "💬" in mark
+    )
+    styles = _frame(at, "Case narrative").proto.arrow_data.styler.styles
+    # Only the mark's column is styled, and only on a shaded mark's row.
+    assert set(re.findall(r"_col(\d+)", styles)) == {"1"}
+    assert {int(r) for r in re.findall(r"row(\d+)_col1", styles)} == {
+        row
+        for row, mark in enumerate(marks)
+        if mark.split()[0] in ("⭐", "👍", "⚠️")
+    }
+    shaded = _BACKGROUND.findall(styles)
+    legend_shades = {
+        s.background
+        for colour_map in BAND_COLOUR_MAPS.values()
+        for deepest in range(1, 6)
+        for s in view.band_legend_shades(colour_map, deepest)
+    }
+    assert set(shaded) <= legend_shades
 
 
 #: The tables a scoreboard draws, which follow the picked point.
@@ -715,7 +759,9 @@ def test_the_bands_are_shown_in_order_with_the_unhelpful_one_collapsed(
         m for m in markdowns if m.startswith("**") and m.endswith("**")
     ]
     assert band_titles[:2] == ["**Harm-free**", "**Trade-off**"]
-    (unhelpful,) = at.expander
+    (unhelpful,) = [
+        e for e in at.expander if str(e.label).startswith("Unhelpful")
+    ]
     assert unhelpful.label.startswith("Unhelpful (")
     assert unhelpful.proto.expanded is False
     (inside,) = unhelpful.dataframe
@@ -922,7 +968,7 @@ def test_a_followed_case_shows_its_new_standing_after_each_entry():
     at = _follow_page("(sse_rows(rows) + CLOSE,)")
     assert at.session_state["seen"] == [1, 2, 3]
     case_id, kept = at.session_state[LAST_READING_KEY]
-    assert case_id == recording_rows(_RV)[0]["caseId"]
+    assert case_id == recording_rows(_RV)[0]["context"]
     assert len(kept.ledger) == 3
     assert "Participants" in _texts(at.subheader)
     assert not at.error

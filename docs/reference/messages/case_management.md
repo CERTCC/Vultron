@@ -168,18 +168,44 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [undo_case_ownership_transfer.json](../examples/undo_case_ownership_transfer.json).
 
+{% include-markdown "./_occasions/sections/owner-invite-actor-to-case.md" %}
+
+- **Who decides:** the Case Owner decides whom to invite, and sends that decision as its own Invite ([CM-17-007](../specs/project.md#cm-17-007), [ADR-0199](../../adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md)).
+  It has the Stub Invite's shape, and goes to the CASE_MANAGER only.
+  The CASE_MANAGER reads an Invite addressed to it whose `target` names another actor as the Case Owner's decision.
+- **Effects:** the CASE_MANAGER records the Invite as one ledger entry, then sends its own Stub Invite to the invitee with the same `object`, `target` and roles ([CM-17-018](../specs/project.md#cm-17-018), [CM-17-019](../specs/project.md#cm-17-019)).
+  The Stub Invite credits the Case Owner in `attributedTo` and names this Invite in `inReplyTo`.
+  A re-invite of an invitee that has not answered names the Stub Invite it replaces in `inReplyTo` instead ([CM-11-044](../vultron-spec/requirements/case-management.md#cm-11-044)).
+- **Refusals:** the CASE_MANAGER answers with a refusal notice and records nothing when the sender is not the Case Owner, the `target` is the CASE_MANAGER or the Case Owner, or the invitee has joined, closed or been removed ([CM-17-026](../specs/project.md#cm-17-026)).
+  It refuses the same way an Invite with no role or an authority role ([CM-11-050](../vultron-spec/requirements/case-management.md#cm-11-050), [CM-20-008](../vultron-spec/requirements/case-management.md#cm-20-008)).
+  An `Offer(Actor)` from the Case Owner is refused too: the decision has one wire form ([CM-17-027](../specs/project.md#cm-17-027)).
+- **Case Owner that is the CASE_MANAGER:** it sends the Stub Invite straight to the invitee, with neither `attributedTo` nor `inReplyTo` ([CM-17-017](../specs/project.md#cm-17-017)).
+- **Trigger:** `POST /actors/{actor_id}/trigger/invite-actor-to-case`, whose body names the `invitee_id` and the `roles` ([Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Example artifact:** [owner_invite_actor_to_case.json](../examples/owner_invite_actor_to_case.json).
+
 {% include-markdown "./_occasions/sections/invite-actor-to-case.md" %}
 
-- **Who decides:** the Case Owner decides whom to invite.
+- **Who decides:** the Case Owner decides whom to invite ([Case Owner invites an actor](#owner-invite-actor-to-case)).
   A participant that wants a third party brought in sends a recommendation instead ([Suggest actor to case](general.md#suggest-actor-to-case)).
   See [§12.2 Invitation and Acceptance](../vultron-spec/interactions.md#122-invitation-and-acceptance-n).
 - **Triggering transition:** none — roster action.
 - **Object and target:** the `object` is the case, and the `target` is the actor being invited, as ActivityStreams 2.0 puts them ([ADR-0205](../../adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md)).
   The invitee may not see the case yet, so the `object` is a typed reference to the case: its `id` is the case's identifier, its `type` is `VulnerabilityCase`, and its `preview` is the case stub.
-  The stub, of type `CasePreview`, carries a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../vultron-spec/requirements/case-management.md#cm-11-013), [CM-17-010](../vultron-spec/requirements/case-management.md#cm-17-010), [MV-10-001](../vultron-spec/requirements/messages.md#mv-10-001)).
+  The stub, of type `CasePreview`, is cut from the case field by field, under the case's field names ([CM-11-013](../vultron-spec/requirements/case-management.md#cm-11-013), [CM-17-010](../vultron-spec/requirements/case-management.md#cm-17-010)).
+  It always shows its `summary`, the owner-chosen description the invitee reads before deciding whether to accept ([MV-10-001](../vultron-spec/requirements/messages.md#mv-10-001)), and the Case Owner in `attributedTo`.
+  While an embargo is in force it also shows the embargo terms as `embargoRegister`, the case's register reduced to the entry in force, and the embargo state in `caseStatuses`, reduced to the current status ([CM-17-002](../vultron-spec/requirements/case-management.md#cm-17-002), [CM-17-013](../vultron-spec/requirements/case-management.md#cm-17-013)).
+  It never carries an open embargo proposal or the case's bookkeeping ([CM-17-014](../vultron-spec/requirements/case-management.md#cm-17-014), [CM-17-025](../vultron-spec/requirements/case-management.md#cm-17-025)).
+  The reference implementation also shows the case name and times, and each vul item cut to its `ids`, and marks the case's content, participants, reports, notes and references `Redacted`.
   The stub names no case of its own: the reference's `id` names the case.
-  The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, or when it is given a bare case URI instead of the case, and the receiver refuses a stub with an absent or blank `summary`.
+  The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, when the embargo in force cannot be embedded whole, or when it is given a bare case URI instead of the case.
+  The receiver refuses a stub that lacks or marks an item it must show, or carries an open proposal, naming where the fault is ([MV-10-007](../vultron-spec/requirements/messages.md#mv-10-007)).
   The receiver reads the reference as it arrived: it does not fetch the case, put its own copy of the case in the reference's place, or seed a replica from the preview ([MV-10-013](../vultron-spec/requirements/messages.md#mv-10-013)).
+  Any value inside the stub may be a `Redacted` marker, `{"type": "Redacted", "summary": "<reason>"}`: the sender has the value but does not show it to the invitee ([MV-12-001](../vultron-spec/requirements/messages.md#mv-12-001), [MV-12-003](../vultron-spec/requirements/messages.md#mv-12-003)).
+  The receiver reads the stub as the sender sent it, including a nested object cut down to a few fields ([MV-12-006](../vultron-spec/requirements/messages.md#mv-12-006)).
+  It decides on the Invite, not on what the stub leaves out.
+  A marker carries no field but `type` and `summary` ([MV-12-005](../vultron-spec/requirements/messages.md#mv-12-005)).
+  The receiver sets aside and reports any other field a received marker carries ([MV-11-003](../specs/project.md#mv-11-003)).
+  It refuses a marker anywhere outside a preview ([MV-12-002](../vultron-spec/requirements/messages.md#mv-12-002)).
   The `preview` of that reference is the only place a stub may appear, wherever the Invite travels inline: in its `Accept` or `Reject`, or in a refusal notice that quotes such a reply ([MV-10-002](../vultron-spec/requirements/messages.md#mv-10-002)).
   The receiver refuses an activity that carries a stub anywhere else, an Invite's `target` and an embargo Invite included.
   The Invite names at least one CVD role for the invitee, and the CASE_MANAGER refuses to send one with an empty role list ([CM-11-019](../vultron-spec/requirements/case-management.md#cm-11-019), [CM-11-048](../vultron-spec/requirements/case-management.md#cm-11-048)).
@@ -268,50 +294,61 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   It answers with the refusal notice, a `Refuse` of the `Leave` that names the embargo in `summary` ([CLP-05-001](../vultron-spec/requirements/ledger-replication.md#clp-05-001)).
 - **Example artifact:** [close_case.json](../examples/close_case.json).
 
-{% include-markdown "./_occasions/sections/add-case-participant-to-case.md" %}
+{% include-markdown "./_occasions/sections/remove-participant-from-case.md" %}
+
+- **Removal:** it withdraws the participant's entitlement to case content.
+  The participant's record stays on the case roster.
+- **Triggering transition:** none — the participant's record gains a removal fact.
+- **Object:** the actor, as a typed reference: an inline object with only its `id` and `type`.
+  It names the actor, not its `CaseParticipant` record: the case holds one record per actor, so the actor identifies it ([ADR-0199](../../adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md)).
+- **Origin:** the case, the collection the actor leaves (VOC Remove).
+- **Who may send:**
+  The Case Owner sends it to the CASE_MANAGER only, through the `remove-participant` trigger.
+  The CASE_MANAGER admits it only from the Case Owner.
+  It refuses a removal that names the CASE_MANAGER, the Case Owner or an actor with no record on the case, and answers it with a refusal notice.
+  A removal of an already-removed participant is skipped.
+  Any other receiver refuses it: a replica takes the removal from the ledger entry.
+- **Ledger:** the Case Owner's received `Remove` is the one ledger entry for the removal.
+  Every replica applies the removal from that entry, the removed participant's own included.
+  The CASE_MANAGER sends no `Accept` and makes no `Remove` of its own.
+- **Announcement:** the CASE_MANAGER then sends the removed actor its own `Announce` of the Case Owner's `Remove` (see [Announce admitted act](#announce-admitted-act)).
+- **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
+
+{% include-markdown "./_occasions/sections/reinstate-participant-in-case.md" %}
 
 - **Reinstatement:** it clears the participant's removal fact, so the participant is entitled to case content again.
   It does not ask the participant to accept again.
-  `Add(CaseParticipant)` does not seat a new member: an actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
+  It does not seat a new member: an actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
 - **Triggering transition:** none — the participant's record loses its removal fact.
+- **Object:** the actor, as a typed reference, as for the removal.
+- **Target:** the case.
 - **Who may send:**
+  The Case Owner sends it to the CASE_MANAGER only, through the `reinstate-participant` trigger.
   The CASE_MANAGER admits it only from the Case Owner.
-  It refuses an `Add` that names a participant that is not removed, a participant that never joined the case, or no participant of the case.
-  It also refuses an `Add` whose participant gives an `attributedTo` other than the actor of the record it names.
-  The reason is that each replica finds its own copy of the record by that actor.
-  A participant replica accepts it only from the CASE_MANAGER, as the direct notice below, and writes nothing from it.
+  It refuses a reinstatement that names the CASE_MANAGER, the Case Owner, an actor with no record on the case, a participant that never joined the case, or one that is not removed, and answers it with a refusal notice.
+  Any other receiver refuses it.
 - **Ledger:** the Case Owner's received `Add` is the one ledger entry for the reinstatement.
   Every replica applies the reinstatement from that entry, the reinstated participant's own included.
 - **Catch-up:** after the participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry.
   It sends the entries in log order, so the participant's copy of the ledger has no gap.
   A participant that is not a signatory to the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and the catch-up waits until it accepts.
-- **Notice:** the CASE_MANAGER also sends the reinstated participant a direct `Add(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
-  The notice is not ledgered.
+- **Announcement:** the CASE_MANAGER also sends the reinstated actor its own `Announce` of the Case Owner's `Add`.
 - **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
 
-The example above shows a Vendor that holds the Case Owner role reinstating a Coordinator.
-The wire shape is the same whatever roles the participant holds.
-Only `caseRoles` on the attached object differs.
+{% include-markdown "./_occasions/sections/announce-admitted-act.md" %}
 
-{% include-markdown "./_occasions/sections/remove-case-participant-from-case.md" %}
-
-- **Removal:** it withdraws the participant's entitlement to case content.
-  The participant's record stays on the case roster.
-- **Triggering transition:** none — the participant's record gains a removal fact.
-- **Target:** the case MUST be named in `target`.
-  A `Remove` that names the case only in `origin` is not recognized as this message.
-- **Who may send:**
-  The CASE_MANAGER admits it only from the Case Owner.
-  It refuses a removal of the CASE_MANAGER's or the Case Owner's participant, and a removal that names no participant of the case.
-  It also refuses a removal whose participant gives an `attributedTo` other than the actor of the record it names.
-  The reason is that each replica finds its own copy of the record by that actor.
-  A participant replica accepts it only from the CASE_MANAGER, as the direct notice below, and writes nothing from it.
-- **Ledger:** the Case Owner's received `Remove` is the one ledger entry for the removal.
-  Every replica applies the removal from that entry, the removed participant's own included.
-- **Notice:** the CASE_MANAGER then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
-  The notice is not ledgered.
-- **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
-- **Example artifact:** [remove_participant_from_case.json](../examples/remove_participant_from_case.json).
+- **Protocol role:** an admitted act reaches the participants by the ledger fan-out.
+  An actor the act concerns that the fan-out does not reach receives the CASE_MANAGER's `Announce` of the act instead, such as a removed or reinstated participant ([ADR-0199](../../adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md)).
+- **Object:** the admitted act, inline, as the CASE_MANAGER received it, so it keeps its own author and id.
+- **In reply to:** the admitted act, because its commit caused the `Announce` ([ADR-0204](../../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md)).
+- **Context:** the case.
+- **Id:** derived from the admitted act, so a re-run sends one `Announce`.
+- **Who may send:** only the case's CASE_MANAGER.
+  A participant refuses one from any other sender, and the CASE_MANAGER refuses one sent to it.
+- **On receipt:** the participant records it and changes nothing else.
+  It takes the change from the ledger entry that carries the act, never from the `Announce`.
+  Nobody answers an `Announce`, or the act it carries.
+- **Ledger:** the `Announce` is delivery, not a record: it is not ledgered.
 
 {% include-markdown "./_occasions/sections/update-case-owner.md" %}
 

@@ -86,6 +86,8 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, OBJECT_ID
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
@@ -213,8 +215,9 @@ def add_participant_status_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddParticipantStatus workflow.
 
-    Handles receipt of an ``Add(ParticipantStatus)[target=CaseParticipant]``
-    activity.  Implements the DEMOMA-07-003 workflow with StatusAdoptionGate
+    Handles receipt of an ``Add(ParticipantStatus,
+    target=<participant>/statuses)`` activity (ADR-0204).  Implements the
+    DEMOMA-07-003 workflow with StatusAdoptionGate
     authorization (ADR-0046, RSH-01-001 to RSH-01-004).
 
     When ``case_id`` is provided, a guarded-commit subtree is inserted
@@ -225,10 +228,12 @@ def add_participant_status_tree(
     correctly fires only when the receiving actor holds
     ``CVDRole.CASE_MANAGER``.
 
-    The *case_id* for the commit and all children is the case the status
-    names (its own ``context``), and the ``TargetParticipantInCaseNode`` door
-    admits the delivery only when the receiver's record of the target
-    participant names that same case (HP-08-008).  A target the receiver
+    The *case_id* for the commit and all children is the case the ``Add``
+    names in ``context`` (ADR-0204), which the parse edge holds to the case
+    the carried status names (HP-08-015).  The ``TargetParticipantInCaseNode``
+    door admits the delivery only when the receiver's record of the
+    participant whose status history the target names records that same
+    case (HP-08-008).  A target the receiver
     holds no record of (HP-08-014), or one recorded in another case
     (HP-08-013), is refused there, before the sender guard, so the status
     only ever joins its target's own case, and no use case reads the record
@@ -262,21 +267,21 @@ def add_participant_status_tree(
     #4829).  Both read the case's status, the CASE_MANAGER's own conclusion
     in the forced form, never the sender's claim (SM-09-003, #6080).
 
-    An ``Add`` missing its status id or participant id gets the
+    An ``Add`` missing its status id, or whose target names no participant
+    status history, gets the
     incomplete-activity tree instead: its guard refuses the activity after
     the doors admit it and intake records it (CLP-10-018).
 
     Args:
         request: The parsed inbound domain event.
-        case_id: The case the status names (its own ``context``).  When
+        case_id: The case the ``Add`` names in ``context``.  When
             provided, a guarded-commit subtree is inserted after
             precondition guards so the receiving CaseActor writes a
             canonical ledger entry (CLP-10-005), and the target door
             refuses a target not recorded in it (HP-08-013, HP-08-014);
-            ``None`` when the status names none (or is carried by
-            reference), which the path stage refuses.  An activity whose
-            own ``context`` names another case never reaches the tree: the
-            parser refuses it (HP-08-015).
+            ``None`` when the ``Add`` names none, which the path stage
+            refuses.  An activity whose status names another case never
+            reaches the tree: the parser refuses it (HP-08-015).
         call_out: Call-out backend bundle for ``StatusAdoptionGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC`, which
             withholds every non-CASE_OWNER update until the Case Owner
@@ -292,8 +297,8 @@ def add_participant_status_tree(
     if not status_id or not participant_id:
         return create_incomplete_activity_received_tree(
             "AddParticipantStatusBT",
-            "Add(ParticipantStatus) is missing its status id or"
-            " participant id",
+            "Add(ParticipantStatus) is missing its status id or a"
+            " participant status history target (ADR-0204)",
         )
     actor_id = request.actor_id
     status_obj = request.status
@@ -333,8 +338,8 @@ def add_participant_status_tree(
         # PCR-03-001, HP-01-038).
         paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
-        # The sender is the participant the target record names, or the
-        # CASE_MANAGER or Case Owner (RSH-08-007).
+        # The sender is the participant whose status history the target
+        # names, or the CASE_MANAGER or Case Owner (RSH-08-007).
         sender_context=SenderCheckContext(
             sender_id=actor_id,
             case_id=tree_case_id,
@@ -416,13 +421,15 @@ def add_participant_status_tree(
                     # The canonical CaseStatus adds every P, X or A latch the sender
                     # reported in its embedded case status, clearing none
                     # (RSH-01-003, #4956).
-                    EmitCaseStatusUpdateNode(
-                        case_id=tree_case_id,
-                        name="EmitCaseStatusUpdate",
-                        # The case adopts the report's P/X/A here, read at tick after
-                        # the append, so a status received by reference is adopted
-                        # too (RSH-01-003).
-                        reported_status_id=status_id or None,
+                    with_act_keys(
+                        EmitCaseStatusUpdateNode(
+                            name="EmitCaseStatusUpdate",
+                            # The case adopts the report's P/X/A here, read at
+                            # tick after the append, so a status received by
+                            # reference is adopted too (RSH-01-003).
+                            adopts_reported_status=True,
+                        ),
+                        {CASE_ID: tree_case_id, OBJECT_ID: status_id},
                     ),
                     # The adoption authorizes the teardown the adopted P, X or A
                     # calls for, so it runs here with no second gate (ADR-0166).
@@ -445,9 +452,11 @@ def add_participant_status_tree(
                     # The CSB-18 note is the CASE_MANAGER's own act, committed and
                     # replicated (#4829); it reads the post-teardown EM, so a
                     # teardown that failed is reported (CSB-18-002..004).
-                    PxaEmInvariantDiagnosticNode(
-                        case_id=tree_case_id,
-                        name="PxaEmInvariantDiagnostic",
+                    with_case_id(
+                        PxaEmInvariantDiagnosticNode(
+                            name="PxaEmInvariantDiagnostic",
+                        ),
+                        tree_case_id,
                     ),
                     rm_gap_note(actor_id, tree_case_id),
                 ],

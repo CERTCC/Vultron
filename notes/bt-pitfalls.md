@@ -186,7 +186,7 @@ the node names (`test_engage_tree_node_names`).
 active path MUST clear it on every no-op path (`None` for a scalar, the empty
 collection for a collection port), or the next execution reads a stale value
 (BT-17-003). Example: `ResolveCaseManagerNode`
-(`sender/nodes/actions.py`) writes `case_manager_id` as `None` on every path
+(`sender/nodes/actions.py`) writes `case_actor_id` as `None` on every path
 that finds no CASE_MANAGER.
 
 - A key the *caller* passes as a `context_data` kwarg is managed and restored; a
@@ -262,8 +262,8 @@ no-case path alone, resolved a leaked case the reporter held a replica of and
 was refused at the path stage as a replica of a case it never named
 (RMB-08-003, HP-01-040). In a single-process run — every demo, every in-process
 integration test — the writer can be a *different actor's* execution, so the
-leak crosses the actor isolation BT-09 asks for. `case_manager_id` and
-`case_actor_id` share the shape and are scoped the same way (#5803). Guards:
+leak crosses the actor isolation BT-09 asks for. `case_actor_id` shares the
+shape and is scoped the same way (#5803). Guards:
 `test_execute_with_setup_does_not_leak_a_published_output_port_key` and
 `test_execute_with_setup_restores_a_preexisting_output_port_key` in
 `test_bridge.py`, one case per scoped key.
@@ -501,7 +501,12 @@ A tree that knows a value at build time seeds the port, two ways:
 case leaves the port to an earlier node of the same execution. Only
 `ReceivedPathNode`, `CheckIsCaseManagerNode` and the post-close door
 `CaseOpenToExternalWritesNode` then fall back to the case the activity names,
-as their documented resolution step.
+and `SenderIsCaseManagerNode` to the case its ledger entry names, as their
+documented resolution step. The lenient CASE_MANAGER notes
+(`EmitRMGapNoteNode`, `PxaEmInvariantDiagnosticNode`) commit nothing when no
+`/case_id` is on the blackboard. Reason: an unseeded optional read sees an
+earlier node's write, so a tree that must not act on a published case seeds
+none and publishes none before the node.
 
 A seeded node sits one level below where it used to. Code that reads a tree's
 shape sees through the scope with `unscoped(node)`, and reads a seeded value

@@ -39,6 +39,7 @@
 | an actor declines an offer of case ownership | `Reject(Offer(VulnerabilityCase))` | the CASE_MANAGER | the addressee of the vulnerability case offer | — | [Reject case ownership transfer](../case_management.md#reject-case-ownership-transfer) |
 | the Case Owner withdraws its proposal while the offer of case ownership is open | `Undo(Offer(Offer(VulnerabilityCase)))` | the CASE_MANAGER | the Case Owner | — | [Withdraw case ownership transfer](../case_management.md#withdraw-case-ownership-transfer) |
 | the CASE_MANAGER invites an actor to join the case | `Invite(VulnerabilityCase preview)[target=Actor]` | a participant | the CASE_MANAGER | — | [Invite actor to case](../case_management.md#invite-actor-to-case) |
+| the Case Owner decides to invite an actor to the case | `Invite(VulnerabilityCase preview)[target=Actor]` | the CASE_MANAGER | a participant | — | [Case Owner invites an actor](../case_management.md#owner-invite-actor-to-case) |
 | an invited actor agrees to join the case | `Accept(Invite(VulnerabilityCase preview)[target=Actor])` | the CASE_MANAGER | the invitee | — | [Accept invite to case](../case_management.md#accept-invite-to-case) |
 | an invited actor declines to join the case | `Reject(Invite(VulnerabilityCase preview)[target=Actor])` | the CASE_MANAGER | the invitee | — | [Reject invite to case](../case_management.md#reject-invite-to-case) |
 | the CASE_MANAGER has replayed the case ledger to a newly joined Participant | `Invite(whole VulnerabilityCase)[target=Actor]` | a participant | the CASE_MANAGER | — | [Send Full-Case Invite](../case_management.md#invite-actor-to-full-case) |
@@ -47,8 +48,9 @@
 | a Participant asked by a Full-Case Invite closes the case | `Reject(Invite(whole VulnerabilityCase)[target=Actor])` | the CASE_MANAGER | the invitee | — | [Reject Full-Case Invite](../case_management.md#reject-full-case-invite) |
 | the CASE_MANAGER has admitted a new Participant to the case | `Announce(VulnerabilityCase)` | a participant | the CASE_MANAGER | — | [Announce vulnerability case](../case_management.md#announce-vulnerability-case) |
 | a Participant ends its participation in the case | `Leave(VulnerabilityCase)` | the CASE_MANAGER | the Case Owner or a participant | — | [Close case](../case_management.md#close-case) |
-| the Case Owner reinstates a removed Participant | `Add(CaseParticipant)[target=VulnerabilityCase]` | the CASE_MANAGER | the Case Owner | — | [Add case participant to case](../case_management.md#add-case-participant-to-case) |
-| the Case Owner removes a Participant from active participation | `Remove(CaseParticipant)[target=VulnerabilityCase]` | the CASE_MANAGER | the Case Owner | — | [Remove case participant from case](../case_management.md#remove-case-participant-from-case) |
+| the Case Owner removes a Participant from active participation | `Remove(Actor)[origin=VulnerabilityCase]` | the CASE_MANAGER | the Case Owner | — | [Remove participant from case](../case_management.md#remove-participant-from-case) |
+| the Case Owner reinstates a removed Participant | `Add(Actor)[target=VulnerabilityCase]` | the CASE_MANAGER | the Case Owner | — | [Reinstate participant in case](../case_management.md#reinstate-participant-in-case) |
+| the CASE_MANAGER has admitted an act that concerns an actor the ledger fan-out does not reach, such as a removed or reinstated Participant | `Announce(Activity)[context=VulnerabilityCase]` | a participant | the CASE_MANAGER | — | [Announce admitted act](../case_management.md#announce-admitted-act) |
 | the CASE_MANAGER creates a participant record, such as the inert record for the invitee of a stub Invite | `Create(CaseParticipant)` | a participant | internal to the CASE_MANAGER | — | [Create case participant](../case_management.md#create-case-participant) |
 | the CASE_MANAGER changes a participant record, such as moving the CASE_OWNER role on an ownership transfer | `Update(CaseParticipant)` | a participant | internal to the CASE_MANAGER | — | [Update case participant](../case_management.md#update-case-participant) |
 
@@ -82,22 +84,21 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| the CASE_MANAGER records that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `Pxa` | [Public awareness in a case status](../cs.md#public-awareness) |
-| the CASE_MANAGER records that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `PXa` | [Exploit public in a case status](../cs.md#exploit-public) |
-| the CASE_MANAGER records that attackers are exploiting the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `pxA` | [Attacks observed in a case status](../cs.md#attacks-observed) |
-| a Vendor becomes aware of the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: vendor) | `vfState` = `Vf` | [Vendor Awareness (CV)](../cs.md#vendor-awareness) |
-| a Vendor has a fix ready | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: vendor) | `vfState` = `VF` | [Fix Readiness (CF)](../cs.md#fix-readiness) |
-| a Deployer has deployed the fix | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: deployer) | `dState` = `D` | [Fix Deployed (CD)](../cs.md#fix-deployed) |
-| a Participant learns that the public knows of the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `Pxa` | [Public awareness in a participant status](../cs.md#participant-public-awareness) |
-| a Participant learns that an exploit for the vulnerability is public | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `PXa` | [Exploit public in a participant status](../cs.md#participant-exploit-public) |
-| a Participant observes attacks that exploit the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `pxA` | [Attacks observed in a participant status](../cs.md#participant-attacks-observed) |
+| the CASE_MANAGER records that the public knows of the vulnerability | `Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `Pxa` | [Public awareness in a case status](../cs.md#public-awareness) |
+| the CASE_MANAGER records that an exploit for the vulnerability is public | `Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `PXa` | [Exploit public in a case status](../cs.md#exploit-public) |
+| the CASE_MANAGER records that attackers are exploiting the vulnerability | `Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]` | a participant | the CASE_MANAGER | `pxaState` = `pxA` | [Attacks observed in a case status](../cs.md#attacks-observed) |
+| a Vendor becomes aware of the vulnerability | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: vendor) | `vfState` = `Vf` | [Vendor Awareness (CV)](../cs.md#vendor-awareness) |
+| a Vendor has a fix ready | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: vendor) | `vfState` = `VF` | [Fix Readiness (CF)](../cs.md#fix-readiness) |
+| a Deployer has deployed the fix | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author (usually: deployer) | `dState` = `D` | [Fix Deployed (CD)](../cs.md#fix-deployed) |
+| a Participant learns that the public knows of the vulnerability | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `Pxa` | [Public awareness in a participant status](../cs.md#participant-public-awareness) |
+| a Participant learns that an exploit for the vulnerability is public | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `PXa` | [Exploit public in a participant status](../cs.md#participant-exploit-public) |
+| a Participant observes attacks that exploit the vulnerability | `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]` | the CASE_MANAGER | the CASE_MANAGER or the Case Owner or the participant status's author | `caseStatus.pxaState` = `pxA` | [Attacks observed in a participant status](../cs.md#participant-attacks-observed) |
 
 ## General
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
 | a Participant suggests an actor that the case should include | `Offer(Actor)[target=VulnerabilityCase]` | the CASE_MANAGER | a participant | sender is not the Case Owner | [Suggest actor to case](../general.md#suggest-actor-to-case) |
-| the Case Owner decides to invite an actor to the case | `Offer(Actor)[target=VulnerabilityCase]` | the CASE_MANAGER | a participant | sender is the Case Owner | [Ask the CASE_MANAGER to invite an actor](../general.md#request-invite-actor-to-case) |
 | the CASE_MANAGER presents a suggested actor to the Case Owner | `Offer(CaseParticipant)[target=VulnerabilityCase]` | a participant | the CASE_MANAGER | — | [Offer case participant](../general.md#offer-case-participant) |
 | the Case Owner approves a suggested actor | `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])` | the CASE_MANAGER | the Case Owner | — | [Accept case participant offer](../general.md#accept-case-participant-offer) |
 | the Case Owner declines a suggested actor | `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])` | the CASE_MANAGER | the Case Owner | — | [Reject case participant offer](../general.md#reject-case-participant-offer) |
@@ -117,6 +118,6 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| the CASE_MANAGER has committed a case event to the case ledger | `Announce(CaseLedgerEntry)` | a participant | the CASE_MANAGER | — | [Announce case ledger entry](../ledger_replication.md#announce-case-ledger-entry) |
+| the CASE_MANAGER has committed a case event to the case ledger | `Add(CaseLedgerEntry)` | a participant | the CASE_MANAGER | — | [Add case ledger entry](../ledger_replication.md#add-case-ledger-entry) |
 | a received ledger entry does not chain onto the Participant's own ledger | `Reject(CaseLedgerEntry)` | the CASE_MANAGER | an active participant, including one that has left the case | — | [Reject case ledger entry](../ledger_replication.md#reject-case-ledger-entry) |
-| a Participant checks that its ledger is current, such as after a restart | `Read(CaseLedgerEntry)` | the CASE_MANAGER | a participant | — | [Read case ledger entry](../ledger_replication.md#read-case-ledger-entry) |
+| a Participant checks that its ledger is current, such as after a restart, or holds a case but none of its entries | `Read(OrderedCollection)[context=VulnerabilityCase]` | the CASE_MANAGER | a participant | — | [Read case ledger](../ledger_replication.md#read-case-ledger) |

@@ -20,13 +20,26 @@ the role Offer's target (EP-09-010, CM-33-005).
 from typing import ClassVar
 
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    INVITE_ID,
+    OFFER_ID,
+    SENDER_ID,
+)
 from vultron.core.behaviors.sender_entitlement.addressee import (
     NoStandingError,
     RecordedRequest,
-    SenderIsRequestAddresseeNode,
     _case_and_manager,
     _refuse_if_closed,
+    _SenderKeyAddresseeNode,
 )
 from vultron.core.behaviors.sender_entitlement.base import (
     SenderEntitlementConditionNode,
@@ -61,16 +74,19 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
     An Invite this store never recorded, or one that names no recipient or
     several, names no invitee, so the sender is refused.
 
-    When ``case_id`` is given the Invite is a case-join Invite, and the
-    record must also be one this store's owner (the CASE_MANAGER) issued
-    (CM-11-017: "an Invite it sent and recorded") and be for that case: a
-    case Invite names its case in its ``object`` (ADR-0205), and an invitee
-    of one case cannot answer for another.
+    The Invite, the sender and the case are read from ``/invite_id``,
+    ``/sender_id`` and ``/case_id`` (BTND-01-008).
 
-    When ``closure_case_id`` is given, an invitee whose closure that case
-    records (RM ``CLOSED``) is refused too: it has left the case and may
-    answer nothing further (CM-23-018).  A repeat of a ``Reject`` that closed
-    it is ``SKIPPED`` by the tree's closed-sender door before this guard runs
+    With *case_join* the Invite is a case-join Invite, and the record must
+    also be one this store's owner (the CASE_MANAGER) issued (CM-11-017:
+    "an Invite it sent and recorded") and be for the case: a case Invite
+    names its case in its ``object`` (ADR-0205), and an invitee of one case
+    cannot answer for another.
+
+    When a case is seeded, an invitee whose closure that case records (RM
+    ``CLOSED``) is refused too: it has left the case and may answer nothing
+    further (CM-23-018).  A repeat of a ``Reject`` that closed it is
+    ``SKIPPED`` by the tree's closed-sender door before this guard runs
     (``closed_sender`` on the receive-tree factory).
 
     Spec: EP-09-010, CM-11-017, CM-23-018, HP-01-006.
@@ -80,20 +96,34 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         SenderEntitlementKind.INVITEE
     )
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **SenderEntitlementConditionNode.INPUT_PORTS,
+        **act_key_ports(INVITE_ID, SENDER_ID, CASE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(INVITE_ID, SENDER_ID, CASE_ID)
+
     def __init__(
         self,
-        invite_id: str | None,
-        sender_actor_id: str,
         name: str | None = None,
         *,
-        case_id: str | None = None,
-        closure_case_id: str | None = None,
+        case_join: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._invite_id = invite_id
-        self._sender_actor_id = sender_actor_id
-        self._case_id = case_id
-        self._closure_case_id = closure_case_id
+        self._case_join = case_join
+        self._invite_id: str | None = None
+        self._sender_actor_id = ""
+        self._case_id: str | None = None
+        self._closure_case_id: str | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._invite_id = optional_act_value(self, INVITE_ID, str)
+        self._sender_actor_id = act_value(self, SENDER_ID, str)
+        self._closure_case_id = optional_act_value(self, CASE_ID, str)
+        self._case_id = self._closure_case_id if self._case_join else None
 
     @staticmethod
     def _named_case(invite: object) -> str | None:
@@ -170,7 +200,7 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         )
 
 
-class SenderIsRoleOfferTargetNode(SenderIsRequestAddresseeNode):
+class SenderIsRoleOfferTargetNode(_SenderKeyAddresseeNode):
     """Guard: sender is the target of the role Offer its answer names.
 
     The target is the addressee of the request, so the kind is
@@ -192,32 +222,38 @@ class SenderIsRoleOfferTargetNode(SenderIsRequestAddresseeNode):
     Offer the CASE_MANAGER never recorded, or a target whose closure the
     case records (CM-23-018) leaves the sender with no standing.
 
+    The case the answer names is read from ``/case_id``, and the Offer it
+    names from ``/offer_id``, which an answer naming none leaves unseeded,
+    so it refuses (BTND-01-008).
+
     Spec: CM-33-005, CM-23-018, HP-01-006.
     """
 
     _spec = "CM-33-005"
 
-    def __init__(
-        self,
-        case_id: str,
-        offer_id: str | None,
-        sender_actor_id: str,
-        name: str | None = None,
-    ) -> None:
-        """Create the guard.
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_SenderKeyAddresseeNode.INPUT_PORTS,
+        **act_key_ports(CASE_ID, OFFER_ID),
+    }
 
-        Args:
-            case_id: The case the answer names.
-            offer_id: The Offer the answer names (``None`` when it names
-                none, which refuses).
-            sender_actor_id: The answer's sender.
-            name: Optional node name.
-        """
-        super().__init__(sender_actor_id=sender_actor_id, name=name)
-        self._case_id = case_id
-        self._offer_id = offer_id
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(CASE_ID, OFFER_ID),
+        }
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name)
+        self._case_id = ""
+        self._offer_id: str | None = None
         self._case: VulnerabilityCase | None = None
         """The case :meth:`_recorded_request` last read."""
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id = act_value(self, CASE_ID, str)
+        self._offer_id = optional_act_value(self, OFFER_ID, str)
 
     def _recorded_request(self) -> RecordedRequest:
         assert self.datalayer is not None

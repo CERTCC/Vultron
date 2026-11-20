@@ -138,9 +138,11 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # CASE_MANAGER-authored record of the inert participant record it creates
     # for a stub Invite's invitee (ADR-0114).
     ("Create", "CaseParticipant"),
-    # The Case Owner's removal request, committed as received (CM-31-005,
-    # ADR-0116).  Owner-authored.
-    ("Remove", "CaseParticipant"),
+    # The Case Owner's removal and reinstatement, each its own act naming the
+    # actor, committed as received (CM-31-005, CM-31-044, ADR-0199).
+    # Owner-authored.
+    ("Remove", "Actor"),
+    ("Add", "Actor"),
     # CASE_MANAGER-authored record of a new owner after an ownership
     # transfer (update_case_owner, CM-21-024, CLP-07-013).
     ("Update", "VulnerabilityCase"),
@@ -176,20 +178,25 @@ def _snapshot_object_types(
     # itself names the same thing, so it resolves the same way.  A received
     # ``type`` may be a list, kept as it arrived (VM-08-002), so each slot
     # yields every name it carries.
+    # The target's types come first, then ``Actor`` itself, so an act whose
+    # canonical pair names the actor (the Case Owner's ``Remove(<Actor>)``
+    # and ``Add(<Actor>)``, ADR-0199) resolves whatever actor type it
+    # carries.
     obj = snapshot.get("object") or snapshot.get("object_")
     if not isinstance(obj, dict):
         return ()
     object_types = body_type_terms(obj)
     if not any(term in _ACTOR_TYPES for term in object_types):
         return object_types
+    as_actor = ("Actor",) if "Actor" not in object_types else ()
     target = snapshot.get("target")
     if isinstance(target, dict):
         target_types = body_type_terms(target)
         if target_types:
-            return target_types
+            return (*target_types, *as_actor, *object_types)
     if isinstance(target, str) and target == case_id:
-        return ("VulnerabilityCase",)
-    return object_types
+        return ("VulnerabilityCase", *as_actor, *object_types)
+    return (*as_actor, *object_types)
 
 
 def _bare_inline_object_path(

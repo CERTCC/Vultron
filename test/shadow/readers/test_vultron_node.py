@@ -359,4 +359,4 @@ def test_a_served_case_id_that_names_no_case_refuses_a_short_id(served):
 def test_a_short_case_id_matches_the_served_cases_last_segment():
     body = _ndjson([ledger_entry_row(_CASE, 0)])
     reading = _reader(_answering(body=body)).read_case("case-1")
-    assert reading.ledger[0].case_id == _CASE
+    assert reading.ledger[0].context == _CASE

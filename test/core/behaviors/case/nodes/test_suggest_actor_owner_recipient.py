@@ -31,6 +31,7 @@ failures starting at "Offer(CaseParticipant) for V2 arrived in C1's DataLayer"
 and ending with a 422 from ``accept-actor-recommendation``.
 """
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -47,6 +48,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitNoteDuplicateRecommendationToOwnerNode,
     EmitOfferCaseParticipantToOwnerNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -160,12 +162,14 @@ def _offer_node() -> EmitOfferCaseParticipantToOwnerNode:
     )
 
 
-def _note_node() -> EmitNoteDuplicateRecommendationToOwnerNode:
-    return EmitNoteDuplicateRecommendationToOwnerNode(
-        recommendation_id=RECOMMENDATION_ID,
-        recommender_id=RECOMMENDER_ID,
-        recommended_id=RECOMMENDED_ID,
-        case_id=CASE_ID,
+def _note_node() -> py_trees.behaviour.Behaviour:
+    return with_case_id(
+        EmitNoteDuplicateRecommendationToOwnerNode(
+            recommendation_id=RECOMMENDATION_ID,
+            recommender_id=RECOMMENDER_ID,
+            recommended_id=RECOMMENDED_ID,
+        ),
+        CASE_ID,
     )
 
 
@@ -268,7 +272,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
         """The CaseActor records the note for the owner, never DMs itself.
 
         The note is its own ``add_note_to_case`` entry, so the Case Owner
-        learns of it from the entry's ``Announce`` (SYNC-02-001, SYNC-02-003); a direct
+        learns of it from the entry's ``Add`` (SYNC-02-001, SYNC-02-003); a direct
         ``Add(Note)`` would be refused at the owner (HP-01-005, #4829).
         """
         _seed_case_actor_store(case_actor_dl)
@@ -278,7 +282,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
         assert status == Status.SUCCESS
         note = assert_case_manager_note_recorded(case_actor_dl, CASE_ID)
         assert OWNER_ID in note["content"]
-        recipients = _queued_recipients(case_actor_dl, "Announce")
+        recipients = _queued_recipients(case_actor_dl, "Add")
         assert OWNER_ID in recipients, recipients
         assert CASE_ACTOR_ID not in recipients, recipients
 

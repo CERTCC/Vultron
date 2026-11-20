@@ -42,6 +42,8 @@ from vultron.core.use_cases.triggers.request_bodies import (
     CaseTriggerRequest,
     CreateCaseRequest,
     LeaveCaseRequest,
+    ReinstateParticipantRequest,
+    RemoveParticipantRequest,
 )
 from vultron.core.use_cases.triggers.requests import (
     AddObjectToCaseTriggerRequest,
@@ -51,6 +53,8 @@ from vultron.core.use_cases.triggers.requests import (
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
     LeaveCaseTriggerRequest,
+    ReinstateParticipantTriggerRequest,
+    RemoveParticipantTriggerRequest,
 )
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -166,6 +170,96 @@ def trigger_leave_case(
     """
     return run_trigger(
         LeaveCaseTriggerRequest(actor_id=actor_id, case_id=body.case_id),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/remove-participant",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Remove an actor from active participation in a case.",
+    description=(
+        "The Case Owner's removal of the actor named by "
+        "``participant_actor_id``: queues a Remove(<Actor>, origin=<case>) "
+        "activity addressed to the case's CASE_MANAGER alone, naming the "
+        "actor as a typed reference, and returns it in the response body "
+        "(CM-31-004, ADR-0199, TRIG-04-001). The CASE_MANAGER refuses it "
+        "(with a refusal notice when the sender is the Case Owner, with "
+        "none otherwise, CLP-05-006), or records it as the ledger entry and "
+        "announces it to the removed actor; the actor's record stays on the "
+        "case (CM-31-015)."
+    ),
+    operation_id="actors_trigger_remove_participant",
+    response_model=ActivityResult,
+)
+def trigger_remove_participant(
+    actor_id: str,
+    body: RemoveParticipantRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the Case Owner's removal of an actor from a case.
+
+    Implements:
+        CM-31-004, TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004,
+        TRIG-03-001, TRIG-03-002, TRIG-04-001, TRIG-06-001, TRIG-06-002,
+        TRIG-07-001, TRIG-12-001
+    """
+    return run_trigger(
+        RemoveParticipantTriggerRequest(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            participant_actor_id=body.participant_actor_id,
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/reinstate-participant",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Reinstate a removed actor in a case.",
+    description=(
+        "The Case Owner's reinstatement of the removed actor named by "
+        "``participant_actor_id``: queues an Add(<Actor>, target=<case>) "
+        "activity addressed to the case's CASE_MANAGER alone, naming the "
+        "actor as a typed reference, and returns it in the response body "
+        "(CM-31-011, ADR-0199, TRIG-04-001). The CASE_MANAGER refuses it "
+        "(with a refusal notice when the sender is the Case Owner, with "
+        "none otherwise, CLP-05-006), or records it as the ledger entry, "
+        "announces it to the reinstated actor and sends it the ledger "
+        "entries it missed; the actor does not accept again (CM-31-035)."
+    ),
+    operation_id="actors_trigger_reinstate_participant",
+    response_model=ActivityResult,
+)
+def trigger_reinstate_participant(
+    actor_id: str,
+    body: ReinstateParticipantRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the Case Owner's reinstatement of a removed actor.
+
+    Implements:
+        CM-31-011, TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-004,
+        TRIG-03-001, TRIG-03-002, TRIG-04-001, TRIG-06-001, TRIG-06-002,
+        TRIG-07-001, TRIG-12-001
+    """
+    return run_trigger(
+        ReinstateParticipantTriggerRequest(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            participant_actor_id=body.participant_actor_id,
+        ),
         dispatcher=dispatcher,
         dl=actor_dl,
         background_tasks=background_tasks,
@@ -312,7 +406,7 @@ def trigger_add_report_to_case(
         "non-participant target is refused and no participant is created "
         "(PRM-06-006, ADR-0121). Writes a "
         "ParticipantStatus for the target and queues an "
-        "Add(ParticipantStatus)[target=CaseParticipant] activity to the Case "
+        "Add(ParticipantStatus, target=<participant>/statuses) activity to the Case "
         'Manager. Fix readiness (``vf_state="VF"``, f→F) is refused: it is '
         "only ever self-declared by the Vendor (PRM-06-005). Returns the ids "
         "of the queued activity and the stored status."

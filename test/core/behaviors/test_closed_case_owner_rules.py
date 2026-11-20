@@ -76,8 +76,8 @@ from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.case_participant import (
-    AddCaseParticipantToCaseReceivedUseCase,
-    RemoveCaseParticipantFromCaseReceivedUseCase,
+    ReinstateParticipantInCaseReceivedUseCase,
+    RemoveParticipantFromCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.embargo import (
     ActivateEmbargoOnCaseReceivedUseCase,
@@ -149,13 +149,13 @@ CASE_OWNER_USE_CASES: dict[str, tuple[type, ContextFor, bool]] = {
         _ownership_withdrawal,
         False,
     ),
-    "add-participant": (
-        AddCaseParticipantToCaseReceivedUseCase,
+    "reinstate-participant": (
+        ReinstateParticipantInCaseReceivedUseCase,
         _plain,
         True,
     ),
     "remove-participant": (
-        RemoveCaseParticipantFromCaseReceivedUseCase,
+        RemoveParticipantFromCaseReceivedUseCase,
         _plain,
         True,
     ),

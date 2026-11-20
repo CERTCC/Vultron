@@ -14,12 +14,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """Tests for AcceptCaseOwnershipTransferNode, SeedAnnouncedCaseNode,
-and EmitInviteActorToCaseNode._read_suggested_roles."""
+and the CASE_MANAGER's stub Invite emit."""
 
-import json
+from types import SimpleNamespace
 from typing import Any, cast
 
-import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -31,11 +30,17 @@ from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.actor import (
-    EmitInviteActorToCaseNode,
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_ID_KEY,
+    INVITEE_ID as INVITEE_ID_KEY,
+    SENDER_ID as SENDER_ID_KEY,
 )
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    EmitOwnerDecidedStubInviteNode,
+)
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
     AcceptRecordedOwnershipOfferNode,
@@ -43,7 +48,7 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
-from vultron.core.models._helpers import _as_id, now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -1117,37 +1122,30 @@ class TestSeedAnnouncedCaseNode:
 
 
 # ---------------------------------------------------------------------------
-# EmitInviteActorToCaseNode._read_suggested_roles (AC-3, Issue-1405)
+# The CASE_MANAGER's stub Invite for the Case Owner's Invite (ADR-0199)
 # ---------------------------------------------------------------------------
 
 INVITEE_ID = "https://example.org/actors/invitee-ac3"
 AC3_CASE_ID = "https://example.org/cases/ac3-case"
 
 
-class TestEmitInviteActorToCaseNodeReadSuggestedRoles:
-    """AC-3: _read_suggested_roles() returns None when suggested_roles absent."""
-
-    def setup_method(self):
-        py_trees.blackboard.Blackboard.enable_activity_stream()
-        self.node = EmitInviteActorToCaseNode(
-            invitee_id=INVITEE_ID,
-            case_id=AC3_CASE_ID,
-        )
-        self.node.setup()
-
-    def teardown_method(self):
-        py_trees.blackboard.Blackboard.disable_activity_stream()
-        py_trees.blackboard.Blackboard.clear()
-
-    def test_returns_none_when_key_absent(self):
-        """AC-3: _read_suggested_roles() returns None on KeyError (key not set)."""
-        result = self.node._read_suggested_roles()
-        assert result is None, (
-            f"AC-3: expected None when suggested_roles absent, got {result!r}"
-        )
+#: The owner's Invite the stub Invite under test carries out.
+_OWNER_INVITE_ID = "https://example.org/activities/owner-invite"
 
 
-class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
+def _stub_emit(roles: list[str], *, credits_sender: bool):
+    """The stub Invite emit, with the act's keys seeded (BTND-01-008)."""
+    return with_act_keys(
+        EmitOwnerDecidedStubInviteNode(roles, credits_sender=credits_sender),
+        {
+            CASE_ID_KEY: AC3_CASE_ID,
+            INVITEE_ID_KEY: INVITEE_ID,
+            SENDER_ID_KEY: NEW_OWNER_ID,
+        },
+    )
+
+
+class TestStubInviteQueuesBeforeCommitting:
     """AC-3 (#3821): the emitting tree's commit is the Invite's only commit.
 
     The CASE_MANAGER builds the Invite, appends it to its outbox, then
@@ -1197,11 +1195,10 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
 
         monkeypatch.setattr(SqliteDataLayer, "outbox_append", _spy)
 
-        node = EmitInviteActorToCaseNode(
-            invitee_id=INVITEE_ID,
-            case_id=AC3_CASE_ID,
-            attributed_to=NEW_OWNER_ID,
-            roles=["vendor"],
+        # The Owner's Invite the stub carries out (CM-24-012), as the
+        # received run places it.
+        received = SimpleNamespace(
+            activity_id=_OWNER_INVITE_ID, actor_id=NEW_OWNER_ID
         )
         result = run_tree(
             BTBridge(
@@ -1210,8 +1207,9 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
             ),
-            tree=node,
+            tree=_stub_emit(["vendor"], credits_sender=True),
             actor_id=ACTOR_ID,
+            activity=received,
         )
         assert result.status == Status.SUCCESS
 
@@ -1222,6 +1220,7 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
         assert getattr(invite, "cc", None) in (None, [])
         assert getattr(invite, "actor", None) == ACTOR_ID
         assert getattr(invite, "attributed_to", None) == NEW_OWNER_ID
+        assert getattr(invite, "in_reply_to", None) == _OWNER_INVITE_ID
 
         entries = _invite_entries()
         assert [e.payload_snapshot.get("id") for e in entries] == [invite_id]
@@ -1230,7 +1229,7 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
         assert ledger_at_append == [[]]
 
 
-class TestEmitInviteActorToCaseNodeRefusesAnUnheldCase:
+class TestStubInviteRefusesAnUnheldCase:
     """The stub Invite's preview is built from the case, so the node builds
     none for a case this actor does not hold (CM-17-010, ADR-0205)."""
 
@@ -1253,96 +1252,16 @@ class TestEmitInviteActorToCaseNodeRefusesAnUnheldCase:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         )
-        node = EmitInviteActorToCaseNode(
-            invitee_id=INVITEE_ID, case_id=AC3_CASE_ID, roles=["vendor"]
+        result = run_tree(
+            bridge,
+            tree=_stub_emit(["vendor"], credits_sender=False),
+            actor_id=ACTOR_ID,
         )
-
-        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.FAILURE
+        assert AC3_CASE_ID in result.feedback_message, result.feedback_message
         factory.invite_actor_to_case.assert_not_called()
         assert dl.outbox_list() == []
-
-
-class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
-    """AC-2 (ISSUE-1406): factory.invite_actor_to_case() called with roles=None.
-
-    When ``suggested_roles`` is absent from the blackboard (as in the
-    ``create_accept_actor_recommendation_received_tree`` path), the node
-    must pass ``roles=None`` to the factory — no silent default substitution
-    (ADR-0032, BT-HELPER-01).
-    """
-
-    @pytest.fixture
-    def dl(self, store_for):
-        """This class executes as ACTOR_ID, so that is its store."""
-        return store_for(ACTOR_ID)
-
-    def test_invite_actor_to_case_called_with_roles_none(self, dl):
-        """AC-2: roles=None passed to factory when suggested_roles absent."""
-        from unittest.mock import MagicMock
-
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        # attributed_to triggers genesis_hash computation so the internal
-        # commit_log_entry_tree inside EmitInviteActorToCaseNode can bootstrap.
-        case = make(
-            as_VulnerabilityCase,
-            id_=AC3_CASE_ID,
-            name="AC2 test case",
-            attributed_to=ACTOR_ID,
-        )
-        dl.create(case)
-
-        mock_factory = MagicMock(spec=TriggerActivityAdapter)
-        mock_factory.invite_actor_to_case.return_value = (
-            "urn:uuid:ac2-invite-001",
-            json.dumps(
-                {
-                    "id_": "urn:uuid:ac2-invite-001",
-                    "type": "Invite",
-                    "actor": ACTOR_ID,
-                    # The real factory always emits ``published``; the commit
-                    # boundary requires it (CLP-07-011).
-                    "published": now_utc().isoformat(),
-                    "object_": {
-                        "type": "VulnerabilityCase",
-                        "id_": AC3_CASE_ID,
-                    },
-                    "target": {"type": "CoreActor", "id_": INVITEE_ID},
-                    "context": AC3_CASE_ID,
-                }
-            ),
-        )
-
-        bridge = BTBridge(
-            datalayer=dl,
-            trigger_activity=mock_factory,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        node = EmitInviteActorToCaseNode(
-            invitee_id=INVITEE_ID,
-            case_id=AC3_CASE_ID,
-        )
-        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
-
-        assert result.status == Status.SUCCESS
-        mock_factory.invite_actor_to_case.assert_called_once()
-        call_kwargs = mock_factory.invite_actor_to_case.call_args
-        actual_roles = call_kwargs.kwargs.get(
-            "roles",
-            call_kwargs.args[3] if len(call_kwargs.args) > 3 else "MISSING",
-        )
-        assert actual_roles is None, (
-            f"AC-2: invite_actor_to_case must be called with roles=None "
-            f"when suggested_roles is absent, got {actual_roles!r}"
-        )
 
 
 # ---------------------------------------------------------------------------

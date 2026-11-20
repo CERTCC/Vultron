@@ -102,7 +102,7 @@ classDiagram
 | Object | What it is |
 |---|---|
 | `VulnerabilityCase` | The case itself: the container for everything below |
-| `CasePreview` | The case's preview: a minimal description of a case, carrying enough for an invited actor to decide whether to join and no vulnerability detail, sent as the `preview` of the case reference a stub Invite carries as its `object` |
+| `CasePreview` | The case's preview: the case cut down for an invited actor, showing its summary, its Case Owner and, while an embargo is in force, the embargo terms and embargo state, and withholding the rest, sent as the `preview` of the case reference a stub Invite carries as its `object` |
 | `VulnerabilityReport` | A report of the vulnerability, such as the one that started the case |
 | `CaseParticipant` | An actor's membership in a case, carrying the roles it holds and the state it owns |
 | `CaseParticipantRole` | A role offered to an actor in the context of a case. It is a distinct type so that offering a role is structurally different from offering ownership of the case |
@@ -114,8 +114,9 @@ classDiagram
 | `ProcessingFault` | A receiver's report that it could not process a message ([§4.11 Faults and Acknowledgments](layers.md#411-faults-and-acknowledgments)) |
 | `Note` | The AS2 `Note` type, used unchanged for narrative posted to the case |
 
-**An embargo is sent as `type: EmbargoEvent`.**
-A sender gives an embargo the `type` value `EmbargoEvent`, not the plain AS2 `Event` it extends, and the occasion tables name it that way ([Wire Activity Notation](annex-c-notation.md#wire-activity-notation)).
+**An embargo is sent as `type: ["EmbargoEvent", "Event"]`.**
+A sender gives an embargo the `type` value `["EmbargoEvent", "Event"]`: the Vultron type first, then the plain AS2 `Event` it extends.
+The occasion tables name it by its Vultron type, `EmbargoEvent` ([Wire Activity Notation](annex-c-notation.md#wire-activity-notation)).
 
 ### 4.4 Message Tables
 
@@ -238,8 +239,8 @@ A participant reports them as a claim in a `ParticipantStatus`, and the CASE_MAN
 {% include-markdown "../messages/_occasions/lookup-cs.md" %}
 
 !!! warning "Several case state occasions share one activity"
-    Every claim a participant makes, whichever fact it reports, is `Add(ParticipantStatus)[target=CaseParticipant]`.
-    Every fact the CASE_MANAGER records about the world is `Add(CaseStatus)[target=VulnerabilityCase]`.
+    Every claim a participant makes, whichever fact it reports, is `Add(ParticipantStatus, target=<participant>/statuses)`.
+    Every fact the CASE_MANAGER records about the world is `Add(CaseStatus, target=<case>/statuses)`.
     The fact travels in the status record's fields, as the "Distinguished by" column states, so an implementation that dispatches on the activity alone cannot tell Fix Readiness (`CF`) from Attacks Observed (`CA`).
 
     The two activities differ by the sender's authority, not by the fact.
@@ -333,7 +334,7 @@ These messages keep every active participant's replica of the case ledger in ste
 Acknowledgment of the ledger is cumulative and implicit.
 A participant whose local tail matches a received entry's previous-entry hash sends nothing, because the match is the acknowledgment.
 On a mismatch it sends `Reject(CaseLedgerEntry)`, and the CASE_MANAGER replays every entry after the last one the participant accepted.
-A participant that wants to check its replica is current, after a restart for example, states its position with `Read(CaseLedgerEntry)` naming the last entry it applied, and the CASE_MANAGER answers a lag the same way.
+A participant that wants to check its replica is current, after a restart for example, states its position with `Read(<case>/ledger)`, a `Read` of the case's ledger stating the last entry it applied, and the CASE_MANAGER answers a lag the same way.
 Whenever a participant states a position, the CASE_MANAGER also resends each Invite that participant still owes an answer to, as first sent, so an Invite lost before the participant could answer it reaches it again.
 
 ```python exec="true" idprefix=""

@@ -129,7 +129,7 @@ Built: `uv run export-demo-tree` writes `ui/src/data/scenario_tree.json`
 (`vultron/metadata/demo_scenarios/export_tree.py`). Two rules for work on it:
 
 - **Case keys come from the recordings.** Each recording is listed under the
-  `caseId`s its entries carry, so a recording refresh that changes a case id
+  cases its entries name in `context`, so a recording refresh that changes a case id
   needs a re-export too; the `demo-tree-sync` hook and the drift test say so.
 - **Choices follow the table's order**, not discovery order, so adding a
   scenario never reorders the siblings the presenter sees.

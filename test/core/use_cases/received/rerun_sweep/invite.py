@@ -51,7 +51,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-from .._ledger_network import MANAGER, LedgerNetwork
+from .._ledger_network import BROADCAST, MANAGER, OWNER, LedgerNetwork
 from ..conftest import seed_inert_invitee
 from . import Scenario, applied, refused
 from ._net import deliver, send_applied
@@ -143,6 +143,22 @@ def invite_actor_to_case() -> Scenario:
     )
 
 
+@refused(MessageSemantics.INVITE_ACTOR_TO_CASE)
+def invite_actor_to_case_naming_the_manager() -> Scenario:
+    """An Owner's Invite naming the CASE_MANAGER as invitee: refused (CM-17-015)."""
+    net = LedgerNetwork(f"{_BASE}/owner-invite-refused", em_state=EM.NONE)
+    owner_invite = rm_invite_to_case_activity(
+        make(as_Actor, id_=MANAGER),
+        to=[MANAGER],
+        case=case_stub(net.case_id),
+        actor=OWNER,
+        roles=[CVDRole.VENDOR],
+        id_=f"{net.case_id}/owner-invitations/manager",
+        at=authored_at(),
+    )
+    return deliver(net, owner_invite)
+
+
 @refused(MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE)
 def accept_invite_actor_to_case_with_no_record() -> Scenario:
     """An Accept of a stub Invite that seated no record: refused."""
@@ -208,7 +224,7 @@ def invite_actor_to_full_case() -> Scenario:
     assert anchored.disposition is HandlerDisposition.APPLIED, anchored.reason
     (announce,) = [
         a
-        for a in net.queued(MANAGER, to=JOINER, type_="Announce")
+        for a in net.queued(MANAGER, to=JOINER, type_=BROADCAST)
         if (read_sealed_body_dict(net.stores[MANAGER], a.id_) or {})
         .get("object", {})
         .get("type")
@@ -244,7 +260,7 @@ def _full_reply(kind: str, name: str, *, behind: bool = False) -> Scenario:
             (
                 e
                 for e in dl.list_objects("CaseLedgerEntry")
-                if isinstance(e, CaseLedgerEntry) and e.case_id == net.case_id
+                if isinstance(e, CaseLedgerEntry) and e.context == net.case_id
             ),
             key=lambda e: e.log_index,
         )

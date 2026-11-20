@@ -18,7 +18,6 @@ from vultron.core.behaviors.status.add_case_status_tree import (
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
@@ -75,7 +74,7 @@ def _withheld_adoption_reader(status_id: str) -> OutcomeReader:
 
 
 class AddCaseStatusToCaseReceivedUseCase:
-    """Process a received ``Add(CaseStatus)[target=VulnerabilityCase]`` (CP, CX, CA).
+    """Process a received ``Add(CaseStatus, target=<case>/statuses)`` (CP, CX, CA).
 
     ``Add(CaseStatus)`` is the CASE_MANAGER's record of the case status it
     adopted, which it alone emits (RSH-04-001).  A receiver admits it only from
@@ -133,15 +132,15 @@ class AddCaseStatusToCaseReceivedUseCase:
 
 
 class AddParticipantStatusToParticipantReceivedUseCase:
-    """Process a received Add(ParticipantStatus)[target=CaseParticipant] message.
+    """Process a received ``Add(ParticipantStatus, target=<participant>/statuses)``.
 
     Delegates DEMOMA-07-003 steps to the ``AddParticipantStatusBT``
     behavior tree:
-    1. Verify the sender: at the CASE_MANAGER, the participant the target
-       record names, or the CASE_MANAGER or Case Owner asserting on its
+    1. Verify the sender: at the CASE_MANAGER, the participant whose status
+       history the target names, or the CASE_MANAGER or Case Owner asserting on its
        behalf (RSH-08-014); at a participant replica, the CASE_MANAGER
        alone (PCR-03-001).
-    2. Append the ParticipantStatus to the CaseParticipant record.
+    2. Append the ParticipantStatus to that participant's status history.
     3. If the new status signals public awareness (CS.P) and the sender
        holds the CASE_OWNER role, initiate embargo teardown.
     4. If all participant RM states are CLOSED and this actor is the
@@ -156,10 +155,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         specs/behavior-tree-integration.yaml BT-06-001.
     """
 
-    # Participant status is self-declared: the participant the target record
-    # names sends it, or the CASE_MANAGER or Case Owner asserts an on-behalf
-    # v→V or d→D for it, whose shape the tree checks (RSH-08-014,
-    # PRM-06-003/004).  It is sent to the CASE_MANAGER alone: a replica
+    # Participant status is self-declared: the participant whose status
+    # history the target names sends it, or the CASE_MANAGER or Case Owner
+    # asserts an on-behalf v→V or d→D for it, whose shape the tree checks
+    # (RSH-08-014, PRM-06-003/004).  It is sent to the CASE_MANAGER alone: a replica
     # takes participant status from the ledger, never from an Add
     # (PCR-03-001, RSH-08-003), so the rule names the CASE_MANAGER side only.
     sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
@@ -186,14 +185,14 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # The status says which case it applies to: the tree is built on the
-        # carried status's own ``context``.  Its target door admits the
-        # delivery only when the receiver's record of the target participant
-        # names that case, so the status joins only its target's own case
-        # and no store is read here (HP-08-008, HP-08-013, HP-08-014).  A
-        # status carried by reference names no case, which the path stage
-        # refuses.
-        case_id = _as_id(getattr(request.status, "context", None)) or None
+        # The Add names its case in ``context`` (ADR-0204), which the parse
+        # edge has held to the case the carried status names (HP-08-015):
+        # the tree is built on it.  Its target door admits the delivery only
+        # when the receiver's record of the participant whose history the
+        # target names records that case, so the status joins only that
+        # participant's own case and no store is read here (HP-08-008,
+        # HP-08-013, HP-08-014).
+        case_id = request.case_id
 
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}

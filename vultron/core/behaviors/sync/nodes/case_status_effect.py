@@ -101,7 +101,7 @@ def warn_if_out_of_order(
 class IsAddCaseStatusEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is an ``add_case_status_to_case`` event.
 
-    Used in the ``CaseStatus`` slot of ``AnnounceLogEntryReceivedBT``.
+    Used in the ``CaseStatus`` slot of ``AddLogEntryReceivedBT``.
 
     Per RSH-08-004, BTND-08-001, SYNC-12-001.
     """
@@ -134,7 +134,7 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
         assert self.datalayer is not None
 
         entry = self._get_entry()
-        case = self._resolve_case_replica(entry.case_id)
+        case = self._resolve_case_replica(entry.context)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
 

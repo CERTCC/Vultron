@@ -331,7 +331,7 @@ groups:
       object exists. Until that object exists, such a check makes the CASE_MANAGER treat
       its own ledger entry as the entry of a participant.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py::test_case_manager_role_takes_authority_arm_without_service_object`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::test_case_manager_role_takes_authority_arm_without_service_object`
       confirms the actor enacting `CVDRole.CASE_MANAGER` takes the authority arm on its own ledger
       entry even before any `Service` object carries `context`. Address-resolution window:
       `test/core/behaviors/sync/nodes/test_replay.py::TestFindCaseActorNode::test_resolves_without_any_service_object_carrying_context`.
@@ -1001,27 +1001,6 @@ groups:
       CERT/CC VU# ID)
     stories:
     - story_2022_030
-  - id: CM-05-010
-    priority: MUST
-    kind: protocol
-    statement: >-
-      When a vulnerability item carries a CVE record as its content, that content MUST
-      conform to the CVE JSON schema (<https://github.com/CVEProject/cve-schema>).
-    rationale: >-
-      Tools that read a CVE record expect the CVE JSON schema, and they refuse or misread
-      data that does not conform. A CVE ID on its own is an identifier, not a CVE record,
-      so it carries no data for the schema to check (CM-05-008, ADR-0187). A case
-      reference borrows only the schema's reference tag names, as the `rel` values of
-      its `url` Link (CM-05-012); that is a vocabulary, not CVE record content, so this
-      rule does not reach it.
-    verification: >-
-      A test marked `CM-05-010` gives a vulnerability item CVE record content that fails
-      the CVE JSON schema and asserts it is refused, and gives an item a CVE ID with no
-      content and asserts it is accepted.
-    adr:
-    - ADR-0187
-    stories:
-    - story_2022_030
   - id: CM-05-011
     priority: SHOULD
     kind: protocol
@@ -1052,22 +1031,26 @@ groups:
     kind: protocol
     statement: >-
       A vulnerability item MUST carry the identity fields of a CSAF 2.1 vulnerability
-      entry: an optional `cve`, a list of `ids` that each pair a `system_name` with a
-      `text`, an optional `name` that holds the entry's `title`, a list of `notes`, and
-      a list of `references`.
+      entry: a list of `ids` that each pair a `system_name` with a `text`, an optional
+      `name` that holds the entry's `title`, a list of `notes`, and a list of
+      `references`. A CVE ID is an `ids` entry whose `system_name` is `CVE`; the item
+      has no `cve` field of its own.
     rationale: >-
       Shaped like a CSAF vulnerability entry, the item maps a CSAF report's
       vulnerabilities in and out field by field. Pairing each identifier with
       its tracking system names its namespace without parsing its value (CM-05-008,
-      ADR-0187). The `title` travels as AS2 `name`, which means the same, because a
-      Vultron term never duplicates an AS2 term (VM-10-009, ADR-0194).
+      ADR-0187). A reader finds all of a vul's identifiers in one list; CSAF's own
+      `cve` field maps to and from the `CVE` entry (CSAF-03-008). The `title` travels
+      as AS2 `name`, which means the same, because a Vultron term never duplicates an
+      AS2 term (VM-10-009, ADR-0194).
     verification: >-
-      A test marked `CM-05-018` builds a vulnerability item from each field and asserts
-      a CSAF 2.1 vulnerability entry's `cve`, `ids`, `title` (as the item's `name`),
-      `notes` and `references` round-trip through it.
+      A test marked `CM-05-018` builds a vulnerability item from each field, asserts it
+      refuses a `cve` key, and asserts a CSAF 2.1 vulnerability entry's `cve`, `ids`,
+      `title` (as the item's `name`), `notes` and `references` round-trip through it.
       `test/wire/as2/vocab/test_vulnerability_item.py::test_a_csaf_entrys_title_is_the_items_name`
-      requires the item to declare no `title` and to hold it as `name`; it is a strict
-      `xfail` until #6413 moves the title.
+      requires the item to declare no `title` and to hold it as `name`, and
+      `::test_an_item_with_a_title_key_is_refused` checks that core validation refuses
+      an item with a `title` key (MV-11-004).
     adr:
     - ADR-0187
     - ADR-0194
@@ -1077,14 +1060,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `cve` of a vulnerability item MUST match the CVE ID format that CSAF 2.1 gives
-      its `cve` field.
+      The `text` of a vulnerability item's `ids` entry whose `system_name` is `CVE` MUST
+      match the CVE ID format that CSAF 2.1 gives its `cve` field.
     rationale: >-
-      The `cve` field is CVE-typed on purpose, so its format is known, and a value that
-      passes it also passes CSAF. Identifiers in `ids` stay opaque (CM-05-008, ADR-0187).
+      The CSAF translation maps the `CVE` entry to CSAF's CVE-typed `cve` field, so a
+      value that passes this check also passes CSAF. This is the one exception to
+      CM-05-008: the identifier of every other system stays opaque (ADR-0187).
     verification: >-
       A test marked `CM-05-019` builds a vulnerability item with a well-formed and with a
-      malformed `cve` and asserts the second is refused.
+      malformed `CVE` entry and asserts the second is refused, and that a malformed text
+      under any other system is kept.
     adr:
     - ADR-0187
     stories:
@@ -1138,7 +1123,7 @@ groups:
     rationale: >-
       Every change the CASE_MANAGER makes to the case file is its own ledger entry
       (CLP-07-013), so the ledger fan-out is the notice: each change reaches the
-      active participants as `Announce(CaseLedgerEntry)`. The CASE_MANAGER also
+      active participants as `Add(CaseLedgerEntry)`. The CASE_MANAGER also
       announces the updated case as `Announce(VulnerabilityCase)` after admitting
       an engagement that moved the sender's recorded RM state. An engagement that
       restates a move already recorded changes no case state, so it announces
@@ -1148,7 +1133,7 @@ groups:
       handles, so it is reported "no use case found" (SE-05-002, ADR-0140).
     verification: >-
       Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
-      canonical case state it fans out `Announce(CaseLedgerEntry)` to every active
+      canonical case state it fans out `Add(CaseLedgerEntry)` to every active
       participant and to no inert participant.
     relationships:
     - rel_type: implements
@@ -1493,7 +1478,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      This rule covers each `Announce(CaseLedgerEntry)` the CASE_MANAGER sends, as
+      This rule covers each `Add(CaseLedgerEntry)` the CASE_MANAGER sends, as
       fan-out of a new entry or as a replay answering a `Reject(CaseLedgerEntry)`
       (SYNC-03-002). While an embargo is active, the CASE_MANAGER MUST NOT send one to a
       participant that has not accepted that embargo (the CM-10-004 content gate).
@@ -1560,10 +1545,11 @@ groups:
     adr:
     - ADR-0116
     verification: >-
-      A received-side test confirms that when a participant accepts the active embargo, the
-      CASE_MANAGER's outbox holds an `Announce(CaseLedgerEntry)` addressed to it for each entry committed
-      while it was outside the gate, in log order and ahead of any later entry, and that none of those
-      entries is re-sent to a participant that already had it.
+      A received-side test confirms that when a participant accepts the active embargo,
+      the CASE_MANAGER's outbox holds an `Add(CaseLedgerEntry)` addressed to it for each
+      entry committed while it was outside the gate, in log order and ahead of any later
+      entry, and that none of those entries is re-sent to a participant that already had
+      it.
     relationships:
     - rel_type: extends
       spec_id: CM-10-005
@@ -1868,13 +1854,13 @@ groups:
       an id or a time, and the copies of the case would then disagree.
     verification: >-
       `test_create_entry_stores_the_record_exactly_as_carried` in
-      `test/core/behaviors/sync/test_announce_tree.py` finds the stored record equal
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` finds the stored record equal
       to the one the entry carries;
       `test_replicas_hold_the_managers_whole_record_after_invite_and_accept` in
       `test/core/use_cases/received/test_stub_invite_replay.py` finds each
       replica's record equal to the CASE_MANAGER's in every field, status ids and
       times included. A test replays an entry whose `target` names the case and
-      finds the record in that case, not in one taken from the entry's `case_id`
+      finds the record in that case, not in one taken from the entry's `context`
       (#6295).
     relationships:
     - rel_type: depends_on
@@ -1924,7 +1910,7 @@ groups:
       CASE_MANAGER holds (ADR-0114, ADR-0124).
     verification: >-
       `test_the_reject_entry_declines_the_embargo_in_force` in
-      `test/core/behaviors/sync/test_announce_tree.py` applies the Reject entry on a
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` applies the Reject entry on a
       replica; `test_replicas_hold_the_managers_whole_record_after_a_reject` in
       `test/core/use_cases/received/test_stub_invite_replay.py` finds each
       replica's record equal to the CASE_MANAGER's after a reject.
@@ -2742,10 +2728,11 @@ groups:
     note: >-
       The default role list for a suggested actor is a separate flow (CM-16-003).
     verification: >-
-      `test_validated_invitee_roles_never_defaults` and
-      `test_require_explicit_roles_fails_when_no_roles_given` in
-      `test/core/behaviors/case/test_suggest_actor_tree.py` find no VENDOR default
-      when no roles are given.
+      `test_validated_invitee_roles_never_defaults` in
+      `test/core/behaviors/case/test_suggest_actor_tree.py` and
+      `test_no_roles_is_refused_not_defaulted` in
+      `test/core/use_cases/triggers/test_actor_triggers.py` find no VENDOR
+      default when no roles are given.
     relationships:
     - rel_type: extends
       spec_id: CM-11-019
@@ -2887,16 +2874,25 @@ groups:
   - id: CM-12-005
     priority: MUST
     kind: project
-    statement: '`InvalidateReportReceivedUseCase`, `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` MUST
-      dereference the incoming report ID to the associated case ID before delegating to the corresponding case-level use case'
+    statement: >-
+      The received trees of `InvalidateReportReceivedUseCase`,
+      `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` MUST resolve
+      the incoming report ID to the associated case ID, with a lookup node in the
+      tree (BT-25-009), before any case-scoped stage reads the case.
     rationale: >-
       The report-level messages name the report. But each participant's RM state that
-      these messages change is on the case. When the use case resolves the report to its
-      case first, one case-level use case applies the change. Thus the report-level path
-      and the case-level path cannot become different.
-    verification: Inspection of `vultron/core/` confirms that `InvalidateReportReceivedUseCase`,
-      `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` each resolve the report
-      ID to its associated case ID before delegating.
+      these messages change is on the case. When the tree resolves the report to its
+      case first, every case-scoped stage applies the change to that one case. Thus the
+      report-level path and the case-level path cannot become different, and the use
+      case reads no store (ADR-0195).
+    verification: >-
+      `test/core/behaviors/report/test_report_case_lookup.py::test_the_lookup_is_the_one_source_of_the_case`
+      and `::test_the_lookup_runs_ahead_of_the_path_stage_and_is_no_door` build each
+      tree and assert that its lookup is the one source of `/case_id` and runs ahead
+      of the path stage.
+    see_also:
+    - spec_id: BT-25-009
+      reason: 'an example: the report-to-case lookup is a lookup node of the tree'
 - id: CM-13
   title: Embargo Acceptance Ownership
   specs:
@@ -2923,7 +2919,7 @@ groups:
       participant record, the ledger and the outbox unchanged. In
       `test/core/use_cases/received/test_embargo_answer_idempotency.py`,
       `test_a_repeat_answer_under_a_new_id_changes_nothing` confirms the same for a repeat
-      under a new activity id (no entry, no Announce, no state change), and
+      under a new activity id (no entry, no Add, no state change), and
       `test_another_participants_answer_is_still_its_own_consent` confirms that a different
       participant's answer is still recorded as its own consent.
     stories:
@@ -3020,7 +3016,7 @@ groups:
       participant (the Case Owner). The Create(VulnerabilityCase) notification in
       CM-14-011 is flushed before the reporter is added in CM-14-012 so each recipient
       of that `Create` holds the case object before any subsequent
-      Announce(CaseLedgerEntry) fan-out that references it.
+      Add(CaseLedgerEntry) fan-out that references it.
     verification: Integration tests in `test/demo/` confirm that the case initialization
       sequence completes exactly 6 ordered steps (CM-14-008 through CM-14-013) and that no step
       is skipped or reordered.
@@ -3079,8 +3075,10 @@ groups:
       The `Create(VulnerabilityCase)` notification MUST be queued and the outbox
       flushed before the reporter is added as a `CaseParticipant` in step 5 of
       CM-14-001
-    rationale: The reporter's system must receive and store the case object before any Announce(CaseLedgerEntry) fan-out that
-      lists them as a participant. Reversing this order causes "case not found" errors on the reporter side when the log entry
+    rationale: >-
+      The reporter's system must receive and store the case object before any
+      Add(CaseLedgerEntry) fan-out that lists them as a participant. Reversing this
+      order causes "case not found" errors on the reporter side when the log entry
       arrives referencing a case the reporter has not yet seen.
     verification: Integration tests in `test/demo/` confirm that the
       `Create(VulnerabilityCase)` outbox flush occurs before the reporter
@@ -3226,7 +3224,7 @@ groups:
       CBT-01-010).
     rationale: >-
       Each recipient must hold the case object before any
-      `Announce(CaseLedgerEntry)` fan-out that references it. The reporter trusts
+      `Add(CaseLedgerEntry)` fan-out that references it. The reporter trusts
       only the actor it sent its report to, so the case reaches it from that actor:
       directly when that actor is the CASE_MANAGER, and through the report
       receiver's introduction when it is not (ADR-0132).
@@ -3279,11 +3277,11 @@ groups:
     kind: protocol
     statement: >-
       Step 6 of the case initialization sequence MUST commit a case ledger entry,
-      triggering `Announce(CaseLedgerEntry)` fan-out to all participants.
+      triggering `Add(CaseLedgerEntry)` fan-out to all participants.
     rationale: The ledger entry commits the completed initialization as a single
       protocol-significant event and notifies all participants atomically.
     verification: Integration tests in `test/demo/` confirm that step 6 commits a case ledger
-      entry that triggers `Announce(CaseLedgerEntry)` fan-out to all participants.
+      entry that triggers `Add(CaseLedgerEntry)` fan-out to all participants.
     relationships:
     - rel_type: part_of
       spec_id: CM-14-001
@@ -3767,7 +3765,7 @@ groups:
       including the Case Owner's identity, the second recommender's identity and any
       `content` from the Offer. The note is the CASE_MANAGER's own `add_note_to_case`
       entry, attached to the case, and reaches the Case Owner's inbox as that entry's
-      `Announce(CaseLedgerEntry)` (SYNC-02-001, SYNC-02-003); a direct `Add(Note)` to
+      `Add(CaseLedgerEntry)` (SYNC-02-001, SYNC-02-003); a direct `Add(Note)` to
       the Case Owner is refused there (HP-01-005).
     rationale: >-
       A note about reinforcing suggestions gives the Case Owner more context for the
@@ -3895,9 +3893,9 @@ groups:
     rationale: >-
       An AS2 `Invite` names what one is invited to as its `object`, and the invited
       party as its `target` (ADR-0205). When the object carries only the case's
-      preview, no case content goes to an invitee that is not yet entitled to it
-      (CM-10-004, CM-17-022). The object's form lets a receiver tell this Invite from
-      the full-case Invite (CM-11-013).
+      preview, the invitee sees only what that preview shows, not the case it is
+      not yet entitled to (CM-10-004, CM-17-010). The object's form lets a
+      receiver tell this Invite from the full-case Invite (CM-11-013).
     verification: >-
       Integration tests in `test/demo/` confirm that the stub Invite emitted by the
       CASE_MANAGER names the invitee as its `target` and carries the case's previewed
@@ -3917,8 +3915,9 @@ groups:
     statement: >-
       This rule covers a stub Invite sent while an embargo is in force. Then EM
       is `ACTIVE` or `REVISE`, and the case's embargo register holds an `ACTIVE`
-      entry. Its case stub MUST carry the active embargo (`activeEmbargo`), inline
-      or by an ID that the invitee can ask the inviter to resolve.
+      entry. Its case stub MUST carry that entry as its `embargoRegister`, reduced
+      to the one entry. The entry holds the embargo inline, or by an ID that the
+      invitee can ask the inviter to resolve.
     rationale: >-
       The invite-accept cycle is the only consent signal for a late joiner. An Accept
       without the embargo terms is not informed consent (CM-11-001). The invitee has
@@ -3928,12 +3927,13 @@ groups:
       embargo stays in force (EP-05-002), so the invitee needs its terms then too.
     verification: >-
       Integration tests in `test/demo/` confirm that when an embargo is in force at
-      invite time, the case stub on the wire carries `activeEmbargo`; unit tests
-      marked `CM-17-002` in
-      `test/core/use_cases/triggers/test_actor_triggers.py` and
+      invite time, the case stub on the wire carries the in-force
+      `embargoRegister` entry; unit tests marked `CM-17-002` in
+      `test/core/use_cases/triggers/test_actor_triggers.py`,
+      `test/core/models/test_case_preview_profile.py` and
       `test/wire/as2/factories/test_case_factories.py` confirm the same for EM
       `ACTIVE` and `REVISE`, and that a stub sent with no embargo in force (none
-      yet, a proposal only, or an ended one) carries no embargo.
+      yet, a proposal only, or an ended one) carries no `embargoRegister`.
     relationships:
     - rel_type: extends
       spec_id: CM-17-001
@@ -3947,17 +3947,22 @@ groups:
     kind: protocol
     statement: >-
       When an embargo is in force as the CASE_MANAGER sends a stub Invite, the
-      case stub MUST carry the case's EM state (`caseStatus.emState`).
+      case stub MUST carry the case's EM state. The state travels in the last
+      entry of the stub's `caseStatuses`, the case's current status.
     rationale: >-
       The EM state tells the invitee whether a revision of the embargo is open. In EM
       `REVISE`, the invitee learns from it that a proposal is pending, which it
-      receives after it joins (EP-09-011). The `caseStatus` is a `CaseStatus`, so it
-      also carries the `published` time every status carries (CLP-15-010).
+      receives after it joins (EP-09-011). The entry is the case's own current
+      `CaseStatus`, so its EM and PXA states are the case's, and it carries the
+      `published` time every status carries (CLP-15-010).
     verification: >-
       `test_active_embargo_enriches_case_stub` and
       `test_revise_stub_carries_the_embargo_in_force` in
-      `test/core/use_cases/triggers/test_actor_triggers.py` confirm the stub carries
-      `emState` `ACTIVE` or `REVISE`.
+      `test/core/use_cases/triggers/test_actor_triggers.py` confirm the stub's
+      current status carries `emState` `ACTIVE` or `REVISE`;
+      `test_enriched_stub_carries_the_current_status_and_in_force_entry` in
+      `test/wire/as2/factories/test_case_factories.py` confirms it is the case's
+      current status, whole.
     relationships:
     - rel_type: extends
       spec_id: CM-17-002
@@ -3968,16 +3973,21 @@ groups:
     kind: protocol
     statement: >-
       A case stub MUST NOT carry an open embargo revision proposal. The invitee
-      learns of the proposal from `caseStatus.emState` and receives it after
-      joining (EP-09-011).
+      learns of the proposal from the EM state of its current status and receives
+      it after joining (EP-09-011).
     rationale: >-
-      The revision is not yet binding, and CM-17-022 keeps other case content out of
-      the stub. When the joiner holds the case, EP-09-011 relays to it each open
-      proposal that it has not answered.
+      The revision is not yet binding, so the invitee consents only to the
+      embargo in force (CM-17-002). The stub's `embargoRegister` is the case's
+      register reduced to the in-force entry, so no proposal is in it. When the
+      joiner holds the case, EP-09-011 relays to it each open proposal that it
+      has not answered.
     verification: >-
       `test_revise_stub_carries_the_embargo_in_force_not_the_revision` in
       `test/wire/as2/factories/test_case_factories.py` confirms that a `REVISE` stub
-      carries the embargo in force and not the revision.
+      carries the embargo in force and not the revision;
+      `test_a_preview_hiding_the_embargo_in_force_is_refused` in
+      `test/wire/as2/test_invitation_preview_envelope.py` confirms a receiver
+      refuses a stub carrying an open proposal.
     relationships:
     - rel_type: extends
       spec_id: CM-17-002
@@ -3990,8 +4000,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `Invite` activity MUST embed the intended `case_roles: list[CVDRole]` for the
-      invitee so that `EmitInviteActorToCaseNode` can include them in the wire activity.
+      The `Invite` activity MUST embed the intended `roles: list[CVDRole]` for the
+      invitee so that the stub Invite emit node can include them in the wire activity.
     rationale: >-
       The CASE_MANAGER cannot route messages for a participant with no roles, or give it
       the correct access (CM-11-019). The participant record that the stub Invite
@@ -3999,7 +4009,7 @@ groups:
       roles that the Case Owner intended. These roles can come from a direct trigger
       request or from the suggest-actor round-trip.
     verification: Integration tests in `test/demo/` confirm that the `Invite` activity emitted
-      for a new participant embeds a non-empty `case_roles` list for the invitee.
+      for a new participant embeds a non-empty `roles` list for the invitee.
     relationships:
     - rel_type: extends
       spec_id: CM-17-001
@@ -4054,16 +4064,20 @@ groups:
     statement: >-
       Presence in the case participant list MUST NOT be treated as acceptance of the
       invitation or as entitlement to case content. An invitee is in the list from the
-      stub Invite onward (CM-11-006); only an active participant (CM-10-004) is entitled
-      to case content.
+      stub Invite onward (CM-11-006). It sees what the stub's preview shows
+      (CM-17-010), and only an active participant (CM-10-004) is entitled to other
+      case content.
     rationale: >-
       The CASE_MANAGER tracks every invitee from the moment it is invited, including one
       that declines, so the participant list holds inert participants. Any consumer that
       reads membership as "accepted" would hand case content to an actor that has not
-      consented.
+      consented. The preview is the one exception, and it is cut from the case by a
+      fixed profile, so what an invitee sees does not depend on who reads the list.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: CM-17-010
     adr:
     - ADR-0114
     stories:
@@ -4085,7 +4099,7 @@ groups:
       same id, and the receiver drops it (ID-02-001). The commit records the Invite one
       time.
     verification: >-
-      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
+      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestStubInviteQueuesBeforeCommitting`
       asserts the emit node appends to the outbox before it commits;
       `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce` asserts a
       retry queues and commits the Invite once.
@@ -4104,7 +4118,7 @@ groups:
       A copy addressed to the CASE_MANAGER would loop back to its own inbox, where a
       received-side path could record the same Invite a second time (ADR-0109).
     verification: >-
-      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
+      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestStubInviteQueuesBeforeCommitting`
       asserts the emitted Invite sets no `cc`.
     relationships:
     - rel_type: extends
@@ -4136,85 +4150,139 @@ groups:
       This rule covers the direct-trigger path, where the Case Owner calls
       `invite-actor-to-case` with a `roles` list. In that path,
       `SvcInviteActorToCaseUseCase` MUST send the CASE_MANAGER the Case Owner's
-      own recommend-actor `Offer(Actor)[target=VulnerabilityCase]`, carrying those
-      roles, from the
-      Case Owner's identity and outbox.
+      own `Invite(<case preview>)[target=<invitee>]`, carrying those roles, from
+      the Case Owner's identity and outbox, and send no recommend-actor
+      `Offer(Actor)[target=VulnerabilityCase]`.
     rationale: >-
-      The owner's direct invite is the recommend-actor flow with the recommender and the
-      decider being the same participant, so it reuses that flow rather than adding a message
-      type. This is one path for every topology: when the Case Owner's container also hosts the
-      CASE_MANAGER the Offer loops back over HTTP (OX-12-001), and when it does not the Offer
-      is the only way to reach the CASE_MANAGER without emitting in its name from a store that
-      is not the ledger's home (ADR-0109).
+      The Case Owner decides whom the case invites, so it sends the decision it
+      makes, and the CASE_MANAGER makes the ask the invitee answers (ADR-0199). An
+      `Offer` would ask for a decision the Owner has already made. The Owner's
+      Invite and the stub Invite share one wire shape; an Invite addressed to the
+      CASE_MANAGER that names another actor in `target` is the Owner's. The Owner
+      never emits in the CASE_MANAGER's name (ADR-0109).
     verification: >-
-      `test/core/use_cases/triggers/test_actor_triggers.py` asserts the trigger enqueues an
-      `Offer(Actor)[target=VulnerabilityCase]` addressed to the CASE_MANAGER with the
-      offered roles, from the
-      owner's outbox only; and
-      `test/demo/test_remote_case_actor_invite.py` runs the flow on three containers and
-      asserts the Invite is emitted and committed on the CASE_MANAGER's container with no `cc`.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcInviteActorToCaseUseCase`
+      asserts the trigger enqueues the Owner's own `Invite` addressed to the
+      CASE_MANAGER with the offered roles, from the owner's outbox only, and no
+      `Offer(Actor)`; and `test/demo/test_remote_case_actor_invite.py` runs the
+      flow on three containers and asserts the stub Invite is emitted and committed
+      on the CASE_MANAGER's container with no `cc`.
     adr:
     - ADR-0109
+    - ADR-0199
   - id: CM-17-017
     priority: MUST_NOT
     kind: project
     statement: >-
       In the direct-trigger path, `SvcInviteActorToCaseUseCase` MUST NOT execute
-      the invite tree locally as the CASE_MANAGER.
+      the invite tree locally as the CASE_MANAGER, unless the Case Owner holds the
+      CASE_MANAGER role itself.
     rationale: >-
       A local run would emit in the CASE_MANAGER's name from a store that is not the
-      ledger's home (ADR-0109). The CASE_MANAGER emits the Invite on its own
-      container, from the Offer it received.
+      ledger's home (ADR-0109). The CASE_MANAGER makes its stub Invite on its own
+      container, from the Owner's Invite it received. An Owner that holds the role
+      has no one to ask: its stub Invite is its own act, with neither `attributedTo`
+      nor `inReplyTo` (CM-24-021, ADR-0199).
     verification: >-
-      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcInviteActorToCaseUseCase::test_invite_sends_the_owners_own_offer_to_the_case_manager`
-      asserts the trigger runs no tree as the CASE_MANAGER.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcInviteActorToCaseUseCase::test_invite_is_queued_in_the_owners_outbox_only`
+      asserts the trigger runs no tree as the CASE_MANAGER;
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestOwnerHoldingTheCaseManagerRoleInvitesDirectly`
+      asserts an Owner holding the role sends its own stub Invite, ledgered once.
     relationships:
     - rel_type: extends
       spec_id: CM-17-007
     adr:
     - ADR-0109
+    - ADR-0199
   - id: CM-17-018
     priority: MUST
     kind: project
     statement: >-
-      This rule covers an `Offer(Actor)[target=VulnerabilityCase]` whose recommender
-      holds
-      `CVDRole.CASE_OWNER` for the case. The CASE_MANAGER's recommend-actor
-      received tree MUST emit the `Invite` directly with the offered roles,
-      instead of forwarding the Offer to the Case Owner (CM-16-003, CM-16-004).
+      This rule covers the Case Owner's `Invite(<case preview>)[target=<invitee>]`
+      received by the CASE_MANAGER (CM-17-007). The CASE_MANAGER MUST commit an
+      admitted Invite as one ledger entry, then send the invitee its own stub Invite.
+      That stub Invite carries the same `object`, `target` and roles, with
+      `attributedTo` the Case Owner and `inReplyTo` the Owner's Invite (CM-24-002,
+      CM-24-020).
     rationale: >-
-      When the recommender is the Case Owner, the recommender and the decider are the
-      same participant. Forwarding the Offer would ask the Case Owner a question it
-      has already answered.
+      The decider's act is ledgered as the decision, and the CASE_MANAGER makes the
+      ask the invitee answers (ADR-0199). The two fields let the invitee and every
+      replica recover who decided and which decision the stub carries out. A
+      re-invite of an invitee that has not answered names the stub it supersedes in
+      `inReplyTo` instead (CM-11-044).
     verification: >-
-      `test/core/behaviors/case/test_suggest_actor_tree.py` asserts the CASE_OWNER
-      branch sits behind the duplicate branches and ahead of the fresh path;
-      `test/core/use_cases/received/actor/test_suggest.py` asserts the CASE_MANAGER
-      emits the Invite, commits it, and does not forward the Offer.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestCaseManagerJudgesTheOwnersInvite::test_an_admitted_invite_is_one_entry_then_the_stub_invite`
+      asserts the one entry for the Owner's Invite and the stub Invite's fields;
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestStubInviteIsRecordedAfterItIsSent`
+      asserts the order of the writes.
     relationships:
     - rel_type: extends
       spec_id: CM-17-007
-    - rel_type: supersedes
-      spec_id: CM-16-004
     adr:
     - ADR-0109
+    - ADR-0199
     see_also:
-    - spec_id: CM-16-003
-      reason: 'context for the reader'
+    - spec_id: CM-24-002
+      reason: 'the delegated-authorship field the stub sets'
+    - spec_id: CM-24-020
+      reason: 'the delegated-authorship field the stub sets'
+  - id: CM-17-026
+    priority: MUST
+    kind: project
+    statement: >-
+      The CASE_MANAGER MUST refuse the Case Owner's Invite with a refusal notice,
+      committing nothing, in each of these cases. The sender does not hold
+      `CASE_OWNER`. The `target` is the CASE_MANAGER or the Owner. The invitee has
+      joined, is at `RM.CLOSED` or was removed.
+    rationale: >-
+      Only the Case Owner decides whom the case invites, and a refused decision is
+      answered so the sender learns why (CLP-05-001). The CASE_MANAGER never
+      invites itself (CM-17-015), and a joined, closed or removed participant is
+      sent no stub Invite (CM-11-043, CM-31-013).
+    verification: >-
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestCaseManagerJudgesTheOwnersInvite`
+      asserts each refusal: the refusal notice, no ledger entry and no stub Invite.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-17-018
+    adr:
+    - ADR-0199
+  - id: CM-17-027
+    priority: MUST
+    kind: project
+    statement: >-
+      The CASE_MANAGER MUST refuse with a refusal notice an
+      `Offer(Actor)[target=VulnerabilityCase]` whose sender holds `CASE_OWNER` for
+      the case, committing nothing.
+    rationale: >-
+      The Owner's decision to invite has one wire form, its own Invite (CM-17-007,
+      ADR-0199). A recommendation is a suggestion the Owner decides, so an Owner's
+      recommendation would ask it a question it has already answered.
+    verification: >-
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestCaseManagerJudgesTheOwnersInvite::test_the_owners_recommend_actor_offer_is_refused`
+      asserts the refusal notice, with no ledger entry and no stub Invite.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-17-007
+    adr:
+    - ADR-0199
   - id: CM-17-019
     priority: MUST
     kind: project
     statement: >-
-      The CASE_MANAGER's Invite for the Case Owner's direct invite MUST carry the
-      offered roles, so its `caseRoles` is never empty (CM-17-003).
+      The CASE_MANAGER's stub Invite for the Case Owner's Invite MUST carry the roles
+      the Owner's Invite offers, so its `roles` is never empty (CM-17-003). An
+      Owner's Invite that offers no role is refused, never defaulted (CM-11-050).
     rationale: >-
-      The roles travel in the Offer, and the CASE_MANAGER reads them from the received
-      Offer it stored. That is the stored activity, not a value the trigger response
-      carried, the same discipline CM-16-018 applies to the CASE_MANAGER's own
-      outgoing Offer on `Accept`.
+      The roles travel in the Owner's Invite, and the CASE_MANAGER reads them from
+      the received Invite it stored. That is the stored activity, not a value the
+      trigger response carried, the same discipline CM-16-018 applies to the
+      CASE_MANAGER's own outgoing Offer on `Accept` (ADR-0199).
     verification: >-
-      `test/core/use_cases/received/actor/test_suggest.py::TestOwnerDirectInviteAtCaseManager::test_requested_roles_are_carried`
-      asserts the Invite carries the offered roles.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRolesAndEmbargoEnrichment::test_roles_carried_to_the_case_managers_invite`
+      asserts the stub Invite carries the offered roles, and
+      `test_no_roles_requested_is_refused` in the same class asserts an Invite with
+      none is refused.
     relationships:
     - rel_type: extends
       spec_id: CM-17-018
@@ -4222,6 +4290,10 @@ groups:
       spec_id: CM-17-003
     adr:
     - ADR-0109
+    - ADR-0199
+    see_also:
+    - spec_id: CM-11-050
+      reason: 'the no-default rule the refusal applies'
   - id: CM-17-008
     priority: MUST
     kind: project
@@ -4271,7 +4343,7 @@ groups:
       entry in chain order.
     verification: >-
       `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_accept_invite_seeds_the_case_before_any_ledger_entry_reaches_the_invitee`
-      asserts `Announce(VulnerabilityCase)` precedes every `Announce(CaseLedgerEntry)`
+      asserts `Announce(VulnerabilityCase)` precedes every `Add(CaseLedgerEntry)`
       addressed to the invitee, and `test_accept_invite_backfills_canonical_ledger_from_genesis`
       asserts the invitee receives entries 0, 1, 2, 3 in order;
       `test/core/behaviors/case/test_accept_invite_tree.py::test_case_announce_and_backfill_precede_the_first_committing_effect`
@@ -4290,28 +4362,30 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A sender's case preview (`CasePreview`) MUST carry exactly `id`, `type`, a
-      non-empty `summary` (MV-10-001) and, with an embargo in force, the CM-17-002
-      embargo terms. The JSON-LD `@context` is not content.
+      A stub Invite's preview (`CasePreview`) MUST show its `summary`
+      (MV-10-001), the Case Owner and, while an embargo is in force, the embargo
+      terms (CM-17-002) and EM state (CM-17-013).
     rationale: >-
-      An invitee is not yet entitled to case content (CM-10-004, CM-17-005). For
-      informed consent, the invitee needs the case's identity, a summary that a person
-      can read of what it is asked to join, and the embargo terms (CM-17-002). The
-      case's identity is the `id` of the case reference the stub is the preview of
-      (CM-11-013, ADR-0205), so the stub names no case of its own.
+      An invitee cannot decide to join without a summary it can read, the actor
+      that runs the case, and the embargo terms it consents to by joining
+      (CM-17-002). To show a field is to include its value or a substitute, never
+      a `Redacted` marker or no key. Every other case field is the sender's
+      choice of include, substitute, redact or omit, apart from what CM-17-014
+      and CM-17-025 keep out. The case reference carrying the preview names the
+      case (CM-11-013).
     note: >-
-      Open question: whether a stub relayed by a third party should name the
-      coordinator and Case Owner is tracked in #4184.
+      Open question: whether the preview should also name the CASE_MANAGER is
+      tracked in #4184.
     verification: >-
-      `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_a_non_empty_summary`
-      asserts a stub projected from a full case serialises with only `id`, `type`
-      and a non-empty `summary`; #4165 removed the strict-xfail marker when the
-      factory was implemented.
-      `test_the_preview_carries_exactly_its_id_type_and_summary`
-      in `test/wire/as2/test_parser_case_stub.py` asserts the stub carries no case ID.
-      `test_enriched_stub_carries_only_the_embargo_terms` in
-      the same file asserts that a stub sent with an embargo in force adds only
-      `activeEmbargo` and `caseStatus`.
+      `test_rm_invite_stub_shows_the_owner_name_and_status` in
+      `test/wire/as2/factories/test_case_factories.py` and
+      `test_the_cut_shows_the_owner_name_times_and_current_status` in
+      `test/core/models/test_case_preview_profile.py` confirm the cut shows the
+      summary and the Case Owner; `test_a_case_with_no_stub_summary_is_refused`
+      and `test_a_case_with_no_owner_is_refused` there confirm a cut without
+      them is refused. `test_the_cut_of_every_valid_case_is_a_valid_preview` in
+      `test/wire/as2/test_invitation_preview_envelope.py` confirms every cut of a
+      valid case shows each item the requirement names.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-11-013
@@ -4319,12 +4393,15 @@ groups:
       spec_id: MV-10-001
     - rel_type: uses_definition
       spec_id: CM-17-002
+    - rel_type: uses_definition
+      spec_id: CM-17-013
     stories:
     - story_2022_023
     - story_2026_097
     adr:
     - ADR-0205
     - ADR-0114
+    - ADR-0217
   - id: CM-17-020
     priority: MAY
     kind: protocol
@@ -4332,72 +4409,18 @@ groups:
       The sender chooses the stub's `summary`, which MAY be the case name or a
       deliberately less revealing string.
     rationale: >-
-      The case name can be an opsec risk. Thus the sender writes the summary for the
-      invitee, and does not have to copy it from the case.
+      The summary is what a person reads to decide whether to join, so the
+      sender writes it for the invitee rather than copying the case's own
+      `summary`, which is written for participants. The sender may also
+      withhold the case name, which can itself reveal what the embargo protects.
     verification: >-
       `test_rm_invite_to_case_refuses_when_no_stub_summary` in
       `test/wire/as2/factories/test_case_factories.py` confirms the factory takes
       the summary the sender set, and does not fall back to the case name.
+      This implementation's invitation profile shows the case `name`
+      (`INVITATION_PROFILE` in `vultron/core/models/case_preview_profile.py`).
     relationships:
     - rel_type: uses_definition
-      spec_id: CM-17-010
-    stories:
-    - story_2022_023
-  - id: CM-17-021
-    priority: MUST_NOT
-    kind: protocol
-    statement: >-
-      The sender MUST NOT assume the case name is safe to share with an invitee
-      not yet bound by the embargo.
-    rationale: >-
-      The case name can reveal what the embargo protects. An invitee that has not
-      joined has not agreed to the embargo, so the sender decides what the stub's
-      summary reveals to it.
-    verification: >-
-      `test_rm_invite_to_case_refuses_when_no_stub_summary` in
-      `test/wire/as2/factories/test_case_factories.py` confirms the factory refuses
-      a stub with no summary set by the sender, instead of sending the case name.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-17-020
-    stories:
-    - story_2022_023
-  - id: CM-17-022
-    priority: MUST_NOT
-    kind: protocol
-    statement: >-
-      A sender MUST NOT put any other case content in a case stub.
-    rationale: >-
-      An invitee is not yet entitled to case content (CM-10-004, CM-17-005). This
-      constrains what is sent.
-    verification: >-
-      `test_rm_invite_stub_carries_no_case_content` and
-      `test_enriched_stub_carries_only_the_embargo_terms` in
-      `test/wire/as2/factories/test_case_factories.py` assert the stub carries no
-      other case content.
-    relationships:
-    - rel_type: derives_from
-      spec_id: CM-17-010
-    stories:
-    - story_2022_023
-  - id: CM-17-023
-    priority: MUST_NOT
-    kind: protocol
-    statement: >-
-      A sender MUST NOT name the case's coordinator or Case Owner in a case stub.
-    rationale: >-
-      The Invite that carries the stub already identifies the inviter in its `actor`
-      and `attributedTo`. If the stub named the coordinator or the Case Owner, it
-      would repeat what the Invite states.
-    note: >-
-      Open question: whether a stub relayed by a third party should name the
-      coordinator and Case Owner is tracked in #4184.
-    verification: >-
-      `test_rm_invite_stub_carries_no_case_content` in
-      `test/wire/as2/factories/test_case_factories.py` asserts the case's
-      `attributedTo` never travels in the stub.
-    relationships:
-    - rel_type: derives_from
       spec_id: CM-17-010
     stories:
     - story_2022_023
@@ -4406,7 +4429,8 @@ groups:
     kind: project
     statement: >-
       When a stub carries the active embargo, this codebase MUST embed the whole
-      `EmbargoEvent` as the inviter holds it, not just its ID and `end_time`.
+      `EmbargoEvent` as the inviter holds it, not just its ID and `end_time`. The
+      embargo sits in the stub's `embargoRegister` entry.
     rationale: >-
       This is a prototype decision, not a protocol decision. An implementation can let
       the invitee get the embargo from the inviter by its ID. This prototype does not
@@ -4417,7 +4441,8 @@ groups:
       `test_rm_invite_stub_embeds_the_full_active_embargo` in
       `test/wire/as2/factories/test_case_factories.py`, run once with the case naming
       the embargo by ID and once with it holding the embargo inline, confirms the
-      stub's `activeEmbargo` equals the stored embargo's full serialization;
+      embargo of the stub's `embargoRegister` entry equals the stored embargo's
+      full serialization;
       `test_invite_stub_embeds_the_stored_embargo` in
       `test/adapters/driven/trigger_activity_adapter/test_actors.py` confirms the
       same for an embargo the inviter reads from its store.
@@ -4430,8 +4455,8 @@ groups:
     kind: project
     statement: >-
       This codebase MUST NOT send a stub Invite whose active embargo the inviter
-      cannot embed. It cannot embed it when it holds only the ID, or another
-      embargo object.
+      cannot embed. It cannot embed it when it holds only the ID, or an object
+      that is not that embargo.
     rationale: >-
       A stub that names the embargo only by ID would give the invitee no method to
       read the terms, because this prototype supplies no fetch (CM-17-002). A stub
@@ -4439,15 +4464,42 @@ groups:
     verification: >-
       `test_rm_invite_refuses_an_active_embargo_it_cannot_embed`,
       `test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one` and
-      `test_preview_embargo_refuses_when_no_active_embargo_is_named` in
-      `test/wire/as2/factories/test_case_factories.py` confirm the Invite is refused
-      when the active embargo cannot be embedded;
+      `test_rm_invite_refuses_a_supplied_embargo_that_is_no_embargo` in
+      `test/wire/as2/factories/test_case_factories.py`, and
+      `test_an_in_force_embargo_held_by_id_is_refused` in
+      `test/core/models/test_case_preview_profile.py`, confirm the Invite is
+      refused when the active embargo cannot be embedded;
       `test_invite_is_refused_when_the_embargo_is_not_in_the_store` in
       `test/adapters/driven/trigger_activity_adapter/test_actors.py` confirms the
       refusal when it is missing from the inviter's store.
     relationships:
     - rel_type: derives_from
       spec_id: CM-17-011
+  - id: CM-17-025
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A stub Invite's preview MUST NOT carry the case's bookkeeping: its ledger
+      position, genesis hash, participant index, pending-proposal index or stub
+      summary.
+    rationale: >-
+      These fields keep the case's own records in step, and mean nothing outside
+      the case. The pending-proposal index would also name open proposals, which
+      an invitee receives only after it joins (CM-17-014). The stub summary
+      reaches the invitee as the preview's `summary`, not under its own name.
+    verification: >-
+      `test_the_cut_leaves_out_the_case_bookkeeping` in
+      `test/core/models/test_case_preview_profile.py` confirms the cut carries
+      none of them, and `test_every_omit_only_field_is_absent_from_the_preview`
+      there confirms the preview type declares none, so a received one is set
+      aside (MV-11-003).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-010
+    stories:
+    - story_2022_023
+    adr:
+    - ADR-0217
   - id: CM-17-012
     priority: MUST
     kind: project
@@ -5162,12 +5214,12 @@ groups:
       No invitation confers either role: ownership moves by transfer (CM-21) and the
       `CASE_MANAGER` role by delegation (CM-02-014), as for a role Offer (CM-33-003).
       Removing the role and going on would invite the actor with roles that nobody
-      asked for, and the sender would not know. The rule also covers the Case
-      Owner's own `Offer(Actor)`, which takes the same path (CM-17-007).
+      asked for, and the sender would not know. The Case Owner's own Invite is
+      refused the same way (CM-17-026).
     verification: >-
       `test_a_suggestion_naming_an_authority_role_is_refused` and
       `test_an_owner_invite_naming_an_authority_role_is_refused` in
-      `test/core/use_cases/received/actor/test_suggest.py`, and
+      `test/core/use_cases/received/actor/test_suggest.py` (the Owner's Invite), and
       `test_an_accept_of_an_offer_naming_an_authority_role_is_refused` in
       `test/core/use_cases/received/actor/test_offer_case_participant.py`, assert
       `REFUSED` with no ledger entry, no Invite, and, where the sender is owed one, a
@@ -5518,8 +5570,9 @@ groups:
     statement: >-
       On admitting a proposal, the CASE_MANAGER MUST make the single ownership-transfer
       `Offer(VulnerabilityCase)` itself, under an id it derives from the proposal,
-      addressed to the transferee. The Offer's `actor` is the CASE_MANAGER and its
-      `attributed_to` the owner (CM-24-001, CM-24-002).
+      addressed to the transferee. The Offer's `actor` is the CASE_MANAGER, its
+      `attributed_to` the owner and its `in_reply_to` the proposal (CM-24-001,
+      CM-24-002, CM-24-020).
     rationale: >-
       Making the Offer itself rather than forwarding the owner's gives a transfer one
       Offer, under an id no other party chose, told apart from the proposal by its shape
@@ -5527,7 +5580,7 @@ groups:
     verification: >-
       A test marked `CM-21-028` delivers the owner's proposal and asserts one
       `Offer(VulnerabilityCase)` is queued to the transferee with the derived id,
-      `actor` the CASE_MANAGER and `attributedTo` the owner.
+      `actor` the CASE_MANAGER, `attributedTo` the owner and `inReplyTo` the proposal.
     relationships:
     - rel_type: extends
       spec_id: CM-21-005
@@ -5535,6 +5588,8 @@ groups:
       spec_id: CM-24-001
     - rel_type: refines
       spec_id: CM-24-002
+    - rel_type: refines
+      spec_id: CM-24-020
     adr:
     - ADR-0148
     stories:
@@ -5619,7 +5674,7 @@ groups:
     kind: protocol
     statement: >-
       After it commits the entry for a completed ownership transfer (CM-21-007), the
-      CASE_MANAGER MUST broadcast `Announce(CaseLedgerEntry)` to all case participants.
+      CASE_MANAGER MUST broadcast `Add(CaseLedgerEntry)` to all case participants.
     rationale: >-
       The `CaseLedgerEntry` broadcast is the only way that participants outside the
       transfer learn that the Case Owner changed. Examples are a Finder or a second
@@ -5792,7 +5847,7 @@ groups:
     kind: protocol
     statement: >-
       After it commits the entry for an admitted ownership-transfer Reject (CM-21-012),
-      the CASE_MANAGER MUST broadcast `Announce(CaseLedgerEntry)` to all case
+      the CASE_MANAGER MUST broadcast `Add(CaseLedgerEntry)` to all case
       participants.
     rationale: >-
       The broadcast is how every replica learns the Offer is closed, as it learns of a
@@ -5822,8 +5877,8 @@ groups:
       who owns the case.
     verification: >-
       `test_reject_entry_is_persisted_and_ownership_unchanged` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that a replica stores the
-      Reject entry and leaves ownership unchanged.
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that a replica
+      stores the Reject entry and leaves ownership unchanged.
     relationships:
     - rel_type: extends
       spec_id: CM-21-012
@@ -6006,7 +6061,7 @@ groups:
     kind: protocol
     statement: >-
       After it commits a withdrawal entry (CM-21-015), the CASE_MANAGER MUST broadcast
-      `Announce(CaseLedgerEntry)` to all case participants.
+      `Add(CaseLedgerEntry)` to all case participants.
     rationale: >-
       The broadcast is how the transferee and every replica learn that the Offer can no
       longer be accepted.
@@ -6524,7 +6579,7 @@ groups:
       participant to RM.CLOSED only by applying the ledger's status entries, in ledger
       order.
     rationale: >-
-      The status entries reach the replica in the Announce(CaseLedgerEntry) fan-out. A
+      The status entries reach the replica in the Add(CaseLedgerEntry) fan-out. A
       replica that works out a closure path from its own stored state can write an RM
       step the ledger never recorded, so it diverges from the CASE_MANAGER (ADR-0114,
       ADR-0124).
@@ -6565,7 +6620,7 @@ groups:
     verification: >-
       `test_close_case_entry_alone_changes_no_rm_state` in
       `test/core/use_cases/received/test_close_case_role_semantics.py` and in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that applying the
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that applying the
       close_case entry alone changes no participant's RM state.
     relationships:
     - rel_type: extends
@@ -6830,7 +6885,7 @@ groups:
       `test/core/participants/test_recipients.py` assert a participant whose
       closure the ledger records is left out of every case-content send except the
       entries recording its own closure.  Integration tests in `test/demo/` confirm
-      that `Announce(CaseLedgerEntry)` fan-out skips a participant once a ledger
+      that `Add(CaseLedgerEntry)` fan-out skips a participant once a ledger
       entry has recorded its `rmState=CLOSED`, that the leaving participant's
       replica does not receive the CASE_MANAGER's own
       later closure entries, and that the CASE_MANAGER's store holds every
@@ -8020,9 +8075,10 @@ groups:
 - id: CM-24
   title: CASE_MANAGER-Delegated Activity Authorship Contract
   description: >-
-    Requirements for how trigger use cases assign `actor` and `attributed_to`
-    when the CASE_MANAGER emits an Activity on behalf of a requesting participant
-    (delegated message).  The reference implementation is `delegated_authorship()`
+    Requirements for how trigger use cases and received trees assign `actor`,
+    `attributed_to` and `in_reply_to` when the CASE_MANAGER emits an Activity on
+    behalf of a requesting participant (delegated message).  The reference
+    implementation is `delegated_authorship()`
     (`vultron/core/behaviors/delegated_authorship.py`).
     Codified from CONCERN-2170.
   specs:
@@ -8050,18 +8106,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a delegated Activity is emitted by the CASE_MANAGER, the
-      `attributed_to` field MUST be set to the requesting participant's actor
-      ID so that receivers can recover the originating identity.
+      When the CASE_MANAGER emits a delegated Activity for a requesting
+      participant other than the Activity's `actor`, the `attributed_to` field
+      MUST be set to that participant's actor ID so that receivers can recover
+      the originating identity.
     rationale: >-
-      `attributed_to` is the AS2-standard field for recording who delegated an
-      action.  Without it, the intent of the message cannot be attributed to the
-      correct participant, and audit trails are incomplete.
-    verification: Integration tests in `test/demo/` confirm that a delegated Activity carries
-      the requesting participant's actor ID in the `attributed_to` field.
+      AS2 defines `attributedTo` only as the entities an object is attributed
+      to, and it says nothing of delegation. Vultron uses it to name the actor
+      that asked for the act, so a receiver can recover the originating
+      identity, and the audit trail credits the right participant. An act the
+      `actor` asked for itself has no one else to credit (ADR-0199).
+    verification: >-
+      `test_attributed_to_is_the_requesting_actor` in
+      `test/core/behaviors/test_delegated_authorship.py` asserts the helper sets
+      `attributed_to` to the asker.
     relationships:
     - rel_type: extends
       spec_id: CM-24-001
+    adr:
+    - ADR-0199
     stories:
     - story_2022_089
     - story_2022_034
@@ -8159,42 +8222,61 @@ groups:
     kind: project
     statement: >-
       Every path that emits an Activity on another participant's behalf MUST obtain the
-      Activity's `actor` and `attributed_to` from one shared helper. Such a path is a
+      Activity's `actor`, `attributed_to` and `in_reply_to` from one shared helper,
+      except where another rule fixes `in_reply_to` itself (CM-11-044, CM-33-017).
+      Such a path is a
       trigger use case, or a received-side tree performing the CM-24-010 delegated emit.
     rationale: >-
-      If each call site builds the `actor`/`attributed_to` pair again, the pair can
-      become different at different sites. A wrong pair attributes the act to the wrong
-      actor, or makes the act fail authentication (CM-24-001, CM-24-002). The
-      received-side relay is also a delegated emit (CM-24-010).
+      If each call site builds the `actor`, `attributed_to` and `in_reply_to` values
+      again, they can become different at different sites. A wrong value attributes
+      the act to the wrong actor, names the wrong request, or makes the act fail
+      authentication (CM-24-001, CM-24-002, CM-24-020). The received-side relay is
+      also a delegated emit (CM-24-010).
     verification: >-
       `test/architecture/test_delegated_attribution_uses_helper.py` confirms
       that every trigger use case and every received-side tree emitting a
-      delegated Activity takes `actor` and `attributed_to` from the one shared
+      delegated Activity takes `attributed_to` from the one shared
       helper (`delegated_authorship()` in
       `vultron/core/behaviors/delegated_authorship.py`).
+      `test/architecture/test_delegated_act_names_request.py` confirms that every
+      such emit carries an `in_reply_to`; it checks that the value is present, not
+      where it comes from, and the per-emit tests marked `CM-24-020` check the value.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-24-010
+    see_also:
+    - spec_id: CM-11-044
+      reason: 'a replacement stub Invite names the Invite it supersedes, not the request'
+    - spec_id: CM-33-017
+      reason: 'the role-offer forward names the recorded Offer even when self-asked'
   - id: CM-24-012
     priority: MUST
     kind: project
     statement: >-
       The shared delegated-authorship helper (CM-24-005) MUST set `actor` to the actor
-      doing what was asked, and `attributed_to` to the actor that asked. The doer is the
-      CASE_MANAGER executing the gated tree. The asker is the trigger's requesting
-      actor,
-      or the sender of the activity the received tree acts on.
+      doing what was asked, `attributed_to` to the actor that asked, and `in_reply_to`
+      to the request the doer received. The doer is the CASE_MANAGER executing the
+      gated tree. The asker is the trigger's requesting actor, or the sender of the
+      activity the received tree acts on, and the request is that activity.
     rationale: >-
-      Neither value needs a calculation, because the emit point knows the doer and the
-      requester. The CASE_MANAGER is the `actor` that receivers authenticate
-      (CM-24-001), and `attributed_to` recovers who asked (CM-24-002).
+      None of the values needs a calculation, because the emit point knows the doer,
+      the requester and the request. The CASE_MANAGER is the `actor` that receivers
+      authenticate (CM-24-001), `attributed_to` recovers who asked (CM-24-002), and
+      `in_reply_to` names what the act answers (VOC `inReplyTo`). A distinct asker
+      reaches the CASE_MANAGER only by message (ADR-0109), so a delegated act with no
+      request to name is a programming error (ADR-0199).
     verification: >-
       `test_actor_is_the_doing_actor` and `test_attributed_to_is_the_requesting_actor`
-      in `test/core/behaviors/test_delegated_authorship.py` assert the helper's two
-      values.
+      in `test/core/behaviors/test_delegated_authorship.py` assert the helper's three
+      values, `test_an_asker_that_is_the_doer_gets_neither_field` asserts it sets
+      neither delegation field for a self-asked act, and
+      `test_a_distinct_asker_with_no_request_is_refused` asserts it raises for a
+      distinct asker that names no request.
     relationships:
     - rel_type: extends
       spec_id: CM-24-005
+    adr:
+    - ADR-0199
   - id: CM-24-013
     priority: MUST
     kind: project
@@ -8398,6 +8480,84 @@ groups:
     see_also:
     - spec_id: CM-24-007
       reason: 'context for the reader'
+  - id: CM-24-020
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER emits a delegated Activity other than a replacement stub
+      Invite, the `in_reply_to` field MUST be set to the id of the request the
+      CASE_MANAGER received from the requesting participant. A replacement stub
+      Invite names the Invite it supersedes instead (CM-11-044).
+    rationale: >-
+      VOC `inReplyTo` names what an object answers. A receiver reads both who asked
+      (`attributedTo`, CM-24-002) and which request the act carries out. A distinct
+      asker reaches the CASE_MANAGER only by message (ADR-0109), so every delegated
+      act has a request to name (ADR-0199). Stub Invites to one invitee form a thread:
+      the first names the request, and each replacement names the Invite before it,
+      so the request stays reachable along the thread and the CASE_MANAGER finds the
+      one live stub by it (CM-11-015). The maintainer chose this in the #6464 build.
+    verification: >-
+      `test/architecture/test_delegated_act_names_request.py` asserts no emit site and
+      no example activity credits another actor without an `inReplyTo`, and the
+      per-emit tests marked `CM-24-020` assert the request each one names.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-24-002
+    adr:
+    - ADR-0199
+    stories:
+    - story_2022_089
+    - story_2022_034
+    see_also:
+    - spec_id: CM-11-044
+      reason: 'the replacement stub Invite this rule leaves to it'
+  - id: CM-24-021
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An Activity whose requesting actor is its `actor` MUST NOT carry the
+      delegation's `attributed_to` or `in_reply_to` (CM-24-002, CM-24-020).
+    rationale: >-
+      An actor that asks for its own act does it directly, and there is no one
+      else to credit and no received request to name (ADR-0199). An Owner that
+      also holds the CASE_MANAGER role sends its ask straight to the answering
+      actor.
+    verification: >-
+      `test_an_asker_that_is_the_doer_gets_neither_field` in
+      `test/core/behaviors/test_delegated_authorship.py` asserts the helper returns
+      neither field for an asker that is the doer.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-002
+    adr:
+    - ADR-0199
+    stories:
+    - story_2022_089
+    - story_2022_034
+    see_also:
+    - spec_id: CM-24-020
+      reason: 'the in_reply_to the self-asked act omits'
+  - id: CM-24-022
+    priority: MUST
+    kind: project
+    statement: >-
+      The shared delegated-authorship helper (CM-24-005) MUST raise when the asker
+      differs from the doer and the caller names no request.
+    rationale: >-
+      A delegated act with no request to name is a programming error, so the
+      helper fails it as a wiring fault before any activity is built (CM-24-020,
+      ADR-0109).
+    verification: >-
+      `test_a_distinct_asker_with_no_request_is_refused` in
+      `test/core/behaviors/test_delegated_authorship.py` asserts the raise.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-24-012
+    adr:
+    - ADR-0199
+    see_also:
+    - spec_id: CM-24-005
+      reason: 'names the shared helper the rule applies to'
 
 - id: CM-25
   title: Observer Participant Semantics
@@ -9072,7 +9232,7 @@ groups:
       on whether the invitation is open (ADR-0113).
     verification: >-
       `test_replica_records_invitee_deadline_from_relayed_invite_entry` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that a replica
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that a replica
       records the invitee's deadline when the entry is replayed.
     relationships:
     - rel_type: depends_on
@@ -9135,7 +9295,7 @@ groups:
       `TIMED_OUT` row into a replica and asserts the participant reads `TIMED_OUT`
       only once that entry is copied:
       `test/core/use_cases/received/test_embargo_invite_lapse.py::TestExpiryIsTheManagersAlone::test_non_manager_commits_no_expiry_entry`,
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::TestAddLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
       and `test/core/use_cases/received/test_embargo_activation_copy.py::TestInviteTimeOut`.
     relationships:
     - rel_type: extends
@@ -9177,13 +9337,13 @@ groups:
     statement: >-
       In this codebase a replica MUST apply the invite-expiry
       `Update(EmbargoConsent)` entry (CM-28-014) through the consent slot of
-      `create_announce_log_entry_tree` (RSH-08-004).
+      `create_add_log_entry_tree` (RSH-08-004).
     rationale: >-
       How this codebase copies the CASE_MANAGER's expiry entry onto replicas. One
       slot applies every consent entry, so a replica reads `TIMED_OUT` only from the
       entry and never computes an expiry itself.
     verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
+      `test/core/behaviors/sync/test_add_log_entry_tree.py::TestAddLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
       confirms a replica reads `TIMED_OUT` only once that entry is copied.
     relationships:
     - rel_type: implements
@@ -9743,7 +9903,7 @@ groups:
       `test/core/use_cases/received/test_case_participant.py` and
       `test_removal_fact_is_the_owners_activity_id` in
       `test/core/use_cases/received/test_participant_removal.py` apply a Case
-      Owner's `Remove(CaseParticipant)` at the CASE_MANAGER and assert the record
+      Owner's `Remove(<Actor>)` at the CASE_MANAGER and assert the record
       carries the removal fact.
     adr:
     - ADR-0116
@@ -9761,7 +9921,7 @@ groups:
     verification: >-
       `test_removal_keeps_the_record_on_the_roster` in
       `test/core/use_cases/received/test_participant_removal_planned.py` applies a
-      Case Owner's `Remove(CaseParticipant)` at the CASE_MANAGER and asserts the
+      Case Owner's `Remove(<Actor>)` at the CASE_MANAGER and asserts the
       participant is still in `case_participants` and `actor_participant_index`.
     relationships:
     - rel_type: extends
@@ -9882,7 +10042,7 @@ groups:
     rationale: >-
       `case_participants` stays the full roster that role resolution and `actor_participant_index`
       read (CM-19-001). Publishing the active set as its own collection makes
-      `Remove(CaseParticipant)` literally true: the participant leaves that collection.
+      the Case Owner's removal literally true: the participant leaves that collection.
     verification: >-
       `test_active_participants_lists_the_active_records_in_roster_order` in
       `test/core/models/test_case_active_participant.py` asserts
@@ -9960,11 +10120,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `Remove(CaseParticipant)[target=VulnerabilityCase]` is the Case Owner's request to
-      the CASE_MANAGER to remove a participant from active participation. The
-      CASE_MANAGER MUST refuse such a request in three cases. The sender does not hold
-      `CASE_OWNER`, the named participant holds `CASE_MANAGER` or `CASE_OWNER`, or the
-      request names no participant of the case.
+      `Remove(<Actor>, origin=VulnerabilityCase)` is the Case Owner's own act, sent to
+      the CASE_MANAGER only, removing the actor it names, as a typed reference, from
+      active participation. The CASE_MANAGER MUST refuse it in three cases. The sender
+      does not hold `CASE_OWNER`, the named actor holds `CASE_MANAGER` or `CASE_OWNER`,
+      or the act names no participant of the case.
     rationale: >-
       The Case Owner decides who takes part in the case; the CASE_MANAGER applies case
       changes and decides none (ADR-0108). The CASE_MANAGER role is never unfilled
@@ -9976,6 +10136,7 @@ groups:
       Owner is refused, and a removal from the Case Owner is applied.
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
   - id: CM-31-022
@@ -9987,11 +10148,11 @@ groups:
     rationale: >-
       A repeated removal changes nothing, so it is neither applied nor refused. A
       skipped result tells the Case Owner that the participant is already removed,
-      and the CASE_MANAGER commits no second entry and sends no second notice.
+      and the CASE_MANAGER commits no second entry and sends no second `Announce`.
     verification: >-
       `test_a_second_removal_is_skipped` in
       `test/core/use_cases/received/test_participant_removal_planned.py` and
-      `test_second_removal_commits_nothing_and_sends_no_second_notice` in
+      `test_second_removal_commits_nothing_and_sends_no_second_announce` in
       `test/core/use_cases/received/test_participant_removal.py` assert that a
       repeat removal is skipped.
     relationships:
@@ -10013,7 +10174,7 @@ groups:
       `test_only_the_owners_removal_records_a_removal_fact` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts
       that the only callers of `CaseParticipant.record_removal` apply the Case
-      Owner's received `Remove(CaseParticipant)` or its ledger entry.
+      Owner's received `Remove(<Actor>)` or its ledger entry.
     relationships:
     - rel_type: extends
       spec_id: CM-31-004
@@ -10026,8 +10187,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST record an accepted removal by committing the Case Owner's
-      received `Remove(CaseParticipant)` as its entry, on receipt (CLP-10-006).
+      The CASE_MANAGER MUST record an admitted removal by committing the Case Owner's
+      received `Remove(<Actor>)` as its entry, on receipt (CLP-10-006).
     rationale: >-
       The Remove states the change, so it is the change's entry (CLP-07-013), authored
       by the actor that made it. The ledger therefore shows the removal as the Case
@@ -10039,6 +10200,7 @@ groups:
       Case Owner's activity.
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10051,20 +10213,21 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `Remove(CaseParticipant)` MUST be a ledgered activity, with a canonical ledger
-      signature.
+      The Case Owner's `Remove(<Actor>)` MUST be a ledgered activity, with a canonical
+      ledger signature.
     rationale: >-
       Without the canonical signature a removal cannot be committed, so it never
       reaches a replica.
     verification: >-
       `test_removal_is_one_canonical_ledger_entry_by_the_owner` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts
-      that `("Remove", "CaseParticipant")` is a canonical signature.
+      that `("Remove", "Actor")` is a canonical signature.
     relationships:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10072,20 +10235,25 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST NOT commit a second entry of its own for a removal that
-      it records under CM-31-005.
+      The CASE_MANAGER MUST NOT commit a second entry of its own, send an `Accept`, or
+      make a `Remove` of its own for a removal that it records under CM-31-005.
     rationale: >-
-      The Case Owner's Remove is already the change's entry. A second entry would
-      record the same move twice and show it as the CASE_MANAGER's own act.
+      The Case Owner's Remove is already the change's entry, and the entry's fan-out
+      tells the Case Owner its act was admitted. A second entry or act would record
+      the same move twice and show it as the CASE_MANAGER's own act (ADR-0199).
     verification: >-
       `test_removal_is_one_canonical_ledger_entry_by_the_owner` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts
-      that an accepted removal grows the ledger by exactly one entry.
+      that an accepted removal grows the ledger by exactly one entry, and
+      `test_the_case_manager_sends_no_accept_and_makes_no_act_of_its_own` in
+      `test/core/use_cases/received/test_participant_removal.py` asserts that no
+      `Accept`, `Remove` or `Add` is sent.
     relationships:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10093,22 +10261,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      After a removal commits, the CASE_MANAGER MUST send the removed participant a
-      direct `Remove(CaseParticipant)` naming it. The notice's `actor` is the
-      CASE_MANAGER and its `attributedTo` the Case Owner (CM-24).
+      After a removal commits, the CASE_MANAGER MUST send the removed actor its own
+      `Announce(<the Case Owner's Remove>)`, carrying the act inline and naming it in
+      `inReplyTo`, with an id derived from the act.
     rationale: >-
       Learning of removal only from silence is indistinguishable from a network fault, and the removed
       party needs to know it is still bound and how it will hear of the embargo's end.
+      The `Announce` informs and asks nothing; it is the CASE_MANAGER's act, so the
+      receiver's trust check reads the CASE_MANAGER (ADR-0199).
     verification: >-
-      `test_removed_participant_is_sent_a_direct_remove_naming_it` in
+      `test_removed_participant_is_announced_the_owners_remove` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts the
-      CASE_MANAGER's outbox holds a `Remove(CaseParticipant)` addressed to the
-      removed participant.
+      CASE_MANAGER's outbox holds an `Announce` of the Case Owner's `Remove`
+      addressed to the removed actor, and no `Remove` of its own.
     relationships:
     - rel_type: extends
       spec_id: CM-31-005
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10116,19 +10287,20 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST NOT ledger its CM-31-006 removal notice.
+      The CASE_MANAGER MUST NOT ledger its CM-31-006 `Announce`.
     rationale: >-
-      The notice is delivery, not a second record of the move. The Case Owner's
+      The `Announce` is delivery, not a second record of the move. The Case Owner's
       Remove is already the move's entry (CM-31-005).
     verification: >-
-      `test_notice_is_delegated_names_the_participant_and_is_not_ledgered` in
+      `test_the_removed_actor_is_announced_the_owners_act` in
       `test/core/use_cases/received/test_participant_removal.py` asserts that the
-      notice is not a ledger entry.
+      `Announce` is not a ledger entry.
     relationships:
     - rel_type: extends
       spec_id: CM-31-006
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10144,7 +10316,7 @@ groups:
     verification: >-
       `test_removal_entry_fans_out_to_the_removed_participant` in
       `test/core/use_cases/received/test_participant_removal_planned.py` asserts an
-      `Announce(CaseLedgerEntry)` of the removal is addressed to the removed
+      `Add(CaseLedgerEntry)` of the removal is addressed to the removed
       participant.
     relationships:
     - rel_type: extends
@@ -10197,16 +10369,17 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A replica MUST NOT apply a removal from a directly received
-      `Remove(CaseParticipant)` (RSH-08-003).
+      A replica MUST NOT apply a removal from the CASE_MANAGER's `Announce` of it, or
+      from a directly received `Remove(<Actor>)` (RSH-08-003).
     rationale: >-
-      The direct notice tells the removed party what happened; it is not the change.
+      The `Announce` tells the removed party what happened; it is not the change.
       A replica that applied it would take case state from outside the ledger.
     verification: >-
-      `test_replica_stores_the_managers_notice_and_writes_nothing` in
-      `test/core/use_cases/received/test_participant_removal.py` asserts that a
-      replica stores the CASE_MANAGER's direct notice and writes no participant
-      state.
+      `test_replica_records_the_announce_and_writes_nothing` and
+      `test_replica_refuses_the_owners_removal_itself` in
+      `test/core/use_cases/received/test_participant_removal.py` assert that a
+      replica records the CASE_MANAGER's `Announce` and writes no participant
+      state, and refuses the Case Owner's act sent to it.
     relationships:
     - rel_type: extends
       spec_id: CM-31-007
@@ -10214,6 +10387,7 @@ groups:
       spec_id: RSH-08-003
     adr:
     - ADR-0116
+    - ADR-0199
     stories:
     - story_2022_023
     - story_2022_052
@@ -10455,9 +10629,10 @@ groups:
       CASE_MANAGER admits or refuses it (ADR-0199). The case holds one record per
       actor, so the actor names the record, and reinstatement reuses it (CM-31-034).
     verification: >-
-      A test under `test/core/use_cases/triggers/` asserts that the Case Owner's
-      reinstate trigger sends this `Add` to the CASE_MANAGER only, naming the actor
-      (#6465).
+      `test_the_owners_act_names_the_actor_and_goes_to_the_case_manager_only` in
+      `test/core/use_cases/triggers/case/test_participant_move.py` asserts that the
+      Case Owner's `reinstate-participant` trigger sends this `Add` to the
+      CASE_MANAGER only, naming the actor as a typed reference.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-31-004
@@ -10471,18 +10646,21 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST refuse a CM-31-011 reinstatement from a sender that does
-      not hold `CASE_OWNER`, with a refusal notice, committing nothing.
+      not hold `CASE_OWNER`, committing nothing.
     rationale: >-
-      Reinstatement is the Case Owner's decision, as removal is (CM-31-004).
+      Reinstatement is the Case Owner's decision, as removal is (CM-31-004). The
+      sender guard refuses it, so no refusal notice is sent (CLP-05-006); the
+      received runner logs the refusal at WARNING (SL-03-002).
     verification: >-
-      A strict-xfail probe in
-      `test/architecture/test_participant_reinstatement_planned.py` holds the
-      place of a test, which #6465
-      adds, asserting that a non-owner's reinstatement is refused with a refusal
-      notice and no ledger entry.
+      `test_add_from_a_non_owner_is_refused` in
+      `test/core/use_cases/received/test_participant_reinstatement.py` asserts that
+      a non-owner's reinstatement is refused with no ledger entry, no `Announce`
+      and no refusal notice, and that the refusal is logged once at WARNING.
     relationships:
     - rel_type: extends
       spec_id: CM-31-011
+    - rel_type: uses_definition
+      spec_id: CLP-05-006
     adr:
     - ADR-0199
     stories:
@@ -10503,11 +10681,11 @@ groups:
       (CM-10-006), and it applies the change from there (CM-31-045). A
       derived id makes a retry resend the same notice (SYNC-09-002).
     verification: >-
-      A strict-xfail probe in
-      `test/architecture/test_participant_reinstatement_planned.py` holds the
-      place of a test, which #6465
-      adds, asserting one ledger entry carrying the Case Owner's `Add(<Actor>)`, an
-      `Announce` of that `Add` to the reinstated actor, and no `Accept`.
+      `test_reinstatement_is_one_entry_and_an_announce_of_it` in
+      `test/core/use_cases/received/test_participant_reinstatement.py` asserts one
+      ledger entry carrying the Case Owner's `Add(<Actor>)`, an `Announce` of that
+      `Add` to the reinstated actor under the id derived from it, and no `Accept`
+      or CASE_MANAGER `Add`.
     relationships:
     - rel_type: extends
       spec_id: CM-31-011
@@ -10526,11 +10704,11 @@ groups:
       entry alone applies it once, in ledger order (RSH-08-003), as for a removal
       (CM-31-007).
     verification: >-
-      A strict-xfail probe in
-      `test/architecture/test_participant_reinstatement_planned.py` holds the
-      place of a test, which #6465
-      adds, asserting that a replica receiving the `Announce` and then the entry
-      applies the reinstatement once, from the entry.
+      `test_replica_records_the_announce_and_writes_nothing` in
+      `test/core/use_cases/received/test_participant_reinstatement.py` asserts
+      that the `Announce` leaves the replica's record removed, and
+      `test_reinstated_replica_applies_the_backfill_and_holds_a_full_chain`
+      asserts that the replica applies the reinstatement from the entry.
     relationships:
     - rel_type: extends
       spec_id: CM-31-044
@@ -10675,7 +10853,7 @@ groups:
       participant record, status ids and timestamps included, between the
       CASE_MANAGER and each replica after the Accept, and
       `test_the_accept_entry_signs_consent_and_marks_joined` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts the replica writes.
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts the replica writes.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-31-012
@@ -10697,7 +10875,7 @@ groups:
       replica would fall behind the CASE_MANAGER.
     verification: >-
       `test_a_stale_accept_replayed_over_a_seed_that_is_ahead_changes_nothing` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that a stale Accept
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that a stale Accept
       replayed over a seed that is ahead changes nothing.
     relationships:
     - rel_type: uses_definition
@@ -10719,7 +10897,7 @@ groups:
       never seated.
     verification: >-
       `test_a_reply_entry_with_no_record_fails_and_stores_nothing` in
-      `test/core/behaviors/sync/test_announce_tree.py` asserts that the apply fails
+      `test/core/behaviors/sync/test_add_log_entry_tree.py` asserts that the apply fails
       and stores nothing.
     relationships:
     - rel_type: extends
@@ -12130,7 +12308,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER commits an answer to a role Offer under CM-33-006, it MUST
-      broadcast `Announce(CaseLedgerEntry)` to the case's participants.
+      broadcast `Add(CaseLedgerEntry)` to the case's participants.
     rationale: >-
       Replicas learn of a granted role only when they replay the announced entry
       (CM-02-016, RSH-08-004). Thus if the answer is not announced, the roles in every
@@ -12204,7 +12382,8 @@ groups:
       CASE_MANAGER an `Offer` whose `object` is an `Update` of that item.
     rationale: >-
       A CVE ID is usually assigned after the item exists, so the case learns of it as a
-      change to that item, not as a second item for the same vulnerability (ADR-0187).
+      change to that item, a new `ids` entry whose `system_name` is `CVE`, not as a
+      second item for the same vulnerability (ADR-0187).
     verification: >-
       A test marked `CM-34-002` runs the propose-change trigger and asserts one queued
       `Offer(Update(VulnerabilityItem))` addressed to the CASE_MANAGER.
@@ -12288,17 +12467,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An admitted update of a vulnerability item MUST replace the fields the update
-      supplies and leave every other field of the item unchanged.
+      An admitted update of a vulnerability item MUST change only the fields it
+      supplies, replacing a single-valued field and merging a list (CM-34-011).
     rationale: >-
-      This is the partial-update meaning ActivityStreams gives `Update`. Two admitted
-      updates to different fields of one item then both survive, and a full revision is
-      an update that supplies every field (ADR-0187).
+      This is the partial-update meaning ActivityStreams gives `Update`, so two admitted
+      updates to different fields of one item both survive. A list is merged, not
+      replaced, because a sender that holds a partial or stale view of the item would
+      otherwise erase entries it cannot see (ADR-0187).
     verification: >-
-      A test marked `CM-34-007` admits an update that supplies only `cve` to an item that
-      has a `title` and asserts the item keeps its `title` and gains the `cve`.
+      A test marked `CM-34-007` admits an update that supplies a new `name` and an
+      `ids` list holding one new entry with `system_name` `CVE`, to an item that has a
+      `name`, a note and another identifier, and asserts the item's `name` is the
+      supplied one, its note is kept, and its `ids` hold the other identifier and the
+      `CVE` entry.
     adr:
     - ADR-0187
+    relationships:
+    - rel_type: refines
+      spec_id: CM-34-011
     stories:
     - story_2022_030
   - id: CM-34-008
@@ -12349,3 +12535,168 @@ groups:
     - ADR-0187
     stories:
     - story_2022_030
+  - id: CM-34-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      On admitting an offered update of a case-file object, the CASE_MANAGER MUST keep
+      held list entries and append each supplied entry a list lacks.
+    rationale: >-
+      A sender's view may be partial, such as a case preview (ADR-0217), or stale, and
+      two updates may cross, so replacing a list would drop entries silently. An entry
+      equal to a held one, or a reference with a held one's id, is not added again.
+      Taking an entry out needs an act that names it, as removing a note from a case
+      does; none exists yet for an item's lists (ADR-0187). A replica copies the result
+      the ledger carries, so this binds only the admission.
+    verification: >-
+      A test marked `CM-34-011` admits two updates of one item that each add a
+      different identifier, in both orders, and asserts the item ends with its original
+      identifiers in their order followed by both new ones; admits an update whose
+      `ids` hold one held identifier and one new one, and asserts the held one appears
+      once; and admits an update whose `notes` hold only a new note, and asserts the
+      item keeps its held note and gains the new one.
+    adr:
+    - ADR-0187
+    - ADR-0217
+    stories:
+    - story_2022_030
+- id: CM-35
+  title: Participant Tracking IDs
+  description: >-
+    A participant states which of its own tracking IDs a case goes by, such as the
+    tickets for the case in its internal trackers. The set is part of the
+    participant's status, a claim the participant makes about itself, and it travels
+    with the status to every participant in the case. Each status carries the whole
+    current set: a status that names no set keeps the previous one, and a status that
+    names one replaces it.
+  specs:
+  - id: CM-35-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant status MUST carry its tracking IDs as a list, empty by default,
+      of entries that each hold a `value` and an optional `tracker`.
+    rationale: >-
+      A case often maps to several tickets in one organization, such as a PSIRT ticket
+      and an engineering ticket, so one value is not enough. The `tracker` label tells
+      a reader which of the participant's systems each value comes from, and a
+      participant with one tracker can leave it out. The entry's ID field is not named
+      `id`: AS2's context maps `id` to `@id`, so a reader would take a ticket number
+      for the IRI of the entry itself.
+    verification: >-
+      A test marked `CM-35-001` builds a participant status with two tracking IDs, one
+      with a `tracker` and one without, serializes it, and asserts the wire form holds
+      both entries under `trackingIds` with their `value` and `tracker` keys; and
+      asserts a status built with none holds an empty list.
+    stories:
+    - story_2026_101
+  - id: CM-35-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An actor MUST NOT interpret a tracking ID's `value` or `tracker`, nor restrict a
+      `tracker` to a fixed list of names.
+    rationale: >-
+      Each value is an opaque label in the participant's own system, and trackers
+      differ across organizations, so a fixed vocabulary would need upkeep and would
+      still miss some. This is the same rule CM-05-008 gives vulnerability
+      identifiers.
+    verification: >-
+      A test marked `CM-35-002` builds tracking IDs with an arbitrary `tracker` name
+      and a `value` of no known format, and asserts both are kept as sent.
+    stories:
+    - story_2026_101
+  - id: CM-35-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor MUST refuse a participant status that holds two tracking IDs with the
+      same `value`.
+    rationale: >-
+      The tracking IDs are a set keyed on `value`: one ticket number names one ticket,
+      and two entries for it, even with different `tracker` labels, would leave a
+      reader unable to tell which label is right. Refusing the status makes the sender
+      fix it, where silently keeping one entry would pick a label for it.
+    verification: >-
+      A test marked `CM-35-003` builds a participant status whose tracking IDs share a
+      `value` with different `tracker` labels and asserts construction is refused.
+    stories:
+    - story_2026_101
+  - id: CM-35-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor writing a participant status, or the CASE_MANAGER recording a received
+      one, that supplies no tracking IDs MUST give it the participant's previous set.
+    rationale: >-
+      A participant sends a new status for many reasons, such as an RM move or a fix
+      becoming ready, and the tracking IDs exist to route messages about the case to
+      its tracker. A status sent for another reason must not drop them. Leaving the
+      field out therefore means no change, and only an empty list clears the set
+      (CM-35-005). The CASE_MANAGER interprets the omission and records the resolved
+      set in the ledger, the one exception to recording a status as sent (RSH-09-010).
+      The participant then sees which tracking IDs the case holds for it and corrects
+      any mistake with a new status. A replica copies the recorded set (CM-23-016)
+      and fills nothing itself.
+    verification: >-
+      A test marked `CM-35-004` gives a participant a status with tracking IDs, then
+      writes a status for an RM move with no tracking IDs supplied, and asserts the new
+      status holds the earlier set; and delivers a received status whose wire form has
+      no `trackingIds` key, and asserts the stored status holds the participant's
+      previous set.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-09-010
+    stories:
+    - story_2026_101
+  - id: CM-35-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor MUST take a list of tracking IDs that a participant status supplies as
+      the participant's whole set, replacing the previous one.
+    rationale: >-
+      The set must show the IDs the participant claims now, not every one it ever
+      used: a participant that starts with `[ID1]`, adds three more as
+      `[ID1, ID2, ID3, ID4]`, then drops two sends `[ID1, ID3]`. An empty list
+      therefore clears the set. This differs from an admitted update of a case-file
+      object, which merges a list (CM-34-011): a case-file update may come from a
+      partial or stale view, but the participant is the only author of its own
+      tracking IDs, so its latest list is complete.
+    verification: >-
+      A test marked `CM-35-005` sends a participant's statuses with `[ID1]`,
+      `[ID1, ID2, ID3, ID4]`, `[ID1, ID3]` and `[]`, and asserts the latest status
+      holds exactly each list in turn.
+    stories:
+    - story_2026_101
+  - id: CM-35-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT withhold a participant's tracking IDs from the other
+      participants the participant's status reaches.
+    rationale: >-
+      Participants in a case also talk outside it, and naming the other party's own
+      ticket ("I am calling about your SEC-1234") reaches the right person faster
+      than naming the case. The participant chooses what to put in the set, so it
+      leaves out any ID it wants kept private.
+    verification: >-
+      A test marked `CM-35-006` admits a participant's status with tracking IDs and
+      asserts the status another participant's replica receives holds the same set.
+    stories:
+    - story_2026_101
+  - id: CM-35-007
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST model a tracking ID as its own type, one that refuses a
+      vulnerability item's `ids` entry and that the entry's type refuses.
+    rationale: >-
+      Both are a label with a value, so one shared type would let a participant's
+      ticket number land in a vulnerability's `ids`, or a CVE entry in a status.
+      Distinct field names on types that refuse unknown keys make each fail to parse
+      as the other.
+    verification: >-
+      A test marked `CM-35-007` asserts a tracking ID's wire form fails to validate as
+      a `VulnerabilityItemId`, and a `VulnerabilityItemId`'s wire form fails to
+      validate as a tracking ID.

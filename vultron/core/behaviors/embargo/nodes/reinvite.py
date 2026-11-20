@@ -29,18 +29,24 @@ from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import PARTICIPANT_ACTOR_ID
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
 )
-from vultron.core.behaviors.embargo.proposer import embargo_proposer_id
+from vultron.core.behaviors.embargo.proposer import embargo_proposal
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.participants.recipients import invitation_recipients
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.services.embargo_availability import available_terms
 from vultron.core.services.embargo_lifecycle.pec import (
     find_actor_participant,
@@ -66,7 +72,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     commit once queued (ADR-0119), apply PEC ``INVITE`` and record the
     deadline (CM-18-003, CM-28-013) — with ``attributedTo`` naming the
     embargo's proposer, read from the case's ledger
-    (:func:`~vultron.core.behaviors.embargo.proposer.embargo_proposer_id`),
+    (:func:`~vultron.core.behaviors.embargo.proposer.embargo_proposal`),
     or the CASE_MANAGER itself when it made the embargo without a proposal,
     as it makes the protocol default.  It is committed as
     ``invite_to_embargo_on_case``, and a replica applies it through the relay
@@ -74,7 +80,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     nothing and EM does not move (EP-09-007, RSH-08-004).  The recipient and
     embargo are fixed at construction; the collect node and the recipients
     key are not used.  *answers* is the received activity the re-invite
-    answers (the refused ``Accept``, or the ``Add(CaseParticipant)`` that
+    answers (the refused ``Accept``, or the Case Owner's ``Add(<Actor>)`` that
     reinstated the invitee): given, the Invite's id is derived from it, so a
     redelivery after a send whose commit failed rebuilds the same Invite
     (OX-06-002).
@@ -84,6 +90,8 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     (CM-10-009): a removed or RM ``CLOSED`` invitee is sent nothing, and the
     node succeeds without an Invite (CM-31-013, ADR-0116).
     """
+
+    _NAMES_PROPOSAL = True
 
     def __init__(
         self,
@@ -164,15 +172,16 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         self._recipients = [self._invitee_id]
         # Whose terms these are (CM-24-002): the CASE_MANAGER's own when it
         # made the embargo without a proposal (ADR-0152).
-        self._proposer_id = (
-            embargo_proposer_id(
-                recorded_entries_for_case(
-                    case_id=self._case_id, dl=self.datalayer
-                ),
-                self._embargo_id,
-            )
-            or self.actor_id
+        proposal = embargo_proposal(
+            recorded_entries_for_case(
+                case_id=self._case_id, dl=self.datalayer
+            ),
+            self._embargo_id,
         )
+        self._proposer_id = proposal.proposer_id if proposal else self.actor_id
+        # The Invite carries out the proposal, not the act it answers
+        # (CM-24-020).
+        self._proposal_request = proposal.request_id if proposal else None
         return super().update()
 
 
@@ -282,19 +291,31 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
     Its CM-10-006 backfill waits for its consent: the honored ``Accept``
     admits it, and that tree backfills it.
 
-    Which embargo, which actor, and whether any Invite is owed are read at
-    tick time: the invitee is the actor the stored record belongs to, and
-    nothing is sent when no embargo is active or the participant is already
-    a signatory to it, since it is then active and was backfilled.
-    ``FAILURE`` when the record is gone or names no actor: the guards found
-    it moments earlier in the CASE_MANAGER's own store (Regime 1, ADR-0087),
-    so the handler reads it as an internal fault.
+    Which embargo and whether any Invite is owed are read at tick time, and
+    the invitee is the actor the reinstatement names, read from
+    ``/participant_actor_id`` (BTND-01-008).  Nothing is sent when no
+    embargo is active or the participant is already a signatory to it,
+    since it is then active and was backfilled.  ``FAILURE`` when the
+    actor's record is gone: the guards found it moments earlier in the
+    CASE_MANAGER's own store (Regime 1, ADR-0087), so the handler reads it
+    as an internal fault.
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **ReinviteStaleAccepterNode.INPUT_PORTS,
+        **act_key_ports(PARTICIPANT_ACTOR_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(PARTICIPANT_ACTOR_ID),
+        }
 
     def __init__(
         self,
         case_id: str,
-        participant_id: str,
         name: str | None = None,
         actor_config: ActorConfig | None = None,
         *,
@@ -309,23 +330,19 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
             actor_config=actor_config,
             answers=answers,
         )
-        self._participant_id = participant_id
 
     def _invite_owed(self, case: VulnerabilityCase) -> bool:
         assert self.datalayer is not None
-        record = self.datalayer.read(self._participant_id)
-        invitee_id = (
-            _as_id(record.attributed_to)
-            if isinstance(record, CaseParticipant)
-            else None
+        invitee_id = normalise_actor_id(
+            act_value(self, PARTICIPANT_ACTOR_ID, str)
         )
-        if not invitee_id:
+        found = find_actor_participant(self.datalayer, case, invitee_id)
+        if found is None:
             raise VultronNotFoundError(
                 "CaseParticipant",
-                f"'{self._participant_id}' names no actor on case"
-                f" '{self._case_id}'",
+                f"'{invitee_id}' has no record on case '{self._case_id}'",
             )
-        assert isinstance(record, CaseParticipant)
+        record = found[1]
         self._invitee_id = invitee_id
         embargo_id = case.active_embargo_id
         if not case.embargo_in_force or embargo_id is None:

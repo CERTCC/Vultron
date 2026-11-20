@@ -7,6 +7,7 @@ tracks:
   - "#6706"
   - "#6707"
   - "#5130"
+  - "#6758"   # epic: CVE record and Vulnerability Note adapters on the same port
 description: >
   Design direction for producing a CSAF 2.1 document from a participant's case
   replica (ADR-0219): a call site's profile cuts the case and its ledger into a
@@ -36,7 +37,7 @@ relevant_packages:
 A participant produces a CSAF 2.1 document from its replica in two steps: its call
 site's profile cuts the case into a preview, then a renderer translates the
 preview into CSAF (ADR-0219). The cut uses the four operations and the per-field
-profile of ADR-0217, which `notes/selective-disclosure.md` describes for the
+profile of ADR-0217, which `notes/stub-objects.md` describes for the
 invitation preview. Nothing here is built yet.
 
 ## The Renderer Reads Only the Preview
@@ -86,7 +87,7 @@ new case field fails the profile check until it is classified.
 | Ledger entries | omit | substitute: entries with a CSAF meaning, each payload snapshot cut by this profile |
 | `ledger_position` | include | include |
 | `stub_summary` | omit | omit |
-| Indexes, pending proposals, genesis hash, `case_activity`, related cases | omit | omit |
+| Indexes, pending proposals, genesis hash, related cases | omit | omit |
 | Any other AS2 property | omit | omit |
 
 - **Public omits participants.** A case records no public credit (ADR-0218), so
@@ -169,6 +170,13 @@ new case field fails the profile check until it is classified.
   delivery, while this one takes the preview with the call site's inputs
   (settings, projecting actor, dates, acknowledgments).
   A missing port is a wiring error, never a fallback.
+- **The projection port names no format; each format is an adapter.** The
+  profile and its cut stay in core, and the port takes the cut preview with the
+  call site's inputs. CSAF is its first adapter; a CVE record drafted at the CVE
+  ID assignment call-out and a CERT Vulnerability Note in the VINCE publication
+  format are later ones (#6759, #6760; ADR-0219 names other formats). A port
+  shaped for CSAF would make each later format build a port of its own
+  (CS-22-001).
 - **The operator endpoint is a read.** It reads the actor's replica, cuts it with
   the joined profile and returns the rendered JSON. It writes nothing to the
   DataLayer, adds no ledger entry and sends no activity. The operator gives the

@@ -386,20 +386,25 @@ groups:
     adr:
     - ADR-0216
     statement: >-
-      Each action rule MUST name its roles, one action, and at least one
-      desideratum that the action serves. Its roles are a set of CVD roles, or
-      any role. Each desideratum comes from the move-advice desiderata list.
+      Each action rule MUST name its roles, one action and its reason, and the
+      desiderata the action serves where its reason is one. Its roles are a set
+      of CVD roles, or any role. Each desideratum comes from the move-advice
+      desiderata list.
     rationale: >-
-      A reason that names desiderata tells the analyst what the rule is for, and
-      lets the comparison check the rule against the advice. A tag such as
-      "Exit criteria met" names no desideratum. Any role constrains no role, as
-      the EM trigger roles table's empty entry does.
+      A rule always has a reason, but not every reason is a desideratum:
+      situation awareness, detection, defense and housekeeping are reasons that
+      order no events (user decision on #6676, D10 and D11). A reason that
+      names desiderata lets the comparison check the rule against the advice.
+      A rule whose reason names none is still a suggestion; the comparison
+      shows it with its reason and no number (SHD-05-028). Any role constrains
+      no role, as the EM trigger roles table's empty entry does.
     verification: >-
       A test constructs a rule with no role and no any-role mark, with an empty
-      role set, with no action, with two actions,
-      with no desideratum, and with a desideratum outside the move-advice
-      desiderata list, and asserts each is refused; a second test asserts that
-      every desideratum each authored rule names is in that list.
+      role set, with no action, with two actions, with no reason, with an empty
+      reason, with a desideratum outside the move-advice desiderata list, and
+      with a desideratum named twice, and asserts each is refused; a second
+      test asserts that a rule with a reason and no desideratum is accepted,
+      and that every desideratum each authored rule names is in that list.
   - id: SHD-05-005
     priority: MUST
     kind: project
@@ -443,17 +448,21 @@ groups:
     - ADR-0216
     statement: >-
       Each generated action rule MUST take its verdict from move advice as the
-      move's band for one vendor. That band is harm-free when the vendor's
-      deciding part is positive, and unhelpful otherwise.
+      move's band for one vendor. The band is read at a position with the
+      desiderata still open there. It is harm-free when the vendor's deciding
+      part is positive, and unhelpful otherwise.
     rationale: >-
       The generated rules are the evidence that an authored rule is checked
       against. A second scorer could drift from the advice. The deciding part is
       the vendor's end part, or its embargo part when the end part is zero, as
       the bands use, and the band combines no vendors' scores (SHD-03-002).
+      A desideratum already met or broken changes by nothing, so one move can
+      get two bands at one position from two histories (#6676, D6).
     verification: >-
       A test asserts that the generated verdict at each valid position of one
-      vendor equals the band that move advice gives the move in a case where
-      that vendor is the only scope.
+      vendor, for each set of desiderata a history can leave open there, equals
+      the band that move advice gives the move in a case where that vendor is
+      the only scope, reached by such a history.
   - id: SHD-05-008
     priority: MUST
     kind: project
@@ -579,8 +588,10 @@ groups:
     - ADR-0216
     statement: >-
       The generated action rules MUST group, for each move, the valid positions
-      of one vendor where the move gets the same band. Each group is written as
-      one or more patterns in the pattern language of the authored rules.
+      of one vendor where the move always gets the same band. Always means for
+      every set of desiderata a history can leave open there. Each group is
+      written as one or more patterns in the pattern language of the authored
+      rules.
     relationships:
     - rel_type: depends_on
       spec_id: SHD-05-007
@@ -588,11 +599,14 @@ groups:
       A generated rule states move advice in the language a person writes rules
       in, so the two can be read side by side and compared position by
       position. A pattern that covered a position of the other band would state
-      advice that move advice does not give.
+      advice that move advice does not give. A position where the band depends
+      on the history is not in any group; SHD-05-029 states it as a
+      conditional verdict.
     verification: >-
       A test expands each generated rule's patterns into positions and asserts,
       for each move and band, that the union equals the set of valid positions
-      of one vendor at which move advice gives the move that band.
+      of one vendor at which move advice gives the move that band for every
+      set of desiderata a history can leave open there.
   - id: SHD-05-016
     priority: MUST
     kind: project
@@ -802,6 +816,72 @@ groups:
       A test asserts that each carried-over rule whose source action is
       `CLOSE_CASE` names `rm.close`, matches a position whose RM state is
       ACCEPTED, and matches no position whose RM state is CLOSED.
+  - id: SHD-05-028
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The comparison MUST give an unscored-rule result, with the rule's reason,
+      for a matching rule that names no desideratum.
+    rationale: >-
+      A rule whose reason is not a desideratum, such as monitoring for attacks
+      or closing a finished case, claims no outcome a band could check. Shown
+      as a rule disagreement, it would read as a wrong rule; shown with its
+      reason and no number, it reads as the suggestion it is (user decision on
+      #6676, D10, D16).
+    verification: >-
+      A test compares a rule that names a scored move and no desideratum at a
+      position where that move is unhelpful, and asserts an unscored-rule
+      result that carries the rule's reason.
+  - id: SHD-05-029
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The generated action rules MUST state each band of a conditional verdict
+      with the desiderata whose state gives it. A conditional verdict is a move
+      at one valid position of one vendor that gets different bands for
+      different sets of open desiderata.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SHD-05-007
+    rationale: >-
+      A case-free table cannot pick one history, and a blank line hides the
+      advice. A report accepted and then deferred and one deferred straight
+      away stand at the same position, but accepting the report helps only the
+      second, whose acceptance desiderata are still open (user decision on
+      #6676, D6).
+    verification: >-
+      A test asserts that each conditional verdict names at least two bands,
+      each with the desiderata open where it holds, that those sets differ,
+      and that `rm.accept` at RM DEFERRED, `Vfdpxa`, EM NONE is harm-free
+      while the acceptance desiderata are open and unhelpful once they are
+      met.
+  - id: SHD-05-030
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0216
+    statement: >-
+      The comparison MUST NOT join an authored rule to move advice at a position
+      where the state model forces the CS event of the rule's action next.
+    rationale: >-
+      A forced step comes next whatever anyone does: at `vfdP..` the vendor
+      becomes aware, and beside a public exploit the public does (CSB-17). No
+      band can say whether a rule serves it, so joined it would read as a
+      rule disagreement that says nothing about the rule. A public exploit is
+      no publication either (#6676, D10). The comparison shows such a rule as
+      not measured: the step happens anyway (#6676, D19).
+    verification: >-
+      A test compares a publish-vulnerability rule at a position whose
+      exploit is public and whose public is not yet aware, and rules for the
+      vendor's awareness at `vfdP..`, and asserts an unscored-rule result that
+      says the step happens anyway; a second test asserts that no authored
+      rule gets a band on a forced step at any valid position of one vendor;
+      a third asserts that the generated rules mark each verdict on a forced
+      event as forced.
 - id: SHD-06
   title: Action Rules on the Page
   specs:

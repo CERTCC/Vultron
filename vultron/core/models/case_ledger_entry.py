@@ -15,11 +15,11 @@
 
 :class:`CaseLedgerEntry` is the authoritative domain representation of a
 single hash-chained log entry used for replication via
-``Announce(CaseLedgerEntry)`` activities.
+``Add(CaseLedgerEntry)`` activities.
 
 It extends :class:`~vultron.core.models.base.CoreObject` so that it can be
 placed in :attr:`~vultron.core.models.events.base.VultronEvent.object_` and
-used by :class:`~vultron.core.use_cases.received.sync.AnnounceLedgerEntryReceivedUseCase`.
+used by :class:`~vultron.core.use_cases.received.sync.AddLedgerEntryReceivedUseCase`.
 
 The wire-layer module ``vultron.wire.as2.vocab.objects.case_ledger_entry``
 imports this class and registers the wire projection in the wire vocabulary
@@ -54,6 +54,7 @@ from vultron.core.models.ledger_position import (
     LOG_INDEX_PROPERTY,
 )
 from vultron.core.models.wire_keys import wire_key
+from vultron.errors import VultronCanonicalEntryError
 
 
 def ledger_entry_id(case_id: str, log_index: int) -> str:
@@ -66,6 +67,17 @@ def ledger_entry_id(case_id: str, log_index: int) -> str:
     return f"{case_id}/log/{log_index}"
 
 
+def case_ledger_id(case_id: str) -> str:
+    """The identity of *case_id*'s ledger: ``{case_id}/ledger``.
+
+    The ledger is an ``OrderedCollection`` whose items are the case's entries
+    in ``logIndex`` order.  A commit names it as the ``target`` of its
+    ``Add(CaseLedgerEntry)`` (ADR-0204).  This is an identity only: no route
+    serves it (IE-02-003).
+    """
+    return f"{case_id}/ledger"
+
+
 class CaseLedgerEntry(CoreObject):
     """Core domain model for a single canonical case ledger entry.
 
@@ -76,12 +88,13 @@ class CaseLedgerEntry(CoreObject):
        record used for local processing. This class is the wire-serialisable
        counterpart.
 
-    The ``id_`` is auto-computed as ``{case_id}/log/{log_index}`` when not
+    The ``id_`` is auto-computed as ``{context}/log/{log_index}`` when not
     explicitly provided.
 
     Fields:
-        case_id: URI of the parent :class:`VulnerabilityCase`.
-        log_index: Monotonically increasing index scoped to ``case_id``.
+        context: URI of the parent :class:`VulnerabilityCase` (AS2
+            ``context``; CLP-14-012).
+        log_index: Monotonically increasing index scoped to ``context``.
         term: Raft cluster term; ``None`` for single-node deployments.
         log_object_id: Full URI of the asserted activity or primary object.
         semantic_type: The registry's label for the entry's payload.
@@ -99,12 +112,13 @@ class CaseLedgerEntry(CoreObject):
         validation_alias="type",
         serialization_alias="type",
     )
-    case_id: NonEmptyString = Field(
-        ..., description="URI of the parent VulnerabilityCase"
-    )
+    # Narrowed from CoreObject's optional reference to the required case URI:
+    # an entry belongs to exactly one case, named the way every case-scoped
+    # object names it, in AS2 ``context`` (CLP-07-007, CLP-14-012, ADR-0194).
+    context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     log_index: int = Field(
         default=-1,
-        description="Monotonically increasing index scoped to case_id",
+        description="Monotonically increasing index scoped to the case",
         ge=-1,
         json_schema_extra=LOG_INDEX_PROPERTY,
     )
@@ -202,20 +216,40 @@ class CaseLedgerEntry(CoreObject):
     )
     _serialize_received_at = timestamp_serializer("received_at")
 
+    def committed_act_id(self) -> str:
+        """The id of the act this entry commits: its snapshot's ``id``.
+
+        The snapshot is the committed activity verbatim (CLP-07-011), so its
+        ``id`` is the act's.  The ``Add(CaseLedgerEntry)`` that publishes the
+        entry names that act in ``inReplyTo``, which makes the ``Add`` the
+        positive acknowledgement of the act (ADR-0204).
+
+        Raises:
+            VultronCanonicalEntryError: The snapshot states no ``id``, so the
+                entry names no act to acknowledge.
+        """
+        act_id = self.payload_snapshot.get("id")
+        if not isinstance(act_id, str) or not act_id.strip():
+            raise VultronCanonicalEntryError(
+                f"ledger entry {self.id_!r}: its payloadSnapshot states no"
+                " id, so it names no committed act (ADR-0204)"
+            )
+        return act_id
+
     @model_validator(mode="before")
     @classmethod
     def _set_id_from_case(cls, data: Any) -> Any:
-        """Compute ``id_`` from ``case_id`` and ``log_index``.
+        """Compute ``id_`` from ``context`` and ``log_index``.
 
-        Both field names are read in either spelling, because an entry parsed
+        ``log_index`` is read in either spelling, because an entry parsed
         off the wire (ARCH-25-003, ADR-0099) carries the AS2 keys; reading only the
         Python names left a wire-parsed entry with a random id instead of its
-        ledger coordinates.
+        ledger coordinates.  ``context`` is one spelling on both sides.
         """
         if not isinstance(data, dict):
             return data
-        case_id = data.get("case_id", data.get(wire_key("case_id")))
-        if case_id is None:
+        case_id = data.get("context")
+        if not isinstance(case_id, str):
             return data
         log_index = data.get("log_index", data.get(wire_key("log_index"), -1))
         data = dict(data)
@@ -226,5 +260,6 @@ class CaseLedgerEntry(CoreObject):
 
 __all__ = [
     "CaseLedgerEntry",
+    "case_ledger_id",
     "ledger_entry_id",
 ]

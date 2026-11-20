@@ -34,6 +34,7 @@ from vultron.adapters.driven.db_record.ref_fields import (
     _KEEP_INLINE_NESTED_TYPES,
     _inline_required_refs,
 )
+from vultron.core.models.vulnerability_item import VulnerabilityItemId
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronValidationError,
@@ -362,7 +363,6 @@ def test_keep_inline_nested_types_matches_enum_union_exactly():
 _CASE_ID_2401 = "urn:uuid:case-2401-0000-0000-000000000000"
 _LOG_OBJ_ID_2401 = "urn:uuid:logobj-2401-0000-000000000000"
 _ACTOR_ID_2401 = "https://example.org/actors/finder-2401"
-_ACTOR_INBOX_2401 = "https://example.org/actors/finder-2401/inbox"
 
 
 def _make_wire_vulnerability_report():
@@ -409,7 +409,7 @@ def _make_wire_case_ledger_entry():
 
     return make(
         as_CaseLedgerEntry,
-        case_id=_CASE_ID_2401,
+        context=_CASE_ID_2401,
         log_object_id=_LOG_OBJ_ID_2401,
         semantic_type="RS",
         received_at=ACT_AT,
@@ -433,8 +433,7 @@ def _make_wire_embargo_policy():
 
     return make(
         as_EmbargoPolicy,
-        actor_id=_ACTOR_ID_2401,
-        inbox=_ACTOR_INBOX_2401,
+        attributed_to=_ACTOR_ID_2401,
         preferred_duration=timedelta(days=90),
     )
 
@@ -444,7 +443,9 @@ def _make_wire_vulnerability_item():
         as_VulnerabilityItem,
     )
 
-    return make(as_VulnerabilityItem, cve="CVE-2401-0001")
+    return make(
+        as_VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2401-0001")]
+    )
 
 
 @pytest.mark.parametrize(

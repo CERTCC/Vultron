@@ -35,7 +35,7 @@ module projects them into ``ui/src/data/scenario_tree.json``:
 
 The recording files are the committed ones under ``ui/src/recordings/``
 (:mod:`vultron.demo.recordings`), one per recorded actor.  Each file is listed
-under every case its entries carry a ``caseId`` for, in order of first
+under every case its entries name in ``context``, in order of first
 appearance, so a scenario that splits or merges cases needs no new key.  Paths
 are relative to ``ui/src/``, the directory the UI imports them from.  The case
 ids are read from the recordings, so a recording refresh that changes a case
@@ -145,26 +145,26 @@ def _shown(path: Path) -> str:
 
 
 def _case_ids(path: Path) -> list[str]:
-    """Return the ``caseId`` of *path*'s entries, in order of first appearance.
+    """Return the ``context`` (case) of *path*'s entries, in order of first appearance.
 
     Raises:
         MetadataLoadError: When a line is not a ledger entry with a
-            non-empty ``caseId``, or the file holds no entry at all.
+            non-empty ``context``, or the file holds no entry at all.
     """
     case_ids: dict[str, None] = {}
     text = path.read_text(encoding="utf-8")
     for number, line in enumerate(text.splitlines(), start=1):
         try:
-            case_id = json.loads(line)["caseId"]
+            case_id = json.loads(line)["context"]
         except (ValueError, KeyError, TypeError) as exc:
             raise MetadataLoadError(
-                f"not a ledger entry with a caseId: {exc}",
+                f"not a ledger entry with a context: {exc}",
                 path=_shown(path),
                 line=number,
             ) from exc
         if not isinstance(case_id, str) or not case_id:
             raise MetadataLoadError(
-                f"caseId is {case_id!r}; expected a non-empty string.",
+                f"context is {case_id!r}; expected a non-empty string.",
                 path=_shown(path),
                 line=number,
             )

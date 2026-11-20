@@ -184,15 +184,20 @@ class TestAddStatusToCaseActivity:
     )
 
     cls = _AddStatusToCaseActivity
+    # The case's status history and its case (ADR-0204), so a refusal is
+    # about ``object_`` alone.
+    fields = {"target": f"{_STR_URI}/statuses", "context": _STR_URI}
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.fields)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.fields)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, make(as_CaseStatus, context=_STR_URI))
+        _assert_accepts_inline(
+            self.cls, make(as_CaseStatus, context=_STR_URI), **self.fields
+        )
 
 
 class TestCreateCaseActivity:
@@ -584,49 +589,64 @@ class TestAddStatusToParticipantActivity:
     )
 
     cls = _AddStatusToParticipantActivity
+    # A participant's status history and its case (ADR-0204), so a refusal
+    # is about ``object_`` alone.
+    fields = {
+        "target": "https://example.org/cases/c1/participants/p1/statuses",
+        "context": "https://example.org/cases/c1",
+    }
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.fields)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.fields)
 
     def test_accepts_inline_participant_status(self):
-        _assert_accepts_inline(self.cls, _participant_status())
+        _assert_accepts_inline(self.cls, _participant_status(), **self.fields)
 
 
-class TestAddParticipantToCaseActivity:
+_MOVE_CASE = "https://example.org/cases/c1"
+
+
+class TestReinstateParticipantActivity:
+    """The Case Owner's ``Add(<Actor>, target=<case>)`` (ADR-0199)."""
+
     from vultron.wire.as2.vocab.activities.case_participant import (
-        _AddParticipantToCaseActivity,
+        _ReinstateParticipantActivity,
     )
 
-    cls = _AddParticipantToCaseActivity
+    cls = _ReinstateParticipantActivity
+    fields = {"target": _MOVE_CASE}
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.fields)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.fields)
 
-    def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, make(as_CaseParticipant))
+    def test_accepts_an_actor_reference(self):
+        _assert_accepts_inline(self.cls, make(as_Actor), **self.fields)
 
 
-class TestRemoveParticipantFromCaseActivity:
+class TestRemoveParticipantActivity:
+    """The Case Owner's ``Remove(<Actor>, origin=<case>)`` (ADR-0199)."""
+
     from vultron.wire.as2.vocab.activities.case_participant import (
-        _RemoveParticipantFromCaseActivity,
+        _RemoveParticipantActivity,
     )
 
-    cls = _RemoveParticipantFromCaseActivity
+    cls = _RemoveParticipantActivity
+    fields = {"origin": _MOVE_CASE}
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.fields)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.fields)
 
-    def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, make(as_CaseParticipant))
+    def test_accepts_an_actor_reference(self):
+        _assert_accepts_inline(self.cls, make(as_Actor), **self.fields)
 
 
 # ---------------------------------------------------------------------------
@@ -634,15 +654,15 @@ class TestRemoveParticipantFromCaseActivity:
 # ---------------------------------------------------------------------------
 
 
-class TestAnnounceLogEntryActivity:
+class TestAddLogEntryActivity:
     from vultron.wire.as2.vocab.activities.sync import (
-        _AnnounceLogEntryActivity,
+        _AddLogEntryActivity,
     )
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         as_CaseLedgerEntry,
     )
 
-    cls = _AnnounceLogEntryActivity
+    cls = _AddLogEntryActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -659,12 +679,16 @@ class TestAnnounceLogEntryActivity:
             self.cls,
             make(
                 as_CaseLedgerEntry,
-                case_id="https://example.org/cases/c1",
+                context="https://example.org/cases/c1",
                 log_object_id="https://example.org/cases/c1/events/e1",
                 semantic_type="test_event",
+                payload_snapshot={"id": "https://example.org/activities/a1"},
                 received_at=ACT_AT,
                 published=ACT_AT,
             ),
+            target="https://example.org/cases/c1/ledger",
+            context="https://example.org/cases/c1",
+            in_reply_to="https://example.org/activities/a1",
         )
 
 

@@ -17,17 +17,17 @@
 
 Three containers, as ``test_remote_case_actor_invite`` arranges them, with the
 in-process router instrumented to keep every body it POSTs.  The owner
-triggers ``invite-actor-to-case``, which sends the owner's Offer to the
-CaseActor; the CaseActor emits the Invite (ADR-0109).  Then:
+triggers ``invite-actor-to-case``, which sends the owner's own Invite to the
+CaseActor; the CaseActor emits its stub Invite (ADR-0109, ADR-0199).  Then:
 
 - the body the router delivered to the invitee is the body the adapter
   sealed, byte for byte — the ledger snapshot on the emitting side is that
   same body decoded (pinned at unit level in
   ``test_actor_and_announce_nodes``), so the two agree;
 - every delivered body carries its sender's proof, which verifies (SIG-01-001);
-- the wire carries the enriched case stub — the ``activeEmbargo`` CM-17-002
-  requires for informed consent, which the old re-read-and-dehydrate delivery
-  path collapsed to a bare URI (#2624).
+- the wire carries the enriched case stub — the in-force ``embargoRegister``
+  entry CM-17-002 requires for informed consent, which the old
+  re-read-and-dehydrate delivery path collapsed to a bare URI (#2624).
 
 What this deliberately does not assert is a received entry: the invitee is no
 CASE_MANAGER and commits none, and a received entry recording the received
@@ -53,9 +53,11 @@ from test.demo.test_remote_case_actor_invite import (
     _invite,
     _Topology,
 )
+from test.support.case_preview import current_em_state, in_force_embargo
 from test.support.objects import make
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.config import app_config_scope
+from vultron.core.models.type_terms import names_type
 from vultron.demo.helpers.seeding import seed_case_actor_peers
 from vultron.demo.in_process import (
     InProcessRouter,
@@ -191,7 +193,7 @@ class TestTheWireCarriesTheSealedBody:
     ):
         """The router relays the sealed body, so the proof crosses with it.
 
-        The owner's Offer and the CaseActor's Invite both arrive signed, each
+        The owner's Invite and the CaseActor's stub Invite both arrive signed, each
         verifying by its sender's published key (#5382).
         """
         topo, router = recorded_topology
@@ -231,11 +233,11 @@ class TestTheWireCarriesTheSealedBody:
         preview = reference["preview"]
         assert preview["type"] == "CasePreview"
         assert "caseId" not in preview
-        assert "activeEmbargo" in preview, (
+        assert in_force_embargo(preview) is not None, (
             "the invitee was not sent the embargo terms it is asked to consent"
             f" to (CM-17-002). preview={preview!r}"
         )
-        assert "caseStatus" in preview
+        assert current_em_state(preview) == "ACTIVE"
 
 
 #: The ActivityStreams actor types an inline actor carries.
@@ -247,7 +249,7 @@ _ACTOR_TYPES = frozenset(
 def _inline_actors(value: Any) -> Iterator[dict[str, Any]]:
     """Every inline actor object anywhere in a decoded body."""
     if isinstance(value, dict):
-        if value.get("type") in _ACTOR_TYPES and "id" in value:
+        if names_type(value.get("type"), _ACTOR_TYPES) and "id" in value:
             yield value
         for nested in value.values():
             yield from _inline_actors(nested)

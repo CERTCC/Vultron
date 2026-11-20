@@ -30,12 +30,12 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.behaviors.sync.read_tree import create_read_log_entry_tree
+from vultron.core.behaviors.sync.read_tree import create_read_ledger_tree
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
 from vultron.core.models.events.sync import (
-    ReadLogEntryReceivedEvent,
+    ReadLedgerReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
 from vultron.core.models.use_case_result import HandlerResult
@@ -71,7 +71,7 @@ class _LedgerReplayRequestUseCase:
     def _run(
         self,
         tree: py_trees.behaviour.Behaviour,
-        request: RejectLogEntryReceivedEvent | ReadLogEntryReceivedEvent,
+        request: RejectLogEntryReceivedEvent | ReadLedgerReceivedEvent,
         *,
         label: str,
     ) -> HandlerResult:
@@ -95,7 +95,7 @@ class _LedgerReplayRequestUseCase:
 class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     """CaseActor handles a participant's rejection of a log entry announcement.
 
-    When a participant rejects an ``Announce(CaseLedgerEntry)`` because the
+    When a participant rejects an ``Add(CaseLedgerEntry)`` because the
     ``prev_log_hash`` does not match their local tail, the CaseActor runs the
     reject tree (``create_reject_log_entry_tree``), whose nodes:
 
@@ -133,10 +133,6 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # The rejected entry's case, or, for the Reject that names no entry
-        # because the peer holds none, the case it names as its target; the
-        # parser admits that form only with a position naming no entry, so
-        # it asks for a replay from genesis (SYNC-16-027).
         case_id = request.rejected_case_id
 
         logger.info(
@@ -152,15 +148,16 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         return self._run(tree, request, label="RejectLogEntryReceivedBT")
 
 
-class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
+class ReadLedgerReceivedUseCase(_LedgerReplayRequestUseCase):
     """The CASE_MANAGER answers a participant's stated ledger position.
 
-    A ``Read(CaseLedgerEntry)`` names the last canonical entry its sender has
-    applied for the case (SYNC-17-001, ADR-0155).  The read tree
-    (``create_read_log_entry_tree``) checks the position is one the
-    CASE_MANAGER's ledger holds, records the entry's hash as the sender's
-    acknowledged position, and replays every entry after it under the replay
-    rate bound and the outbox de-duplication (SYNC-17-003, SYNC-17-004).
+    A ``Read(<case>/ledger)`` states the sender's tail in the case's ledger,
+    or index -1 when it holds no entry (SYNC-17-001, SYNC-16-027, ADR-0155,
+    ADR-0204).  The read tree (``create_read_ledger_tree``) checks the
+    position is one the CASE_MANAGER's ledger holds, records it as the
+    sender's acknowledged position, and replays every entry after it, the
+    whole ledger for index -1, under the replay rate bound and the outbox
+    de-duplication (SYNC-17-003, SYNC-17-004).
 
     The sender standing is ``PARTICIPANT``: an actor off the roster, or a
     participant whose closure the case records, is refused at the door
@@ -185,7 +182,7 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     def __init__(
         self,
         dl: CaseOutboxPersistence,
-        request: ReadLogEntryReceivedEvent,
+        request: ReadLedgerReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: TriggerActivityPort | None = None,
         wire_render_port: WireRenderPort | None = None,
@@ -199,7 +196,7 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
 
         position = request.ledger_position
         logger.info(
-            "sync: received Read(CaseLedgerEntry) '%s' from peer '%s' for"
+            "sync: received Read(<case>/ledger) '%s' from peer '%s' for"
             " case '%s', stated position log_index=%d entry_hash=%.16s…",
             request.activity_id,
             request.actor_id,
@@ -207,7 +204,7 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
             position.log_index,
             position.entry_hash,
         )
-        tree = create_read_log_entry_tree(
+        tree = create_read_ledger_tree(
             case_id,
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
@@ -215,4 +212,4 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         # A position the ledger does not hold, and an inert sender, are
         # refused by the checks that find them, which name the reason
         # (SYNC-17-005, SYNC-17-002).
-        return self._run(tree, request, label="ReadLogEntryReceivedBT")
+        return self._run(tree, request, label="ReadLedgerReceivedBT")

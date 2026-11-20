@@ -54,6 +54,7 @@ from vultron.core.behaviors.inbox import (
 from vultron.core.dispatcher import DirectActivityDispatcher
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.factories import rm_create_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -121,7 +122,7 @@ def _dispatcher_for(verdict: HandlerResult) -> DirectActivityDispatcher:
 def _process(
     dl: SqliteDataLayer,
     body: dict[str, Any],
-    dispatcher: DirectActivityDispatcher,
+    dispatcher: ActivityDispatcher,
 ) -> InboxOutcome:
     """Run one payload through the real FastAPI adapters and the inbox BT."""
     return process_payload(
@@ -1087,7 +1088,12 @@ def test_late_joiner_after_accepted_invite_accepts_case_manager_announce(dl):
     assert accepted.activity["inReplyTo"] == invite.id_
     assert accepted.activity.get("to") == [_CASE_MANAGER_ID]
 
-    announced = _process(dl, _announce_from_case_manager(), _real_dispatcher())
+    # The production dispatcher wires the sync port: the seed states the
+    # copy's ledger position, index -1 here, to the CASE_MANAGER (SYNC-17-008,
+    # SYNC-16-027).
+    from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
+
+    announced = _process(dl, _announce_from_case_manager(), make_dispatcher())
 
     assert announced.status is InboxOutcomeStatus.PROCESSED, (
         announced.failure_reason

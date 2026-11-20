@@ -140,7 +140,7 @@ def test_admission_backfill_does_nothing_for_a_non_case_manager(
         sync_port=sync_port,
     )
 
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
     assert paused_from(datalayer) == 1
 
 
@@ -184,7 +184,7 @@ def test_fanout_send_fails_without_sending_when_the_case_is_missing(
     )
 
     assert result.status == Status.FAILURE
-    sync_port.send_announce_log_entry.assert_not_called()
+    sync_port.send_add_log_entry.assert_not_called()
 
 
 def _fan_out_withheld(bridge, datalayer, **kwargs):

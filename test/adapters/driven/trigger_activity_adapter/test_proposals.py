@@ -50,8 +50,7 @@ def _vendor_profile(duration: timedelta) -> VultronOrganization:
         id_=_VENDOR,
         embargo_policy=make(
             EmbargoPolicy,
-            actor_id=_VENDOR,
-            inbox=f"{_VENDOR}/inbox",
+            attributed_to=_VENDOR,
             preferred_duration=duration,
         ),
     )
@@ -84,7 +83,7 @@ class TestCreateCaseProposal:
         actor = json.loads(blob)["actor"]
         assert isinstance(actor, dict)
         assert actor["id"] == _VENDOR
-        assert actor["embargoPolicy"]["actorId"] == _VENDOR
+        assert actor["embargoPolicy"]["attributedTo"] == _VENDOR
         assert actor["embargoPolicy"]["preferredDuration"] == "P30D"
         assert len(list(dl.list_objects("CaseProposal"))) == 1
 
@@ -173,7 +172,6 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
             report_id=report.id_,
             case_actor_id=_CASE_ACTOR,
             offer_id=offer.id_,
-            offer_actor_id=self._FINDER,
             at=authored_at(),
         )
 
@@ -214,18 +212,17 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
             report_id=report.id_,
             case_actor_id=_CASE_ACTOR,
             offer_id=offer.id_,
-            offer_actor_id=self._FINDER,
             at=authored_at(),
         )
 
         assert json.loads(blob)["object"]["inReplyTo"] == body
 
     @pytest.mark.spec("CP-01-007")
-    def test_a_held_activity_that_is_not_a_report_offer_is_not_carried(
+    def test_a_held_activity_that_is_not_a_report_offer_is_named_by_id(
         self, adapter, dl, caplog
     ):
-        """Only the bare provenance travels when the held activity under the
-        Offer's id is some other kind of activity."""
+        """Only the Offer's id travels when the held activity under that id
+        is some other kind of activity."""
 
         report = _make_report(dl)
         dl.save(_vendor_profile(timedelta(days=30)))
@@ -243,20 +240,19 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
                 report_id=report.id_,
                 case_actor_id=_CASE_ACTOR,
                 offer_id=other.id_,
-                offer_actor_id=self._FINDER,
                 at=authored_at(),
             )
 
         proposal = json.loads(blob)["object"]
-        assert proposal.get("inReplyTo") is None
-        assert proposal["offerId"] == other.id_
-        assert "bare provenance only" in caplog.text
+        assert proposal["inReplyTo"] == other.id_
+        assert not {"offerId", "offerActorId"} & set(proposal)
+        assert "by id only" in caplog.text
         # The archive was found and refused as a report Offer, not missed.
         assert "invalid offer data" in caplog.text
         assert dl.read(other.id_) is None
 
     @pytest.mark.spec("CP-01-007")
-    def test_an_offer_this_store_does_not_hold_is_not_carried(
+    def test_an_offer_this_store_does_not_hold_is_named_by_id(
         self, adapter, dl, caplog
     ):
         report = _make_report(dl)
@@ -269,12 +265,11 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
                 report_id=report.id_,
                 case_actor_id=_CASE_ACTOR,
                 offer_id=offer_id,
-                offer_actor_id=self._FINDER,
                 at=authored_at(),
             )
 
         proposal = json.loads(blob)["object"]
-        assert proposal.get("inReplyTo") is None
-        assert proposal["offerId"] == offer_id
-        assert "bare provenance only" in caplog.text
+        assert proposal["inReplyTo"] == offer_id
+        assert not {"offerId", "offerActorId"} & set(proposal)
+        assert "by id only" in caplog.text
         assert "invalid offer data" not in caplog.text

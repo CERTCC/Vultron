@@ -152,16 +152,25 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         0,
     ): frozenset({CM}),
     # --- case: participants and roles -----------------------------------
+    # The Case Owner sends its removal or reinstatement to the CASE_MANAGER
+    # alone; a replica takes the move from the ledger entry (ADR-0199).
     (
         f"{_C}/case_participant_received_tree.py",
         "create_add_case_participant_received_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     (
         f"{_C}/case_participant_received_tree.py",
         "create_remove_case_participant_received_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
+    # The CASE_MANAGER announces an admitted act to an actor the fan-out does
+    # not reach; only that actor's replica receives it (ADR-0199).
+    (
+        f"{_C}/announce_admitted_act_received_tree.py",
+        "announce_admitted_act_received_tree",
+        0,
+    ): frozenset({PR}),
     (
         f"{_C}/offer_case_participant_role_received_tree.py",
         "create_offer_case_participant_role_received_tree",
@@ -310,11 +319,14 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         "create_validate_report_received_tree",
         0,
     ): frozenset({CM}),
+    # The tree finds its case at run time, so a receiver with no case for
+    # the report is on the no-case path, where the tree refuses an unknown
+    # case (#2255, HP-01-041, BT-25-009).
     (
         f"{_R}/received_report_trees/verdicts.py",
         "create_invalidate_report_received_tree",
         0,
-    ): frozenset({CM}),
+    ): frozenset({CM, NC}),
     (
         f"{_R}/received_report_trees/receipt.py",
         "create_report_received_tree",
@@ -401,7 +413,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # --- note (#5785) ----------------------------------------------------
     # A directed type: the trigger side resolves the CASE_MANAGER and
     # addresses the one activity to it (PCR-08-001), and no one relays it, so
-    # a note reaches a replica only as the entry's Announce fan-out
+    # a note reaches a replica only as the entry's Add fan-out
     # (SYNC-02-001, SYNC-02-003).  The manager path alone (#6394).
     # Remove(Note) is addressed the same way; its tree then refuses every
     # one at the CASE_MANAGER (CM-30-003, #6430).
@@ -416,7 +428,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         0,
     ): frozenset({CM}),
     # --- sync: the ledger replication envelopes (#5044) ------------------
-    # Announce(CaseLedgerEntry) is the one replication message every
+    # Add(CaseLedgerEntry) is the one replication message every
     # receiver takes: the CASE_MANAGER gets its own announcement echoed
     # back, a replica applies the entry to its chain, and a receiver that
     # holds no replica yet is in the pre-genesis window, where the entry is
@@ -424,8 +436,8 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # is a ledger-activity guard with no side split, so the no-case path
     # costs nothing there (HP-01-024).
     (
-        f"{_SY}/announce_tree/factory.py",
-        "create_announce_log_entry_tree",
+        f"{_SY}/add_log_entry_tree/factory.py",
+        "create_add_log_entry_tree",
         0,
     ): frozenset({CM, PR, NC}),
     # The remaining four are directed at the holder of the canonical ledger
@@ -434,21 +446,24 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     # faults answer an Announce this store sent, as replication signalling
     # that is never ledgered and never relayed (SYNC-16-002).  Every effect
     # of all four is the CASE_MANAGER's, so no receiver off that path does
-    # anything with them.
+    # anything with them.  A fault carries no case (ASK-07-006), so its tree
+    # finds the case with a lookup and declares the no-case path too, where
+    # a fault whose entry is not found is refused by the lookup's miss guard
+    # (BT-25-010, HP-01-041).
     (f"{_SY}/reject_tree.py", "create_reject_log_entry_tree", 0): frozenset(
         {CM}
     ),
-    (f"{_SY}/read_tree.py", "create_read_log_entry_tree", 0): frozenset({CM}),
+    (f"{_SY}/read_tree.py", "create_read_ledger_tree", 0): frozenset({CM}),
     (
         f"{_SY}/divergence_tree.py",
         "create_case_diverged_fault_tree",
         0,
-    ): frozenset({CM}),
+    ): frozenset({CM, NC}),
     (
         f"{_SY}/hash_mismatch_tree.py",
         "create_hash_mismatch_fault_tree",
         0,
-    ): frozenset({CM}),
+    ): frozenset({CM, NC}),
 }
 
 #: Sites whose declaration is conditional on the tree naming a case at build
@@ -459,15 +474,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
 #: is still one declaration per message type (HP-01-038).
 # permanent: HP-01-036 (a tree that names no case can be on the no-case path
 # alone; a tree in this set is not waiting for a migration)
-CONDITIONAL_DECLARATION_EXEMPTIONS: frozenset[Site] = frozenset(
-    {
-        (
-            f"{_R}/received_report_trees/verdicts.py",
-            "create_invalidate_report_received_tree",
-            0,
-        ),
-    }
-)
+CONDITIONAL_DECLARATION_EXEMPTIONS: frozenset[Site] = frozenset()
 
 #: Sites that declare no paths by decision, each with the reason.  The
 #: discriminator is not whether a delivery runs the tree — several of these run
@@ -780,26 +787,26 @@ def test_a_conditional_declaration_is_listed_with_its_reason() -> None:
 
 
 @pytest.mark.spec("HP-01-036", "HP-01-041")
-def test_a_conditional_site_with_no_case_judges_the_outside_case_side() -> (
-    None
-):
-    """InvalidateReport with no case declares the no-case path alone, and its
-    guard is the rule's empty ``outside_case`` side, which admits no
-    sender."""
+def test_a_report_verdict_judges_the_outside_case_side_with_no_case() -> None:
+    """InvalidateReport finds its case at run time, so it declares the
+    manager path and the no-case path, and on the no-case path its guard is
+    the rule's empty ``outside_case`` side, which admits no sender."""
     report_event = MagicMock(name="request")
     report_event.report_id = "https://example.org/reports/no-case"
     report_event.actor_id = "https://example.org/actors/sender"
     tree = create_invalidate_report_received_tree(
         report_event,
-        case_id=None,
         sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
     )
     assert isinstance(tree, ReceivedActivityTree)
     stage = next(n for n in tree.iterate() if isinstance(n, ReceivedPathNode))
     guard = next(n for n in tree.door_guards if is_composed_sender_guard(n))
 
-    assert stage.declared == frozenset({NC})
-    assert isinstance(guard, NoSenderAdmittedNode)
+    assert stage.declared == frozenset({CM, NC})
+    outside_case = next(n for n in guard.children if n.name == "OutsideCase")
+    assert any(
+        isinstance(n, NoSenderAdmittedNode) for n in outside_case.iterate()
+    )
 
 
 @pytest.mark.spec("HP-08-014", "HP-01-038")

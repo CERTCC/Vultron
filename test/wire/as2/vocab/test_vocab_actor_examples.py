@@ -30,6 +30,7 @@ from vultron.wire.as2.vocab.activities.actor import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Invite,
     as_Offer,
     as_Reject,
 )
@@ -45,10 +46,10 @@ from vultron.wire.as2.vocab.examples.actor import (
     accept_actor_recommendation,
     accept_case_participant_offer,
     offer_case_participant,
+    owner_invite_actor_to_case,
     recommend_actor,
     reject_actor_recommendation,
     reject_case_participant_offer,
-    request_invite_actor_to_case,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
@@ -77,25 +78,29 @@ class TestRecommendActor(unittest.TestCase):
         self.assertEqual(self.activity.target, self.case.id_)
 
 
-class TestRequestInviteActorToCase(unittest.TestCase):
-    """The Case Owner's own Offer(Actor) to the CASE_MANAGER (CM-17-007)."""
+class TestOwnerInviteActorToCase(unittest.TestCase):
+    """The Case Owner's own Invite to the CASE_MANAGER (CM-17-007, ADR-0199)."""
 
     def setUp(self):
-        self.activity = request_invite_actor_to_case()
+        self.activity = owner_invite_actor_to_case()
 
-    def test_wire_form_is_the_recommendation(self):
-        self.assertIsInstance(self.activity, _RecommendActorActivity)
+    def test_wire_form_is_the_stub_invite(self):
+        self.assertIsInstance(self.activity, as_Invite)
 
     def test_sent_by_the_case_owner_to_the_case_manager(self):
         self.assertEqual(self.activity.actor, vendor().id_)
         self.assertEqual(self.activity.to, _CASE_ACTOR.id_)
 
-    def test_names_the_invitee_and_the_case(self):
-        self.assertEqual(self.activity.object_, _COORDINATOR)
-        self.assertEqual(self.activity.target, case().id_)
+    def test_names_the_case_and_the_invitee(self):
+        invited_to = self.activity.object_
+        invitee = self.activity.target
+        assert invited_to is not None and not isinstance(invited_to, str)
+        assert invitee is not None and not isinstance(invitee, str)
+        self.assertEqual(invited_to.id_, case().id_)
+        self.assertEqual(invitee.id_, _COORDINATOR.id_)
 
     def test_carries_the_offered_roles(self):
-        self.assertEqual(self.activity.suggested_roles, ["coordinator"])
+        self.assertEqual(self.activity.roles, ["coordinator"])
 
 
 class TestAcceptActorRecommendation(unittest.TestCase):

@@ -421,7 +421,7 @@ def check_entries_carry_registry_labels() -> None:
         count += len(entries)
         for entry in entries:
             REBUILD_FAILURES.extend(
-                label_mismatches([entry], managers.get(entry.case_id, dl))
+                label_mismatches([entry], managers.get(entry.context, dl))
             )
     LABELLED_ENTRIES.append(count)
 
@@ -679,7 +679,7 @@ def seed_replicas_for_case_participants(
     """Replicate *case_id* into the store of every actor participating in it.
 
     Stands in for the CaseActor's ``Create(VulnerabilityCase)`` /
-    ``Announce(CaseLedgerEntry)`` fan-out, which seeds each participant's replica
+    ``Add(CaseLedgerEntry)`` fan-out, which seeds each participant's replica
     in a real deployment.
 
     The CaseActor's own replica matters as much as the participants':

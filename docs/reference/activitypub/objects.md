@@ -236,7 +236,7 @@ print(render_example("case_participant_role"))
 ### CaseLedgerEntry
 
 A `CaseLedgerEntry` object is one entry in the canonical case ledger.
-The [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) writes an entry for every case-scoped message and fans it out to participants with `Announce(CaseLedgerEntry)`; each entry carries the hash of the previous one, which is how participants detect a gap.
+The [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) writes an entry for every case-scoped message and fans it out to participants with `Add(CaseLedgerEntry)`; each entry carries the hash of the previous one, which is how participants detect a gap.
 See [Ledger Replication](../messages/ledger_replication.md) for the activities that carry it.
 The example is the object carried by such an announcement.
 

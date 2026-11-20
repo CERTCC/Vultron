@@ -143,6 +143,20 @@ def case_obj(dl, actor):
 
 
 @pytest.fixture
+def case_for_suggestion(dl, actor, case_obj):
+    """``case_obj`` with *actor* seated as a participant, not the Case Owner.
+
+    The Case Owner invites with its own Invite and suggests no one
+    (CM-17-007, ADR-0199), so a suggestion comes from another participant.
+    """
+    participant = dl.read(case_obj.actor_participant_index[actor.id_])
+    assert isinstance(participant, as_CaseParticipant)
+    participant.case_roles = [CVDRole.VENDOR]
+    dl.save(participant)
+    return case_obj
+
+
+@pytest.fixture
 def case_obj_with_case_actor(dl, actor):
     """Case + Case Actor service for offer-case-manager-role tests.
 
@@ -213,13 +227,13 @@ def invite(other_actor_and_dl, actor, case_obj):
 
 
 def test_trigger_suggest_actor_to_case_returns_202(
-    client_triggers, actor, case_obj, other_actor
+    client_triggers, actor, case_for_suggestion, other_actor
 ):
     """TB-01-002: POST /actors/{id}/trigger/suggest-actor-to-case returns 202."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
-            "case_id": case_obj.id_,
+            "case_id": case_for_suggestion.id_,
             "suggested_actor_id": other_actor.id_,
         },
     )
@@ -227,13 +241,13 @@ def test_trigger_suggest_actor_to_case_returns_202(
 
 
 def test_trigger_suggest_actor_to_case_response_contains_activity(
-    client_triggers, actor, case_obj, other_actor
+    client_triggers, actor, case_for_suggestion, other_actor
 ):
     """TB-04-001: Successful trigger response body contains 'activity' key."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
-            "case_id": case_obj.id_,
+            "case_id": case_for_suggestion.id_,
             "suggested_actor_id": other_actor.id_,
         },
     )
@@ -255,13 +269,13 @@ def test_trigger_suggest_actor_to_case_missing_case_id_returns_422(
 
 
 def test_trigger_suggest_actor_to_case_ignores_unknown_fields(
-    client_triggers, actor, case_obj, other_actor
+    client_triggers, actor, case_for_suggestion, other_actor
 ):
     """TB-03-002: Unknown fields in request body are silently ignored."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
-            "case_id": case_obj.id_,
+            "case_id": case_for_suggestion.id_,
             "suggested_actor_id": other_actor.id_,
             "extra_field": "ignored",
         },
@@ -300,7 +314,7 @@ def test_trigger_suggest_actor_to_case_unknown_case_returns_404(
 
 
 def test_trigger_suggest_actor_to_case_undeliverable_suggested_actor_is_422(
-    client_triggers, actor, case_obj
+    client_triggers, actor, case_for_suggestion
 ):
     """An undeliverable ``suggested_actor_id`` is a validation error, not a 404.
 
@@ -319,7 +333,7 @@ def test_trigger_suggest_actor_to_case_undeliverable_suggested_actor_is_422(
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
-            "case_id": case_obj.id_,
+            "case_id": case_for_suggestion.id_,
             "suggested_actor_id": "urn:uuid:nonexistent-actor",
         },
     )
@@ -328,13 +342,13 @@ def test_trigger_suggest_actor_to_case_undeliverable_suggested_actor_is_422(
 
 
 def test_trigger_suggest_actor_to_case_unrecorded_remote_peer_is_accepted(
-    client_triggers, actor, case_obj
+    client_triggers, actor, case_for_suggestion
 ):
     """A deliverable peer URI with no local record proceeds (ADR-0073)."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
-            "case_id": case_obj.id_,
+            "case_id": case_for_suggestion.id_,
             "suggested_actor_id": "http://vendor.example:7999/api/v2/actors/v1",
         },
     )
@@ -649,6 +663,8 @@ def case_for_invite(dl, actor):
         as_VulnerabilityCase,
         name="TEST-CASE-INVITE",
         attributed_to=actor.id_,
+        # The owner's Invite carries its preview of the case (CM-17-010).
+        stub_summary="Details shared after acceptance",
     )
     owner_participant = make(
         as_CaseParticipant,
@@ -704,7 +720,11 @@ def test_trigger_invite_actor_to_case_returns_202(
     case, _ = case_for_invite
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",
-        json={"case_id": case.id_, "invitee_id": other_actor.id_},
+        json={
+            "case_id": case.id_,
+            "invitee_id": other_actor.id_,
+            "roles": ["vendor"],
+        },
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
@@ -716,29 +736,37 @@ def test_trigger_invite_actor_to_case_response_contains_activity(
     case, _ = case_for_invite
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",
-        json={"case_id": case.id_, "invitee_id": other_actor.id_},
+        json={
+            "case_id": case.id_,
+            "invitee_id": other_actor.id_,
+            "roles": ["vendor"],
+        },
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     data = resp.json()
     assert "activity" in data
     assert data["activity"] is not None
-    assert data["activity"]["type"] == "Offer"
+    assert data["activity"]["type"] == "Invite"
 
 
 @pytest.mark.spec("CM-17-007")
-def test_trigger_invite_actor_to_case_sends_the_owners_offer(
+def test_trigger_invite_actor_to_case_sends_the_owners_invite(
     client_triggers_invite, actor, case_for_invite, other_actor
 ):
-    """The owner's own Offer goes to the CASE_MANAGER (CM-17-007, ADR-0109).
+    """The owner's own Invite goes to the CASE_MANAGER (CM-17-007, ADR-0199).
 
     The owner's container never emits as the CASE_MANAGER, so the activity
-    and the outbox it is queued in are the owner's; the CASE_MANAGER emits
-    the Invite when the Offer reaches it.
+    and the outbox it is queued in are the owner's; the CASE_MANAGER sends
+    the stub Invite when the owner's Invite reaches it.
     """
     case, case_actor = case_for_invite
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",
-        json={"case_id": case.id_, "invitee_id": other_actor.id_},
+        json={
+            "case_id": case.id_,
+            "invitee_id": other_actor.id_,
+            "roles": ["vendor"],
+        },
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     data = resp.json()
@@ -944,7 +972,7 @@ def test_offer_case_ownership_transfer_route_refuses_a_past_end_time(
 
 @pytest.mark.spec("CM-24-001")
 def test_suggest_actor_to_case_drains_the_emitting_actors_outbox(
-    client_triggers_invite, actor, case_for_invite, other_actor, drained
+    client_triggers_invite, dl, actor, case_for_invite, other_actor, drained
 ):
     """The drain targets whichever outbox the trigger reports it wrote to.
 
@@ -954,6 +982,11 @@ def test_suggest_actor_to_case_drains_the_emitting_actors_outbox(
     requesting actor's.
     """
     case, _ = case_for_invite
+    # A suggestion comes from a participant, not the Case Owner (CM-17-007).
+    participant = dl.read(case.actor_participant_index[actor.id_])
+    assert isinstance(participant, as_CaseParticipant)
+    participant.case_roles = [CVDRole.VENDOR]
+    dl.save(participant)
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={"case_id": case.id_, "suggested_actor_id": other_actor.id_},
@@ -967,7 +1000,7 @@ def test_suggest_actor_to_case_drains_the_emitting_actors_outbox(
 def test_invite_actor_to_case_drains_the_owners_outbox(
     client_triggers_invite, actor, case_for_invite, other_actor, drained
 ):
-    """The owner's Offer is queued in the owner's outbox, so that is drained.
+    """The owner's Invite is queued in the owner's outbox, so that is drained.
 
     Before ADR-0109 the Invite was queued as the CaseActor and its outbox was
     drained (#2484); the owner now emits nothing as the CaseActor.
@@ -975,7 +1008,11 @@ def test_invite_actor_to_case_drains_the_owners_outbox(
     case, _ = case_for_invite
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",
-        json={"case_id": case.id_, "invitee_id": other_actor.id_},
+        json={
+            "case_id": case.id_,
+            "invitee_id": other_actor.id_,
+            "roles": ["vendor"],
+        },
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     assert drained == [(actor.id_, actor.id_)]

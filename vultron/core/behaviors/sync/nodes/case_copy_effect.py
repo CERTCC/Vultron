@@ -56,6 +56,6 @@ class StoreRecordsReflectedEntryCarriesNode(_LedgerEffectNode):
                 self.name,
                 len(records),
                 entry.id_,
-                entry.case_id,
+                entry.context,
             )
         return Status.SUCCESS

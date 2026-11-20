@@ -17,9 +17,22 @@
 (HP-01-009, HP-01-025).
 """
 
+from collections.abc import Mapping
+
 import py_trees
 
-from vultron.core.behaviors.case_id_scope import with_case_id
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    INVITE_ID,
+    NOTE_ID,
+    OFFER_ID,
+    PARTICIPANT_ID,
+    PROPOSAL_ID,
+    REPORT_ID,
+    SENDER_ID,
+    ActKey,
+)
 from vultron.core.behaviors.sender_check_context import (
     AuthoredCaseProposal,
     AuthoredNote,
@@ -48,7 +61,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsParticipantRecordSubjectNode,
     SenderIsProposalAddresseeNode,
     SenderIsProposalAuthorNode,
-    SenderIsRequestAddresseeNode,
     SenderIsRoleOfferTargetNode,
 )
 from vultron.core.behaviors.sender_guard.doors import (
@@ -57,22 +69,37 @@ from vultron.core.behaviors.sender_guard.doors import (
 from vultron.errors import VultronWiringError
 
 
+def _sender_seeded(
+    node: py_trees.behaviour.Behaviour,
+    ctx: SenderCheckContext,
+    seeds: Mapping[ActKey, str | None] | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """*node* with ``/sender_id`` and each key of *seeds* seeded.
+
+    The kind nodes read every per-act value from its key (BTND-01-008); a
+    seed of ``None`` is left unseeded, which the node reads as absent.
+    """
+    return with_act_keys(node, {SENDER_ID: ctx.sender_id, **(seeds or {})})
+
+
 def _addressee_node(
     ctx: SenderCheckContext,
-) -> SenderIsRequestAddresseeNode:
+) -> py_trees.behaviour.Behaviour:
     """The ``NAMED_ACTOR`` check for the record *ctx* names (HP-01-009)."""
     request = ctx.request
     if isinstance(request, CaseProposalRequest):
-        return SenderIsProposalAddresseeNode(
-            report_id=request.report_id, sender_actor_id=ctx.sender_id
+        return _sender_seeded(
+            SenderIsProposalAddresseeNode(),
+            ctx,
+            {REPORT_ID: request.report_id},
         )
     if isinstance(request, ReportOfferRequest):
-        return SenderIsOfferAddresseeNode(
-            offer_id=request.offer_id, sender_actor_id=ctx.sender_id
+        return _sender_seeded(
+            SenderIsOfferAddresseeNode(), ctx, {OFFER_ID: request.offer_id}
         )
     if isinstance(request, CaseBootstrapRequest):
-        return SenderIsExpectedCaseCreatorNode(
-            case_id=request.case_id, sender_actor_id=ctx.sender_id
+        return _sender_seeded(
+            SenderIsExpectedCaseCreatorNode(), ctx, {CASE_ID: request.case_id}
         )
     if isinstance(request, OwnershipOfferRequest):
         return SenderIsOwnershipTransfereeNode(
@@ -81,10 +108,13 @@ def _addressee_node(
             sender_actor_id=ctx.sender_id,
         )
     if isinstance(request, RoleOfferRequest):
-        return SenderIsRoleOfferTargetNode(
-            case_id=_case_of(ctx, "a role Offer"),
-            offer_id=request.offer_id,
-            sender_actor_id=ctx.sender_id,
+        return _sender_seeded(
+            SenderIsRoleOfferTargetNode(),
+            ctx,
+            {
+                CASE_ID: _case_of(ctx, "a role Offer"),
+                OFFER_ID: request.offer_id,
+            },
         )
     raise VultronWiringError(
         "compose_sender_guard: a NAMED_ACTOR kind needs the record holding"
@@ -94,30 +124,31 @@ def _addressee_node(
 
 def _author_node(
     ctx: SenderCheckContext,
-) -> (
-    SenderIsNoteAuthorNode
-    | SenderIsProposalAuthorNode
-    | SenderIsParticipantRecordSubjectNode
-):
+) -> py_trees.behaviour.Behaviour:
     """The ``AUTHOR`` check for the object *ctx* names (HP-01-009)."""
     authored = ctx.authored_object
     if isinstance(authored, AuthoredParticipantRecord):
         # The record names its own case (HP-08-008), so the check reads it
         # from there when the context names none.
-        return SenderIsParticipantRecordSubjectNode(
-            participant_id=authored.participant_id,
-            sender_actor_id=ctx.sender_id,
-            case_id=ctx.case_id,
+        return _sender_seeded(
+            SenderIsParticipantRecordSubjectNode(),
+            ctx,
+            {PARTICIPANT_ID: authored.participant_id, CASE_ID: ctx.case_id},
         )
     if isinstance(authored, AuthoredNote):
-        return SenderIsNoteAuthorNode(
-            note_id=authored.note_id,
-            sender_actor_id=ctx.sender_id,
-            case_id=_case_of(ctx, "the author of a note"),
+        return _sender_seeded(
+            SenderIsNoteAuthorNode(),
+            ctx,
+            {
+                NOTE_ID: authored.note_id,
+                CASE_ID: _case_of(ctx, "the author of a note"),
+            },
         )
     if isinstance(authored, AuthoredCaseProposal):
-        return SenderIsProposalAuthorNode(
-            proposal_id=authored.proposal_id, sender_actor_id=ctx.sender_id
+        return _sender_seeded(
+            SenderIsProposalAuthorNode(),
+            ctx,
+            {PROPOSAL_ID: authored.proposal_id},
         )
     raise VultronWiringError(
         "compose_sender_guard: an AUTHOR kind needs the object its sender"
@@ -190,9 +221,7 @@ def _case_owner_role_node(
             proposal_id=ctx.ownership_proposal_id,
             sender_actor_id=ctx.sender_id,
         )
-    return with_case_id(
-        SenderIsCaseOwnerNode(sender_actor_id=ctx.sender_id), ctx.case_id
-    )
+    return _sender_seeded(SenderIsCaseOwnerNode(), ctx, {CASE_ID: ctx.case_id})
 
 
 def _kind_node(
@@ -201,10 +230,8 @@ def _kind_node(
     """The condition node that checks *kind* for the activity in *ctx*."""
     if (membership := _MEMBERSHIP_NODES.get(kind)) is not None:
         # The node reads its case from ``/case_id``, seeded with the case the
-        # context names (BTND-01-006).
-        return with_case_id(
-            membership(sender_actor_id=ctx.sender_id), ctx.case_id
-        )
+        # context names (BTND-01-006), and the sender from ``/sender_id``.
+        return _sender_seeded(membership(), ctx, {CASE_ID: ctx.case_id})
     if kind is SenderEntitlementKind.LEDGER_PEER:
         # Reads the sender and the case from the ledger activity on the
         # blackboard (SYNC-03-005).
@@ -212,11 +239,13 @@ def _kind_node(
             name="SenderIsActiveLedgerParticipant"
         )
     if kind is SenderEntitlementKind.CASE_MANAGER:
-        return SenderIsCaseManagerNode(
-            case_id=ctx.case_id,
-            anchored=ctx.case_manager_anchored,
-            required=ctx.case_manager_required,
-            sender_actor_id=ctx.sender_id,
+        return _sender_seeded(
+            SenderIsCaseManagerNode(
+                anchored=ctx.case_manager_anchored,
+                required=ctx.case_manager_required,
+            ),
+            ctx,
+            {CASE_ID: ctx.case_id},
         )
     if kind is SenderEntitlementKind.CASE_OWNER:
         return _case_owner_node(ctx)
@@ -230,11 +259,10 @@ def _kind_node(
                 "compose_sender_guard: an INVITEE kind needs the recorded"
                 " Invite's id in SenderCheckContext.invite_id (HP-01-025)"
             )
-        return SenderIsInviteeNode(
-            invite_id=ctx.invite_id,
-            sender_actor_id=ctx.sender_id,
-            case_id=ctx.case_id if ctx.invite_is_case_join else None,
-            closure_case_id=ctx.case_id,
+        return _sender_seeded(
+            SenderIsInviteeNode(case_join=ctx.invite_is_case_join),
+            ctx,
+            {INVITE_ID: ctx.invite_id, CASE_ID: ctx.case_id},
         )
     # ANY_ACTOR composes no node (see _any_of), so no kind reaches here.
     raise VultronWiringError(

@@ -94,7 +94,7 @@ def _instances() -> dict[str, CoreObject]:
     )
     entry = make(
         CaseLedgerEntry,
-        case_id=CASE,
+        context=CASE,
         log_index=0,
         log_object_id=f"{CASE}/activity/0",
         semantic_type="create_case",
@@ -117,7 +117,6 @@ def _instances() -> dict[str, CoreObject]:
         participant_statuses=[status],
         embargo_consents=[consent],
         removal_activity=f"{CASE}/activity/9",
-        participant_case_name="Vendor",
     )
     return {
         "CaseLedgerEntry": entry,
@@ -255,7 +254,7 @@ def test_a_written_entry_requires_every_field_the_model_always_writes(
         "id",
         "type",
         "published",
-        "caseId",
+        "context",
         "logIndex",
         "logObjectId",
         "semanticType",
@@ -434,7 +433,16 @@ def test_the_payload_snapshot_is_an_untyped_object(
     assert shape == {"kind": "object"}
 
 
-@pytest.mark.parametrize("key", ["to", "context", "inReplyTo"])
+def test_the_entry_names_its_case_as_a_non_empty_iri(
+    fields: dict[str, dict[str, export_ledger_types.FieldDef]],
+) -> None:
+    """An entry's ``context`` is its case's URI, required (CLP-14-012)."""
+    field = fields["CaseLedgerEntry"]["context"]
+    assert field.required
+    assert field.shape == {"kind": "string", "nonEmpty": True}
+
+
+@pytest.mark.parametrize("key", ["to", "inReplyTo"])
 def test_an_as2_reference_slot_is_an_object_or_non_empty_iri(
     fields: dict[str, dict[str, export_ledger_types.FieldDef]], key: str
 ) -> None:

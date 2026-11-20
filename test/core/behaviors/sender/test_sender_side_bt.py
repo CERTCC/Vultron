@@ -27,6 +27,8 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.behaviors.act_key_scope import unscoped, with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID as CASE_KEY
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender.nodes import (
     ConstructActivitiesNode,
@@ -137,7 +139,7 @@ class TestSenderSideBT:
         assert isinstance(tree, py_trees.composites.Sequence)
         children = tree.children
         assert len(children) == 3
-        assert isinstance(children[0], ResolveCaseManagerNode)
+        assert isinstance(unscoped(children[0]), ResolveCaseManagerNode)
         assert isinstance(children[1], ConstructActivitiesNode)
         assert isinstance(children[2], QueueToOutboxNode)
 
@@ -195,13 +197,13 @@ class TestSenderSideStaleKeyRegression:
     def test_stale_case_manager_id_not_present_after_execution(
         self, dl, bridge
     ):
-        """``/case_manager_id`` is absent after a successful and a failed
+        """``/case_actor_id`` is absent after a successful and a failed
         run alike: the bridge scopes it to its execution (#5803).
         """
         store, actor = dl
         storage = py_trees.blackboard.Blackboard.storage
 
-        # Run 1: succeeds — /case_manager_id is cleaned up afterwards.
+        # Run 1: succeeds — /case_actor_id is cleaned up afterwards.
         case1 = _make_case_with_case_manager(store, actor.id_)
         tree1 = sender_side_bt(
             case_id=case1.id_,
@@ -209,7 +211,7 @@ class TestSenderSideStaleKeyRegression:
         )
         result1 = run_tree(bridge, tree=tree1, actor_id=actor.id_)
         assert result1.status == Status.SUCCESS
-        assert "/case_manager_id" not in storage
+        assert "/case_actor_id" not in storage
 
         # Run 2 (no blackboard clear between runs): fails — case has no
         # CASE_MANAGER participant.  The key is still absent afterwards.
@@ -221,7 +223,7 @@ class TestSenderSideStaleKeyRegression:
         )
         result2 = run_tree(bridge, tree=tree2, actor_id=actor.id_)
         assert result2.status == Status.FAILURE
-        assert "/case_manager_id" not in storage
+        assert "/case_actor_id" not in storage
 
     @pytest.mark.parametrize("case_kind", ["missing", "no_case_manager"])
     def test_resolve_failure_overwrites_a_stale_case_manager_id_with_none(
@@ -241,17 +243,20 @@ class TestSenderSideStaleKeyRegression:
             if case_kind == "missing"
             else _make_case_without_case_manager(store, actor.id_).id_
         )
-        probe = BlackboardKeyProbe("case_manager_id")
+        probe = BlackboardKeyProbe("case_actor_id")
         tree = py_trees.composites.Selector(
             name="ResolveOrProbe",
             memory=False,
-            children=[ResolveCaseManagerNode(case_id=case_id), probe],
+            children=[
+                with_act_keys(ResolveCaseManagerNode(), {CASE_KEY: case_id}),
+                probe,
+            ],
         )
-        storage["/case_manager_id"] = "https://example.org/actors/stale"
+        storage["/case_actor_id"] = "https://example.org/actors/stale"
         try:
             run_tree(bridge, tree=tree, actor_id=actor.id_)
         finally:
-            storage.pop("/case_manager_id", None)
+            storage.pop("/case_actor_id", None)
 
         assert probe.ran
         assert probe.value is None

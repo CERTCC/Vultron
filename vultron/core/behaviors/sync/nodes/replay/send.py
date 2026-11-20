@@ -71,7 +71,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
     """Replay the ledger suffix a peer's ``Reject`` or ``Read`` leaves it short of.
 
     A ``Reject(CaseLedgerEntry)`` asks for it (SYNC-03-002); a
-    ``Read(CaseLedgerEntry)`` states a position behind the tail (SYNC-17-004).
+    ``Read(<case>/ledger)`` states a position behind the tail (SYNC-17-004).
 
     A peer that is not an active participant (CM-10-004) is sent nothing.
     When it is a joined participant that is not active (the active embargo

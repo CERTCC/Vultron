@@ -12,13 +12,20 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The case's preview, which a stub Invite carries (ADR-0205).
+"""The case's preview, which a stub Invite carries (ADR-0205, ADR-0217).
 
 The stub Invite's ``object`` is a typed reference to the case,
 ``{id, type, preview}``, and :class:`CasePreview` is its ``preview``: what an
 invitee decides on before it may see the case (CM-17-010, MV-10-012).  A
 preview is not the case (MV-10-013): an invitee never holds it as a record,
 and no replica is seeded from it.
+
+The preview is a loose form of the case (ADR-0217): the case's fields under
+the case's names, every one optional, and any of them, at any depth, may hold
+a :class:`~vultron.core.models.redacted.Redacted` marker.  It is written by
+hand; every object nested in it takes the loose form
+:func:`~vultron.core.models.preview_object.loose_form` derives from its class.
+It is not a subclass of the case, so a full case is never a preview.
 
 :class:`CasePreview` is one class on both sides of the wire boundary
 (ARCH-25-003, ADR-0099): ``as_CasePreview`` is its wire alias.  The extractor
@@ -28,61 +35,73 @@ holds the preview, so a consumer reads the case from the reference's ``id``
 and what the invitee decides on from the preview.
 """
 
-from datetime import datetime
-from typing import Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from pydantic import (
-    Field,
-    SerializationInfo,
-    SerializerFunctionWrapHandler,
-    ValidationInfo,
-    field_serializer,
-    model_validator,
-)
+from pydantic import Field, ValidationInfo, model_validator
 
-from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
+from vultron.core.models._helpers import INBOUND_CONTEXT_KEY, new_object_id
 from vultron.core.models.base import (
     CoreObject,
     NonEmptyString,
-    PropertyValueKind,
-    vultron_property,
 )
-from vultron.core.models.case_status import CASE_STATUS_PROPERTY, CaseStatus
+from vultron.core.models.case.vulnerability_case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_preview_envelope import (
+    invitation_preview_faults,
+    preview_current_status,
+    preview_em_state,
+    preview_in_force_entry,
+)
+from vultron.core.models.case_preview_profile import (
+    CasePreviewProfile,
+    cut_case,
+)
+from vultron.core.models.case_reference import CaseReference
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.wire_keys import input_keys, wire_key
-from vultron.core.states.em import EM
-
-#: The ``CaseStatus`` fields a preview's ``caseStatus`` keeps on the wire
-#: (CM-17-010): what identifies the status object, the time it was made, and
-#: its EM state.  ``published`` stays because every ``CaseStatus`` carries
-#: one and a receiver refuses a status without it (CLP-15-010).  The status a
-#: preview carries is built for the preview, so its other properties are class
-#: defaults (``pxaState``) or derived from them (``name``) and say nothing
-#: true about the case.
-_PREVIEW_CASE_STATUS_FIELDS = (
-    "context_",
-    "id_",
-    "type_",
-    "context",
-    "published",
-    "em",
+from vultron.core.models.embargo_register import EmbargoRegisterEntry
+from vultron.core.models.preview_object import (
+    PreviewObject,
+    PreviewValue,
+    loose_form,
 )
+from vultron.core.models.redacted import Redactable
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.errors import VultronActivityConstructionError
 
-#: Those fields under every spelling a dump may use: the field name, its AS2
-#: key and each input alias (ARCH-25-002).
-_PREVIEW_CASE_STATUS_KEYS = frozenset(
-    key
-    for name in _PREVIEW_CASE_STATUS_FIELDS
-    for key in (
-        name,
-        wire_key(name, CaseStatus),
-        *input_keys(CaseStatus, name),
-    )
-)
+# The loose forms the preview's fields hold.  A type checker reads each as the
+# loose base it derives from; at run time each is the derived form.
+if TYPE_CHECKING:
+    CaseParticipantPreview = PreviewObject
+    CaseReferencePreview = PreviewObject
+    CaseStatusPreview = PreviewObject
+    EmbargoEventPreview = PreviewObject
+    EmbargoRegisterEntryPreview = PreviewValue
+    VulnerabilityItemPreview = PreviewObject
+    VulnerabilityReportPreview = PreviewObject
+else:
+    CaseParticipantPreview = loose_form(CaseParticipant)
+    CaseReferencePreview = loose_form(CaseReference)
+    CaseStatusPreview = loose_form(CaseStatus)
+    EmbargoEventPreview = loose_form(EmbargoEvent)
+    EmbargoRegisterEntryPreview = loose_form(EmbargoRegisterEntry)
+    VulnerabilityItemPreview = loose_form(VulnerabilityItem)
+    VulnerabilityReportPreview = loose_form(VulnerabilityReport)
 
 
-class CasePreview(CoreObject):
-    """The case's preview: what an invitee decides on (CM-17-010, ADR-0205).
+def _case_property(name: str) -> Any:
+    """The case's own description of its field *name*, for the same field
+    of the preview, so both name one Vultron property."""
+    return VulnerabilityCase.model_fields[name].json_schema_extra
+
+
+#: The case's id lists, as a preview shows them.
+_RedactableIds = Redactable[list[Redactable[NonEmptyString]]]
+
+
+class CasePreview(PreviewObject):
+    """The case's preview: what an invitee decides on (CM-17-010, ADR-0217).
 
     The stub Invite's ``object`` is a typed reference to the case,
     ``{id, type, preview}``, and this is its ``preview``.  The case is named
@@ -94,37 +113,54 @@ class CasePreview(CoreObject):
     - ``id`` is the preview's own, minted like any object's (OID-01-013).
       No reader derives anything from it.
     - ``summary`` is the required human-readable context (CM-17-010, MV-10-001).
-      The sender chooses it: the case name MAY be used, or a deliberately less
-      revealing string, since the case name can be sensitive to share with an
-      invitee not yet bound by the embargo.  A receiver MUST refuse a preview
-      whose ``summary`` is absent or blank.  On the inbound parse path,
-      absence triggers :meth:`_refuse_absent_summary`.
+      The sender chooses it (CM-17-020): the case's ``stub_summary``,
+      written for the invitee rather than for participants.  A receiver
+      MUST refuse a preview whose ``summary`` is absent or blank.  On the
+      inbound parse path, absence triggers :meth:`_refuse_absent_summary`.
+      It is the one case field a marker may not stand in.
 
-    It carries nothing else about the case except, when an embargo is active,
-    the terms the invitee would agree to by accepting (CM-17-002):
-    ``active_embargo`` and ``case_status`` (with its EM state).  The embargo
-    is an object or its id, as ActivityStreams allows; this prototype's sender
-    always embeds the full ``EmbargoEvent``, since it builds no way to fetch an
-    embargo by ID (CM-17-011).
+    Every other field is the case's field of the same name, optional, and it
+    may hold a ``Redacted`` marker (MV-12-001): the sender withholds a value
+    it holds (MV-12-004).  An object nested in one is held in its loose form.
+    The case bookkeeping a preview never carries (the ledger position and
+    genesis hash, the participant and pending-proposal indexes, the case
+    activity list and the owner's ``stubSummary``) is not declared, so a
+    received one is set aside as an unknown key (MV-11-003).
 
-    It is permitted only as that preview (MV-10-002).  Serialised with
-    ``exclude_none=True`` the case reference carrying a preview with no active
-    embargo is::
+    A sender cuts it from the case by a profile (:meth:`from_case`).  An
+    invitation preview shows the Case Owner (``attributedTo``) and, while an
+    embargo is in force, its terms and EM state: ``embargoRegister`` reduced
+    to the in-force entry and ``caseStatuses`` to the current status
+    (CM-17-002, CM-17-013).  :func:`invitation_preview_faults` names what an
+    invitation preview lacks of these.
+
+    It is permitted only as that preview (MV-10-002).  The case reference
+    carrying a preview cut by :data:`~vultron.core.models.
+    case_preview_profile.INVITATION_PROFILE`, with no embargo in force, is::
 
         {"id": "https://example.org/cases/abc",
          "type": "VulnerabilityCase",
          "preview": {
              "id": "urn:uuid:...",
              "type": "CasePreview",
-             "summary": "A remote code execution vulnerability in widget."}}
+             "summary": "A remote code execution vulnerability in widget.",
+             "name": "Widget RCE",
+             "published": "2026-08-03T00:00:00Z",
+             "attributedTo": "https://example.org/actors/vendor",
+             "caseStatuses": [{"type": "CaseStatus", "...": "..."}],
+             "vulnerabilityItems": [{"type": "VulnerabilityItem",
+                 "ids": [{"systemName": "CVE", "text": "CVE-2026-1234"}]}],
+             "caseParticipants": {"type": "Redacted"}}}
     """
 
-    #: The fields a ``Redacted`` marker may stand in (MV-12-001, ADR-0193),
-    #: by Python field name, not wire key.
-    #: None yet, so a marker anywhere in a preview is refused (MV-12-002);
-    #: #6372 makes every preview field redactable (ADR-0217).
-    redactable_fields: ClassVar[frozenset[str]] = frozenset()
-
+    # The preview's own identity: required on a received one, as on any
+    # object (MV-10-001), and minted when built here.
+    _received_without_id: ClassVar[bool] = False
+    id_: NonEmptyString = Field(  # type: ignore[assignment]
+        default_factory=new_object_id,
+        validation_alias="id",
+        serialization_alias="id",
+    )
     # Pinned: the type alone identifies the case's preview (MV-10-012), so a
     # preview that claims any other type is refused rather than relabelled.
     type_: Literal["CasePreview"] = Field(
@@ -132,51 +168,54 @@ class CasePreview(CoreObject):
         validation_alias="type",
         serialization_alias="type",
     )
-    # A preview states no time of its own; absent unless its sender gave one.
-    # It is a projection of the case its typed reference names (ADR-0205), so
-    # a received one is not refused for lacking one (CLP-15-011, MV-10-011);
-    # the embargo and status it carries are whole objects and carry theirs.
-    published: datetime | None = None
-    updated: datetime | None = None
-    _received_without_published: ClassVar[bool] = True
-    active_embargo: EmbargoEvent | NonEmptyString | None = Field(
-        default=None,
-        json_schema_extra=vultron_property(
-            (
-                "The embargo active on a case, as its case preview carries "
-                "it: an EmbargoEvent or its id"
-            ),
-            PropertyValueKind.IRI,
-        ),
-    )
-    case_status: CaseStatus | NonEmptyString | None = Field(
-        default=None, json_schema_extra=CASE_STATUS_PROPERTY
-    )
+    summary: NonEmptyString | None = None  # type: ignore[assignment]
 
-    @field_serializer("case_status", mode="wrap")
-    def _serialize_embargo_state_only(
-        self,
-        value: Any,
-        handler: SerializerFunctionWrapHandler,
-        info: SerializationInfo,
-    ) -> Any:
-        """Emit only the identity, time and EM state of the ``caseStatus``.
-
-        CM-17-013 asks for ``caseStatus.emState``.  A ``CaseStatus`` also
-        carries a PXA state, and the preview's status is not read from the
-        case, so that state is the class default and would tell the invitee a
-        PXA state nobody observed.  The dump keeps the status's identity, its
-        ``published`` time (required on every status, CLP-15-010) and its EM
-        state, and drops the rest.
-        """
-        dumped = handler(value)
-        if not isinstance(dumped, dict):
-            return dumped
-        return {
-            key: item
-            for key, item in dumped.items()
-            if key in _PREVIEW_CASE_STATUS_KEYS
-        }
+    case_participants: (
+        Redactable[list[Redactable[NonEmptyString | CaseParticipantPreview]]]
+        | None
+    ) = Field(
+        default=None, json_schema_extra=_case_property("case_participants")
+    )
+    vulnerability_reports: (
+        Redactable[
+            list[Redactable[NonEmptyString | VulnerabilityReportPreview]]
+        ]
+        | None
+    ) = Field(
+        default=None, json_schema_extra=_case_property("vulnerability_reports")
+    )
+    vulnerability_items: (
+        Redactable[list[Redactable[NonEmptyString | VulnerabilityItemPreview]]]
+        | None
+    ) = Field(
+        default=None, json_schema_extra=_case_property("vulnerability_items")
+    )
+    case_references: (
+        Redactable[list[Redactable[NonEmptyString | CaseReferencePreview]]]
+        | None
+    ) = Field(
+        default=None, json_schema_extra=_case_property("case_references")
+    )
+    case_statuses: (
+        Redactable[list[Redactable[NonEmptyString | CaseStatusPreview]]] | None
+    ) = Field(default=None, json_schema_extra=_case_property("case_statuses"))
+    notes: _RedactableIds | None = Field(
+        default=None, json_schema_extra=_case_property("notes")
+    )
+    embargo_register: (
+        Redactable[list[Redactable[EmbargoRegisterEntryPreview]]] | None
+    ) = Field(
+        default=None, json_schema_extra=_case_property("embargo_register")
+    )
+    parent_cases: _RedactableIds | None = Field(
+        default=None, json_schema_extra=_case_property("parent_cases")
+    )
+    child_cases: _RedactableIds | None = Field(
+        default=None, json_schema_extra=_case_property("child_cases")
+    )
+    sibling_cases: _RedactableIds | None = Field(
+        default=None, json_schema_extra=_case_property("sibling_cases")
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -205,6 +244,35 @@ class CasePreview(CoreObject):
             )
         return data
 
+    @classmethod
+    def from_case(
+        cls, case: VulnerabilityCase, profile: CasePreviewProfile
+    ) -> CasePreview:
+        """Cut *case*'s preview by *profile*, one field at a time (ADR-0217).
+
+        Each case field takes its row's chosen operation
+        (:func:`~vultron.core.models.case_preview_profile.cut_case`), and the
+        result is checked against the envelope.
+
+        Raises:
+            VultronActivityConstructionError: When *profile* has no row for a
+                case field, so the cut would have to guess; when the cut
+                leaves a field the envelope requires it to show without a
+                value (no ``stub_summary``, no Case Owner, or no in-force
+                embargo while one is in force); when a substitution cannot be
+                made (an in-force embargo held only by id, CM-17-011); or
+                when the cut breaks the envelope
+                (:func:`invitation_preview_faults`).
+        """
+        preview = cls.model_validate(cut_case(case, profile))
+        faults = invitation_preview_faults(preview)
+        if faults:
+            raise VultronActivityConstructionError(
+                f"case {case.id_!r}: the cut preview {'; '.join(faults)}"
+                " (CM-17-010, MV-10-007)"
+            )
+        return preview
+
 
 class PreviewedCaseReference(CoreObject):
     """A case named by typed reference, carrying the case's preview.
@@ -222,15 +290,21 @@ class PreviewedCaseReference(CoreObject):
     preview: CasePreview  # type: ignore[assignment]
 
 
-def preview_em_state(preview: CasePreview) -> EM | None:
-    """The case's EM state *preview*'s status carries (CM-17-013).
+def preview_embargo_id(preview: object) -> str | None:
+    """The id of the embargo *preview* carries as its terms (CM-17-002).
 
-    A module function, not a property: a replica slot's reach is checked by
-    attribute name (``test_participant_replica_slots_copy.py``), and a
-    property named for the status would read as the case's own.
+    The embargo of the in-force entry of its ``embargoRegister``.  ``None``
+    when *preview* is no case preview, carries no in-force entry, or shows
+    the embargo without its id or withholds it with a marker: a withheld
+    value names no embargo.
     """
-    status = preview.case_status
-    return status.em.state if isinstance(status, CaseStatus) else None
+    if not isinstance(preview, CasePreview):
+        return None
+    embargo = getattr(preview_in_force_entry(preview), "embargo", None)
+    if isinstance(embargo, str):
+        return embargo
+    embargo_id = getattr(embargo, "id_", None)
+    return embargo_id if isinstance(embargo_id, str) else None
 
 
 def case_preview_of(obj: object) -> CasePreview | None:
@@ -253,3 +327,16 @@ def previewed_case_id(obj: object) -> str | None:
         return None
     case_id = getattr(obj, "id_", None)
     return case_id if isinstance(case_id, str) and case_id else None
+
+
+__all__ = [
+    "CasePreview",
+    "PreviewedCaseReference",
+    "case_preview_of",
+    "invitation_preview_faults",
+    "preview_current_status",
+    "preview_em_state",
+    "preview_embargo_id",
+    "preview_in_force_entry",
+    "previewed_case_id",
+]

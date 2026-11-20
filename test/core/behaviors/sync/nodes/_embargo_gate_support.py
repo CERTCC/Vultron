@@ -159,7 +159,7 @@ def replay(bridge, entries, *, peer_id: str, from_index: int, sync_port):
         actor_id=MANAGER_ID,
         sync_port=sync_port,
         case_actor_id=MANAGER_ID,
-        replay_case_id=entries[-1].case_id,
+        replay_case_id=entries[-1].context,
         replay_peer_id=peer_id,
         replay_case_ledger_entries=entries,
         replay_from_index=from_index,
@@ -187,8 +187,8 @@ def fan_out(bridge, entry, sync_port) -> None:
 
 
 def sends(sync_port) -> list[tuple[int, list[str]]]:
-    """``(log_index, recipients)`` per ``send_announce_log_entry`` call, in order."""
+    """``(log_index, recipients)`` per ``send_add_log_entry`` call, in order."""
     return [
         (call.kwargs["entry"].log_index, list(call.kwargs["to"]))
-        for call in sync_port.send_announce_log_entry.call_args_list
+        for call in sync_port.send_add_log_entry.call_args_list
     ]

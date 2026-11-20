@@ -13,124 +13,111 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""BT leaf nodes for a received ``Add(CaseParticipant)``: reinstatement (CM-31-011).
+"""BT leaf nodes for the Case Owner's reinstatement, ``Add(<Actor>)`` (CM-31-011).
 
-``Add(CaseParticipant)[target=VulnerabilityCase]`` is the Case Owner's request
-to the CASE_MANAGER to reinstate a removed participant, and only that
-(ADR-0116), until #6465 replaces it with the CM-31-011 ``Add(<Actor>)``
-(ADR-0199).  It
-mirrors the removal pipeline in
-:mod:`~vultron.core.behaviors.case.nodes.case_participant_received`, reusing
-its guard, effect and notice frames:
+The Case Owner reinstates a removed participant by sending
+``Add(<Actor>, target=<case>)`` to the CASE_MANAGER only, naming the actor as
+a typed reference (ADR-0199).  The nodes reuse the removal module's frames:
 
-- a repeat guard, which skips an ``Add`` the ledger already records, then
-  three read-only precondition guards — the named participant is on the
-  roster (:class:`MoveNamesCaseParticipantNode`, shared), has joined, and
-  is removed; each failure is ``REFUSED``, so ``Add`` never seats a member
-  (joining is accepting a stub Invite, ADR-0114);
-- one effect, :class:`ReinstateCaseParticipantReceivedNode`, which clears
-  the removal fact through :meth:`CaseParticipant.clear_removal`;
-- the direct notice to the reinstated participant,
-  :class:`EmitParticipantReinstatementNoticeNode`, which is not ledgered.
-
-Composite tree factories assembling these nodes are in
-``case_participant_received_tree.py`` at the process-area root per
-BTND-07-003.
+- read-only precondition guards: the named actor has a participant record on
+  the case (the frame), holds neither ``CASE_MANAGER`` nor ``CASE_OWNER``, has
+  joined (:class:`ParticipantHasJoinedNode`) and is removed
+  (:class:`ParticipantIsRemovedNode`), each refused with a refusal notice
+  (CM-31-036);
+- one effect, :class:`ClearParticipantRemovalNode`, which clears the removal
+  fact without asking the participant to accept again (CM-31-034,
+  CM-31-035);
+- the announcement of the Owner's act to the reinstated actor
+  (:class:`~vultron.core.behaviors.case.nodes.case_participant_received.AnnounceParticipantMoveNode`,
+  CM-31-044).
 """
 
+import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.case_participant_received import (
-    EmitParticipantMoveNoticeNode,
-    MoveNamesCaseParticipantNode,
-    ParticipantMove,
+    NamedParticipantIsNotProtectedNode,
     ParticipantMoveEffectNode,
     ParticipantMoveGuardNode,
 )
 from vultron.core.behaviors.case.nodes.ledgered_repeat import (
     ActivityNotYetLedgeredNode,
 )
-from vultron.core.behaviors.case.nodes.path_branch import OnPaths
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 
 class ParticipantHasJoinedNode(ParticipantMoveGuardNode):
-    """Guard: the participant an ``Add(CaseParticipant)`` names has joined.
+    """Guard: the actor a reinstatement names has joined the case.
 
     An invitee that never accepted its stub Invite is not a member, so there
     is nothing to reinstate: joining is accepting the stub Invite
-    (ADR-0114), and ``Add`` must not become a way around it (CM-31-036).
+    (ADR-0114), and a reinstatement must not become a way around it
+    (CM-31-036).
     """
 
     def _check(self, record: CaseParticipant) -> Status:
         if record.joined:
             return Status.SUCCESS
         return self._refuse(
-            f"participant '{self.participant_id}' never joined case"
-            f" '{self.case_id}'; it joins by accepting its stub Invite"
+            f"'{self.named_actor_id}' never joined case '{self.case_id}'; it"
+            " joins by accepting its stub Invite"
         )
 
 
 class ParticipantIsRemovedNode(ParticipantMoveGuardNode):
-    """Guard: the participant an ``Add(CaseParticipant)`` names is removed.
+    """Guard: the actor a reinstatement names is removed.
 
-    ``Add`` only reinstates (ADR-0116), so an ``Add`` naming a
-    participant that carries no removal fact is refused, not skipped: it is
-    not a repeat of an earlier reinstatement the CASE_MANAGER could tell
-    apart from a request to seat a member.
+    A reinstatement only clears a removal (ADR-0116), so one naming a
+    participant that carries no removal fact is refused, not skipped
+    (CM-31-036).  A repeat of a reinstatement the ledger already records is
+    skipped before this guard runs
+    (:class:`~vultron.core.behaviors.case.nodes.ledgered_repeat.ActivityNotYetLedgeredNode`).
     """
 
     def _check(self, record: CaseParticipant) -> Status:
         if record.removed:
             return Status.SUCCESS
         return self._refuse(
-            f"participant '{self.participant_id}' of case '{self.case_id}'"
-            " is not removed; Add(CaseParticipant) only reinstates"
+            f"'{self.named_actor_id}' is not removed from case"
+            f" '{self.case_id}'; a reinstatement only clears a removal"
         )
 
 
 def case_manager_admits_reinstatement_guard(
-    participant_id: str,
     case_id: str,
-    claimed_actor_id: str | None = None,
-) -> OnPaths:
-    """Precondition guard: when this actor is the CASE_MANAGER, the reinstatement is admissible.
+) -> py_trees.composites.Sequence:
+    """Precondition guard: the CASE_MANAGER admits the reinstatement.
 
-    The reinstatement twin of :func:`case_manager_admits_removal_guard`,
-    declared on the manager path alone: a receiver on any other declared
-    path skips it (it writes nothing, RSH-08-003), and the CASE_MANAGER runs
-    the three reinstatement guards in order, so an ``Add`` it refuses leaves
-    no ledger entry (CM-31-011).  *claimed_actor_id* is the actor the inline
-    participant is attributed to, when it names one.  A repeat of an ``Add``
-    the ledger already records is skipped first, because its participant is
-    no longer removed and the removed check would refuse it
-    (:class:`~vultron.core.behaviors.case.nodes.ledgered_repeat.ActivityNotYetLedgeredNode`).
+    The reinstatement twin of
+    :func:`~vultron.core.behaviors.case.nodes.case_participant_received.case_manager_admits_removal_guard`:
+    the reinstatement declares the manager path alone, so the guards run as
+    the tree's own work (HP-01-038).  The CASE_MANAGER runs them in order,
+    so a reinstatement it refuses leaves no ledger entry (CM-31-036).  A
+    repeat of a reinstatement the ledger already records is skipped first,
+    because its participant is no longer removed and the removed check
+    would refuse it.
     """
-    return OnPaths.at_case_manager(
-        "ReinstatementAdmissibleIfCaseManager",
-        ActivityNotYetLedgeredNode(case_id=case_id),
-        MoveNamesCaseParticipantNode(
-            participant_id=participant_id,
-            case_id=case_id,
-            claimed_actor_id=claimed_actor_id,
-            move="reinstatement",
-        ),
-        ParticipantHasJoinedNode(
-            participant_id=participant_id,
-            case_id=case_id,
-            move="reinstatement",
-        ),
-        ParticipantIsRemovedNode(
-            participant_id=participant_id,
-            case_id=case_id,
-            move="reinstatement",
-        ),
-        body_name="ReinstatementAdmissible",
+    return py_trees.composites.Sequence(
+        name="ReinstatementAdmissible",
+        memory=False,
+        children=[
+            with_case_id(ActivityNotYetLedgeredNode(), case_id),
+            with_case_id(
+                NamedParticipantIsNotProtectedNode(move="reinstatement"),
+                case_id,
+            ),
+            with_case_id(
+                ParticipantHasJoinedNode(move="reinstatement"), case_id
+            ),
+            with_case_id(
+                ParticipantIsRemovedNode(move="reinstatement"), case_id
+            ),
+        ],
     )
 
 
-class ReinstateCaseParticipantReceivedNode(ParticipantMoveEffectNode):
+class ClearParticipantRemovalNode(ParticipantMoveEffectNode):
     """Clear the removal fact on the named participant (CM-31-034).
 
     Calls :meth:`CaseParticipant.clear_removal` on the shared effect frame.
@@ -138,7 +125,7 @@ class ReinstateCaseParticipantReceivedNode(ParticipantMoveEffectNode):
     embargo consent rows are untouched; whether it is active again is the
     case-level check's answer, so a participant that is not a signatory to
     the active embargo stays inert until it consents (ADR-0116).  The replica
-    apply node clears the same fact from the ledger entry.
+    apply node clears the same fact from the ledger entry (CM-31-045).
 
     The entry's fan-out, selected before this write, withholds the
     reinstatement entry from the participant and records it in its paused
@@ -148,49 +135,19 @@ class ReinstateCaseParticipantReceivedNode(ParticipantMoveEffectNode):
     def _apply(self, record: CaseParticipant) -> bool:
         return record.clear_removal()
 
-    def _log_applied(self) -> None:
+    def _log_applied(self, record: CaseParticipant) -> None:
         self.logger.info(
-            "%s: reinstated participant '%s' in case '%s' (CM-31-011)",
+            "%s: reinstated '%s' (participant '%s') in case '%s' (CM-31-011)",
             self.name,
-            self.participant_id,
+            self.named_actor_id,
+            record.id_,
             self.case_id,
         )
 
 
-class EmitParticipantReinstatementNoticeNode(EmitParticipantMoveNoticeNode):
-    """Send the reinstated participant its direct ``Add(CaseParticipant)`` notice.
-
-    The reinstated participant learns the reinstatement as case state from
-    the reinstatement entry, which the admission backfill sends it once it
-    is active (CM-10-006); its replica applies that entry, not this notice
-    (RSH-08-003).  The notice reaches an inert participant too — one that is
-    not a signatory to the active embargo — because it carries only the
-    participant's own record, no other case content.
-    """
-
-    _MOVE: ParticipantMove = "reinstatement"
-
-    def _send(
-        self,
-        trigger_activity: TriggerActivityPort,
-        actor: str,
-        attributed_to: str,
-        to: list[str],
-    ) -> tuple[str, str]:
-        return trigger_activity.add_participant_to_case(
-            participant_id=self.participant_id,
-            case_id=self.case_id,
-            actor=actor,
-            attributed_to=attributed_to,
-            to=to,
-            at=self._require_act_instant(),
-        )
-
-
 __all__ = [
-    "EmitParticipantReinstatementNoticeNode",
+    "ClearParticipantRemovalNode",
     "ParticipantHasJoinedNode",
     "ParticipantIsRemovedNode",
-    "ReinstateCaseParticipantReceivedNode",
     "case_manager_admits_reinstatement_guard",
 ]

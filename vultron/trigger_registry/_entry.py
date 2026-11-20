@@ -89,6 +89,10 @@ class TriggerEntry:
             ``SvcBTTriggerBase``; decides which driven ports it is built with.
         spec_ids: The requirements the verb implements (its route's
             ``Implements:`` block).
+        takes_actor_config: Whether the use case is also built with the
+            local actor's ``ActorConfig`` (``actor_config``): a verb whose
+            tree stamps a reply deadline from the actor's RSVP window
+            (CM-11-014, CM-28-012).
 
     A row holds data only.  It validates itself at construction so a table
     that would misroute fails at import (TRIG-12-004), but it carries no
@@ -106,6 +110,7 @@ class TriggerEntry:
     exposure: TriggerExposure
     bt_backed: bool
     spec_ids: tuple[str, ...]
+    takes_actor_config: bool = False
 
     def __post_init__(self) -> None:
         if not _VERB_RE.match(self.verb):

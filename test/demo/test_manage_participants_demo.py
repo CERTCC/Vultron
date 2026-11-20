@@ -50,7 +50,8 @@ def test_demo(demo_env, demo_fn, caplog):
     - Coordinator acceptance seats it through the stub Invite (no Add)
     - Coordinator participant status created and added
     - Coordinator participant removed from active participation, record kept
-    - Coordinator reinstated by the Case Owner's Add(CaseParticipant)
+    - Coordinator reinstated by the Case Owner's Add(<Actor>), each move
+      announced to it by the CASE_MANAGER
     - No errors logged
 
     For the reject path, verifies:

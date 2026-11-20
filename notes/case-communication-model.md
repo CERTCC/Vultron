@@ -8,7 +8,8 @@ description: >
   broadcast; which resolver to use; "active participant" excludes closed
   participants (ADR-0172); Invite/Accept routing; the embargo relay
   (EP-09, ADR-0113), where ledger entries carry state but never ask; the
-  delegated-message pattern; and identity-spoofing antipatterns, including
+  delegated-message pattern; case-content entitlement is derived, not a
+  self-reported flag (CM-31-018); and identity-spoofing antipatterns, including
   reading the CASE_MANAGER gate as a sender check (HP-01-006, ADR-0115).
 related_specs:
   - specs/architecture.yaml
@@ -63,12 +64,15 @@ Once the CASE_MANAGER has been introduced to the participants, **every case-scop
 participant message goes to the CASE_MANAGER only**:
 
 ```text
-Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
+Participant → CASE_MANAGER → CaseLedgerEntry → Add(CaseLedgerEntry) → all Participants
 ```
 
 The CASE_MANAGER validates the activity, updates the case, and commits a
-`CaseLedgerEntry`; the commit fans out `Announce(CaseLedgerEntry)`, the only way
-participants learn of case-state changes. No participant messages another directly.
+`CaseLedgerEntry`; the commit fans out `Add(CaseLedgerEntry)` to the case's
+ledger, `<case>/ledger`, the only way participants learn of case-state changes.
+That `Add` names the committed act in `inReplyTo`, so it is also the act's
+positive acknowledgement to its sender (ADR-0204). No participant messages another
+directly.
 
 | Phase | Rule |
 |---|---|
@@ -114,6 +118,16 @@ meaning. Reason: while "active" included closed participants, a rule that said o
 "active" let a closed participant be offered the case (CM-21-021, #5189). Until #5661
 lands, CM-10-004 and the code still carry the broad meaning and the combined test.
 
+## Who Is Sent Case Content Is Derived, Not Reported
+
+Do not add a flag a participant sets about itself to say whether it is still sent
+case content. Every replica derives that from the participant record and the case:
+joined, not removed, a signatory of the active embargo when one is in force, and not
+at RM `CLOSED`. The messages a closed participant still gets are the exceptions the
+section above names. Reason: the answer turns on the Case Owner's removal and on one
+consent row per embargo, so a self-reported boolean can only repeat or contradict
+those facts (CM-31-018).
+
 ---
 
 ## Implementation: Resolving the CASE_MANAGER ID
@@ -140,7 +154,7 @@ protocol meaning (CM-02-013, ADR-0088).
 Every CASE_MANAGER received-side handler that accepts a participant message fires the
 cascade itself: guarded commit, then `FanOutLogEntryNode`
 (`core/behaviors/sync/nodes/fanout.py`) queues the `Announce` in the CASE_MANAGER
-outbox, and each participant's `AnnounceLedgerEntryReceivedUseCase` updates its replica.
+outbox, and each participant's `AddLedgerEntryReceivedUseCase` updates its replica.
 The `/actors/{actor_id}/demo/sync-log-entry` endpoint
 (`routers/demo_triggers/actions.py`) is a test scaffold only; never part of the
 normal flow.
@@ -158,17 +172,19 @@ ADR-0121).
 
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
-  → Case Owner sends its own Offer(Actor)[target=VulnerabilityCase],
-    carrying the suggested roles
-    → CASE_MANAGER's inbox (CM-17-007, ADR-0109)
-  → CASE_MANAGER's recommend-actor tree takes the owner-direct branch, since
-    the recommender holds CVDRole.CASE_OWNER (it does not forward the Offer)
+  → Case Owner sends its own Invite(VulnerabilityCase preview)[target=Actor],
+    carrying the roles
+    → CASE_MANAGER's inbox only (CM-17-007, ADR-0109, ADR-0199)
+  → CASE_MANAGER refuses it with a refusal notice unless the sender holds
+    CVDRole.CASE_OWNER and the invitee is invitable (CM-17-026); else it
+    commits the Owner's Invite as one entry (CM-17-018)
+  → CASE_MANAGER sends its own Invite(VulnerabilityCase preview)[target=Actor]
+    (sent by case_actor_id, attributedTo case_owner_id, inReplyTo the Owner's
+    Invite), commits it in the emitting tree, no cc: (CM-17-006, CM-17-015)
+    → invitee's inbox
   → CASE_MANAGER creates the invitee's CaseParticipant (inert: RM.RECEIVED,
     VF v for a vendor, consent INVITED if an embargo is active) and commits
     the creation to the ledger (CM-11-006)
-  → CASE_MANAGER sends Invite(VulnerabilityCase preview)[target=Actor]
-    (sent by case_actor_id, attributedTo case_owner_id), commits it in the
-    emitting tree, no cc: (CM-17-006, CM-17-015) → invitee's inbox
 
 Invitee sends Accept(Invite(VulnerabilityCase preview)[target=Actor])
   (sent by invitee_id, addressed to case_actor_id)
@@ -259,7 +275,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   Through the CASE_MANAGER"). The commit is the EK acknowledgement (EP-09-009).
 - **Only the CASE_MANAGER evaluates invite expiry**; replicas learn it from the
   committed entry and never compute it (CM-28-014, ADR-0118).
-- **`Announce(CaseLedgerEntry)` is a channel for case state, not a protocol
+- **`Add(CaseLedgerEntry)` is a channel for case state, not a protocol
   interaction.** A proposal or Invite *inside an entry* tells the participant the case's
   state; it answers only an Invite addressed to it (EP-09-025). A non-manager that
   receives a peer's proposal *directly* stores it and writes nothing (RSH-08-003).
@@ -275,7 +291,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   only once it holds the case and the embargo; otherwise it keeps the Invite and logs a
   WARNING. `SendEmbargoInviteAnswerNode` fails by raising, so a broken accept never
   falls through to the reject arm.
-- **The ledger entries.** Each is applied by one slot of `AnnounceLogEntryReceivedBT`
+- **The ledger entries.** Each is applied by one slot of `AddLogEntryReceivedBT`
   (EP-09-007, RSH-08-004). Every slot copies (ADR-0124, CM-23-016): an act's
   entry carries its register step or the row it states, and every other
   consent row those acts change is the CASE_MANAGER's own
@@ -325,13 +341,17 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 ## Delegated-Message Pattern
 
 An activity a participant initiates but the protocol requires from the CASE_MANAGER is
-sent with `actor` = the CASE_MANAGER and `attributed_to` = the requester (CM-24-001,
-CM-24-002), queued in the CASE_MANAGER's outbox (CM-24-004).
+sent with `actor` = the CASE_MANAGER, `attributed_to` = the requester and `in_reply_to`
+= the request it received (CM-24-001, CM-24-002, CM-24-020), queued in the
+CASE_MANAGER's outbox (CM-24-004). A requester that is the CASE_MANAGER gets neither
+field (CM-24-021).
 
 - **Every delegated emit calls `delegated_authorship()`**
   (`vultron/core/behaviors/delegated_authorship.py`, CM-24-005); no callsite assigns
-  `actor`/`attributed_to` itself. The caller names both identities; the helper looks
-  nothing up. `test/architecture/test_delegated_attribution_uses_helper.py` enforces it.
+  `actor`/`attributed_to`/`in_reply_to` itself. The caller names both identities and
+  the request; the helper looks nothing up and raises on a distinct asker with no
+  request (CM-24-022). `test/architecture/test_delegated_attribution_uses_helper.py`
+  and `test_delegated_act_names_request.py` enforce it.
 - A trigger resolves the CASE_MANAGER with `resolve_case_manager_id()` and fails when
   there is none (CM-02-014); a received-side node passes `self.actor_id`, which the role
   gate makes the CASE_MANAGER.
@@ -409,9 +429,10 @@ delivery is the only path to a canonical write (CLP-10-001).
 `receiving_actor_id`** (BT-17-005). Without one the skip arm succeeds and the test
 passes for the wrong reason.
 
-### Why the `Announce(CaseLedgerEntry)` envelope is not a payload
+### Why the `Add(CaseLedgerEntry)` envelope is not a payload
 
-`Announce(CaseLedgerEntry)` is the replication envelope (SYNC-02-001). A canonical
-entry's `payloadSnapshot` is the activity that *triggered* the entry, never the
-transport that delivered it, so `announce_case_ledger_entry` MUST NOT appear in
-`EXPECTED_SEMANTIC_TYPES` for the canonical log (CLP-10-004, ADR-0021).
+`Add(CaseLedgerEntry)` is the replication envelope (SYNC-02-001, ADR-0204). A
+canonical entry's `payloadSnapshot` is the activity that *triggered* the entry,
+never the transport that delivered it, so `add_case_ledger_entry_to_ledger` MUST
+NOT appear in `EXPECTED_SEMANTIC_TYPES` for the canonical log (CLP-10-004,
+ADR-0021).

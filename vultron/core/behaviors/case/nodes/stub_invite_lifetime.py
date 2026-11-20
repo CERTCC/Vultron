@@ -21,10 +21,12 @@ Read-only conditions for the CASE_MANAGER's received trees:
   that was superseded, naming the replacement.  An expired stub is not
   refused: its expiry consequence is *stale* (ASK-03-008).  A ``Reject`` is
   not guarded: declining to join does not depend on the terms (CM-11-016).
-- :class:`ReinviteAwaitingNode` — the invitee has a record and has not
-  answered, so a fresh stub goes out on that record (CM-11-015).
-- :class:`ReinviteNotToClosedParticipantNode` — refuses a re-invite of a
-  participant at ``RM.CLOSED`` (CM-11-043, ADR-0085).
+
+The re-invite check is
+:class:`~vultron.core.behaviors.case.nodes.owner_invite_stub.InviteeAwaitsReplyNode`,
+and the refusal of a joined or closed invitee is
+:class:`~vultron.core.behaviors.case.nodes.owner_invite.InviteeIsInvitableNode`
+(CM-11-015, CM-11-043).
 
 The deadline rules live in :mod:`vultron.core.behaviors.case.stub_invite_lifetime`.
 """
@@ -32,8 +34,6 @@ The deadline rules live in :mod:`vultron.core.behaviors.case.stub_invite_lifetim
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.stub_invite_lifetime import (
-    awaiting_stub_reply,
-    invitee_record,
     record_of,
     recorded_stub_invites,
     superseded_reason,
@@ -78,70 +78,6 @@ class StubInviteAnswerableNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class ReinviteAwaitingNode(DataLayerConditionWithPorts):
-    """Condition: the invitee has an inert record and has not answered.
-
-    SUCCESS when *invitee_id* has a participant record in the case that has
-    neither joined nor closed, so a re-invite is a fresh stub Invite on that
-    record (CM-11-015).  FAILURE otherwise, leaving the first-invite path.
-    """
-
-    def __init__(
-        self, invitee_id: str, case_id: str, name: str | None = None
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.invitee_id = invitee_id
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-        record = invitee_record(self.datalayer, case, self.invitee_id)
-        return (
-            Status.SUCCESS if awaiting_stub_reply(record) else Status.FAILURE
-        )
-
-
-class ReinviteNotToClosedParticipantNode(DataLayerConditionWithPorts):
-    """Guard: refuse a re-invite of a participant at ``RM.CLOSED``.
-
-    ``CLOSED`` is terminal with no rejoin path (ADR-0085), and a stub reject
-    is a closure (CM-11-007), so the record cannot be invited again.  SUCCESS
-    for anyone else, including an invitee with no record yet.
-    """
-
-    def __init__(
-        self, invitee_id: str, case_id: str, name: str | None = None
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.invitee_id = invitee_id
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-        record = invitee_record(self.datalayer, case, self.invitee_id)
-        if record is not None and record.rm_closed:
-            self.feedback_message = (
-                f"'{self.invitee_id}' is at RM.CLOSED in case"
-                f" '{self.case_id}' and cannot be re-invited (CM-11-015,"
-                " ADR-0085)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        return Status.SUCCESS
-
-
 __all__ = [
-    "ReinviteAwaitingNode",
-    "ReinviteNotToClosedParticipantNode",
     "StubInviteAnswerableNode",
 ]

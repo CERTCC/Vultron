@@ -33,8 +33,8 @@ The second rule keeps the vocabulary unambiguous: if two activities had the same
 
 These rules have a visible cost.
 Where the formal protocol distinguishes several messages, the wire vocabulary often carries one activity and distinguishes them by payload.
-When the CASE_MANAGER records them, the `CP`, `CX`, and `CA` messages all ride a single `Add(CaseStatus)[target=VulnerabilityCase]`, discriminated by the `pxaState` field rather than by the verb (MSM-03-004 through MSM-03-006).
-Every other participant reports the same three messages only in the `CaseStatus` that its `Add(ParticipantStatus)[target=CaseParticipant]` embeds, discriminated by `caseStatus.pxaState` (RSH-04-007).
+When the CASE_MANAGER records them, the `CP`, `CX`, and `CA` messages all ride a single `Add(CaseStatus, target=<case>/statuses)`, discriminated by the `pxaState` field rather than by the verb (MSM-03-004 through MSM-03-006).
+Every other participant reports the same three messages only in the `CaseStatus` that its `Add(ParticipantStatus, target=<participant>/statuses)` embeds, discriminated by `caseStatus.pxaState` (RSH-04-007).
 A receiver refuses an `Add(CaseStatus)` from it (RSH-04-005).
 That report is the participant's view, which the CASE_MANAGER may adopt as the case status (RSH-07-001).
 Minting three Vultron-specific activities for those three messages would have added vocabulary where ActivityStreams already supplies an adequate verb.
@@ -120,7 +120,7 @@ Modeling it as `as:Undo` would claim that the earlier `Ignore(VulnerabilityCase)
 Vultron distinguishes object creation from object attachment.
 `as:Create` mints a new object; `as:Add` attaches an existing object to another object.
 A note is one `Add(Note)[target=VulnerabilityCase]` that carries the note inline and attaches it, with no `Create` before it.
-A new status is attached the same way: it travels inline on the `Add(CaseStatus)[target=VulnerabilityCase]` that attaches it, with no `Create` before it.
+A new status is attached the same way: it travels inline on the `Add(CaseStatus, target=<case>/statuses)` that attaches it, with no `Create` before it.
 The other forms ActivityStreams allows, such as a `Create` whose `context` names the case, are deferred to an open question, shown later on this page.
 
 ```mermaid
@@ -166,9 +166,9 @@ Read against the formal message set, the split carries no information: a reader 
 Read against the wire vocabulary, the split is a real distinction that the protocol's dispatch depends on.
 
 The two forms are separate messages with separate handlers.
-`Add(Note)` and `Add(CaseStatus)` are recognized by their `target` naming the case.
+`Add(Note)` is recognized by its `target` naming the case, and `Add(CaseStatus)` by its `target` naming the case's status history, `<case>/statuses`, with the case in `context` ([ADR-0204](../adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md)).
 The state change of a status — applying the new `pxaState` to the case — hangs off the `Add`, because that is the activity that asserts the attachment (MSM-03-004 through MSM-03-006).
-An activity that tries to be both, such as an `Add(CaseStatus)` that names the case in `context` and has no `target`, matches no pattern.
+An activity that tries to be both, such as an `Add(Note)` that names the case in `context` and has no `target`, matches no pattern.
 It does not collapse two messages into one; it dispatches as unrecognized, and the state change never happens.
 
 So the conclusion is narrower than "either verb will do".
@@ -195,18 +195,18 @@ flowchart LR
 
 The diagram shows the fully expanded form: a `Create` that mints the status and an `Add` that attaches it.
 The `Create` is avoidable, because an object can be sent inline inside the activity that attaches it.
-A single `Add(ParticipantStatus)[target=CaseParticipant]` carrying the new status object expresses the same outcome, and it is the only form this implementation supports.
+A single `Add(ParticipantStatus, target=<participant>/statuses)` carrying the new status object expresses the same outcome, and it is the only form this implementation supports.
 
 ```mermaid
 ---
 title: The same update as one Add carrying an inline status
 ---
 flowchart LR
-    a["Add(ParticipantStatus)"] -->|target| b[participant]
+    a["Add(ParticipantStatus)"] -->|target| b["participant/statuses"]
 ```
 
 What shrank is the number of activities, not the verb.
-The attachment is still an `Add` with the participant as its `target`, which is what a Vultron peer's dispatch recognizes.
+The attachment is still an `Add` with the participant's status history as its `target`, which is what a Vultron peer's dispatch recognizes.
 
 The same reasoning applies at case creation.
 A case can be created with its report, its known participants, and its notes already inline in the initial case object, so no `Add` is needed for any of them.
@@ -215,7 +215,7 @@ The activity guides break the steps out individually because the individual step
 Participants that are not known when the case is created are not attached later with an `Add`.
 A Reporter may report a vulnerability to a Coordinator, who creates a case before the affected Vendors have been identified.
 The Coordinator seats itself and the Reporter at case creation, then invites each Vendor as it is identified, and each Vendor joins by accepting its Invite ([ADR-0114](../adr/0114-joining-a-case-stub-invite-inert-participant.md)).
-`Add(CaseParticipant)` has one meaning: the Case Owner reinstates a participant it removed ([ADR-0116](../adr/0116-removing-a-participant-withdraws-entitlement-not-membership.md)).
+The Case Owner's `Add(<Actor>)` has one meaning: it reinstates a participant the Case Owner removed, naming the actor rather than its record ([ADR-0116](../adr/0116-removing-a-participant-withdraws-entitlement-not-membership.md), [ADR-0199](../adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md)).
 
 ### `Create(VulnerabilityReport)` and `Offer(VulnerabilityReport)`
 

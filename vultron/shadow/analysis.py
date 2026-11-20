@@ -30,8 +30,10 @@ prefix of the reading: :func:`reading_prefix` keeps the reading's first
 entries, and :func:`analyse_prefix` analyses that, so the standing at a
 point is the standing of a reading that holds only those entries (#6671).
 :func:`point_analysis` is that analysis as the dashboard shows it at a
-picked entry.  :func:`prefix_advice` is the move advice for a prefix, for a
-caller that grades an entry against the advice open before it.
+picked entry.  :func:`prefix_advice` is the move advice for a prefix
+(:func:`ledger_advice` of its entries), and :func:`narrative_marks` grades each
+narrative line's step by the advice open before its entry: its hindsight
+mark (#6672).
 
 A reading is already one case's ledger in log-index order, refused whole
 otherwise (CRD-02-001), so the rows it yields are one complete copy.
@@ -41,14 +43,24 @@ Nothing here is written anywhere: the rows live only for the request
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
+from functools import partial
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_reading import CaseReading
+from vultron.core.states.cs_invariants import CSEvent
 from vultron.measure.advice import CaseAdvice, case_advice
+from vultron.measure.advice.hindsight import (
+    NarrativeMark,
+    embargo_ended_on_own_terms,
+    hindsight_mark,
+)
 from vultron.measure.history import (
     NarrativeLine,
+    ReachedState,
     case_narrative,
     derive_case_steps,
 )
@@ -56,8 +68,10 @@ from vultron.measure.ledger import (
     CaseLedger,
     LedgerFile,
     LedgerRow,
+    actor_uri,
     case_ledgers_from_files,
     collect_actor_names,
+    payload_of,
 )
 from vultron.measure.standing import StandingRecord, case_standing
 
@@ -66,15 +80,23 @@ from vultron.measure.standing import StandingRecord, case_standing
 READING_SOURCE = Path("<case reading>")
 
 
-def _rows(reading: CaseReading) -> list[LedgerRow]:
-    return [
+def _ledger_of(entries: Sequence[CaseLedgerEntry]) -> CaseLedger | None:
+    """*entries*, one case's ledger in log-index order, as the measure layer
+    reads a case; ``None`` when there is none."""
+    if not entries:
+        return None
+    rows = [
         LedgerRow(
             path=READING_SOURCE,
             line=line,
             data=entry.model_dump(by_alias=True, mode="json"),
         )
-        for line, entry in enumerate(reading.ledger, start=1)
+        for line, entry in enumerate(entries, start=1)
     ]
+    read = case_ledgers_from_files(
+        [LedgerFile(path=READING_SOURCE, rows=rows)]
+    )
+    return read.cases[entries[0].context]
 
 
 def reading_ledger(reading: CaseReading) -> CaseLedger | None:
@@ -84,12 +106,7 @@ def reading_ledger(reading: CaseReading) -> CaseLedger | None:
         The case's ledger, or ``None`` when the reading holds no entry, as
         an outside-system reading that translated nothing does.
     """
-    if not reading.ledger:
-        return None
-    read = case_ledgers_from_files(
-        [LedgerFile(path=READING_SOURCE, rows=_rows(reading))]
-    )
-    return read.cases[reading.ledger[0].case_id]
+    return _ledger_of(reading.ledger)
 
 
 class CaseAnalysis(BaseModel):
@@ -209,6 +226,29 @@ def point_analysis(analysis: CaseAnalysis, log_index: int) -> CaseAnalysis:
     return at_point.model_copy(update={"actor_names": analysis.actor_names})
 
 
+def ledger_advice(
+    entries: Sequence[CaseLedgerEntry],
+    unobservable: frozenset[CSEvent] = frozenset(),
+) -> CaseAdvice | None:
+    """The move advice open at the last of *entries* (ADR-0200).
+
+    *entries* are a reading's ledger, or its first entries, and
+    *unobservable* the case-state events the reading declares its source
+    cannot observe: all the advice reads, so a reading's citations and
+    inferences do not change it.  It is the advice of :func:`analyse`'s
+    standing, read without the narrative or the actors' names.  Entries
+    with a hole yield only the hole.
+
+    Returns:
+        The advice, or ``None`` when there is no entry, which leaves no
+        standing to advise from.
+    """
+    ledger = _ledger_of(entries)
+    if ledger is None:
+        return None
+    return case_advice(case_standing(ledger, unobservable))
+
+
 def prefix_advice(reading: CaseReading, count: int) -> CaseAdvice | None:
     """The move advice open just after *reading*'s *count*-th entry.
 
@@ -224,16 +264,63 @@ def prefix_advice(reading: CaseReading, count: int) -> CaseAdvice | None:
         ValueError: When *count* is negative or more than the reading's
             entries.
     """
-    standing = analyse_prefix(reading, count).standing
-    return None if standing is None else case_advice(standing)
+    prefix = reading_prefix(reading, count)
+    return ledger_advice(prefix.ledger, prefix.unobservable_events)
+
+
+#: Gives the move advice open at the last of a reading's first entries, as
+#: :func:`ledger_advice` does; a caller may pass one that keeps what it
+#: worked out.
+type AdviceOf = Callable[
+    [tuple[CaseLedgerEntry, ...], frozenset[CSEvent]], CaseAdvice | None
+]
+
+
+def narrative_marks(
+    reading: CaseReading, advice_of: AdviceOf = ledger_advice
+) -> tuple[NarrativeMark, ...]:
+    """The hindsight mark of each line of *reading*'s narrative, in
+    log-index order; empty when the reading holds no entry (#6672).
+
+    Each line's step is graded by the advice for the entries before it,
+    as *advice_of* reads it (:func:`ledger_advice` by default, the advice
+    :func:`prefix_advice` gives), worked out only for an entry that changes
+    a state the advice weighs: most entries, such as notes, invitations and
+    consent rows, change none, and grade nothing whatever the advice.  A
+    case's first entries are the same in every longer reading of it, so a
+    caller whose *advice_of* keeps its results, as the page's does, works
+    out a followed case's new entries alone.
+    """
+    ledger = reading_ledger(reading)
+    if ledger is None:
+        return ()
+    history, steps = derive_case_steps(ledger)
+    reached = [ReachedState(), *steps]
+    unobservable = reading.unobservable_events
+    return tuple(
+        hindsight_mark(
+            row.log_index,
+            reached[count],
+            reached[count + 1],
+            partial(advice_of, reading.ledger[:count], unobservable),
+            actor_uri(payload_of(row.data).get("actor")),
+            ended_on_own_terms=embargo_ended_on_own_terms(
+                history, row.log_index
+            ),
+        )
+        for count, row in enumerate(ledger.rows)
+    )
 
 
 __all__ = [
     "READING_SOURCE",
+    "AdviceOf",
     "CaseAnalysis",
     "analyse",
     "analyse_prefix",
     "count_through",
+    "ledger_advice",
+    "narrative_marks",
     "point_analysis",
     "prefix_advice",
     "reading_ledger",

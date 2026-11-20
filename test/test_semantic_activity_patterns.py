@@ -21,12 +21,12 @@ from vultron.wire.as2.extractor import (
     UndoCaseOwnershipTransferActivityPattern,
 )
 from vultron.wire.as2.extractor._instances import (
+    ReadLedgerPattern,
     RefusalNoticePattern,
     RemoveNoteFromCasePattern,
 )
 from vultron.wire.as2.extractor._pattern import (
     InlineActivityObjectPattern,
-    LedgerPositionReadPattern,
     bare_object_id,
 )
 from vultron.wire.as2.factories import (
@@ -953,10 +953,18 @@ def test_a_scalar_object_constraint_refuses_a_bare_uri_by_default():
 
 
 @pytest.mark.spec("VAM-01-012")
-def test_a_pattern_that_accepts_a_bare_object_matches_one():
-    """``accepts_bare_object`` is the one opt-in to a bare ``object``."""
-    pattern = _offer_case_pattern(accepts_bare_object=True)
-    assert pattern.match(_offer_of_bare_case())
+@pytest.mark.spec("SE-01-006")
+def test_no_pattern_may_opt_in_to_a_bare_object():
+    """No pattern opts out of the bare-URI rule: the opt-in is refused."""
+    with pytest.raises(ValueError, match="accepts_bare_object"):
+        _offer_case_pattern(accepts_bare_object=True)
+
+
+def _offer_pattern(**fields: Any) -> ActivityPattern:
+    """An ``Offer`` pattern with no ``object_`` constraint, carrying *fields*."""
+    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
+
+    return ActivityPattern(activity_=TAtype.OFFER, **fields)
 
 
 @pytest.mark.spec("VAM-01-013")
@@ -966,28 +974,25 @@ def test_strict_governs_target_and_origin_alone():
     from vultron.wire.as2.enums import as_ObjectType as AOtype
 
     bare_target = "https://example.org/actors/alice"
-    lenient = _offer_case_pattern(
-        target_=AOtype.ACTOR, accepts_bare_object=True
-    )
-    strict = _offer_case_pattern(
-        target_=AOtype.ACTOR, accepts_bare_object=True, strict=True
-    )
+    lenient = _offer_pattern(target_=AOtype.ACTOR)
+    strict = _offer_pattern(target_=AOtype.ACTOR, strict=True)
 
     assert lenient.match(_offer_of_bare_case(target=bare_target))
     assert not strict.match(_offer_of_bare_case(target=bare_target))
-    lenient_origin = _offer_case_pattern(
-        origin_=AOtype.ACTOR, accepts_bare_object=True
-    )
-    strict_origin = _offer_case_pattern(
-        origin_=AOtype.ACTOR, accepts_bare_object=True, strict=True
-    )
+    lenient_origin = _offer_pattern(origin_=AOtype.ACTOR)
+    strict_origin = _offer_pattern(origin_=AOtype.ACTOR, strict=True)
     assert lenient_origin.match(_offer_of_bare_case(origin=bare_target))
     assert not strict_origin.match(_offer_of_bare_case(origin=bare_target))
     # A strict pattern's object_ is no stricter than a lenient one's.
-    assert strict.matches_object("https://example.org/cases/unresolved")
-    assert not _offer_case_pattern().matches_object(
-        "https://example.org/cases/unresolved"
+    unresolved = "https://example.org/cases/unresolved"
+    strict_case = _offer_case_pattern(target_=AOtype.ACTOR, strict=True)
+    lenient_case = _offer_case_pattern(target_=AOtype.ACTOR)
+    assert strict_case.matches_object(unresolved) is (
+        lenient_case.matches_object(unresolved)
     )
+    case = make(as_VulnerabilityCase, attributed_to=_VENDOR_URI)
+    assert strict_case.matches_object(case)
+    assert lenient_case.matches_object(case)
 
 
 @pytest.mark.spec("VAM-01-013")
@@ -1623,7 +1628,7 @@ def test_case_manager_acts_map_to_their_semantics(
 
 # ---------------------------------------------------------------------------
 # VAM-02-002, VAM-05-003, VAM-05-005, VAM-08-002, and per row VAM-03-006,
-# VAM-05-004, VAM-06-003, VAM-06-004 — each wire form maps to its semantic type
+# VAM-05-004, VAM-06-006 to VAM-06-008 — each wire form maps to its semantics
 # ---------------------------------------------------------------------------
 
 
@@ -1664,15 +1669,27 @@ def test_case_manager_acts_map_to_their_semantics(
         ),
         pytest.param(
             "participant",
-            "add_vendor_participant_to_case",
-            MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
-            marks=pytest.mark.spec("VAM-06-004"),
+            "remove_participant_from_case",
+            MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE,
+            marks=pytest.mark.spec("VAM-06-006"),
         ),
         pytest.param(
             "participant",
-            "remove_participant_from_case",
-            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
-            marks=pytest.mark.spec("VAM-06-003"),
+            "reinstate_participant_in_case",
+            MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
+            marks=pytest.mark.spec("VAM-06-007"),
+        ),
+        pytest.param(
+            "participant",
+            "announce_participant_removal",
+            MessageSemantics.ANNOUNCE_ADMITTED_ACT,
+            marks=pytest.mark.spec("VAM-06-008"),
+        ),
+        pytest.param(
+            "participant",
+            "announce_participant_reinstatement",
+            MessageSemantics.ANNOUNCE_ADMITTED_ACT,
+            marks=pytest.mark.spec("VAM-06-008"),
         ),
     ],
 )
@@ -1692,11 +1709,10 @@ def _object_check_admits_bare_uri(pattern: ActivityPattern) -> bool:
 
 @pytest.mark.spec("SE-01-006")
 def test_bare_object_satisfies_no_object_type_constraint() -> None:
-    """Only a pattern told apart by another field admits a bare ``object``.
+    """No pattern admits a bare ``object``.
 
-    ``Read(CaseLedgerEntry)`` is told apart by its ``ledgerPosition``
-    (``LedgerPositionReadPattern``); every other pattern whose ``object_``
-    is a type must refuse a bare, unresolved URI there (SE-01-006).
+    Every pattern whose ``object_`` is a type refuses a bare, unresolved URI
+    there (SE-01-006): the set of patterns that admit one is empty.
     """
     admitting = sorted(
         {
@@ -1704,7 +1720,6 @@ def test_bare_object_satisfies_no_object_type_constraint() -> None:
             for entry in SEMANTIC_REGISTRY
             if entry.pattern is not None
             and entry.pattern.object_ is not None
-            and not isinstance(entry.pattern, LedgerPositionReadPattern)
             and _object_check_admits_bare_uri(entry.pattern)
         }
     )
@@ -1724,25 +1739,25 @@ def _bare_object_body(verb: str, **fields: Any) -> dict[str, Any]:
 
 
 @pytest.mark.spec("SE-01-006")
-def test_only_read_case_ledger_entry_accepts_a_bare_object() -> None:
-    """The opted-in set is pinned, and each member needs a discriminator.
+def test_the_position_statement_refuses_a_bare_object() -> None:
+    """A ``Read`` carrying a position and a bare object is no position statement.
 
-    A pattern that opts in to a bare ``object`` must be told apart from its
-    verb's other patterns by a field other than the object's type
-    (SE-01-006): an activity of its verb that carries nothing but a bare
-    ``object`` must not match it.
+    The position statement is ``Read(<case>/ledger)`` (ADR-0204), so no
+    pattern needs a bare ``object``: one that names an entry by id, as the
+    old form did, matches nothing.
     """
-    opted_in = {
-        entry.semantics: entry.pattern
-        for entry in SEMANTIC_REGISTRY
-        if entry.pattern is not None and entry.pattern.accepts_bare_object
-    }
-    assert set(opted_in) == {MessageSemantics.READ_CASE_LEDGER_ENTRY}
-    for semantics, pattern in opted_in.items():
-        bare = parse_activity(_bare_object_body(str(pattern.activity_)))
-        assert not pattern.match(bare), (
-            f"{semantics} accepts a bare object with no other discriminator"
+    bare = parse_activity(
+        _bare_object_body(
+            "Read",
+            context=_CASE_URI,
+            ledgerPosition={"logIndex": 0, "entryHash": "ab" * 32},
         )
+    )
+    assert not ReadLedgerPattern.match(bare)
+    assert (
+        find_matching_semantics(bare)
+        is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    )
 
 
 _CASE_URI = "https://example.org/cases/bare-object"

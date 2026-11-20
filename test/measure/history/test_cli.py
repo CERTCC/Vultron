@@ -31,7 +31,7 @@ RECORDING = recording_path("rv")
 
 def _case_id(path: Path) -> str:
     first = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
-    return str(first["caseId"])
+    return str(first["context"])
 
 
 @pytest.mark.spec("CEH-01-004")

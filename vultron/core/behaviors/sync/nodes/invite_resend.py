@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The CASE_MANAGER resends each Invite a participant owes an answer to.
 
-A participant that states its ledger position, in ``Read(CaseLedgerEntry)``
+A participant that states its ledger position, in ``Read(<case>/ledger)``
 or as an activity's ``ledgerPosition``, tells the CASE_MANAGER that its
 replica holds the case (SYNC-17-008).  That is the moment an Invite it lost,
 such as one dropped from its pre-bootstrap queue before its case copy

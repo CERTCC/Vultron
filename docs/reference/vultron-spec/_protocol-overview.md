@@ -24,7 +24,7 @@ specification. **Participant-specific state** belongs to one participant, which
 is the authority on its own value. **Shared case state** has one value for the
 entire case, and only the participant holding the `CASE_MANAGER` role writes it
 ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)); it replicates each admitted
-change to every active participant ([§3.4 How the Dimensions Interact](introduction.md#34-how-the-dimensions-interact)) as `Announce(CaseLedgerEntry)`.
+change to every active participant ([§3.4 How the Dimensions Interact](introduction.md#34-how-the-dimensions-interact)) as `Add(CaseLedgerEntry)`.
 
 {% include-markdown "./includes/_state-ownership-table.md" %}
 
@@ -57,9 +57,9 @@ flowchart LR
     R -- "case-scoped message" --> CM
     V1 -- "case-scoped message" --> CM
     V2 -- "case-scoped message" --> CM
-    CM -- "Announce(CaseLedgerEntry)" --> R
-    CM -- "Announce(CaseLedgerEntry)" --> V1
-    CM -- "Announce(CaseLedgerEntry)" --> V2
+    CM -- "Add(CaseLedgerEntry)" --> R
+    CM -- "Add(CaseLedgerEntry)" --> V1
+    CM -- "Add(CaseLedgerEntry)" --> V2
 ```
 
 Two things this is **not**:

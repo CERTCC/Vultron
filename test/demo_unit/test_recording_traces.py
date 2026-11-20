@@ -99,7 +99,7 @@ def _entry(
         "type": "CaseLedgerEntry",
         "published": published,
         "receivedAt": published,
-        "caseId": case_id,
+        "context": case_id,
         "logIndex": index,
         "logObjectId": case_id,
         "semanticType": "create_case",
@@ -544,7 +544,7 @@ class TestWhatTheVerdictHolds:
     @pytest.mark.spec("DEMOCI-11-070")
     def test_ids_are_relabelled_by_first_appearance(self):
         first = json.loads(normalize_run(BASE).ledger[0])
-        assert first["caseId"] == "urn:uuid:id-1"
+        assert first["context"] == "urn:uuid:id-1"
         assert first["id"] == "urn:uuid:id-1/log/0"
         assert first["payloadSnapshot"]["id"] == "urn:uuid:id-2"
 
@@ -711,7 +711,7 @@ class TestWhatTheVerdictHolds:
         """
         entry = make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_index=0,
             log_object_id=CASE_ID,
             semantic_type="create_case",

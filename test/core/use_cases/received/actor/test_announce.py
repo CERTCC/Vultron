@@ -44,7 +44,10 @@ from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -57,7 +60,7 @@ from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.sync import (
     state_ledger_positions_trigger,
@@ -602,7 +605,7 @@ class TestAnnounceFirstContactTrustGap:
 
 
 # ---------------------------------------------------------------------------
-# #2186 / #2180: pre-genesis Announce(CaseLedgerEntry) drains on case seed
+# #2186 / #2180: pre-genesis Add(CaseLedgerEntry) drains on case seed
 # ---------------------------------------------------------------------------
 
 
@@ -613,7 +616,10 @@ def _genesis_entry_for(case_id: str, genesis_hash: str) -> CaseLedgerEntry:
         log_index=0,
         object_id="https://example.org/activities/genesis",
         semantic_type="test_event",
-        payload_snapshot={"key": "value"},
+        payload_snapshot={
+            "id": "https://example.org/activities/genesis",
+            "key": "value",
+        },
         prev_log_hash=genesis_hash,
         received_at=ACT_AT,
     )
@@ -624,7 +630,7 @@ class TestAnnounceDrainsPreGenesisBuffer:
     """Seeding a VulnerabilityCase replays the held pre-genesis Announces.
 
     Regression for #2186 (root cause) / #2180 (symptom): an
-    ``Announce(CaseLedgerEntry)`` that arrives before the ``VulnerabilityCase``
+    ``Add(CaseLedgerEntry)`` that arrives before the ``VulnerabilityCase``
     is seeded is held as received (SYNC-15-004) instead of being permanently
     dropped.  Once the case seed lands — anchoring the deterministic per-case
     genesis hash — that held ``Announce`` is replayed through the receiving
@@ -710,7 +716,7 @@ class TestAnnounceDrainsPreGenesisBuffer:
             dl,
             _RECEIVER_ID,
             lambda ev: run_in_act(
-                AnnounceLedgerEntryReceivedUseCase(
+                AddLedgerEntryReceivedUseCase(
                     dl,
                     ev,
                     sync_port=SyncActivityAdapter(dl),
@@ -1019,7 +1025,7 @@ class TestFirstSeedStatesLedgerPosition:
         read = reads[0]
         assert read.actor == _RECEIVER_ID
         assert read.to == [_CASE_ACTOR_ID]
-        assert read.object_ == f"{_CASE_ID}/log/{_COPY_POSITION.log_index}"
+        assert _as_id(read.object_) == f"{_CASE_ID}/ledger"
         assert read.context == _CASE_ID
         assert read.ledger_position == _COPY_POSITION
 
@@ -1037,9 +1043,16 @@ class TestFirstSeedStatesLedgerPosition:
         assert result.disposition is HandlerDisposition.APPLIED
         stored = dl.read(_CASE_ID)
         assert stored is not None and stored.ledger_position == ahead
-        # The replacement asks for what it lacks (SYNC-16-007), and states
-        # no position: only the first seed's statement is queued.
-        assert _queued_reads(dl) == seeded_reads
+        # The replacement asks for what it lacks (SYNC-16-007): its chain
+        # stores no entry, so it states the empty chain's position, naming
+        # the copy's Announce, beside the first seed's statement
+        # (SYNC-16-027).
+        reads = _queued_reads(dl)
+        assert reads[: len(seeded_reads)] == seeded_reads
+        (backfill,) = reads[len(seeded_reads) :]
+        assert backfill.ledger_position is not None
+        assert backfill.ledger_position.log_index == EMPTY_LEDGER_LOG_INDEX
+        assert backfill.in_reply_to is not None
 
     @pytest.mark.spec("SYNC-17-008")
     def test_a_redelivered_announce_queues_no_second_read(
@@ -1051,11 +1064,27 @@ class TestFirstSeedStatesLedgerPosition:
 
         self._seed(dl, make_payload, case)
 
-        assert len(_queued_reads(dl)) == 1
+        # The redelivery replaces the case and asks for what the empty chain
+        # lacks, in reply to the Announce (SYNC-16-027); the seed's own
+        # statement, which answers nothing, is made once.
+        reads = _queued_reads(dl)
+        statements = [r for r in reads if r.in_reply_to is None]
+        assert len(statements) == 1
+        # The backfill answers the copy, so its id is derived from it: a
+        # further redelivery of the same copy queues no second one
+        # (ID-04-004).
+        self._seed(dl, make_payload, case)
+        reads = _queued_reads(dl)
+        (backfill,) = [r for r in reads if r.in_reply_to is not None]
+        assert backfill.ledger_position is not None
+        assert backfill.ledger_position.log_index == EMPTY_LEDGER_LOG_INDEX
 
     @pytest.mark.spec("SYNC-17-001")
-    def test_a_copy_at_the_empty_ledger_states_nothing(self, dl, make_payload):
-        """The empty ledger's position names no entry to state."""
+    @pytest.mark.spec("SYNC-16-027")
+    def test_a_copy_at_the_empty_ledger_states_minus_one(
+        self, dl, make_payload
+    ):
+        """The empty ledger's position is stated as index -1 (ADR-0204)."""
         _anchor_expected_authority(dl)
         empty = make(
             as_VulnerabilityCase,
@@ -1067,7 +1096,8 @@ class TestFirstSeedStatesLedgerPosition:
         result = self._seed(dl, make_payload, _joined_case(empty))
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert _queued_reads(dl) == []
+        (read,) = _queued_reads(dl)
+        assert read.ledger_position == empty
 
     @pytest.mark.spec("SYNC-17-008")
     def test_a_copy_whose_roster_omits_the_receiver_states_nothing(
@@ -1113,7 +1143,7 @@ class TestFirstSeedStatesLedgerPosition:
         """
         _anchor_expected_authority(dl)
         failing = MagicMock(spec=SyncActivityPort)
-        failing.send_read_ledger_entry.side_effect = RuntimeError("store down")
+        failing.send_read_ledger.side_effect = RuntimeError("store down")
 
         with pytest.raises(VultronBTInternalError):
             run_in_act(
@@ -1148,7 +1178,7 @@ class TestFirstSeedStatesLedgerPosition:
         hold_received(dl, held)
         replay = RecordingInboxReplay()
         failing = MagicMock(spec=SyncActivityPort)
-        failing.send_read_ledger_entry.side_effect = RuntimeError("store down")
+        failing.send_read_ledger.side_effect = RuntimeError("store down")
 
         with pytest.raises(VultronBTInternalError):
             run_in_act(
@@ -1161,7 +1191,7 @@ class TestFirstSeedStatesLedgerPosition:
                 )
             )
 
-        failing.send_read_ledger_entry.assert_called_once()
+        failing.send_read_ledger.assert_called_once()
         assert replay.replayed == [held.activity_id]
         assert held_depth(dl, _CASE_ID) == 0
 
@@ -1179,4 +1209,4 @@ class TestFirstSeedStatesLedgerPosition:
 
         assert result.status is Status.FAILURE
         assert "VultronNotFoundError" in result.feedback_message
-        port.send_read_ledger_entry.assert_not_called()
+        port.send_read_ledger.assert_not_called()

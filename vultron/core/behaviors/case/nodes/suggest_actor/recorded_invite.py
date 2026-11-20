@@ -35,17 +35,27 @@ from vultron.core.behaviors.case.nodes.invite_inert_participant import (
 from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
     RecordedOfferAnswerInputMixin,
 )
+from vultron.core.behaviors.received_request import ReceivedRequestInputMixin
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronWiringError
 
 
 class EmitRecordedInviteNode(
-    RecordedOfferAnswerInputMixin, _StubInviteEmitBase
+    ReceivedRequestInputMixin,
+    RecordedOfferAnswerInputMixin,
+    _StubInviteEmitBase,
 ):
     """Send the stub Invite to the invitee of the Offer the Case Owner accepted.
 
     The Invite offers the recorded Offer's roles (none when it carries none)
     and its id derives from the recommendation it answers, so a retry of the
     tree for one recommendation rebuilds one Invite (OX-06-002).
+
+    The Case Owner's ``Accept`` is its decision to invite (ADR-0199), so the
+    Invite names the Owner, the ``Accept``'s sender, in ``attributedTo`` and
+    the ``Accept`` in ``inReplyTo`` (CM-24-002, CM-24-020).  An Owner that
+    holds the CASE_MANAGER role gets neither: the Invite is its own.  The
+    sender is read from the received activity on the blackboard.
     """
 
     def __init__(
@@ -53,6 +63,19 @@ class EmitRecordedInviteNode(
     ) -> None:
         super().__init__(case_id=case_id, name=name)
         self._read_answer_of(answer_id)
+        self._answer_id = answer_id
+
+    def _requester(self) -> str | None:
+        sender = self._received_sender_id()
+        if sender is None:
+            raise VultronWiringError(
+                f"{self.name}: no received Accept '{self._answer_id}' on the"
+                " blackboard to credit the Invite to (CM-24-002)"
+            )
+        return sender
+
+    def _carried_out_request(self) -> str | None:
+        return self._answer_id
 
     def _invitee(self) -> str:
         return self._recorded_answer().invitee_id

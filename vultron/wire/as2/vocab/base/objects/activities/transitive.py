@@ -16,9 +16,7 @@
 
 from pydantic import Field, field_validator, model_validator
 
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_termination import TerminationCause
-from vultron.core.models.ledger_position import EMPTY_LEDGER_LOG_INDEX
 from vultron.core.models.sender_sequence import SenderSequence
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
@@ -122,26 +120,26 @@ class as_Offer(as_TransitiveActivity):
         validation_alias="type",
         serialization_alias="type",
     )
-    # Declared on the base rather than only on _RecommendActorActivity because
-    # VOCABULARY["Offer"] resolves to this class: an inbound Offer is
-    # reconstructed as a bare as_Offer, so without the field here the suggested
-    # roles are dropped on the DataLayer round-trip (#1990).  Aliased
-    # explicitly, matching the convention in this module.
-    suggested_roles: list[NonEmptyString] | None = Field(
+    # One field for the roles an Offer(Actor) recommends and an Invite offers
+    # (as_Invite inherits it), so both carry them under one wire name with one
+    # definition (VM-10-012, #6417).  Declared on the base rather than only on
+    # _RecommendActorActivity because VOCABULARY["Offer"] resolves to this
+    # class: an inbound Offer is reconstructed as a bare as_Offer, so without
+    # the field here the roles are dropped on the DataLayer round-trip
+    # (#1990).  Single-word, so the wire name needs no alias.
+    roles: list[NonEmptyString] | None = Field(
         default=None,
-        validation_alias="suggestedRoles",
-        serialization_alias="suggestedRoles",
         json_schema_extra=vultron_property(
             (
-                "The CVD roles an Offer that recommends an actor suggests it "
-                "take in a case"
+                "The CVD roles an Offer or Invite proposes for the actor it "
+                "names, to hold in the case"
             ),
             PropertyValueKind.SET,
         ),
     )
     # EP-04-004: a Reporter states embargo terms for *this* report by carrying
     # a proposed EmbargoEvent on the Offer(VulnerabilityReport).  Declared on
-    # the base for the same reason as ``suggested_roles``: an inbound Offer is
+    # the base for the same reason as ``roles``: an inbound Offer is
     # reconstructed as a bare as_Offer, and Pydantic's default ``extra="ignore"``
     # would otherwise drop the proposal silently (ADR-0096).  The event's
     # ``context`` is the report URI until the CASE_MANAGER rewrites it at case
@@ -192,13 +190,8 @@ class as_Invite(as_Offer):
         validation_alias="type",
         serialization_alias="type",
     )
-    roles: list[NonEmptyString] | None = Field(
-        default=None,
-        json_schema_extra=vultron_property(
-            "The CVD roles an Invite to a case offers the invitee",
-            PropertyValueKind.SET,
-        ),
-    )
+    # ``roles`` is inherited from as_Offer: the roles the Invite offers the
+    # invitee (CM-17-003).
 
 
 class as_Flag(as_TransitiveActivity):
@@ -433,21 +426,12 @@ class as_Reject(as_TransitiveActivity):
     """The actor rejects the object.
     The target and origin typically have no defined meaning.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-reject>
-
-    ``object`` may be absent in exactly one Vultron message: a replica that
-    holds no ledger entry asks the CASE_MANAGER to replay a case from
-    genesis with a ``Reject(CaseLedgerEntry)`` that names no entry, a
-    ``ledgerPosition`` naming none, and the case as ``target`` (SYNC-16-027).  Any other
-    ``Reject`` without an object is refused when it is built or parsed.
     """
 
     type_: TA_type = Field(
         default=TA_type.REJECT,
         validation_alias="type",
         serialization_alias="type",
-    )
-    object_: as_ObjectRequiredRef | None = Field(  # type: ignore[assignment]
-        default=None, validation_alias="object", serialization_alias="object"
     )
     # SYNC-21-015 (ADR-0178): a refusal notice for an activity's
     # ``senderSequence`` names the number the CASE_MANAGER expects next from
@@ -468,41 +452,6 @@ class as_Reject(as_TransitiveActivity):
             PropertyValueKind.PLAIN,
         ),
     )
-
-    @property
-    def asks_for_genesis_replay(self) -> bool:
-        """Whether this is the objectless genesis-replay ``Reject``.
-
-        A plain ``Reject`` with no ``object``, whose ``ledgerPosition`` is the
-        empty chain's (index -1), and a ``target`` that names the case
-        (SYNC-16-027, SYNC-16-028): its id, or an inline
-        ``VulnerabilityCase``; an inline object of any other type names no
-        case.  The one rule the parser and the router both read.
-        """
-        target_type = getattr(self.target, "type_", None)
-        position = self.ledger_position
-        return (
-            self.object_ is None
-            and str(self.type_) == str(TA_type.REJECT)
-            and position is not None
-            and position.log_index == EMPTY_LEDGER_LOG_INDEX
-            and bool(_as_id(self.target))
-            and (
-                target_type is None or str(target_type) == "VulnerabilityCase"
-            )
-        )
-
-    @model_validator(mode="after")
-    def _objectless_only_to_replay_from_genesis(self) -> as_Reject:
-        """Refuse a ``Reject`` with no object unless it asks for genesis."""
-        if self.object_ is not None or self.asks_for_genesis_replay:
-            return self
-        raise ValueError(
-            f"{self.type_} names no object.  Only a Reject(CaseLedgerEntry)"
-            " asking for a replay from genesis may: it states the empty"
-            " chain's ledgerPosition (index -1) and names the case as its"
-            " target (SYNC-16-028)"
-        )
 
 
 class as_TentativeReject(as_Reject):

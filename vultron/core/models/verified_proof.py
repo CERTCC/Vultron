@@ -16,7 +16,7 @@
 
 The inbox's verification stage checks every proof a delivery needs before
 the body is parsed (SIG-03-003): the activity's own and, on an
-``Announce(CaseLedgerEntry)``, its snapshot's (SIG-04-002).  For each one it
+``Add(CaseLedgerEntry)``, its snapshot's (SIG-04-002).  For each one it
 names what it verified: the author, the key the proof names, and the public
 key it read from the author's profile, as fetched (SIG-02-001, SIG-02-003).
 

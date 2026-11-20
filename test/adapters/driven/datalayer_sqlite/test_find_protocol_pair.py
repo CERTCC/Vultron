@@ -76,7 +76,7 @@ def _seed_ledger_entry(
     index = _ledger_counter[case_id]
     entry = make(
         CaseLedgerEntry,
-        case_id=case_id,
+        context=case_id,
         log_index=index,
         log_object_id=object_id,
         semantic_type=semantic_type,

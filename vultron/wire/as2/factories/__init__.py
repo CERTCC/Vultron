@@ -75,10 +75,11 @@ from vultron.wire.as2.factories.case import (
     update_case_activity,
 )
 from vultron.wire.as2.factories.case_participant import (
-    add_participant_to_case_activity,
     add_status_to_participant_activity,
+    announce_admitted_act_activity,
     create_participant_activity,
-    remove_participant_from_case_activity,
+    reinstate_participant_activity,
+    remove_participant_activity,
     update_participant_activity,
 )
 from vultron.wire.as2.factories.embargo import (
@@ -110,9 +111,8 @@ from vultron.wire.as2.factories.report import (
     rm_validate_report_activity,
 )
 from vultron.wire.as2.factories.sync import (
-    announce_log_entry_activity,
-    genesis_replay_reject_activity,
-    read_ledger_entry_activity,
+    add_log_entry_activity,
+    read_ledger_at_entry_activity,
     read_ledger_position_activity,
     reject_log_entry_activity,
 )
@@ -170,10 +170,11 @@ __all__ = [
     "rm_tentative_reject_full_case_invite_activity",
     "update_case_activity",
     # case_participant
-    "add_participant_to_case_activity",
     "add_status_to_participant_activity",
+    "announce_admitted_act_activity",
     "create_participant_activity",
-    "remove_participant_from_case_activity",
+    "reinstate_participant_activity",
+    "remove_participant_activity",
     "update_participant_activity",
     # embargo
     "activate_embargo_activity",
@@ -198,9 +199,8 @@ __all__ = [
     "rm_submit_report_activity",
     "rm_validate_report_activity",
     # sync
-    "announce_log_entry_activity",
-    "genesis_replay_reject_activity",
-    "read_ledger_entry_activity",
+    "add_log_entry_activity",
+    "read_ledger_at_entry_activity",
     "read_ledger_position_activity",
     "reject_log_entry_activity",
 ]

@@ -93,7 +93,7 @@ groups:
       The outbox handler MUST finish the delivery attempt of an earlier-queued activity
       to a recipient before it attempts a later-queued activity to that recipient.
     rationale: >-
-      A ledger fan-out is one Announce(CaseLedgerEntry) row per participant, and a replica
+      A ledger fan-out is one Add(CaseLedgerEntry) row per participant, and a replica
       that receives entry N+1 before entry N buffers a forward gap and sends a
       Reject(CaseLedgerEntry) (SYNC-14-002), which the CASE_MANAGER answers with a
       full-suffix replay into the same outbox. Per-recipient order at delivery is the
@@ -307,8 +307,9 @@ groups:
       queued again, also by concurrent writers on a file-backed store, and that the
       enqueue callback fires only for a new row;
       `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce`
-      retries the owner-direct invite after an attempt that queued its Invite without
-      committing it and asserts one outbox entry and one ledger entry;
+      retries the CASE_MANAGER's stub Invite for the Case Owner's Invite after an
+      attempt that queued it without committing it and asserts one outbox entry
+      and one ledger entry;
       `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py::test_create_log_entry_node_reuses_a_recorded_entry_past_the_staleness_window`
       asserts the rebuilt act reuses its recorded entry however old its claimed time.
     relationships:

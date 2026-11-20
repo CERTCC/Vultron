@@ -7,8 +7,9 @@ description: >
   Rules for the DataLayer port contract, CasePersistence narrowing, the
   write/read shape boundary, activity read-back, the received archive as the
   sealed body, received-activity keying, received-artifact snapshots, per-actor
-  stores, shared-record writes, multi-call transactions and their read seam,
-  and stored-shape changes. Operating rules live in vultron/core/ports/AGENTS.md.
+  stores and opening one concurrently, shared-record writes, multi-call
+  transactions and their read seam, and stored-shape changes. Operating rules
+  live in vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
@@ -192,7 +193,7 @@ what they contained at receipt time. Do not change this, for two reasons:
 
 1. **Technical**: inline Activities may have no DataLayer record of their own
    (a received `Offer`, held only as received under DL-06-006, or a
-   `CaseLedgerEntry` inside an `Announce`), so collapsing them to an ID
+   `CaseLedgerEntry` inside an `Add`), so collapsing them to an ID
    makes read-back rehydration impossible. A stub
    Invite is recognised by its `object`'s form, a case reference carrying a
    preview (ADR-0205), so dehydration keeps that reference whole too.
@@ -240,6 +241,26 @@ directions:
 `test/conftest.py` carries an autouse `_dispose_actor_stores_between_tests` —
 **do not remove it.** It covers only the *between-test* case; both hazards above
 occur *within* a single test (ADR-0073).
+
+## Opening a Store Two Threads May Open at Once
+
+A request thread and a background timer can open the same new store at the same
+moment, so every path that runs at store open must be safe under a concurrent
+opener (#5999, #6761):
+
+- **Open a hosted actor's store through `get_datalayer()`.** It opens each
+  `(actor, URL)` store once under a per-key lock and hands every caller the one
+  instance (DL-07-015). A thread already inside a transaction on that store skips
+  the lock, because waiting on it could deadlock with an opener waiting on that
+  transaction's session lock.
+- **Schema work at open runs under `schema_guard(engine)`, taken inside
+  `session_guard(engine)`.** `create_all` checks for each table and then creates
+  it, so two unserialised openers both check and one fails with
+  `table ... already exists`. Taking the two locks in one order keeps them
+  deadlock-free; a new check after `create_all` goes inside the same block.
+- **The locks are per process.** They do not cover a second process or an
+  engine built outside `get_actor_engine()` on the same file; a deployment runs
+  one process per store volume.
 
 ## Declaring a Test's Executing Actor
 

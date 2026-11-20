@@ -91,6 +91,7 @@ from vultron.core.models.events.base import (
     LedgerPositionedEvent,
     MessageSemantics,
 )
+from vultron.core.models.status_history import status_history_owner
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.factories import sender_sequence_case_ids
@@ -104,12 +105,12 @@ _FACTORY = "vultron/core/behaviors/case/receive_stages/decisions.py"
 # permanent: SYNC-21-001 (each entry is a recorded exemption decision)
 SENDER_SEQUENCE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
-        # A Read(CaseLedgerEntry) is a request about the ledger, not a case
+        # A Read(<case>/ledger) is a request about the ledger, not a case
         # event, so its sender numbers it not (SYNC-21-001, CLP-02-013).
         (
             "LEDGER_REQUEST_TAKES_NO_NUMBER",
             "vultron/core/behaviors/sync/read_tree.py",
-            "create_read_log_entry_tree",
+            "create_read_ledger_tree",
         ),
     }
 )
@@ -224,20 +225,19 @@ _CASE_MANAGER = "https://example.org/sender-sequence-ratchet/case-manager"
 def _seed_target_participant(
     dl: SqliteDataLayer, activity: as_Activity, case_id: str
 ) -> None:
-    """Store the participant an ``Add(ParticipantStatus)`` targets.
+    """Store the participant whose status history an
+    ``Add(ParticipantStatus)`` targets.
 
-    The use case reads the case from that record (HP-08-008); with no record
-    it names no case, and the sender guard refuses the activity at the door,
-    which counts no number (SYNC-21-023).  The example's target names
-    another case's participant, so the record is seeded under the example's
-    case.
+    The ``target`` is ``<participant>/statuses`` and the case is the
+    ``Add``'s ``context`` (ADR-0204); the tree judges the sender against the
+    history's owner, so that record is seeded under the example's case.
     """
     target = _as_id(activity.target)
     assert target is not None
     dl.create(
         make(
             CaseParticipant,
-            id_=target,
+            id_=status_history_owner(target),
             attributed_to=_as_id(activity.actor),
             context=case_id,
         )
@@ -382,4 +382,4 @@ def test_the_ledger_request_is_the_only_positioned_semantic_left_unnumbered() ->
     positioned semantics, so the check above skips nothing else."""
     numbered = set(_numbered_semantic_trees())
     unnumbered = {e.semantics.name for e in _positioned_entries()} - numbered
-    assert unnumbered == {MessageSemantics.READ_CASE_LEDGER_ENTRY.name}
+    assert unnumbered == {MessageSemantics.READ_CASE_LEDGER.name}

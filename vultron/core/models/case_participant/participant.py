@@ -194,8 +194,8 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
     # it is not removed.  Removal keeps the record on the roster; this fact is
     # the second input to the case-level active check
     # (``VulnerabilityCase.is_active_participant``), never the answer itself.
-    # The Case Owner's ``Remove(CaseParticipant)`` sets it (#4080) and
-    # its ``Add(CaseParticipant)`` clears it (#4081).  Storing the activity id
+    # The Case Owner's ``Remove(<Actor>)`` sets it and its ``Add(<Actor>)``
+    # clears it (ADR-0199).  Storing the activity id
     # rather than a flag keeps the fact replicable from the ledger entry
     # that records it, and names that entry for the reinstatement backfill
     # (CM-10-006).  ``NonEmptyString | None`` follows "if present, then
@@ -211,7 +211,6 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
             PropertyValueKind.IRI,
         ),
     )
-    participant_case_name: NonEmptyString | None = None
 
     @field_validator("embargo_consents", mode="after")
     @classmethod
@@ -307,7 +306,7 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
 
         The one write of :attr:`removal_activity` for a removal (CM-31-001):
         the CASE_MANAGER calls it for the Case Owner's received
-        ``Remove(CaseParticipant)``, and a replica calls it when it replays
+        ``Remove(<Actor>)``, and a replica calls it when it replays
         that activity's ledger entry (CM-31-007), so both record the same
         fact.  The record stays on the roster, and its status history and
         embargo consent rows are untouched (CM-31-008).  A participant that
@@ -326,7 +325,7 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
         """Clear the removal fact: the participant is reinstated (CM-31-034).
 
         The one write that reverses :meth:`record_removal`.  The CASE_MANAGER
-        calls it for the Case Owner's received ``Add(CaseParticipant)``, and a
+        calls it for the Case Owner's received ``Add(<Actor>)``, and a
         replica calls it when it replays that activity's ledger entry, so both
         hold the same record.  Nothing else changes: the participant does not
         accept again, and its status history and embargo consent rows stay as

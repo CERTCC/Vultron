@@ -85,7 +85,7 @@ def effects(dl: SqliteDataLayer) -> Effects:
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
         ),
-        key=lambda e: (str(e.case_id), e.log_index),
+        key=lambda e: (str(e.context), e.log_index),
     )
     outbox = tuple(
         (activity_id, _queued_body(dl, activity_id))

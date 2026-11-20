@@ -80,7 +80,7 @@ KNOWN_READER_REFUSALS: dict[str, tuple[int, str]] = {
         " sent, which an effect inside the diversion decides, not a"
         " condition that could declare the reason",
     ),
-    "sync/announce.py::_held_or_not_manager": (
+    "sync/add_log_entry.py::_held_or_not_manager": (
         1,
         "rewords the composed sender guard's refusal with the announced"
         " entry; the guard is shared by every received tree and states"
@@ -101,13 +101,6 @@ KNOWN_READER_REFUSALS: dict[str, tuple[int, str]] = {
 #: ``SKIPPED`` readings.
 # permanent: #6649 (an entry would be a shared reading no declaration states)
 KNOWN_SHARED_READER_REFUSALS: dict[str, tuple[int, str]] = {}
-
-#: Reader refusals another issue removes, with their counts.
-# owner: #6499
-_MOVED_EXEMPTIONS: dict[str, int] = {
-    "fault/responses.py::_unnamed_entry_refusal": 1,
-    "fault/responses.py::_reseed_verdict.read": 1,
-}
 
 _Function = ast.FunctionDef | ast.AsyncFunctionDef
 
@@ -415,6 +408,7 @@ def _received_reader_refusals() -> dict[str, int]:
 
 
 @pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("HP-01-045")
 def test_received_readers_return_only_the_listed_refusals() -> None:
     """Every reader refusal is listed with its count, and every listed one
     still exists."""
@@ -426,7 +420,6 @@ def test_received_readers_return_only_the_listed_refusals() -> None:
             KNOWN_READER_REFUSALS | KNOWN_SHARED_READER_REFUSALS
         ).items()
     }
-    expected |= _MOVED_EXEMPTIONS
     new = {k: v for k, v in found.items() if k not in expected}
     changed = {
         k: (expected[k], v)
@@ -448,7 +441,7 @@ def test_received_readers_return_only_the_listed_refusals() -> None:
     )
     assert not gone, (
         "listed reader refusals that no longer exist; drop them from"
-        f" KNOWN_READER_REFUSALS or _MOVED_EXEMPTIONS: {gone}"
+        f" KNOWN_READER_REFUSALS: {gone}"
     )
 
 

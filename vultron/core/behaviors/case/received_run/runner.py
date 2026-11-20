@@ -21,9 +21,8 @@ the bridge and the ports, runs the tree once as that actor (BT-17-005,
 BT-17-009), and reads the ``HandlerResult`` from what the tree's nodes
 recorded (:func:`~vultron.core.behaviors.case.received_run.reading.read_outcome`).
 Nothing in it reads or writes the DataLayer around the run: a verdict that
-needs a fact the tree did not record needs a node, not code here.  (A
-handler's builder may still read the store to pick its tree until #6476
-moves the last such reads into the trees.)
+needs a fact the tree did not record needs a node, not code here, and no
+handler's builder reads the store either (BT-25-009).
 
 The runner is the one place a received use case's receiver is resolved, so
 no handler resolves it.  A tree whose shape names the receiver is handed

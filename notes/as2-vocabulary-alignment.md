@@ -21,13 +21,8 @@ tracks:
   - "#6408"   # PR may not close a ratchet's open owner
   - "#6409"   # typed term for every Vultron field
   - "#6422"   # term check and owned ratchets
-  - "#6410"   # EmbargoPolicy attributedTo/content, no inbox
-  - "#6411"   # ledger entry case in context
-  - "#6413"   # vulnerability item title -> name
-  - "#6415"   # dead participantCaseName, caseActivity
   - "#6416"   # CSAF item field name clashes
   - "#6417"   # one roles field on Invite and Offer
-  - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
   - "#6481"   # embargo stores its status; register is a list (slice of #6246)
@@ -262,13 +257,6 @@ Issue: #6245.
 - `Add(VulnerabilityReport)` and `CaseProposal` drop the Vultron `offerId` for
   `inReplyTo` (the report Offer); `offerActorId` is read from that Offer or the
   report's `attributedTo`.
-- A delegated emit (CM-24) sets `attributedTo` = the asker and `inReplyTo` = the
-  request it received, both exactly when the asker is a different actor from the
-  `actor` (ADR-0199). Every delegated emit has a received request to name: a
-  distinct asker reaches the CASE_MANAGER only by message, wherever the two run
-  (ADR-0109; the ownership-transfer trigger already sends its proposal). The
-  CASE_MANAGER is not modelled as anyone's `instrument`: it has its own authority and
-  must be the `actor` receivers authenticate (CM-24-001).
 - `Remove(CaseParticipant)` is replaced by the Case Owner's `Remove(<Actor>,
   origin=<case>)` (§ "The Owner Sends Its Removal or Reinstatement"), and
   `Remove(EmbargoEvent)` by an `Update` (§ "Embargo End Is an Update With a
@@ -282,20 +270,14 @@ which this object is considered a response".
 
 **Today.** `Remove(Note)` and `Remove(EmbargoEvent)` name the case in `origin`,
 and `ActivityPattern.origin_` matches it as `target_` matches `target` (#6463);
-`Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`; `offerId` /
-`offerActorId` in `vultron/wire/as2/vocab/activities/case/content.py`. CM-24-002's
-rationale calls `attributedTo` "the AS2-standard field for recording who delegated
-an action"; AS2 says only "entities to which this object is attributed".
+`Offer(CaseParticipant)` names the recommender's Offer in `inReplyTo`;
+`Add(VulnerabilityReport)` and `CaseProposal` name the report Offer in `inReplyTo`
+(#6419).
 
-**Term-check owner.** #6419 owns `offerId`/`offerActorId` in the #6253 term-check
-ratchet, so the entry keeps an open owner. Planning this section adopts #6419
-for that field rather than filing a second Task.
-
-**Touches.** CM-16-004, CP-01-007, CM-24-002, CM-24-012, the delegated-authorship
+**Touches.** CM-16-004, CM-24-002, CM-24-012, the delegated-authorship
 helper `vultron/core/behaviors/delegated_authorship.py`. The Owner's
 `Remove(<Actor>, origin=<case>)` (§ "The Owner Sends Its Removal or
-Reinstatement") matches on `origin_`; `notes/case-joining.md` shows
-today's `Remove(CaseParticipant)[target=…]`.
+Reinstatement") matches on `origin_`.
 
 ---
 
@@ -319,39 +301,37 @@ Issues: #6293, #6487. Record: ADR-0199 revision 2.
   act>)`. It replaces the separate unledgered notice (CM-31-006, CM-31-026). A
   replica still applies the change only from the entry (CM-31-007, CM-31-029), so the
   notice and the entry's fan-out apply it once.
-- An Owner that is also the CASE_MANAGER sends the same act and admits it under the
-  same rules, without posting to its own inbox.
+- An Owner that is also the CASE_MANAGER sends the same act to itself: ordinary
+  outbox delivery brings it to its own inbox, whose received tree admits it under
+  the same rules (OX-12-001).
 
 **AS2 basis.** An activity states what its sender did. The Owner's removal is its
 decision, which it makes, so the bare act is true of it; the CASE_MANAGER's ledger
 entry is its admission of the act (CLP-02-012), as for a participant's consent. VOC
 Announce can carry an activity.
 
-**Today.** The Owner sends `Remove(CaseParticipant)[target=VulnerabilityCase]` and
-`Add(CaseParticipant)[target=VulnerabilityCase]`, carrying the whole record; the
-CASE_MANAGER ledgers the received act as its entry (CM-31-005, CM-31-025) and sends a
-second, unledgered `Remove` (CM-31-006). Revision 1 of ADR-0199 had the Owner offer
-the act and the CASE_MANAGER accept and make it (#6465 as first filed); revision 2
-reversed that before it was built.
-
-**Touches.** CM-31 (004, 005, 006, 011, 022, 024, 025, 026, 029, 036), CM-24-002,
-VAM-04, the add and remove participant received trees and their trigger,
-the semantic registry, `vultron/wire/as2/vocab/examples/participant.py`,
-`docs/reference/messages/case_management.md`, the occasion lookups
-(`docs/reference/messages/_occasions/lookup.md`, `lookup-case_management.md`,
-`embeds/add-case-participant-to-case.md`),
-`docs/reference/vultron-spec/_participant-lifecycle.md`,
-`docs/reference/case_model_fields.md` (`removal_activity`), `notes/case-joining.md`
-(the removal table), `notes/ownership-transfer.md`,
-`notes/demo-ci-scenario-coverage.md`, the manage-participants demo. Frees
-`Add(CaseParticipant)` for the CASE_MANAGER's own record-keeping
-(§ "The CASE_MANAGER Adds a New Participant Record to the Case").
+**Today.** Built (#6465). The `remove-participant` and `reinstate-participant`
+triggers send the Owner's act (`REMOVE_PARTICIPANT_FROM_CASE`,
+`REINSTATE_PARTICIPANT_IN_CASE`, VAM-06-006, VAM-06-007); the received trees declare
+the manager path alone and read the actor from `/participant_actor_id`. The one
+`Announce(<admitted act>)` emit is `EmitAnnounceAdmittedActNode`
+(`vultron/core/behaviors/case/nodes/announce_admitted_act.py`), with the factory
+`announce_admitted_act_activity` and the received `ANNOUNCE_ADMITTED_ACT`
+(VAM-06-008), which a replica records and applies nothing from; the ADR-0203 end of
+an embargo (#6483) reuses it by overriding its recipients and, for an act it did
+not receive, `_admitted_act_id`. `Add(CaseParticipant)` is unrecognized until the
+CASE_MANAGER's seating entry takes it (§ "The CASE_MANAGER Adds a New Participant
+Record to the Case").
 
 ---
 
 ## Embargo End Is an Update With a Termination Object
 
 Issue: #6246. Records: ADR-0201, ADR-0202, ADR-0203.
+
+**Built (embargo wire type).** An embargo is sent as `["EmbargoEvent", "Event"]`
+and the embargo patterns match `EmbargoEvent` only, so a plain `Event` is no
+embargo (#6480).
 
 **Decision.**
 
@@ -463,7 +443,7 @@ Issues: #6487, #6625. Record: ADR-0199 revision 2 (partially superseding ADR-018
 `vultron/semantic_registry/embargo/decision.py`; the activation effect is
 `vultron/core/behaviors/embargo/nodes/activation_effect.py`. Patterns match types
 only (`vultron/wire/as2/extractor/_pattern.py`). Depends on the embargo carrying its
-own `status` (#6481) and the `EmbargoEvent` wire type (#6480).
+own `status` (#6481); the `EmbargoEvent` wire type is built (#6480).
 
 **Touches.** VAM-05-008, VAM-05-009, VAM-05-010, MSM-02-002, MSM-02-005 and the ER/EJ
 shorthands, MSM-07-005, MSM-07-008, MSM-07-009, MSM-07-023, MSM-07-032, EMB-02-002,
@@ -542,10 +522,12 @@ the CASE_MANAGER would keep its record under the Owner's id; the CASE_MANAGER's 
 Offer answers both.
 
 **Today.** `Offer(Offer(VulnerabilityCase))` and `notes/ownership-transfer.md`; the
-direct invite trigger is `vultron/core/use_cases/triggers/actor/recommendation.py`,
-and the Owner-recommender branch is
-`vultron/core/behaviors/case/suggest_actor_tree/recommend.py` (CM-17-018). The
-embargo relay is `vultron/core/behaviors/embargo/invite_received_tree.py`.
+direct invite is built (#6697): the trigger in
+`vultron/core/use_cases/triggers/actor/recommendation.py` sends the Owner's Invite,
+the CASE_MANAGER's tree is `invite_actor_to_case_received_tree.py` with its nodes in
+`vultron/core/behaviors/case/nodes/owner_invite.py` (CM-17-018, CM-17-026), and the
+Owner-recommender branch is retired (CM-17-027). The embargo relay is
+`vultron/core/behaviors/embargo/invite_received_tree.py`.
 `inReplyTo` on every delegated emit is #6464.
 
 **Touches.** CM-21 (014 to 021, 025 to 029, 036, 037, 044), CM-17 (007, 017, 018,
@@ -603,36 +585,24 @@ CID v1 after its own contexts (`PROFILE_KEY_CONTEXTS` in
 JSON-LD processor. Each field the check
 refuses today is an entry in its owner's ratchet in
 `test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
-resolves to the marked one's meaning until its owner renames it: the item `title`
-takes the note's (#6413), and the policy's and the item's `notes` take the case's
-list of Note ids (#6410, #6416). The check walks computed fields too, so the case's
-derived `activeParticipants` is marked.
+resolves to the marked one's meaning until its owner renames it: the item's `notes`
+takes the case's list of Note ids (#6416). The check walks computed fields too, so
+the case's derived `activeParticipants` is marked.
 
 **Field review.** Each row names the Task that fixes it. A row is a ratchet entry
-only when a rule refuses the field. `inbox`, the note's `audience` and
-`roles`/`suggestedRoles` break no rule (the first two are AS2 terms, the last a
-judgment no check can make), and `caseActivity` is marked, so their owners' own
-acceptance criteria track them.
+only when a rule refuses the field. The note's `audience` breaks no rule (it is
+an AS2 term), so its owner's own acceptance criteria track it. An Offer and an
+Invite carry the roles they propose in one field, `roles`, declared on
+`as_Offer` and inherited by `as_Invite` (#6417).
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
-| `actorId` (`EmbargoPolicy`) | AS2 duplicate | `attributedTo` | #6410 |
-| `notes` (`EmbargoPolicy`) | AS2 duplicate | `content` | #6410 |
-| `inbox` (`EmbargoPolicy`) | AS2 name, actor-only domain | dropped | #6410 |
-| `caseId` (`CaseLedgerEntry`) | AS2 duplicate | `context` | #6411 |
-| `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
-| `participantCaseName` (`CaseParticipant`) | dead; duplicates `name` | deleted | #6415 |
-| `caseActivity` (`VulnerabilityCase`) | dead | deleted | #6415 |
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
-| `roles` (`as_Invite`), `suggestedRoles` (`as_Offer`) | two names, one meaning | one name | #6417 |
-| `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
-Every other field is a Vultron term. `title` is a clash only until #6413 renames the
-item's. `state`, `status` and `kind` are each used once on the wire, and
-`caseStatus` is one meaning in two shapes (an object or a link), so none of them is
-a clash. `caseActivity` is dead, but it is marked a Vultron term,
-so no rule refuses it, and #6415 deletes it without a ratchet entry.
+Every other field is a Vultron term. `state`, `status` and `kind` are each used once
+on the wire, and `caseStatus` is declared once, on a participant status, so none of
+them is a clash.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
 EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context
@@ -650,8 +620,8 @@ Issue: #6247. Record: ADR-0204.
    items are the entries in order, position = `logIndex`. Identity only — no fetch
    surface; no ledger fetch surface exists today (#5089).
 2. The CASE_MANAGER publishes a commit as `Add(CaseLedgerEntry,
-   target=<case>/ledger)`, replacing `Announce(CaseLedgerEntry)`. A replica receiving
-   it appends to its copy.
+   target=<case>/ledger)`, replacing `Announce(CaseLedgerEntry)` (built: #6484). A
+   replica receiving it appends to its copy.
 3. That `Add` is the positive acknowledgment: it carries `inReplyTo` = the committed
    act and no `result` (below). No separate ack message. A refusal stays the
    refusal notice.
@@ -677,24 +647,23 @@ target's attention to the object" (issues #179, #196). Primer: `result` is for
 "changes of state or indirect outcomes"; VOC Ex 148 is an `Accept` whose `result`
 lists the activities it caused.
 
-**Today.** `vultron/adapters/driven/sync_activity_adapter.py` sends
-`Announce(CaseLedgerEntry)`, which carries no `context` (the case is in
-`object.caseId`). `vultron/wire/as2/ledger_reject_envelope.py` admits the objectless
-`Reject`. The `Read` pattern accepts a bare entry id only for the position statement
-(`vultron/wire/as2/extractor/_pattern.py`). `Add(ParticipantStatus)` names its case
-only through the nested status's `context`. Delivery receipts are an open question
+**Today.** The ledger `Add` is built (#6484): `add_log_entry_activity` names the
+ledger, the case and the committed act. Every position statement is
+`Read(<case>/ledger)`, and no pattern accepts a bare object id or an objectless
+`Reject` (#6485). Both status `Add` forms name their history and case (#6486).
+Delivery receipts are an open question
 (`docs/topics/future_work/_oq-delivery-receipts.md`).
 
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1
 or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0156,
-ADR-0137 and ADR-0155 (partially superseded by ADR-0204),
-`ANNOUNCE_CASE_LEDGER_ENTRY`, `READ_CASE_LEDGER_ENTRY`, `REJECT_CASE_LEDGER_ENTRY`,
-`ADD_CASE_STATUS_TO_CASE`, `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`. The guidance
-notes that name `Announce(CaseLedgerEntry)` as the replication channel change with
-it: `notes/case-communication-model.md`, `notes/sync-ledger-replication.md` (whose
-rule "keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them" stands,
-since the `Add` lists no follow-on ids, below), `notes/case-actor-cluster.md`,
-`notes/ownership-transfer.md`, `notes/case-ledger-authority.md`,
+ADR-0137 and ADR-0155 (partially superseded by ADR-0204), `READ_CASE_LEDGER`,
+`REJECT_CASE_LEDGER_ENTRY`, `ADD_CASE_STATUS_TO_CASE`,
+`ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`. The ledger-commit part
+(`ADD_CASE_LEDGER_ENTRY_TO_LEDGER` and the notes naming the replication channel,
+whose rule "keep `Add(CaseLedgerEntry)` ids freshly minted; never derive them"
+stands) is done (#6484), and so are the position statement
+(`READ_CASE_LEDGER`, #6485) and the status forms (#6486). What remains is prose:
+`notes/case-ledger-authority.md`,
 `notes/participant-embargo-consent.md`, `notes/received-status-authorization.md`, and
 every docs page naming these forms, among them
 `docs/reference/messages/ledger_replication.md` and
@@ -769,7 +738,7 @@ types are URIs. CORE §4.2: Link properties are hints about the referenced resou
 type, and only `related` is IANA-registered, so it stays a bare name. The wire
 `as_Link.rel` takes one value or a list, because `rel` is not functional.
 
-**Touches.** CM-05-004, CM-05-005, CM-05-010, CM-05-012, CM-34-003, CSAF-03-009, and
+**Touches.** CM-05-004, CM-05-005, CM-05-012, CM-34-003, CSAF-03-009, and
 a future FIRST VRDX-SIG vxref Idea (`FIRSTdotorg/vrdx-sig-vxref-wip`), which may
 supply more `rel` values. A new value joins `CVE_REFERENCE_TAG_RELS` (or the
 vocabulary beside it) and the `docs/ns/` relation table together.
@@ -887,14 +856,14 @@ received one is refused as unrecognized (VAM-01-017).
   `Add(<Actor>, target=<case>)`, naming the actor (CM-31-011, ADR-0199 revision 2).
   The object type tells the two `Add`s apart.
 - **The replica** stores the record in the case the entry's `target` names, not one
-  taken from `entry.case_id` or the verb.
+  taken from the entry's `context` or the verb.
 
 **AS2 basis.** CORE App. B: the AS1 "post" verb maps to `Create` without a target and
 to `Add` with one.
 
 **Today.** `create_participant_activity` builds `Create(CaseParticipant)` with
 `target=case_target_ref(target)` (`vultron/wire/as2/factories/case_participant.py`);
-`ApplyCreateCaseParticipantFromLedgerNode` seats the record from `entry.case_id`.
+`ApplyCreateCaseParticipantFromLedgerNode` seats the record from the entry's `context`.
 
 **Touches.** The factory and wire class, `record_case_participant_created`, the
 `create_participant` example, the semantic registry and canonical signatures, the
@@ -909,8 +878,8 @@ scenario pages and `docs/topics/scenarios/_engagement_status_entry.md`),
 strict-xfail probes that hold the amended specs
 (`test/architecture/test_participant_seating_add_planned.py` and
 `test_the_stub_invite_adds_the_participant_record_to_the_case` in
-`test/core/use_cases/received/test_stub_invite_replay.py`). Builds after #6465,
-which retires the Case Owner's `Add(CaseParticipant)` request.
+`test/core/use_cases/received/test_stub_invite_replay.py`). The Case Owner's
+`Add(CaseParticipant)` request is retired (#6465), so the name is free.
 
 ---
 

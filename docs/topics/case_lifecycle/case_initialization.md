@@ -52,10 +52,10 @@ These are the entries [CLP-07-013](../../reference/vultron-spec/requirements/led
 |---|---|---|
 | 1 | `create_case` | The genesis entry: the `Create(VulnerabilityCase)` the CASE_MANAGER sends, with the case's participants, reports and active embargo inline; it is the root of the case's hash chain |
 | 2 | `create_embargo_event`, once per embargo the case's creation writes | `Create(EmbargoEvent)` with the embargo in full, its start and end times included |
-| 3 | `add_report_to_case`, once per linked report | `Add(VulnerabilityReport)` with the report in full, and the report's `Offer` provenance when it is known |
+| 3 | `add_report_to_case`, once per linked report | `Add(VulnerabilityReport)` with the report in full, naming the report's `Offer` by id in `inReplyTo` when it is known |
 | 4 | `create_case_participant`, once per participant record | `Create(CaseParticipant)` with the record in full as it was created, its first status included |
-| 5 | `add_participant_status_to_participant`, once per later participant status | `Add(ParticipantStatus)`, targeting the participant record in full |
-| 6 | `add_case_status_to_case`, once per case status | `Add(CaseStatus)` with the status in full |
+| 5 | `add_participant_status_to_participant`, once per later participant status | `Add(ParticipantStatus)`, targeting the participant's status history `<participant>/statuses` |
+| 6 | `add_case_status_to_case`, once per case status | `Add(CaseStatus)` with the status in full, targeting the case's status history `<case>/statuses` |
 
 A case with no embargo has no `create_embargo_event` entry, and a case with no linked report has no `add_report_to_case` entry.
 Participants are taken in roster order.

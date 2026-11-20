@@ -225,7 +225,7 @@ def _abandonment_entries(
         entry
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
-        and entry.case_id == case_id
+        and entry.context == case_id
         and str(entry.semantic_type) in _ABANDONMENT_TYPES
     ]
 

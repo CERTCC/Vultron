@@ -24,7 +24,6 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.metadata.msm import MappingStatus
 from vultron.metadata.msm._mapping import ROW_SPECS, SEMANTICS_TO_ROW
 from vultron.metadata.msm.occasions import (
-    emitted_type,
     format_pattern,
     wire_summary,
 )
@@ -77,9 +76,8 @@ def test_format_pattern_with_target_qualifier():
 def test_format_pattern_writes_the_embargo_type_the_sender_emits(
     semantics: MessageSemantics, expected: str
 ):
-    """An embargo pattern matches ``Event``, but the sender emits
-    ``EmbargoEvent``, which is what Wire Activity notation writes (Annex C,
-    #5155)."""
+    """An embargo pattern matches ``EmbargoEvent``, the type the sender
+    emits, which is what Wire Activity notation writes (Annex C, ADR-0201)."""
     entry = lookup_entry(semantics)
     assert entry is not None and entry.pattern is not None
     assert format_pattern(entry.pattern) == expected
@@ -115,11 +113,6 @@ def test_format_pattern_writes_the_object_form(
     entry = lookup_entry(semantics)
     assert entry is not None and entry.pattern is not None
     assert format_pattern(entry.pattern) == expected
-
-
-def test_emitted_type_passes_other_types_through():
-    assert emitted_type("Event") == "EmbargoEvent"
-    assert emitted_type("VulnerabilityCase") == "VulnerabilityCase"
 
 
 def test_wire_summary_of_a_none_status_entry_is_its_pattern():

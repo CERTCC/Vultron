@@ -35,7 +35,6 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -529,18 +528,14 @@ class TestEngageCaseLedgerCommit:
 
     @staticmethod
     def _queued_announces(dl: SqliteDataLayer) -> list[as_Announce]:
-        """Queued case-update Announces, minus the ledger fan-out.
+        """Queued case-update Announces.
 
-        Each committed entry is also announced to the participants
-        (SYNC-02-003); that replication is not the case broadcast checked here.
+        Each committed entry also goes to the participants as an
+        ``Add(CaseLedgerEntry)`` (SYNC-02-003, ADR-0204); that replication is
+        not an ``Announce``, so it is not counted with the case broadcast.
         """
         queued = [dl.read(activity_id) for activity_id in dl.outbox_list()]
-        return [
-            a
-            for a in queued
-            if isinstance(a, as_Announce)
-            and not isinstance(a.object_, CaseLedgerEntry)
-        ]
+        return [a for a in queued if isinstance(a, as_Announce)]
 
     @pytest.mark.spec("CM-06-003")
     def test_engage_received_by_case_manager_broadcasts(self, seeded_dl):

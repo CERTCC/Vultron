@@ -79,7 +79,7 @@ come before general ones:
 | 7 | Case log entries | `ANNOUNCE_LOG_ENTRY`, `REJECT_LOG_ENTRY` |
 | 8 | Vulnerability case announcements | `ANNOUNCE_VULNERABILITY_CASE` |
 | 9 | Notes | `ADD_NOTE_TO_CASE`, `REMOVE_NOTE_FROM_CASE` |
-| 10 | Participants | `ADD_CASE_PARTICIPANT_TO_CASE`, `REMOVE_CASE_PARTICIPANT_FROM_CASE` |
+| 10 | Participants | `REMOVE_PARTICIPANT_FROM_CASE`, `REINSTATE_PARTICIPANT_IN_CASE`, `ANNOUNCE_ADMITTED_ACT` |
 | 11 | Fallback sentinels | `UNKNOWN_UNRESOLVABLE_OBJECT`, `UNKNOWN` |
 
 When adding a new pattern, place it in the correct group. If it is more
@@ -90,7 +90,8 @@ specific than an existing entry in the same `activity_` group, place it
 
 `_validate_registry_order()` is called at module load — a mis-ordered registry
 **prevents the module from loading**. An `InlineActivityObjectPattern` catch-all
-(`RefusalNoticePattern`) is checked by `_check_inline_activity_order()` instead. Also run
+(`RefusalNoticePattern`, `AnnounceAdmittedActPattern`) is checked by
+`_check_inline_activity_order()` instead. Also run
 `test/test_semantic_activity_patterns.py` after any registry edit (belt-and-
 suspenders for edge cases the runtime guard might miss).
 
@@ -117,8 +118,8 @@ suspenders for edge cases the runtime guard might miss).
 
 ### A Committed Example Must Be Dispatchable
 
-`ActivityPattern` declares `activity_`, `strict`, `accepts_bare_object`,
-`object_form`, `to_`, `object_`, `target_`, `origin_` and `context_`. `origin_`
+`ActivityPattern` declares `activity_`, `strict`, `object_form`, `to_`, `object_`,
+`target_`, `origin_` and `context_`. `origin_`
 matches as `target_` does — a bare URI satisfies it unless `strict` — so a `Remove`
 pattern that asks for its case in `origin_` refuses a case only in `target` (#6463).
 Set the discriminator fields the pattern actually requires. Bare ids:

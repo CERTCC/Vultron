@@ -23,6 +23,12 @@ from typing import ClassVar
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.case.nodes.case_lookup import (
     CaseIdInputPortMixin,
 )
@@ -73,9 +79,9 @@ class SenderIsParticipantNode(
     REFUSED outcome.
 
     The case is read from the ``/case_id`` port, which the sender guard's
-    composer seeds with the case the context names (BTND-01-006).  With no
-    case there is nothing to check the sender against, so it fails
-    (DEMOMA-07-003 step 1).
+    composer seeds with the case the context names (BTND-01-006), and the
+    sender from ``/sender_id`` (BTND-01-008).  With no case there is nothing
+    to check the sender against, so it fails (DEMOMA-07-003 step 1).
 
     Merged from ``VerifySenderIsParticipantNode`` (ADR-0115, AC-2); it was
     ``SenderIsActiveParticipantNode`` until the ``PARTICIPANT`` kind split
@@ -88,19 +94,33 @@ class SenderIsParticipantNode(
         SenderEntitlementKind.PARTICIPANT
     )
 
-    def __init__(
-        self,
-        sender_actor_id: str,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **FindParticipantByActorIdNode.INPUT_PORTS,
+        **act_key_ports(SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(SENDER_ID),
+        }
+
+    def __init__(self, name: str | None = None) -> None:
+        # The case and the sender are read when the node ticks.
         super().__init__(
             case_id="",
-            target_actor_id=sender_actor_id,
+            target_actor_id="",
             participant_key="sender_participant",
             name=name or self.__class__.__name__,
         )
-        self.sender_actor_id = sender_actor_id
+        self.sender_actor_id = ""
         self._case_id: str | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.sender_actor_id = act_value(self, SENDER_ID, str)
+        self.target_actor_id = self.sender_actor_id
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -167,9 +187,9 @@ class SenderIsActiveParticipantNode(
     the ``LEDGER_PEER`` kind's instead
     (:class:`SenderIsActiveLedgerParticipantNode`).  The case is read from
     the ``/case_id`` port, seeded by the sender guard's composer
-    (BTND-01-006).  With no case, or a case this store does not hold,
-    there is no standing to check, so the sender is refused (Regime 1,
-    ADR-0087).
+    (BTND-01-006), and the sender from ``/sender_id`` (BTND-01-008).  With
+    no case, or a case this store does not hold, there is no standing to
+    check, so the sender is refused (Regime 1, ADR-0087).
 
     Spec: CM-23-018, CM-10-004, HP-01-006, HP-01-009.
     """
@@ -178,14 +198,26 @@ class SenderIsActiveParticipantNode(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
-    def __init__(
-        self,
-        sender_actor_id: str,
-        name: str | None = None,
-    ) -> None:
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **SenderEntitlementConditionNode.INPUT_PORTS,
+        **act_key_ports(SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(SENDER_ID),
+        }
+
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.sender_actor_id = sender_actor_id
+        self.sender_actor_id = ""
         self._case_id: str | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.sender_actor_id = act_value(self, SENDER_ID, str)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -221,8 +253,7 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
     The guard of the ``LEDGER_PEER`` kind, the standing of a
     ``Reject(CaseLedgerEntry)`` resync request (SYNC-03-005).
     Reads ``activity`` from the blackboard and takes the case from the
-    ``CaseLedgerEntry`` it carries, or, for the ``Reject`` that names no entry
-    because its sender holds none, from its ``target`` (SYNC-16-027).
+    ``CaseLedgerEntry`` it carries.
     Returns ``SUCCESS`` only when the sender is an active participant of that
     case (:func:`~vultron.core.participants.recipients.is_case_content_recipient`,
     CM-10-004).
@@ -261,8 +292,7 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
             return f
         assert self.datalayer is not None
 
-        # The rejected entry's case, or the case the objectless genesis
-        # Reject names as its target (SYNC-16-027).
+        # The rejected entry's case.
         try:
             case_id = replay_case_id(self.activity, self.name)
         except VultronError as exc:
@@ -319,7 +349,8 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     repeat.
 
     Keyed on the sender's recorded RM state, never on the activity id, which
-    a repeat sent under a new id does not share.  Read-only.
+    a repeat sent under a new id does not share.  Read-only.  The case and
+    the sender are read from ``/case_id`` and ``/sender_id`` (BTND-01-008).
 
     Its FAILURE alone is not a refusal: what it owes depends on the act,
     and a repeat of an act that would close the sender again is
@@ -339,20 +370,32 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     Spec: CM-23-018, ID-05-003, HP-01-003, HP-01-007, SL-03-002.
     """
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, SENDER_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, SENDER_ID)
+
     def __init__(
         self,
-        case_id: str,
-        sender_actor_id: str,
         name: str | None = None,
         *,
         refusal_label: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.sender_actor_id = sender_actor_id
         self.refusal_label = refusal_label
+        self.case_id = ""
+        self.sender_actor_id = ""
         self.sender_closed = False
         """``True`` when the last run found the sender's closure recorded."""
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id = act_value(self, CASE_ID, str)
+        self.sender_actor_id = act_value(self, SENDER_ID, str)
 
     @property
     def declared_refusal(self) -> str | None:

@@ -595,7 +595,7 @@ class TestTheCoordinatorSuggestsTheSecondVendor:
     def test_the_reporter_holds_the_case_before_vendor2s_triage(self):
         """Bug #2135: Vendor2's triage broadcasts to the Reporter too.
 
-        The triage cycle broadcasts ``Announce(CaseLedgerEntry)`` to all
+        The triage cycle broadcasts ``Add(CaseLedgerEntry)`` to all
         participants, so a Reporter without the case replica has no genesis
         hash to anchor the chain on.
         """
@@ -1658,6 +1658,7 @@ class TestFindCaseInviteForActor:
                 "preview": {
                     "id": "urn:uuid:preview-1",
                     "type": "CasePreview",
+                    "attributedTo": "https://example.org/actors/vendor",
                     "summary": "A case to join",
                 },
             },

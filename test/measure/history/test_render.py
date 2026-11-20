@@ -88,7 +88,7 @@ def _event(kind=EventKind.JOINED, participant=VENDOR, **fields) -> CaseEvent:
 def _accept(actor: object, invitee: object) -> dict:
     """An entry accepting an invitation of *invitee* to the case."""
     return {
-        "caseId": CASE,
+        "context": CASE,
         "logIndex": 3,
         "semanticType": "accept_invite_actor_to_case",
         "payloadSnapshot": {
@@ -126,7 +126,18 @@ def test_an_object_with_no_display_name_shows_the_fallback_not_its_uri():
     assert not _OPAQUE.search(row.actor + row.object + row.activity)
 
 
-def test_a_participant_id_is_labelled_by_the_actor_it_stands_for():
+@pytest.mark.parametrize(
+    "target",
+    [
+        f"{VENDOR}#participant/statuses",
+        # A typed reference to the history is accepted at parse too.
+        {"id": f"{VENDOR}#participant/statuses", "type": "OrderedCollection"},
+    ],
+    ids=["bare-history", "typed-history"],
+)
+def test_a_participant_id_is_labelled_by_the_actor_it_stands_for(target):
+    """A status history is labelled by its owner, the participant, whose
+    label is the actor it stands for (ADR-0204)."""
     seat = {
         "payloadSnapshot": {
             "type": "Create",
@@ -139,7 +150,7 @@ def test_a_participant_id_is_labelled_by_the_actor_it_stands_for():
             "type": "Add",
             "actor": CM,
             "object": {"type": "ParticipantStatus"},
-            "target": f"{VENDOR}#participant",
+            "target": target,
         }
     }
     names = label_names({"f": [seat, update]})
@@ -305,7 +316,7 @@ def test_without_a_named_case_every_case_gets_its_own_section(tmp_path):
     first = _small_ledger()
     second = _small_ledger()
     for entry in second.entries:
-        entry["caseId"] = "urn:uuid:case-0"
+        entry["context"] = "urn:uuid:case-0"
     path = tmp_path / "two.jsonl"
     path.write_text(
         "\n".join(json.dumps(e) for e in first.entries + second.entries),
@@ -362,7 +373,7 @@ def test_the_table_and_the_json_list_cases_in_one_order(tmp_path):
     first = _small_ledger()
     second = _small_ledger()
     for entry in second.entries:
-        entry["caseId"] = "urn:uuid:case-0"
+        entry["context"] = "urn:uuid:case-0"
     path = tmp_path / "two.jsonl"
     path.write_text(
         "\n".join(json.dumps(e) for e in first.entries + second.entries),
@@ -381,7 +392,7 @@ def test_the_table_and_the_json_list_cases_in_one_order(tmp_path):
 def test_a_row_that_names_its_case_is_listed_only_in_that_case(tmp_path):
     path = _write(_small_ledger(), tmp_path / "ledger.jsonl")
     with path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps({"caseId": CASE, "foo": 1}) + "\n")
+        fh.write(json.dumps({"context": CASE, "foo": 1}) + "\n")
         fh.write("{not json\n")
     text = case_history_report([path], fmt=HistoryFormat.TABLE)
     data = json.loads(case_history_report([path], fmt=HistoryFormat.JSON))
@@ -404,7 +415,7 @@ def test_a_row_that_names_its_case_is_listed_only_in_that_case(tmp_path):
 def test_a_named_cases_own_rows_are_not_listed_as_in_no_case(tmp_path):
     path = _write(_small_ledger(), tmp_path / "ledger.jsonl")
     with path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps({"caseId": CASE, "foo": 1}) + "\n")
+        fh.write(json.dumps({"context": CASE, "foo": 1}) + "\n")
     text = case_history_report([path], fmt=HistoryFormat.TABLE, case_id=CASE)
     assert "## Rows in no case" not in text
     assert (

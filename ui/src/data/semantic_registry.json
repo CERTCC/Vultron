@@ -257,9 +257,9 @@
       "phrase": "{actor} closed the case"
     },
     {
-      "semanticType": "announce_case_ledger_entry",
-      "wire": "Announce(CaseLedgerEntry)",
-      "phrase": "{actor} announced a ledger entry"
+      "semanticType": "add_case_ledger_entry_to_ledger",
+      "wire": "Add(CaseLedgerEntry)",
+      "phrase": "{actor} added an entry to the case ledger"
     },
     {
       "semanticType": "reject_case_ledger_entry",
@@ -267,19 +267,24 @@
       "phrase": "{actor} rejected a ledger entry"
     },
     {
-      "semanticType": "read_case_ledger_entry",
-      "wire": "Read(CaseLedgerEntry)",
+      "semanticType": "read_case_ledger",
+      "wire": "Read(OrderedCollection)[context=VulnerabilityCase]",
       "phrase": "{actor} stated its ledger position"
     },
     {
-      "semanticType": "add_case_participant_to_case",
-      "wire": "Add(CaseParticipant)[target=VulnerabilityCase]",
-      "phrase": "{actor} added {object} as a case participant"
+      "semanticType": "remove_participant_from_case",
+      "wire": "Remove(Actor)[origin=VulnerabilityCase]",
+      "phrase": "{actor} removed {object} from the case"
     },
     {
-      "semanticType": "remove_case_participant_from_case",
-      "wire": "Remove(CaseParticipant)[target=VulnerabilityCase]",
-      "phrase": "{actor} removed {object} from the case"
+      "semanticType": "reinstate_participant_in_case",
+      "wire": "Add(Actor)[target=VulnerabilityCase]",
+      "phrase": "{actor} reinstated {object} in the case"
+    },
+    {
+      "semanticType": "announce_admitted_act",
+      "wire": "Announce(Activity)[context=VulnerabilityCase]",
+      "phrase": "{actor} announced an act it admitted"
     },
     {
       "semanticType": "create_case_participant",
@@ -303,12 +308,12 @@
     },
     {
       "semanticType": "add_case_status_to_case",
-      "wire": "Add(CaseStatus)[target=VulnerabilityCase]",
+      "wire": "Add(CaseStatus)[target=OrderedCollection, context=VulnerabilityCase]",
       "phrase": "{actor} updated the case status"
     },
     {
       "semanticType": "add_participant_status_to_participant",
-      "wire": "Add(ParticipantStatus)[target=CaseParticipant]",
+      "wire": "Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]",
       "phrase": "{actor} updated {target}'s participant status"
     },
     {

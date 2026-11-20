@@ -97,7 +97,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
 
     On both paths it runs *after* the ``Create(VulnerabilityCase)`` is
     queued, which is also the genesis entry: the proposer must hold the case
-    before its first ``Announce(CaseLedgerEntry)`` arrives (CM-14-011,
+    before its first ``Add(CaseLedgerEntry)`` arrives (CM-14-011,
     CP-09-009, #3033), and the entries record a case whose creation was sent
     (ADR-0119).  On the create-case trigger path the creator is the only
     participant, so the entries fan out to nobody.
@@ -111,13 +111,11 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self,
         report_id: str | None,
         offer_id: str | None = None,
-        offer_actor_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
         self._offer_id = offer_id
-        self._offer_actor_id = offer_actor_id
         self._case_id_bb: str | None = None
         self._create_activity_id_bb: str | None = None
 
@@ -275,17 +273,14 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                     report_id,
                 )
                 continue
-            offer_id, offer_actor_id = offer_for_report_or(
-                self.datalayer,
-                report_id,
-                (self._offer_id, self._offer_actor_id),
+            offer_id = offer_for_report_or(
+                self.datalayer, report_id, self._offer_id
             )
             activity = port.record_report_added_to_case(
                 report_id=report_id,
                 case_id=case_id,
                 actor=self.actor_id,
                 offer_id=offer_id,
-                offer_actor_id=offer_actor_id,
                 at=self._require_act_instant(),
             )
             self._commit_one(

@@ -26,39 +26,44 @@ SYNC-03-001, SYNC-03-002, SYNC-17-001, SYNC-18-001.
 
 from datetime import datetime
 
-from vultron.core.models.case_ledger_entry import ledger_entry_id
-from vultron.core.models.ledger_position import (
-    EMPTY_LEDGER_LOG_INDEX,
-    LedgerPosition,
-)
+from vultron.core.models.case_ledger_entry import case_ledger_id
+from vultron.core.models.ledger_position import LedgerPosition
+from vultron.errors import VultronCanonicalEntryError
 from vultron.wire.as2.factories._construct import (
     build_activity,
     guarded_build,
 )
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.sync import (
-    _AnnounceLogEntryActivity,
-    _ReadLogEntryActivity,
+    _AddLogEntryActivity,
+    _ReadLedgerActivity,
     _RejectLogEntryActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Announce,
+    as_Add,
     as_Read,
     as_Reject,
+)
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_OrderedCollection,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
 
-def announce_log_entry_activity(
+def add_log_entry_activity(
     entry: as_CaseLedgerEntry,
     *,
     at: datetime,
     **kwargs,
-) -> as_Announce:
-    """Build an Announce(CaseLedgerEntry) — fan-out replication to participants.
+) -> as_Add:
+    """Build an Add(CaseLedgerEntry): a commit, fanned out to participants.
 
-    Sent by the CaseActor to each participant actor after a new log
-    entry has been committed to the case event log (SYNC-09-002).
+    Sent by the CASE_MANAGER to each active participant after a new entry
+    has been committed to the case ledger (SYNC-09-002).  The ``Add`` adds
+    the entry to the case's ledger, ``<case>/ledger``, its ``target``; its
+    ``context`` is the case; and its ``inReplyTo`` is the act the entry
+    commits, so it is that act's positive acknowledgement (ADR-0204).  All
+    three are read from *entry*, so a caller cannot misname them.  It lists
+    nothing in ``result`` (SYNC-02-009).
 
     Args:
         entry: The ``CaseLedgerEntry`` being replicated.
@@ -66,17 +71,38 @@ def announce_log_entry_activity(
             (e.g. ``actor``, ``to``).
 
     Returns:
-        An ``as_Announce`` whose ``object_`` is the log entry.
+        An ``as_Add`` whose ``object_`` is the log entry.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails, or
+            the entry's snapshot names no committed act.
     """
     return build_activity(
-        "announce_log_entry_activity",
-        _AnnounceLogEntryActivity,
+        "add_log_entry_activity",
+        _AddLogEntryActivity,
         at,
-        lambda: {"object_": entry, **kwargs},
+        lambda: {**_ledger_add_fields(entry), **kwargs},
+        also=(VultronCanonicalEntryError,),
     )
+
+
+def _ledger_add_fields(entry: as_CaseLedgerEntry) -> dict[str, object]:
+    """The fields an ``Add`` of *entry* reads from it (ADR-0204).
+
+    Anything but an entry is passed on as the object alone, which the
+    activity class refuses.
+
+    Raises:
+        VultronCanonicalEntryError: *entry*'s snapshot names no act.
+    """
+    if not isinstance(entry, as_CaseLedgerEntry):
+        return {"object_": entry}
+    return {
+        "object_": entry,
+        "target": case_ledger_id(entry.context),
+        "context": entry.context,
+        "in_reply_to": entry.committed_act_id(),
+    }
 
 
 def reject_log_entry_activity(
@@ -89,7 +115,7 @@ def reject_log_entry_activity(
     """Build a Reject(CaseLedgerEntry) — hash-chain mismatch report.
 
     Sent by a participant to the CaseActor when an incoming
-    ``Announce(CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
+    ``Add(CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
     participant's local tail hash (SYNC-03-001).  ``context`` names the
     entry's case.  The participant's tail, which the CaseActor replays
     after, is the ``ledgerPosition`` every case activity states
@@ -99,7 +125,7 @@ def reject_log_entry_activity(
     Args:
         entry: The ``CaseLedgerEntry`` the receiver could not apply.
         in_reply_to: The id of the inbound activity that prompted the
-            Reject: the ``Announce(CaseLedgerEntry)``, or the
+            Reject: the ``Add(CaseLedgerEntry)``, or the
             ``Announce(VulnerabilityCase)`` whose copy is ahead of the
             chain (RF-08-004).
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -111,7 +137,7 @@ def reject_log_entry_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    kwargs.setdefault("context", getattr(entry, "case_id", None))
+    kwargs.setdefault("context", getattr(entry, "context", None))
     return build_activity(
         "reject_log_entry_activity",
         _RejectLogEntryActivity,
@@ -120,57 +146,17 @@ def reject_log_entry_activity(
     )
 
 
-def genesis_replay_reject_activity(
-    case_id: str,
-    ledger_position: LedgerPosition,
-    in_reply_to: str,
-    *,
-    at: datetime,
-    **kwargs,
-) -> as_Reject:
-    """Build the Reject(CaseLedgerEntry) that names no entry (SYNC-16-027).
-
-    Sent by a replica whose case was replaced by a copy ahead of its chain
-    and whose chain stores no entry: there is nothing to name, so it asks
-    for a replay from genesis.  Its *ledger_position* is the sender's tail,
-    which for a chain that stores no entry is index -1 and the case's
-    genesis hash (SYNC-18-001, CLP-08-004); the case is both the ``target``
-    and the ``context``.  Its *in_reply_to* is the id of the
-    ``Announce(VulnerabilityCase)`` whose copy replaced the case
-    (RF-08-004).
-
-    Raises:
-        VultronActivityConstructionError: If Pydantic validation fails,
-            including a *ledger_position* that names an entry: a sender
-            that holds one names it instead (``as_Reject``).
-    """
-    return build_activity(
-        "genesis_replay_reject_activity",
-        _RejectLogEntryActivity,
-        at,
-        lambda: {
-            "target": case_id,
-            "context": case_id,
-            "ledger_position": ledger_position,
-            "in_reply_to": in_reply_to,
-            **kwargs,
-        },
-    )
-
-
-def read_ledger_entry_activity(
+def read_ledger_at_entry_activity(
     entry: as_CaseLedgerEntry,
     *,
     at: datetime,
     **kwargs,
 ) -> as_Read:
-    """Build a Read(CaseLedgerEntry) — a participant's ledger position statement.
+    """Build ``Read(<case>/ledger)`` stating the position of *entry*.
 
     Sent by a participant to the case's CASE_MANAGER to state that it has
-    applied the case's ledger up to *entry* (SYNC-17-001).  The entry goes by
-    reference: the ``object`` is its id, the ``context`` its case, and the
-    ``ledgerPosition`` its ``log_index`` and ``entry_hash``.  It is
-    :func:`read_ledger_position_activity` for the entry's own position.
+    applied the case's ledger up to *entry* (SYNC-17-001).  It is
+    :func:`read_ledger_position_activity` for the entry's case and position.
 
     Args:
         entry: The last ledger entry the participant has applied.
@@ -178,19 +164,19 @@ def read_ledger_entry_activity(
             (e.g. ``actor``, ``to``, ``id_``).
 
     Returns:
-        An ``as_Read`` naming *entry* by reference.
+        An ``as_Read`` of *entry*'s case's ledger.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     position = guarded_build(
-        "read_ledger_entry_activity",
+        "read_ledger_at_entry_activity",
         lambda: LedgerPosition(
             log_index=entry.log_index, entry_hash=entry.entry_hash
         ),
     )
     return read_ledger_position_activity(
-        entry.case_id, position, **kwargs, at=at
+        entry.context, position, **kwargs, at=at
     )
 
 
@@ -201,42 +187,36 @@ def read_ledger_position_activity(
     at: datetime,
     **kwargs,
 ) -> as_Read:
-    """Build a Read(CaseLedgerEntry) stating *ledger_position* in *case_id*.
+    """Build ``Read(<case>/ledger)``: a participant's ledger position statement.
 
-    The same position statement as :func:`read_ledger_entry_activity`, for
-    a sender that knows the position but does not store the entry there: a
-    participant whose replica a case copy has just seeded holds the case at
-    the copy's position before its chain stores any entry (SYNC-16-023).  The
-    entry goes by reference, its id derived from its ledger coordinates
-    (:func:`~vultron.core.models.case_ledger_entry.ledger_entry_id`); the
-    ``context`` is the case and the ``ledgerPosition`` the position.
+    The participant states its tail in *case_id*'s ledger: the last entry
+    it holds, the position a case copy seeded its replica at
+    (SYNC-16-023), or the empty ledger's, index -1 with the case's genesis
+    hash, when it holds no entry (SYNC-17-001, SYNC-16-027).  The CASE_MANAGER
+    replays every entry after it (SYNC-17-004).  The ``object`` is the
+    case's ledger, an ``OrderedCollection`` with identity only (ADR-0204);
+    the ``context`` is the case and the ``ledgerPosition`` the position.
 
     Args:
         case_id: The case whose ledger the position is in.
-        ledger_position: The position the sender states, which names an
-            entry.
+        ledger_position: The position the sender states.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``, ``id_``).
+            (e.g. ``actor``, ``to``, ``id_``, ``in_reply_to``).
 
     Returns:
-        An ``as_Read`` naming the entry at *ledger_position* by reference.
+        An ``as_Read`` of the case's ledger.
 
     Raises:
-        VultronActivityConstructionError: If *ledger_position* is the empty
-            ledger's, which names no entry (SYNC-17-001), or Pydantic
-            validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails.
     """
-    if ledger_position.log_index == EMPTY_LEDGER_LOG_INDEX:
-        raise VultronActivityConstructionError(
-            "read_ledger_position_activity: the empty ledger's position names"
-            " no entry to state (SYNC-17-001)"
-        )
     return build_activity(
         "read_ledger_position_activity",
-        _ReadLogEntryActivity,
+        _ReadLedgerActivity,
         at,
         lambda: {
-            "object_": ledger_entry_id(case_id, ledger_position.log_index),
+            "object_": as_OrderedCollection(
+                id_=case_ledger_id(case_id), published=None, updated=None
+            ),
             "context": case_id,
             "ledger_position": ledger_position,
             **kwargs,

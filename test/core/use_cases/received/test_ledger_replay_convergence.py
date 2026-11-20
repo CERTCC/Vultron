@@ -14,7 +14,7 @@
 
 Each actor has its own store (TB-06-007).  A participant sends an act to the
 CASE_MANAGER; the replica under test never receives that act, only the
-CASE_MANAGER's ``Announce(CaseLedgerEntry)`` broadcast, and still reaches the
+CASE_MANAGER's ``Add(CaseLedgerEntry)`` broadcast, and still reaches the
 CASE_MANAGER's state (RSH-08-004, PCR-03-001, ADR-0108).  The replica is
 handed the ledger broadcast and nothing else the CASE_MANAGER sends — not the
 ``Announce(VulnerabilityCase)`` an engage also triggers — so the state it
@@ -113,7 +113,13 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BROADCAST,
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    LedgerNetwork,
+)
 
 
 def _send(net: LedgerNetwork, activity: Any) -> None:
@@ -132,7 +138,7 @@ def _ledger(net: LedgerNetwork, actor_id: str) -> list[str]:
     entries = [
         cast(CaseLedgerEntry, e)
         for e in net.stores[actor_id].list_objects("CaseLedgerEntry")
-        if getattr(e, "case_id", None) == net.case_id
+        if getattr(e, "context", None) == net.case_id
     ]
     return [
         e.semantic_type for e in sorted(entries, key=lambda e: e.log_index)
@@ -503,7 +509,7 @@ def test_a_redelivered_owner_activation_entry_changes_nothing():
     _replay(net, BYSTANDER)
     before = net.case(BYSTANDER).embargo_register
 
-    for activity in net.queued(MANAGER, to=BYSTANDER, type_="Announce"):
+    for activity in net.queued(MANAGER, to=BYSTANDER, type_=BROADCAST):
         body = read_sealed_body_dict(net.stores[MANAGER], activity.id_) or {}
         if (body.get("object") or {}).get("semanticType") != (
             "activate_embargo_on_case"
@@ -690,7 +696,7 @@ def _note_entries(net: LedgerNetwork, actor_id: str) -> list[CaseLedgerEntry]:
     entries = [
         cast(CaseLedgerEntry, e)
         for e in net.stores[actor_id].list_objects("CaseLedgerEntry")
-        if getattr(e, "case_id", None) == net.case_id
+        if getattr(e, "context", None) == net.case_id
         and "note" in cast(CaseLedgerEntry, e).semantic_type
     ]
     return sorted(entries, key=lambda e: e.log_index)
@@ -708,7 +714,7 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     """The add-note trigger sends one Add(Note) that names the case as its
     target and carries the note inline: the CASE_MANAGER commits exactly one
     ``add_note_to_case`` entry, every other participant's replica attaches
-    the note from it and holds the Note object, the entry's Announce clears
+    the note from it and holds the Note object, the entry's Add clears
     the author's pending assertion, and a redelivered Add commits nothing
     more (#4706 AC-3)."""
     net = LedgerNetwork(
@@ -762,7 +768,7 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     assert [_as_id(n) for n in net.case(OWNER).notes].count(note_id) == 1
     assert net.stores[OWNER].read(note_id) is not None
 
-    # The author already holds the note; the entry's Announce only clears
+    # The author already holds the note; the entry's Add only clears
     # its pending assertion and attaches nothing twice.
     assert "add_note_to_case" in _replay(net, BYSTANDER)
     assert not pending.is_suppressed(
@@ -814,7 +820,7 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
     sender: str, make_object: Any, semantic_type: str
 ):
     """The add-object trigger's pending assertion is keyed the way the
-    CASE_MANAGER commits the Add, so the commit's Announce clears it and the
+    CASE_MANAGER commits the Add, so the commit's ledger Add clears it and the
     same object may be added again (#4041, #4761)."""
     net = _owned(
         LedgerNetwork(
@@ -856,7 +862,7 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
     entries = [
         cast(CaseLedgerEntry, e)
         for e in net.stores[MANAGER].list_objects("CaseLedgerEntry")
-        if getattr(e, "case_id", None) == net.case_id
+        if getattr(e, "context", None) == net.case_id
         and cast(CaseLedgerEntry, e).semantic_type == semantic_type
     ]
     assert [e.log_object_id for e in entries] == [add_id]
@@ -1001,7 +1007,7 @@ def test_case_status_writes_nothing_at_a_replica():
         pxa=PxaDimension(state=CS_pxa.Pxa),
     )
     activity = add_status_to_case_activity(
-        status, target=net.case_id, actor=MANAGER, to=[OWNER], at=authored_at()
+        status, case=net.case_id, actor=MANAGER, to=[OWNER], at=authored_at()
     )
     verdict = net.receive(OWNER, json.loads(dump_outbound_body(activity)))
 

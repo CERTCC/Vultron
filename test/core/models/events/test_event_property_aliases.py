@@ -28,6 +28,7 @@ from vultron.core.models.case_preview import (
     CasePreview,
     PreviewedCaseReference,
     preview_em_state,
+    preview_embargo_id,
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
@@ -52,8 +53,9 @@ from vultron.core.models.events.case import (
     EngageCaseReceivedEvent,
 )
 from vultron.core.models.events.case_participant import (
-    AddCaseParticipantToCaseReceivedEvent,
-    RemoveCaseParticipantFromCaseReceivedEvent,
+    AnnounceAdmittedActReceivedEvent,
+    ReinstateParticipantInCaseReceivedEvent,
+    RemoveParticipantFromCaseReceivedEvent,
 )
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
@@ -81,6 +83,7 @@ from vultron.core.models.events.status import (
 )
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.preview_object import is_loose_form_of
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
@@ -133,6 +136,8 @@ _activity = make(
     actor=_ACTOR_URI,
 )
 _obj = make(CoreObject, id_="https://example.org/objects/o1")
+#: The actor a Case Owner's removal or reinstatement names (ADR-0199).
+_actor = make(CoreObject, id_="https://example.org/actors/carol")
 
 
 #: The stub Invite's object as core receives it: the case's reference
@@ -332,25 +337,32 @@ _CASES = [
     ),
     # ── case_participant.py ───────────────────────────────────────────────────
     (
-        AddCaseParticipantToCaseReceivedEvent,
-        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
-        {"object_": _participant, "target": _case},
+        ReinstateParticipantInCaseReceivedEvent,
+        MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
+        {"object_": _actor, "target": _case},
         [
-            ("participant_id", "object_id"),
-            ("participant", "object_"),
+            ("participant_actor_id", "object_id"),
             ("case_id", "target_id"),
             ("case", "target"),
         ],
     ),
     (
-        RemoveCaseParticipantFromCaseReceivedEvent,
-        MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
-        {"object_": _participant, "target": _case},
+        RemoveParticipantFromCaseReceivedEvent,
+        MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE,
+        {"object_": _actor, "origin": _case},
         [
-            ("participant_id", "object_id"),
-            ("participant", "object_"),
-            ("case_id", "target_id"),
-            ("case", "target"),
+            ("participant_actor_id", "object_id"),
+            ("case_id", "origin_id"),
+            ("case", "origin"),
+        ],
+    ),
+    (
+        AnnounceAdmittedActReceivedEvent,
+        MessageSemantics.ANNOUNCE_ADMITTED_ACT,
+        {"object_": _activity, "context": _case},
+        [
+            ("admitted_act_id", "object_id"),
+            ("case_id", "context_id"),
         ],
     ),
     # ── embargo.py ────────────────────────────────────────────────────────────
@@ -448,29 +460,73 @@ _CASES = [
         ],
     ),
     # ── status.py ─────────────────────────────────────────────────────────────
+    # A status Add names its case in context and its history in target
+    # (ADR-0204); the history's owner is tested below.
     (
         AddCaseStatusToCaseReceivedEvent,
         MessageSemantics.ADD_CASE_STATUS_TO_CASE,
-        {"object_": _case_status, "target": _case},
+        {"object_": _case_status, "context": _case},
         [
             ("status_id", "object_id"),
             ("status", "object_"),
-            ("case_id", "target_id"),
-            ("case", "target"),
+            ("case_id", "context_id"),
         ],
     ),
     (
         AddParticipantStatusToParticipantReceivedEvent,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
-        {"object_": _participant_status, "target": _participant},
+        {"object_": _participant_status, "context": _case},
         [
             ("status_id", "object_id"),
             ("status", "object_"),
-            ("participant_id", "target_id"),
-            ("participant", "target"),
+            ("case_id", "context_id"),
         ],
     ),
 ]
+
+
+@pytest.mark.spec("VAM-08-004")
+def test_a_participant_status_names_the_owner_of_its_history():
+    """ADR-0204: the participant is the owner of the target history."""
+    history = make(CoreObject, id_=f"{_participant.id_}/statuses")
+    event = _mk(
+        AddParticipantStatusToParticipantReceivedEvent,
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+        object_=_participant_status,
+        target=history,
+        context=_case,
+    )
+    assert event.participant_id == _participant.id_
+    record = _mk(
+        AddParticipantStatusToParticipantReceivedEvent,
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+        object_=_participant_status,
+        target=_participant,
+        context=_case,
+    )
+    assert record.participant_id is None
+
+
+@pytest.mark.spec("VAM-08-002")
+def test_a_case_status_names_the_owner_of_its_history():
+    history = make(CoreObject, id_=f"{_case.id_}/statuses")
+    event = _mk(
+        AddCaseStatusToCaseReceivedEvent,
+        MessageSemantics.ADD_CASE_STATUS_TO_CASE,
+        object_=_case_status,
+        target=history,
+        context=_case,
+    )
+    assert event.history_owner_id == event.case_id == _case.id_
+    assert event.extends_its_case_history
+    other = _mk(
+        AddCaseStatusToCaseReceivedEvent,
+        MessageSemantics.ADD_CASE_STATUS_TO_CASE,
+        object_=_case_status,
+        target=make(CoreObject, id_="https://example.org/cases/x/statuses"),
+        context=_case,
+    )
+    assert not other.extends_its_case_history
 
 
 @pytest.mark.parametrize(
@@ -613,8 +669,9 @@ def test_the_stub_invite_event_carries_the_case_preview():
     assert event.invitee_id == _INVITEE_URI
     assert event.preview is not None
     assert event.preview.summary == "A case to join"
-    assert event.preview.active_embargo is None
-    assert preview_em_state(event.preview) is None
+    assert event.preview.attributed_to == _ACTOR_URI
+    assert event.preview.embargo_register is None
+    assert preview_em_state(event.preview) is EM.NONE
 
     embargo = make(EmbargoEvent, context=_CASE_URI, end_time=days_from_now(30))
     embargoed = make(
@@ -635,8 +692,12 @@ def test_the_stub_invite_event_carries_the_case_preview():
     )
     preview = _received_stub_invite(embargoed).preview
     assert preview is not None
-    assert isinstance(preview.active_embargo, EmbargoEvent)
-    assert preview.active_embargo.id_ == embargo.id_
+    # A preview holds what it shows in loose forms (ADR-0217).
+    shown_register = preview.embargo_register
+    assert isinstance(shown_register, list)
+    (entry,) = shown_register
+    assert is_loose_form_of(getattr(entry, "embargo", None), EmbargoEvent)
+    assert preview_embargo_id(preview) == embargo.id_
     assert preview_em_state(preview) is EM.ACTIVE
 
 
@@ -648,7 +709,8 @@ def test_the_stub_invite_event_carries_the_case_preview():
 )
 def test_a_stamped_events_accepted_hash(log_index, expected):
     """Every stamped event names the last entry its sender accepted, ``""``
-    when the sender holds none, as a ``Reject`` does (SYNC-16-027)."""
+    when the sender holds none, as a ``Read`` of the ledger at -1 does
+    (SYNC-16-027)."""
     from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
     from vultron.core.models.ledger_position import LedgerPosition
 

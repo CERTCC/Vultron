@@ -64,6 +64,7 @@ def _stub(case_id: str) -> dict[str, Any]:
     """The case's preview: its own id, which names nothing (ADR-0205)."""
     return {
         "type": "CasePreview",
+        "attributedTo": "https://example.org/actors/vendor",
         "id": f"urn:uuid:preview-of-{case_id.rsplit('/', 1)[-1]}",
         "summary": "A remote code execution vulnerability in widget.",
     }
@@ -287,13 +288,6 @@ def test_no_registered_pattern_reads_a_preview_as_the_case(
         pytest.param(
             {"object_": ActivityPattern(activity_=TAtype.INVITE)},
             id="nested-activity",
-        ),
-        pytest.param(
-            {
-                "object_": VOtype.VULNERABILITY_CASE,
-                "accepts_bare_object": True,
-            },
-            id="bare-object",
         ),
     ],
 )

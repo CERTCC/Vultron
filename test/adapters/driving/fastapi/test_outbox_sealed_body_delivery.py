@@ -43,8 +43,12 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, INVITEE_ID
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.actor import EmitInviteActorToCaseNode
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    EmitOwnerDecidedStubInviteNode,
+)
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -141,31 +145,37 @@ def test_the_invite_case_preview_survives_to_the_emitter(dl):
     reference = delivered["object"]
     assert reference["type"] == "VulnerabilityCase"
     assert reference["id"] == case.id_
-    preview = dict(reference["preview"])
-    assert preview.pop("id")
-    assert preview == {
-        "type": "CasePreview",
-        "summary": _stub_summary,
-    }
+    preview = reference["preview"]
+    assert preview["id"]
+    assert preview["type"] == "CasePreview"
+    assert preview["summary"] == _stub_summary
+    # The profile's cut, not the stored case rehydrated into the slot: the
+    # owner and name shown, the bookkeeping left out (CM-17-010).
+    assert preview["attributedTo"] == _ACTOR
+    assert preview["name"] == "CVE-2026-0003"
+    assert "genesisHash" not in preview
     assert delivered["context"] == case.id_
 
 
 @pytest.mark.spec("SYNC-02-004")
 def test_the_sync_adapter_seals_the_announce_it_queues(dl):
-    """Announce(CaseLedgerEntry) is sealed at emission and relayed whole."""
+    """Add(CaseLedgerEntry) is sealed at emission and relayed whole."""
     entry = _to_persistable_entry(
         HashChainLedgerRecord(
             case_id="https://example.org/cases/c-sync",
             log_index=0,
             object_id="https://example.org/activities/logged",
             semantic_type="log_entry_committed",
-            payload_snapshot={"state": "replicated"},
+            payload_snapshot={
+                "id": "https://example.org/activities/logged",
+                "state": "replicated",
+            },
             prev_log_hash=_ZERO_HASH,
             received_at=ACT_AT,
         )
     )
     dl.save(entry)
-    assert SyncActivityAdapter(dl).send_announce_log_entry(
+    assert SyncActivityAdapter(dl).send_add_log_entry(
         entry, actor_id=_ACTOR, to=[_INVITEE], at=authored_at()
     )
     (activity_id,) = dl.outbox_list()
@@ -245,7 +255,10 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ),
-        tree=EmitInviteActorToCaseNode(case_id=case_id, invitee_id=_INVITEE),
+        tree=with_act_keys(
+            EmitOwnerDecidedStubInviteNode(["vendor"], credits_sender=False),
+            {CASE_ID: case_id, INVITEE_ID: _INVITEE},
+        ),
         actor_id=_ACTOR,
     )
     assert result.status.name == "SUCCESS", result.feedback_message
@@ -260,4 +273,4 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
 
     assert recipients == [_INVITEE]
     assert entry.payload_snapshot == json.loads(delivered_body)
-    assert "activeEmbargo" in entry.payload_snapshot["object"]["preview"]
+    assert "embargoRegister" in entry.payload_snapshot["object"]["preview"]

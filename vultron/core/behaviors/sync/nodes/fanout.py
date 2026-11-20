@@ -254,17 +254,17 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
         for peer_id in self.fanout_withheld:
             record_embargo_pause(
                 datalayer,
-                case_id=entry.case_id,
+                case_id=entry.context,
                 peer_id=peer_id,
                 from_index=entry.log_index,
                 at=at,
             )
-        case_obj = datalayer.read(entry.case_id)
+        case_obj = datalayer.read(entry.context)
         if not isinstance(case_obj, VulnerabilityCase):
             # The collector already required the case; reaching here without
             # one means the store changed under the tick.
             raise VultronError(
-                f"{self.name}: case '{entry.case_id}' vanished during fan-out"
+                f"{self.name}: case '{entry.context}' vanished during fan-out"
             )
         return backfill_admitted_peers(
             datalayer,
@@ -390,7 +390,7 @@ class LogEntryCommittedBeforeNode(DataLayerConditionWithPorts):
 
 
 class FanOutLogEntryNode(py_trees.composites.Selector):
-    """Announce a newly committed entry to its recipients, once.
+    """Add a newly committed entry to its recipients, once.
 
     The entry is announced only when this commit recorded it.  A re-run that
     rebuilds an act under its first id finds the act's entry already
@@ -411,7 +411,7 @@ class FanOutLogEntryNode(py_trees.composites.Selector):
             children=[
                 LogEntryCommittedBeforeNode(name="LogEntryCommittedBefore"),
                 py_trees.composites.Sequence(
-                    name="AnnounceLogEntry",
+                    name="AddLogEntry",
                     memory=False,
                     children=[
                         CollectLogEntryRecipientsNode(

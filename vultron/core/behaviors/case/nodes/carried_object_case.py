@@ -28,10 +28,11 @@ class CarriedObjectInTargetCaseNode(DataLayerConditionWithPorts):
     An ``Add(Note)`` or ``Add(CaseStatus)`` attaches an object whose own
     ``context`` names the case it belongs to.  One whose ``context`` is
     another case, or names none, is refused before the commit, so the
-    target case never gains another case's object and no entry carries
-    that object to the target case's participants (HP-08-007, #4831).
-    An ``Add(ParticipantStatus)`` uses it with the target participant's
-    own case (HP-08-008, #4961).
+    case the ``Add`` acts on (a note's ``target``, a case status's
+    ``context``, ADR-0204) never gains another case's object and no entry
+    carries that object to that case's participants (HP-08-007, #4831).
+    An ``Add(ParticipantStatus)`` uses it with the case of the participant
+    whose status history it targets (HP-08-008, #4961).
 
     The object checked is the one the tree goes on to attach: the record
     stored under *object_id* when the store holds one, else the carried

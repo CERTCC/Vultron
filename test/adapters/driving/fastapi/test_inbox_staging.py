@@ -476,6 +476,7 @@ def test_a_case_stub_never_reaches_staging_as_an_object():
         _parsed_announce(
             {
                 "type": "CasePreview",
+                "attributedTo": "https://example.org/actors/vendor",
                 "id": "urn:uuid:case-stub-001",
                 "summary": "Security issue — details shared after acceptance",
             }

@@ -40,6 +40,12 @@ replica but is not the CASE_MANAGER is refused by the sender guard
 
 import py_trees
 
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID,
+    REFUSED_ACTIVITY_ID,
+    SENDER_ID,
+)
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
 )
@@ -77,20 +83,23 @@ def refusal_notice_received_tree(
     """
     effects: list[py_trees.behaviour.Behaviour] = []
     if case_id is not None:
+        # The nodes read the case, the refused activity and the sender from
+        # their keys, seeded here until this factory loses its parameters
+        # (BTND-01-008).
+        notice = {CASE_ID: case_id, SENDER_ID: sender_id}
         effects.append(
-            ClearRefusedAssertionNode(
-                case_id=case_id,
-                refused_activity_id=refused_activity_id,
-                reason=reason,
-                sender_id=sender_id,
+            with_act_keys(
+                ClearRefusedAssertionNode(reason=reason),
+                {**notice, REFUSED_ACTIVITY_ID: refused_activity_id},
             )
         )
         if expected_sender_sequence is not None:
             effects.append(
-                ResumeOutboundSequenceNode(
-                    case_id=case_id,
-                    expected=expected_sender_sequence,
-                    sender_id=sender_id,
+                with_act_keys(
+                    ResumeOutboundSequenceNode(
+                        expected=expected_sender_sequence
+                    ),
+                    notice,
                 )
             )
     return create_receive_activity_tree(

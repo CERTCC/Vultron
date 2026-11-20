@@ -89,7 +89,30 @@ def removed_participant_refusal(
     return (
         f"actor '{actor_id}' is a removed participant of case"
         f" '{case_id}' and is sent no stub Invite; the Case Owner"
-        " reinstates it with Add(CaseParticipant) — REFUSED (CM-31-013)"
+        " reinstates it with its own Add(Actor) — REFUSED (CM-31-013)"
+    )
+
+
+def not_invitable_refusal(
+    datalayer: CasePersistence,
+    case: VulnerabilityCase,
+    invitee: str,
+) -> str | None:
+    """The refusal for inviting the actor *invitee* when it has joined or is closed.
+
+    ``None`` for an actor with no record in the case, or an inert one that
+    has not answered (:func:`awaiting_stub_reply`): the first is invited, the
+    second re-invited on its record (CM-11-015).  A joined actor has nothing
+    left to answer, and ``RM.CLOSED`` is terminal (CM-11-043, ADR-0085).
+    """
+    record = invitee_record(datalayer, case, invitee)
+    if record is None or awaiting_stub_reply(record):
+        return None
+    state = "joined" if record.joined else "at RM.CLOSED"
+    return (
+        f"actor '{invitee}' has already {state} in case"
+        f" '{case.id_}' and is sent no further stub Invite"
+        " — REFUSED (CM-11-015, CM-11-043)"
     )
 
 
@@ -97,8 +120,8 @@ class _NotRemovedGuardBase(DataLayerConditionWithPorts):
     """Refuse when the actor :meth:`_suggested_actor` names was removed.
 
     A removed participant is sent no stub Invite (CM-31-013): the Case Owner
-    took it out, and only the Case Owner's ``Add(CaseParticipant)`` brings it
-    back (CM-31-011, ADR-0116).  So a recommendation of it, and the Case
+    took it out, and only the Case Owner's ``Add(<Actor>)`` brings it back
+    (CM-31-011, ADR-0199).  So a recommendation of it, and the Case
     Owner's acceptance of one, are refused before the guarded commit, with a
     reason naming reinstatement.  An actor the case does not list, or one
     whose record carries no removal fact, passes.
@@ -212,16 +235,8 @@ class SuggestedActorIsInvitableNode(
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: the CASE_MANAGER holds its case
-        record = invitee_record(self.datalayer, case, invitee_id)
-        if record is None or awaiting_stub_reply(record):
-            return Status.SUCCESS
-        state = "joined" if record.joined else "at RM.CLOSED"
-        return refusal_status(
-            self,
-            f"actor '{invitee_id}' has already {state} in case"
-            f" '{self.case_id}' and is sent no further stub Invite"
-            " — REFUSED (CM-11-015, CM-16-006)",
-        )
+        refusal = not_invitable_refusal(self.datalayer, case, invitee_id)
+        return refusal_status(self, refusal)
 
 
 def authority_roles_refusal(
@@ -260,7 +275,7 @@ class _RolesAreGrantableGuardBase(DataLayerConditionWithPorts):
 class SuggestedRolesAreGrantableNode(_RolesAreGrantableGuardBase):
     """Guard: a recommendation suggests no authority role for the invitee.
 
-    The roles are the received ``Offer(Actor)``'s ``suggestedRoles``, fixed
+    The roles are the received ``Offer(Actor)``'s ``roles``, fixed
     at construction.  The guard runs on every path the recommend tree takes:
     a Coordinator's suggestion and the Case Owner's own invitation alike
     (CM-20-006, CM-20-008).
@@ -416,6 +431,7 @@ __all__ = [
     "case_manager_admits_accepted_invitee_guard",
     "case_manager_admits_suggested_actor_guard",
     "case_manager_requires_recorded_rejection_guard",
+    "not_invitable_refusal",
     "refusal_status",
     "removed_participant_refusal",
 ]

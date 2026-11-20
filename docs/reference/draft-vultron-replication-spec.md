@@ -36,7 +36,7 @@ normative single-hub / single-writer + fan-out architecture.
 These mechanics are scoped to a companion document by design. The
 [Vultron Protocol Specification](vultron-spec/index.md) states the
 normative obligation — Case Hosting capability set implementations MUST replicate
-the canonical ledger via `Announce(CaseLedgerEntry)` — and delegates the
+the canonical ledger via `Add(CaseLedgerEntry)` — and delegates the
 mechanical specification to this document. See ADR-0077 for the rationale
 behind that boundary.
 
@@ -53,7 +53,7 @@ covers:
   that gives each log entry a unique, verifiable identity and links it to its
   predecessor.
 - **Replication transport** — how the CASE_MANAGER delivers entries to
-  Participant Actors via `Announce(CaseLedgerEntry)` activities.
+  Participant Actors via `Add(CaseLedgerEntry)` activities.
 - **Conflict handling and recovery** — the reject-and-replay protocol that
   re-synchronises a diverged replica.
 - **Gap detection and ordering guarantees** — the receiver-side holding area
@@ -117,7 +117,7 @@ otherwise persist a `CaseLedgerEntry` to the DataLayer. Ingress code delivers
 the message; it does not write the ledger. (SYNC-13-002)
 
 Participants MUST obtain replica `CaseLedgerEntry` records solely via the
-`Announce(CaseLedgerEntry)` receive behavior, which applies domain effects
+`Add(CaseLedgerEntry)` receive behavior, which applies domain effects
 before persisting. (SYNC-13-006)
 
 ---
@@ -181,11 +181,11 @@ The following invariants MUST hold under normal operation and partial failure:
 ### 4.1 Wire Envelope
 
 Log replication between the CASE_MANAGER and Participant Actors MUST use
-ActivityStreams `Announce` activities as the transport envelope.
+ActivityStreams `Add` activities as the transport envelope.
 Specifically, each replicated entry is delivered as
-`Announce(CaseLedgerEntry)`. (SYNC-02-001)
+`Add(CaseLedgerEntry)`. (SYNC-02-001)
 
-Each `Announce(CaseLedgerEntry)` activity:
+Each `Add(CaseLedgerEntry)` activity:
 
 - MUST carry the `CaseLedgerEntry` itself as its `object`, inline or by reference, with every field the recipient needs to validate the hash chain (`prev_log_hash`, `entry_hash`). (SYNC-02-004)
   The reference implementation embeds the full entry inline and never sends a URI-only reference (SYNC-02-005); that is a shortcut of the prototype, not a protocol rule.
@@ -200,7 +200,7 @@ individually, not broadcast. (SYNC-02-003)
 
 ### 4.3 Semantic Routing on First Delivery
 
-A receiver MUST treat an inbound `Announce(CaseLedgerEntry)` as the announcement of a ledger entry on first delivery, without needing any stored record of the entry (SYNC-13-004).
+A receiver MUST treat an inbound `Add(CaseLedgerEntry)` as the announcement of a ledger entry on first delivery, without needing any stored record of the entry (SYNC-13-004).
 The reference implementation resolves the log-entry semantic from the typed inline object obtained during parsing, without a DataLayer round-trip (SYNC-13-007).
 Message ingress MUST NOT use the canonical ledger store as a scratch or lookup cache for routing, rehydration, or classification of an inbound announce. (SYNC-13-003)
 
@@ -213,12 +213,12 @@ Message ingress MUST NOT use the canonical ledger store as a scratch or lookup c
 A receiver MUST reject a replication message whose predecessor hash
 (`prev_log_hash`) does not match the receiver's current log tail hash.
 The receiver sends `Reject(CaseLedgerEntry)` stating its ledger tail, the last entry it accepted, as its `ledgerPosition`; that position is the recovery signal. (SYNC-03-001, SYNC-08-005, SYNC-08-007, SYNC-18-001)
-The `Reject` names in `inReplyTo` the inbound activity that prompted it: the `Announce(CaseLedgerEntry)` it could not apply, or the `Announce(VulnerabilityCase)` whose copy is ahead of its chain. (RF-08-004)
+The `Reject` names in `inReplyTo` the inbound activity that prompted it: the `Add(CaseLedgerEntry)` it could not apply, or the `Announce(VulnerabilityCase)` whose copy is ahead of its chain. (RF-08-004)
 
 Before that check, a receiver MUST recompute the entry's hash from its content and compare it with the stated `entry_hash`. (SYNC-03-006)
 An entry that states no hash, or whose content does not reproduce it, MUST be refused and logged, and is not buffered, applied or stored.
 It is not answered with `Reject(CaseLedgerEntry)`, because a replay would resend the same entry. (SYNC-03-012)
-The receiver MUST instead send `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` to the CASE_MANAGER, naming the refused `Announce(CaseLedgerEntry)` by reference, and the fault's id is derived from that `Announce` and the failure class. (SYNC-03-007, SYNC-03-013)
+The receiver MUST instead send `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` to the CASE_MANAGER, naming the refused `Add(CaseLedgerEntry)` by reference, and the fault's id is derived from that `Add` and the failure class. (SYNC-03-007, SYNC-03-013)
 A CASE_MANAGER that receives that fault from an active participant of the case MUST NOT send anything because of it, not even a fresh case copy (§5.5), and MUST NOT record replication state for it, since a replay or a fresh copy would resend the same content. (SYNC-03-008)
 From any other sender it MUST refuse the fault. (SYNC-03-014)
 
@@ -290,8 +290,8 @@ The replica's own position is the later of its chain's tail and its case's posit
 A re-delivery of the same announcement is judged the same way: current while the replica is still at the copy's position, stale once its chain is past it.
 A replica stores an entry the copy reflects without applying it, but still stores each record the entry carries that the copy names by id only, such as a note, a case status or a proposed embargo.
 The `Reject(CaseLedgerEntry)` names the last entry the replica's chain stores.
-A replica whose chain stores no entry has none to name, so its `Reject` names no entry, states the `ledgerPosition` of its empty chain (`logIndex` -1) and names the case as its `target`; the CASE_MANAGER answers it with a replay from genesis. (SYNC-16-027, SYNC-16-028, SYNC-16-029)
-A `Reject` that names no entry and states no position, or a position naming an entry, is refused when it arrives.
+A replica whose chain stores no entry has none to name, so it states its position instead, with `Read(<case>/ledger)` at `logIndex` -1 (§5.6); the CASE_MANAGER answers it by replaying every entry. (SYNC-16-027, SYNC-16-029)
+A `Reject` that names no object is refused when it arrives. (SYNC-16-028)
 
 A divergence fault for an entry the last re-seed already reflected, from a participant whose acknowledged position is at or past that re-seed's position, with a claimed `published` time after the time the participant claimed for that acknowledgement, means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
 Without that acknowledgement the copy may have been lost or may still be in flight, so the CASE_MANAGER SHOULD log the fault below error and leave it to the rate-bounded re-seed. (SYNC-16-008)
@@ -302,18 +302,18 @@ Both times are the participant's own claims, so they share its clock.
 ### 5.6 Position Statements
 
 The reject-and-replay loop repairs a lost entry only when a later entry arrives with a gap.
-When the last `Announce(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives, so the participant sends no `Reject` and stays behind.
+When the last `Add(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives, so the participant sends no `Reject` and stays behind.
 A participant closes that gap by stating its position.
 
-- A participant MAY send the case's CASE_MANAGER `Read(CaseLedgerEntry)` whose `object` is the last canonical entry it has applied, by reference. A participant that has applied no entry sends none. (SYNC-17-001)
+- A participant MAY send the case's CASE_MANAGER `Read(<case>/ledger)`, whose `object` is the case's ledger and whose `ledgerPosition` is the last entry it has applied. A participant that has applied no entry states `logIndex` -1 with the case's genesis hash, which asks for every entry. (SYNC-17-001)
 - The CASE_MANAGER MUST act on a stated position only when the sender is an active participant; from any other sender it MUST record no replication state, send nothing and report `REFUSED`. The Invite resend of §5.7 is no answer to the position and runs apart from this check. (SYNC-17-002, SYNC-17-009)
-- When it acts on a position that names an entry in its ledger, it MUST record that entry's hash as the sender's acknowledged position. (SYNC-17-003)
-- When that position is behind its ledger tail, it MUST send the sender every entry after it, in log order, as `Announce(CaseLedgerEntry)`, under the replay rate bound of §5.4 and the outbox de-duplication; at the tail it MUST send nothing. (SYNC-17-004, SYNC-17-010)
-- A position naming an entry its ledger does not hold, or an index at which its entry has a different hash, MUST be logged at WARNING, with no replication state recorded and nothing sent. (SYNC-17-005)
-- The CASE_MANAGER MUST NOT commit a ledger entry for a `Read(CaseLedgerEntry)` or its answer. (SYNC-17-006)
-- Once an `Announce(VulnerabilityCase)` has seeded a participant's replica of a case it did not hold, the participant SHOULD send the case's CASE_MANAGER one `Read(CaseLedgerEntry)` naming the entry at the position the seeded case is at. The replica stores no entry yet, but the seeded case reflects every entry up to that position, and the statement tells the CASE_MANAGER the replica is ready. (SYNC-17-008)
+- When it acts on a position its ledger holds, it MUST record the position's hash as the sender's acknowledged position. (SYNC-17-003)
+- When that position is behind its ledger tail, it MUST send the sender every entry after it, in log order, as `Add(CaseLedgerEntry)`, under the replay rate bound of §5.4 and the outbox de-duplication; at the tail it MUST send nothing. (SYNC-17-004, SYNC-17-010)
+- A position naming an entry its ledger does not hold, an index at which its entry has a different hash, or `logIndex` -1 with a hash other than the case's genesis hash, MUST be logged at WARNING, with no replication state recorded and nothing sent. (SYNC-17-005)
+- The CASE_MANAGER MUST NOT commit a ledger entry for a `Read(<case>/ledger)` or its answer. (SYNC-17-006)
+- Once an `Announce(VulnerabilityCase)` has seeded a participant's replica of a case it did not hold, the participant SHOULD send the case's CASE_MANAGER one `Read(<case>/ledger)` stating the position the seeded case is at. The replica stores no entry yet, but the seeded case reflects every entry up to that position, and the statement tells the CASE_MANAGER the replica is ready. (SYNC-17-008)
 
-[I] In this implementation, the `Read` names the case as its `context` and carries the named entry's position as its `ledgerPosition`, with `logIndex` and `entryHash` members.
+[I] In this implementation, the `Read`'s `object` is the `OrderedCollection` `<case>/ledger` given by its `id` and `type` alone, it names the case as its `context`, and it carries the position as its `ledgerPosition`, with `logIndex` and `entryHash` members.
 The reference participant sends one for each case it holds after every restart, and on a configurable interval that is off by default (§10). (SYNC-17-007, SYNC-17-011)
 
 ### 5.7 Resending Unanswered Invites
@@ -321,7 +321,7 @@ The reference participant sends one for each case it holds after every restart, 
 An Invite can be lost before its addressee can answer it: one that reaches a joiner before its case copy is dropped when the pre-bootstrap queue's window ends, and any Invite can be lost in delivery.
 A position statement tells the CASE_MANAGER the replica holds the case, which is when a resent Invite can be answered.
 
-- When a participant on the roster that is not removed and not closed states a position the CASE_MANAGER's ledger holds, in `Read(CaseLedgerEntry)` or as an activity's `ledgerPosition`, the CASE_MANAGER MUST resend each Invite that participant owes an answer to, whether the participant is active or inert. (SYNC-20-001)
+- When a participant on the roster that is not removed and not closed states a position the CASE_MANAGER's ledger holds, in `Read(<case>/ledger)` or as an activity's `ledgerPosition`, the CASE_MANAGER MUST resend each Invite that participant owes an answer to, whether the participant is active or inert. (SYNC-20-001)
 - An Invite is owed while its answer can still count: an `Invite(EmbargoEvent)` for a proposed or active embargo whose consent row is `INVITED` and whose RSVP deadline has not passed, and the full-case Invite until the participant's reply is ledgered. Only the last Invite sent for an embargo is owed, and the Invite the stating activity answers is not. (SYNC-20-002)
 - A resent Invite MUST be the activity as first sent, from its sealed body, with the same id, `ledgerPosition` and RSVP deadline. (SYNC-20-003)
 - The CASE_MANAGER MUST NOT resend an Invite whose earlier send is still pending in its outbox. (SYNC-20-004)
@@ -335,7 +335,7 @@ A position statement tells the CASE_MANAGER the replica holds the case, which is
 
 ### 6.1 No Ordering Guarantee at the Transport Layer
 
-`Announce(CaseLedgerEntry)` activities are delivered over a transport with no
+`Add(CaseLedgerEntry)` activities are delivered over a transport with no
 guaranteed ordering. A participant replica can therefore receive an entry
 before its hash-chain predecessor has arrived. Dropping such an entry and
 relying solely on the reject/replay round-trip does not converge under
@@ -344,22 +344,22 @@ the same unordered transport.
 
 ### 6.2 Receiver-Side Holding Area
 
-When a participant receives a valid `Announce(CaseLedgerEntry)` whose `prev_log_hash` does not match its current chain tail, but whose `log_index` is strictly greater than `tail_index + 1` (a forward gap), the participant MUST NOT permanently discard the entry.
-It MUST retain the `Announce(CaseLedgerEntry)` that carried it, as the body that arrived, in a non-ledger holding area, keyed by the entry's `prev_log_hash`, pending arrival of its predecessor. (SYNC-14-001)
-It MUST NOT retain the entry apart from that `Announce`. (SYNC-14-010)
+When a participant receives a valid `Add(CaseLedgerEntry)` whose `prev_log_hash` does not match its current chain tail, but whose `log_index` is strictly greater than `tail_index + 1` (a forward gap), the participant MUST NOT permanently discard the entry.
+It MUST retain the `Add(CaseLedgerEntry)` that carried it, as the body that arrived, in a non-ledger holding area, keyed by the entry's `prev_log_hash`, pending arrival of its predecessor. (SYNC-14-001)
+It MUST NOT retain the entry apart from that `Add`. (SYNC-14-010)
 
-A forward-gap entry whose `Announce` is held MUST still trigger resynchronization: the participant MUST send `Reject(CaseLedgerEntry)` stating its ledger tail as its `ledgerPosition`, so the CASE_MANAGER can replay entries that are genuinely lost (not merely reordered). (SYNC-14-002)
+A forward-gap entry whose `Add` is held MUST still trigger resynchronization: the participant MUST send `Reject(CaseLedgerEntry)` stating its ledger tail as its `ledgerPosition`, so the CASE_MANAGER can replay entries that are genuinely lost (not merely reordered). (SYNC-14-002)
 
 ### 6.3 Drain on Predecessor Commit
 
 After a participant commits a `CaseLedgerEntry`, it MUST drain the holding area.
-For each newly committed tail, the participant MUST locate the held `Announce` (if any) whose entry's `prev_log_hash` equals the new tail's `entry_hash`, apply and persist that entry via the same apply-then-persist path as in-order delivery, starting from the received `Announce`, and repeat, cascading until no held `Announce` extends the current tail. (SYNC-14-003, SYNC-14-008)
+For each newly committed tail, the participant MUST locate the held `Add` (if any) whose entry's `prev_log_hash` equals the new tail's `entry_hash`, apply and persist that entry via the same apply-then-persist path as in-order delivery, starting from the received `Add`, and repeat, cascading until no held `Add` extends the current tail. (SYNC-14-003, SYNC-14-008)
 
 [I] In this implementation, each drained entry is its own inbox delivery.
-When a commit makes a held entry appliable, the participant replays the `Announce(CaseLedgerEntry)` it received for that entry through its own inbox, parsed again from the body held for it.
-It never builds an `Announce` of its own, so nothing is attributed to a sender that did not send it.
+When a commit makes a held entry appliable, the participant replays the `Add(CaseLedgerEntry)` it received for that entry through its own inbox, parsed again from the body held for it.
+It never builds an `Add` of its own, so nothing is attributed to a sender that did not send it.
 The participant does not apply the entry inside the delivery that made it appliable.
-That delivery's commit replays the next `Announce`, so the cascade follows from in-order delivery itself. (SYNC-14-009)
+That delivery's commit replays the next `Add`, so the cascade follows from in-order delivery itself. (SYNC-14-009)
 
 Draining a held entry MUST apply domain effects before persisting it. (SYNC-14-004)
 
@@ -368,11 +368,11 @@ local ledger. (SYNC-14-007)
 
 ### 6.4 Holding Area Bounds
 
-The out-of-order holding area MUST NOT be the canonical ledger: it MAY keep the held `Announce` in the receiver's DataLayer only as records of its own kind, never as a `CaseLedgerEntry`. (SYNC-14-005, SYNC-14-011)
+The out-of-order holding area MUST NOT be the canonical ledger: it MAY keep the held `Add` in the receiver's DataLayer only as records of its own kind, never as a `CaseLedgerEntry`. (SYNC-14-005, SYNC-14-011)
 A held entry MUST NOT be persisted as a `CaseLedgerEntry` until it is drained (i.e. until its predecessor is present), so that presence of a `CaseLedgerEntry` in the DataLayer continues to mean "committed and effects applied." (SYNC-14-012, SYNC-13-001)
 
 The holding area SHOULD be bounded in size per case. (SYNC-14-006)
-When full it SHOULD evict the held `Announce` whose entry is farthest ahead of the current gap (highest `log_index`), body and all, and log a warning, or decline to hold the new one when its entry is itself the farthest ahead.
+When full it SHOULD evict the held `Add` whose entry is farthest ahead of the current gap (highest `log_index`), body and all, and log a warning, or decline to hold the new one when its entry is itself the farthest ahead.
 Eviction is recoverable because the Reject required by §6.2 was already sent, so eviction MUST NOT be relied on to trigger recovery by itself. (SYNC-14-013, SYNC-14-014)
 
 ### 6.5 Monotonic Visibility
@@ -403,7 +403,7 @@ the actor's own acknowledged prefix is contiguous from genesis. (SYNC-10-005)
 
 Eventual consistency is the ordering guarantee this protocol makes.
 Every active participant's replica that receives the CASE_MANAGER's committed entries, in any order, MUST reach the CASE_MANAGER's case file through hash-chain apply and gap repair. (SYNC-19-002)
-A message the CASE_MANAGER sends outside `Announce(CaseLedgerEntry)` MUST NOT leave a replica in a final state that the entries it relates to do not determine. (SYNC-19-004)
+A message the CASE_MANAGER sends outside `Add(CaseLedgerEntry)` MUST NOT leave a replica in a final state that the entries it relates to do not determine. (SYNC-19-004)
 
 A coordination decision MUST NOT depend on an arrival order that the ledger does not define.
 The CASE_MANAGER's observation order is the case's causal order, so its ledger records the order in which it takes concurrent assertions from different senders.
@@ -428,7 +428,7 @@ No replication quorum is required.
 ### 7.2 Commit-After-Send Invariant
 
 A node MUST commit the `CaseLedgerEntry` that records a Vultron message it sends only after the message has been written to its own outbox, and MUST NOT commit it before that write.
-`Announce(CaseLedgerEntry)` is the one message sent after its commit: it delivers a committed entry. (SYNC-09-002)
+`Add(CaseLedgerEntry)` is the one message sent after its commit: it delivers a committed entry. (SYNC-09-002)
 
 This ensures that every entry records an act that has happened.
 A retry after a send whose commit failed rebuilds the activity under its first id, so the outbox does not send it twice. (OX-06-002)
@@ -455,14 +455,14 @@ leader from continuing to write to the ledger after a new leader is elected.
 
 ## 8. Pre-Genesis Delivery Window [N]
 
-A `Announce(CaseLedgerEntry)` activity may arrive at a participant before the
+A `Add(CaseLedgerEntry)` activity may arrive at a participant before the
 `Create(VulnerabilityCase)` or `Announce(VulnerabilityCase)` has been
 processed — a delivery-order race. When this occurs, the participant cannot
 reconstruct the per-case genesis hash and MUST NOT proceed normally.
 
 ### 8.1 Reject as Loss Backstop
 
-When a participant receives an `Announce(CaseLedgerEntry)` but cannot reconstruct the per-case genesis hash because the `VulnerabilityCase` is not yet present in its local store, the participant MUST NOT silently discard the entry.
+When a participant receives an `Add(CaseLedgerEntry)` but cannot reconstruct the per-case genesis hash because the `VulnerabilityCase` is not yet present in its local store, the participant MUST NOT silently discard the entry.
 It MUST send a `Reject(CaseLedgerEntry)` with `last_accepted_hash = ""` to the CASE_MANAGER so that the CASE_MANAGER replays all entries from the beginning once the case is delivered. (SYNC-15-001)
 
 One such Reject asks for the case and its whole ledger, so the participant sends one per wait, not one per early entry.
@@ -484,11 +484,11 @@ MUST NOT be persisted (SYNC-15-002), MUST NOT be treated as committed
 ### 8.2 Pre-Genesis Hold and Drain
 
 The participant MUST NOT rely solely on the reject/replay round-trip for pre-genesis entries.
-It MUST retain the `Announce` that carried the entry, as received, in the same non-ledger holding area used for forward gaps (§6.2), keyed by the entry's `prev_log_hash`, pending arrival of the case seed. (SYNC-15-004)
+It MUST retain the `Add` that carried the entry, as received, in the same non-ledger holding area used for forward gaps (§6.2), keyed by the entry's `prev_log_hash`, pending arrival of the case seed. (SYNC-15-004)
 
 After a participant seeds the `VulnerabilityCase` (via `Create` or `Announce(VulnerabilityCase)`), which anchors the deterministic per-case genesis hash, it MUST drain the holding area for that case: it MUST locate the held `Announce` (if any) whose entry's `prev_log_hash` equals the per-case genesis hash, replay it so its entry is applied and persisted via the same path as in-order delivery, and cascade in hash-chain order until no held `Announce` extends the current tail. (SYNC-15-005)
 
-[I] The seed replays the first held `Announce` through the participant's own inbox, as §6.3 describes for a commit. (SYNC-14-009)
+[I] The seed replays the first held `Add` through the participant's own inbox, as §6.3 describes for a commit. (SYNC-14-009)
 
 ---
 
@@ -503,12 +503,12 @@ restart. (SYNC-04-002)
 Every activity about a case whose ledger its sender holds, from any sender, MUST state the sender's ledger tail as the activity's `ledgerPosition`: the `logIndex` and `entryHash` of the last entry it had committed or stored when it built the activity. (SYNC-18-001)
 The position MUST be the tail when the sender builds the activity, and a resend MUST carry the position it was first sent with. (SYNC-18-002, SYNC-18-009)
 Only `vultron.wire.as2.factories` produces it. (SYNC-18-008)
-An activity sent before its sender holds the case's ledger, an activity whose object states its own position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`, `Update(VulnerabilityCase)`), and `Create(ProcessingFault)` carry none. (SYNC-18-017)
+An activity sent before its sender holds the case's ledger, an activity whose object states its own position (`Add(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`, `Update(VulnerabilityCase)`), and `Create(ProcessingFault)` carry none. (SYNC-18-017)
 A receiver MUST refuse an activity in that scope whose `ledgerPosition` is missing or does not parse. (SYNC-18-015)
 The stamp lets the CASE_MANAGER see that a participant is behind without waiting for an explicit sync request.
 
 The CASE_MANAGER MUST NOT refuse, hold or defer an activity because its `ledgerPosition` is behind its own ledger tail, and MUST log such a lag at DEBUG; a reply to the full-case Invite is the one exception, judged against its Invite's floor. (SYNC-18-004, SYNC-18-010)
-A `ledgerPosition` that names an entry the CASE_MANAGER's ledger holds is answered as a position stated in `Read(CaseLedgerEntry)` is: for an active participant, the CASE_MANAGER MUST record it as the sender's acknowledged position and replay the entries after it, rate-bounded; from any other sender it MUST record and send nothing. (SYNC-18-007, SYNC-18-014)
+A `ledgerPosition` that names an entry the CASE_MANAGER's ledger holds is answered as a position stated in `Read(<case>/ledger)` is: for an active participant, the CASE_MANAGER MUST record it as the sender's acknowledged position and replay the entries after it, rate-bounded; from any other sender it MUST record and send nothing. (SYNC-18-007, SYNC-18-014)
 The Invite resend of §5.7 is no answer to the position and runs apart from that check. (SYNC-20-001)
 A `ledgerPosition` that names an index the CASE_MANAGER's ledger holds with another hash, or an index past its tail, means the sender's chain has split: the activity MUST be judged as it would be without the position, the split MUST be logged at ERROR, and an active participant MUST be sent `Announce(VulnerabilityCase)` under the re-seed rate bound, and no other sender may be re-seeded for it. (SYNC-18-005, SYNC-18-011, SYNC-18-012, SYNC-18-013)
 Neither the record, the replay nor the re-seed changes the activity's own outcome.
@@ -545,7 +545,7 @@ The interval defaults to off (`None`), because a periodic check costs traffic a 
 
 A participant actor SHOULD maintain an actor-local, in-memory pending-assertion
 store that records outbound assertion activities emitted toward the CASE_MANAGER
-but not yet confirmed by a canonical `Announce(CaseLedgerEntry)` round-trip.
+but not yet confirmed by a canonical `Add(CaseLedgerEntry)` round-trip.
 The suppression window is configurable; zero disables suppression. (SYNC-11-001)
 
 After a participant successfully enqueues an assertion activity toward the Case
@@ -553,7 +553,7 @@ Actor, the participant SHOULD record the `(case_id, semantic_type, activity_id)`
 triple in its pending-assertion store so that duplicate near-term re-emits of
 the same assertion are suppressed while the round-trip is pending. (SYNC-11-002)
 
-When a participant receives a matching `Announce(CaseLedgerEntry)` whose
+When a participant receives a matching `Add(CaseLedgerEntry)` whose
 `log_object_id` equals a pending assertion's `object_id`, the participant
 SHOULD clear the matching entry so that future re-emits are no longer
 suppressed. (SYNC-11-003)
@@ -583,10 +583,10 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-01-007 | §3.1 | Each entry MUST reference its predecessor's hash |
 | SYNC-01-004 | §2.1 | Entries MUST be written through the CASE_MANAGER's write path |
 | SYNC-01-005 | §3.3 | Hash-chain format MUST be forward-compatible with Merkle Tree |
-| SYNC-02-001 | §4.1 | Replication MUST use `Announce` activities |
+| SYNC-02-001 | §4.1 | Replication MUST use `Add` activities |
 | SYNC-02-002 | §4.1 | Each replication message MUST identify sender, recipient, hashes |
 | SYNC-02-003 | §4.2 | Replication MUST originate from the CASE_MANAGER |
-| SYNC-02-004 | §4.1 | `Announce(CaseLedgerEntry)` MUST carry the entry, inline or by reference |
+| SYNC-02-004 | §4.1 | `Add(CaseLedgerEntry)` MUST carry the entry, inline or by reference |
 | SYNC-03-001 | §5.1 | Receiver MUST reject on predecessor hash mismatch |
 | SYNC-03-002 | §5.2 | Sender MUST retry from last accepted hash after rejection |
 | SYNC-03-003 | §5.3 | Replication MUST be idempotent |
@@ -621,7 +621,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-10-005 | §6.6 | Catch-up gate MUST NOT require actor tip to equal leader tip |
 | SYNC-11-001 | §11 | Participant SHOULD maintain pending-assertion store |
 | SYNC-11-002 | §11 | Participant SHOULD record assertion triple after enqueuing |
-| SYNC-11-003 | §11 | On matching Announce, SHOULD clear pending entry |
+| SYNC-11-003 | §11 | On matching Add, SHOULD clear pending entry |
 | SYNC-11-004 | §11 | CASE_MANAGER MUST NOT use pending-assertion store for its own commits |
 | SYNC-11-005 | §11 | Pending assertions SHOULD be marked timed-out after their window |
 | SYNC-11-006 | §11 | Timed-out pending assertions SHOULD NOT suppress re-emits |
@@ -636,27 +636,27 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-13-004 | §4.3 | First delivery MUST be recognized without a stored record of the entry |
 | SYNC-13-009 | §4.3, §5.3 | Only the already-stored check MUST tell first from repeat delivery |
 | SYNC-13-005 | §2.1 | Only the CASE_MANAGER MUST author CaseLedgerEntry records |
-| SYNC-13-006 | §2.2 | Participants MUST obtain entries only via Announce receive behavior |
-| SYNC-14-001 | §6.2 | Forward-gap entry's received Announce MUST be retained in non-ledger holding area |
-| SYNC-14-010 | §6.2 | A forward-gap entry MUST NOT be held apart from its Announce |
+| SYNC-13-006 | §2.2 | Participants MUST obtain entries only via Add receive behavior |
+| SYNC-14-001 | §6.2 | Forward-gap entry's received Add MUST be retained in non-ledger holding area |
+| SYNC-14-010 | §6.2 | A forward-gap entry MUST NOT be held apart from its Add |
 | SYNC-14-002 | §6.2 | Held forward-gap entry MUST still trigger Reject |
 | SYNC-14-003 | §6.3 | After commit, MUST drain holding area in hash-chain order |
 | SYNC-14-004 | §6.3 | Drain MUST apply effects before persisting |
 | SYNC-14-005 | §6.4 | Holding area MUST NOT be the canonical ledger |
-| SYNC-14-011 | §6.4 | Holding area MAY keep held Announces in the DataLayer as records of their own kind |
+| SYNC-14-011 | §6.4 | Holding area MAY keep held Adds in the DataLayer as records of their own kind |
 | SYNC-14-012 | §6.4 | A held entry MUST NOT be persisted as a ledger entry until drained |
 | SYNC-14-006 | §6.4 | Holding area SHOULD be bounded per case |
-| SYNC-14-013 | §6.4 | On overflow, the holding area SHOULD drop the farthest-ahead Announce |
+| SYNC-14-013 | §6.4 | On overflow, the holding area SHOULD drop the farthest-ahead Add |
 | SYNC-14-014 | §6.4 | Eviction MUST NOT be relied on to trigger recovery |
 | SYNC-14-007 | §6.3 | Drain MUST NOT re-apply effects for already-committed entry |
 | SYNC-14-008 | §6.3 | Drain path MUST be the same apply-then-persist path as in-order delivery |
-| SYNC-14-009 | §6.3, §8.2 | Drain MUST replay each appliable held Announce through the receiver's own inbox as its own delivery |
-| SYNC-14-015 | §6.3 | The replay MUST be the received Announce, parsed again from its held body |
-| SYNC-14-016 | §6.3 | A participant MUST NOT replay an Announce it built or misattributes |
+| SYNC-14-009 | §6.3, §8.2 | Drain MUST replay each appliable held Add through the receiver's own inbox as its own delivery |
+| SYNC-14-015 | §6.3 | The replay MUST be the received Add, parsed again from its held body |
+| SYNC-14-016 | §6.3 | A participant MUST NOT replay an Add it built or misattributes |
 | SYNC-15-001 | §8.1 | Pre-genesis entry MUST NOT be silently dropped; MUST send Reject |
 | SYNC-15-002 | §8.1 | Participant MUST NOT persist entry when genesis hash unavailable |
 | SYNC-15-003 | §5.4 | CASE_MANAGER SHOULD bound replay rate for non-advancing peer |
-| SYNC-15-004 | §8.2 | Pre-genesis entry's Announce MUST be held pending case seed |
+| SYNC-15-004 | §8.2 | Pre-genesis entry's Add MUST be held pending case seed |
 | SYNC-15-005 | §8.2 | After case seed, MUST drain the pre-genesis holds |
 | SYNC-15-006 | §8.1 | Pre-genesis entry MUST NOT be treated as committed |
 | SYNC-15-007 | §8.1 | Pre-genesis entry domain effects MUST NOT be applied |
@@ -688,18 +688,18 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-16-024 | §5.5 | Storing such an entry MUST NOT move the position back |
 | SYNC-16-025 | §5.5 | An entry at the position's index with another hash MUST be refused |
 | SYNC-16-026 | §5.5 | That conflict MUST be logged at ERROR |
-| SYNC-16-027 | §5.5 | A chain that stores no entry MUST send the empty-chain `Reject` |
-| SYNC-16-028 | §5.5 | A receiver MUST refuse a no-entry `Reject` without the empty chain's position |
-| SYNC-16-029 | §5.5 | CASE_MANAGER MUST answer the empty-chain `Reject` as a replay from genesis |
+| SYNC-16-027 | §5.5 | A chain that stores no entry MUST state `Read(<case>/ledger)` at -1 |
+| SYNC-16-028 | §5.5 | A receiver MUST refuse a `Reject` that names no object |
+| SYNC-16-029 | §5.5 | CASE_MANAGER MUST answer the empty-chain `Read` by replaying every entry |
 | SYNC-16-008 | §5.5 | CASE_MANAGER SHOULD log divergence after an acknowledged re-seed as an error |
-| SYNC-17-001 | §5.6 | Participant MAY state its position with `Read(CaseLedgerEntry)` |
+| SYNC-17-001 | §5.6 | Participant MAY state its position with `Read(<case>/ledger)` |
 | SYNC-17-002 | §5.6 | CASE_MANAGER MUST refuse a stated position from a sender that is not active |
 | SYNC-17-009 | §5.6 | A refused position MUST NOT be recorded or answered |
 | SYNC-17-003 | §5.6 | CASE_MANAGER MUST record a stated position as the acknowledged position |
 | SYNC-17-004 | §5.6 | CASE_MANAGER MUST replay the entries after a lagging position, rate-bounded |
 | SYNC-17-010 | §5.6 | A position at the tail MUST be answered with nothing |
 | SYNC-17-005 | §5.6 | A position the ledger does not hold MUST be logged and answered with nothing |
-| SYNC-17-006 | §5.6 | A `Read(CaseLedgerEntry)` and its answer MUST NOT be ledgered |
+| SYNC-17-006 | §5.6 | A `Read(<case>/ledger)` and its answer MUST NOT be ledgered |
 | SYNC-17-007 | §5.6, §10 | Reference participant SHOULD state positions after restart |
 | SYNC-17-011 | §5.6, §10 | Reference participant SHOULD support an optional interval, off by default |
 | SYNC-17-008 | §5.6 | Participant SHOULD state its position once a case copy seeds its replica |
@@ -746,7 +746,7 @@ document rather than included inline in the parent RFC. The rationale is
 recorded in ADR-0077: the replication mechanics are technically precise and
 lengthy; including them inline would make the RFC too long and operationally
 focused for its intended audience of external protocol reviewers. The
-Case Hosting capability set's obligation to replicate (`Announce(CaseLedgerEntry)`)
+Case Hosting capability set's obligation to replicate (`Add(CaseLedgerEntry)`)
 is stable and belongs in the RFC regardless of where the mechanics are
 specified; this document supplies the "how."
 
@@ -758,7 +758,7 @@ for the current deployment topology (one Case Actor service per container, manag
 explicitly forward-compatible with a future multi-node Raft cluster without
 requiring changes to the wire format or the participant replication path.
 The two tiers — CaseActor cluster replication and participant replication —
-share the same `Announce(CaseLedgerEntry)` wire format, but serve different
+share the same `Add(CaseLedgerEntry)` wire format, but serve different
 purposes and MUST NOT be conflated. (SYNC-06-005)
 
 ### A.3 Why Hash Chain Rather Than Sequence Numbers

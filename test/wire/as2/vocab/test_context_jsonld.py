@@ -291,11 +291,13 @@ def test_refuse_is_declared_a_subclass_of_reject() -> None:
 
 
 def test_every_declared_supertype_has_one_subclass_statement() -> None:
-    """Each class's ``_as2_core_supertype`` is one ``@graph`` statement.
+    """Each class's supertype declaration is one ``@graph`` statement.
 
-    Enumerated straight from the class declarations, independently of the
-    generator, so a subclass that inherits ``as_Refuse``'s declaration and
-    type (the refusal notice's shape) adds no second statement.
+    A wire class's ``_as2_core_supertype`` and a core class's
+    ``_as2_core_supertype_term`` (``EmbargoEvent``, ADR-0201).  Enumerated
+    straight from the class declarations, independently of the generator, so
+    a subclass that inherits ``as_Refuse``'s declaration and type (the
+    refusal notice's shape) adds no second statement.
     """
     declared = {
         value: _concrete_type_value(supertype)
@@ -303,6 +305,15 @@ def test_every_declared_supertype_has_one_subclass_statement() -> None:
         if (supertype := getattr(cls, "_as2_core_supertype", None))
         and (value := _concrete_type_value(cls)) is not None
     }
+    declared |= {
+        value: term
+        for cls in WIRE_TYPE_MAP.values()
+        if isinstance(
+            term := getattr(cls, "_as2_core_supertype_term", None), str
+        )
+        and (value := _concrete_type_value(cls)) is not None
+    }
+    assert declared["EmbargoEvent"] == "Event"
     graph = build_context_document()["@graph"]
     assert isinstance(graph, list)
 
@@ -491,7 +502,7 @@ def test_the_walk_leaves_out_a_model_that_serializes_as_one_value() -> None:
 @pytest.mark.spec("VM-10-010")
 @pytest.mark.parametrize(
     "term",
-    ["proposedEmbargo", "suggestedRoles", "roles", "logIndex", "kind"],
+    ["proposedEmbargo", "roles", "logIndex", "kind"],
 )
 def test_review_table_terms_are_declared(term: str) -> None:
     """Fields the #6253 review left Vultron terms carry the marker,

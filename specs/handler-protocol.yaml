@@ -947,9 +947,12 @@ groups:
       A tree MUST declare the no-case path only for a message type the inbox
       delivers without its case being known, so every case-scoped type waits at the
       inbox's defer check instead of being refused at the HP-01-035 stage. A
-      report-scoped verdict built with no case for its report is such a type, and
-      its tree declares the no-case path alone, with a sender rule whose
-      `outside_case` side admits no sender.
+      report-scoped verdict is such a type: its tree finds the report's case at
+      run time (BT-25-009), so a receiver that holds none is on the no-case path.
+      A verdict the CASE_MANAGER applies (InvalidateReport) has a sender rule whose
+      `outside_case` side admits no sender there. A refused-entry ledger fault is
+      such a type too: it carries no case (ASK-07-006), and its tree finds the
+      case from the refused entry at run time.
     rationale: >-
       A case-scoped message that arrives before its case is not an error: the inbox
       holds it until the case is known (IO-02-001). Declaring the no-case branch for
@@ -963,12 +966,16 @@ groups:
       `::test_the_type_that_precedes_its_case_declares_the_no_case_branch` asserts
       the Invite tree declares the no-case path and resolves it at an invitee with
       no replica.
-      `test/core/behaviors/test_declared_received_paths.py::test_a_conditional_site_with_no_case_judges_the_outside_case_side`
-      asserts the InvalidateReport tree with no case declares the no-case path
-      alone and composes the empty side, and
+      `test/core/behaviors/test_declared_received_paths.py::test_a_report_verdict_judges_the_outside_case_side_with_no_case`
+      asserts the InvalidateReport tree declares the manager and no-case paths
+      and composes the empty side for the no-case path, and
       `test/core/behaviors/case/test_received_path_stage.py::test_a_no_case_declaration_on_a_run_time_case_must_admit_no_sender`
       asserts the factory refuses that declaration with a side that admits a
       sender.
+      `test/core/behaviors/test_declared_received_paths.py::test_the_declared_paths_are_pinned`
+      pins the two ledger-fault trees to the manager and no-case paths, and
+      `test/core/use_cases/received/test_refused_entry_lookup.py` drives a fault
+      whose entry was found but whose case this store lacks to the empty side.
     relationships:
     - rel_type: depends_on
       spec_id: HP-01-038
@@ -977,6 +984,12 @@ groups:
     see_also:
     - spec_id: HP-01-035
       reason: 'a rationale: the refusal the declaration keeps a case-scoped type from'
+    - spec_id: BT-25-009
+      reason: 'an example: how a report-scoped tree learns its case, which puts a
+        receiver without one on the no-case path'
+    - spec_id: ASK-07-006
+      reason: 'an example: a ledger fault carries no case, so the inbox delivers
+        it without its case being known'
   - id: HP-01-042
     priority: MUST
     kind: architecture
@@ -1053,6 +1066,59 @@ groups:
       spec_id: HP-01-038
     adr:
     - ADR-0153
+  - id: HP-01-044
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A received use case MUST only build its one tree and hand it, with the
+      store, to the received-tree runner. No code under
+      `vultron/core/use_cases/received/` may call the DataLayer, pass it to any
+      callable other than the runner, `super().__init__`, or a function or class
+      defined under that package, or reach `BTBridge`.
+    rationale: >-
+      A value the store holds is found by a lookup node in the tree (BT-25-009), so
+      the tree's shape is the same for every act and the lookup's miss is a node's
+      declared refusal (BT-25-010). A store read in the use case would pick the
+      tree's shape from data and decide a verdict no node declared. The runner is
+      the one place a received run reaches the store and the bridge (ADR-0195).
+    verification: >-
+      `test/architecture/test_received_use_cases_reach_no_store.py::test_no_received_use_case_reaches_the_store_or_the_bridge`
+      scans every module under `vultron/core/use_cases/received/` and fails on a
+      DataLayer call or attribute read, the store passed to any other callable or
+      aliased, and any reference to `BTBridge`; its detector self-tests pin each
+      case on synthetic sources.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-25-009
+    adr:
+    - ADR-0195
+  - id: HP-01-045
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A received use case's refusal MUST come from a door or a node's declared
+      refusal in its tree, never from a reader of the finished run, except a
+      listed reading of a run that has no failing node to declare it.
+    rationale: >-
+      A refusal names its condition and the requirement it cites, and the node
+      that tested the condition is the one that knows both (HP-01-005). A reader
+      that refuses after the run restates a node's condition from outside the
+      tree, where it can drift from what the node checked. The listed readings
+      refuse a run that succeeded, such as a decline arm that records the decline,
+      so no node failed to declare it.
+    verification: >-
+      `test/architecture/test_received_readers_return_no_refusal.py::test_received_readers_return_only_the_listed_refusals`
+      holds every reader refusal under `vultron/core/use_cases/received/` and in
+      the shared readers to an exact list, each with its reason, and
+      `test/architecture/test_received_use_cases_reach_no_store.py` keeps the store
+      out of the use case, so no verdict rests on a fact the tree did not record.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-003
+    - rel_type: depends_on
+      spec_id: HP-01-044
+    adr:
+    - ADR-0195
   - id: HP-01-032
     priority: MUST
     kind: architecture
@@ -1455,8 +1521,9 @@ groups:
     kind: project
     statement: >-
       A received `Add(Note)` or `Add(CaseStatus)` whose object's `context` is not
-      the `Add`'s target case, or names no case, MUST be refused before the
-      commit. The object checked is the one the handler would attach: the record
+      the case the `Add` acts on, or names no case, MUST be refused before the
+      commit. That case is a note `Add`'s `target` and a case status `Add`'s
+      `context` (ADR-0204). The object checked is the one the handler would attach: the record
       stored under the object's id when one is held, else the carried copy.
     rationale: >-
       A note or status belongs to one case. If a handler attached an object of a

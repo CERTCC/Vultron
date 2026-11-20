@@ -8,7 +8,7 @@ producing a 404 at validate-report.
 
 This test is an OBJECTIVE PROBE, not a spec: it models a fresh replica (the
 post-ownership-transfer participant) that processes the replicated ledger
-stream through the canonical ``create_announce_log_entry_tree`` — an ownership
+stream through the canonical ``create_add_log_entry_tree`` — an ownership
 transfer entry followed by the ``add_report_to_case`` entry — and then asserts
 that ``datalayer.read(<report_id>)`` is not None on that replica.
 
@@ -21,7 +21,7 @@ which reconstructs the report from the ``add_report_to_case`` snapshot.  The
 - ``xpassed``  -> #2193 is already fixed by #2187 (report IS replicated).
 
 Harness: SqliteDataLayer in-memory + BTBridge, mirroring
-test_issue_2134_invite_path_report.py and test_announce_tree.py.  NO Docker.
+test_issue_2134_invite_path_report.py and test_add_log_entry_tree.py.  NO Docker.
 """
 
 import uuid
@@ -39,8 +39,8 @@ from test.support.act_runner import run_tree
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -49,7 +49,7 @@ from vultron.core.models.participant_semantic_types import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -84,7 +84,7 @@ def bridge(datalayer):
 
 @pytest.fixture
 def case_actor(datalayer):
-    """The CaseActor that signs the replicated Announce(CaseLedgerEntry)s."""
+    """The CaseActor that signs the replicated Add(CaseLedgerEntry)s."""
     actor = make(
         VultronService,
         name="Case Actor",
@@ -118,6 +118,7 @@ def _ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
         # Accept and carries the case (CLP-07-013, #4439).
         semantic_type=UPDATE_CASE_OWNER_SEMANTIC_TYPE,
         payload_snapshot={
+            "id": "https://example.org/activities/ownership-0",
             "type": "Update",
             "published": "2026-01-01T00:00:00+00:00",
             "object": {
@@ -135,9 +136,9 @@ def _ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
 def _add_report_record(prev_hash: str) -> HashChainLedgerRecord:
     """add_report_to_case entry with the full report embedded in the snapshot.
 
-    Mirrors build_add_report_to_case_snapshot: type=Add, embedded object with
-    the VulnerabilityReport, offerId + offerActorId so the offer-record path is
-    reached and the report-backfill block (#2187) can execute.
+    Mirrors what ``record_report_added_to_case`` seals: type=Add, embedded
+    object with the VulnerabilityReport (which the report-backfill block, #2187,
+    reads) and inReplyTo naming the Offer (#6419), which the node ignores.
     """
     return HashChainLedgerRecord(
         case_id=CASE_ID,
@@ -145,12 +146,12 @@ def _add_report_record(prev_hash: str) -> HashChainLedgerRecord:
         object_id=REPORT_ID,
         semantic_type="add_report_to_case",
         payload_snapshot={
+            "id": REPORT_ID,
             "type": "Add",
             "published": "2026-01-01T00:00:00+00:00",
             "actor": NEW_OWNER_ACTOR_ID,
             "context": CASE_ID,
-            "offerId": OFFER_ID,
-            "offerActorId": REPORTER_ACTOR_ID,
+            "inReplyTo": OFFER_ID,
             "object": {
                 "id": REPORT_ID,
                 "type": "VulnerabilityReport",
@@ -183,8 +184,8 @@ def test_report_replicated_to_post_transfer_participant(
     """
 
     def tree():
-        return create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        return create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         )
 
     # --- Step 1: ownership transfer entry (chains from the genesis anchor).

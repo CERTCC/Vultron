@@ -116,7 +116,7 @@ def test_embargo_event_serializes_vultron_context():
         end_time=days_from_now(45),
     )
     data = json.loads(obj.model_dump_json(exclude_none=True, by_alias=True))
-    assert data["type"] == "EmbargoEvent"
+    assert data["type"] == ["EmbargoEvent", "Event"]
     assert data["@context"] == _DEFAULT_CONTEXT
 
 

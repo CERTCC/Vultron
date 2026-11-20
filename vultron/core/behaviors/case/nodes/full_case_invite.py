@@ -214,7 +214,7 @@ class EmitInviteActorToFullCaseNode(_EmitSingleActivityBase):
     delivery to the invitee is ordered behind them (CM-11-010, ADR-0112).  The
     Invite carries the CASE_MANAGER's ledger tail *before* the Invite's own
     entry is committed: the floor the invitee's reply must reach.  Build →
-    outbox append → commit, as :class:`EmitInviteActorToCaseNode` does
+    outbox append → commit, as the stub Invite emit does
     (ADR-0119).
 
     The participant is asked once per case, so the Invite's id is derived

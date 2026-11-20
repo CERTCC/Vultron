@@ -27,6 +27,8 @@ case but not the context gets the case URI filled in, while an explicit
 
 from typing import Any, TypeVar
 
+from vultron.core.models.preview_object import PreviewObject
+
 # Defined beside the parse-edge check that reads it too (HP-08-015), which
 # the parser imports and so cannot import this package.
 from vultron.wire.as2.context_agreement import case_uri_of
@@ -61,7 +63,11 @@ def case_target_ref(target: _Target) -> _Target | str:
     """
     if target is None or isinstance(target, str):
         return target
-    if not hasattr(target, "case_participants"):
-        return target  # not a case at all
+    if isinstance(target, PreviewObject) or not hasattr(
+        target, "case_participants"
+    ):
+        # Not a case at all: a case's preview carries the case's field names
+        # (ADR-0217) but is not the case.
+        return target
     case_uri = case_uri_of(target)
     return case_uri if case_uri is not None else target

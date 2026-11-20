@@ -251,7 +251,7 @@ DEMOCI-04-008):
   harness locally against it. Each line is a serialized `CaseLedgerEntry`
   (`vultron/core/models/case_ledger_entry.py`), camelCase on the wire.
 - **`<demo>-container-logs-attempt-<N>`** (on failure only): `combined.log` and
-  one log per service. Use a failing entry's `caseId` as the grep anchor.
+  one log per service. Use a failing entry's `context` (its case) as the grep anchor.
 
 CI runs the containers at `VULTRON_SERVER__LOG_LEVEL=DEBUG`, so the logs include
 the Layer 2 line, tracebacks and state transitions.
@@ -349,7 +349,7 @@ receiver_engages_case(...)
 
 ### Demo Devlog Race: Wait for Replica Before Dumping
 
-A devlog dump misses entries still in `Announce(CaseLedgerEntry)` fan-out. After
+A devlog dump misses entries still in `Add(CaseLedgerEntry)` fan-out. After
 any phase that commits a new canonical entry, wait for the replicas before the
 dump:
 

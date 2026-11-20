@@ -144,7 +144,7 @@ def test_commits_a_canonical_entry_and_returns_its_identity(actor_and_dl):
     assert result.emitting_actor_id == actor.id_
     entry = dl.read(result.log_entry_id)
     assert isinstance(entry, CaseLedgerEntry)
-    assert entry.case_id == case.id_
+    assert entry.context == case.id_
     assert entry.semantic_type == "announce_vulnerability_case"
     assert registry_label(entry.payload_snapshot) == entry.semantic_type
     assert entry.entry_hash == result.entry_hash
@@ -168,7 +168,7 @@ def test_fans_the_entry_out_to_the_peer_participant(actor_and_dl):
     )
 
     new_ids = set(dl.outbox_list()) - before
-    assert new_ids, "the commit must queue an Announce(CaseLedgerEntry)"
+    assert new_ids, "the commit must queue an Add(CaseLedgerEntry)"
     recipients = {
         recipient
         for activity_id in new_ids
@@ -179,7 +179,7 @@ def test_fans_the_entry_out_to_the_peer_participant(actor_and_dl):
 
 @pytest.mark.spec("VM-08-003")
 def test_requires_a_trigger_activity_port():
-    """The entry is the factory-built Announce's sealed blob (#3743)."""
+    """The entry is the factory-built Add's sealed blob (#3743)."""
     assert SvcSyncLogEntryUseCase._requires_trigger_activity is True
 
 
@@ -209,7 +209,7 @@ def test_the_entry_is_the_case_managers_factory_built_announce(actor_and_dl):
 
 
 def test_a_repeated_request_commits_one_entry(actor_and_dl):
-    """The Announce's id is derived from the request (ID-04-004)."""
+    """The Add's id is derived from the request (ID-04-004)."""
     actor, dl = actor_and_dl
     case = _seed_case(dl, actor.id_)
     request = SyncLogEntryTriggerRequest(

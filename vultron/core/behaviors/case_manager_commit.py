@@ -42,8 +42,15 @@ from collections.abc import Callable
 from typing import cast
 
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
-from vultron.core.behaviors.case_id_scope import require_case_source
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+    optional_act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID
 from vultron.core.behaviors.helpers import (
     TRIGGER_FACTORY_UNAVAILABLE,
 )
@@ -73,10 +80,10 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     that base's ``update()``, this one catches nothing (see the module
     docstring).
 
-    *case_id* is the case the act is about, or ``None`` for a subclass that
-    declares a ``/case_id`` port and overrides :meth:`_act_case_id` to read
-    it (BTND-01-008); #6572 moves every subclass to the key and removes the
-    parameter.
+    The case the act is about is read from ``/case_id`` (BTND-01-008),
+    through :meth:`_act_case_id`; a tree that names it at build time seeds
+    the port with
+    :func:`~vultron.core.behaviors.case_id_scope.with_case_id`.
     """
 
     #: Whether the commit refuses a gapped local ledger prefix
@@ -84,20 +91,26 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     #: .create_commit_log_entry_tree`.
     _CHECK_LEDGER_FRESHNESS: bool = True
 
-    #: The case the act is about.
-    _case_id: str
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_EmitSingleActivityBase.INPUT_PORTS,
+        **act_key_ports(CASE_ID),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            **super()._domain_port_remappings(),
+            **act_key_remappings(CASE_ID),
+        }
 
     def __init__(
         self,
-        case_id: str | None,
         semantic_type: str,
         notify_participants: bool = False,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        require_case_source(self, given=case_id is not None)
-        if case_id is not None:
-            self._case_id = case_id
+        self._case_id: str | None = None
         self._semantic_type = semantic_type
         self._notify_participants = notify_participants
         #: The ids of the activities the last :meth:`update` committed.
@@ -107,13 +120,22 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         """Return ``(activity_id, sealed_blob)`` for an activity sent *to*."""
         raise NotImplementedError
 
-    def _act_case_id(self) -> str:
-        """The case the act is about: the constructor's, by default.
+    def initialise(self) -> None:
+        super().initialise()
+        # Kept on the node: a subclass with no case to act on (a lenient
+        # diagnostic) reads its absence and commits nothing.
+        self._case_id = optional_act_value(self, CASE_ID, str)
 
-        A subclass that reads its case from ``/case_id`` (BTND-01-008)
-        overrides this; #6572 moves the base there and drops the parameter.
+    def _act_case_id(self) -> str:
+        """The case the act is about, read from ``/case_id`` (BTND-01-008).
+
+        Raises:
+            VultronWiringError: Nothing seeded or published ``/case_id`` for
+                this node (BT-25-008).
         """
-        return self._case_id
+        if self._case_id is not None:
+            return self._case_id
+        return act_value(self, CASE_ID, str)
 
     def _audience_case(self, case: VulnerabilityCase) -> VulnerabilityCase:
         """The case whose recipients the activity is addressed to.

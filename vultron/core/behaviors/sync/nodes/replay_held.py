@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Replay the held ``Announce`` of the chain tail's successor (SYNC-14-009)."""
+"""Replay the held ``Add`` of the chain tail's successor (SYNC-14-009)."""
 
 from __future__ import annotations
 
@@ -48,21 +48,21 @@ INBOX_REPLAY_KEY = "inbox_replay"
 
 
 class ReplayHeldSuccessorNode(DataLayerActionWithPorts):
-    """Replay the held ``Announce`` whose entry extends the local chain tail.
+    """Replay the held ``Add`` whose entry extends the local chain tail.
 
     Runs after the tree has committed a ledger entry (or found it stored, or
     seeded the case, which anchors the genesis hash).  If this actor holds
-    the ``Announce(CaseLedgerEntry)`` whose entry's ``prev_log_hash`` is the
+    the ``Add(CaseLedgerEntry)`` whose entry's ``prev_log_hash`` is the
     new tail, the node asks the
     :class:`~vultron.core.ports.inbox_replay.InboxReplayPort` to replay that
-    ``Announce``, the one that was received, through this actor's inbox as a
+    ``Add``, the one that was received, through this actor's inbox as a
     delivery of its own (SYNC-14-009, ADR-0135).  It does not run the
     successor's tree: that delivery's own tree replays the next one, so the
     cascade (SYNC-14-003, SYNC-15-005) needs no loop.
 
     The node looks before it takes: the index row is dropped only after the
     port has queued the replay, in the same transaction, so a wiring fault
-    or a failed release leaves the ``Announce`` held and unqueued.
+    or a failed release leaves the ``Add`` held and unqueued.
 
     Outcomes:
 
@@ -75,7 +75,7 @@ class ReplayHeldSuccessorNode(DataLayerActionWithPorts):
       is a composition fault, never a reason to apply the entry inline.
     - Otherwise: queues the replay, drops the index row, ``SUCCESS``.
 
-    The case whose held ``Announce``\\ s it looks in is ``/case_id`` when the
+    The case whose held ``Add``\\ s it looks in is ``/case_id`` when the
     run holds one (a seed or an earlier node's write), else the case of the
     ``CaseLedgerEntry`` carried by ``/activity``.
 
@@ -132,10 +132,10 @@ class ReplayHeldSuccessorNode(DataLayerActionWithPorts):
         if not holds_held_body(self.datalayer, successor):
             # An index row whose body is gone can never replay; dropping it
             # keeps the case's drain moving, and the Reject sent when the
-            # Announce was held still recovers the entry (SYNC-14-002).
+            # Add was held still recovers the entry (SYNC-14-002).
             release_held(self.datalayer, successor)
             self.logger.warning(
-                "%s: held Announce '%s' of ledger entry '%s' (case '%s',"
+                "%s: held Add '%s' of ledger entry '%s' (case '%s',"
                 " actor '%s') has no held body; dropped its index row, the"
                 " CASE_MANAGER's replay recovers the entry (SYNC-14-002)",
                 self.name,
@@ -148,17 +148,17 @@ class ReplayHeldSuccessorNode(DataLayerActionWithPorts):
         if self._replay is None:
             raise VultronWiringError(
                 f"{self.name}: {INBOX_REPLAY_KEY} must be injected to replay"
-                f" the held Announce '{successor.activity_id}' of ledger"
+                f" the held Add '{successor.activity_id}' of ledger"
                 f" entry '{successor.entry_id}' (SYNC-14-009)"
             )
         # One transaction: a release that fails also un-queues the replay,
-        # so the Announce stays held rather than leaving an index row keyed
+        # so the Add stays held rather than leaving an index row keyed
         # on a tail the replay has already moved past (SYNC-14-006).
         with self.datalayer.transaction():
             self._replay.replay_held(successor.activity_id)
             release_held(self.datalayer, successor)
         self.logger.info(
-            "%s: replaying held Announce '%s' of ledger entry '%s'"
+            "%s: replaying held Add '%s' of ledger entry '%s'"
             " (log_index=%d) for case '%s' through actor '%s' inbox",
             self.name,
             successor.activity_id,

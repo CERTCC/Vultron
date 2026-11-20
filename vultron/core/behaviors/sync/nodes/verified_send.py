@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The one place the CASE_MANAGER sends an ``Announce(CaseLedgerEntry)``.
+"""The one place the CASE_MANAGER sends an ``Add(CaseLedgerEntry)``.
 
 Every send path (the fan-out of a new entry, the ``Reject`` and ``Read``
 replays, the embargo backfill and the join-time backfill) queues an entry
@@ -24,8 +24,8 @@ an entry that states no hash or whose content does not reproduce it
 (SYNC-03-009).  A broken entry in the CASE_MANAGER's own store is then found
 where it starts, not after a replica refuses it.
 
-No other code in ``vultron/core/`` calls ``send_announce_log_entry``
-(``test/architecture/test_send_announce_log_entry_has_one_caller.py``), so no
+No other code in ``vultron/core/`` calls ``send_add_log_entry``
+(``test/architecture/test_send_add_log_entry_has_one_caller.py``), so no
 send path can skip the check.
 """
 
@@ -52,7 +52,7 @@ def check_log_entry_verifies(
     """
     if not ledger_entry_hash_intact(entry):
         raise VultronUnverifiedLedgerEntryError(
-            case_id=entry.case_id,
+            case_id=entry.context,
             entry_id=entry.id_,
             log_index=entry.log_index,
             recipients=recipients,
@@ -67,10 +67,10 @@ def send_verified_log_entry(
     to: list[str],
     at: datetime,
 ) -> bool:
-    """Queue ``Announce(entry)`` to *to* once *entry*'s hash verifies.
+    """Queue ``Add(entry)`` to *to* once *entry*'s hash verifies.
 
-    Returns what ``SyncActivityPort.send_announce_log_entry`` returns:
-    ``True`` when a row was queued, ``False`` when the same ``Announce`` was
+    Returns what ``SyncActivityPort.send_add_log_entry`` returns:
+    ``True`` when a row was queued, ``False`` when the same ``Add`` was
     already pending and nothing was queued (SYNC-15-012).
 
     Raises:
@@ -80,6 +80,6 @@ def send_verified_log_entry(
             (SYNC-03-009).
     """
     check_log_entry_verifies(entry, to)
-    return sync_port.send_announce_log_entry(
+    return sync_port.send_add_log_entry(
         entry=entry, actor_id=actor_id, to=to, at=at
     )

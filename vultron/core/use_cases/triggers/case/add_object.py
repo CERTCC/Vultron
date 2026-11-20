@@ -53,14 +53,14 @@ class SvcAddObjectToCaseUseCase(SvcActivityTriggerBase):
     Before anything is built, the ``Add`` is classified the way a receiver
     would classify it.  An object type no receive-side pattern routes as an
     addition to the case, or one with its own flow (``EmbargoEvent``,
-    ``CaseParticipant``, ``CaseStatus``), is refused with
+    an actor, ``CaseStatus``), is refused with
     ``VultronValidationError`` (422) and nothing is queued (TRIG-10-001).
     A case with no CASE_MANAGER fails the same way, also before the outbox
     is written.
 
     After queueing, the ``Add`` is recorded in the actor's pending-assertion
     store under its semantics, the semantic type the CASE_MANAGER commits; the
-    matching ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-002,
+    matching ``Add(CaseLedgerEntry)`` clears it (SYNC-11-002,
     SYNC-11-003).  Adding the same object to the same case again while that
     assertion is pending is suppressed before the tree runs and reported with
     no activity (:meth:`_suppressed_duplicate`).

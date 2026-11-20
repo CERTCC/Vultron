@@ -17,7 +17,7 @@ Each actor has its own store (TB-06-007).  The CASE_MANAGER abandons every
 open proposal, committing its ``Reject`` of each proposal it received (or its
 ``Undo`` of one it sent itself) and an ``Undo`` of each Invite it relayed for
 it (ADR-0152); a participant that receives nothing but the
-``Announce(CaseLedgerEntry)`` fan-out drops each proposal and reaches EM
+``Add(CaseLedgerEntry)`` fan-out drops each proposal and reaches EM
 ``NONE`` with the last (EP-09-007, RSH-08-004).
 """
 

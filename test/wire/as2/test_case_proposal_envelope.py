@@ -47,8 +47,7 @@ def _policy(actor_id: str) -> dict[str, Any]:
         "type": "EmbargoPolicy",
         "published": _PUBLISHED,
         "id": f"{actor_id}/embargo-policy",
-        "actorId": actor_id,
-        "inbox": f"{actor_id}/inbox",
+        "attributedTo": actor_id,
         "preferredDuration": "P45D",
     }
 
@@ -154,7 +153,9 @@ def test_a_profile_that_is_not_the_proposers_is_refused():
 @pytest.mark.spec("CP-01-010")
 @pytest.mark.spec("EP-01-001")
 def test_a_profile_carrying_another_actors_policy_is_refused():
-    with pytest.raises(VultronParseValidationError, match="actorId"):
+    with pytest.raises(
+        VultronParseValidationError, match=r"embargoPolicy\.attributedTo"
+    ):
         parse_activity(_body(_profile(policy_of=_OTHER)))
 
 
@@ -182,7 +183,7 @@ def test_the_extractor_hands_the_inline_profile_to_core():
     assert isinstance(profile, CoreActor)
     assert profile.id_ == _VENDOR
     assert profile.embargo_policy is not None
-    assert profile.embargo_policy.actor_id == _VENDOR
+    assert profile.embargo_policy.attributed_to == _VENDOR
 
 
 def _proposal(attributed_to: str = _VENDOR) -> as_CaseProposal:
@@ -202,8 +203,7 @@ def test_the_factory_carries_the_senders_profile_inline():
         id_=_VENDOR,
         embargo_policy=make(
             EmbargoPolicy,
-            actor_id=_VENDOR,
-            inbox=f"{_VENDOR}/inbox",
+            attributed_to=_VENDOR,
             preferred_duration=timedelta(days=30),
         ),
     )

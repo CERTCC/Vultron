@@ -278,9 +278,9 @@ def test_dead_letter_ledger_entry_id_defaults_to_none(alice_dl):
 
 @pytest.mark.spec("OX-14-001", "OX-14-002")
 def test_resolve_ledger_entry_id_reads_inline_object_from_sqlite(alice_dl):
-    """_resolve_ledger_entry_id extracts the entry ID from a stored Announce(CaseLedgerEntry).
+    """_resolve_ledger_entry_id extracts the entry ID from a stored Add(CaseLedgerEntry).
 
-    AC-7 (seam): verifies that a real Announce(CaseLedgerEntry) activity sealed
+    AC-7 (seam): verifies that a real Add(CaseLedgerEntry) activity sealed
     into SqliteDataLayer, as the sync adapter seals it, carries its inline
     CaseLedgerEntry with an accessible id.  The CaseLedgerEntry is committed
     (saved) before the Announce is queued — the emit-after-commit invariant
@@ -291,22 +291,23 @@ def test_resolve_ledger_entry_id_reads_inline_object_from_sqlite(alice_dl):
         _resolve_ledger_entry_id,
     )
     from vultron.adapters.outbox_sealed_body import seal_outbound_body
-    from vultron.wire.as2.factories import announce_log_entry_activity
+    from vultron.wire.as2.factories import add_log_entry_activity
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         as_CaseLedgerEntry,
     )
 
     wire_entry = make(
         as_CaseLedgerEntry,
-        case_id="urn:case:seam-test",
+        context="urn:case:seam-test",
         log_index=0,
         log_object_id="urn:activity:seam-object",
         semantic_type="SeamTest",
+        payload_snapshot={"id": "urn:activity:seam-object"},
         received_at=ACT_AT,
         published=ACT_AT,
     )
     ledger_entry_id = wire_entry.id_
-    announce = announce_log_entry_activity(
+    announce = add_log_entry_activity(
         entry=wire_entry,
         actor=_ALICE,
         to=[_BOB],

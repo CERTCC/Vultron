@@ -20,7 +20,7 @@ Covers CM-23-002 (owner Leave) and CM-23-003 (non-owner Leave) across:
 1. The Case Actor's direct receive path (``create_close_case_received_tree``),
    which commits ``close_case`` and then one status entry per RM step it
    writes for each closing actor (CM-23-022, CM-23-002, CM-23-033).
-2. The replica path: the announce tree applies those status entries, and the
+2. The replica path: the add-log-entry tree applies those status entries, and the
    ``close_case`` entry alone changes no RM state (CM-23-024, CM-23-023).
 """
 
@@ -64,8 +64,8 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.config.actor import ActorConfig, PostCloseReply
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.received_run import runner as received_runner
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from vultron.core.behaviors.sync.add_log_entry_tree import (
+    create_add_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.activity import VultronActivity
@@ -81,7 +81,7 @@ from vultron.core.models.embargo_consent_semantic_types import (
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.refusal_wording import carries_refusal_group
 from vultron.core.models.use_case_result import (
@@ -104,11 +104,11 @@ from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import add_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
@@ -277,10 +277,10 @@ def _participant_id_for(dl: SqliteDataLayer, actor_id: str) -> str:
 def _announced(
     sync_mock: MagicMock,
 ) -> list[tuple[CaseLedgerEntry, list[str]]]:
-    """``(entry, to)`` for each ``send_announce_log_entry`` call, in order."""
+    """``(entry, to)`` for each ``send_add_log_entry`` call, in order."""
     return [
         (c.kwargs["entry"], list(c.kwargs["to"]))
-        for c in sync_mock.send_announce_log_entry.call_args_list
+        for c in sync_mock.send_add_log_entry.call_args_list
     ]
 
 
@@ -338,7 +338,7 @@ def _case_ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
         (
             e
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
+            if isinstance(e, CaseLedgerEntry) and e.context == CASE_ID
         ),
         key=lambda e: e.log_index,
     )
@@ -406,7 +406,7 @@ class TestOwnerLeaveReceivePath:
         """Owner Leave: the remaining non-leaving vendor participant is NOT changed.
 
         The Case Actor only closes the owner + itself in the receive path.
-        Non-leaving participants learn via Announce(CaseLedgerEntry) fan-out.
+        Non-leaving participants learn via Add(CaseLedgerEntry) fan-out.
         """
         dl = _make_full_dl()
         run_in_act(
@@ -486,7 +486,7 @@ class TestOwnerLeaveReceivePath:
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and getattr(e, "case_id", None) == CASE_ID
+            and getattr(e, "context", None) == CASE_ID
             and getattr(e, "semantic_type", None)
             == "add_participant_status_to_participant"
         ]
@@ -1125,6 +1125,7 @@ class TestOwnerCloseSettlesPendingInvites:
                     object_id=invite,
                     semantic_type=semantic_type,
                     payload_snapshot={
+                        "id": invite,
                         "type": "Invite",
                         "actor": CASE_ACTOR_ID,
                         "to": [to],
@@ -1153,7 +1154,7 @@ class TestOwnerCloseSettlesPendingInvites:
 
     @pytest.mark.spec("CM-23-014")
     def test_a_replica_applies_the_settled_expiry(self):
-        """The settle entry replays on a replica through the announce tree (AC-2)."""
+        """A replica replays the settle entry via the add-log-entry tree (AC-2)."""
         manager = _make_full_dl()
         embargo_id = _seed_pending_invite(manager)
         _close(manager, OWNER_ID, "https://example.org/activities/leave-owner")
@@ -1172,7 +1173,10 @@ class TestOwnerCloseSettlesPendingInvites:
                     log_index=log_index,
                     object_id=source.log_object_id,
                     semantic_type=source.semantic_type,
-                    payload_snapshot=source.payload_snapshot,
+                    payload_snapshot={
+                        "id": source.log_object_id,
+                        **source.payload_snapshot,
+                    },
                     prev_log_hash=prev_hash,
                     received_at=ACT_AT,
                 )
@@ -1182,8 +1186,8 @@ class TestOwnerCloseSettlesPendingInvites:
                 BTBridge(
                     datalayer=replica, wire_render_port=As2WireRenderAdapter()
                 ),
-                tree=create_announce_log_entry_tree(
-                    sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+                tree=create_add_log_entry_tree(
+                    sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
                 ),
                 actor_id=VENDOR_ID,
                 activity=_make_announce_event(
@@ -1458,17 +1462,17 @@ class TestPostCloseWriteBoundary:
         )
         announced = [
             c.kwargs.get("entry") or c.args[0]
-            for c in sync.send_announce_log_entry.call_args_list
+            for c in sync.send_add_log_entry.call_args_list
         ]
         assert any(_is_boundary(e) for e in announced), announced
-        calls_at_close = sync.send_announce_log_entry.call_count
+        calls_at_close = sync.send_add_log_entry.call_count
 
         result = _add_note(
             dl, "https://example.org/notes/after-announce", sync_port=sync
         )
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert sync.send_announce_log_entry.call_count == calls_at_close
+        assert sync.send_add_log_entry.call_count == calls_at_close
 
     @pytest.mark.spec("CM-23-013")
     def test_a_replica_still_processes_after_close(self):
@@ -1522,7 +1526,7 @@ class TestPostCloseWriteBoundary:
         )
         activity = add_status_to_participant_activity(
             status,
-            target=participant,
+            participant=participant,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
             context=make(
@@ -1595,7 +1599,7 @@ class TestPostCloseWriteBoundary:
 
 
 # ---------------------------------------------------------------------------
-# Replica path: the announce tree applies the closure step entries
+# Replica path: the add-log-entry tree applies the closure step entries
 # ---------------------------------------------------------------------------
 
 
@@ -1616,7 +1620,10 @@ def _make_close_case_ledger_entry(
             log_index=0,
             object_id="https://example.org/activities/leave-for-fanout",
             semantic_type="close_case",
-            payload_snapshot={"actor": departing_actor_id},
+            payload_snapshot={
+                "id": "https://example.org/activities/leave-for-fanout",
+                "actor": departing_actor_id,
+            },
             prev_log_hash=genesis_hash,
             received_at=ACT_AT,
         )
@@ -1627,18 +1634,18 @@ def _make_announce_event(
     entry: CaseLedgerEntry,
     sender_actor_id: str,
     receiver_id: str = VENDOR_ID,
-) -> AnnounceLogEntryReceivedEvent:
+) -> AddLogEntryReceivedEvent:
 
     wire_entry = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
-    activity = announce_log_entry_activity(
+    activity = add_log_entry_activity(
         entry=wire_entry,
         actor=sender_actor_id,
         to=[receiver_id],
         at=authored_at(),
     )
-    return cast(AnnounceLogEntryReceivedEvent, received_event(activity))
+    return cast(AddLogEntryReceivedEvent, received_event(activity))
 
 
 def _replica_of(manager: SqliteDataLayer, actor_id: str = VENDOR_ID):
@@ -1661,19 +1668,19 @@ def _replica_of(manager: SqliteDataLayer, actor_id: str = VENDOR_ID):
 
 
 def _replay(manager: SqliteDataLayer, replica: SqliteDataLayer) -> None:
-    """Announce every entry of *manager*'s ledger to *replica*, in order."""
+    """Deliver every entry of *manager*'s ledger to *replica* as an Add, in order."""
     _deliver(replica, _case_ledger(manager))
 
 
 def _deliver(replica: SqliteDataLayer, entries) -> None:
-    """Announce each of *entries* to *replica*, in order."""
+    """Deliver each of *entries* to *replica* as an Add, in order."""
     for entry in entries:
         result = run_tree(
             BTBridge(
                 datalayer=replica, wire_render_port=As2WireRenderAdapter()
             ),
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=replica.actor_id,
             activity=_make_announce_event(
@@ -1825,7 +1832,7 @@ class TestLeaveCommitsEachClosureStep:
 
         sent_to_leaver = {
             call.kwargs["entry"].log_object_id
-            for call in sync_port.send_announce_log_entry.call_args_list
+            for call in sync_port.send_add_log_entry.call_args_list
             if call.kwargs["to"] == [leaver_id]
         }
         steps = _ledger_rm_steps(dl, leaver_id)
@@ -2207,8 +2214,8 @@ class TestReplicaAppliesTheClosureSteps:
 
         run_tree(
             BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter()),
-            tree=create_announce_log_entry_tree(
-                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            tree=create_add_log_entry_tree(
+                sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
             ),
             actor_id=VENDOR_ID,
             activity=_make_announce_event(
@@ -2300,8 +2307,8 @@ class TestReplicaAppliesTheClosureSteps:
                         datalayer=replica,
                         wire_render_port=As2WireRenderAdapter(),
                     ),
-                    tree=create_announce_log_entry_tree(
-                        sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+                    tree=create_add_log_entry_tree(
+                        sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
                     ),
                     actor_id=VENDOR_ID,
                     activity=_make_announce_event(
@@ -2540,8 +2547,8 @@ class TestClosureRMBoundary:
             entry=entry, sender_actor_id=CASE_ACTOR_ID
         )
 
-        tree = create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        tree = create_add_log_entry_tree(
+            sender_rule=AddLedgerEntryReceivedUseCase.sender_entitlement
         )
         run_tree(
             BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter()),
@@ -2970,7 +2977,7 @@ def _case_actor_rm_entry_states(dl: SqliteDataLayer) -> list[RM]:
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and e.case_id == CASE_ID
+            and e.context == CASE_ID
             and e.semantic_type == "add_participant_status_to_participant"
             and (e.payload_snapshot or {})
             .get("object", {})
@@ -2994,7 +3001,7 @@ def _case_actor_rm_closed_entries(dl: SqliteDataLayer) -> list:
         e
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
-        and getattr(e, "case_id", None) == CASE_ID
+        and getattr(e, "context", None) == CASE_ID
         and getattr(e, "semantic_type", None)
         == "add_participant_status_to_participant"
         and (e.payload_snapshot or {}).get("object", {}).get("attributedTo")

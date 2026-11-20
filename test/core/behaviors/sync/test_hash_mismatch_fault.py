@@ -52,7 +52,7 @@ from vultron.core.models.case_ledger import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -64,7 +64,7 @@ from vultron.core.use_cases.received.fault import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    announce_log_entry_activity,
+    add_log_entry_activity,
     create_processing_fault_activity,
 )
 from vultron.wire.as2.parser import parse_activity
@@ -138,17 +138,23 @@ def _ledger_entry(genesis_hash: str) -> CaseLedgerEntry:
     ledger.append(
         object_id=f"{_CASE_ID}/notes/0",
         semantic_type="add_note_to_case",
-        payload_snapshot={"type": "Add", "index": 0},
+        payload_snapshot={
+            "id": f"{_CASE_ID}/notes/0",
+            "type": "Add",
+            "index": 0,
+        },
         at=ACT_AT,
     )
     return ledger.entries[0].to_ledger_entry()
 
 
-def _tampered_announce(dl: SqliteDataLayer) -> AnnounceLogEntryReceivedEvent:
+def _tampered_announce(dl: SqliteDataLayer) -> AddLogEntryReceivedEvent:
     """The CASE_MANAGER's announce of an entry its content does not hash to."""
     case = cast(as_VulnerabilityCase, dl.read(_CASE_ID))
     entry = _ledger_entry(case.genesis_hash)
-    tampered = entry.model_copy(update={"payload_snapshot": {"tampered": 1}})
+    tampered = entry.model_copy(
+        update={"payload_snapshot": {**entry.payload_snapshot, "tampered": 1}}
+    )
     assert not ledger_entry_hash_intact(tampered)
     return ledger_announce_event(
         tampered, actor=_CASE_ACTOR_ID, to=_PARTICIPANT_ID
@@ -164,7 +170,7 @@ def test_a_hash_refusal_queues_a_fault_to_the_case_manager_only(
     """The replica refuses the entry and tells the CASE_MANAGER, and no one else.
 
     The fault names the refused ``Announce`` by reference, its id derives
-    from that ``Announce`` and the class, and the entry is neither stored nor
+    from that ``Add`` and the class, and the entry is neither stored nor
     held.  The refusal is still logged at ERROR.
     """
     dl = _replica()
@@ -245,11 +251,11 @@ def _manager(
     *, receiver_is_manager: bool = True
 ) -> tuple[SqliteDataLayer, CaseLedgerEntry, str]:
     """The CASE_MANAGER's store: its case, an active participant, a stored
-    ledger entry and the ``Announce`` of it the CASE_MANAGER sent.
+    ledger entry and the ``Add`` of it the CASE_MANAGER sent.
 
     With *receiver_is_manager* false, the store's actor holds only a
     participant's role, and another actor manages the case.  Returns the
-    store, the entry and the ``Announce``'s id.
+    store, the entry and the ``Add``'s id.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     case = make(
@@ -269,7 +275,7 @@ def _manager(
     dl.create(case)
     entry = _ledger_entry(case.genesis_hash)
     dl.save(entry)
-    announce = announce_log_entry_activity(
+    announce = add_log_entry_activity(
         entry=ledger_entry_to_wire(entry),
         actor=_CASE_ACTOR_ID,
         to=[_PARTICIPANT_ID],
@@ -363,7 +369,7 @@ def test_hash_mismatch_fault_from_an_active_participant_changes_nothing() -> (
 
 @pytest.mark.spec("SYNC-03-008")
 def test_hash_mismatch_fault_naming_no_announce_sent_is_refused() -> None:
-    """A fault naming no ``Announce(CaseLedgerEntry)`` this actor sent names
+    """A fault naming no ``Add(CaseLedgerEntry)`` this actor sent names
     no case, so it is refused with nothing sent (ASK-07-004)."""
     dl, _, _ = _manager()
 
@@ -375,7 +381,13 @@ def test_hash_mismatch_fault_naming_no_announce_sent_is_refused() -> None:
 
 
 def _break_own_copy(dl: SqliteDataLayer, entry: CaseLedgerEntry) -> None:
-    dl.save(entry.model_copy(update={"payload_snapshot": {"tampered": 1}}))
+    dl.save(
+        entry.model_copy(
+            update={
+                "payload_snapshot": {**entry.payload_snapshot, "tampered": 1}
+            }
+        )
+    )
 
 
 def _drop_own_copy(dl: SqliteDataLayer, entry: CaseLedgerEntry) -> None:
@@ -408,7 +420,7 @@ def test_hash_mismatch_fault_from_an_active_participant_is_logged_at_error(
     expected: OwnCopyCheck,
     says: str,
 ) -> None:
-    """One ERROR record names the case, the ``Announce``, the entry, the
+    """One ERROR record names the case, the ``Add``, the entry, the
     sender and what the self-check of the CASE_MANAGER's own copy found."""
     dl, entry, announce_id = _manager()
     if damage is not None:
@@ -458,8 +470,8 @@ def test_a_hash_mismatch_fault_at_a_participant_is_refused(caplog) -> None:
 
 @pytest.mark.spec("SYNC-03-008")
 def test_a_hash_mismatch_fault_naming_no_announce_is_refused(caplog) -> None:
-    """A fault with no ``inReplyTo`` names no case: it is only archived and
-    refused, with no report and no self-check."""
+    """A fault with no ``inReplyTo`` names no case: the tree's miss guard
+    refuses it (BT-25-010), with no report and no self-check."""
     dl, _, _ = _manager()
 
     with caplog.at_level(logging.ERROR, logger="vultron"):

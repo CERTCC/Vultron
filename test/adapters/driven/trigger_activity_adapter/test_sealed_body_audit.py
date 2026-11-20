@@ -66,7 +66,10 @@ from vultron.core.models.fault_classes import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.type_terms import names_type
-from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItem,
+    VulnerabilityItemId,
+)
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
@@ -442,7 +445,6 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_CASE_ACTOR,
         offer_id=w.offer_id(holder=_CASE_ACTOR),
-        offer_actor_id=_PEER,
         at=authored_at(),
     ),
     "record_participant_status_added": lambda w: w.adapter_as(
@@ -507,7 +509,9 @@ RECIPES: dict[str, Recipe] = {
     "record_vulnerability_item_added": lambda w: w.adapter_as(
         _CASE_ACTOR
     ).record_vulnerability_item_added(
-        item=make(VulnerabilityItem, cve="CVE-2026-0001"),
+        item=make(
+            VulnerabilityItem, ids=[VulnerabilityItemId.cve("CVE-2026-0001")]
+        ),
         case_id=w.case_id,
         actor=_CASE_ACTOR,
         at=authored_at(),
@@ -750,22 +754,27 @@ RECIPES: dict[str, Recipe] = {
             at=authored_at(),
         )
     ),
-    "add_participant_to_case": lambda w: w.adapter.add_participant_to_case(
-        participant_id=str(w.participant.id_),
+    "remove_participant": lambda w: w.adapter.remove_participant(
+        removed_id=_PEER,
+        case_id=w.case_id,
+        actor=_ACTOR,
+        to=[_CASE_ACTOR],
+        at=authored_at(),
+    ),
+    "reinstate_participant": lambda w: w.adapter.reinstate_participant(
+        reinstated_id=_PEER,
+        case_id=w.case_id,
+        actor=_ACTOR,
+        to=[_CASE_ACTOR],
+        at=authored_at(),
+    ),
+    "announce_admitted_act": lambda w: w.adapter.announce_admitted_act(
+        admitted_act_id=w.recommendation_id(),
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
+        id_="urn:uuid:4a3b2c1d-0000-5000-8000-00000000a0a0",
         at=authored_at(),
-    ),
-    "remove_participant_from_case": lambda w: (
-        w.adapter.remove_participant_from_case(
-            participant_id=str(w.participant.id_),
-            case_id=w.case_id,
-            actor=_ACTOR,
-            attributed_to=_PEER,
-            to=[_PEER],
-            at=authored_at(),
-        )
     ),
     "add_participant_status_to_participant": lambda w: w.adapter_as(
         _PEER
@@ -1008,7 +1017,9 @@ def test_invite_roles_survive_into_the_sealed_body(world):
 
 
 @pytest.mark.spec("CM-16-003")
-def test_suggested_roles_survive_into_the_sealed_body(world):
+def test_recommended_roles_survive_into_the_sealed_body(world):
+    """The recommend-actor Offer carries its roles under the one ``roles``
+    wire name an Invite uses, not a second name (VM-10-012, #6417)."""
     _, blob = world.adapter_as(_PEER).suggest_actor_to_case(
         recommended_id=_PEER,
         case_id=world.case_id,
@@ -1017,7 +1028,9 @@ def test_suggested_roles_survive_into_the_sealed_body(world):
         roles=["deployer"],
         at=authored_at(),
     )
-    assert json.loads(blob)["suggestedRoles"] == ["deployer"]
+    body = json.loads(blob)
+    assert body["roles"] == ["deployer"]
+    assert "suggestedRoles" not in body
 
 
 #: Where each role-delegation recipe carries the delegate actor in its sealed

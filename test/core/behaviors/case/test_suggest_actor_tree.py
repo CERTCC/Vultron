@@ -27,6 +27,7 @@ ADR-0026/CM-16.
 
 import json
 import logging
+from types import SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -45,7 +46,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
-    EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
 from vultron.core.behaviors.case.nodes.addressee import (
@@ -53,17 +53,19 @@ from vultron.core.behaviors.case.nodes.addressee import (
 )
 from vultron.core.behaviors.case.nodes.invite_actor_emit import (
     INVITE_ID_KIND,
+    _StubInviteEmitBase,
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
-    CreateInertInviteeParticipantNode,
+    _SeatInertInviteeBase,
     validated_invitee_roles,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
-from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
-    ReinviteAwaitingNode,
-    ReinviteNotToClosedParticipantNode,
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    EmitOwnerDecidedStubInviteNode,
+    InviteeAwaitsReplyNode,
+    RecommenderIsNotCaseOwnerNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     AcceptedInviteeIsNotRemovedNode,
@@ -93,7 +95,6 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_reject_actor_recommendation_received_tree,
 )
 from vultron.core.behaviors.case_id_scope import unscoped
-from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
@@ -114,6 +115,7 @@ from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronWiringError
 
 _REC_ID = "https://example.org/recommendations/rec-1"
 _RECOMMENDER = "https://example.org/actors/recommender"
@@ -129,7 +131,7 @@ _MANAGER = "https://example.org/actors/case-manager"
 
 
 def _invite_id_as_manager(
-    node: EmitInviteActorToCaseNode | EmitRecordedInviteNode,
+    node: EmitRecordedInviteNode,
 ) -> str | None:
     """The id *node* gives its Invite when the CASE_MANAGER runs it."""
     node.actor_id = _MANAGER
@@ -303,8 +305,8 @@ class TestEvaluateDefaultRolesNode:
 
         The default _compute_roles() applies the protocol default (VENDOR) so
         the suggest-actor path works without explicit roles from the recommender.
-        CM-11-019 (no-roles Invite refused) is enforced downstream by
-        CreateInertInviteeParticipantNode, not here.
+        CM-11-019 (no-roles Invite refused) is the Case Owner's Invite's
+        rule, judged by its own guards, not here.
         """
         node = EvaluateDefaultRolesNode(
             suggested_actor_id=_RECOMMENDED,
@@ -322,36 +324,6 @@ class TestEvaluateDefaultRolesNode:
         raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
         assert raw == [CVDRole.VENDOR], (
             f"Expected VENDOR default at '{expected_key}', got {raw!r}"
-        )
-
-    @pytest.mark.spec("CM-11-050")
-    @pytest.mark.spec("CM-11-019")
-    def test_require_explicit_roles_fails_when_no_roles_given(self):
-        """CM-11-019: require_explicit_roles=True → FAILURE when no roles.
-
-        The owner-direct invite path sets require_explicit_roles=True so the
-        Case Owner must supply roles explicitly; no VENDOR default is applied.
-        """
-        node = EvaluateDefaultRolesNode(
-            suggested_actor_id=_RECOMMENDED,
-            case_id=_CASE_ID,
-            recommendation_id=_REC_ID,
-            require_explicit_roles=True,
-        )
-        node.setup()
-        node.initialise()
-        result = node.update()
-        assert result == Status.FAILURE
-        assert node.feedback_message, "feedback_message must be set on FAILURE"
-        assert "inviter must give" in node.feedback_message, (
-            f"Expected CM-11-019 message, got: {node.feedback_message!r}"
-        )
-        expected_key = (
-            f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
-        )
-        raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
-        assert raw is None, (
-            f"Blackboard key must not be written when FAILURE, got {raw!r}"
         )
 
 
@@ -512,44 +484,33 @@ class TestEmitOfferCaseParticipantToOwnerNodeEmptyRoles:
         factory.offer_actor_to_case.assert_not_called()
 
 
-class TestEmitInviteActorToCaseNodeEmptyRoles:
-    """Unit tests for the empty-roles guard in EmitInviteActorToCaseNode (CM-17-003)."""
+class TestStubInviteEmitEmptyRoles:
+    """The empty-roles guard of the stub Invite emit (CM-17-003, CM-11-048)."""
 
     _CASE_ID_INVITE = "https://example.org/cases/case-invite-1"
     _INVITEE_ID = "https://example.org/actors/invitee"
-    _RECOMMENDATION_ID = "https://example.org/activities/offer-invite-1"
 
     def _node(self):
         dl = MagicMock()
         factory = MagicMock()
-        node = EmitInviteActorToCaseNode(
-            invitee_id=self._INVITEE_ID,
-            case_id=self._CASE_ID_INVITE,
-            recommendation_id=self._RECOMMENDATION_ID,
-        )
+        node = EmitOwnerDecidedStubInviteNode([], credits_sender=False)
         writer = py_trees.blackboard.Client(
             name="test-invite-empty-roles-writer"
         )
-        writer.register_key(
-            key="datalayer", access=py_trees.common.Access.WRITE
-        )
-        writer.register_key(
-            key="actor_id", access=py_trees.common.Access.WRITE
-        )
-        writer.register_key(
-            key="trigger_activity_factory",
-            access=py_trees.common.Access.WRITE,
-        )
+        for key in (
+            "datalayer",
+            "actor_id",
+            "trigger_activity_factory",
+            "/case_id",
+            "/invitee_id",
+        ):
+            writer.register_key(key=key, access=py_trees.common.Access.WRITE)
         writer.datalayer = dl
         writer.actor_id = _ACTOR_ID
         writer.trigger_activity_factory = factory
+        writer.set("/case_id", self._CASE_ID_INVITE)
+        writer.set("/invitee_id", self._INVITEE_ID)
         node.setup()
-        # An empty list where EvaluateDefaultRolesNode writes the roles for
-        # this recommendation. Must be written before initialise() so the
-        # ports cache sees the value.
-        py_trees.blackboard.Blackboard.storage[
-            "/suggested_roles_offer-invite-1"
-        ] = []
         node.initialise()
         return node, factory
 
@@ -565,7 +526,7 @@ class TestEmitInviteActorToCaseNodeEmptyRoles:
         node, _ = self._node()
         result = node.update()
         assert result == Status.FAILURE
-        assert node.feedback_message, "feedback_message must be set on FAILURE"
+        assert "is empty" in node.feedback_message, node.feedback_message
 
     def test_factory_not_called_when_roles_empty(self):
         """factory.invite_actor_to_case must not be called with empty roles."""
@@ -641,6 +602,40 @@ class TestAcceptActorRecommendationReceivedTree:
         assert node._invitee() == _RECOMMENDED
         assert node._read_suggested_roles() == ["vendor"]
         assert node.case_id == _CASE_ID
+
+    def _recorded_invite(self, sender: object) -> EmitRecordedInviteNode:
+        node: EmitRecordedInviteNode = _as_published(
+            next(
+                c
+                for c in self.tree.iterate()
+                if isinstance(c, EmitRecordedInviteNode)
+            )
+        )
+        node.actor_id = _MANAGER
+        node._received = (
+            None
+            if sender is None
+            else SimpleNamespace(actor_id=sender, activity_id=_ANSWER_ID)
+        )
+        return node
+
+    @pytest.mark.spec("CM-24-020")
+    def test_the_invite_credits_the_accepts_sender_and_names_the_accept(self):
+        authorship = self._recorded_invite(_SENDER)._authorship()
+        assert authorship is not None
+        assert authorship.attributed_to == _SENDER
+        assert authorship.in_reply_to == _ANSWER_ID
+
+    @pytest.mark.spec("CM-24-021")
+    def test_an_owner_holding_the_role_is_credited_to_no_one(self):
+        authorship = self._recorded_invite(_MANAGER)._authorship()
+        assert authorship is not None
+        assert authorship.attributed_to is None
+        assert authorship.in_reply_to is None
+
+    def test_no_received_accept_is_a_wiring_fault(self):
+        with pytest.raises(VultronWiringError, match="no received Accept"):
+            self._recorded_invite(None)._requester()
 
     @pytest.mark.spec("OX-06-002")
     def test_the_invite_id_derives_from_the_accepted_recommendation(self):
@@ -1119,8 +1114,8 @@ class TestDuplicateDetectionTreeStructure:
             "DuplicateOrFreshSelector must exist in the tree"
         )
 
-    def test_selector_has_six_children(self):
-        assert len(self._duplicate_selector().children) == 6
+    def test_selector_has_four_children(self):
+        assert len(self._duplicate_selector().children) == 4
 
     @pytest.mark.spec("CM-20-008")
     def test_the_authority_role_guard_runs_before_the_commit_and_every_arm(
@@ -1160,84 +1155,47 @@ class TestDuplicateDetectionTreeStructure:
         for arm in arms:
             types = [type(n) for n in arm.iterate()]
             assert EmitAcceptActorRecommendationNode in types
-            assert EmitInviteActorToCaseNode not in types
+            assert EmitOwnerDecidedStubInviteNode not in types
 
-    @pytest.mark.spec("OX-06-002")
-    def test_every_invite_id_derives_from_the_offer_it_answers(self):
-        """Owner-direct and re-invite Invites alike take the Offer's id."""
-        invites = [
+    @pytest.mark.spec("CM-17-007")
+    def test_the_tree_sends_no_stub_invite(self):
+        """The Owner-recommender arms are retired: no arm sends an Invite.
+
+        The Case Owner's decision is its own Invite (ADR-0199), so a
+        recommendation is always a suggestion the Owner decides.
+        """
+        # Any stub-Invite emitter or inert-invitee seat, not only the
+        # Owner-decided ones, would put an Invite back on this tree.
+        assert not [
             n
             for n in self.all_nodes
-            if isinstance(n, EmitInviteActorToCaseNode)
-        ]
-        assert len(invites) >= 2, (
-            "expected the reinvite and owner-direct emits"
-        )
-        assert {_invite_id_as_manager(n) for n in invites} == {
-            _derived_invite_id(_REC_ID)
-        }
-
-    @pytest.mark.spec("OX-06-002")
-    @pytest.mark.spec("CM-11-015")
-    def test_a_reinvite_from_a_new_offer_is_a_fresh_invite(self):
-        """A re-invite answers a new Offer, so its Invite gets a new id."""
-        later = create_recommend_actor_to_case_received_tree(
-            sender_rule=_RECOMMEND_RULE,
-            recommendation_id=f"{_REC_ID}-later",
-            recommender_id=_RECOMMENDER,
-            recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
-        )
-        reinvite = next(
-            n
-            for n in later.iterate()
-            if isinstance(n, py_trees.composites.Sequence)
-            and n.name == "OwnerReinvite"
-        )
-        node = next(
-            c
-            for c in reinvite.children
-            if isinstance(c, EmitInviteActorToCaseNode)
-        )
-        assert _invite_id_as_manager(node) == _derived_invite_id(
-            f"{_REC_ID}-later"
-        )
-        assert _invite_id_as_manager(node) != _derived_invite_id(_REC_ID)
-
-    @pytest.mark.spec("CM-11-015")
-    def test_reinvite_arm_is_first_and_emits_without_creating_a_record(self):
-        """Re-invite arm: owner, unanswered record, roles, Invite — and no new record."""
-        reinvite = self._duplicate_selector().children[0]
-        assert isinstance(reinvite, py_trees.composites.Sequence)
-        assert reinvite.name == "OwnerReinvite"
-        assert [type(unscoped(c)) for c in reinvite.children] == [
-            ActorHoldsRoleInCaseNode,
-            ReinviteAwaitingNode,
-            EvaluateDefaultRolesNode,
-            EmitInviteActorToCaseNode,
+            if isinstance(
+                n,
+                (
+                    _StubInviteEmitBase,
+                    _SeatInertInviteeBase,
+                    InviteeAwaitsReplyNode,
+                ),
+            )
         ]
 
-    @pytest.mark.spec("CM-11-043")
-    def test_closed_participant_guard_runs_before_the_recommender_is_recorded(
-        self,
-    ):
+    @pytest.mark.spec("CM-17-007")
+    def test_the_owner_guard_runs_before_the_commit_and_every_arm(self):
+        """An Offer from the Case Owner is refused before anything is written."""
         guard = next(
             n
             for n in self.all_nodes
-            if n.name == "ReinviteIsNotToClosedParticipant"
+            if isinstance(n, RecommenderIsNotCaseOwnerNode)
         )
-        assert any(
-            isinstance(c, ReinviteNotToClosedParticipantNode)
-            for c in guard.children
-        )
+        assert guard not in list(self._duplicate_selector().iterate())
         order = [n.name for n in self.all_nodes]
-        assert order.index("ReinviteIsNotToClosedParticipant") < order.index(
-            "RecordRecommendationRecommenderNode"
+        assert order.index(guard.name) < order.index(
+            "GuardedCommitCaseLedgerEntryBT"
         )
 
     def test_ac7b_sequence_structure(self):
         """AC-7b arm: Sequence(ActorAlreadyParticipantNode, EmitAcceptActorRecommendationNode)."""
-        ac7b = self._duplicate_selector().children[1]
+        ac7b = self._duplicate_selector().children[0]
         assert isinstance(ac7b, py_trees.composites.Sequence)
         child_types = [type(c) for c in ac7b.children]
         assert ActorAlreadyParticipantNode in child_types
@@ -1245,7 +1203,7 @@ class TestDuplicateDetectionTreeStructure:
 
     def test_ac7a_sequence_structure(self):
         """AC-7a arm: Sequence(InviteInFlightNode, EmitAcceptActorRecommendationNode)."""
-        ac7a = self._duplicate_selector().children[2]
+        ac7a = self._duplicate_selector().children[1]
         assert isinstance(ac7a, py_trees.composites.Sequence)
         child_types = [type(c) for c in ac7a.children]
         assert InviteInFlightNode in child_types
@@ -1253,48 +1211,20 @@ class TestDuplicateDetectionTreeStructure:
 
     def test_ac6_sequence_structure(self):
         """AC-6 arm: Sequence(PendingOfferCaseParticipantNode, EmitNoteDuplicateRecommendationToOwnerNode)."""
-        ac6 = self._duplicate_selector().children[3]
+        ac6 = self._duplicate_selector().children[2]
         assert isinstance(ac6, py_trees.composites.Sequence)
-        child_types = [type(c) for c in ac6.children]
+        child_types = [type(unscoped(c)) for c in ac6.children]
         assert PendingOfferCaseParticipantNode in child_types
         assert EmitNoteDuplicateRecommendationToOwnerNode in child_types
 
-    @pytest.mark.spec("CM-17-018")
-    @pytest.mark.spec("CM-17-007")
-    def test_owner_direct_invite_structure(self):
-        """CASE_OWNER arm: owner check, roles, Invite, inert participant.
-
-        No ``Add(CaseParticipant)`` follows the inert record: that message
-        means reinstatement only (CM-31-011, CM-31-012).
-        """
-        owner = self._duplicate_selector().children[4]
-        assert isinstance(owner, py_trees.composites.Sequence)
-        assert owner.name == "OwnerDirectInvite"
-        assert [type(unscoped(c)) for c in owner.children] == [
-            ActorHoldsRoleInCaseNode,
-            EvaluateDefaultRolesNode,
-            EmitInviteActorToCaseNode,
-            CreateInertInviteeParticipantNode,
-        ]
-        check = unscoped(owner.children[0])
-        assert isinstance(check, ActorHoldsRoleInCaseNode)
-        assert check._actor_id == _RECOMMENDER
-        assert check._role is CVDRole.CASE_OWNER
-        emit = owner.children[2]
-        assert isinstance(emit, EmitInviteActorToCaseNode)
-        assert emit.invitee_id == _RECOMMENDED
-        assert emit.attributed_to == _RECOMMENDER
-
     def test_fresh_path_structure(self):
-        """Fresh path arm: not the owner, then roles, then the Offer to the owner."""
-        fresh = self._duplicate_selector().children[5]
+        """Fresh path arm: roles, then the Offer to the owner."""
+        fresh = self._duplicate_selector().children[3]
         assert isinstance(fresh, py_trees.composites.Sequence)
-        child_types = [type(c) for c in fresh.children]
-        guard = fresh.children[0]
-        assert isinstance(guard, py_trees.decorators.Inverter)
-        assert isinstance(unscoped(guard.decorated), ActorHoldsRoleInCaseNode)
-        assert EvaluateDefaultRolesNode in child_types
-        assert EmitOfferCaseParticipantToOwnerNode in child_types
+        assert [type(c) for c in fresh.children] == [
+            EvaluateDefaultRolesNode,
+            EmitOfferCaseParticipantToOwnerNode,
+        ]
 
     def test_selector_memory_false(self):
         assert self._duplicate_selector().memory is False
@@ -1367,10 +1297,10 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
             offer_content=offer_content,
         )
-        # Resolved by ``update()`` before it composes the note.
+        # Set by ``initialise()`` and ``update()`` before ``_compose()`` runs.
+        node._case_id = _CASE_ID
         node._owner_id = self._OWNER_ID
         note = node._compose()
         assert note.in_reply_to == _REC_ID
@@ -1400,7 +1330,6 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
             offer_content="Some notes.",
         )
         assert node.offer_content == "Some notes."
@@ -1411,7 +1340,6 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
         )
         assert node.offer_content is None
 
@@ -1421,7 +1349,6 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
             offer_content="   ",
         )
         assert node.offer_content is None

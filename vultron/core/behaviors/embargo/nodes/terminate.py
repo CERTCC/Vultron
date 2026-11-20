@@ -31,8 +31,8 @@ from vultron.core.behaviors.act_key_ports import (
     act_value,
 )
 from vultron.core.behaviors.act_keys import (
+    CASE_ACTOR_ID,
     CASE_ID,
-    CASE_MANAGER_ID,
     EMBARGO_ID,
 )
 from vultron.core.behaviors.bridge.act_instant import read_act_instant
@@ -125,7 +125,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
 
     The non-manager arm of ``terminate_embargo_bt`` on the cascades, where no
     use case builds the activity.  Reads ``embargo_id`` and
-    ``case_manager_id`` from the blackboard, builds the activity through
+    ``case_actor_id`` from the blackboard, builds the activity through
     ``trigger_activity_factory`` addressed to the manager alone (PCR-08-001),
     and once it is queued records the ask in this actor's pending-assertion
     store, keyed by the embargo it ends (EP-09-018, SYNC-11-002).
@@ -164,20 +164,20 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_SendEmbargoActivityForCaseKey.INPUT_PORTS,
-        **act_key_ports(EMBARGO_ID, CASE_MANAGER_ID),
+        **act_key_ports(EMBARGO_ID, CASE_ACTOR_ID),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             **super()._domain_port_remappings(),
-            **act_key_remappings(EMBARGO_ID, CASE_MANAGER_ID),
+            **act_key_remappings(EMBARGO_ID, CASE_ACTOR_ID),
         }
 
     def initialise(self) -> None:
         super().initialise()
         self.embargo_id: str = act_value(self, EMBARGO_ID, str)
-        self.case_manager_id: str = act_value(self, CASE_MANAGER_ID, str)
+        self.case_manager_id: str = act_value(self, CASE_ACTOR_ID, str)
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (
@@ -242,7 +242,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
 
 
 def ask_case_manager_to_terminate_once(
-    case_id: str,
+    case_id: str | None,
     reason: TerminationReason,
     cause: TerminationCause | ChosenTermination | None = None,
 ) -> py_trees.behaviour.Behaviour:

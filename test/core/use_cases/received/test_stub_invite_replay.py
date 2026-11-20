@@ -43,7 +43,13 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BROADCAST,
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    LedgerNetwork,
+)
 
 JOINER = "https://example.org/users/vendor-new"
 
@@ -76,8 +82,7 @@ def _view(net: LedgerNetwork, holder: str) -> dict[str, Any]:
 def _the_owner_invites_the_joiner(
     net: LedgerNetwork, roles: list[CVDRole] | None = None
 ) -> None:
-    """The owner's Offer(Actor)[target=VulnerabilityCase] makes the CASE_MANAGER send
-    the stub."""
+    """The owner's own Invite makes the CASE_MANAGER send the stub (ADR-0199)."""
     owner_dl = net.stores[OWNER]
     for store in (net.stores[MANAGER], owner_dl):
         case = cast(VulnerabilityCase, store.read(net.case_id))
@@ -85,9 +90,12 @@ def _the_owner_invites_the_joiner(
         assert isinstance(owner_record, CaseParticipant)
         owner_record.add_role(CVDRole.CASE_OWNER)
         store.save(owner_record)
-    manager_case = net.case(MANAGER)
-    manager_case.stub_summary = "Details shared after acceptance"
-    net.stores[MANAGER].save(manager_case)
+    # Each sender's Invite carries its own preview of the case (CM-17-010):
+    # the owner's Invite and the CASE_MANAGER's stub (ADR-0199).
+    for holder in (MANAGER, OWNER):
+        held_case = net.case(holder)
+        held_case.stub_summary = "Details shared after acceptance"
+        net.stores[holder].save(held_case)
     owner_dl.save(make(as_Actor, id_=OWNER))
     owner_dl.save(make(as_Actor, id_=MANAGER))
     before = set(owner_dl.outbox_list())
@@ -118,7 +126,7 @@ def _the_owner_invites_the_joiner(
 
 
 def _deliver_announcements(net: LedgerNetwork, to: str) -> None:
-    for type_, verdict in net.deliver(MANAGER, to=to, type_="Announce"):
+    for type_, verdict in net.deliver(MANAGER, to=to, type_=BROADCAST):
         assert verdict.disposition is HandlerDisposition.APPLIED, (
             type_,
             verdict.reason,
@@ -177,7 +185,7 @@ def test_the_stub_invite_entry_fans_out_and_gives_a_replica_the_inert_record(
     active participants even though it passes no ``sync_port`` of its own.
     """
     _the_owner_invites_the_joiner(net)
-    announced = net.queued(MANAGER, to=BYSTANDER, type_="Announce")
+    announced = net.queued(MANAGER, to=BYSTANDER, type_=BROADCAST)
     entry_types = [
         (read_sealed_body_dict(net.stores[MANAGER], a.id_) or {})
         .get("object", {})
@@ -251,7 +259,7 @@ def test_replaying_the_whole_stream_leaves_one_record(
     assert before["record"]["joined"] is True
     assert before == _view(net, MANAGER)
 
-    for activity in net.queued(MANAGER, to=BYSTANDER, type_="Announce"):
+    for activity in net.queued(MANAGER, to=BYSTANDER, type_=BROADCAST):
         body = read_sealed_body_dict(net.stores[MANAGER], activity.id_)
         assert body is not None
         verdict = net.receive(BYSTANDER, body)
@@ -280,7 +288,7 @@ def _entry_types(net: LedgerNetwork) -> list[str]:
     entries = [
         e
         for e in net.stores[MANAGER].list_objects("CaseLedgerEntry")
-        if isinstance(e, CaseLedgerEntry) and e.case_id == net.case_id
+        if isinstance(e, CaseLedgerEntry) and e.context == net.case_id
     ]
     return [
         str(e.semantic_type)
@@ -304,8 +312,9 @@ def test_the_ledger_holds_the_messages_and_the_one_creation_entry() -> None:
     _the_joiner_accepts(net)
 
     new = _entry_types(net)[before:]
+    # The Owner's Invite, then the CASE_MANAGER's stub (ADR-0199).
     assert new[:4] == [
-        "offer_actor_to_case",
+        "invite_actor_to_case",
         "invite_actor_to_case",
         "create_case_participant",
         "accept_invite_actor_to_case",

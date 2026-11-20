@@ -34,11 +34,11 @@ keeps the module free of such orphans.
 
 Three defects found when this was first measured:
 
-* ``remove_participant_from_case`` named the case in ``origin``.
-  ``RemoveCaseParticipantFromCasePattern`` discriminates on ``target_``, so the
-  example matched none of the patterns and
-  ``docs/reference/messages/case_management.md`` documented the wrong field
-  (fixed, #3438).
+* ``remove_participant_from_case`` named the case in ``origin`` while its
+  pattern discriminated on ``target_``, so the example matched none of the
+  patterns and ``docs/reference/messages/case_management.md`` documented the
+  wrong field (fixed, #3438; the Owner's removal now names the case in
+  ``origin``, ADR-0199).
 * ``read_report`` previously built ``Read(VulnerabilityReport)`` while
   ``AckReportPattern`` required ``Read(Offer(VulnerabilityReport))`` — fixed in
   #3439/#3455.

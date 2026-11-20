@@ -49,7 +49,11 @@ from vultron.core.models.base.context import (
     is_default_jsonld_context,
     serialize_with_top_level_context,
 )
-from vultron.core.models.type_terms import type_terms
+from vultron.core.models.type_terms import (
+    read_type_list_as_own,
+    type_terms,
+    with_supertype_term,
+)
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.reference_shape import is_typed_reference_shape
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
@@ -259,7 +263,7 @@ class as_Base(BaseModel):
         except AmbiguousWireTypeError as exc:
             raise ValueError(exc.args[0]) from exc
         own = declared_wire_type(cls)
-        own_read = None if own is None else _read_as_own_type(data, own)
+        own_read = None if own is None else read_type_list_as_own(data, own)
         if own_read is None:
             return narrowed if narrowed is not None else _first_type_term(data)
         # A second key (``type`` beside ``type_``) may still hold a list.
@@ -309,12 +313,11 @@ class as_Base(BaseModel):
         runs this only for the wire dump.
         """
         supertype = type(self)._as2_core_supertype
-        if supertype is None or not isinstance(data, dict):
-            return data
-        if "type" not in data:
-            return data
-        own = wire_type_value(type(self))
-        return {**data, "type": [own, wire_type_value(supertype)]}
+        return with_supertype_term(
+            data,
+            wire_type_value(type(self)),
+            None if supertype is None else wire_type_value(supertype),
+        )
 
     def to_json(self, **kwargs):
         """Serialize the model to a JSON string, excluding None values and using aliases."""
@@ -352,16 +355,6 @@ def _narrow_known(data: dict[str, Any]) -> dict[str, Any] | None:
         raise
     except KeyError:
         return None
-
-
-def _read_as_own_type(data: dict[str, Any], own: str) -> dict[str, Any] | None:
-    """*data* with a ``type`` list naming *own* read as *own*, or ``None``."""
-    narrowed = data
-    for key in ("type", "type_"):
-        value = data.get(key)
-        if isinstance(value, list) and own in type_terms(value):
-            narrowed = {**narrowed, key: own}
-    return None if narrowed is data else narrowed
 
 
 def _first_type_term(data: dict[str, Any]) -> dict[str, Any]:

@@ -21,7 +21,7 @@ Spec: SYNC-17-001, SYNC-17-007.
 
 Note: ``commit_log_entry_trigger`` was removed (BT-06-006), and so was
 ``replay_missing_entries_trigger``, whose only caller was a test: a replay is
-the CASE_MANAGER's answer to a ``Reject`` or a ``Read(CaseLedgerEntry)``, run
+the CASE_MANAGER's answer to a ``Reject`` or a ``Read(<case>/ledger)``, run
 by ``ReplayMissingEntriesNode`` in the received tree (SYNC-03-002,
 SYNC-17-004).
 """
@@ -51,7 +51,7 @@ def state_ledger_positions_trigger(
     sync_port: SyncActivityPort,
     clock: ClockPort,
 ) -> int:
-    """Queue ``Read(CaseLedgerEntry)`` for each case replica *actor_id* holds.
+    """Queue ``Read(<case>/ledger)`` for each case replica *actor_id* holds.
 
     Each names the tail of the actor's replica and goes to the case's
     CASE_MANAGER, so a participant that missed the last entry before a quiet
@@ -63,7 +63,7 @@ def state_ledger_positions_trigger(
     Args:
         dl: The actor's own store; its outbox receives the statements.
         actor_id: The participant stating its positions.
-        sync_port: Builds and queues each ``Read(CaseLedgerEntry)``.
+        sync_port: Builds and queues each ``Read(<case>/ledger)``.
         clock: The act clock.  Stating the positions is one act: it takes
             the tree lock, then reads the clock once (ADR-0176).
 

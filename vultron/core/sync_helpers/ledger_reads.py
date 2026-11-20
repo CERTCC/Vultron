@@ -29,7 +29,7 @@ def sorted_case_ledger_entries(
     entries = [
         obj
         for obj in datalayer.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+        if isinstance(obj, CaseLedgerEntry) and obj.context == case_id
     ]
     entries.sort(key=lambda log_entry: log_entry.log_index)
     return entries
@@ -121,7 +121,7 @@ def is_ledger_fresh_for_case(
     entries: list[CaseLedgerEntry] = [
         obj
         for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+        if isinstance(obj, CaseLedgerEntry) and obj.context == case_id
     ]
 
     if not entries:
@@ -195,7 +195,7 @@ def reconstruct_tail_hash(
     all_entries: list[CaseLedgerEntry] = [
         obj
         for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+        if isinstance(obj, CaseLedgerEntry) and obj.context == case_id
     ]
 
     if not all_entries:
@@ -239,7 +239,7 @@ def first_case_with_ledger(
     if not case_ids:
         return None
     chained = {
-        obj.case_id
+        obj.context
         for obj in dl.list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
     }

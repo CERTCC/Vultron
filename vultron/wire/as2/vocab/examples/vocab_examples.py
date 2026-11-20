@@ -61,10 +61,10 @@ from vultron.wire.as2.vocab.examples.actor import (
     accept_actor_recommendation,
     accept_case_participant_offer,
     offer_case_participant,
+    owner_invite_actor_to_case,
     recommend_actor,
     reject_actor_recommendation,
     reject_case_participant_offer,
-    request_invite_actor_to_case,
 )
 from vultron.wire.as2.vocab.examples.case import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.case import (
@@ -134,15 +134,15 @@ from vultron.wire.as2.vocab.examples.participant import *  # noqa: F403  # CS-03
 from vultron.wire.as2.vocab.examples.participant import (  # noqa: F401
     accept_full_case_invite,
     accept_invite_to_case,
-    add_coordinator_participant_to_case,
-    add_finder_participant_to_case,
-    add_vendor_participant_to_case,
+    announce_participant_reinstatement,
+    announce_participant_removal,
     case_participant,
     coordinator_participant,
     create_participant,
     finder_participant,
     invite_to_case,
     invite_to_full_case,
+    reinstate_participant_in_case,
     reject_full_case_invite,
     reject_invite_to_case,
     remove_participant_from_case,
@@ -179,8 +179,8 @@ from vultron.wire.as2.vocab.examples.status import (
 )
 from vultron.wire.as2.vocab.examples.sync import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.sync import (
-    announce_case_ledger_entry,
-    read_case_ledger_entry,
+    add_case_ledger_entry,
+    read_case_ledger,
     reject_case_ledger_entry,
 )
 
@@ -211,9 +211,6 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     (create_case, None),
     (populated_case, None),
     (add_report_to_case, None),
-    (add_vendor_participant_to_case, None),
-    (add_finder_participant_to_case, None),
-    (add_coordinator_participant_to_case, None),
     (engage_case, None),
     (close_case, None),
     (defer_case, None),
@@ -233,7 +230,7 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     (recommend_actor, None),
     (accept_actor_recommendation, None),
     (reject_actor_recommendation, None),
-    (request_invite_actor_to_case, None),
+    (owner_invite_actor_to_case, None),
     (offer_case_participant, None),
     (accept_case_participant_offer, None),
     (reject_case_participant_offer, None),
@@ -249,6 +246,9 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     (tentative_reject_full_case_invite, None),
     (reject_full_case_invite, None),
     (remove_participant_from_case, None),
+    (reinstate_participant_in_case, None),
+    (announce_participant_removal, None),
+    (announce_participant_reinstatement, None),
     # case and participant status
     (case_status, None),
     (add_status_to_case, None),
@@ -289,9 +289,9 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     (accept_case_proposal, None),
     (reject_case_proposal, None),
     # ledger replication (SYNC substrate, ADR-0077)
-    (announce_case_ledger_entry, None),
+    (add_case_ledger_entry, None),
     (reject_case_ledger_entry, None),
-    (read_case_ledger_entry, None),
+    (read_case_ledger, None),
     # one example per occasion (MSM-08-003, ADR-0128): each collapsed
     # occasion shows its own distinguishing value
     (add_vendor_awareness_to_participant, None),
@@ -320,10 +320,8 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
 #: :func:`check_tables` pins.
 INLINE_OBJECTS: tuple[tuple[Callable[[], BaseModel], str, str], ...] = (
     (create_case, "object_", "vulnerability_case.json"),
-    (add_vendor_participant_to_case, "object_", "vendor_participant.json"),
-    (add_finder_participant_to_case, "object_", "finder_participant.json"),
     (offer_case_participant_role, "object_", "case_participant_role.json"),
-    (announce_case_ledger_entry, "object_", "case_ledger_entry.json"),
+    (add_case_ledger_entry, "object_", "case_ledger_entry.json"),
     (create_case_proposal, "object_", "case_proposal.json"),
 )
 

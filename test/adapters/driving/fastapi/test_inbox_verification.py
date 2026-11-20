@@ -85,12 +85,12 @@ def _note(actor: str = AUTHOR) -> dict[str, Any]:
     }
 
 
-def _announce(snapshot: dict[str, Any]) -> dict[str, Any]:
+def _ledger_add(snapshot: dict[str, Any]) -> dict[str, Any]:
     return signed_body(
         {
-            "type": "Announce",
+            "type": "Add",
             "published": "2026-01-01T00:00:00+00:00",
-            "id": "https://manager.example/announces/1",
+            "id": "https://manager.example/adds/1",
             "actor": MANAGER,
             "object": {
                 "type": "CaseLedgerEntry",
@@ -120,7 +120,7 @@ def test_a_body_naming_no_actor_has_no_author_to_verify_it():
 
 @pytest.mark.spec("SIG-04-002")
 def test_a_relayed_entry_needs_both_proofs():
-    _verify(_announce(signed_body(_note())))
+    _verify(_ledger_add(signed_body(_note())))
 
 
 def _published(actor_id: str) -> str:
@@ -144,7 +144,9 @@ def test_the_stage_returns_the_proof_it_verified_and_its_key():
 
 @pytest.mark.spec("SIG-03-004")
 def test_a_relayed_entry_returns_the_managers_proof_then_the_authors():
-    verified = asyncio.run(_verifier().verify(_announce(signed_body(_note()))))
+    verified = asyncio.run(
+        _verifier().verify(_ledger_add(signed_body(_note())))
+    )
 
     assert [
         (proof.author_id, proof.verification_method) for proof in verified
@@ -158,7 +160,7 @@ def test_a_relayed_entry_returns_the_managers_proof_then_the_authors():
 @pytest.mark.spec("SIG-04-002")
 def test_a_relayed_snapshot_without_its_authors_proof_is_refused():
     with pytest.raises(VultronProofVerificationError) as refused:
-        _verify(_announce(_note()))
+        _verify(_ledger_add(_note()))
 
     assert "payloadSnapshot" in str(refused.value)
     assert AUTHOR in str(refused.value)
@@ -169,7 +171,7 @@ def test_the_snapshot_author_must_publish_the_key():
     fetcher = PublishedProfileFetcher([MANAGER])
 
     with pytest.raises(VultronProofVerificationError, match="payloadSnapshot"):
-        _verify(_announce(signed_body(_note())), fetcher=fetcher)
+        _verify(_ledger_add(signed_body(_note())), fetcher=fetcher)
 
     assert fetcher.asked == [MANAGER, AUTHOR]
 
@@ -179,7 +181,7 @@ def test_the_managers_native_snapshot_is_checked_by_its_key():
     """A native entry's snapshot names the CASE_MANAGER and carries its proof."""
     fetcher = PublishedProfileFetcher([MANAGER])
 
-    _verify(_announce(signed_body(_note(actor=MANAGER))), fetcher=fetcher)
+    _verify(_ledger_add(signed_body(_note(actor=MANAGER))), fetcher=fetcher)
 
     assert fetcher.asked == [MANAGER, MANAGER]
 
@@ -188,7 +190,7 @@ def test_the_managers_native_snapshot_is_checked_by_its_key():
 def test_the_managers_snapshot_without_its_proof_is_refused():
     """The outer proof does not stand in for the snapshot's own."""
     with pytest.raises(VultronProofVerificationError, match="payloadSnapshot"):
-        _verify(_announce(_note(actor=MANAGER)))
+        _verify(_ledger_add(_note(actor=MANAGER)))
 
 
 @pytest.mark.spec("SIG-05-005")
@@ -204,7 +206,7 @@ def test_the_managers_snapshot_without_its_proof_is_refused():
 def test_a_snapshot_naming_no_actor_is_refused(snapshot: dict[str, Any]):
     """Every activity names its signer, so a snapshot with none is refused."""
     with pytest.raises(VultronProofInvalidError, match="payloadSnapshot"):
-        _verify(_announce(snapshot))
+        _verify(_ledger_add(snapshot))
 
 
 @pytest.mark.spec("SIG-04-002")
@@ -223,9 +225,9 @@ def test_a_snapshot_spelled_by_its_field_name_is_checked_too(
     """The parser reads a field by its name too, so the stage does."""
     announce = signed_body(
         {
-            "type": "Announce",
+            "type": "Add",
             "published": "2026-01-01T00:00:00+00:00",
-            "id": "https://manager.example/announces/1",
+            "id": "https://manager.example/adds/1",
             "actor": MANAGER,
             object_key: {
                 type_key: "CaseLedgerEntry",
@@ -243,9 +245,9 @@ def test_a_snapshot_spelled_by_its_field_name_is_checked_too(
 def test_a_snapshot_that_is_not_an_object_is_refused():
     announce = signed_body(
         {
-            "type": "Announce",
+            "type": "Add",
             "published": "2026-01-01T00:00:00+00:00",
-            "id": "https://manager.example/announces/1",
+            "id": "https://manager.example/adds/1",
             "actor": MANAGER,
             "object": {
                 "type": "CaseLedgerEntry",
@@ -262,7 +264,7 @@ def test_a_snapshot_that_is_not_an_object_is_refused():
 @pytest.mark.spec("SIG-04-002")
 def test_a_snapshot_naming_a_blank_actor_is_refused():
     with pytest.raises(VultronProofInvalidError, match="payloadSnapshot"):
-        _verify(_announce(_note(actor="")))
+        _verify(_ledger_add(_note(actor="")))
 
 
 @pytest.mark.parametrize(

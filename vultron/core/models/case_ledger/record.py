@@ -147,7 +147,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
 
         ``received_at`` is the CaseActor's server-generated UTC timestamp,
         set once at append time and never modified.  Replicas receive this
-        entry via ``Announce(CaseLedgerEntry)`` with ``received_at`` already
+        entry via ``Add(CaseLedgerEntry)`` with ``received_at`` already
         embedded; they MUST preserve its value rather than regenerating it,
         otherwise ``verify_hash()`` will return ``False`` on any replica that
         re-computes the hash (CLP-02-008, SYNC-01-003).
@@ -190,7 +190,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         same value.  An entry is written once, so it states no ``updated``.
         """
         return CaseLedgerEntry(
-            case_id=self.case_id,
+            context=self.case_id,
             log_index=self.log_index,
             term=self.term,
             log_object_id=self.object_id,
@@ -213,7 +213,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         received entry.
         """
         return cls(
-            case_id=entry.case_id,
+            case_id=entry.context,
             log_index=entry.log_index,
             term=entry.term,
             object_id=entry.log_object_id,

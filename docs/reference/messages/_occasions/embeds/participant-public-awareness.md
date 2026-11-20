@@ -5,7 +5,7 @@
     Announces, in the sender's own participant status, evidence that the vulnerability is known to the public.
 
     - **When…** a Participant learns that the public knows of the vulnerability
-    - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+    - **Send:** `Add(ParticipantStatus)[target=OrderedCollection, context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the CASE_MANAGER or the Case Owner or the participant status's author
     - **Distinguished by:** `caseStatus.pxaState` = `Pxa`

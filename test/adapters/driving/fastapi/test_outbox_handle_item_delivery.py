@@ -26,7 +26,7 @@ Spec coverage:
 - OX-03-001: Activities in the outbox are delivered to recipient inboxes.
 - OX-02-002: what is delivered is an ActivityStreams 2.0 activity.
 - VM-08-003: the delivered payload is the sealed blob, unchanged.
-- SYNC-02-005: an Announce(CaseLedgerEntry) keeps its inline entry on the wire.
+- SYNC-02-005: an Add(CaseLedgerEntry) keeps its inline entry on the wire.
 """
 
 import asyncio
@@ -311,10 +311,10 @@ def test_handle_outbox_item_keeps_the_case_stub_target_inline():
 @pytest.mark.spec("SYNC-02-005")
 @pytest.mark.spec("SYNC-13-004")
 def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
-    """Announce(CaseLedgerEntry) delivery keeps the full inline entry."""
+    """Add(CaseLedgerEntry) delivery keeps the full inline entry."""
     from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
     from vultron.core.models.case_ledger import HashChainLedgerRecord
-    from vultron.wire.as2.factories import announce_log_entry_activity
+    from vultron.wire.as2.factories import add_log_entry_activity
 
     recipient = "https://example.org/actors/participant"
     chain_entry = HashChainLedgerRecord(
@@ -322,12 +322,15 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
         log_index=0,
         object_id="https://example.org/activities/logged-2",
         semantic_type="log_entry_committed",
-        payload_snapshot={"state": "replicated"},
+        payload_snapshot={
+            "id": "https://example.org/activities/logged-2",
+            "state": "replicated",
+        },
         prev_log_hash=_ZERO_HASH,
         received_at=ACT_AT,
     )
     entry = _to_persistable_entry(chain_entry)
-    activity = announce_log_entry_activity(
+    activity = add_log_entry_activity(
         entry,
         actor="https://example.org/actors/case-actor",
         to=[recipient],
@@ -346,6 +349,6 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
     assert recipients == [recipient]
     emitted_object = json.loads(body)["object"]
     assert emitted_object["type"] == "CaseLedgerEntry"
-    assert emitted_object["caseId"] == entry.case_id
+    assert emitted_object["context"] == entry.context
     assert emitted_object["logObjectId"] == entry.log_object_id
     assert emitted_object["semanticType"] == entry.semantic_type

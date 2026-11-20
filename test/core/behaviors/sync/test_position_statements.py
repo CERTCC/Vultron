@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Participant position statements: a participant's ``Read(CaseLedgerEntry)``.
+"""Participant position statements: a participant's ``Read(<case>/ledger)``.
 
 The CASE_MANAGER answers an active participant's stated ledger position the
 way it answers a ``Reject``: it records the position and replays the entries
@@ -23,6 +23,7 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from test.core.behaviors.sync.nodes._embargo_gate_support import (
     MANAGER_ID,
@@ -40,13 +41,19 @@ from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.base import CoreObject
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_ledger_entry import (
+    CaseLedgerEntry,
+    case_ledger_id,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.events.sync import ReadLogEntryReceivedEvent
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.events.sync import ReadLedgerReceivedEvent
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -54,18 +61,27 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
-    ReadLedgerEntryReceivedUseCase,
+    ReadLedgerReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.sync import (
     state_ledger_positions_trigger,
 )
-from vultron.errors import VultronBTInternalError
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronBTInternalError,
+)
 from vultron.semantic_registry import find_matching_semantics
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.extractor import extract_intent
-from vultron.wire.as2.factories import read_ledger_entry_activity
+from vultron.wire.as2.factories import (
+    read_ledger_at_entry_activity,
+    read_ledger_position_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Read,
+)
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_OrderedCollection,
 )
 
 #: A third participant, removed from the case (CM-31-001).
@@ -83,38 +99,62 @@ def dl() -> SqliteDataLayer:
     return store
 
 
-def _read(entry: CaseLedgerEntry, sender: str) -> ReadLogEntryReceivedEvent:
-    """*sender*'s ``Read(CaseLedgerEntry)`` naming *entry*, as delivered."""
+def _read(entry: CaseLedgerEntry, sender: str) -> ReadLedgerReceivedEvent:
+    """*sender*'s ``Read(<case>/ledger)`` at *entry*, as delivered."""
     return cast(
-        ReadLogEntryReceivedEvent,
+        ReadLedgerReceivedEvent,
         received_event(
-            read_ledger_entry_activity(
+            read_ledger_at_entry_activity(
                 entry, actor=sender, to=[MANAGER_ID], at=authored_at()
             )
         ),
     )
 
 
+def _read_at(position: LedgerPosition, sender: str) -> ReadLedgerReceivedEvent:
+    """*sender*'s ``Read(<case>/ledger)`` stating *position*, as delivered."""
+    return cast(
+        ReadLedgerReceivedEvent,
+        received_event(
+            read_ledger_position_activity(
+                CASE_ID,
+                position,
+                actor=sender,
+                to=[MANAGER_ID],
+                at=authored_at(),
+            )
+        ),
+    )
+
+
+def _empty_ledger_position(dl: SqliteDataLayer) -> LedgerPosition:
+    """The empty ledger's position in *dl*'s case: -1 and its genesis hash."""
+    case = cast(VulnerabilityCase, dl.read(CASE_ID))
+    return LedgerPosition(
+        log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash=case.genesis_hash
+    )
+
+
 def _answer(
     dl: SqliteDataLayer,
-    event: ReadLogEntryReceivedEvent,
+    event: ReadLedgerReceivedEvent,
     sync_port: SyncActivityPort,
 ) -> HandlerResult:
     return run_in_act(
-        ReadLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+        ReadLedgerReceivedUseCase(dl, event, sync_port=sync_port)
     )
 
 
 def _sync_port() -> MagicMock:
     port = MagicMock(spec=SyncActivityPort)
-    port.send_announce_log_entry.return_value = True
+    port.send_add_log_entry.return_value = True
     return port
 
 
 def _sent_indices(port: MagicMock) -> list[int]:
     return [
         call.kwargs["entry"].log_index
-        for call in port.send_announce_log_entry.call_args_list
+        for call in port.send_add_log_entry.call_args_list
     ]
 
 
@@ -136,23 +176,27 @@ def _ledger_ids(dl: SqliteDataLayer) -> list[str]:
 
 
 @pytest.mark.spec("SYNC-17-001")
-def test_factory_names_the_entry_by_reference() -> None:
-    """The ``Read``'s object is the entry's id, its context the case."""
+def test_factory_reads_the_cases_ledger() -> None:
+    """The ``Read``'s object is the case's ledger, its context the case."""
     entry = _make_entry(0)
 
-    activity = read_ledger_entry_activity(
+    activity = read_ledger_at_entry_activity(
         entry, actor=SIGNATORY_ID, to=[MANAGER_ID], at=authored_at()
     )
 
     assert isinstance(activity, as_Read)
     assert activity.type_ == "Read"
-    assert activity.object_ == entry.id_
-    assert activity.context == entry.case_id
+    assert _as_id(activity.object_) == case_ledger_id(entry.context)
+    assert activity.context == entry.context
     assert activity.ledger_position is not None
     assert activity.ledger_position.log_index == entry.log_index
     assert activity.ledger_position.entry_hash == entry.entry_hash
     body = activity.model_dump(by_alias=True, mode="json", exclude_none=True)
-    assert body["object"] == entry.id_
+    # Identity only: the ledger carries no items (ADR-0204).
+    assert body["object"] == {
+        "id": case_ledger_id(entry.context),
+        "type": "OrderedCollection",
+    }
     assert body["ledgerPosition"] == {
         "logIndex": entry.log_index,
         "entryHash": entry.entry_hash,
@@ -160,31 +204,47 @@ def test_factory_names_the_entry_by_reference() -> None:
 
 
 @pytest.mark.spec("SYNC-17-001")
-def test_read_case_ledger_entry_is_a_message_semantic() -> None:
-    """A delivered ``Read(CaseLedgerEntry)`` has its own semantic type."""
+def test_a_read_of_another_cases_ledger_is_refused() -> None:
+    """The ``Read``'s object must be the ledger of the case in its context."""
+    with pytest.raises(VultronActivityConstructionError, match="ledger"):
+        read_ledger_position_activity(
+            CASE_ID,
+            LedgerPosition(log_index=0, entry_hash="ab" * 32),
+            object_=make(
+                as_OrderedCollection,
+                id_="https://example.org/cases/other/ledger",
+            ),
+            actor=SIGNATORY_ID,
+            at=authored_at(),
+        )
+
+
+@pytest.mark.spec("SYNC-17-001")
+def test_read_case_ledger_is_a_message_semantic() -> None:
+    """A delivered ``Read(<case>/ledger)`` has its own semantic type."""
     # One entry: its hash covers a commit stamp, so a second build in a later
     # second would not match.
     entry = _make_entry(0)
     event = _read(entry, SIGNATORY_ID)
 
-    assert event.semantic_type is MessageSemantics.READ_CASE_LEDGER_ENTRY
-    assert event.stated_entry_id == entry.id_
+    assert event.semantic_type is MessageSemantics.READ_CASE_LEDGER
+    assert event.ledger_id == case_ledger_id(CASE_ID)
     assert event.replay_case_id == CASE_ID
     assert event.last_accepted_hash == entry.entry_hash
 
 
 @pytest.mark.spec("SYNC-17-001")
 def test_read_without_a_ledger_position_is_not_a_position_statement() -> None:
-    """A ``Read`` of a bare reference with no position is not matched."""
+    """A ``Read`` of the ledger with no position is not matched."""
     activity = make(
         as_Read,
         actor=SIGNATORY_ID,
-        object_=_make_entry(0).id_,
+        object_=make(as_OrderedCollection, id_=case_ledger_id(CASE_ID)),
         context=CASE_ID,
     )
 
     assert find_matching_semantics(activity) is not (
-        MessageSemantics.READ_CASE_LEDGER_ENTRY
+        MessageSemantics.READ_CASE_LEDGER
     )
 
 
@@ -204,19 +264,14 @@ def _assert_refused_with_nothing(
     assert result.disposition is HandlerDisposition.REFUSED
     assert reason in (result.reason or "")
     assert _state(dl, sender) is None
-    port.send_announce_log_entry.assert_not_called()
+    port.send_add_log_entry.assert_not_called()
     # It holds no Invite it owes an answer to, so none is resent either
     # (SYNC-20-001).
     port.resend_sealed_activity.assert_not_called()
 
 
-@pytest.mark.spec("SYNC-17-009")
-@pytest.mark.spec("SYNC-17-002")
-@pytest.mark.spec("CM-10-004")
-@pytest.mark.spec("CM-31-017")
-def test_removed_participant_with_lagging_position_is_refused(dl) -> None:
-    """A removed participant's lagging statement gets nothing (CM-31-001)."""
-    entries = seed_ledger(dl, 3)
+def _add_removed_participant(dl: SqliteDataLayer) -> None:
+    """Put REMOVED_ID on the case's roster, its removal recorded."""
     removed = make(
         CaseParticipant,
         id_=f"{REMOVED_ID}/participant",
@@ -228,6 +283,16 @@ def test_removed_participant_with_lagging_position_is_refused(dl) -> None:
     case = cast(VulnerabilityCase, dl.read(CASE_ID))
     case.add_participant(removed)
     dl.save(case)
+
+
+@pytest.mark.spec("SYNC-17-009")
+@pytest.mark.spec("SYNC-17-002")
+@pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("CM-31-017")
+def test_removed_participant_with_lagging_position_is_refused(dl) -> None:
+    """A removed participant's lagging statement gets nothing (CM-31-001)."""
+    entries = seed_ledger(dl, 3)
+    _add_removed_participant(dl)
     port = _sync_port()
 
     result = _answer(dl, _read(entries[0], REMOVED_ID), port)
@@ -277,9 +342,9 @@ def test_replica_that_is_not_the_case_manager_refuses_a_read() -> None:
     entries = seed_ledger(replica, 2)
     port = _sync_port()
     event = cast(
-        ReadLogEntryReceivedEvent,
+        ReadLedgerReceivedEvent,
         received_event(
-            read_ledger_entry_activity(
+            read_ledger_at_entry_activity(
                 entries[0],
                 actor=NON_SIGNATORY_ID,
                 to=[MANAGER_ID, SIGNATORY_ID],
@@ -293,7 +358,7 @@ def test_replica_that_is_not_the_case_manager_refuses_a_read() -> None:
     assert result.disposition is HandlerDisposition.REFUSED
     assert "not the CASE_MANAGER" in (result.reason or "")
     assert _state(replica, NON_SIGNATORY_ID) is None
-    port.send_announce_log_entry.assert_not_called()
+    port.send_add_log_entry.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +385,7 @@ def test_lagging_position_is_recorded_and_the_suffix_replayed(dl) -> None:
     assert all(
         call.kwargs["to"] == [SIGNATORY_ID]
         and call.kwargs["actor_id"] == MANAGER_ID
-        for call in port.send_announce_log_entry.call_args_list
+        for call in port.send_add_log_entry.call_args_list
     )
     assert _ledger_ids(dl) == before
 
@@ -339,8 +404,68 @@ def test_position_at_the_tail_is_recorded_and_sends_nothing(dl) -> None:
     state = _state(dl, SIGNATORY_ID)
     assert isinstance(state, VultronReplicationState)
     assert state.last_acknowledged_hash == entries[-1].entry_hash
-    port.send_announce_log_entry.assert_not_called()
+    port.send_add_log_entry.assert_not_called()
     assert _ledger_ids(dl) == before
+
+
+@pytest.mark.spec("SYNC-16-027")
+@pytest.mark.spec("SYNC-16-029")
+@pytest.mark.spec("SYNC-17-006")
+def test_a_position_at_minus_one_replays_the_whole_ledger(dl) -> None:
+    """Index -1 with the case's genesis hash says the sender holds no entry,
+    so every entry is replayed, in log order (ADR-0204)."""
+    seed_ledger(dl, 3)
+    before = _ledger_ids(dl)
+    port = _sync_port()
+
+    result = _answer(
+        dl, _read_at(_empty_ledger_position(dl), SIGNATORY_ID), port
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _sent_indices(port) == [0, 1, 2]
+    assert all(
+        call.kwargs["to"] == [SIGNATORY_ID]
+        for call in port.send_add_log_entry.call_args_list
+    )
+    assert isinstance(_state(dl, SIGNATORY_ID), VultronReplicationState)
+    assert _ledger_ids(dl) == before
+
+
+@pytest.mark.spec("SYNC-17-005")
+@pytest.mark.spec("SYNC-16-027")
+def test_a_position_at_minus_one_with_another_hash_is_refused(
+    dl, caplog
+) -> None:
+    """Index -1 names the case's genesis hash; any other is not this case's
+    empty ledger, so nothing is recorded or sent."""
+    seed_ledger(dl, 2)
+
+    _assert_unknown_position(
+        dl,
+        _read_at(
+            LedgerPosition(
+                log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash="9" * 64
+            ),
+            SIGNATORY_ID,
+        ),
+        caplog,
+    )
+
+
+@pytest.mark.spec("SYNC-17-002")
+@pytest.mark.spec("SYNC-16-027")
+def test_a_removed_participant_at_minus_one_is_refused(dl) -> None:
+    """The empty-ledger statement keeps the active-sender check."""
+    seed_ledger(dl, 2)
+    _add_removed_participant(dl)
+    port = _sync_port()
+
+    result = _answer(
+        dl, _read_at(_empty_ledger_position(dl), REMOVED_ID), port
+    )
+
+    _assert_refused_with_nothing(dl, REMOVED_ID, result, port)
 
 
 @pytest.mark.spec("SYNC-17-004")
@@ -353,12 +478,12 @@ def test_second_lagging_position_inside_the_cooldown_replays_nothing(
     entries = seed_ledger(dl, 3)
     port = _sync_port()
     _answer(dl, _read(entries[0], SIGNATORY_ID), port)
-    port.send_announce_log_entry.reset_mock()
+    port.send_add_log_entry.reset_mock()
 
     result = _answer(dl, _read(entries[0], SIGNATORY_ID), port)
 
     assert result.disposition is HandlerDisposition.APPLIED
-    port.send_announce_log_entry.assert_not_called()
+    port.send_add_log_entry.assert_not_called()
 
 
 @pytest.mark.spec("SYNC-17-004")
@@ -371,10 +496,10 @@ def test_replay_counts_only_rows_the_outbox_queued(dl) -> None:
     """
     entries = seed_ledger(dl, 2)
     port = _sync_port()
-    port.send_announce_log_entry.return_value = False
+    port.send_add_log_entry.return_value = False
     _answer(dl, _read(entries[0], SIGNATORY_ID), port)
-    port.send_announce_log_entry.return_value = True
-    port.send_announce_log_entry.reset_mock()
+    port.send_add_log_entry.return_value = True
+    port.send_add_log_entry.reset_mock()
 
     _answer(dl, _read(entries[0], SIGNATORY_ID), port)
 
@@ -388,7 +513,7 @@ def test_replay_counts_only_rows_the_outbox_queued(dl) -> None:
 
 def _assert_unknown_position(
     dl: SqliteDataLayer,
-    event: ReadLogEntryReceivedEvent,
+    event: ReadLedgerReceivedEvent,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     before = _ledger_ids(dl)
@@ -409,7 +534,7 @@ def _assert_unknown_position(
         "; nothing recorded or sent (SYNC-17-005)"
     )
     assert _state(dl, SIGNATORY_ID) is None
-    port.send_announce_log_entry.assert_not_called()
+    port.send_add_log_entry.assert_not_called()
     warnings = [
         record
         for record in caplog.records
@@ -496,8 +621,8 @@ def test_participant_states_its_tail_to_the_case_manager() -> None:
     )
 
     assert sent == 1
-    port.send_read_ledger_entry.assert_called_once()
-    call = port.send_read_ledger_entry.call_args
+    port.send_read_ledger.assert_called_once()
+    call = port.send_read_ledger.call_args
     assert call.kwargs["case_id"] == CASE_ID
     tail = max(
         cast(list[CaseLedgerEntry], store.list_objects("CaseLedgerEntry")),
@@ -511,7 +636,9 @@ def test_participant_states_its_tail_to_the_case_manager() -> None:
 
 
 @pytest.mark.spec("SYNC-17-001")
-def test_participant_at_the_empty_ledger_position_states_nothing() -> None:
+@pytest.mark.spec("SYNC-16-027")
+def test_participant_at_the_empty_ledger_position_states_minus_one() -> None:
+    """A replica holding no entry states index -1, asking for every entry."""
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=SIGNATORY_ID)
     seed_case(store, embargo_active=False)
     port = MagicMock(spec=SyncActivityPort)
@@ -520,9 +647,11 @@ def test_participant_at_the_empty_ledger_position_states_nothing() -> None:
         state_ledger_positions_trigger(
             store, SIGNATORY_ID, port, clock=SystemClock()
         )
-        == 0
+        == 1
     )
-    port.send_read_ledger_entry.assert_not_called()
+    call = port.send_read_ledger.call_args
+    assert call.kwargs["ledger_position"] == _empty_ledger_position(store)
+    assert call.kwargs["to"] == [MANAGER_ID]
 
 
 @pytest.mark.spec("SYNC-17-007")
@@ -538,7 +667,7 @@ def test_case_manager_states_no_position_for_a_case_it_manages() -> None:
         )
         == 0
     )
-    port.send_read_ledger_entry.assert_not_called()
+    port.send_read_ledger.assert_not_called()
 
 
 @pytest.mark.spec("SYNC-17-007")
@@ -555,7 +684,7 @@ def test_closed_participant_states_no_position() -> None:
         )
         == 0
     )
-    port.send_read_ledger_entry.assert_not_called()
+    port.send_read_ledger.assert_not_called()
 
 
 @pytest.mark.spec("SYNC-17-007")
@@ -573,21 +702,61 @@ def test_case_naming_no_case_manager_gets_no_statement() -> None:
         )
         == 0
     )
-    port.send_read_ledger_entry.assert_not_called()
+    port.send_read_ledger.assert_not_called()
 
 
-@pytest.mark.spec("SYNC-17-005")
-def test_position_whose_object_is_not_the_entry_at_its_index_is_refused(
-    dl, caplog
-) -> None:
-    """The object names another entry than the one the index holds."""
-    entries = seed_ledger(dl, 3)
-    event = _read(entries[1], SIGNATORY_ID)
-    other = make(CoreObject, id_=f"{CASE_ID}/log/elsewhere")
-
-    _assert_unknown_position(
-        dl, event.model_copy(update={"object_": other}), caplog
+@pytest.mark.spec("SYNC-17-001")
+def test_a_read_of_another_ledger_is_refused_at_the_edge() -> None:
+    """The extractor refuses a ``Read`` whose object is not its case's ledger."""
+    activity = make(
+        as_Read,
+        actor=SIGNATORY_ID,
+        object_=make(
+            as_OrderedCollection,
+            id_="https://example.org/cases/other/ledger",
+        ),
+        context=CASE_ID,
+        ledger_position=LedgerPosition(log_index=0, entry_hash="ab" * 32),
     )
+
+    with pytest.raises(ValidationError, match="not the case's ledger"):
+        extract_intent(
+            activity,
+            MessageSemantics.READ_CASE_LEDGER,
+            ReadLedgerReceivedEvent,
+        )
+
+
+@pytest.mark.spec("SYNC-17-001")
+def test_a_read_whose_ledger_carries_items_is_refused() -> None:
+    """The ledger is identity only (ADR-0204): a ``Read`` whose ledger lists
+    items is no position statement when it arrives, and is refused when it
+    is built."""
+    ledger = make(
+        as_OrderedCollection,
+        id_=case_ledger_id(CASE_ID),
+        items=["https://example.org/cases/case-001/log/0"],
+    )
+    activity = make(
+        as_Read,
+        actor=SIGNATORY_ID,
+        object_=ledger,
+        context=CASE_ID,
+        ledger_position=LedgerPosition(log_index=0, entry_hash="ab" * 32),
+    )
+
+    assert find_matching_semantics(activity) is not (
+        MessageSemantics.READ_CASE_LEDGER
+    )
+    with pytest.raises(VultronActivityConstructionError) as caught:
+        read_ledger_position_activity(
+            CASE_ID,
+            LedgerPosition(log_index=0, entry_hash="ab" * 32),
+            object_=ledger,
+            actor=SIGNATORY_ID,
+            at=authored_at(),
+        )
+    assert "identity only" in str(caught.value.__cause__)
 
 
 @pytest.mark.spec("SYNC-17-001")
@@ -598,15 +767,15 @@ def test_a_read_event_without_a_parsed_position_is_refused_at_the_edge() -> (
     activity = make(
         as_Read,
         actor=SIGNATORY_ID,
-        object_=_make_entry(0).id_,
+        object_=make(as_OrderedCollection, id_=case_ledger_id(CASE_ID)),
         context=CASE_ID,
     )
 
     with pytest.raises(VultronParseValidationError, match="ledgerPosition"):
         extract_intent(
             activity,
-            MessageSemantics.READ_CASE_LEDGER_ENTRY,
-            ReadLogEntryReceivedEvent,
+            MessageSemantics.READ_CASE_LEDGER,
+            ReadLedgerReceivedEvent,
         )
 
 
@@ -636,7 +805,7 @@ def test_actor_the_roster_does_not_list_states_no_position() -> None:
         )
         == 0
     )
-    port.send_read_ledger_entry.assert_not_called()
+    port.send_read_ledger.assert_not_called()
 
 
 @pytest.mark.spec("SYNC-17-007")

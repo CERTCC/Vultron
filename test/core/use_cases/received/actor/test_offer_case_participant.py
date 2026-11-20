@@ -85,6 +85,7 @@ from vultron.wire.as2.factories import (
     reject_case_participant_offer_activity,
     rm_accept_invite_to_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -502,7 +503,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
     def test_executes_without_error(self):
         # CM-11-019: use _event_with_stored_offer so the DL has the offer's
-        # roles and CreateInertInviteeParticipantNode can resolve them.
+        # roles and the seating node can resolve them.
         dl, _ = _seed_dl_for_case_actor()
         event = self._event_with_stored_offer(dl)
         result = run_in_act(
@@ -643,6 +644,39 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         }
         assert invitees == {RECOMMENDED_ID}
 
+    @pytest.mark.spec("CM-16-006")
+    @pytest.mark.spec("CM-24-002")
+    @pytest.mark.spec("CM-24-020")
+    def test_the_invite_credits_the_owner_and_answers_its_accept(self):
+        """The Owner's Accept is its decision to invite (ADR-0199).
+
+        The CASE_MANAGER's stub Invite names the Owner in ``attributedTo``
+        and the Owner's ``Accept`` in ``inReplyTo``.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        event = self._event_with_stored_offer(dl)
+
+        result = run_in_act(
+            AcceptOfferCaseParticipantReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        (invite,) = [
+            obj
+            for obj in (dl.read(a) for a in dl.outbox_list())
+            if str(getattr(obj, "type_", "")) == "Invite"
+        ]
+        assert isinstance(invite, as_Invite)
+        assert invite.actor == CASE_ACTOR_ID
+        assert invite.attributed_to == CASE_OWNER_ID
+        assert invite.in_reply_to == event.activity_id
+
     @pytest.mark.spec("CM-16-019")
     def test_offer_archived_from_a_stranger_is_not_a_record(self):
         """An Offer a stranger sent, archived by intake, is refused as a record.
@@ -760,7 +794,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         # Seed the recommendation as OfferActorToCaseReceivedUseCase would.
         _record_recommendation(dl)
 
-        # CM-11-019: store the offer with roles so CreateInertInviteeParticipantNode
+        # CM-11-019: store the offer with roles so the seating node
         # can resolve them and the use case is APPLIED.
         event = self._event_with_stored_offer(dl)
         result = run_in_act(
@@ -1536,12 +1570,12 @@ class TestAcceptOfferCaseParticipantRolesThreading:
     """AC-1/AC-2 (ISSUE-1406): roles threading through suggest-actor received path.
 
     AC-1: Full round-trip — Accept(Offer(CaseParticipant[roles])) →
-          EmitInviteActorToCaseNode (roles=None, no blackboard key) →
+          EmitRecordedInviteNode (the recorded Offer's roles) →
           stub Invite stored with roles=None → Accept(Invite) →
           CaseParticipant.case_roles == [].
 
-    AC-2: Confirm that EmitInviteActorToCaseNode with no ``suggested_roles``
-          blackboard key passes roles=None to invite_actor_to_case(), verifying
+    AC-2: Confirm that the stub Invite with no recorded roles passes
+          roles=None to invite_actor_to_case(), verifying
           no silent default substitution (ADR-0032 BT-HELPER-01).
     """
 
@@ -2041,7 +2075,7 @@ def _seed_a_recommendation_at_the_case_manager() -> tuple[
         target=_case_ref(CASE_ID),
         actor=RECOMMENDER_ID,
         to=[CASE_ACTOR_ID],
-        suggested_roles=["vendor"],
+        roles=["vendor"],
         at=authored_at(),
     )
     return dl, received_event(recommendation, at=dl)

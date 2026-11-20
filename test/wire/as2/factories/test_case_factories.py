@@ -38,9 +38,16 @@ from test.support.future_dates import FAR_FUTURE, days_from_now
 from test.support.objects import authored_at, make
 from test.support.signing import signed_body
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_preview import (
+    preview_current_status,
+    preview_em_state,
+    preview_embargo_id,
+    preview_in_force_entry,
+)
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.preview_object import is_loose_form_of
 from vultron.core.states.em import EM
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
@@ -62,7 +69,6 @@ from vultron.wire.as2.factories import (
     undo_case_ownership_transfer_activity,
     update_case_activity,
 )
-from vultron.wire.as2.factories.case.invite import _preview_embargo
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.typed_reference import as_TypedReference, case_reference
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -213,26 +219,54 @@ def test_add_report_to_case_invalid_raises():
 @pytest.mark.spec("AF-01-002")
 def test_add_status_to_case_returns_add(sample_status):
     result = add_status_to_case_activity(
-        status=sample_status, actor=_ACTOR_URI, at=authored_at()
+        status=sample_status,
+        case=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert isinstance(result, as_Add)
 
 
 def test_add_status_to_case_object_is_status(sample_status):
     result = add_status_to_case_activity(
-        status=sample_status, actor=_ACTOR_URI, at=authored_at()
+        status=sample_status,
+        case=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.object_ == sample_status
 
 
-def test_add_status_to_case_target_is_set(sample_status):
+@pytest.mark.spec("VAM-08-002")
+def test_add_status_to_case_targets_its_status_history(sample_status):
+    """ADR-0204: the target is <case>/statuses, the context the case."""
     result = add_status_to_case_activity(
         status=sample_status,
-        target=_CASE_URI,
+        case=_CASE_URI,
         actor=_ACTOR_URI,
         at=authored_at(),
     )
-    assert result.target == _CASE_URI
+    assert result.target == f"{_CASE_URI}/statuses"
+    assert result.context == _CASE_URI
+
+
+def test_add_status_to_case_refuses_another_cases_context(sample_status):
+    """The case's status joins its own case's history, not another's."""
+    with pytest.raises(VultronActivityConstructionError):
+        add_status_to_case_activity(
+            status=sample_status,
+            case=_CASE_URI,
+            context="https://example.org/cases/other",
+            actor=_ACTOR_URI,
+            at=authored_at(),
+        )
+
+
+def test_add_status_to_case_without_a_case_raises(sample_status):
+    with pytest.raises(VultronActivityConstructionError):
+        add_status_to_case_activity(
+            status=sample_status, case="", actor=_ACTOR_URI, at=authored_at()
+        )
 
 
 @pytest.mark.spec("AF-04-001")
@@ -240,6 +274,7 @@ def test_add_status_to_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         add_status_to_case_activity(
             status="not-a-status",  # type: ignore[arg-type]
+            case=_CASE_URI,
             at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
@@ -705,14 +740,22 @@ def test_stub_invite_refuses_a_bare_case_uri(sample_actor):
 
 
 def _invite_stub_wire(sample_actor) -> dict:
-    """The serialised stub an Invite carries for a case with no embargo."""
+    """The serialised stub an Invite carries for a case with no embargo.
+
+    The case holds content of every kind the preview withholds: its own
+    ``summary`` and ``content``, a report, a note and a reference.
+    """
     case = make(
         as_VulnerabilityCase,
         id_=_CASE_URI,
         name="CVE-2025-0001 in widget",
         summary="A summary of the case",
+        content="The full write-up the invitee must not see",
         stub_summary="RCE in widget — details withheld pending disclosure",
         attributed_to=_ACTOR_URI,
+        vulnerability_reports=["https://example.org/reports/r1"],
+        notes=["https://example.org/notes/n1"],
+        case_references=["https://example.org/references/ref1"],
     )
     result = rm_invite_to_case_activity(
         invitee=sample_actor, case=case, actor=_ACTOR_URI, at=authored_at()
@@ -722,32 +765,51 @@ def _invite_stub_wire(sample_actor) -> dict:
     return stub
 
 
-@pytest.mark.spec("MV-12-004")
-@pytest.mark.spec("CM-17-023")
-@pytest.mark.spec("CM-17-022")
-def test_rm_invite_stub_carries_no_case_content(sample_actor):
-    """The stub names the case and carries no other case content.
+#: What the stub shows of a case that holds a value in each withheld field.
+_REDACTED_CONTENT = (
+    "content",
+    "vulnerabilityReports",
+    "notes",
+    "caseReferences",
+)
 
-    Only the stub summary #4165 adds may join the identifying keys; the
-    case's own ``summary`` and its ``attributedTo`` never travel.  A
-    withheld field is left out, not marked ``Redacted`` (MV-12-004).
+
+@pytest.mark.spec("MV-12-004")
+@pytest.mark.spec("CM-17-005")
+def test_rm_invite_stub_marks_the_case_content_it_withholds(sample_actor):
+    """Each withheld value the case holds is marked, never sent.
+
+    The case's own ``summary`` gives way to the stub summary, and its
+    content, reports, notes and references each travel as one ``Redacted``
+    marker: the invitee learns they exist and sees none of them
+    (MV-12-004).  A field the case holds no value for is left out, not
+    marked: the case here has no participants beyond its default, no
+    parent case and no ``tag``.
     """
     stub = _invite_stub_wire(sample_actor)
-    assert set(stub) <= {"type", "id", "summary"}
-    assert stub.get("summary") != "A summary of the case"
-    assert "Redacted" not in json.dumps(stub)
+    assert stub["summary"] != "A summary of the case"
+    for key in _REDACTED_CONTENT:
+        assert stub[key] == {"type": "Redacted"}, key
+    assert "The full write-up" not in json.dumps(stub)
+    for key in ("parentCases", "childCases", "siblingCases", "tag"):
+        assert key not in stub, key
 
 
 @pytest.mark.spec("CM-17-010")
-def test_rm_invite_stub_carries_a_non_empty_summary(sample_actor):
-    """The stub carries a non-empty ``summary`` beside its identity (CM-17-010)."""
+def test_rm_invite_stub_shows_the_owner_name_and_status(sample_actor):
+    """The stub shows its summary, the Case Owner, the case name and its
+    current status beside its identity (CM-17-010, CM-17-013)."""
     stub = _invite_stub_wire(sample_actor)
-    assert set(stub) == {"type", "id", "summary"}
     assert isinstance(stub["summary"], str)
     assert stub["summary"].strip()
+    assert stub["attributedTo"] == _ACTOR_URI
+    assert stub["name"] == "CVE-2025-0001 in widget"
+    assert [status["type"] for status in stub["caseStatuses"]] == [
+        "CaseStatus"
+    ]
+    assert "embargoRegister" not in stub
 
 
-@pytest.mark.spec("CM-17-021")
 @pytest.mark.spec("CM-17-020")
 @pytest.mark.spec("CM-17-010")
 def test_rm_invite_to_case_refuses_when_no_stub_summary():
@@ -1133,26 +1195,30 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     assert reference.id_ == case_id
     stub = reference.preview
     assert isinstance(stub, as_CasePreview)
-    assert isinstance(stub.active_embargo, as_EmbargoEvent)
-    assert stub.active_embargo.id_ == embargo.id_
-    assert stub.active_embargo.end_time is not None
-    assert isinstance(stub.case_status, as_CaseStatus)
-    assert stub.case_status.em is not None
-    assert stub.case_status.em.state == EM.ACTIVE
+    # A preview holds its contents in loose forms (ADR-0217); the embargo is
+    # shown whole, every term as the inviter holds it (CM-17-011).
+    entry = preview_in_force_entry(stub)
+    assert entry is not None
+    shown = getattr(entry, "embargo", None)
+    assert is_loose_form_of(shown, as_EmbargoEvent)
+    assert _as2(shown) == _as2(embargo)
+    assert is_loose_form_of(preview_current_status(stub), as_CaseStatus)
+    assert preview_em_state(stub) is EM.ACTIVE
 
 
-@pytest.mark.spec("CM-17-022")
 @pytest.mark.spec("CM-17-013")
 @pytest.mark.spec("CM-17-002")
-def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
-    """An embargo-active stub adds only ``activeEmbargo`` and ``caseStatus``,
-    and its ``caseStatus`` states only the EM state.
+def test_enriched_stub_carries_the_current_status_and_in_force_entry(
+    sample_actor,
+):
+    """An embargo-active stub shows the case's current status whole and its
+    register reduced to the in-force entry.
 
-    The case here is public with an exploit (``PXa``).  The stub's status is
-    built for the stub, not read from the case, so a ``pxaState`` on the wire
-    would be the class default and would tell the invitee the case is not
-    public.  The dump goes through the outbound form, the subtype-aware JSON
-    dump (VM-07-001).
+    The case here is public with an exploit (``PXa``).  The stub shows the
+    case's own current status, so its ``pxaState`` is the case's, not a
+    class default that would tell the invitee the case is not public.  The
+    dump goes through the outbound form, the subtype-aware JSON dump
+    (VM-07-001).
     """
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_status import CaseStatus
@@ -1192,24 +1258,21 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     )
 
     stub = wire["object"]["preview"]
-    # "summary" is the stub summary #4165 adds (CM-17-010), not case content.
-    assert set(stub) - {"summary"} == {
-        "type",
-        "id",
-        "activeEmbargo",
-        "caseStatus",
-    }
-    status = stub["caseStatus"]
+    # The stub summary stands for the case's own (CM-17-020).
+    assert stub["summary"] == "Vulnerability under active embargo"
+    (status,) = stub["caseStatuses"]
+    held = json.loads(
+        case.current_status.model_dump_json(by_alias=True, exclude_none=True)
+    )
+    del held["@context"]  # nested: VM-10-004
+    assert status == held
     assert status["emState"] == EM.ACTIVE.value
-    # ``published`` is the time every status carries (CLP-15-010).
-    assert set(status) <= {
-        "id",
-        "type",
-        "context",
-        "published",
-        "emState",
-    }
-    assert status["published"]
+    assert status["pxaState"] == CS_pxa.PXa.name
+    (entry,) = stub["embargoRegister"]
+    assert entry["status"] == "ACTIVE"
+    assert entry["embargo"]["id"] == embargo.id_
+    assert "activeEmbargo" not in stub
+    assert "caseStatus" not in stub
 
 
 @pytest.mark.spec("CM-17-014")
@@ -1253,12 +1316,20 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     assert isinstance(reference, as_TypedReference)
     stub = reference.preview
     assert isinstance(stub, as_CasePreview)
-    assert isinstance(stub.active_embargo, as_EmbargoEvent)
-    assert stub.active_embargo.id_ == in_force.id_
-    assert stub.active_embargo.id_ != revision.id_
-    assert isinstance(stub.case_status, as_CaseStatus)
-    assert stub.case_status.em is not None
-    assert stub.case_status.em.state == EM.REVISE
+    entry = preview_in_force_entry(stub)
+    assert entry is not None
+    assert is_loose_form_of(getattr(entry, "embargo", None), as_EmbargoEvent)
+    assert preview_embargo_id(stub) == in_force.id_
+    # The register is reduced to the in-force entry: the revision is not in
+    # it (CM-17-014).
+    shown_register = stub.embargo_register
+    assert isinstance(shown_register, list)
+    assert [preview_embargo_id(stub)] == [
+        getattr(getattr(shown, "embargo", None), "id_", None)
+        for shown in shown_register
+    ]
+    assert is_loose_form_of(preview_current_status(stub), as_CaseStatus)
+    assert preview_em_state(stub) is EM.REVISE
 
 
 @pytest.mark.spec("CM-17-002")
@@ -1306,8 +1377,8 @@ def test_no_embargo_in_force_leaves_the_stub_bare(
     assert isinstance(reference, as_TypedReference)
     stub = reference.preview
     assert isinstance(stub, as_CasePreview)
-    assert stub.active_embargo is None
-    assert stub.case_status is None
+    assert stub.embargo_register is None
+    assert preview_em_state(stub) is em_state
 
 
 #: An embargo in force: EM ``ACTIVE``, or ``REVISE`` with a revision open.
@@ -1406,7 +1477,8 @@ def test_rm_invite_stub_embeds_the_full_active_embargo(
         embargo.model_dump_json(by_alias=True, exclude_none=True)
     )
     del expected["@context"]  # nested: VM-10-004
-    assert wire["object"]["preview"]["activeEmbargo"] == expected
+    (entry,) = wire["object"]["preview"]["embargoRegister"]
+    assert entry["embargo"] == expected
 
 
 @pytest.mark.spec("CM-17-024")
@@ -1456,15 +1528,20 @@ def test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one(
 
 
 @pytest.mark.spec("CM-17-024")
-def test_preview_embargo_refuses_when_no_active_embargo_is_named():
-    """An EM-active case that names no active embargo is refused, not sent bare.
+def test_rm_invite_refuses_a_supplied_embargo_that_is_no_embargo(sample_actor):
+    """A supplied in-force embargo that is not an ``EmbargoEvent`` is refused:
+    it holds no terms to embed (CM-17-011)."""
+    case_id = "https://example.org/cases/embargo-not-an-embargo"
+    case = _embargo_active_case(case_id, _full_embargo(case_id).id_)
 
-    A case whose EM is derived ``ACTIVE`` always has an active register entry,
-    so this guards the helper itself: with no embargo at all there are no terms
-    to embed, and the stub is not built (CM-17-011).
-    """
     with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
-        _preview_embargo(None, None, "https://example.org/cases/no-embargo")
+        rm_invite_to_case_activity(
+            invitee=sample_actor,
+            case=case,
+            actor=_ACTOR_URI,
+            embargo_obj=make(as_VulnerabilityCase, attributed_to=_ACTOR_URI),
+            at=authored_at(),
+        )
 
 
 @pytest.mark.spec("CM-11-001")
@@ -1554,3 +1631,11 @@ def test_ownership_reply_refuses_a_received_offer_of_another_kind(
     # as_answered's validation of the parsed Offer refused it.
     assert isinstance(cause, ValidationError)
     assert cause.title == "_OfferCaseOwnershipTransferActivity"
+
+
+def _as2(obj: object) -> object:
+    """*obj*'s AS2 form, without the top-level ``@context``."""
+    assert isinstance(obj, BaseModel)
+    dumped = obj.model_dump(by_alias=True, exclude_none=True, mode="json")
+    dumped.pop("@context", None)
+    return dumped

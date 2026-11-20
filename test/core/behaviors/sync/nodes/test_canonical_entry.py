@@ -347,12 +347,12 @@ def test_bare_target_equal_to_the_case_uri_is_accepted():
 @pytest.mark.spec("CLP-07-006")
 @pytest.mark.spec("AKM-02-002")
 def test_bare_target_naming_a_held_object_is_recorded_as_received():
-    """``Add(ParticipantStatus)`` with a bare participant URI target is not refused.
+    """``Add(ParticipantStatus)`` with a bare status history target is not refused.
 
-    The participant a status is added to is an object the case's replicas
-    hold, so its sender may name it by URI (AKM-02-002).  The commit boundary
-    records the reference as it arrived; it neither inlines it nor refuses
-    it (CLP-07-006, ADR-0107).
+    The target is ``<participant>/statuses``, the history of a participant
+    the case's replicas hold (ADR-0204), so its sender may name it by URI
+    (AKM-02-002).  The commit boundary records the reference as it arrived;
+    it neither inlines it nor refuses it (CLP-07-006, ADR-0107).
     """
     snapshot = {
         "type": "Add",
@@ -362,7 +362,7 @@ def test_bare_target_naming_a_held_object_is_recorded_as_received():
             "type": "ParticipantStatus",
             "id": "https://example.org/statuses/status-1",
         },
-        "target": "https://example.org/actors/vendor#participant",
+        "target": "https://example.org/actors/vendor#participant/statuses",
         "context": CASE_ID,
     }
     _validate_canonical_entry(
@@ -478,6 +478,7 @@ def test_a_stub_invite_resolves_to_the_invite_of_a_case_signature():
             "id": CASE_ID,
             "preview": {
                 "type": "CasePreview",
+                "attributedTo": "https://example.org/actors/vendor",
                 "id": "https://example.org/previews/1",
                 "summary": "A case to join",
             },
@@ -650,5 +651,83 @@ def test_an_actor_naming_no_id_is_refused():
                 actor={"type": "Organization", "name": "nobody"}
             ),
             semantic_type="add_note_to_case",
+            at=datetime.now(UTC),
+        )
+
+
+_NAMED_ACTOR = {
+    "type": "Organization",
+    "id": "https://example.org/actors/vendor",
+}
+
+
+def _actor_act(verb: str, **slots: object) -> dict[str, object]:
+    return {
+        "type": verb,
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": dict(_NAMED_ACTOR),
+        "context": CASE_ID,
+        **slots,
+    }
+
+
+@pytest.mark.spec("CM-31-024")
+@pytest.mark.parametrize(
+    ("slots", "expected"),
+    [
+        (
+            {"target": {"type": "VulnerabilityCase", "id": CASE_ID}},
+            ("VulnerabilityCase", "Actor", "Organization"),
+        ),
+        ({"target": CASE_ID}, ("VulnerabilityCase", "Actor", "Organization")),
+        ({"origin": CASE_ID}, ("Actor", "Organization")),
+    ],
+    ids=["typed-target", "case-id-target", "no-target"],
+)
+def test_an_act_on_an_actor_also_signs_as_an_act_on_actor(slots, expected):
+    """An act whose object is an actor yields the target's types, then
+    ``Actor``, then the actor's own types, so the Case Owner's
+    ``Remove(<Actor>)`` and ``Add(<Actor>)`` resolve whatever actor type they
+    carry (ADR-0199)."""
+    assert _snapshot_object_types(_actor_act("Add", **slots), CASE_ID) == (
+        expected
+    )
+
+
+def test_an_object_typed_actor_is_not_named_twice():
+    snapshot = _actor_act("Remove", origin=CASE_ID)
+    snapshot["object"] = {"type": "Actor", "id": _NAMED_ACTOR["id"]}
+
+    assert _snapshot_object_types(snapshot, CASE_ID) == ("Actor",)
+
+
+@pytest.mark.spec("CM-31-024")
+@pytest.mark.spec("CM-31-044")
+@pytest.mark.parametrize(
+    ("verb", "slots", "semantic_type"),
+    [
+        ("Remove", {"origin": CASE_ID}, "remove_participant_from_case"),
+        ("Add", {"target": CASE_ID}, "reinstate_participant_in_case"),
+    ],
+    ids=["removal", "reinstatement"],
+)
+def test_the_owners_move_of_an_actor_is_canonical(verb, slots, semantic_type):
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=_actor_act(verb, **slots),
+        semantic_type=semantic_type,
+        at=datetime.now(UTC),
+    )
+
+
+@pytest.mark.spec("CLP-07-012")
+def test_another_act_on_an_actor_stays_non_canonical():
+    """Adding ``Actor`` to the types admits only the listed ``Actor`` pairs."""
+    with pytest.raises(VultronCanonicalEntryError, match="is not canonical"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=_actor_act("Like"),
+            semantic_type="like_actor",
             at=datetime.now(UTC),
         )

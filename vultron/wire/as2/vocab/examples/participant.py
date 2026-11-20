@@ -11,18 +11,23 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.models._helpers import URN_UUID_PREFIX
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.states.cs import CS_vf
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
+    announce_admitted_act_activity,
     create_participant_activity,
-    remove_participant_from_case_activity,
+    reinstate_participant_activity,
+    remove_participant_activity,
     rm_accept_full_case_invite_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -35,9 +40,11 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
+    as_Announce,
     as_Create,
     as_Invite,
     as_Reject,
+    as_Remove,
     as_Update,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -48,9 +55,13 @@ from vultron.wire.as2.vocab.examples._base import (
     _example_stamp,
     case,
     case_actor,
+    example_uuid,
     finder,
+    gen_report,
     vendor,
+    vulnerability_item,
 )
+from vultron.wire.as2.vocab.examples.embargo import embargo_event
 from vultron.wire.as2.vocab.examples.status import (
     participant_status,
 )
@@ -119,57 +130,31 @@ def finder_participant() -> as_CaseParticipant:
     return _participant_for(finder(), [CVDRole.REPORTER])
 
 
-def add_vendor_participant_to_case() -> as_Add:
-    _vendor = vendor()
-    _case = case()
-
-    activity = add_participant_to_case_activity(
-        vendor_participant(),
-        actor=_vendor.id_,
-        target=_case.id_,
-        content="We're adding ourselves as a participant to this case.",
-        at=EXAMPLE_TIMESTAMP,
-    )
-    return activity
-
-
-def add_finder_participant_to_case() -> as_Add:
-    _vendor = vendor()
-    _case = case()
-
-    activity = add_participant_to_case_activity(
-        finder_participant(),
-        actor=_vendor.id_,
-        target=_case.id_,
-        content="We're adding the finder as a participant to this case.",
-        at=EXAMPLE_TIMESTAMP,
-    )
-    return activity
-
-
-def add_coordinator_participant_to_case() -> as_Add:
-    """The Case Owner (the vendor) reinstates a removed coordinator (CM-31-011)."""
-    _vendor = vendor()
-    _case = case()
-
-    activity = add_participant_to_case_activity(
-        coordinator_participant(),
-        actor=_vendor.id_,
-        target=_case.id_,
-        content="We're reinstating the coordinator in this case.",
-        at=EXAMPLE_TIMESTAMP,
-    )
-    return activity
-
-
 def rm_invite_to_case() -> as_Invite:
+    """The stub ``Invite`` to the example case, with an embargo in force.
+
+    Its preview is cut from the case by the invitation profile (CM-17-010,
+    ADR-0217): the stub summary, the case name and times, the Case Owner,
+    the current status, the CVE ID of the vul item, and the embargo in force
+    whole as the register's one entry the invitee consents to (CM-17-002,
+    CM-17-011).  The case's content and its report are marked ``Redacted``.
+    """
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _case = case(
         stub_summary=(
             "A memory-corruption vulnerability in widget"
             " — details shared after acceptance."
-        )
+        ),
+        content="The full technical write-up, shared with participants.",
+        vulnerability_reports=[gen_report().id_],
+        vulnerability_items=[vulnerability_item()],
+        embargo_register=[
+            EmbargoRegisterEntry(
+                embargo=embargo_event(),
+                status=EmbargoRegisterStatus.ACTIVE,
+            )
+        ],
     )
     _activity = rm_invite_to_case_activity(
         _coordinator,
@@ -295,21 +280,82 @@ def invite_to_case() -> as_Invite:
     return rm_invite_to_case()
 
 
-def remove_participant_from_case():
-    _vendor = vendor()
+#: The Owner's acts carry fixed ids, so each ``Announce`` example embeds the
+#: very act its own example shows (ADR-0199).
+_REMOVAL_ID = f"{URN_UUID_PREFIX}{example_uuid('participant-removal')}"
+_REINSTATEMENT_ID = (
+    f"{URN_UUID_PREFIX}{example_uuid('participant-reinstatement')}"
+)
+
+
+def remove_participant_from_case() -> as_Remove:
+    """The Case Owner (the vendor) removes the coordinator (CM-31-004).
+
+    The Owner's own act, ``Remove(<Actor>, origin=<case>)``, sent to the
+    CASE_MANAGER only and naming the coordinator as a typed reference
+    (ADR-0199).
+    """
     _case = case()
-    coord_p = coordinator_participant()
-    activity = remove_participant_from_case_activity(
-        coord_p,
-        actor=_vendor.id_,
-        # `target`, not `origin`: RemoveCaseParticipantFromCasePattern
-        # discriminates on target_, so an origin-only Remove(CaseParticipant)
-        # matches no pattern and never dispatches (#3438).
-        target=_case.id_,
+    return remove_participant_activity(
+        _COORDINATOR.id_,
+        _case.id_,
+        actor=vendor().id_,
+        to=[case_actor().id_],
+        id_=_REMOVAL_ID,
         summary="Vendor is removing the coordinator from the case.",
         at=EXAMPLE_TIMESTAMP,
     )
-    return activity
+
+
+def reinstate_participant_in_case() -> as_Add:
+    """The Case Owner (the vendor) reinstates the removed coordinator (CM-31-011).
+
+    The Owner's own act, ``Add(<Actor>, target=<case>)``, sent to the
+    CASE_MANAGER only and naming the coordinator as a typed reference
+    (ADR-0199).
+    """
+    _case = case()
+    return reinstate_participant_activity(
+        _COORDINATOR.id_,
+        _case.id_,
+        actor=vendor().id_,
+        to=[case_actor().id_],
+        id_=_REINSTATEMENT_ID,
+        content="We're reinstating the coordinator in this case.",
+        at=EXAMPLE_TIMESTAMP,
+    )
+
+
+def announce_participant_removal() -> as_Announce:
+    """The CASE_MANAGER announces the Owner's admitted removal (ADR-0199).
+
+    ``Announce(<the Owner's Remove>)`` to the removed coordinator: the act
+    travels inline, keeping its own author and id, and ``inReplyTo`` names
+    it.  It informs and asks nothing; the coordinator's replica takes the
+    removal from the ledger entry.
+    """
+    removal = remove_participant_from_case()
+    return announce_admitted_act_activity(
+        removal,
+        case().id_,
+        actor=case_actor().id_,
+        to=[_COORDINATOR.id_],
+        id_=derived_activity_id("announce-admitted-act", removal.id_),
+        at=EXAMPLE_TIMESTAMP,
+    )
+
+
+def announce_participant_reinstatement() -> as_Announce:
+    """The CASE_MANAGER announces the Owner's admitted reinstatement (ADR-0199)."""
+    reinstatement = reinstate_participant_in_case()
+    return announce_admitted_act_activity(
+        reinstatement,
+        case().id_,
+        actor=case_actor().id_,
+        to=[_COORDINATOR.id_],
+        id_=derived_activity_id("announce-admitted-act", reinstatement.id_),
+        at=EXAMPLE_TIMESTAMP,
+    )
 
 
 #: The ledger position in the full-case Invite examples.  The participant has

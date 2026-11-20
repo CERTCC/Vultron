@@ -99,6 +99,7 @@ from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     em_reject_embargo_activity,
 )
+from vultron.wire.as2.vocab.base.registry import resolved_wire_type_name
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant as WireCP,
 )
@@ -136,7 +137,7 @@ def _case_entries(dl: SqliteDataLayer, case_id: str) -> list[str]:
     return sorted(
         obj.id_
         for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+        if isinstance(obj, CaseLedgerEntry) and obj.context == case_id
     )
 
 
@@ -3549,7 +3550,7 @@ class TestOwnerAnswerToRelayedInvite:
         ]
         body = read_sealed_body_dict(dl, answer_id)
         assert body is not None
-        assert body["object"]["type"] == object_type
+        assert resolved_wire_type_name(body["object"]["type"]) == object_type
         if has_target:
             assert body["inReplyTo"] == invite_id
             assert body["object"]["id"] == embargo.id_

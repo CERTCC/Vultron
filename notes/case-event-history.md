@@ -5,8 +5,9 @@ kind: guidance
 description: >
   Rules for changing the read-only layer that turns a case ledger into CVD event
   histories and per-vendor scores (`vultron/measure/`): what the derivation reads,
-  which entry points a measure scores through, the ledger shapes the recorded test
-  corpus does not cover, and where the shared JSONL walker lives.
+  which entry points a measure scores through, how action rules are compared with
+  move advice and their docs rebuilt, the ledger shapes the recorded test corpus
+  does not cover, and where the shared JSONL walker lives.
 related_specs:
   - specs/case-event-history.yaml
   - specs/demo-report.yaml
@@ -164,6 +165,23 @@ position, never pattern by pattern; show each rule disagreement and leave both t
 as they are. Reason: the generated rules are the evidence an authored rule is checked
 against, so a second scorer could drift from the advice, and a disagreement marks a
 wrong rule or a chance-model blind spot only a person can tell apart (ADR-0216).
+
+Read a one-vendor position's verdict once for each set of desiderata a history can
+leave open there, and state a band that differs between those sets as a conditional
+verdict, never one history's band. Reason: a desideratum already met or broken changes
+by nothing, so accepting a report deferred straight away is harm-free and accepting one
+accepted before is not, at the same states (user decision on #6676, D6; SHD-05-029).
+
+Give an authored rule joined to a step the position forces next (`vfdP..` forces V,
+`pX` forces P) an unscored result, "not measured: this step happens anyway", never a
+band. Reason: a forced step's shift is zero, so every rule on it would read as a rule
+disagreement that says nothing about the rule (user decision on #6676, D19;
+SHD-05-030).
+
+Rebuild the action rules' docs fragments with `uv run action-rules-docs --write`, and
+let the docs build only include them. Reason: building them walks the one-vendor
+model for seconds, and `test_pages.py` fails when a committed fragment is stale
+(SHD-05-008, SHD-05-009).
 
 Score a complete history with `vultron.measure.scoring.history_score`, never
 `CVDmodel.score_hist`: it is the same `Σ (1 − f_d)` over the twelve original

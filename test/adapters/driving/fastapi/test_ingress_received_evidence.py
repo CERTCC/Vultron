@@ -16,7 +16,7 @@
 
 ``FastAPIIngressAdapter.rehydrate`` returns a *different* object from the one
 the parser sealed: a by-ID re-read from a staging store, or an in-place hydration
-for ``Announce(CaseLedgerEntry)``.  Neither is the received artifact, so the
+for ``Add(CaseLedgerEntry)``.  Neither is the received artifact, so the
 evidence must be carried onto it, and it must still be the body as it arrived —
 bare references included — rather than the hydrated form (ISSUE-3584).
 """
@@ -62,7 +62,7 @@ from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.services.received_activity import sealed_body_of
 from vultron.core.services.received_outcome import write_receipt_stub
 from vultron.errors import VultronReusedActivityIdError, VultronWiringError
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import add_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
@@ -180,15 +180,15 @@ def _defer(dl: SqliteDataLayer, body: dict[str, Any]) -> None:
     assert staging.hold_for_replay(artifact.id_, received_at=now_utc())
 
 
-def _announce_entry_body() -> dict[str, Any]:
-    """An ``Announce(CaseLedgerEntry)``, signed, as a CASE_MANAGER sends it."""
+def _add_entry_body() -> dict[str, Any]:
+    """An ``Add(CaseLedgerEntry)``, signed, as a CASE_MANAGER sends it."""
     entry = make(
         CaseLedgerEntry,
         id_=f"{CASE_ID}/log/entry-1",
-        case_id=CASE_ID,
+        context=CASE_ID,
         log_object_id=ACTOR,
         semantic_type="accept_invite_actor_to_case",
-        payload_snapshot={"actor": ACTOR},
+        payload_snapshot={"id": ACTOR, "actor": ACTOR},
         entry_hash="hash-1",
         prev_log_hash="hash-0",
         log_index=1,
@@ -196,9 +196,9 @@ def _announce_entry_body() -> dict[str, Any]:
         published=ACT_AT,
     )
     return signed_body(
-        announce_log_entry_activity(
+        add_log_entry_activity(
             entry,
-            id_="https://example.org/activities/announce-entry-1",
+            id_="https://example.org/activities/add-entry-1",
             actor=CASE_ACTOR,
             to=[ACTOR],
             at=authored_at(),
@@ -496,12 +496,12 @@ def test_the_same_body_under_a_refused_id_is_routed_on_its_own(
 
 @pytest.mark.spec("IE-10-002")
 @pytest.mark.spec("SYNC-12-003")
-def test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place(
+def test_a_repeat_of_an_archived_ledger_add_is_hydrated_in_place(
     dl: SqliteDataLayer,
 ):
-    """The same ``Announce(CaseLedgerEntry)`` body still takes the in-place
+    """The same ``Add(CaseLedgerEntry)`` body still takes the in-place
     path, so the SYNC-12-003 already-stored gate answers it (SYNC-13-004)."""
-    body = _announce_entry_body()
+    body = _add_entry_body()
     archive_received(dl, parse_activity(copy.deepcopy(body)))
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(copy.deepcopy(body))
@@ -516,12 +516,12 @@ def test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place(
 
 @pytest.mark.spec("IE-10-002")
 @pytest.mark.spec("IE-10-003", "IE-10-004", "IE-10-005")
-def test_a_different_body_under_an_archived_ledger_announce_id_is_refused(
+def test_a_different_body_under_an_archived_ledger_add_id_is_refused(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):
     """The in-place path gets the same comparison: a rewritten entry under
-    a held ``Announce`` id is refused, not hydrated (IE-10-002)."""
-    _, body = _archive_sealed(dl, _announce_entry_body())
+    a held ``Add`` id is refused, not hydrated (IE-10-002)."""
+    _, body = _archive_sealed(dl, _add_entry_body())
 
     def rewrite(entry: dict[str, Any]) -> None:
         entry["object"]["payload_snapshot"] = {"actor": "rewritten"}
@@ -533,12 +533,12 @@ def test_a_different_body_under_an_archived_ledger_announce_id_is_refused(
 
 @pytest.mark.spec("IE-10-002")
 @pytest.mark.spec("IE-10-003", "IE-10-004", "IE-10-005")
-def test_a_different_body_under_a_held_ledger_announce_id_is_refused(
+def test_a_different_body_under_a_held_ledger_add_id_is_refused(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):
-    """A held ``Announce(CaseLedgerEntry)`` is compared with the body held
+    """A held ``Add(CaseLedgerEntry)`` is compared with the body held
     for its replay (SYNC-14-001, IO-03-004)."""
-    body = _announce_entry_body()
+    body = _add_entry_body()
     _defer(dl, body)
 
     def rewrite(entry: dict[str, Any]) -> None:
@@ -614,7 +614,7 @@ def test_a_replayed_deferral_is_archived_as_its_first_delivery(
 def test_in_place_hydration_carries_the_evidence(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ):
-    """``Announce(CaseLedgerEntry)`` skips the re-read and still keeps it.
+    """``Add(CaseLedgerEntry)`` skips the re-read and still keeps it.
 
     ``SqliteDataLayer.hydrate`` happens to return the object it is given, which
     would let the evidence survive without being carried at all, so ``hydrate``
@@ -627,7 +627,7 @@ def test_in_place_hydration_carries_the_evidence(
         return fresh
 
     monkeypatch.setattr(dl, "hydrate", _fresh_copy)
-    body = _announce_entry_body()
+    body = _add_entry_body()
     received = copy.deepcopy(body)
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(body)

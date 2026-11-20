@@ -74,8 +74,18 @@ from vultron.core.models.base.language_map import (
 from vultron.core.models.base.record import (
     CoreRecord,
     concrete_type_annotation,
+    shares_full_form_type,
 )
-from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+from vultron.core.models.registry import (
+    CORE_TYPE_MAP,
+    CORE_VOCABULARY,
+    declared_type_value,
+)
+from vultron.core.models.type_terms import (
+    read_type_list_as_own,
+    type_terms,
+    with_supertype_term,
+)
 from vultron.primitives import NonEmptyString
 
 
@@ -176,6 +186,15 @@ class CoreObject(CoreRecord):
     #: Set on a kind received without a ``published``, which every subclass
     #: inherits (``received_without_published``, CLP-15-011).
     _received_without_published: ClassVar[bool] = False
+    #: Set on a Vultron extension type that refines an AS2 core type: that
+    #: type's wire value, such as ``"Event"`` for ``EmbargoEvent``
+    #: (ADR-0201).  The AS2 dump writes ``type`` as ``[own type, this]``
+    #: (VM-03-005), while ``type_`` stays its own one string.  A string, not
+    #: the AS2 class, because core never names a wire class (ARCH-01-001);
+    #: the wire registry reads it as the class's AS2 supertype, so a received
+    #: list resolves back to this class (VM-03-006).  The core counterpart of
+    #: ``as_Base._as2_core_supertype``.
+    _as2_core_supertype_term: ClassVar[str | None] = None
 
     content: NonEmptyString | None = None
     summary: NonEmptyString | None = None
@@ -428,7 +447,13 @@ class CoreObject(CoreRecord):
                     data.pop(name, None)
             return data
         return serialize_with_top_level_context(
-            lambda: self._drop_unpublished(handler(self)), info, self.context_
+            lambda: with_supertype_term(
+                self._drop_unpublished(handler(self)),
+                str(self.type_),
+                type(self)._as2_core_supertype_term,
+            ),
+            info,
+            self.context_,
         )
 
     def _drop_unpublished(self, data: Any) -> Any:
@@ -478,6 +503,10 @@ class CoreObject(CoreRecord):
         # (PEP 563), where raw annotations are stringified and
         # ``isinstance(..., UnionType)`` would silently fall through and
         # register abstract bases.
+        if shares_full_form_type(cls):
+            # A loose form reads under its full class's type, which already
+            # names that class (ADR-0217).
+            return
         if "type_" not in own_annotations(cls):
             # No explicit type_ annotation: _set_type_from_class_name will set
             # type_ = cls.__name__ at construction time, so register by class
@@ -505,16 +534,52 @@ class CoreObject(CoreRecord):
         # whatever the referenced object's was, and "CoreObject" is never one.
         if cls is CoreObject:
             return data
-        if (
-            isinstance(data, dict)
-            and not data.get("type")
-            and not data.get("type_")
-        ):
-            field_info = cls.model_fields.get("type_")
-            if field_info is not None and field_info.default is None:
-                data = dict(data)
-                data["type"] = cls.__name__
-        return data
+        return type_from_class_name(cls, data)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_type_list_as_own_type(cls, data: Any) -> Any:
+        """Read the ``type`` list this class writes back as its own type.
+
+        ``type_`` holds one string, and an extension type's AS2 dump writes
+        the list ``[own type, core type]`` (VM-03-005, ADR-0201), so the
+        class reads that list, in either order, back as its own type.  Core
+        cannot ask the wire vocabulary whether another term is unknown or an
+        unrelated known type (VM-03-007, ARCH-01-001), so a list naming any
+        term but these two is left for the field to refuse.  The parse edge
+        resolves a received list before a class validates it; this is the
+        read for a dump validated directly.
+        """
+        own = declared_type_value(cls)
+        if own is None or not isinstance(data, dict):
+            return data
+        written = {own, cls._as2_core_supertype_term}
+        for key in ("type", "type_"):
+            value = data.get(key)
+            if (
+                isinstance(value, list)
+                and not set(type_terms(value)) <= written
+            ):
+                return data
+        return read_type_list_as_own(data, own) or data
+
+
+def type_from_class_name(cls: type[BaseModel], data: Any) -> Any:
+    """*data* with ``type`` set to *cls*'s name when it gives none.
+
+    Only a class that leaves ``type_`` without a default is named this way;
+    one that declares its type keeps the declaration's default.
+    """
+    if (
+        isinstance(data, dict)
+        and not data.get("type")
+        and not data.get("type_")
+    ):
+        field_info = cls.model_fields.get("type_")
+        if field_info is not None and field_info.default is None:
+            data = dict(data)
+            data["type"] = cls.__name__
+    return data
 
 
 def _require_built_object(value: object) -> BaseModel:

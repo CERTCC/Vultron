@@ -92,7 +92,7 @@ def guard_refusal(
     ``None`` when no such guard ran and failed.  For a guard whose message
     is the whole refusal, so the reason carries no tree label:
     :class:`~vultron.core.behaviors.case.nodes.incomplete_activity.ActivityIncompleteNode`
-    and the announce tree's trusted-sender guard.  A guard that never ran (a
+    and the add-log-entry tree's trusted-sender guard.  A guard that never ran (a
     leadership skip, or the post-close guard refused first) is ``None``, so
     the reading falls through to the general one.  So does a guard that
     failed because it was composed without a dependency (a

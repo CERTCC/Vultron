@@ -28,11 +28,8 @@ The General shorthands cover messages not tied to a specific state change.
 
 {% include-markdown "./_occasions/sections/suggest-actor-to-case.md" heading-offset=1 %}
 
-{% include-markdown "./_occasions/sections/request-invite-actor-to-case.md" heading-offset=1 %}
-
-For an actor with no record on the case, or an invitee that has not answered (CM-11-015), the CASE_MANAGER sends the Stub Invite directly.
-The reason is that the sender is the Case Owner, who would decide on a suggestion (CM-17-018).
-An actor already on the case or already awaiting the Case Owner's decision gets the same answer a suggestion gets (CM-16-008, CM-16-009).
+The Case Owner does not suggest: it decides, and invites an actor with its own Invite ([Case Owner invites an actor](case_management.md#owner-invite-actor-to-case)).
+The CASE_MANAGER refuses an `Offer(Actor)` from the Case Owner with a refusal notice (CM-17-027).
 
 {% include-markdown "./_occasions/sections/offer-case-participant.md" heading-offset=1 %}
 

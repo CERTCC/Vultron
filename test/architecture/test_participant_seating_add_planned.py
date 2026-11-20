@@ -71,8 +71,9 @@ def test_a_create_of_a_case_participant_is_unrecognized() -> None:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "VAM-01-018, VAM-06-004: a received Add(CaseParticipant) is still "
-        f"handled as the Case Owner's reinstatement request. {_SEAT}"
+        "VAM-01-018, VAM-06-004: no semantic recognizes the CASE_MANAGER's "
+        "Add(CaseParticipant) now that the Owner's reinstatement names the "
+        f"actor instead. {_SEAT}"
     ),
 )
 def test_the_seating_add_is_recognized_and_unhandled() -> None:
@@ -85,5 +86,6 @@ def test_the_seating_add_is_recognized_and_unhandled() -> None:
     )
 
     semantics = find_matching_semantics(add)
-    assert semantics is MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE
+    # The name the seating entry reuses (#6295); not yet a member.
+    assert semantics.value == "add_case_participant_to_case"
     assert not lookup_entry(semantics).handled

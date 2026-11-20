@@ -94,12 +94,11 @@ def test_a_reference_to_a_held_participant_is_handled_with_the_held_record():
     assert isinstance(held, CaseParticipant)
     payload = signed_body(
         {
-            "type": "Remove",
-            "id": "https://example.org/activities/remove-ref-1",
+            "type": "Update",
+            "id": "https://example.org/activities/update-ref-1",
             "published": _PUBLISHED,
             "actor": CASE_MANAGER_ID,
             "object": {"id": participant_id, "type": "CaseParticipant"},
-            "target": case.id_,
             "context": case.id_,
             "to": [_REPLICA],
             "ledgerPosition": _POSITION,
@@ -111,10 +110,7 @@ def test_a_reference_to_a_held_participant_is_handled_with_the_held_record():
     _run(dl, _REPLICA, payload, fetcher, dispatcher)
 
     (event,) = seen
-    assert (
-        event.semantic_type
-        is MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
-    )
+    assert event.semantic_type is MessageSemantics.UPDATE_CASE_PARTICIPANT
     assert isinstance(event.object_, CaseParticipant)
     # The held record's roles and author, which a hollow reference lacks.
     assert held.case_roles
@@ -186,19 +182,21 @@ def test_a_reference_whose_fetch_fails_goes_on_as_its_bare_id(type_: str):
 
 @pytest.mark.spec("MV-10-011")
 @pytest.mark.spec("SYNC-02-005")
-def test_a_ledger_entry_announced_by_reference_carries_no_entry():
-    """An ``Announce`` of a ledger entry by reference is not read as the
+def test_a_ledger_entry_added_by_reference_carries_no_entry():
+    """An ``Add`` of a ledger entry by reference is not read as the
     inline entry replication carries: it goes on as a bare id, and nothing is
     fetched for it (AKM-05-007)."""
     dl, case = _replica()
     entry_id = f"{case.id_}/log/7"
     payload = signed_body(
         {
-            "type": "Announce",
-            "id": "https://example.org/activities/announce-ref-1",
+            "type": "Add",
+            "id": "https://example.org/activities/add-ref-1",
             "published": _PUBLISHED,
             "actor": CASE_MANAGER_ID,
             "object": {"id": entry_id, "type": "CaseLedgerEntry"},
+            "target": f"{case.id_}/ledger",
+            "inReplyTo": "https://example.org/activities/committed-act",
             "context": case.id_,
             "to": [_REPLICA],
             "ledgerPosition": _POSITION,

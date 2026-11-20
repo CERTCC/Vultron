@@ -50,19 +50,19 @@ class ApplyOfferReportFromLedgerNode(
 ):
     """Apply an ``add_report_to_case`` ledger entry to the local DataLayer.
 
-    When an invited actor receives ``Announce(CaseLedgerEntry)`` for the
+    When an invited actor receives ``Add(CaseLedgerEntry)`` for the
     canonical ``add_report_to_case`` entry, this node stores the report from the
     entry's ``payload_snapshot`` when the replica lacks it, and attaches it to
     the case replica's ``vulnerability_reports``.
 
     It does not create a ``VultronOfferRecord``.  The invited actor was never
     sent the reporter's ``Offer(VulnerabilityReport)``, so it holds no record of
-    it and cannot answer it (CM-11-020, ADR-0121).  The entry's ``offerId`` and
-    ``offerActorId`` stay in the ledger (CP-01-007); a participant reads them
-    from there.
+    it and cannot answer it (CM-11-020, ADR-0121).  The entry's ``inReplyTo``
+    names the Offer and stays in the ledger (CP-01-007); a participant reads
+    it from there, and the Offer's sender from the report's ``attributedTo``.
 
     Lenient on missing data — an incomplete snapshot returns SUCCESS to avoid
-    blocking the ``Announce`` processing flow.  SYNC-02-001, ISSUE-2134.
+    blocking the ``Add`` processing flow.  SYNC-02-001, ISSUE-2134.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -106,7 +106,7 @@ class ApplyOfferReportFromLedgerNode(
 
         # The replica's report list converges on the manager's (RSH-08-004).
         self._maybe_restore_report(object_data, report_id)
-        self._attach_report_to_case(entry.case_id, report_id)
+        self._attach_report_to_case(entry.context, report_id)
 
         return Status.SUCCESS
 

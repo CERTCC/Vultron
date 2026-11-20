@@ -120,8 +120,24 @@ The outcome is this issue's, not the catalog outcome copied.
 ### Phase 5 — Route to a Same-Theme Epic
 
 Every issue gets a parent. Candidates are the open Epics that carry the
-Phase 4 theme; an Epic in another theme is never a candidate, however close
-its title.
+Phase 4 theme and have a live (non-archived) Project #24 item; an Epic in
+another theme is never a candidate, however close its title. GitHub's
+`projectItems` also returns archived board items with their old `Schedule`
+value, so read the tier and the archive flag together, and drop an Epic whose
+item is archived or that has none: it is retired from the board, even when
+GitHub still shows it open (#6733).
+
+```bash
+gh api graphql -f query='{repository(owner:"CERTCC",name:"Vultron"){
+  issues(first:100,states:OPEN,filterBy:{labels:["theme:<name>"]}){nodes{
+    number title issueType{name}
+    projectItems(first:2,includeArchived:true){nodes{isArchived
+      fieldValueByName(name:"Schedule"){
+        ... on ProjectV2ItemFieldSingleSelectValue{name}}}}}}}}' \
+  --jq '.data.repository.issues.nodes[] | select(.issueType.name=="Epic")
+    | select(.projectItems.nodes | any(.isArchived == false))
+    | "\(.number) [\(.projectItems.nodes[0].fieldValueByName.name)] \(.title)"'
+```
 
 **Discovered work does not join Focus or Now by default (PAD-02-041).** When
 the reason is `opened-as` anything, the issue does not block the issue being

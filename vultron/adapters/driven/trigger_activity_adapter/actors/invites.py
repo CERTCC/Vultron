@@ -43,8 +43,10 @@ from vultron.wire.as2.factories.case import (
 
 from .._base import (
     _addressing,
+    _carried_list,
     _case_for_wire,
     _create_and_seal,
+    _delegation,
     _seal,
     _stamped,
 )
@@ -55,6 +57,23 @@ from ._helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _with_items_carried(
+    dl: CaseOutboxPersistence, case: VulnerabilityCase
+) -> VulnerabilityCase:
+    """*case* with each vul item it names by id carried as the stored item.
+
+    The stub Invite's preview shows each item cut to its ``ids``
+    (CM-17-010, ADR-0217), and a case names its items by id in the store, so
+    the items are read here, where the body is made.  An item the store
+    does not hold stays an id, which the preview marks ``Redacted``.  The
+    stored case is untouched: the items are carried on a copy.
+    """
+    carried = _carried_list(dl, case, case.id_, "vulnerability_items")
+    if carried is None:
+        return case
+    return case.model_copy(update={"vulnerability_items": carried})
 
 
 class _InvitesMixin:
@@ -95,12 +114,9 @@ class _InvitesMixin:
                 ADR-0205).
         """
         extra = _addressing(actor, to, id_)
-        if attributed_to is not None:
-            extra["attributed_to"] = attributed_to
+        extra.update(_delegation(attributed_to, in_reply_to))
         if rsvp_deadline is not None:
             extra["end_time"] = rsvp_deadline
-        if in_reply_to is not None:
-            extra["in_reply_to"] = in_reply_to
 
         # Read case and embargo from DataLayer; factory handles projection.
         resolved = case if case is not None else self._dl.read(case_id)
@@ -112,7 +128,7 @@ class _InvitesMixin:
 
         activity = rm_invite_to_case_activity(
             invitee=_held_actor(self._dl, invitee_id),
-            case=resolved,
+            case=_with_items_carried(self._dl, resolved),
             roles=roles,
             embargo_obj=_active_embargo_of(self._dl, resolved),
             **extra,

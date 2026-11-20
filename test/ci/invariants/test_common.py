@@ -19,6 +19,7 @@ from _pytest.outcomes import Failed, Skipped
 
 from test.ci.invariants import common
 from test.ci.invariants.common import (
+    check_case_invitations,
     check_cross_actor_hash_agreement,
     check_cross_actor_payload_actor_agreement,
     check_cs_state_transitions_observed,
@@ -68,7 +69,7 @@ def _entry(
         "entryHash": entry_hash,
         "prevLogHash": prev_log_hash,
         "semanticType": semantic_type,
-        "case_id": CASE_URI,
+        "context": CASE_URI,
         "payloadSnapshot": payload or {},
         "disposition": "recorded",
     }
@@ -331,6 +332,69 @@ def test_check_semantic_type_count_has_no_upper_bound_by_default() -> None:
     assert violations == []
 
 
+def _invitation_replicas(*payloads: dict) -> dict[str, list[dict]]:
+    """A case-actor log of ``invite_actor_to_case`` entries, one per payload."""
+    entries, prev = [], GENESIS_HASH
+    for i, snap in enumerate(payloads):
+        h = _SHA256(f"invitation:{i}")
+        entries.append(_entry(i, h, prev, "invite_actor_to_case", snap))
+        prev = h
+    return {"case-actor": entries}
+
+
+_OWNER = "https://example.org/actors/owner"
+_OWNERS_INVITE = {"id": "urn:uuid:owner-invite", "actor": _OWNER}
+_STUB = {
+    "id": "urn:uuid:stub",
+    "actor": "https://example.org/actors/case-actor",
+    "attributedTo": _OWNER,
+    "inReplyTo": "urn:uuid:owner-invite",
+}
+
+
+def test_check_case_invitations_passes_on_one_owner_invite_and_its_stub() -> (
+    None
+):
+    """One invitation is the Owner's Invite plus the stub answering it."""
+    replicas = _invitation_replicas(_OWNERS_INVITE, _STUB)
+    assert check_case_invitations(replicas, invitee_count=1) == []
+
+
+@pytest.mark.parametrize(
+    "payloads",
+    [
+        pytest.param((_STUB,), id="stub-without-owners-invite"),
+        pytest.param((_OWNERS_INVITE,), id="owners-invite-without-stub"),
+        pytest.param(
+            (_OWNERS_INVITE, _STUB, {**_STUB, "id": "urn:uuid:stub-2"}),
+            id="second-stub",
+        ),
+    ],
+)
+def test_check_case_invitations_reports_a_count_off_by_one(
+    payloads: tuple[dict, ...],
+) -> None:
+    """Each half is counted exactly, so a missing or extra Invite is reported."""
+    violations = check_case_invitations(
+        _invitation_replicas(*payloads), invitee_count=1
+    )
+    assert violations
+
+
+def test_check_case_invitations_reports_a_stub_naming_no_owners_invite() -> (
+    None
+):
+    """A stub whose ``inReplyTo`` names no Owner's Invite in the log is a fault."""
+    stray = {**_STUB, "inReplyTo": "urn:uuid:elsewhere"}
+    violations = check_case_invitations(
+        _invitation_replicas(_OWNERS_INVITE, stray), invitee_count=1
+    )
+    assert violations == [
+        "Stub Invite 'urn:uuid:stub' names 'urn:uuid:elsewhere' in inReplyTo,"
+        " which is no Case Owner's Invite in case-actor log."
+    ]
+
+
 def test_check_semantic_type_count_rejects_max_below_min() -> None:
     with pytest.raises(ValueError, match="max_count"):
         check_semantic_type_count(
@@ -532,7 +596,7 @@ def test_check_payload_context_uses_case_uri_detects_mismatch():
         semantic_type="create_case",
         payload={"context": "https://example.org/cases/WRONG"},
     )
-    entry["case_id"] = CASE_URI
+    entry["context"] = CASE_URI
     replicas = {"case-actor": [entry]}
     violations = check_payload_context_uses_case_uri(replicas)
     assert violations
@@ -1085,7 +1149,7 @@ class TestLoadDevlogsManifestHandling:
         When devlogs/ accumulates ledger files from multiple runs, the
         hash-chain invariant fails because entries from different cases are
         concatenated into one log.  The manifest's caseId identifies the
-        current run; load_devlogs must drop any entry whose caseId differs.
+        current run; load_devlogs must drop any entry whose context differs.
         Regression: issue #2273.
         """
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
@@ -1100,14 +1164,14 @@ class TestLoadDevlogsManifestHandling:
             "entryHash": "ha",
             "prevLogHash": "0",
             "semantic_type": "old_event",
-            "caseId": CASE_A,
+            "context": CASE_A,
         }
         entry_b = {
             "logIndex": 0,
             "entryHash": "hb",
             "prevLogHash": "0",
             "semantic_type": "new_event",
-            "caseId": CASE_B,
+            "context": CASE_B,
         }
 
         # Two JSONL files — one from each run — simulating local accumulation
@@ -1134,7 +1198,7 @@ class TestLoadDevlogsManifestHandling:
         replicas = common.load_devlogs("rv")
 
         assert "case-actor" in replicas
-        case_ids_in_result = {e.get("caseId") for e in replicas["case-actor"]}
+        case_ids_in_result = {e.get("context") for e in replicas["case-actor"]}
         assert case_ids_in_result == {CASE_B}, (
             f"Expected only {CASE_B!r}, got {case_ids_in_result!r}. "
             "load_devlogs must filter by manifest caseId to prevent "
@@ -1155,13 +1219,13 @@ class TestLoadDevlogsManifestHandling:
 
         CASE_A = "https://example.org/cases/case-a"
         CASE_B = "https://example.org/cases/case-b"
-        stale = {"semantic_type": "old_event", "caseId": CASE_A}
+        stale = {"semantic_type": "old_event", "context": CASE_A}
         current = {
             "logIndex": 0,
             "entryHash": "hb",
             "prevLogHash": "0",
             "semantic_type": "new_event",
-            "caseId": CASE_B,
+            "context": CASE_B,
         }
         (actor_dir / "case-a-case-ledger.jsonl").write_text(
             json.dumps(stale) + "\n", encoding="utf-8"

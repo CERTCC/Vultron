@@ -137,8 +137,8 @@ def semantic_type(entry: dict) -> str:
 
 
 def case_id(entry: dict) -> str:
-    """Return the ``case_id`` from an entry dict (handles camelCase JSONL)."""
-    return str(entry.get("case_id", entry.get("caseId", "")))
+    """Return the case an entry dict names in its ``context`` (CLP-14-012)."""
+    return str(entry.get("context", ""))
 
 
 def payload(entry: dict) -> dict:
@@ -596,6 +596,50 @@ def check_semantic_type_count(
     return []
 
 
+def check_case_invitations(
+    replicas: dict[str, list[dict]],
+    invitee_count: int,
+) -> list[str]:
+    """Assert the log holds exactly *invitee_count* case invitations.
+
+    The Case Owner invites with its own Invite, sent to the CASE_MANAGER, and
+    the CASE_MANAGER answers it with its own stub Invite to the invitee; both
+    are ``invite_actor_to_case`` entries (CM-17-007, CM-24-002).  So one
+    invitation is a pair: the Owner's Invite (no ``attributedTo``) and the
+    stub Invite crediting it (``attributedTo`` the Owner, ``inReplyTo`` the
+    Owner's Invite).  Each half is counted exactly, so a second Invite of
+    either kind, or a stub that names no Owner's Invite, is a violation: a
+    floor alone cannot tell the scenario's sends from a duplicate (#4120).
+    """
+    invites = [
+        payload(e)
+        for e in auth_entries(replicas)
+        if semantic_type(e) == "invite_actor_to_case"
+    ]
+    stubs = [p for p in invites if p.get("attributedTo")]
+    owners = [p for p in invites if not p.get("attributedTo")]
+    violations: list[str] = []
+    for kind, found in (
+        ("Case Owner's Invite", owners),
+        ("stub Invite", stubs),
+    ):
+        if len(found) != invitee_count:
+            violations.append(
+                f"Expected {invitee_count} {kind}(s) among the"
+                f" invite_actor_to_case entries in case-actor log;"
+                f" found {len(found)}."
+            )
+    owner_ids = {p.get("id") for p in owners}
+    for stub in stubs:
+        if stub.get("inReplyTo") not in owner_ids:
+            violations.append(
+                f"Stub Invite {stub.get('id')!r} names"
+                f" {stub.get('inReplyTo')!r} in inReplyTo, which is no"
+                " Case Owner's Invite in case-actor log."
+            )
+    return violations
+
+
 def check_no_rm_state_oscillation(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
@@ -832,7 +876,10 @@ def check_nested_objects_inlined(
 def check_payload_context_uses_case_uri(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """payloadSnapshot.context matches the entry's case_id for recorded entries (Invariant 11)."""
+    """payloadSnapshot.context matches the entry's context (Invariant 11).
+
+    Only recorded entries are checked.
+    """
     auth = auth_entries(replicas)
     mismatches: list[str] = []
     for e in auth:
@@ -846,7 +893,7 @@ def check_payload_context_uses_case_uri(
         if isinstance(context, str) and context != cid:
             mismatches.append(
                 f"logIndex={log_index(e)} semanticType={semantic_type(e)!r}: "
-                f"context={context[:60]!r} != case_id={cid[:60]!r}"
+                f"payload context={context[:60]!r} != entry context={cid[:60]!r}"
             )
     return mismatches
 

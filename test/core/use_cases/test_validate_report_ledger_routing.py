@@ -669,7 +669,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         ]
         assert vr_entries, "No validate_report ledger entry found"
         assert all(
-            getattr(e, "case_id", None) == self.CASE_ID for e in vr_entries
+            getattr(e, "context", None) == self.CASE_ID for e in vr_entries
         ), f"validate_report entry must reference case_id={self.CASE_ID!r}"
 
     def test_no_ledger_entry_when_receiving_actor_is_not_case_actor(self):

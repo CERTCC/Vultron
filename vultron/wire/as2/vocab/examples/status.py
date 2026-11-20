@@ -54,7 +54,8 @@ def case_status(pxa: CS_pxa = CS_pxa.pxa, number: int = 1) -> as_CaseStatus:
     """
     status = as_CaseStatus(
         id_=f"https://vultron.example/cases/1/status/{number}",
-        context="https://vultron.example/cases/1",
+        # The example case, which its status Add names in context (ADR-0204).
+        context=case().id_,
         em=EmDimension(state=EM.EMBARGO_MANAGEMENT_NONE),
         pxa=PxaDimension(state=pxa),
         published=EXAMPLE_TIMESTAMP + timedelta(minutes=number - 1),
@@ -68,7 +69,7 @@ def add_status_to_case() -> as_Add:
     return add_status_to_case_activity(
         case_status(),
         actor=case_actor().id_,
-        target=case().id_,
+        case=case().id_,
         to=[finder().id_],
         at=EXAMPLE_TIMESTAMP,
     )
@@ -80,7 +81,7 @@ def _add_case_status(pxa: CS_pxa, number: int) -> as_Add:
     return add_status_to_case_activity(
         case_status(pxa, number),
         actor=case_actor().id_,
-        target=case().id_,
+        case=case().id_,
         to=[finder().id_],
         at=EXAMPLE_TIMESTAMP,
     )
@@ -152,7 +153,10 @@ def _add_participant_status(
         **_example_stamp(),
     )
     return add_status_to_participant_activity(
-        pstatus, actor=sender_id, target=participant_id, at=EXAMPLE_TIMESTAMP
+        pstatus,
+        actor=sender_id,
+        participant=participant_id,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -203,7 +207,7 @@ def add_status_to_participant() -> as_Add:
     activity = add_status_to_participant_activity(
         pstatus,
         actor=_vendor.id_,
-        target="https://vultron.example/cases/1/participants/vendor",
+        participant="https://vultron.example/cases/1/participants/vendor",
         at=EXAMPLE_TIMESTAMP,
     )
     return activity

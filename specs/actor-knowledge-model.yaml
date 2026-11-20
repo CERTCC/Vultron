@@ -138,16 +138,25 @@ groups:
     kind: project
     statement: >-
       This codebase MUST use a bare reference only for an object that its recipient
-      already holds, such as the case it participates in.
+      already holds, such as the case it participates in. An `inReplyTo` that only
+      records provenance the recipient does not need to act on is exempt.
     rationale: >-
-      How this codebase meets AKM-02-002, beside AKM-02-004. A bare reference to an
-      object the recipient holds can be matched to that object, so the recipient can
-      read what the activity acts on without a fetch.
+      How this codebase meets AKM-02-002, beside AKM-02-004: a held object can be
+      matched to its reference without a fetch. The exemption covers the report Offer
+      an `add_report_to_case` entry answers. The ledger never holds that Offer, as
+      intake precedes the case (CLP-02-013), and participants must not answer it
+      (CM-11-020). A planned retrieve-on-demand interface would dereference it
+      (#3258); decided on #6419.
     verification: >-
       `test/architecture/test_introduced_objects_inline.py` classifies every outbound
       activity factory: each one carrying an object the recipient already holds takes
       it through a parameter typed to refuse a bare id, and each one introducing an
-      object refuses it as a bare id.
+      object refuses it as a bare id. In
+      `test/core/behaviors/case/test_offer_provenance_on_proposal.py`,
+      `test_the_snapshot_names_the_offer_the_proposal_carried` and
+      `test_the_snapshot_names_an_inline_offer_by_its_id` pin the exemption's use: the
+      `add_report_to_case` entry names the Offer by id, whether the proposal named it
+      by id or carried it inline.
     relationships:
     - rel_type: implements
       spec_id: AKM-02-002
@@ -528,11 +537,11 @@ groups:
       active participant of the case (CM-10-004) that has not closed on it
       (CM-23-004). A case object is the case itself, an embargo in its register, a
       participant, status, report, vulnerability item, case reference or note it lists, or
-      an object whose `context`
-      is the case. The `{case}` segment is the case's id, or its surrogate key
-      when the id carries slashes. The surrogate key is the last segment of the
-      id, and one that matches more than one case names none. The requester is the
-      actor the request names in its `X-Vultron-Actor` header.
+      an object whose `context` is the case other than a ledger entry, since no route
+      serves the ledger (SYNC-02-006). The `{case}` segment is the case's id, or its
+      surrogate key when the id carries slashes. The surrogate key is the last
+      segment of the id, and one that matches more than one case names none. The
+      requester is the actor the request names in its `X-Vultron-Actor` header.
     rationale: >-
       A replica dereferences a case object from the actor that holds the canonical case
       (ADR-0107), and only an active participant is entitled to case content
@@ -549,8 +558,9 @@ groups:
       carries slashes is named by its surrogate key;
       `test/core/services/test_dereference.py` checks a removed participant and one
       that has closed (`test_a_participant_that_has_closed_is_refused`) are refused,
-      that an object scoped to the case by its `context` is served, and that an actor
-      other than the case's CASE_MANAGER serves nothing;
+      that an object scoped to the case by its `context` is served, that a ledger entry
+      is not (`test_a_ledger_entry_is_not_served_though_it_names_the_case`), and that an
+      actor other than the case's CASE_MANAGER serves nothing;
       `test/adapters/driven/test_sqlite_find_case.py::test_find_case_by_short_id_returns_none_when_ambiguous`
       checks a surrogate key
       that matches more than one case names none.
@@ -561,6 +571,9 @@ groups:
       spec_id: CM-10-004
     - rel_type: uses_definition
       spec_id: CM-23-004
+    see_also:
+    - spec_id: SYNC-02-006
+      reason: 'scope boundary: no route serves the ledger, so no entry is a case object'
     adr:
     - ADR-0107
   - id: AKM-05-009
@@ -608,8 +621,7 @@ groups:
       an announced revision replaces it (EMB-18-007), and the proposer's profile a
       `Create(CaseProposal)` names by id (CP-01-014). A bare `object` matches no
       pattern that tests the object by its type (SE-01-006), so every activity whose
-      `object` the receiver lacks is fetched for, except a `Read(CaseLedgerEntry)`
-      position statement, which its `ledgerPosition` identifies. Nothing is fetched
+      `object` the receiver lacks is fetched for. Nothing is fetched
       for a case the receiver does not hold yet, as at the bootstrap: it names no
       host to ask. A bare reference in
       `target` or `context` is not fetched: it matches (SE-01-007), and its handler
@@ -669,7 +681,7 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST NOT fetch an object from itself, or the entry an
-      `Announce(CaseLedgerEntry)` carries.
+      `Add(CaseLedgerEntry)` carries.
     rationale: >-
       The CASE_MANAGER holds the canonical case, so nobody holds a case object it lacks.
       Replication carries its entries inline (SYNC-02-005), and replay needs no fetch.

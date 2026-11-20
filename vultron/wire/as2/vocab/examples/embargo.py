@@ -112,7 +112,8 @@ def relay_embargo_proposal() -> as_Invite:
 
     The CASE_MANAGER relays each adjudicated proposal as an ``Invite(EmbargoEvent)``
     of its own, one per participant other than the proposer, naming the
-    proposer in ``attributedTo`` (EP-09-002, CM-24).  The wire form is the
+    proposer in ``attributedTo`` and the proposer's Invite in ``inReplyTo``
+    (EP-09-002, CM-24-020).  The wire form is the
     proposer's ``Invite(EmbargoEvent)``; only the sender and addressee differ
     (MSM-08-009).  The addressee is the invitee, named in ``target``
     (ADR-0205).  The CASE_MANAGER stamps every relayed Invite with the
@@ -127,6 +128,7 @@ def relay_embargo_proposal() -> as_Invite:
         id_=f"{_case.id_}/embargo_proposals/1/invites/coordinator",
         actor=case_actor().id_,
         attributed_to=vendor().id_,
+        in_reply_to=propose_embargo().id_,
         to=[coordinator().id_],
         context=_case.id_,
         rsvp_deadline=EXAMPLE_TIMESTAMP + timedelta(days=7),
@@ -463,8 +465,9 @@ def notify_embargo_termination() -> as_Remove:
     has ended.
 
     The CASE_MANAGER addresses its own termination to every other participant
-    (EMB-19-001), naming the Case Owner it acts for in ``attributedTo``
-    (CM-24).  The wire form is the Case Owner's ``Remove(EmbargoEvent)``; only the
+    (EMB-19-001), naming the Case Owner it acts for in ``attributedTo`` and
+    the Owner's ``Remove`` in ``inReplyTo`` (CM-24-020).  The wire form is
+    the Case Owner's ``Remove(EmbargoEvent)``; only the
     sender and addressee differ (MSM-08-009).
     """
     _case = case()
@@ -472,6 +475,7 @@ def notify_embargo_termination() -> as_Remove:
         embargo_event(90),
         actor=case_actor().id_,
         attributed_to=vendor().id_,
+        in_reply_to=remove_embargo().id_,
         to=[coordinator().id_],
         origin=_case.id_,
         context=_case.id_,

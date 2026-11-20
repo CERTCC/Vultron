@@ -228,7 +228,7 @@ class _World:
         )
         activity = add_status_to_case_activity(
             status,
-            target=self.case_id,
+            case=self.case_id,
             actor=sender_id,
             to=[self.receiver_id],
             context=self.case_id,
@@ -249,7 +249,7 @@ class _World:
         )
         activity = add_status_to_participant_activity(
             status,
-            target=make(
+            participant=make(
                 as_CaseParticipant,
                 id_=self.finder_participant_id,
                 context=self.case_id,
@@ -338,7 +338,13 @@ def _overdue() -> datetime:
         ),
         pytest.param(
             InviteActorToCaseReceivedUseCase,
-            SenderRule.on_every_path(SenderEntitlementKind.CASE_MANAGER),
+            # The Case Owner's Invite at the CASE_MANAGER, whose standing the
+            # tree's guard judges (CM-17-026); the stub Invite elsewhere.
+            SenderRule(
+                at_case_manager=frozenset({SenderEntitlementKind.PARTICIPANT}),
+                at_participant=frozenset({SenderEntitlementKind.CASE_MANAGER}),
+                outside_case=frozenset({SenderEntitlementKind.CASE_MANAGER}),
+            ),
             id="invite",
         ),
         pytest.param(

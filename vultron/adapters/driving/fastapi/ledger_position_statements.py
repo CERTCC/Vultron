@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """State each hosted participant's ledger positions (SYNC-17-007, ADR-0155).
 
-A participant that missed the last ``Announce(CaseLedgerEntry)`` before a
+A participant that missed the last ``Add(CaseLedgerEntry)`` before a
 quiet period, for example because it was down when the entry was sent, gets
 no later entry with a gap and so sends no ``Reject``.  It recovers by stating
-its position: ``Read(CaseLedgerEntry)`` naming its replica's tail, which the
+its position: ``Read(<case>/ledger)`` stating its replica's tail, which the
 CASE_MANAGER answers with a replay of the entries it lacks (SYNC-17-004).
 
 The app lifespan starts :func:`start_ledger_position_statements` once at

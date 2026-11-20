@@ -225,8 +225,11 @@ def test_a_vulnerability_item_copies_the_identity_fields() -> None:
         ],
     )
     item = vulnerability_item_from_claims(vul, published=_NOW)
-    assert (item.cve, item.title) == ("CVE-2026-0001", "Overflow")
-    assert [(i.system_name, i.text) for i in item.ids] == [("VU#", "VU#1")]
+    assert item.name == "Overflow"
+    assert [(i.system_name, i.text) for i in item.ids] == [
+        ("CVE", "CVE-2026-0001"),
+        ("VU#", "VU#1"),
+    ]
     [note] = item.notes
     assert (note.category, note.text, note.title, note.audience) == (
         NoteCategory.SUMMARY,
@@ -348,14 +351,15 @@ def test_a_stated_end_is_not_taken_when_the_document_sets_x() -> None:
     assert "vulnerabilities[0].disclosure_date" not in inputs.outcomes
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CSAF-03-008: the intake still copies a CSAF title to the item's "
-    "`title`. Tracked by #6413.",
-)
 @pytest.mark.spec("CSAF-03-008")
 def test_a_csaf_entrys_title_arrives_as_the_items_name() -> None:
     vul = VulnerabilityClaims(cve="CVE-2026-0001", title="Overflow")
     item = vulnerability_item_from_claims(vul, published=_NOW)
     assert item.name == "Overflow"
+    assert "title" not in item.model_dump(by_alias=True)
+
+
+@pytest.mark.spec("CSAF-03-008")
+def test_a_csaf_entry_with_no_title_makes_an_unnamed_item() -> None:
+    vul = VulnerabilityClaims(cve="CVE-2026-0001")
+    assert vulnerability_item_from_claims(vul, published=_NOW).name is None

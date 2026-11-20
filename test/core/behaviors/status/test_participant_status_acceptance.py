@@ -15,10 +15,10 @@
 
 """Whole accept or reject of a received ParticipantStatus (RSH-09, ADR-0107).
 
-An inbound ``Add(ParticipantStatus)[target=CaseParticipant]`` states the sender's whole
-status.  The CASE_MANAGER records it exactly as received, or refuses all of it
-and tells the sender every reason; it never records a status nobody sent.  This
-replaced the per-dimension partial accept of RSH-05 (#3741).
+An inbound ``Add(ParticipantStatus, target=<participant>/statuses)`` states the
+sender's whole status. The CASE_MANAGER records it exactly as received, or
+refuses all of it and tells the sender every reason; it never records a status
+nobody sent. This replaced the per-dimension partial accept of RSH-05 (#3741).
 
 Per specs/received-status-handling.yaml RSH-09.
 """
@@ -78,7 +78,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import AddLogEntryReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
@@ -88,8 +88,8 @@ from vultron.core.use_cases.received.status import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
+    add_log_entry_activity,
     add_status_to_participant_activity,
-    announce_log_entry_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -181,7 +181,7 @@ def _ledger_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
         cast(CaseLedgerEntry, obj)
         for obj in dl.list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
-        and cast(CaseLedgerEntry, obj).case_id == CASE_ID
+        and cast(CaseLedgerEntry, obj).context == CASE_ID
     ]
     return sorted(entries, key=lambda e: e.log_index)
 
@@ -261,7 +261,7 @@ def _run_tree(
     """
     activity = add_status_to_participant_activity(
         status=asserted,
-        target=make(
+        participant=make(
             as_CaseParticipant,
             id_=PARTICIPANT_ID,
             context=CASE_ID,
@@ -387,6 +387,42 @@ class TestAcceptedStatusIsRecordedAsSent:
         snap = entry.payload_snapshot["object"]
         assert "vfState" not in snap
         assert "caseStatus" not in snap
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-35: participant tracking IDs are not built yet."
+            " Tracked by #6762."
+        ),
+    )
+    @pytest.mark.spec("CM-35-004")
+    def test_an_omitted_tracking_id_list_is_recorded_as_the_previous_set(
+        self, store_for, make_payload
+    ):
+        """The one fill RSH-09-010 allows: a received status with no
+        ``trackingIds`` is recorded, and ledgered, with the previous set."""
+        tracking_ids = [{"value": "SEC-1234", "tracker": "PSIRT"}]
+        current = make(
+            as_ParticipantStatus,
+            id_=f"{PARTICIPANT_ID}/statuses/current-tracked",
+            context=CASE_ID,
+            rm=RmDimension(state=RM.ACCEPTED),
+            vf=VfDimension(state=CS_vf.Vf),
+            tracking_ids=tracking_ids,
+        )
+        asserted = _asserted_status(RM.ACCEPTED, CS_vf.VF, None)
+        dl = store_for(CASE_MANAGER_ID)
+        _seed_case(dl, current, asserted)
+
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+        assert result.status == Status.SUCCESS, result.feedback_message
+
+        latest = _latest_status(dl, PARTICIPANT_ID)
+        assert latest.id_ == ASSERTED_STATUS_ID
+        wire = latest.model_dump(by_alias=True, exclude_none=True, mode="json")
+        assert wire["trackingIds"] == tracking_ids
+        (entry,) = _receipt_entries(dl)
+        assert entry.payload_snapshot["object"]["trackingIds"] == tracking_ids
 
     @pytest.mark.spec("RSH-09-001")
     def test_a_status_reaching_closed_records_its_vf_advance(
@@ -1058,6 +1094,7 @@ def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
             object_id="https://example.org/activities/add-status-2235",
             semantic_type="add_participant_status_to_participant",
             payload_snapshot={
+                "id": "https://example.org/activities/add-status-2235",
                 "object": {
                     "id": ASSERTED_STATUS_ID,
                     "type": "ParticipantStatus",
@@ -1066,7 +1103,9 @@ def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
                     "rmState": rm_state,
                     "vfState": vf_state,
                 },
-                "target": {"id": PARTICIPANT_ID},
+                # The participant's status history (ADR-0204).
+                "target": f"{PARTICIPANT_ID}/statuses",
+                "context": CASE_ID,
             },
             prev_log_hash=_ZERO_HASH,
             received_at=ACT_AT,
@@ -1076,22 +1115,27 @@ def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
 
 def _announce_event(
     entry: CaseLedgerEntry,
-) -> AnnounceLogEntryReceivedEvent:
+) -> AddLogEntryReceivedEvent:
     wire_entry = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
-    activity = announce_log_entry_activity(
+    activity = add_log_entry_activity(
         entry=wire_entry, actor=CASE_MANAGER_ID, at=authored_at()
     )
-    return cast(AnnounceLogEntryReceivedEvent, received_event(activity))
+    return cast(AddLogEntryReceivedEvent, received_event(activity))
 
 
 class TestLedgerApplyCopiesTheStatus:
     """A replicated entry's status is copied as carried (CM-23-016, ADR-0124)."""
 
     @staticmethod
-    def _apply(dl: Any, actor_id: str = ACTOR_ID) -> Status:
-        entry = _status_snapshot_entry(rm_state="VALID", vf_state="Vf")
+    def _apply(
+        dl: Any,
+        actor_id: str = ACTOR_ID,
+        entry: CaseLedgerEntry | None = None,
+    ) -> Status:
+        if entry is None:
+            entry = _status_snapshot_entry(rm_state="VALID", vf_state="Vf")
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -1151,6 +1195,43 @@ class TestLedgerApplyCopiesTheStatus:
         )
         assert first == second
         assert first["id_"] == ASSERTED_STATUS_ID
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-35: participant tracking IDs are not built yet."
+            " Tracked by #6762."
+        ),
+    )
+    @pytest.mark.spec("CM-35-006")
+    def test_an_admitted_statuss_tracking_ids_reach_another_replica(
+        self, store_for, make_payload
+    ):
+        """The CASE_MANAGER admits a status with tracking IDs; the entry it
+        commits carries them, and another participant's replica stores them."""
+        tracking_ids = [{"value": "SEC-1234", "tracker": "PSIRT"}]
+        current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
+        asserted = make(
+            as_ParticipantStatus,
+            id_=ASSERTED_STATUS_ID,
+            context=CASE_ID,
+            rm=RmDimension(state=RM.ACCEPTED),
+            tracking_ids=tracking_ids,
+        )
+        manager_dl = store_for(CASE_MANAGER_ID)
+        _seed_case(manager_dl, current, asserted)
+        result = _run_tree(manager_dl, asserted, CASE_MANAGER_ID, make_payload)
+        assert result.status == Status.SUCCESS, result.feedback_message
+        (entry,) = _receipt_entries(manager_dl)
+
+        replica_dl = store_for(STRANGER_ID)
+        _seed_case(replica_dl, current.model_copy(deep=True), None)
+        assert self._apply(replica_dl, STRANGER_ID, entry) == Status.SUCCESS
+
+        latest = _latest_status(replica_dl, PARTICIPANT_ID)
+        assert latest.id_ == ASSERTED_STATUS_ID
+        wire = latest.model_dump(by_alias=True, exclude_none=True, mode="json")
+        assert wire["trackingIds"] == tracking_ids
 
     @pytest.mark.spec("CM-23-016")
     def test_a_status_already_stored_locally_is_appended_as_carried(

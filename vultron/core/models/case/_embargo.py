@@ -218,20 +218,30 @@ class EmbargoRegisterMixin:
         )
 
     @property
-    def active_embargo(self) -> str | EmbargoEvent | None:
-        """The embargo in force — the object when one was carried, else its id.
+    def active_register_entry(self) -> EmbargoRegisterEntry | None:
+        """The register's ``ACTIVE`` entry, the embargo in force, or ``None``.
 
-        A view of the register's ``ACTIVE`` entry.  Most callers want the id
-        and should use :attr:`active_embargo_id`.
+        The one entry a stub Invite's preview shows of the register: never an
+        open proposal (CM-17-002, CM-17-014).
         """
         return next(
             (
-                entry.embargo
+                entry
                 for entry in self.embargo_register
                 if entry.status == EmbargoRegisterStatus.ACTIVE
             ),
             None,
         )
+
+    @property
+    def active_embargo(self) -> str | EmbargoEvent | None:
+        """The embargo in force — the object when one was carried, else its id.
+
+        A view of :attr:`active_register_entry`.  Most callers want the id
+        and should use :attr:`active_embargo_id`.
+        """
+        entry = self.active_register_entry
+        return entry.embargo if entry is not None else None
 
     @property
     def active_embargo_id(self) -> str | None:

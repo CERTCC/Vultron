@@ -83,15 +83,15 @@ class TriggerLedgerRecordsPort(Protocol):
         case_id: str,
         actor: str,
         offer_id: str | None = None,
-        offer_actor_id: str | None = None,
         *,
         at: datetime,
     ) -> tuple[str, str]:
         """``Add(VulnerabilityReport)[target=VulnerabilityCase]`` (``add_report_to_case``).
 
-        The stored report is carried inline.  ``offer_id`` and
-        ``offer_actor_id``, when given, are the report's Offer provenance
-        (CP-01-007), carried for participants who were never sent the Offer.
+        The stored report is carried inline.  ``offer_id``, when given, names
+        the report's Offer in the entry's ``inReplyTo`` (CP-01-007), for
+        participants who were never sent the Offer; its sender is the
+        report's ``attributedTo``.
         """
         ...
 
@@ -135,7 +135,8 @@ class TriggerLedgerRecordsPort(Protocol):
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """``Add(ParticipantStatus)[target=CaseParticipant]`` (``add_participant_status_to_participant``).
+        """``Add(ParticipantStatus, target=<participant>/statuses)``
+        (``add_participant_status_to_participant``).
 
         Both are carried inline, as the caller just stored them.
         """
@@ -149,7 +150,7 @@ class TriggerLedgerRecordsPort(Protocol):
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """``Add(CaseStatus)[target=VulnerabilityCase]`` (``add_case_status_to_case``).
+        """``Add(CaseStatus, target=<case>/statuses)`` (``add_case_status_to_case``).
 
         *status* is carried inline; it may be one the caller persists only
         once the entry is committed.

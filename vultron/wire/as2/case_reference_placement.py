@@ -33,10 +33,11 @@ the slots an act may put it in:
   a previewed case reference anywhere but an ``Invite``'s ``object``, is a
   misplaced preview.
 
-A ``Redacted`` marker stands for a value a preview withholds (ADR-0193), so its
-one slot is a field its preview type opens to the marker (MV-12-001).  A full
-object holds no marker, and no activity slot or free-form field of any object
-(``tag``, ``attachment``, ``inReplyTo``, ...) holds one (MV-12-002).
+A ``Redacted`` marker stands for a value a preview withholds (ADR-0193), so
+its place is inside a preview, at any depth: a preview is read as its sender
+sent it (MV-12-001, ADR-0217).  A full object holds no marker, and no activity
+slot or free-form field of any object outside a preview (``tag``,
+``attachment``, ``inReplyTo``, ...) holds one (MV-12-002).
 
 The walk enters every field of a parsed model and every list item; a
 dict-valued field is not entered, because the parser builds every inline
@@ -54,7 +55,8 @@ from collections.abc import Callable, Iterator
 from pydantic import BaseModel
 
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
-from vultron.core.models.redacted import Redacted, opens_to_redaction
+from vultron.core.models.preview_object import PreviewObject, PreviewValue
+from vultron.core.models.redacted import Redacted
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.typed_reference import (
     is_case_reference,
@@ -76,13 +78,33 @@ def _is_case_preview(value: object) -> bool:
     return isinstance(value, as_CasePreview)
 
 
+#: The object an admitted child holds whose own fields are still walked, or
+#: ``None`` to walk nothing below it.
+_Inside = Callable[[object], BaseModel | None]
+
+
+def _nothing_inside(_child: object) -> BaseModel | None:
+    return None
+
+
 def _misplaced(
-    value: object, path: str, is_form: _FormPredicate, admits: _SlotPredicate
+    value: object,
+    path: str,
+    is_form: _FormPredicate,
+    admits: _SlotPredicate,
+    inside: _Inside = _nothing_inside,
 ) -> Iterator[str]:
-    """The paths below *path* that hold the form in a slot *admits* refuses."""
+    """The paths below *path* that hold the form in a slot *admits* refuses.
+
+    An admitted child is not refused, and the walk does not enter it, except
+    for the fields of the object *inside* names in it: an admitted case
+    reference's preview may not hold another preview.
+    """
     if isinstance(value, list):
         for index, item in enumerate(value):
-            yield from _misplaced(item, f"{path}[{index}]", is_form, admits)
+            yield from _misplaced(
+                item, f"{path}[{index}]", is_form, admits, inside
+            )
         return
     if is_form(value):
         yield path
@@ -91,14 +113,43 @@ def _misplaced(
     # and a misplaced form inside one is as misplaced as anywhere else.
     if not isinstance(value, BaseModel):
         return
-    for field_name, info in type(value).model_fields.items():
-        child = getattr(value, field_name, None)
-        if admits(value, field_name, child):
+    for field_name, child, child_path in fields_at(value, path):
+        if not admits(value, field_name, child):
+            yield from _misplaced(child, child_path, is_form, admits, inside)
             continue
-        # The key the sender wrote, so the refusal names the slot it used.
+        held = inside(child)
+        if held is not None:
+            yield from _fields_misplaced(
+                held, f"{child_path}.preview", is_form, admits, inside
+            )
+
+
+def _fields_misplaced(
+    value: BaseModel,
+    path: str,
+    is_form: _FormPredicate,
+    admits: _SlotPredicate,
+    inside: _Inside,
+) -> Iterator[str]:
+    """The paths in *value*'s fields, not *value* itself, that hold the form
+    in a slot *admits* refuses."""
+    for _, child, child_path in fields_at(value, path):
+        yield from _misplaced(child, child_path, is_form, admits, inside)
+
+
+def fields_at(
+    value: BaseModel, path: str
+) -> Iterator[tuple[str, object, str]]:
+    """Each field of *value*: its name, what it holds, and its path below
+    *path* under the key the sender wrote, so a refusal names the slot it
+    used."""
+    for field_name, info in type(value).model_fields.items():
         key = info.serialization_alias or field_name.rstrip("_")
-        child_path = f"{path}.{key}" if path else key
-        yield from _misplaced(child, child_path, is_form, admits)
+        yield (
+            field_name,
+            getattr(value, field_name, None),
+            f"{path}.{key}" if path else key,
+        )
 
 
 def _names_case_by_reference(
@@ -144,20 +195,13 @@ def _is_redaction_marker(value: object) -> bool:
 def _admits_redaction_marker(
     parent: BaseModel, field_name: str, child: object
 ) -> bool:
-    """A marker, or a list of only markers, in a field its preview type opens
-    to the marker (MV-12-001).
+    """A preview, which may hold a marker anywhere inside it (MV-12-001).
 
-    A list in an opened field that mixes markers with other values is walked
-    like any other, so each marker in it is refused: a field is opened to the
-    marker as its value, not as one item among objects.
+    The walk does not enter an admitted preview, so it meets a marker only
+    outside one.  The loose forms a preview holds its contents in are
+    preview forms too; the parse edge builds them only inside a preview.
     """
-    if not opens_to_redaction(parent, field_name):
-        return False
-    if isinstance(child, list):
-        return bool(child) and all(
-            isinstance(item, Redacted) for item in child
-        )
-    return isinstance(child, Redacted)
+    return isinstance(child, (PreviewObject, PreviewValue))
 
 
 def _misplaced_case_reference(activity: as_Activity) -> str | None:
@@ -180,14 +224,22 @@ def _misplaced_case_reference(activity: as_Activity) -> str | None:
     )
 
 
+def _preview_of(reference: object) -> BaseModel | None:
+    """The case preview an admitted case reference carries."""
+    preview = getattr(reference, "preview", None)
+    return preview if isinstance(preview, BaseModel) else None
+
+
 def _misplaced_case_preview(activity: as_Activity) -> str | None:
-    """The fault of a case preview outside a stub Invite's object (MV-10-002)."""
+    """The fault of a case preview outside a stub Invite's object, a preview
+    inside a preview included (MV-10-002)."""
     misplaced = list(
         _misplaced(
             activity,
             "",
             _is_case_preview,
             _admits_case_preview,
+            _preview_of,
         )
     )
     if not misplaced:
@@ -201,7 +253,7 @@ def _misplaced_case_preview(activity: as_Activity) -> str | None:
 
 
 def _misplaced_redaction_marker(activity: as_Activity) -> str | None:
-    """The fault of a marker outside a preview field opened to it (MV-12-002)."""
+    """The fault of a marker outside a preview (MV-12-002)."""
     misplaced = list(
         _misplaced(
             activity,
@@ -214,8 +266,8 @@ def _misplaced_redaction_marker(activity: as_Activity) -> str | None:
         return None
     return (
         f"a Redacted marker at {', '.join(misplaced)}; a marker is permitted"
-        " only in a field its preview type opens to the marker, never in a"
-        " full object or an activity slot (MV-12-002)"
+        " only inside a preview, never in a full object or an activity slot"
+        " (MV-12-002)"
     )
 
 
@@ -244,4 +296,4 @@ def refuse_misplaced_forms(activity: as_Activity) -> None:
         )
 
 
-__all__ = ["refuse_misplaced_forms"]
+__all__ = ["fields_at", "refuse_misplaced_forms"]

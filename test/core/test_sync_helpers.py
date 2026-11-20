@@ -194,7 +194,7 @@ class TestMissingGenesisEntry:
         missing_e1_hash = "f" * 64
         e2 = make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",
             semantic_type="test_event",
@@ -226,7 +226,7 @@ class TestMissingGenesisEntry:
         # Create a single entry at index 1 (skipping genesis)
         e = make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_index=1,
             log_object_id="https://example.org/activities/orphan",
             semantic_type="test_event",
@@ -253,7 +253,7 @@ class TestHashMismatch:
         bad_prev = "a" * 64
         bad_e1 = make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_index=1,
             log_object_id="https://example.org/activities/log-1",
             semantic_type="test_event",
@@ -274,7 +274,7 @@ class TestHashMismatch:
         dl.save(case)
         bad_genesis = make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_index=0,
             log_object_id="https://example.org/activities/log-0",
             semantic_type="test_event",
@@ -306,7 +306,7 @@ class TestIndexGap:
         missing_e2_hash = "c" * 64
         e3 = make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_index=3,
             log_object_id="https://example.org/activities/log-3",
             semantic_type="test_event",
@@ -363,9 +363,9 @@ class TestEquivalentRecordedEntry:
         rm_state: str = "RECEIVED",
         carried: str = _CARRIED,
     ) -> dict:
-        """A snapshot in the shape ``build_add_participant_status_snapshot``
-        produces: the build stamp on top, over a re-rendered object *and* a
-        re-rendered target whose own nested status list carries time too."""
+        """An ``Add(ParticipantStatus)`` snapshot: the build stamp on top,
+        over the status, which carries its own time, added to the
+        participant's status history (ADR-0204)."""
         return {
             "type": "Add",
             "actor": CASE_ACTOR_ID,
@@ -378,26 +378,13 @@ class TestEquivalentRecordedEntry:
                 "published": carried,
                 "updated": carried,
             },
-            "target": {
-                "id": "https://example.org/participants/p-0",
-                "type": "CaseParticipant",
-                "published": carried,
-                "updated": carried,
-                "participantStatuses": [
-                    {
-                        "id": "https://example.org/statuses/ps-0",
-                        "rmState": rm_state,
-                        "published": carried,
-                        "updated": carried,
-                    }
-                ],
-            },
+            "target": "https://example.org/participants/p-0/statuses",
         }
 
     def _record(self, dl, snapshot: dict) -> CaseLedgerEntry:
         entry = make(
             CaseLedgerEntry,
-            case_id=CASE_ID,
+            context=CASE_ID,
             log_index=0,
             log_object_id=self._OBJECT_ID,
             semantic_type=self._EVENT,

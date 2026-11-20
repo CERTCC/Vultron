@@ -15,6 +15,7 @@ from collections.abc import Sequence
 from typing import cast
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from vultron.core.models._helpers import _as_id
 from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -24,6 +25,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
+    as_Announce,
     as_Create,
     as_Invite,
     as_Offer,
@@ -98,10 +100,13 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Add")
 
         self.assertEqual(activity.actor, vendor.id_)
+        # The participant's status history, with the case in context
+        # (ADR-0204).
         self.assertEqual(
             activity.target,
-            "https://vultron.example/cases/1/participants/vendor",
+            "https://vultron.example/cases/1/participants/vendor/statuses",
         )
+        self.assertEqual(activity.context, examples.case().id_)
         # The status names its case, not the participant (HP-08-008).
         self.assertEqual(status.context, examples.case().id_)
         self.assertEqual(activity.object_, status)
@@ -308,26 +313,38 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertIsInstance(offer, as_Offer)
 
     def test_remove_participant_from_case(self):
+        """The Owner's own act names the actor and the case it leaves."""
         activity = examples.remove_participant_from_case()
-        self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
         case = examples.case()
         coord_p = examples.coordinator_participant()
 
         self.assertIsInstance(activity, as_Remove)
-        self.assertEqual(activity.type_, "Remove")
-
         self.assertEqual(activity.actor, vendor.id_)
-        participant = cast(as_CaseParticipant, activity.object_)
-        self.assertEqual(participant.attributed_to, coord_p.attributed_to)
-        self.assertEqual(participant.name, coord_p.name)
-        self.assertEqual(participant.context, case.id_)
-        # `target`, not `origin`: RemoveCaseParticipantFromCasePattern
-        # discriminates on target_, so an origin-only Remove(CaseParticipant)
-        # matches no pattern and never dispatches. This
-        # assertion previously required `origin` and so locked in the defect
-        # (#3438); test_vocab_examples_dispatchable.py is the ratchet now.
-        self.assertEqual(activity.target, case.id_)
+        self.assertEqual(activity.to, [examples.case_actor().id_])
+        self.assertEqual(_as_id(activity.object_), coord_p.attributed_to)
+        self.assertEqual(activity.origin, case.id_)
+        self.assertIsNone(activity.target)
+
+    def test_reinstate_participant_in_case(self):
+        activity = examples.reinstate_participant_in_case()
+        coord_p = examples.coordinator_participant()
+
+        self.assertIsInstance(activity, as_Add)
+        self.assertEqual(activity.actor, examples.vendor().id_)
+        self.assertEqual(_as_id(activity.object_), coord_p.attributed_to)
+        self.assertEqual(activity.target, examples.case().id_)
+
+    def test_announce_participant_removal(self):
+        """The CASE_MANAGER's Announce carries the Owner's act as received."""
+        activity = examples.announce_participant_removal()
+        removal = examples.remove_participant_from_case()
+
+        self.assertIsInstance(activity, as_Announce)
+        self.assertEqual(activity.actor, examples.case_actor().id_)
+        self.assertEqual(_as_id(activity.object_), removal.id_)
+        self.assertEqual(activity.in_reply_to, removal.id_)
+        self.assertEqual(activity.to, [examples.coordinator().id_])
 
 
 if __name__ == "__main__":

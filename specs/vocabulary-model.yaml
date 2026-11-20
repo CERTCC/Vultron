@@ -934,8 +934,8 @@ groups:
     rationale: >-
       By default, Pydantic v2 serializes a field by its declared type. A field typed as
       `as_Object` that holds an `as_CasePreview` is serialized with the
-      `as_Object` schema, so the stub's own fields (`summary`, `activeEmbargo`,
-      `caseStatus`) are dropped with no error. Both the persistence boundary and the
+      `as_Object` schema, so the stub's own fields (`summary`, `embargoRegister`,
+      `caseStatuses`) are dropped with no error. Both the persistence boundary and the
       delivery boundary need the flag: a correct stored copy still gives wrong wire
       output if the delivery serializer drops the fields.
     verification: Unit test `test_handle_outbox_item_preserves_inline_case_ledger_entry_fields` in
@@ -965,7 +965,7 @@ groups:
       hydrates it.
     rationale: >-
       The received artifact is the evidence of what arrived, and the ledger replicates it via
-      `Announce(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
+      `Add(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
       reach nested models, and since ARCH-25-003 the nested objects are mutable core
       classes. The evidence is therefore a value taken at parse, not a property of the graph.
     verification: >-

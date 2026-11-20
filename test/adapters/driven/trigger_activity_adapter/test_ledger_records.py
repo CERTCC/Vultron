@@ -48,11 +48,18 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItem,
+    VulnerabilityItemId,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.errors import VultronNotFoundError
+from vultron.wire.as2.vocab.base.registry import (
+    resolve_wire_type,
+    resolved_wire_type_name,
+)
 
 VENDOR_ID = "https://example.org/actors/vendor"
 EMBARGO_ID = "https://example.org/embargoes/urn:uuid:embargo-1"
@@ -152,7 +159,6 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
             case_id=CASE_ID,
             actor=CASE_ACTOR_ID,
             offer_id=OFFER_ID,
-            offer_actor_id=VENDOR_ID,
             at=authored_at(),
         ),
         "record_participant_status_added": lambda a: (
@@ -220,7 +226,7 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
                 item=make(
                     VulnerabilityItem,
                     id_=f"{CASE_ID}/items/1",
-                    cve="CVE-2026-0001",
+                    ids=[VulnerabilityItemId.cve("CVE-2026-0001")],
                 ),
                 case_id=CASE_ID,
                 actor=CASE_ACTOR_ID,
@@ -339,7 +345,8 @@ def test_the_record_is_the_case_managers_own_activity(
     activity_type, object_type, _ = _SHAPES[method]
     assert snapshot["type"] == activity_type
     assert snapshot["actor"] == CASE_ACTOR_ID
-    assert snapshot["object"]["type"] == object_type
+    # An extension type is sent as a type list (VM-03-005, ADR-0201).
+    assert resolved_wire_type_name(snapshot["object"]["type"]) == object_type
     assert snapshot["context"] == CASE_ID
     assert "to" not in snapshot, "the ledger fan-out delivers it"
 
@@ -407,10 +414,8 @@ def test_the_object_revalidates_through_its_wire_class(
     adapter, recipes, method
 ):
     """Every carried object is wire-reconstitutable (AC-7 of #1777)."""
-    from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-
     obj = _snapshot(recipes[method], adapter)["object"]
-    find_in_vocabulary(obj["type"]).model_validate(obj)
+    resolve_wire_type(obj["type"]).model_validate(obj)
 
 
 @pytest.mark.spec("CLP-07-021")
@@ -428,10 +433,10 @@ def test_a_case_list_member_is_added_with_the_case_as_target(
 
 
 @pytest.mark.spec("CP-01-007")
-def test_the_report_record_carries_its_offer_provenance(adapter, recipes):
+def test_the_report_record_names_its_offer_in_reply_to(adapter, recipes):
     snapshot = _snapshot(recipes["record_report_added_to_case"], adapter)
-    assert snapshot["offerId"] == OFFER_ID
-    assert snapshot["offerActorId"] == VENDOR_ID
+    assert snapshot["inReplyTo"] == OFFER_ID
+    assert not {"offerId", "offerActorId"} & set(snapshot)
 
 
 def test_the_report_record_omits_absent_offer_provenance(adapter, case):
@@ -441,7 +446,7 @@ def test_the_report_record_omits_absent_offer_provenance(adapter, case):
         actor=CASE_ACTOR_ID,
         at=authored_at(),
     )
-    assert not {"offerId", "offerActorId"} & set(json.loads(blob))
+    assert "inReplyTo" not in json.loads(blob)
 
 
 def test_participant_status_carries_no_consent_keys(adapter, recipes):

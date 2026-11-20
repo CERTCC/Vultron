@@ -94,12 +94,12 @@ def _fault_from(
 ) -> HandlerResult:
     """A new case-diverged fault from *sender* naming *announce_id*.
 
-    In production a repeat never names the same ``Announce``: the fault's id
-    is derived from the failed ``Announce`` (ID-04-004), so the inbox would
+    In production a repeat never names the same ``Add``: the fault's id
+    is derived from the failed ``Add`` (ID-04-004), so the inbox would
     drop it as a redelivery, and a repeat arrives only after a replay, which
-    mints a fresh ``Announce`` of the same entry.  The handler reads nothing
-    from the ``Announce`` but the entry it carried, so a fresh fault naming
-    the original ``Announce`` exercises the same path.  *published* is the
+    mints a fresh ``Add`` of the same entry.  The handler reads nothing
+    from the ``Add`` but the entry it carried, so a fresh fault naming
+    the original ``Add`` exercises the same path.  *published* is the
     time the sender claims, when the test pins one.
     """
     activity = create_processing_fault_activity(
@@ -247,6 +247,44 @@ def test_a_fault_from_a_sender_not_active_is_refused(who: str) -> None:
     assert _seeds(net, sender) == []
     state = _state(net, sender)
     assert state is None or state.last_reseeded_at is None
+
+
+@pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("HP-01-045")
+def test_a_withheld_peer_past_the_sender_guard_is_refused_by_the_reseed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The re-seed's own declared refusal is the run's verdict.
+
+    The declared sender rule refuses an inactive sender first, so the rule
+    is widened here to reach the re-seed's arm: its refusal must survive
+    the CASE_MANAGER gate and the runner as ``REFUSED`` with its reason, and
+    nothing is sent (ADR-0195).
+    """
+    from vultron.core.behaviors.sender_entitlement import (
+        SenderEntitlementKind,
+        SenderRule,
+    )
+    from vultron.core.use_cases.received.fault.processing_fault import (
+        CreateProcessingFaultReceivedUseCase,
+    )
+
+    monkeypatch.setattr(
+        CreateProcessingFaultReceivedUseCase,
+        "sender_entitlement",
+        SenderRule.at_case_manager_only(SenderEntitlementKind.ANY_ACTOR),
+    )
+    net, announce_id = _diverged("reseed-withheld-past-guard")
+
+    verdict = _fault_from(net, _STRANGER, announce_id)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason == (
+        f"the sender is not an active participant of case '{net.case_id}';"
+        " no case copy sent (CM-10-004)"
+    )
+    assert _seeds(net, _STRANGER) == []
+    assert _state(net, _STRANGER) is None
 
 
 @pytest.mark.spec("SYNC-16-003")
@@ -476,7 +514,7 @@ def test_a_divergence_past_the_last_reseed_is_routine(
         [net.planned_consent_entry(change, _CAUSE)],
     )
     newer = net.sealed_bodies(
-        MANAGER, to=BYSTANDER, type_="Announce", object_type="CaseLedgerEntry"
+        MANAGER, to=BYSTANDER, type_="Add", object_type="CaseLedgerEntry"
     )[-1]
     assert newer["object"]["logIndex"] > (
         cast(
@@ -586,14 +624,14 @@ def test_a_fault_naming_an_announce_this_actor_did_not_send_is_refused() -> (
 ):
     """An Announce held here but sent by another actor names no copy this
     actor sent the peer, so it names no case either."""
-    from vultron.wire.as2.factories import announce_log_entry_activity
+    from vultron.wire.as2.factories import add_log_entry_activity
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         as_CaseLedgerEntry,
     )
 
     net, _ = _diverged("reseed-foreign-announce")
     (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
-    foreign = announce_log_entry_activity(
+    foreign = add_log_entry_activity(
         entry=as_CaseLedgerEntry.model_validate(
             with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
         ),
@@ -683,6 +721,33 @@ def test_the_reseed_node_sends_no_case_to_a_peer_not_active() -> None:
 
 
 @pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("HP-01-003")
+def test_a_reseed_that_refuses_a_withheld_peer_declares_the_refusal() -> None:
+    """With ``refuses_withheld_peer`` (the fault tree's re-seed) a peer that
+    is not active fails the node with a declared refusal naming the case,
+    so the verdict is the node's, never a reader's (ADR-0195)."""
+    from py_trees.common import Status
+
+    from vultron.core.behaviors.sync.nodes.reseed import ReseedPeerNode
+
+    net = LedgerNetwork("https://example.org/cases/reseed-node-refuses")
+    node = ReseedPeerNode(refuses_withheld_peer=True)
+    seeded = with_act_keys(
+        node, {act_keys.CASE_ID: net.case_id, act_keys.SENDER_ID: _STRANGER}
+    )
+
+    result = _run_reseed(net, seeded)
+
+    assert result.status is Status.FAILURE
+    assert node.withheld and not node.reseeded
+    assert node.declared_refusal == (
+        f"the sender is not an active participant of case '{net.case_id}';"
+        " no case copy sent (CM-10-004)"
+    )
+    assert _seeds(net, _STRANGER) == []
+
+
+@pytest.mark.spec("CM-10-004")
 def test_the_reseed_node_fails_when_its_gate_is_undecidable() -> None:
     """A case this store does not hold cannot be judged, so nothing is sent."""
     from py_trees.common import Status
@@ -715,7 +780,7 @@ def _stored_announce(net: LedgerNetwork, announce_id: str) -> Any:
 def test_an_announce_of_an_entry_this_store_lacks_names_none() -> None:
     """An ``Announce`` whose object is a reference this store cannot resolve
     names no refused entry: the store reads it back as the bare id."""
-    from vultron.core.behaviors.sync.nodes.reseed import (
+    from vultron.core.behaviors.sync.nodes.refused_entry import (
         announced_ledger_entry,
     )
     from vultron.errors import VultronNotFoundError
@@ -738,7 +803,7 @@ def test_an_announce_of_an_entry_this_store_lacks_names_none() -> None:
 def test_an_announce_of_something_other_than_an_entry_names_none() -> None:
     """An ``Announce`` this actor sent of anything but a ledger entry names
     no refused entry."""
-    from vultron.core.behaviors.sync.nodes.reseed import (
+    from vultron.core.behaviors.sync.nodes.refused_entry import (
         announced_ledger_entry,
     )
     from vultron.errors import VultronNotFoundError

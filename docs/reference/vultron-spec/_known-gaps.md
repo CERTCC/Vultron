@@ -272,44 +272,21 @@ print(requirement_callout(
     "CM-34-007",
     "CM-34-008",
     "CM-34-010",
+    "CM-34-011",
 ))
 ```
 
-### Tracked by [#6241](https://github.com/CERTCC/Vultron/issues/6241)
+### Tracked by [#6762](https://github.com/CERTCC/Vultron/issues/6762)
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
-    "CM-05-010",
-))
-```
-
-### Tracked by [#6372](https://github.com/CERTCC/Vultron/issues/6372)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "MV-12-005",
-))
-```
-
-### Tracked by [#6410](https://github.com/CERTCC/Vultron/issues/6410)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "EP-01-002",
-))
-```
-
-### Tracked by [#6465](https://github.com/CERTCC/Vultron/issues/6465)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CM-31-043",
-    "CM-31-044",
-    "CM-31-045",
+    "CM-35-001",
+    "CM-35-002",
+    "CM-35-003",
+    "CM-35-004",
+    "CM-35-005",
+    "CM-35-006",
 ))
 ```
 
@@ -356,55 +333,6 @@ print(requirement_callout(
     "CM-11-024",
     "CM-11-025",
     "VAM-06-004",
-))
-```
-
-### Tracked by [#6372](https://github.com/CERTCC/Vultron/issues/6372)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "MV-12-001",
-    "MV-12-003",
-))
-```
-
-### Tracked by [#6410](https://github.com/CERTCC/Vultron/issues/6410)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "EP-01-003",
-    "EP-01-005",
-))
-```
-
-### Tracked by [#6411](https://github.com/CERTCC/Vultron/issues/6411)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CLP-14-012",
-))
-```
-
-### Tracked by [#6413](https://github.com/CERTCC/Vultron/issues/6413)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CM-05-018",
-    "CSAF-03-008",
-))
-```
-
-### Tracked by [#6465](https://github.com/CERTCC/Vultron/issues/6465)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CM-31-011",
-    "CM-31-036",
 ))
 ```
 

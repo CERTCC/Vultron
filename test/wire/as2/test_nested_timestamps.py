@@ -549,18 +549,28 @@ def test_embargo_without_start_time_extracts_with_no_start_time():
     assert domain.start_time is None
 
 
-#: A replicated ledger entry, shaped as ``Announce(CaseLedgerEntry)`` carries it.
+#: A replicated ledger entry, shaped as ``Add(CaseLedgerEntry)`` carries it.
 LEDGER_ENTRY: dict[str, Any] = {
     "type": "CaseLedgerEntry",
     "id": f"{CASE_ID}/ledger/0",
-    "caseId": CASE_ID,
+    "context": CASE_ID,
     "logIndex": 0,
     "logObjectId": "https://example.org/activities/0",
     "semanticType": "create_case",
+    "payloadSnapshot": {"id": "https://example.org/activities/0"},
     "prevLogHash": "0" * 64,
     "entryHash": "a" * 64,
     "published": SENDER_PUBLISHED,
     "receivedAt": SENDER_UPDATED,
+}
+
+#: The ``Add`` that carries :data:`LEDGER_ENTRY`: to the case's ledger,
+#: answering the act the entry commits (ADR-0204).
+LEDGER_ADD: dict[str, Any] = {
+    "activity_type": "Add",
+    "target": f"{CASE_ID}/ledger",
+    "context": CASE_ID,
+    "inReplyTo": "https://example.org/activities/0",
 }
 
 
@@ -571,7 +581,7 @@ def test_replicated_ledger_entry_keeps_the_case_actor_stamps():
     ``received_at`` is hashed content, so a replica that stamped its own could
     never re-verify the entry; the builder dropped both fields.
     """
-    domain = _extracted(LEDGER_ENTRY, {"activity_type": "Announce"})
+    domain = _extracted(LEDGER_ENTRY, LEDGER_ADD)
 
     assert domain.published == datetime.fromisoformat(SENDER_PUBLISHED)
     assert domain.received_at == datetime.fromisoformat(SENDER_UPDATED)
@@ -598,7 +608,7 @@ def test_replicated_ledger_entry_without_its_stamp_is_refused_at_parse(
     entry = {k: v for k, v in LEDGER_ENTRY.items() if k != key}
 
     with pytest.raises(refusal, match=key):
-        parse_activity(_body(entry, "Announce"))
+        parse_activity(_body(entry, "Add"))
 
 
 @pytest.mark.spec("MV-03-002")

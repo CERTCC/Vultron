@@ -276,7 +276,7 @@ class _GateScenario:
         entries = [
             e
             for e in self.dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
+            if isinstance(e, CaseLedgerEntry) and e.context == CASE_ID
         ]
         return sorted(entries, key=lambda e: e.log_index)
 
@@ -297,7 +297,7 @@ class _GateScenario:
         """Entry ids announced to *actor_id*, in outbox order."""
         announced = []
         for activity in (self.dl.read(i) for i in self.dl.outbox_list()):
-            if getattr(activity, "type_", None) != "Announce":
+            if getattr(activity, "type_", None) != "Add":
                 continue
             if actor_id not in (getattr(activity, "to", None) or []):
                 continue

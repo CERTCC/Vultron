@@ -182,7 +182,7 @@ class Ledger:
         self.entries.append(
             {
                 "type": "CaseLedgerEntry",
-                "caseId": CASE,
+                "context": CASE,
                 "logIndex": index,
                 "entryHash": f"hash-{index}",
                 "semanticType": semantic_type,
@@ -266,8 +266,11 @@ class Ledger:
                 "preview": {
                     "id": f"urn:uuid:preview-{invitee}",
                     "type": "CasePreview",
+                    "attributedTo": "https://example.org/actors/vendor",
                     "summary": "A case to join",
-                    "activeEmbargo": embargo(),
+                    "embargoRegister": [
+                        {"embargo": embargo(), "status": "ACTIVE"}
+                    ],
                 },
             },
             "target": {"id": invitee, "type": "Organization"},

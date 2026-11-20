@@ -614,7 +614,8 @@ class TestOwnerEmbargoDecision:
     ):
         _, body, embargo_id = self._build(adapter, dl, method)
         assert body["type"] == verb
-        assert body["object"]["type"] == "EmbargoEvent"
+        # An embargo is sent with its AS2 supertype (ADR-0201).
+        assert body["object"]["type"] == ["EmbargoEvent", "Event"]
         assert body["object"]["id"] == embargo_id
 
     def test_case_is_target_and_context(self, adapter, dl, method, verb):

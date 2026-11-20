@@ -39,9 +39,9 @@ def wait_for_reporter_log_entry(
 ) -> None:
     """Poll reporter's DataLayer until a ``CaseLedgerEntry`` with *entry_hash* appears.
 
-    Proves that the vendor's ``Announce(CaseLedgerEntry)`` outbox activity was
+    Proves that the vendor's ``Add(CaseLedgerEntry)`` outbox activity was
     delivered to the reporter's inbox and processed by
-    ``AnnounceLedgerEntryReceivedUseCase`` (LedgerFanout receive side).
+    ``AddLedgerEntryReceivedUseCase`` (LedgerFanout receive side).
 
     Args:
         reporter_client: DataLayerClient connected to the Reporter container.
@@ -63,7 +63,7 @@ def wait_for_reporter_log_entry(
         for v in raw.values():
             if (
                 isinstance(v, dict)
-                and v.get("case_id") == case_id
+                and v.get("context") == case_id
                 and v.get("entry_hash") == entry_hash
             ):
                 logger.info(
@@ -92,7 +92,7 @@ def _ledger_entry_matches(
     min_log_index: int | None,
 ) -> bool:
     """Return True if *entry* satisfies all supplied ledger-event criteria."""
-    if entry.get("case_id") != case_id:
+    if entry.get("context") != case_id:
         return False
     if entry.get("semantic_type") != semantic_type:
         return False
@@ -250,7 +250,7 @@ def wait_for_contiguous_ledger_coverage(
     """Poll *client*'s DataLayer until it holds all log indices 0…*expected_tail_index*.
 
     :func:`wait_for_reporter_log_entry` only confirms that the tail entry (by
-    hash) has arrived.  Because ``Announce(CaseLedgerEntry)`` activities are
+    hash) has arrived.  Because ``Add(CaseLedgerEntry)`` activities are
     delivered independently, an intermediate entry (e.g. logIndex=17) can
     arrive *after* the tail entry, so the dump may still capture a gapped log.
 
@@ -292,7 +292,7 @@ def wait_for_contiguous_ledger_coverage(
             v["log_index"]
             for v in raw.values()
             if isinstance(v, dict)
-            and v.get("case_id") == case_id
+            and v.get("context") == case_id
             and isinstance(v.get("log_index"), int)
         }
         progress.observe(len(present))
@@ -331,7 +331,7 @@ def _count_case_ledger_entries(client: DataLayerClient, case_id: str) -> int:
     """Count *case_id*'s ledger entries in *client*'s store.
 
     Read from the ``CaseLedgerEntrys/`` collection, which serves the stored
-    rows by field name (``case_id``) without rehydrating them, the same read
+    rows by field name (``context``) without rehydrating them, the same read
     :func:`wait_for_contiguous_ledger_coverage` makes.  It still transfers every
     entry, ``payload_snapshot`` included, on each poll; only the rehydration
     and the rest of the store are saved (#4600).
@@ -342,7 +342,7 @@ def _count_case_ledger_entries(client: DataLayerClient, case_id: str) -> int:
     return sum(
         1
         for obj in raw.values()
-        if isinstance(obj, dict) and obj.get("case_id") == case_id
+        if isinstance(obj, dict) and obj.get("context") == case_id
     )
 
 
@@ -357,7 +357,7 @@ def wait_for_case_actor_ledger_event(
 
     The gate for "the CASE_MANAGER committed it": the commit lands in the
     CaseActor's store the moment its received-side tree runs, before any
-    ``Announce(CaseLedgerEntry)`` has left its outbox.  Under ADR-0073 that
+    ``Add(CaseLedgerEntry)`` has left its outbox.  Under ADR-0073 that
     store is not its host's, so the read is scoped with
     :func:`resolve_case_actor_store_id`; when the case has no co-hosted
     CaseActor the host's own replica is read, which is then the earliest

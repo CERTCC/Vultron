@@ -16,8 +16,9 @@ The goal tests in ``test_participant_removal_planned.py`` pin CM-31-011
 through CM-31-013 once.  These cover the edges around them (ADR-0116, #4081,
 #4084):
 
-- ``Add(CaseParticipant)`` reinstates, and only reinstates: one ledger entry,
-  a delegated notice, no new acceptance, and a refusal for anything else;
+- the Case Owner's ``Add(<Actor>)`` reinstates, and only reinstates: one
+  ledger entry, the CASE_MANAGER's ``Announce`` of it, no new acceptance, and a
+  refusal for anything else (ADR-0199);
 - the reinstated participant is backfilled from the first entry withheld
   after its removal entry, and its hash chain joins with no gap (CM-10-006);
 - a reinstated participant that is not a signatory to the active embargo is
@@ -28,6 +29,7 @@ through CM-31-013 once.  These cover the edges around them (ADR-0116, #4081,
   member from the ``Accept(Invite)`` entry alone (CM-31-012).
 """
 
+import logging
 from itertools import pairwise
 from typing import Any
 
@@ -44,6 +46,9 @@ from test.core.use_cases.received.actor.test_case_joining_replies import (
 from test.core.use_cases.received.conftest import (
     refusal_notices_since,
     seed_inert_invitee,
+)
+from test.core.use_cases.received.test_participant_removal import (
+    assert_one_refusal_warning,
 )
 from test.core.use_cases.received.test_participant_removal_planned import (
     CASE_ID,
@@ -70,8 +75,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.core.behaviors.case.case_participant_received_tree import (
     create_add_case_participant_received_tree,
 )
+from vultron.core.behaviors.case.nodes.announce_admitted_act import (
+    EmitAnnounceAdmittedActNode,
+)
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
-    ReinstateCaseParticipantReceivedNode,
+    ClearParticipantRemovalNode,
 )
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
@@ -118,15 +126,16 @@ from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.case_participant import (
-    AddCaseParticipantToCaseReceivedUseCase,
+    ReinstateParticipantInCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
-    add_participant_to_case_activity,
+    announce_admitted_act_activity,
     em_accept_embargo_activity,
     offer_case_participant_activity,
+    reinstate_participant_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
@@ -153,9 +162,9 @@ def case() -> _RemovalCase:
 def _owner_reinstates(
     case: _RemovalCase, actor_id: str = VENDOR, *, by: str = OWNER
 ) -> Any:
-    return add_participant_to_case_activity(
-        case.participant(actor_id),
-        target=CASE_ID,
+    return reinstate_participant_activity(
+        actor_id,
+        CASE_ID,
         actor=by,
         to=[MANAGER],
         id_=_ADD_ACTIVITY_ID,
@@ -163,11 +172,26 @@ def _owner_reinstates(
     )
 
 
+def _reinstatement_announces(
+    case: _RemovalCase, actor_id: str = VENDOR
+) -> list[Any]:
+    """Each ``Announce`` the CASE_MANAGER sent *actor_id* of the Owner's ``Add``.
+
+    The removal before it was announced too, so the two are told apart by
+    the act each carries.
+    """
+    return [
+        announce
+        for announce in case.activities_to("Announce", actor_id)
+        if _as_id(announce.object_) == _ADD_ACTIVITY_ID
+    ]
+
+
 def _entry_ids_announced_to(case: _RemovalCase, actor_id: str) -> list[str]:
     """Ledger entries the manager announced to *actor_id*, in queue order."""
     return [
         entry_id
-        for announce in case.activities_to("Announce", actor_id)
+        for announce in case.ledger_adds_to(actor_id)
         if (entry_id := _as_id(getattr(announce, "object_", None)))
         and isinstance(case.dl.read(entry_id), CaseLedgerEntry)
     ]
@@ -202,8 +226,8 @@ def _replica(case: _RemovalCase, actor_id: str) -> SqliteDataLayer:
 def _announce_to_replica(
     replica: SqliteDataLayer, case: _RemovalCase, actor_id: str
 ) -> None:
-    """Deliver every ``Announce(CaseLedgerEntry)`` the manager sent *actor_id*."""
-    for announce in case.activities_to("Announce", actor_id):
+    """Deliver every ``Add(CaseLedgerEntry)`` the manager sent *actor_id*."""
+    for announce in case.ledger_adds_to(actor_id):
         if not isinstance(
             case.dl.read(_as_id(announce.object_) or ""), CaseLedgerEntry
         ):
@@ -221,17 +245,18 @@ def _announce_to_replica(
 
 
 # ---------------------------------------------------------------------------
-# #4081 — Add(CaseParticipant) reinstates, and only reinstates
+# #4081, #6465 — the Owner's Add(<Actor>) reinstates, and only reinstates
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("CM-31-011")
+@pytest.mark.spec("CM-31-044")
 @pytest.mark.spec("CM-24-001")
-@pytest.mark.spec("CM-24-002")
-def test_reinstatement_is_one_entry_and_a_delegated_notice(
+def test_reinstatement_is_one_entry_and_an_announce_of_it(
     case: _RemovalCase,
 ) -> None:
-    """The owner's ``Add`` is the one entry; the notice is the manager's."""
+    """The owner's ``Add`` is the one entry; the reinstated actor receives
+    the CASE_MANAGER's ``Announce`` of it, with an id derived from it."""
     case.remove(VENDOR)
     before = len(case.ledger())
 
@@ -241,12 +266,21 @@ def test_reinstatement_is_one_entry_and_a_delegated_notice(
     added = case.ledger()[before:]
     assert [entry.log_object_id for entry in added] == [_ADD_ACTIVITY_ID]
     assert added[0].payload_snapshot.get("actor") == OWNER
-    (notice,) = case.activities_to("Add", VENDOR)
-    assert _as_id(notice.actor) == MANAGER
-    assert notice.attributed_to == OWNER
-    assert [_as_id(t) for t in notice.to] == [VENDOR]
-    assert _as_id(notice.object_) == _participant_id(VENDOR)
-    assert notice.id_ not in {e.log_object_id for e in case.ledger()}
+    (announce,) = _reinstatement_announces(case)
+    assert _as_id(announce.actor) == MANAGER
+    assert announce.attributed_to is None
+    assert _as_id(announce.object_) == _ADD_ACTIVITY_ID
+    # The act's commit caused it, so it names the act (ADR-0204).
+    assert _as_id(announce.in_reply_to) == _ADD_ACTIVITY_ID
+    assert [_as_id(t) for t in announce.to] == [VENDOR]
+    assert announce.id_ == EmitAnnounceAdmittedActNode.announce_id(
+        _ADD_ACTIVITY_ID
+    )
+    assert announce.id_ not in {e.log_object_id for e in case.ledger()}
+    # No Accept, and no Add of the CASE_MANAGER's own (ADR-0199).
+    for actor_id in (OWNER, VENDOR):
+        assert case.activities_to("Accept", actor_id) == []
+        assert case.activities_to("Add", actor_id) == []
 
 
 @pytest.mark.spec("CM-31-035")
@@ -268,25 +302,35 @@ def test_reinstatement_asks_for_no_new_acceptance(
     assert _participant_id(VENDOR) in case.active_ids()
 
 
-@pytest.mark.spec("CM-31-011")
-@pytest.mark.spec("CM-31-004")
-def test_add_from_a_non_owner_is_refused(case: _RemovalCase) -> None:
+@pytest.mark.spec("CM-31-043")
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.spec("SL-03-002")
+def test_add_from_a_non_owner_is_refused(
+    case: _RemovalCase, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The sender guard refuses it: nothing committed, no refusal notice
+    (CLP-05-006), and one WARNING line naming the act and the sender."""
     case.remove(VENDOR)
     before = len(case.ledger())
+    activity = _owner_reinstates(case, by=OTHER)
 
-    result = case.route(_owner_reinstates(case, by=OTHER))
+    with caplog.at_level(logging.WARNING):
+        result = case.route(activity)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert case.participant(VENDOR).removed
     assert len(case.ledger()) == before
-    assert case.activities_to("Add", VENDOR) == []
+    assert _reinstatement_announces(case) == []
+    assert case.activities_to("Refuse", OTHER) == []
+    assert_one_refusal_warning(caplog, activity.id_, OTHER)
 
 
 @pytest.mark.spec("CM-31-036")
 def test_add_naming_an_invitee_that_never_joined_is_refused(
     case: _RemovalCase,
 ) -> None:
-    """``Add`` is not a way around accepting the stub Invite (ADR-0114)."""
+    """A reinstatement is not a way around accepting the stub Invite
+    (ADR-0114)."""
     record = case.participant(OTHER).model_copy(
         update={"joined": False, "removal_activity": "urn:uuid:removal"}
     )
@@ -300,44 +344,57 @@ def test_add_naming_an_invitee_that_never_joined_is_refused(
     assert case.ledger() == []
 
 
-@pytest.mark.spec("CM-31-011")
-def test_refused_add_writes_nothing_but_the_archive(
+@pytest.mark.spec("CM-31-036")
+@pytest.mark.spec("CLP-05-001")
+def test_refused_add_is_answered_with_a_refusal_notice_and_writes_nothing(
     case: _RemovalCase,
 ) -> None:
+    """A participant that is not removed: refused with a refusal notice to
+    the Case Owner, nothing committed, the act archived (CLP-10-018)."""
     activity = _owner_reinstates(case, OTHER)
 
     result = case.route(activity)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert case.ledger() == []
-    assert case.activities_to("Add", OTHER) == []
+    assert case.activities_to("Announce", OTHER) == []
+    (notice,) = case.activities_to("Refuse", OWNER)
+    assert _as_id(notice.in_reply_to) == _ADD_ACTIVITY_ID
     assert case.dl.read(ReceivedActivityRecord.build_id(activity.id_))
 
 
-@pytest.mark.spec("CM-31-011")
-def test_add_naming_another_actor_than_the_record_is_refused(
-    case: _RemovalCase,
+@pytest.mark.spec("CM-31-036")
+@pytest.mark.parametrize("named", [MANAGER, OWNER, NEWBIE])
+def test_add_naming_the_manager_the_owner_or_a_non_participant_is_refused(
+    case: _RemovalCase, named: str
 ) -> None:
-    """The inline ``attributedTo`` must name the record's own actor."""
-    case.remove(VENDOR)
-    forged = case.participant(VENDOR).model_copy(
-        update={"attributed_to": OTHER}
-    )
-
-    result = case.route(
-        add_participant_to_case_activity(
-            forged, target=CASE_ID, actor=OWNER, to=[MANAGER], at=authored_at()
-        )
-    )
+    result = case.route(_owner_reinstates(case, named))
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert case.participant(VENDOR).removed
+    assert case.ledger() == []
+    (notice,) = case.activities_to("Refuse", OWNER)
+    assert _as_id(notice.in_reply_to) == _ADD_ACTIVITY_ID
+
+
+@pytest.mark.spec("HP-01-014")
+def test_a_redelivered_reinstatement_changes_nothing(
+    case: _RemovalCase,
+) -> None:
+    case.remove(VENDOR)
+    case.route(_owner_reinstates(case))
+    entries = len(case.ledger())
+
+    again = case.route(_owner_reinstates(case))
+
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert len(case.ledger()) == entries
+    assert len(_reinstatement_announces(case)) == 1
 
 
 class _NoticeFailsAdapter(TriggerActivityAdapter):
-    """A trigger-activity port whose reinstatement notice cannot be built."""
+    """A trigger-activity port whose announcement cannot be built."""
 
-    def add_participant_to_case(self, *args: Any, **kwargs: Any) -> Any:
+    def announce_admitted_act(self, *args: Any, **kwargs: Any) -> Any:
         raise RuntimeError("outbox unavailable")
 
 
@@ -356,7 +413,7 @@ def test_notice_failure_after_commit_is_an_internal_error(
             trigger_activity=_NoticeFailsAdapter(case.dl),
         )
 
-    # The notice is part of the act, so its failure keeps no entry of the
+    # The Announce is part of the act, so its failure keeps no entry of the
     # reinstatement and leaves the participant removed (CLP-07-015).
     assert _ADD_ACTIVITY_ID not in {e.log_object_id for e in case.ledger()}
     assert case.participant(VENDOR).removed
@@ -368,7 +425,7 @@ def test_failed_fact_write_after_commit_is_an_internal_error(
 ) -> None:
     case.remove(VENDOR)
     monkeypatch.setattr(
-        ReinstateCaseParticipantReceivedNode,
+        ClearParticipantRemovalNode,
         "update",
         lambda self: Status.FAILURE,
     )
@@ -380,8 +437,7 @@ def test_failed_fact_write_after_commit_is_an_internal_error(
 @pytest.mark.spec("RSH-08-003")
 def test_every_write_in_the_received_tree_is_case_manager_gated() -> None:
     tree = create_add_case_participant_received_tree(
-        sender_rule=AddCaseParticipantToCaseReceivedUseCase.sender_entitlement,
-        participant_id=_participant_id(VENDOR),
+        sender_rule=ReinstateParticipantInCaseReceivedUseCase.sender_entitlement,
         case_id=CASE_ID,
         sender_id=OWNER,
     )
@@ -391,7 +447,7 @@ def test_every_write_in_the_received_tree_is_case_manager_gated() -> None:
         if node.name == "GuardedReinstateParticipantBT"
     ]
     assert any(
-        isinstance(node, ReinstateCaseParticipantReceivedNode)
+        isinstance(node, ClearParticipantRemovalNode)
         for node in gate.iterate()
     )
 
@@ -487,14 +543,14 @@ def test_bystander_replica_applies_the_reinstatement_from_its_entry(
     assert record.is_signatory(EMBARGO_ID)
 
 
-@pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("CM-31-045")
 @pytest.mark.spec("RSH-08-003")
-def test_replica_stores_the_managers_notice_and_writes_nothing(
+def test_replica_records_the_announce_and_writes_nothing(
     case: _RemovalCase,
 ) -> None:
     case.remove(VENDOR)
     case.route(_owner_reinstates(case))
-    (notice,) = case.activities_to("Add", VENDOR)
+    (notice,) = _reinstatement_announces(case)
     replica = _replica(case, VENDOR)
     record = replica.read(_participant_id(VENDOR))
     assert isinstance(record, CaseParticipant)
@@ -510,16 +566,16 @@ def test_replica_stores_the_managers_notice_and_writes_nothing(
     assert result.disposition is HandlerDisposition.APPLIED
     stored = replica.read(_participant_id(VENDOR))
     assert isinstance(stored, CaseParticipant)
-    assert stored.removed, "the notice must not apply the reinstatement"
+    assert stored.removed, "the Announce must not apply the reinstatement"
 
 
-@pytest.mark.spec("HP-01-005")
-@pytest.mark.spec("ID-04-004")
-def test_replica_skips_a_redelivered_notice(case: _RemovalCase) -> None:
-    """Only the notice's first receipt is APPLIED; a repeat is a skip."""
+@pytest.mark.spec("CM-31-045")
+@pytest.mark.spec("HP-01-014")
+def test_replica_skips_a_redelivered_announce(case: _RemovalCase) -> None:
+    """Only the Announce's first receipt is APPLIED; a repeat is a skip."""
     case.remove(VENDOR)
     case.route(_owner_reinstates(case))
-    (notice,) = case.activities_to("Add", VENDOR)
+    (notice,) = _reinstatement_announces(case)
     replica = _replica(case, VENDOR)
     record = replica.read(_participant_id(VENDOR))
     assert isinstance(record, CaseParticipant)
@@ -542,19 +598,21 @@ def test_replica_skips_a_redelivered_notice(case: _RemovalCase) -> None:
     assert stored.removed, "the redelivery must not apply the reinstatement"
 
 
-@pytest.mark.spec("RSH-08-003")
+@pytest.mark.spec("CM-31-045")
 @pytest.mark.spec("PCR-03-001")
-def test_replica_refuses_an_add_not_from_the_case_manager(
+def test_replica_refuses_an_announce_not_from_the_case_manager(
     case: _RemovalCase,
 ) -> None:
     replica = _replica(case, VENDOR)
-    record = replica.read(_participant_id(OTHER))
-    assert isinstance(record, CaseParticipant)
 
     result = route_received(
         replica,
-        add_participant_to_case_activity(
-            record, target=CASE_ID, actor=OWNER, to=[VENDOR], at=authored_at()
+        announce_admitted_act_activity(
+            _owner_reinstates(case, OTHER),
+            CASE_ID,
+            actor=OWNER,
+            to=[VENDOR],
+            at=authored_at(),
         ),
         receiving_actor_id=VENDOR,
         sync_port=SyncActivityAdapter(replica),
@@ -608,7 +666,7 @@ def test_reinstated_non_signatory_gets_the_embargo_invite_and_no_content(
         and e.log_object_id == invites[0].id_
         for e in case.ledger()
     )
-    assert case.activities_to("Add", OTHER), "the notice still reaches it"
+    assert _reinstatement_announces(case, OTHER), "the Announce reaches it"
 
 
 @pytest.mark.spec("CM-31-040")
@@ -734,7 +792,9 @@ def test_a_removed_participant_replaying_its_accept_is_sent_nothing(
     case.remove(VENDOR)
     entries = len(case.ledger())
     sent_before = len(case.activities_to("Invite", VENDOR))
-    announced_before = len(case.activities_to("Announce", VENDOR))
+    announced_before = len(case.activities_to("Announce", VENDOR)) + len(
+        case.ledger_adds_to(VENDOR)
+    )
 
     result = case.route(
         rm_accept_invite_to_case_activity(
@@ -745,7 +805,11 @@ def test_a_removed_participant_replaying_its_accept_is_sent_nothing(
     assert result.disposition is HandlerDisposition.SKIPPED
     assert len(case.ledger()) == entries
     assert len(case.activities_to("Invite", VENDOR)) == sent_before
-    assert len(case.activities_to("Announce", VENDOR)) == announced_before
+    assert (
+        len(case.activities_to("Announce", VENDOR))
+        + len(case.ledger_adds_to(VENDOR))
+        == announced_before
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -818,6 +882,7 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
         add
         for add in case.dl.list_objects("Add")
         if _as_id(getattr(add, "actor", None)) == MANAGER
+        and not isinstance(getattr(add, "object_", None), CaseLedgerEntry)
     ] == []
 
     _announce_to_replica(replica, case, OTHER)
@@ -914,16 +979,15 @@ def test_reinstatement_invite_fails_when_the_record_is_gone(
     case: _RemovalCase,
 ) -> None:
     """Regime 1: the guards just found the record, so its loss is a fault."""
-    result = _run_as_manager(
-        case,
-        InviteReinstatedParticipantToEmbargoNode(
-            case_id=CASE_ID,
-            participant_id=f"{CASE_ID}/participants/nobody",
-        ),
+    result = BTTestScenario(actor_id=MANAGER, dl=case.dl).run(
+        InviteReinstatedParticipantToEmbargoNode(case_id=CASE_ID),
+        actor_id=MANAGER,
+        case_id=CASE_ID,
+        participant_actor_id=NEWBIE,
     )
 
     assert result.status == Status.FAILURE
-    assert "names no actor" in (result.feedback_message or "")
+    assert "has no record" in (result.feedback_message or "")
 
 
 @pytest.mark.spec("CM-31-013")
@@ -958,6 +1022,40 @@ def test_stale_accepter_re_invite_reaches_an_invitation_recipient(
 
     assert result.status == Status.SUCCESS
     assert len(_embargo_invites_to(case, OTHER)) == 1
+
+
+@pytest.mark.spec("CM-24-020")
+def test_a_re_invite_names_the_proposal_not_the_act_it_answers(
+    case: _RemovalCase, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A re-invite answers an Accept or an Add, but carries out the proposal.
+
+    It credits the embargo's proposer, so it names the proposer's own
+    request in ``inReplyTo``, never the act it *answers*.
+    """
+    from vultron.core.behaviors.embargo.nodes import reinvite
+    from vultron.core.behaviors.embargo.proposer import EmbargoProposal
+
+    proposal_id = "https://example.org/activities/vendor-proposal"
+    monkeypatch.setattr(
+        reinvite,
+        "embargo_proposal",
+        lambda entries, embargo_id: EmbargoProposal(VENDOR, proposal_id),
+    )
+    result = _run_as_manager(
+        case,
+        ReinviteStaleAccepterNode(
+            case_id=CASE_ID,
+            embargo_id=EMBARGO_ID,
+            invitee_id=OTHER,
+            answers="https://example.org/activities/other-accept",
+        ),
+    )
+
+    assert result.status == Status.SUCCESS
+    (invite,) = _embargo_invites_to(case, OTHER)
+    assert invite.attributed_to == VENDOR
+    assert invite.in_reply_to == proposal_id
 
 
 @pytest.mark.spec("CM-31-013")

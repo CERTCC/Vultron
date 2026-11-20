@@ -98,12 +98,12 @@ class ReportHashMismatchNode(DataLayerActionWithPorts):
     """Log a replica's hash-mismatch fault at ERROR, with a self-check.
 
     *refused_entry* (``/refused_entry``) is the entry the fault's
-    ``inReplyTo`` ``Announce`` (``/announce_id``) carried; the peer
+    ``inReplyTo`` ``Add`` (``/announce_id``) carried; the peer
     (``/sender_id``, the fault's sender) is the replica that refused it.  The
     node re-checks this store's own copy of that entry
     (:func:`check_own_copy`) and logs one ERROR record naming the case, the
-    ``Announce``, the entry, the sender and the result, kept in
-    :attr:`own_copy`.
+    ``Add``, the entry, the sender and the result, kept in
+    :attr:`own_copy` beside the entry's id (:attr:`entry_id`).
 
     Writes nothing, sends nothing and always returns SUCCESS once it has
     run: a hash mismatch is answered by no replay and no re-seed
@@ -127,12 +127,15 @@ class ReportHashMismatchNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.own_copy: OwnCopyCheck | None = None
         """The result of the last run's self-check; ``None`` before one."""
+        self.entry_id: str | None = None
+        """The id of the entry the last run checked; ``None`` before one."""
 
     def update(self) -> Status:
-        self.own_copy = None
+        self.own_copy = self.entry_id = None
         if (f := self._require_datalayer()) is not None:
             return f
         entry = act_value(self, REFUSED_ENTRY, CaseLedgerEntry)
+        self.entry_id = entry.id_
         peer_id = act_value(self, SENDER_ID, str)
         announce_id = act_value(self, ANNOUNCE_ID, str)
         self.own_copy = check_own_copy(
@@ -140,14 +143,14 @@ class ReportHashMismatchNode(DataLayerActionWithPorts):
         )
         self.logger.error(
             "%s: peer '%s' refused ledger entry '%s' (log_index %d) of case"
-            " '%s', sent in Announce '%s', because its content does not"
+            " '%s', sent in Add '%s', because its content does not"
             " reproduce its hash (SYNC-03-007). Self-check: %s; %s. Nothing"
             " is replayed or re-seeded for it (SYNC-03-008, SYNC-03-010)",
             self.name,
             peer_id,
             entry.id_,
             entry.log_index,
-            entry.case_id,
+            entry.context,
             announce_id,
             self.own_copy.value,
             _VERDICT[self.own_copy],

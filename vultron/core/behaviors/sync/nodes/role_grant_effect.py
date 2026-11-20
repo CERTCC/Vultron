@@ -25,7 +25,7 @@ replica via
 when it commits the target's accept (CM-02-016), never on the Offer;
 every other participant applies it by replaying the entry through
 :class:`ApplyCaseParticipantRoleGrantFromLedgerNode` in
-``create_announce_log_entry_tree`` (CM-02-020, RSH-08-004, ADR-0124).
+``create_add_log_entry_tree`` (CM-02-020, RSH-08-004, ADR-0124).
 """
 
 from __future__ import annotations
@@ -118,7 +118,7 @@ class IsAcceptCaseParticipantRoleEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry grants a delegated role.
 
     Matches the ``accept_case_participant_role`` ``semantic_type`` in the
-    ``RoleGrant`` effect slot of ``AnnounceLogEntryReceivedBT`` (BTND-08-001).
+    ``RoleGrant`` effect slot of ``AddLogEntryReceivedBT`` (BTND-08-001).
     """
 
     matched_semantic_type: ClassVar[str] = (
@@ -129,7 +129,7 @@ class IsAcceptCaseParticipantRoleEventNode(_SingleSemanticTypeNode):
 class ApplyCaseParticipantRoleGrantFromLedgerNode(_LedgerEffectNode):
     """Apply an ``accept_case_participant_role`` ledger entry to the replica.
 
-    On a non-CASE_MANAGER replica receiving ``Announce(CaseLedgerEntry)``, adds
+    On a non-CASE_MANAGER replica receiving ``Add(CaseLedgerEntry)``, adds
     the granted role to the target participant's ``case_roles`` (CM-02-020).  A
     participant MUST NOT mutate ``case_roles`` from an ``Accept`` message
     directly; only the CASE_MANAGER commits the entry and every node learns the
@@ -137,7 +137,7 @@ class ApplyCaseParticipantRoleGrantFromLedgerNode(_LedgerEffectNode):
 
     Lenient on missing data: an absent case replica, an unreadable role/target,
     or a target that is not yet a participant here is a non-fatal SUCCESS, so it
-    does not block the ``Announce`` flow (as
+    does not block the ``Add`` flow (as
     :class:`ApplyInviteAcceptFromLedgerNode`).
     """
 
@@ -147,7 +147,7 @@ class ApplyCaseParticipantRoleGrantFromLedgerNode(_LedgerEffectNode):
         assert self.datalayer is not None
 
         entry = self._get_entry()
-        case_id = entry.case_id
+        case_id = entry.context
         parsed = role_and_target_from_accept_snapshot(entry.payload_snapshot)
         if not case_id or parsed is None:
             self.logger.debug(

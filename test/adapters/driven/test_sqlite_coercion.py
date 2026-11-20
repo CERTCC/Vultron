@@ -25,13 +25,13 @@ from test.support.future_dates import days_from_now
 from test.support.objects import authored_at, make
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import (
-    announce_log_entry_activity,
+    add_log_entry_activity,
     em_propose_embargo_activity,
     rm_submit_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Announce,
+    as_Add,
     as_Invite,
     as_Offer,
 )
@@ -323,8 +323,8 @@ class TestCoerceToSemanticClass:
         assert result.object_.id_ == "urn:uuid:invite-roundtrip-1"
         assert result.in_reply_to == "urn:uuid:invite-roundtrip-1"
 
-    def test_announce_log_entry_round_trip_returns_specific_class(self, dl):
-        """dl.read returns AnnounceLogEntryActivity with as_CaseLedgerEntry object_."""
+    def test_add_log_entry_round_trip_returns_specific_class(self, dl):
+        """dl.read returns AddLogEntryActivity with as_CaseLedgerEntry object_."""
         from vultron.core.behaviors.sync.nodes.chain import (
             _to_persistable_entry,
         )
@@ -340,12 +340,15 @@ class TestCoerceToSemanticClass:
             log_index=0,
             object_id="https://example.org/activities/logged-1",
             semantic_type="log_entry_committed",
-            payload_snapshot={"status": "ok"},
+            payload_snapshot={
+                "id": "https://example.org/activities/logged-1",
+                "status": "ok",
+            },
             prev_log_hash=_ZERO_HASH,
             received_at=ACT_AT,
         )
         entry = _to_persistable_entry(chain_entry)
-        announce = announce_log_entry_activity(
+        announce = add_log_entry_activity(
             entry,
             actor="https://example.org/actors/case-actor",
             at=authored_at(),
@@ -355,15 +358,15 @@ class TestCoerceToSemanticClass:
 
         result = dl.read(announce.id_)
 
-        assert isinstance(result, as_Announce)
+        assert isinstance(result, as_Add)
         assert isinstance(result.object_, WireCaseLedgerEntry)  # type: ignore[union-attr]
-        assert result.object_.case_id == entry.case_id  # type: ignore[union-attr]
+        assert result.object_.context == entry.context  # type: ignore[union-attr]
         assert result.object_.log_object_id == entry.log_object_id  # type: ignore[union-attr]
 
     def test_retype_inline_object_refs_recurses_into_sub_activities(self):
         """_retype_inline_object_refs recurses into re-typed inline sub-activities.
 
-        Accept(object_=Offer(object_=CaseLedgerEntry(case_id=...))) — both Offer
+        Accept(object_=Offer(object_=CaseLedgerEntry(context=...))) — both Offer
         and CaseLedgerEntry are kept inline by _KEEP_INLINE_NESTED_TYPES.
         Without recursion, re-typing the Offer via model_validate parses the inner
         CaseLedgerEntry dict against the base as_Object union (as_Offer.object_ is
@@ -379,7 +382,7 @@ class TestCoerceToSemanticClass:
 
         ledger_entry = make(
             as_CaseLedgerEntry,
-            case_id="https://example.org/cases/retype-recurse-1",
+            context="https://example.org/cases/retype-recurse-1",
             log_object_id="https://example.org/activities/obj-retype-1",
             semantic_type="log_entry_committed",
             log_index=0,
@@ -413,7 +416,7 @@ class TestCoerceToSemanticClass:
             f"_retype_inline_object_refs; got {type(inner_entry).__name__!r}"
         )
         assert (
-            inner_entry.case_id == "https://example.org/cases/retype-recurse-1"
+            inner_entry.context == "https://example.org/cases/retype-recurse-1"
         )
         assert inner_entry.semantic_type == "log_entry_committed"
 
@@ -464,15 +467,15 @@ class TestCoerceByReferenceFields:
     object: a correct dispatch logs no WARNING (SL-01-005).
     """
 
-    def test_read_log_entry_round_trips_without_warning(self, dl, caplog):
-        """A stored Read(CaseLedgerEntry) reads back as _ReadLogEntryActivity."""
+    def test_read_ledger_round_trips_without_warning(self, dl, caplog):
+        """A stored Read(<case>/ledger) reads back as _ReadLedgerActivity."""
         import logging
 
         from vultron.core.behaviors.sync.nodes.chain import (
             _to_persistable_entry,
         )
         from vultron.core.models.case_ledger import HashChainLedgerRecord
-        from vultron.wire.as2.factories import read_ledger_entry_activity
+        from vultron.wire.as2.factories import read_ledger_at_entry_activity
 
         entry = _to_persistable_entry(
             HashChainLedgerRecord(
@@ -480,12 +483,15 @@ class TestCoerceByReferenceFields:
                 log_index=0,
                 object_id="https://example.org/activities/logged-5513",
                 semantic_type="log_entry_committed",
-                payload_snapshot={"status": "ok"},
+                payload_snapshot={
+                    "id": "https://example.org/activities/logged-5513",
+                    "status": "ok",
+                },
                 prev_log_hash=_ZERO_HASH,
                 received_at=ACT_AT,
             )
         )
-        read = read_ledger_entry_activity(
+        read = read_ledger_at_entry_activity(
             entry,
             actor="https://example.org/actors/reporter",
             at=authored_at(),
@@ -496,8 +502,12 @@ class TestCoerceByReferenceFields:
         with caplog.at_level(logging.WARNING):
             result = dl.read(read.id_)
 
-        assert type(result).__name__ == "_ReadLogEntryActivity"
-        assert result.object_ == entry.id_  # type: ignore[union-attr]
+        assert type(result).__name__ == "_ReadLedgerActivity"
+        # The ledger has no record of its own, so it is kept inline
+        # (ADR-0204).
+        assert result.object_.id_ == (  # type: ignore[union-attr]
+            "https://example.org/cases/case-read-5513/ledger"
+        )
         assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
     def test_full_case_invite_round_trips_without_warning(self, dl, caplog):
@@ -584,20 +594,23 @@ class TestCoerceByReferenceFields:
 class TestCollapseByReferenceFields:
     """Each branch of ``_collapse_by_reference_fields`` (#5513).
 
-    ``_ReadLogEntryActivity.object_`` is a by-reference field: the class
-    declares it a plain URI (SYNC-17-001).
+    ``_AddStatusToCaseActivity.target`` is a by-reference field: the class
+    declares it a plain URI, the case's status history (ADR-0204).
     """
 
+    _HISTORY = "https://example.org/cases/case-5513/statuses"
+
     @staticmethod
-    def _read(obj: object) -> object:
+    def _add(target: object) -> object:
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Read,
+            as_Add,
         )
 
-        return as_Read.model_construct(
-            id_="https://example.org/activities/read-5513",
-            actor="https://example.org/actors/reporter",
-            object_=obj,
+        return as_Add.model_construct(
+            id_="https://example.org/activities/add-5513",
+            actor="https://example.org/actors/case-actor",
+            object_="https://example.org/cases/case-5513/status/1",
+            target=target,
             context="https://example.org/cases/case-5513",
         )
 
@@ -614,30 +627,25 @@ class TestCollapseByReferenceFields:
             semantics_to_activity_class()[MessageSemantics[semantics]],
         )
 
-    @staticmethod
-    def _entry() -> object:
-        from vultron.wire.as2.vocab.base.objects.base import as_Object
-
-        return as_Object.model_construct(
-            id_="https://example.org/ledger/entry-5513",
-            type_="CaseLedgerEntry",
+    def test_object_collapses_to_its_id(self):
+        from vultron.wire.as2.vocab.base.objects.collections import (
+            as_OrderedCollection,
         )
 
-    def test_object_collapses_to_its_id(self):
-        entry = self._entry()
-        result = self._collapse(self._read(entry), "READ_CASE_LEDGER_ENTRY")
-        assert result.object_ == entry.id_  # type: ignore[attr-defined]
+        history = make(as_OrderedCollection, id_=self._HISTORY)
+        result = self._collapse(self._add(history), "ADD_CASE_STATUS_TO_CASE")
+        assert result.target == self._HISTORY  # type: ignore[attr-defined]
 
     def test_bare_id_is_left_alone(self):
-        read = self._read("https://example.org/ledger/entry-5513")
-        assert self._collapse(read, "READ_CASE_LEDGER_ENTRY") is read
+        add = self._add(self._HISTORY)
+        assert self._collapse(add, "ADD_CASE_STATUS_TO_CASE") is add
 
     def test_object_without_an_id_is_left_alone(self):
         from vultron.wire.as2.vocab.base.objects.base import as_Object
 
         nameless = as_Object.model_construct(id_=None)
-        read = self._read(nameless)
-        assert self._collapse(read, "READ_CASE_LEDGER_ENTRY") is read
+        add = self._add(nameless)
+        assert self._collapse(add, "ADD_CASE_STATUS_TO_CASE") is add
 
     def test_field_that_admits_an_object_keeps_it(self):
         """The full-case Invite carries the case whole in ``object``

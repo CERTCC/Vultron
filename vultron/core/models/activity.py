@@ -119,7 +119,7 @@ class VultronActivity(CoreObject):
     # the Remove carries it with it.
     termination_cause: TerminationCause | None = None
     # The sender's ledger tail every case activity states (SYNC-18-001); a
-    # Read(CaseLedgerEntry) states it as the entry it names (SYNC-17-001).
+    # Read(<case>/ledger) states it as its whole act (SYNC-17-001).
     # The wire dump carries it as ``ledgerPosition``.
     ledger_position: LedgerPosition | None = None
     # The sender's number for a case activity to the CASE_MANAGER
@@ -147,17 +147,10 @@ class VultronActivity(CoreObject):
     # only as AS2 vocabulary a stored wire activity may dump (ARCH-25-008);
     # the extractor never maps it and no core code reads it.
     to: list[NonEmptyString] | None = None
-    # CM-16-003: the wire dump this model is validated from is camelCase, so
-    # the alias is required — without it the field silently validates to None
-    # and the suggested roles vanish from the delivered activity.
-    suggested_roles: list[NonEmptyString] | None = Field(
-        default=None,
-        validation_alias="suggestedRoles",
-        serialization_alias="suggestedRoles",
-    )
+    # The roles an Offer(Actor) recommends or an Invite offers for the actor
+    # it names: one field for both (CM-16-003, CM-17-003, VM-10-012).
     # Single-word, so the camelCase wire name is identical and no alias is
-    # needed; stated explicitly because the neighbouring field shows what the
-    # omission costs when the names do differ.
+    # needed.
     roles: list[NonEmptyString] | None = None
 
     @field_validator(

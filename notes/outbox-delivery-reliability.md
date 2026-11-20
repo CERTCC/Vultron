@@ -90,8 +90,8 @@ is a property of the queue's pop order, not a delivery guarantee.**
   before re-raising (a cancellation as itself, so `OutboxMonitor.stop()` still stops).
   `_deliver_row` never raises on its own. A hard process crash mid-batch loses the
   batch's undelivered rows; say so rather than claiming otherwise.
-- **Replay dedup (SYNC-15-012).** `SyncActivityAdapter.send_announce_log_entry` returns
-  `False` and queues nothing when an `Announce` of that entry to that peer is already
+- **Replay dedup (SYNC-15-012).** `SyncActivityAdapter.send_add_log_entry` returns
+  `False` and queues nothing when an `Add` of that entry to that peer is already
   pending; `SendMissingEntriesNode` counts only `True` as sent (SYNC-15-011). The read
   is the adapter's, not the node's (DL-06-001).
 - **Skip, do not wait, when the slot is held.** Under `TestClient` a recipient's
@@ -147,8 +147,8 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
 
 - Derive the id with `derived_activity_id(kind, actor, <what it answers>, ...)` in
   `vultron/core/models/activity_ids.py`, kind label first so two kinds of response
-  to one activity never collide. Core derives too: the stub Invite answering an
-  owner's `Offer(Actor)[target=VulnerabilityCase]` takes its id from that Offer.
+  to one activity never collide. Core derives too: the stub Invite answering the
+  Case Owner's own Invite takes its id from that Invite.
 - Ask "was this already sent?" with `is_sealed(dl, id)`: the sealed body outlives the
   outbox entry, so it still answers after delivery popped the queue (see
   `notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward 'Admit'").

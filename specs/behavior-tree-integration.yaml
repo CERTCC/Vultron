@@ -1315,8 +1315,9 @@ groups:
       that another actor authored.
     rationale: >-
       If an actor sends the act of a different actor again under its own name, it claims
-      an act that it did not author. An on-behalf send names the doer in `actor` and the
-      requester in `attributedTo` (CM-24-001, CM-24-002).
+      an act that it did not author. An on-behalf send names the doer in `actor`, the
+      requester in `attributedTo` and the request in `inReplyTo` (CM-24-001,
+      CM-24-002, CM-24-020).
     verification: >-
       `test_attributed_to_on_factory_calls_comes_from_the_helper` in
       `test/architecture/test_delegated_attribution_uses_helper.py` fails an on-behalf
@@ -3502,8 +3503,10 @@ groups:
       not-found or refused result; BT-25-010 covers received trees only.
     verification: >-
       Two architecture tests under `test/architecture/` check that no store read
-      happens before a run. The test #6499 adds fails on any DataLayer or `BTBridge`
-      call in a received use case. The test #6605 adds lists the trigger use cases
+      happens before a run.
+      `test/architecture/test_received_use_cases_reach_no_store.py` fails on any
+      DataLayer or `BTBridge` call or argument in a received use case
+      (HP-01-044). The test #6605 adds lists the trigger use cases
       that still read the store before their tree runs; it fails on a new one, and
       its list only shrinks and ends empty (#6606 empties it). Lookup-node tests
       assert that each lookup node publishes the key it found.
@@ -3517,20 +3520,38 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      In a received tree, a lookup node (BT-25-009) that finds no value MUST declare
-      a refusal whose reason names the missing object and the requirement it cites.
+      In a received tree, a lookup (BT-25-009) that finds no value MUST end in a
+      declared refusal. A lookup node that refuses declares it, with a reason that
+      names the missing object and the requirement it cites. A lookup the path stage
+      reads publishes nothing on a miss instead: a tree that declares the no-case
+      path refuses the miss with a guard whose reason names the missing object and
+      the requirement it cites, and a tree that does not declare it is refused by
+      its path stage (HP-01-039). A door that refuses the delivery before that guard
+      ends it with the door's own reason.
     rationale: >-
       The runner reads a refusal only from a node's declaration (ADR-0195). A lookup
-      that fails without one would be read as an unexplained failure.
+      that fails without one would be read as an unexplained failure. A lookup the
+      path stage depends on runs ahead of it, so a refusal there would replace the
+      path stage's and the sender guard's reasons; the guard placed after them keeps
+      both, and a tree with no no-case path keeps the path stage's reason for a
+      receiver that holds no case.
     verification: >-
       Lookup-node tests run each received lookup against a store without the object
-      and assert a `REFUSED` verdict whose reason names it.
+      and assert a `REFUSED` verdict whose reason names it. The report lookup's
+      tests run each report verdict at a store without the report's case and
+      assert the `REFUSED` verdict: the miss guard's reason, naming the report and
+      BT-25-010, for InvalidateReport and CloseReport, and the path stage's for
+      ValidateReport.
     relationships:
     - rel_type: refines
       spec_id: BT-25-009
     adr:
     - ADR-0207
     - ADR-0195
+    see_also:
+    - spec_id: HP-01-039
+      reason: 'a rationale: the path stage refusal that ends a miss in a tree that
+        does not declare the no-case path'
   - id: BT-25-011
     priority: MUST
     kind: project

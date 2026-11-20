@@ -72,8 +72,7 @@ class TestFindInVocabulary:
             "VulnerabilityCase",
             "VulnerabilityItem",
             "CaseParticipant",
-            # Note: EmbargoEvent is intentionally NOT registered — it
-            # inherits type_="Event" from as_Event.  See embargo_event.py.
+            "EmbargoEvent",
         ]:
             cls = find_in_vocabulary(type_name)
             assert cls is not None, f"Expected '{type_name}' in vocabulary"

@@ -43,7 +43,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     recorded (PCR-03-004).  With none of them, the Announce is refused.
 
     Seeding the case anchors its genesis hash, so an
-    ``Announce(CaseLedgerEntry)`` held during the pre-genesis window
+    ``Add(CaseLedgerEntry)`` held during the pre-genesis window
     (SYNC-15-004) may now extend the chain.  The tree replays that
     ``Announce``, as it was received, through this actor's inbox via the
     injected :class:`~vultron.core.ports.inbox_replay.InboxReplayPort`, as a

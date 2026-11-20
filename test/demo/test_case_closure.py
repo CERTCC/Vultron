@@ -277,7 +277,7 @@ def _entry(index: int, semantic_type: str, actor: str, **object_: str) -> dict:
     if object_:
         snapshot["object"] = object_
     return {
-        "case_id": _CASE,
+        "context": _CASE,
         "log_index": index,
         "semantic_type": semantic_type,
         "payload_snapshot": snapshot,
@@ -443,7 +443,7 @@ class TestVerifyCaseClosureRecorded:
     def _client(self, ledger: list[dict]) -> MagicMock:
         client = MagicMock()
         client.get.return_value = {str(e["log_index"]): e for e in ledger} | {
-            "other": {"case_id": "urn:uuid:other", "log_index": 99}
+            "other": {"context": "urn:uuid:other", "log_index": 99}
         }
         return client
 
@@ -541,7 +541,7 @@ class TestWaitForReplicaLedgerEndingAt:
         client = MagicMock()
         client.actor_id = _REPORTER
         client.get.return_value = {
-            str(i): {"case_id": _CASE, "log_index": i} for i in indices
+            str(i): {"context": _CASE, "log_index": i} for i in indices
         }
         return client
 

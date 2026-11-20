@@ -46,7 +46,7 @@ def _make_entry(
         "entryHash": entry_hash,
         "prevLogHash": prev_log_hash,
         "semanticType": semantic_type,
-        "case_id": case_id,
+        "context": case_id,
         "payloadSnapshot": payload_snapshot or {},
         "disposition": disposition,
     }

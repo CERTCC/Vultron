@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING, Any, cast
 from pydantic import ValidationError
 
 from vultron.core.models.base import CoreObject
-from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.rehydration.slots import materialise_object_slots
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
@@ -297,9 +296,7 @@ def rehydrate(
         obj = _resolve_typed_reference(obj, dl)
 
     rehydrated_nested = None
-    # The genesis-replay Reject names no object by design (SYNC-16-027);
-    # every other activity with no object is refused below.
-    if hasattr(obj, "object_") and not is_genesis_replay_reject(obj):
+    if hasattr(obj, "object_"):
         rehydrated_nested = _rehydrate_nested_object_field(obj, dl, depth)
 
     rehydrated = _cast_to_vocabulary_type(obj, dl)

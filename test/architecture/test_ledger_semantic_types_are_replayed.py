@@ -17,7 +17,7 @@
 
 A participant replica takes case state from the CASE_MANAGER's ledger
 (PCR-03-001, ADR-0108).  A ``semantic_type`` the CASE_MANAGER commits with no
-effect slot in ``AnnounceLogEntryReceivedBT`` is stored and ignored, so the
+effect slot in ``AddLogEntryReceivedBT`` is stored and ignored, so the
 replica silently stops following the case — and gating a received-side effect
 behind the CASE_MANAGER role (RSH-08-003) before the slot exists blinds every
 replica.
@@ -26,7 +26,7 @@ The committed set is derived from code (``_ledger_commit_inventory``), and each
 member is classified here exactly once:
 
 * :data:`REPLAYED` — matched by exactly one effect-slot condition of the
-  announce tree, evaluated against a real entry rather than by slot name;
+  add-log-entry tree, evaluated against a real entry rather than by slot name;
 * :data:`NO_REPLICA_EFFECT` — the entry changes no state a replica holds, with
   the reason;
 
@@ -52,7 +52,7 @@ from typing import Any
 
 import pytest
 
-from test.architecture._announce_slots import (
+from test.architecture._add_log_entry_slots import (
     MANAGER,
     PROPOSER,
     matching_slots,
@@ -85,7 +85,7 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.REJECT_INVITE_ACTOR_TO_CASE.value,
         MS.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
         MS.ACTIVATE_EMBARGO_ON_CASE.value,
-        MS.ADD_CASE_PARTICIPANT_TO_CASE.value,
+        MS.REINSTATE_PARTICIPANT_IN_CASE.value,
         MS.ADD_CASE_STATUS_TO_CASE.value,
         MS.ADD_NOTE_TO_CASE.value,
         MS.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
@@ -93,7 +93,7 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
         MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
         MS.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
-        MS.REMOVE_CASE_PARTICIPANT_FROM_CASE.value,
+        MS.REMOVE_PARTICIPANT_FROM_CASE.value,
         MS.REMOVE_NOTE_FROM_CASE.value,
         MS.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
         MS.UNDO_INVITE_TO_EMBARGO_ON_CASE.value,
@@ -133,7 +133,7 @@ NO_REPLICA_EFFECT: dict[str, str] = {
     MS.ANNOUNCE_VULNERABILITY_CASE.value: (
         "the demo-only sync-log-entry checkpoint (TRIG-10-004): it carries"
         " the case as the CASE_MANAGER holds it and changes nothing a replica"
-        " holds; a replica is seeded by the Announce it receives, never by"
+        " holds; a replica is seeded by the Add it receives, never by"
         " the entry (SYNC-15-002)"
     ),
     "create_case": (

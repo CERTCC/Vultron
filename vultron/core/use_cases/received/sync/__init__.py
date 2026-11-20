@@ -19,16 +19,16 @@ Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-04-001, SYNC-04-002,
 SYNC-17-002 through SYNC-17-006.
 """
 
-from vultron.core.use_cases.received.sync.announce import (
-    AnnounceLedgerEntryReceivedUseCase,
+from vultron.core.use_cases.received.sync.add_log_entry import (
+    AddLedgerEntryReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync.replay import (
-    ReadLedgerEntryReceivedUseCase,
+    ReadLedgerReceivedUseCase,
     RejectLedgerEntryReceivedUseCase,
 )
 
 __all__ = [
-    "AnnounceLedgerEntryReceivedUseCase",
-    "ReadLedgerEntryReceivedUseCase",
+    "AddLedgerEntryReceivedUseCase",
+    "ReadLedgerReceivedUseCase",
     "RejectLedgerEntryReceivedUseCase",
 ]

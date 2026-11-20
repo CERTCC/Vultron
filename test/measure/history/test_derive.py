@@ -1193,8 +1193,8 @@ def test_each_nameless_participant_record_is_reported():
     ledger = _vendor_ledger()
     nameless = {"type": "CaseParticipant", "participantStatuses": []}
     odd = ledger.add(
-        "add_case_participant_to_case",
-        "Add",
+        "create_case_participant",
+        "Create",
         CM,
         {"type": "Collection", "items": [nameless, dict(nameless)]},
     )
@@ -1255,3 +1255,54 @@ def test_a_stub_case_status_in_an_invite_target_is_not_the_cases(place):
     history = ledger.history()
     assert history.excluded == []
     assert len(history.of_kind(CSEvent.P)) == 1
+
+
+@pytest.mark.spec("CEH-04-010")
+@pytest.mark.parametrize(
+    ("preview", "expected"),
+    [
+        (
+            {
+                "embargoRegister": [
+                    {"embargo": {"id": "urn:uuid:e1"}, "status": "ACTIVE"}
+                ]
+            },
+            "urn:uuid:e1",
+        ),
+        (
+            {
+                "embargoRegister": [
+                    {"embargo": "urn:uuid:e2", "status": "ACTIVE"}
+                ]
+            },
+            "urn:uuid:e2",
+        ),
+        ({"embargoRegister": {"type": "Redacted"}}, None),
+        ({"embargoRegister": ["urn:uuid:not-an-entry"]}, None),
+        (
+            {
+                "embargoRegister": [
+                    {"embargo": "urn:uuid:e3", "status": "PROPOSED"}
+                ]
+            },
+            None,
+        ),
+        ({}, None),
+    ],
+    ids=[
+        "entry whole",
+        "entry by id",
+        "register marked",
+        "item not an entry",
+        "no ACTIVE entry",
+        "no register",
+    ],
+)
+def test_a_stub_preview_names_the_embargo_of_its_in_force_entry(
+    preview: dict, expected: str | None
+) -> None:
+    """The Invite's preview is read for the in-force entry alone; anything
+    else names no embargo (CM-17-002)."""
+    from vultron.measure.history.derive import _in_force_embargo_of
+
+    assert _in_force_embargo_of(preview) == expected

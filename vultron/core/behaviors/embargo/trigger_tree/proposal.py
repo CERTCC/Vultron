@@ -21,8 +21,10 @@ The CASE_MANAGER's own proposal takes the shape of one it receives
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.act_key_scope import with_act_keys
 from vultron.core.behaviors.act_keys import EMBARGO
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes import (
     EMBARGO_INVITE_SEMANTIC_TYPE,
     CollectEmbargoInviteRecipientsNode,
@@ -61,6 +63,7 @@ def _propose_arms(
     embargo: EmbargoEvent,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> list[py_trees.behaviour.Behaviour]:
     """Manager: adjudicate and relay its own terms; otherwise: ask.
 
@@ -103,12 +106,14 @@ def _propose_arms(
                 result_out=result_out,
                 embargo=embargo,
             ).deciding(),
-            CommitEmbargoProposalNode(
-                case_id=case_id,
-                semantic_type=EMBARGO_INVITE_SEMANTIC_TYPE,
-                builder=activity_builder,
-                embargo=embargo,
-                result_out=result_out,
+            with_case_id(
+                CommitEmbargoProposalNode(
+                    semantic_type=EMBARGO_INVITE_SEMANTIC_TYPE,
+                    builder=activity_builder,
+                    embargo=embargo,
+                    result_out=result_out,
+                ),
+                case_id,
             ),
             _make_emit_node(case_id),
             RelayEmbargoInviteToEachNode(
@@ -119,6 +124,9 @@ def _propose_arms(
                 # back with the proposal itself: the arm is one act
                 # (ADR-0146).
                 answers=embargo.id_,
+                # Each relayed Invite's reply deadline comes from the
+                # CASE_MANAGER's own RSVP window (CM-28-012).
+                actor_config=actor_config,
             ),
             IndexOwnEmbargoProposalNode(
                 case_id=case_id,
@@ -127,7 +135,7 @@ def _propose_arms(
             ),
         ],
         otherwise=[
-            ResolveCaseManagerNode(case_id=case_id),
+            with_case_id(ResolveCaseManagerNode(), case_id),
             with_act_keys(PersistEmbargoEventNode(), {EMBARGO: embargo}),
             ConstructActivitiesNode(
                 activity_builder=_asserting(activity_builder, result_out)
@@ -144,6 +152,7 @@ def propose_embargo_trigger_bt(
     embargo: EmbargoEvent,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for proposing an embargo (EP-09-008).
 
@@ -165,6 +174,7 @@ def propose_embargo_trigger_bt(
                 embargo,
                 result_out,
                 activity_builder,
+                actor_config,
             ),
         ],
     )
@@ -177,6 +187,7 @@ def propose_embargo_revision_trigger_bt(
     embargo: EmbargoEvent,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for proposing an embargo revision.
 
@@ -199,6 +210,7 @@ def propose_embargo_revision_trigger_bt(
                 embargo,
                 result_out,
                 activity_builder,
+                actor_config,
             ),
         ],
     )

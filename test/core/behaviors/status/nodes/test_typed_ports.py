@@ -24,6 +24,8 @@ from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.objects import make
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import SENDER_ID as SENDER_KEY
 from vultron.core.behaviors.status.nodes.case_status import (
     CheckCaseStatusIdempotencyNode,
 )
@@ -227,7 +229,7 @@ class TestEmitCloseCaseNodePorts:
 
 class TestEmitRMGapNoteNodePorts:
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=CASE_ID)
+        node = EmitRMGapNoteNode()
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("datalayer")
@@ -236,7 +238,7 @@ class TestEmitRMGapNoteNodePorts:
         self, bt_scenario: BTTestScenario
     ) -> None:
         result = bt_scenario.run(
-            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=None),
+            with_act_keys(EmitRMGapNoteNode(), {SENDER_KEY: ACTOR_ID}),
             actor_id=ACTOR_ID,
         )
         bt_scenario.assert_success(result)

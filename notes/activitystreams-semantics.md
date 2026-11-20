@@ -155,10 +155,10 @@ anywhere else, call `rehydrate()` before `find_matching_semantics()`.
   and the activity is `UNKNOWN_UNRESOLVABLE_OBJECT`, which the inbox fetches for
   (SE-01-006, AKM-05-007). Otherwise the first pattern of the verb wins: a bare
   `Announce` of an embargo read as `Announce(VulnerabilityCase)` (#5243).
-- **`accepts_bare_object=True` is the one opt-in**, for a pattern a field other
-  than the object's type tells apart: only `LedgerPositionReadPattern`
-  (`ledgerPosition`). `test_only_read_case_ledger_entry_accepts_a_bare_object`
-  pins the set.
+- **No pattern opts out.** `ActivityPattern` forbids unknown fields, so no
+  `accepts_bare_object` can be declared; the ledger position statement names the
+  case's ledger, not an entry by id (ADR-0204).
+  `test_bare_object_satisfies_no_object_type_constraint` pins the empty set.
 - **`target_`, `context_` and `to_` are lenient**: a case there travels as its URI
   (SE-01-007). `strict=True` tightens `target_` alone, on a pattern whose
   `target_` is its sole discriminator (SE-08-004); a pattern with no `target_`

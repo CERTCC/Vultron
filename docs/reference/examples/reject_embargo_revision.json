@@ -28,7 +28,10 @@
     "target": "https://vultron.example/case-actors/vendorco-case-actor",
     "object": {
       "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-09-29T00:00:00+00:00",
-      "type": "EmbargoEvent",
+      "type": [
+        "EmbargoEvent",
+        "Event"
+      ],
       "name": "Embargo for VendorCo Case #20260601",
       "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
       "startTime": "2026-06-01T19:12:00.000000+00:00",
@@ -49,6 +52,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4nry1wXgKo9hQ2uf9ih51Ys7FuAobE7TJtvsNBQXZihLmRo3Eao19Y2vC4cCwD88erjbGryMeQS74Vn7f2mxzm4J"
+    "proofValue": "z42Qan4DdC92Lkw7XRjGYmFSyNqkDq2QMiMLtQy9TxuMSqKMLrco5ucsNgsEFXMS94Jy3SU6fifGaohFuLvENX39Q"
   }
 }

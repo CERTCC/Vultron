@@ -5,13 +5,15 @@
   ],
   "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/0",
   "type": "CaseLedgerEntry",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2024-01-01T12:00:00.000000+00:00",
-  "caseId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "logIndex": 0,
   "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001",
   "semanticType": "create_case",
-  "payloadSnapshot": {},
+  "payloadSnapshot": {
+    "id": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001"
+  },
   "prevLogHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d",
-  "entryHash": "a1c020aef39b15d839e36dc5f5563000c56d6f4e4fdbb669a807fab20c0736dd",
+  "entryHash": "f09b79ec9013551751a903a361bf0358df5739b769a2f5e908a4d98bd51ed483",
   "receivedAt": "2024-01-01T12:00:00.000000+00:00"
 }

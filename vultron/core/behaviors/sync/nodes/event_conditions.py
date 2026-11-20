@@ -17,7 +17,7 @@
 Each ``Is*EventNode`` matches the ``semantic_type`` of one kind of entry on
 the blackboard ``activity.log_entry``.  Usually that is one semantic type; the
 note-attachment node matches the two entries that attach a note.  They are
-used as preconditions in the ``AnnounceLogEntryReceivedBT`` Selector branches
+used as preconditions in the ``AddLogEntryReceivedBT`` Selector branches
 (BTND-08-001/002).  The embargo negotiation's matchers live in
 ``embargo_event_conditions`` and the shared bases in
 ``_event_condition_base``; both are re-exported here.
@@ -66,7 +66,7 @@ class IsRemoveEmbargoEventNode(_SingleSemanticTypeNode):
     """Precondition: return SUCCESS when this log entry IS a remove-embargo event.
 
     Used as the precondition in the ``EmbargoTeardownEffects`` slot of
-    ``AnnounceLogEntryReceivedBT`` (built by ``_event_effect_slot``)::
+    ``AddLogEntryReceivedBT`` (built by ``_event_effect_slot``)::
 
         Selector(EmbargoTeardownEffects)
           Sequence
@@ -92,7 +92,7 @@ class IsParticipantStatusEventNode(_SingleSemanticTypeNode):
     """Precondition: return SUCCESS when this log entry IS a participant-status event.
 
     Used as the precondition in the ``ParticipantStatusEffects`` Selector's
-    inner Sequence in ``AnnounceLogEntryReceivedBT``::
+    inner Sequence in ``AddLogEntryReceivedBT``::
 
         Selector(ParticipantStatusEffects)
           Sequence
@@ -120,7 +120,7 @@ class IsAddNoteEventNode(_SingleSemanticTypeNode):
     no other entry attaches a note (RSH-08-004, VAM-01-011).
 
     Used as the precondition in the ``NoteEffects`` Selector's inner
-    Sequence in ``AnnounceLogEntryReceivedBT``::
+    Sequence in ``AddLogEntryReceivedBT``::
 
         Selector(NoteEffects)
           Sequence
@@ -208,7 +208,7 @@ class IsSubmitReportEventNode(_SingleSemanticTypeNode):
     """Precondition: return SUCCESS when this log entry IS an add_report_to_case event.
 
     Used as the precondition in the ``OfferReportEffects`` Selector's inner
-    Sequence in ``AnnounceLogEntryReceivedBT``::
+    Sequence in ``AddLogEntryReceivedBT``::
 
         Selector(OfferReportEffects)
           Sequence
@@ -236,7 +236,7 @@ class IsOwnershipTransferEventNode(_SingleSemanticTypeNode):
     moves nothing on a replica: each change it causes is its own entry.
 
     Used as the precondition in the ``OwnershipTransferEffects`` Selector's
-    inner Sequence in ``AnnounceLogEntryReceivedBT``::
+    inner Sequence in ``AddLogEntryReceivedBT``::
 
         Selector(OwnershipTransferEffects)
           Sequence
@@ -261,7 +261,7 @@ class IsWithdrawFromEmbargoEventNode(_SingleSemanticTypeNode):
 
     A signatory's ``Leave(EmbargoEvent)`` the CASE_MANAGER committed
     (MSM-07-010).  Used in the ``EmbargoWithdrawalEffects`` slot of
-    ``AnnounceLogEntryReceivedBT``.
+    ``AddLogEntryReceivedBT``.
 
     Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """

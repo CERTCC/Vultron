@@ -160,6 +160,7 @@ class TestFindCaseInviteForActor:
                 "preview": {
                     "id": "urn:uuid:preview-1",
                     "type": "CasePreview",
+                    "attributedTo": "https://example.org/actors/vendor",
                     "summary": "A case to join",
                 },
             },

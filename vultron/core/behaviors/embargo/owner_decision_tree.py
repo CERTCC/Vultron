@@ -23,7 +23,7 @@ either (EP-09-005); the sender guard refuses anyone else (HP-01-006).  The
 owner addresses its decision to the CASE_MANAGER (PCR-08-001), so both trees
 declare the CASE_MANAGER path alone (HP-01-038) and their effects write
 shared case state behind the factory's gate (BT-17-008); a participant
-replica learns the decision from the ``Announce(CaseLedgerEntry)`` broadcast
+replica learns the decision from the ``Add(CaseLedgerEntry)`` broadcast
 (EP-09-007), never from the activity itself, and is refused at the path stage
 (HP-01-039).
 """
@@ -155,7 +155,7 @@ def activate_embargo_on_case_tree(
         precondition_guards=[
             # A repeat of the applied decision finds the proposal decided, so
             # it is skipped before that guard refuses it (CLP-05-006).
-            ActivityNotYetLedgeredNode(case_id=case_id),
+            with_case_id(ActivityNotYetLedgeredNode(), case_id),
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
             OwnerMayActivateEmbargoNode(
                 case_id=case_id, embargo_id=embargo_id
@@ -164,14 +164,19 @@ def activate_embargo_on_case_tree(
         ],
         manager_effects=[
             capture,
-            CommitAndApplyEmbargoActivationNode(
-                case_id=case_id, embargo_id=embargo_id, result_out={}
+            with_case_id(
+                CommitAndApplyEmbargoActivationNode(
+                    embargo_id=embargo_id, result_out={}
+                ),
+                case_id,
             ),
             notices,
             with_case_id(BackfillAdmittedParticipantsNode(), case_id),
             # The owner's activation of a revision changes the active embargo
             # under any stub Invite still outstanding (CM-11-016).
-            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
+            with_case_id(
+                ReissueStubInvitesNode(actor_config=actor_config), case_id
+            ),
         ],
         manager_case_id=case_id,
     )
@@ -259,7 +264,7 @@ def reject_embargo_proposal_on_case_tree(
         precondition_guards=[
             # A repeat of the applied decision finds the proposal decided, so
             # it is skipped before that guard refuses it (CLP-05-006).
-            ActivityNotYetLedgeredNode(case_id=case_id),
+            with_case_id(ActivityNotYetLedgeredNode(), case_id),
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
             OwnerRejectionAppliesNode(case_id=case_id, embargo_id=embargo_id),
         ],

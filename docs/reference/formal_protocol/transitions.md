@@ -44,7 +44,7 @@ The [protocol definition](protocol_definition.md) introduces $succ$ as the fourt
     Once a case exists, every Participant addresses its messages to the case's CASE_MANAGER, which fans them out to the others.
     So an acknowledgment in a response column names a duty, not a message.
     $RK$ is a message only in reply to $RS$.
-    Every other acknowledgment ($RK$, $EK$ or $CK$) is discharged by the CASE_MANAGER's ledger entry for the received message, fanned out to the participants as `Announce(CaseLedgerEntry)`.
+    Every other acknowledgment ($RK$, $EK$ or $CK$) is discharged by the CASE_MANAGER's ledger entry for the received message, fanned out to the participants as `Add(CaseLedgerEntry)`.
     No $EK$ or $CK$ message exists.
     The errors $RE$, $EE$ and $CE$ have no wire activity of their own either: each is sent as `Create(ProcessingFault)`.
 

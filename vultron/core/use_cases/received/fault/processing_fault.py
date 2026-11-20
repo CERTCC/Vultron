@@ -18,8 +18,6 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import ClassVar
 
-import py_trees
-
 from vultron.core.behaviors.case.received_run import (
     ReceivedOutcome,
     run_received_tree,
@@ -28,10 +26,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.behaviors.sync.nodes.reseed import (
-    announced_ledger_entry,
-)
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.fault import (
     CreateProcessingFaultReceivedEvent,
 )
@@ -46,14 +40,10 @@ from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases.received.fault.responses import (
     ARCHIVE_ONLY,
-    FaultReading,
+    CASE_DIVERGED,
+    HASH_MISMATCH,
     FaultResponse,
-    _case_diverged_tree,
-    _hash_mismatch_tree,
-    _hash_mismatch_verdict,
-    _reseed_verdict,
 )
-from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -80,17 +70,21 @@ class CreateProcessingFaultReceivedUseCase:
     a new entry; ``execute`` builds and runs exactly one tree whatever the
     class (CLP-10-005).
 
-    A fault carries no case (ASK-07-006).  When its ``inReplyTo`` names an
-    ``Announce(CaseLedgerEntry)`` this actor sent, the entry that announce
-    carried is read from this store and handed to the response, so the case
-    is the entry's.
+    A fault carries no case (ASK-07-006).  Each response's tree finds the
+    entry its ``inReplyTo`` ``Add(CaseLedgerEntry)`` carried, and so the
+    case, with a lookup node of its own (BT-25-009), and refuses a fault
+    naming no such ``Add`` this actor sent with that lookup's declared
+    refusal (BT-25-010).  ``execute`` reads no store: it builds the tree and
+    hands it to the runner (ADR-0195).
 
     The sender rule is declared once, below, and the receive-tree factory
     composes it into the tree of every class that has an effect: at the
     CASE_MANAGER the sender must be an active participant of the case the
     fault concerns (CM-10-004, SYNC-16-003, SYNC-03-008).  Each response
-    tree declares the manager path alone, so the rule states that side only
-    and the path stage refuses any other receiver (HP-01-038).  A
+    tree declares the manager path, where the rule states its one side, and
+    the no-case path, where a fault whose entry was not found is refused by
+    the lookup's miss guard before that side is read; the path stage
+    refuses a replica (HP-01-038, HP-01-041).  A
     class that is only archived runs no guard, because nothing it does is
     gated on a sender's standing.
     """
@@ -102,16 +96,8 @@ class CreateProcessingFaultReceivedUseCase:
     #: The response to each failure class that has an effect.
     responses: ClassVar[Mapping[str, FaultResponse]] = MappingProxyType(
         {
-            VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED: FaultResponse(
-                label="CaseDivergedFaultReceivedBT",
-                build_tree=_case_diverged_tree,
-                read_verdict=_reseed_verdict,
-            ),
-            VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH: FaultResponse(
-                label="HashMismatchFaultReceivedBT",
-                build_tree=_hash_mismatch_tree,
-                read_verdict=_hash_mismatch_verdict,
-            ),
+            VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED: CASE_DIVERGED,
+            VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH: HASH_MISMATCH,
         }
     )
 
@@ -142,35 +128,15 @@ class CreateProcessingFaultReceivedUseCase:
             request.activity_id,
         )
         response = self.responses.get(request.failure_class, ARCHIVE_ONLY)
-        readings: list[FaultReading] = []
-
-        def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
-            # The entry is read for the receiver the runner resolved: only an
-            # Announce it sent counts.  The read moves into the tree with
-            # the run-time case id (#6476).
-            refused_entry = (
-                self._refused_entry(receiving_actor_id)
-                if response.reads_refused_entry
-                else None
-            )
-            readings.append(response.read_verdict(refused_entry))
-            return response.build_tree(
-                refused_entry, request, self.sender_entitlement
-            )
 
         def read(outcome: ReceivedOutcome) -> HandlerResult | None:
-            (reading,) = readings
-            return reading.reader(outcome)
-
-        def judges() -> bool:
-            (reading,) = readings
-            return reading.judges
+            return response.reader(outcome)
 
         # Only the case's CASE_MANAGER acts on a fault about its ledger: the
-        # tree declares the manager path alone, so its path stage refuses any
-        # other receiver (HP-01-005).
+        # tree declares the manager path, so its path stage refuses a
+        # replica (HP-01-005).
         return run_received_tree(
-            build,
+            response.build_tree(request, self.sender_entitlement),
             dl=self._dl,
             request=request,
             label=response.label,
@@ -178,20 +144,5 @@ class CreateProcessingFaultReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
             reader=read,
-            judges=judges,
+            judges=response.judges,
         )
-
-    def _refused_entry(
-        self, receiving_actor_id: str
-    ) -> CaseLedgerEntry | None:
-        """The entry the fault's ``inReplyTo`` announce carried, if
-        *receiving_actor_id* sent it; read-only."""
-        failed_id = self._request.failed_activity_id
-        if failed_id is None:
-            return None
-        try:
-            return announced_ledger_entry(
-                self._dl, failed_id, receiving_actor_id
-            )
-        except VultronNotFoundError:
-            return None
