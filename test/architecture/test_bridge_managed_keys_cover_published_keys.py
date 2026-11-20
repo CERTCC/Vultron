@@ -87,7 +87,8 @@ from vultron.core.behaviors.inbox.nodes.pipeline import ALL_INBOX_KEYS
 
 _FIRST = (
     "a writer of the same run ticks, and writes the key or a None sentinel,"
-    " before any reader on every path, and no nested run sits between them"
+    " before any reader on every path, and no nested run between them"
+    " writes the key"
 )
 
 #: Published keys ``execute_with_setup`` deliberately does not restore,
@@ -114,9 +115,7 @@ _NOT_RESTORED: dict[str, str] = {
     "/log_entry": (
         f"{_FIRST}: CreateLogEntryNode (both arms write it) ->"
         " PersistLogEntryNode and FanOutLogEntryNode, its later siblings in"
-        " the commit tree.  A tree that runs FanOutLogEntryNode with no"
-        " CreateLogEntryNode before it passes the key as context_data, which"
-        " the bridge restores"
+        " the commit tree, the only tree that builds FanOutLogEntryNode"
     ),
     "/log_entry_preexisting": f"{_FIRST}: as /log_entry",
     "/invitee_case": (
@@ -140,13 +139,15 @@ _NOT_RESTORED: dict[str, str] = {
         " FindParticipantByActorIdNode by default"
     ),
     "/ledger_position/case_id": (
-        f"{_FIRST}: the ledger-position stage's FindCaseActorNode writes this"
-        " scoped copy -> ReplayMissingEntriesNode, its next sibling in that"
-        " stage.  It is kept off /case_id so the act's own nodes never read"
-        " it"
+        "no node reads it; the ledger-position stage's FindCaseActorNode"
+        " writes this scoped copy, kept off /case_id so the act's own nodes"
+        " never read it.  ReplayMissingEntriesNode, its next sibling, reads"
+        " /case_id, which the stage's act-key scope seeds"
     ),
     "/ledger_position/case_actor_id": (
-        f"{_FIRST}: as /ledger_position/case_id"
+        f"{_FIRST}: the ledger-position stage's FindCaseActorNode (written"
+        " only on its SUCCESS) -> SendMissingEntriesNode inside"
+        " ReplayMissingEntriesNode, its next sibling in that stage"
     ),
 }
 
@@ -387,8 +388,8 @@ def test_a_key_only_a_scope_publishes_needs_no_bridge_entry() -> None:
 
 @pytest.mark.spec("BT-17-020")
 def test_every_listed_key_is_still_published_and_not_restored() -> None:
-    """The exemption list only shrinks: a key no node publishes, or one the
-    bridge now restores, must leave it."""
+    """No exemption goes stale: a key no node publishes any more, or one
+    the bridge now restores, must leave the list."""
     managed = _bridge_managed()
     published = {
         **_class_publications(_bridge_classes()),
@@ -425,6 +426,16 @@ def test_every_scoped_handoff_noun_has_a_publish_side_reason() -> None:
     assert set(_SCOPED_HANDOFF_REASONS) == set(_SCOPED_HANDOFF_NOUNS)
 
 
+def _unrestored_by_inbox(classes: Iterable[type]) -> list[str]:
+    """Each inbox publishing site whose key ``ALL_INBOX_KEYS`` leaves out."""
+    return sorted(
+        f"{site} -> {key}"
+        for key, sites in _class_bindings(classes, "OUTPUT_PORTS").items()
+        if _bare(key) not in ALL_INBOX_KEYS
+        for site in sites
+    )
+
+
 @pytest.mark.spec("BT-17-020")
 def test_every_key_an_inbox_node_publishes_is_restored_by_the_pipeline() -> (
     None
@@ -434,15 +445,17 @@ def test_every_key_an_inbox_node_publishes_is_restored_by_the_pipeline() -> (
     inbox = [
         c for c in _node_classes() if c.__module__.startswith(_INBOX_MODULE)
     ]
-    published = _class_bindings(inbox, "OUTPUT_PORTS")
-    assert "/inbox_event" in published  # the scan reads the inbox nodes
-    unrestored = sorted(
-        f"{site} -> {key}"
-        for key, sites in published.items()
-        if _bare(key) not in ALL_INBOX_KEYS
-        for site in sites
-    )
+    assert "/inbox_event" in _class_bindings(inbox, "OUTPUT_PORTS")
+    unrestored = _unrestored_by_inbox(inbox)
     assert unrestored == [], (
         "These inbox nodes publish a key process_payload does not restore;"
         " add it to ALL_INBOX_KEYS:\n  " + "\n  ".join(unrestored)
     )
+
+
+@pytest.mark.spec("BT-17-020")
+def test_an_inbox_node_publishing_an_unrestored_key_fails_the_check() -> None:
+    assert _unrestored_by_inbox([_PublishesUnmanagedKey]) == [
+        f"{__name__}.{_PublishesUnmanagedKey.__qualname__}.widget_id"
+        " -> /widget_id"
+    ]

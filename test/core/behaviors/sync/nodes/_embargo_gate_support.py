@@ -117,7 +117,7 @@ def collect_recipients_and_withheld(
         bridge, tree=tree, actor_id=MANAGER_ID, log_entry=_make_entry(0)
     )
     assert result.status == Status.SUCCESS
-    return list(recipients.value), list(withheld.value or [])
+    return list(recipients.value), list(withheld.value)
 
 
 def collect_recipients(bridge, node_cls: type) -> list[str]:
