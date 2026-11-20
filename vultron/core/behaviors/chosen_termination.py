@@ -30,7 +30,6 @@ from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationCause,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 
 __all__ = ["ChosenTermination"]
@@ -39,7 +38,7 @@ __all__ = ["ChosenTermination"]
 class ChosenTermination:
     """The termination a reason call-out chooses, read at the write.
 
-    Every chosen cause is ``EARLY``.  It is set by
+    Every chosen cause ends the embargo early.  It is set by
     ``ChooseTerminationCauseNode`` and read by the termination's commit
     and ask nodes in the same run.
     """
@@ -47,16 +46,9 @@ class ChosenTermination:
     def __init__(self) -> None:
         self._termination: EmbargoTermination | None = None
 
-    @property
-    def reason(self) -> TerminationReason:
-        """The what: a voluntary termination ends the embargo early."""
-        return TerminationReason.EARLY
-
     def choose(self, cause: TerminationCause) -> None:
         """Record *cause* as the termination's why."""
-        self._termination = EmbargoTermination(
-            reason=TerminationReason.EARLY, cause=cause
-        )
+        self._termination = EmbargoTermination(cause=cause)
 
     @property
     def termination(self) -> EmbargoTermination:

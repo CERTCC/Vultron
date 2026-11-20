@@ -341,8 +341,9 @@ TERMINATED_AT = _act_key(
 TERMINATION = _act_key(
     "termination",
     EmbargoTermination | ThreatSignalTermination | ChosenTermination,
-    "How the act ends the embargo in force, its what and its why"
-    " (ADR-0122, EMB-13-005): the termination a received"
+    "How the act ends the embargo in force: the termination's cause, or"
+    " none for an early end (ADR-0122, ADR-0203, EMB-13-005).  It is the"
+    " termination a received"
     " ``Remove(EmbargoEvent)`` carries, the one a trigger requests, a"
     " threat-signal termination resolved from the case at the write, or the"
     " ``ChosenTermination`` a voluntary termination's reason call-out fills"

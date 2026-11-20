@@ -175,17 +175,21 @@ def _publication_mark(ledger: Ledger) -> NarrativeMark:
     )
 
 
+#: The cause of an embargo that reached its end time (ADR-0203).
+_END_TIME_REACHED = {"kind": "END_TIME_REACHED"}
+
+
 @pytest.mark.parametrize(
-    ("content", "cause"),
-    [("END_TIME_REACHED", None), ("EARLY", {"kind": "FIX_READY"})],
+    "cause",
+    [_END_TIME_REACHED, {"kind": "FIX_READY"}],
     ids=["its end time", "a fix ready"],
 )
 def test_publication_after_an_embargo_ended_on_its_own_terms_is_graded(
-    content, cause
+    cause,
 ):
     """ExOwn before P: the publication is the advice's move, graded."""
     ledger = _vendor_case()
-    exit_embargo(ledger, content=content, cause=cause)
+    exit_embargo(ledger, cause=cause)
     mark = _publication_mark(ledger)
     assert mark.mark in GRADED
     assert isinstance(mark.move, CSMove) and mark.move.event is CSEvent.P
@@ -195,7 +199,7 @@ def test_an_embargo_ended_on_its_own_terms_counts_from_its_own_entry():
     """ExOwn counts at the entry that ends the embargo, not before it, so
     an entry at that log index is at or after it."""
     ledger = _vendor_case()
-    ended = exit_embargo(ledger, content="END_TIME_REACHED")
+    ended = exit_embargo(ledger, cause=_END_TIME_REACHED)
     history = ledger.history()
     assert embargo_ended_on_own_terms(history, ended)
     assert not embargo_ended_on_own_terms(history, ended - 1)
@@ -216,7 +220,7 @@ def test_publication_with_no_embargo_is_chance():
 )
 def test_publication_after_an_early_terminated_embargo_is_chance(cause):
     ledger = _vendor_case()
-    exit_embargo(ledger, content="EARLY", cause=cause)
+    exit_embargo(ledger, cause=cause)
     mark = _publication_mark(ledger)
     assert (mark.mark, mark.note) == (
         HindsightMark.CHANCE,
@@ -256,18 +260,18 @@ def test_chance_is_chance_whatever_advice_is_open(advice, after):
 
 
 @pytest.mark.parametrize(
-    ("content", "graded"),
-    [("END_TIME_REACHED", True), ("EARLY", False)],
+    ("cause", "graded"),
+    [(_END_TIME_REACHED, True), (None, False)],
     ids=["ended on its own terms", "ended early"],
 )
 def test_the_vul_becoming_public_where_the_embargo_ended_is_graded_so(
-    content, graded
+    cause, graded
 ):
     """D18's fourth case: the embargo ends on its own terms in the very
     entry that makes the case public, so that entry is graded as the
     publication move; an early end there leaves it chance."""
     ledger = _vendor_case()
-    ended = exit_embargo(ledger, content=content)
+    ended = exit_embargo(ledger, cause=cause)
     advice = _advice(_advised(_PUBLISH, [(1, 0), (1, 0)], layer=1, top=True))
     mark = hindsight_mark(
         ended,
@@ -290,7 +294,7 @@ def test_a_later_publication_changes_no_state_and_is_not_a_move():
     """D1: publishing is any publication, but only the first makes the case
     public; a later one changes no state, so its line grades nothing."""
     ledger = _vendor_case()
-    exit_embargo(ledger, content="END_TIME_REACHED")
+    exit_embargo(ledger, cause=_END_TIME_REACHED)
     first = _publication_mark(ledger)
     again = _publication_mark(ledger)
     assert first.mark in GRADED

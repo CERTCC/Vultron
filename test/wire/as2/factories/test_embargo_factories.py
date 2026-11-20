@@ -34,8 +34,15 @@ from test.support.future_dates import days_from_now
 from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from test.support.signing import resigned
+from vultron.core.models.embargo_termination import (
+    EndTimeReachedCause,
+    FixDeployedCause,
+    FixReadyCause,
+    OtherCause,
+    ThreatSignal,
+    ThreatSignalCause,
+)
 from vultron.core.models.received_activity_view import ReceivedActivityView
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     activate_embargo_activity,
@@ -746,7 +753,6 @@ def test_remove_embargo_from_case_returns_remove(sample_embargo):
     result = remove_embargo_from_case_activity(
         embargo=sample_embargo,
         actor=_ACTOR_URI,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
     assert isinstance(result, as_Remove)
@@ -756,7 +762,6 @@ def test_remove_embargo_from_case_object_is_embargo(sample_embargo):
     result = remove_embargo_from_case_activity(
         embargo=sample_embargo,
         actor=_ACTOR_URI,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
     assert result.object_ == sample_embargo
@@ -768,7 +773,6 @@ def test_remove_embargo_from_case_origin_is_set(sample_embargo):
         embargo=sample_embargo,
         origin=_CASE_URI,
         actor=_ACTOR_URI,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
     assert result.origin == _CASE_URI
@@ -780,10 +784,62 @@ def test_remove_embargo_from_case_target_not_used(sample_embargo):
         embargo=sample_embargo,
         origin=_CASE_URI,
         actor=_ACTOR_URI,
-        reason=TerminationReason.EARLY,
         at=authored_at(),
     )
     assert result.target is None
+
+
+@pytest.mark.spec("EMB-13-004")
+@pytest.mark.parametrize(
+    ("cause", "summary"),
+    [
+        (EndTimeReachedCause(), "The embargo reached its end time."),
+        (
+            ThreatSignalCause(signals=[ThreatSignal.P]),
+            "The embargo ended early: the vulnerability is public, an"
+            " exploit is public, or attacks have been observed.",
+        ),
+        (
+            FixReadyCause(vendors=[_ACTOR_URI]),
+            "The embargo ended early: enough vendors have a fix ready.",
+        ),
+        (
+            FixDeployedCause(),
+            "The embargo ended early: the fix is deployed.",
+        ),
+        (OtherCause(), "The embargo ended before its end time."),
+        (None, "The embargo ended before its end time."),
+    ],
+    ids=[
+        "end-time-reached",
+        "threat-signal",
+        "fix-ready",
+        "fix-deployed",
+        "other",
+        "no-cause",
+    ],
+)
+def test_remove_embargo_summary_defaults_to_an_account_of_its_cause(
+    sample_embargo, cause, summary
+):
+    result = remove_embargo_from_case_activity(
+        embargo=sample_embargo, actor=_ACTOR_URI, cause=cause, at=authored_at()
+    )
+    assert result.summary == summary
+    assert result.termination_cause == cause
+    assert result.content is None
+
+
+@pytest.mark.spec("EMB-13-004")
+def test_remove_embargo_summary_given_overrides_the_default(sample_embargo):
+    result = remove_embargo_from_case_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        cause=OtherCause(),
+        summary="The vendor withdrew.",
+        at=authored_at(),
+    )
+    assert result.summary == "The vendor withdrew."
 
 
 @pytest.mark.spec("AF-04-001")
@@ -791,7 +847,6 @@ def test_remove_embargo_from_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         remove_embargo_from_case_activity(
             embargo="not-an-embargo",  # type: ignore[arg-type]
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None

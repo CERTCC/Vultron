@@ -102,8 +102,8 @@ Thus the embargo exit is split into three outcomes by cause.
 | Other early embargo exit ($\evExOther$) | The embargo ends early for another reason, or for no recorded reason |
 
 The protocol records this split.
-A terminated embargo records its end: `END_TIME_REACHED` or `EARLY`.
-When the cause is known, the terminated embargo also records a structured cause: `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED`, or `OTHER` (EMB-13-010).
+When the cause is known, a terminated embargo records a structured cause: `END_TIME_REACHED`, `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED`, or `OTHER` (EMB-13-010).
+Every cause except `END_TIME_REACHED` means that the embargo ended early.
 
 `END_TIME_REACHED`, `FIX_READY`, and `FIX_DEPLOYED` are $\evExOwn$.
 `THREAT_SIGNAL` is $\evExThreat$.

@@ -147,8 +147,9 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
     ask also escapes ``update()`` rather than reporting a success the next
     repeat would not be suppressed by (BT-HELPER-01).
 
-    The ask carries the termination's what and the cause a participant may
-    name (``participant_cause``): a threat-signal termination's ask names
+    The ask carries the termination's cause a participant may name
+    (``participant_cause``), or none for an early end (ADR-0203): a
+    threat-signal termination's ask names
     none, since a ``THREAT_SIGNAL`` cause from anyone but the CASE_MANAGER is
     refused (EMB-13-005).
 
@@ -207,7 +208,6 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityForCaseKey):
             embargo_id=embargo_id,
             case_id=self._case_id,
             actor=actor_id,
-            reason=self._resolved.reason,
             cause=self._resolved.participant_cause,
             to=[case_manager_id],
             at=self._require_act_instant(),
@@ -247,8 +247,9 @@ def ask_case_manager_to_terminate_once(
     or suppress a repeat, so this subtree does both (EP-09-018, SYNC-11-002):
     SUCCESS without sending when the ask is still pending, else the send
     node's result, whose FAILURE still fails the tree (BT-14-001).  The ask
-    carries *termination*'s what (ADR-0122) and the why a participant may
-    name (EMB-13-005), seeded on ``/termination`` for the send node; a
+    carries *termination*'s why a participant may name, ``END_TIME_REACHED``
+    included, or none for an early end (EMB-13-005, ADR-0203), seeded on
+    ``/termination`` for the send node; a
     :class:`ChosenTermination` is read when the ask is sent (EMB-14-001).
 
     The pending-ask check judges the ask's age against the act's instant,

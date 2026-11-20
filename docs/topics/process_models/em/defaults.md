@@ -98,7 +98,7 @@ The case therefore still gets an embargo in force at once, and does not stall in
 ### A Default Embargo Ends Like Any Other
 
 A default embargo is an ordinary embargo once it is in force.
-When its end time passes, the CASE_MANAGER ends it with the reason `END_TIME_REACHED` the next time it handles the case (EMB-13-003).
+When its end time passes, the CASE_MANAGER ends it with the cause `END_TIME_REACHED` the next time it handles the case (EMB-13-003).
 In the same step, the CASE_MANAGER cancels any revision that is still open (EMB-13-003).
 The termination writes no Participant's consent.
 With no embargo in force, nobody is bound by an embargo.

@@ -71,7 +71,6 @@ from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationCause,
 )
-from vultron.core.states.embargo_register import TerminationReason
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +135,6 @@ def remove_embargo_from_case_tree(
     case_id: str,
     embargo_id: str,
     sender_actor_id: str,
-    termination_reason: TerminationReason,
     terminated_at: datetime | None,
     actor_config: ActorConfig | None = None,
     *,
@@ -185,11 +183,10 @@ def remove_embargo_from_case_tree(
         sender_actor_id: Sender of the ``Remove``; the Case Owner (or the
             CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
             (ADR-0115, EP-09-005, PCR-03-001).
-        termination_reason: The what the ``Remove`` carries in ``content``,
-            recorded on the ``TERMINATED`` entry (ADR-0122).
-        termination_cause: The why the ``Remove`` carries as
-            ``terminationCause``, or ``None`` when it names none; recorded on
-            the ``TERMINATED`` entry as given (EMB-13-005).  A
+        termination_cause: Why the embargo ended, ``END_TIME_REACHED``
+            included, as the ``Remove`` carries it in ``terminationCause``, or
+            ``None`` when it names none; recorded on the ``TERMINATED`` entry
+            as given (EMB-13-005, ADR-0203).  A
             ``THREAT_SIGNAL`` cause from anyone but the CASE_MANAGER is
             refused before the commit (``TerminationCauseIsAdmissibleNode``).
         terminated_at: The ``Remove``'s ``published`` time.  An
@@ -213,11 +210,9 @@ def remove_embargo_from_case_tree(
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=sender_actor_id
     )
-    # The Remove carries the what and, when its sender names one, the why
-    # (EMB-13-005); the TERMINATED entry records both as given.
-    termination = EmbargoTermination.from_reason(
-        termination_reason, termination_cause
-    )
+    # The Remove carries its cause, when its sender names one (EMB-13-005);
+    # the TERMINATED entry records it as given.
+    termination = EmbargoTermination(cause=termination_cause)
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,

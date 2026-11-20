@@ -11,8 +11,7 @@
   "inReplyTo": "urn:uuid:6c3be136-e8db-4a8f-91e6-c8a97aa0b7b7",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
-  "content": "EARLY",
-  "summary": "The embargo ended before its end time.",
+  "summary": "The embargo ended early: the fix is deployed.",
   "to": [
     "https://vultron.example/organizations/coordinator"
   ],
@@ -33,6 +32,9 @@
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "content": "We propose to embargo VendorCo Case #20260601 for 90 days."
   },
+  "terminationCause": {
+    "kind": "FIX_DEPLOYED"
+  },
   "proof": {
     "@context": [
       "https://www.w3.org/ns/activitystreams",
@@ -44,6 +46,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5qqJ6k1rJ3eY6D4JuHa5fSNxwyf55fRHHXBe6RF9FWteJGNXGCwmkZFXQ9c5dTXtJbomywcU1cYTvBj7eBjNzSqo"
+    "proofValue": "z3QEtfug9HTYGmAgDhz3mHrCCz5BB4N8Cmzk9adSPNM9GaGT4s4eua9N1Cywphrs4GgkeTn1N5z5ZoFLBgPEFt1YG"
   }
 }

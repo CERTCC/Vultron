@@ -36,7 +36,6 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
@@ -137,7 +136,6 @@ class TestEmbargoLogEntryCascade:
             embargo,
             origin=case.id_,
             actor=author_id,
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=author_id, at=dl)
@@ -189,7 +187,6 @@ class TestEmbargoLogEntryCascade:
             embargo,
             origin=case.id_,
             actor=author_id,
-            reason=TerminationReason.EARLY,
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=author_id, at=dl)

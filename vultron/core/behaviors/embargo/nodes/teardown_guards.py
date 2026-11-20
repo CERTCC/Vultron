@@ -118,9 +118,9 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
 class TerminationIsTimelyNode(DataLayerConditionWithPorts):
     """Guard: a received termination may end the embargo in force now.
 
-    FAILURE when *termination* is ``END_TIME_REACHED`` claimed at
+    FAILURE when *termination*'s cause is ``END_TIME_REACHED`` claimed at
     *terminated_at* before the end time of the case's embargo in force, or
-    carries no time (ADR-0122); SUCCESS otherwise, an ``EARLY`` termination
+    carries no time (EMB-13-008); SUCCESS otherwise, an early termination
     or a case with no embargo in force included.  It runs among the received
     tree's precondition guards, so a refused termination is never committed
     (CLP-10-006).  An embargo that cannot be read fails closed (EMB-18-003).

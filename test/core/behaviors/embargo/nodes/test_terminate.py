@@ -63,7 +63,6 @@ from vultron.core.models.pending_assertion import (
     record_pending_assertion,
 )
 from vultron.core.models.pending_assertion.registry import _STORES
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 
 ACTOR_ID = "https://example.org/actors/vendor"
@@ -486,7 +485,7 @@ class TestTheAskCarriesTheParticipantCause:
         _run(
             ask_case_manager_to_terminate_once(
                 CASE_ID,
-                EmbargoTermination.from_reason(TerminationReason.EARLY, cause),
+                EmbargoTermination(cause=cause),
             ),
             _VENDOR_ID,
             factory,
@@ -543,12 +542,7 @@ class TestParticipantCause:
     @pytest.mark.spec("EMB-13-005")
     def test_any_other_cause_passes_through(self) -> None:
         cause = FixReadyCause(vendors=[_VENDOR_ID])
-        assert (
-            EmbargoTermination.from_reason(
-                TerminationReason.EARLY, cause
-            ).participant_cause
-            == cause
-        )
+        assert EmbargoTermination(cause=cause).participant_cause == cause
 
 
 class _Ports:
@@ -576,7 +570,7 @@ class TestActTermination:
         chosen = ChosenTermination()
         chosen.choose(FixDeployedCause())
         assert act_termination(_Ports(chosen)) == EmbargoTermination(
-            reason=TerminationReason.EARLY, cause=FixDeployedCause()
+            cause=FixDeployedCause()
         )
 
     @pytest.mark.spec("BTND-03-022")

@@ -12,7 +12,6 @@ builders), ``object_kwargs`` (the activity snapshot and dispatch) and
 ``semantic_kwargs`` (the kwargs particular semantics add).
 """
 
-from vultron.wire.as2.extractor._builders.fields import termination_of
 from vultron.wire.as2.extractor._builders.objects import proposed_embargo_from
 
-__all__ = ["proposed_embargo_from", "termination_of"]
+__all__ = ["proposed_embargo_from"]

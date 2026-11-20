@@ -38,9 +38,9 @@ from pydantic import (
 )
 
 from vultron.core.models._helpers import timestamp_serializer
+from vultron.core.models.embargo_termination import TerminationCauseKind
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.cs_invariants import CSEvent
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.rm import RM
 from vultron.measure.ledger import Dimension, LedgerSource, UnusableRow
 from vultron.primitives import NonEmptyString
@@ -181,11 +181,11 @@ class CaseEvent(BaseModel):
             those kinds and absent on every other.
         replaces_embargo_id: For an embargo start, the embargo that was in
             force until this one replaced it, as a revision does.
-        exit_reason: For an embargo exit, whether the embargo reached its
-            end time or ended early (CEH-04-006).  Required there and absent
-            on every other kind.
         exit_cause: For an embargo exit, the structured cause the entry
-            records, as recorded (CEH-04-007).
+            records, as recorded (CEH-04-007): ``END_TIME_REACHED`` when the
+            embargo reached its end time, and absent or any other kind when
+            it ended early (CEH-04-006, :attr:`ended_at_end_time`).  Absent
+            on every other kind.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -201,7 +201,6 @@ class CaseEvent(BaseModel):
     rsvp_deadline: datetime | None = None
     embargo_id: NonEmptyString | None = None
     replaces_embargo_id: NonEmptyString | None = None
-    exit_reason: TerminationReason | None = None
     exit_cause: dict[str, JsonValue] | None = None
 
     #: Every time serializes in the one fixed form (CS-13-007, ADR-0167).
@@ -214,6 +213,16 @@ class CaseEvent(BaseModel):
     def scope(self) -> EventScope:
         """Whether the event belongs to the case or to :attr:`participant`."""
         return scope_of(self.kind)
+
+    @property
+    def ended_at_end_time(self) -> bool:
+        """Whether an embargo exit reached its end time (CEH-04-006).
+
+        ``False`` for an exit that ended early, its cause absent or any
+        kind but ``END_TIME_REACHED``, and for every other kind of event.
+        """
+        kind = (self.exit_cause or {}).get("kind")
+        return kind == TerminationCauseKind.END_TIME_REACHED.value
 
     @model_validator(mode="after")
     def _fields_match_kind(self) -> CaseEvent:
@@ -246,11 +255,8 @@ class CaseEvent(BaseModel):
             problems.append(f"a {kind} event must name its embargo")
         if not needs_embargo and self.embargo_id is not None:
             problems.append(f"a {kind} event names no embargo")
-        if kind is EventKind.EMBARGO_EXIT:
-            if self.exit_reason is None:
-                problems.append("an embargo exit must carry its reason")
-        elif self.exit_reason is not None or self.exit_cause is not None:
-            problems.append("only an embargo exit carries a reason or cause")
+        if kind is not EventKind.EMBARGO_EXIT and self.exit_cause is not None:
+            problems.append("only an embargo exit carries a cause")
         if (
             kind is not EventKind.EMBARGO_START
             and self.replaces_embargo_id is not None

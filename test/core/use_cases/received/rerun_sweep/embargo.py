@@ -33,9 +33,12 @@ from test.support.owner_decision import (
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
-from vultron.core.models.embargo_termination import OtherCause
+from vultron.core.models.embargo_termination import (
+    EndTimeReachedCause,
+    OtherCause,
+    TerminationCause,
+)
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories import (
     announce_embargo_activity,
     em_propose_embargo_activity,
@@ -107,7 +110,7 @@ def _proposal_body(net: LedgerNetwork, tag: str) -> dict[str, Any]:
 
 
 def _remove_body(
-    net: LedgerNetwork, *, reason: TerminationReason, tag: str
+    net: LedgerNetwork, *, cause: TerminationCause, tag: str
 ) -> dict[str, Any]:
     """OWNER asks the CASE_MANAGER to end the embargo in force."""
     embargo = net.stores[MANAGER].read(net.initial_embargo_id)
@@ -118,8 +121,7 @@ def _remove_body(
         context=net.case_id,
         actor=OWNER,
         to=[MANAGER],
-        reason=reason,
-        cause=OtherCause() if reason is TerminationReason.EARLY else None,
+        cause=cause,
         id_=f"{OWNER}/removes/{tag}",
         at=authored_at(),
     )
@@ -198,7 +200,7 @@ def invite_to_embargo_after_the_embargo_ended() -> Scenario:
     net = _net("invite-refused")
     ending = _from_body(
         net,
-        _remove_body(net, reason=TerminationReason.EARLY, tag="ends"),
+        _remove_body(net, cause=OtherCause(), tag="ends"),
     )
     net.receive_event(MANAGER, ending.event)
     return _from_body(net, _proposal_body(net, "too-late"))
@@ -273,9 +275,7 @@ def reject_no_open_proposal() -> Scenario:
 def remove_embargo() -> Scenario:
     """The owner ends the embargo in force early: torn down and announced."""
     net = _net("remove")
-    return _from_body(
-        net, _remove_body(net, reason=TerminationReason.EARLY, tag="early")
-    )
+    return _from_body(net, _remove_body(net, cause=OtherCause(), tag="early"))
 
 
 @refused(MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE)
@@ -284,9 +284,7 @@ def remove_embargo_before_its_end_time() -> Scenario:
     net = _net("remove-refused")
     return _from_body(
         net,
-        _remove_body(
-            net, reason=TerminationReason.END_TIME_REACHED, tag="untimely"
-        ),
+        _remove_body(net, cause=EndTimeReachedCause(), tag="untimely"),
     )
 
 

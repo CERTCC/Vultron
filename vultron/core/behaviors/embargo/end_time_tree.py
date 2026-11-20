@@ -21,10 +21,10 @@ one idempotent termination path, :func:`end_embargo_at_end_time_bt`:
   tree that handles the activity or trigger (CLP-10-025, ADR-0135) — no
   scheduler is needed; and
 - an **outside request**, such as a Sentinel monitoring embargo timers,
-  through the terminate-embargo trigger with ``reason=END_TIME_REACHED``.
+  through the terminate-embargo trigger with the ``END_TIME_REACHED`` cause.
 
-Both commit the CASE_MANAGER's ``Remove(EmbargoEvent)`` with ``content``
-``END_TIME_REACHED`` and run the full cascade of ``terminate_embargo_bt``.
+Both commit the CASE_MANAGER's ``Remove(EmbargoEvent)`` with the
+``terminationCause`` ``END_TIME_REACHED`` and run the full cascade of ``terminate_embargo_bt``.
 Whichever arrives second finds the embargo ended, commits nothing and is
 answered as already done, so it never reaches the register, which accepts
 no change once an entry is ``TERMINATED``::
