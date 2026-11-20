@@ -152,16 +152,25 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         0,
     ): frozenset({CM}),
     # --- case: participants and roles -----------------------------------
+    # The Case Owner sends its removal or reinstatement to the CASE_MANAGER
+    # alone; a replica takes the move from the ledger entry (ADR-0199).
     (
         f"{_C}/case_participant_received_tree.py",
         "create_add_case_participant_received_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     (
         f"{_C}/case_participant_received_tree.py",
         "create_remove_case_participant_received_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
+    # The CASE_MANAGER announces an admitted act to an actor the fan-out does
+    # not reach; only that actor's replica receives it (ADR-0199).
+    (
+        f"{_C}/announce_admitted_act_received_tree.py",
+        "announce_admitted_act_received_tree",
+        0,
+    ): frozenset({PR}),
     (
         f"{_C}/offer_case_participant_role_received_tree.py",
         "create_offer_case_participant_role_received_tree",
