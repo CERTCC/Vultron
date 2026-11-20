@@ -318,8 +318,9 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
     sender), and *refused_entry*, read from ``/refused_entry``, is the entry
     the peer's divergence fault reports refusing; *fault_published* is read
     from ``/fault_published``, which a fault that claims no time leaves
-    unset (BTND-01-008).  When the peer's last re-seed named a ledger position at or after it, the copy the
-    peer was sent already reflected that entry.
+    unset (BTND-01-008).  When the peer's last re-seed named a ledger
+    position at or after it, the copy the peer was sent already reflected
+    that entry.
 
     - If the peer's acknowledged position (``last_acknowledged_hash``) is at
       or past the re-seed's position, the peer applied that copy.  When
