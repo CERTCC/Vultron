@@ -8,7 +8,7 @@ tracks:
   - "#6782"   # fix readiness agrees with product statuses
   - "#6783"   # report statements reach vendors' records
   - "#6785"   # CSAF projection renders products
-  - "#6234"   # epic: vulnerability items and references
+  - "#6788"   # epic: products and product statuses on the vendor's record
   - "#5413"   # epic: fix states per role
   - "#5130"   # epic: Vultron cases and CSAF 2.1
 description: >
@@ -68,12 +68,12 @@ built yet.
 - **Offer it as vulnerability items are offered.** `Offer(Add(Product,
   target=<participant>))` and `Offer(Update(Product))`, answered with `Accept` or
   `Reject`, decided by a call-out point whose default asks; an admitted update
-  merges helpers and never shrinks a list (CM-34-004 to CM-34-011). Reuse the
+  merges helpers and does not shrink a list (CM-34-004 to CM-34-011). Reuse the
   vulnerability-item offer tree and its list merge rather than copying it
   (CS-22-001; `notes/vulnerability-items.md` § "The offers").
 - **A combined product is a CSAF product path.** It names a beginning product, then
   an ordered list of (relationship category, next product) steps, using CSAF's five
-  categories. Its parts may be other vendors' products. It is held on the record of
+  categories. Its parts may be other vendors' held products. It is held on the record of
   the beginning product's vendor. Its status says nothing about any part: CSAF
   declares a path when "a product is e.g. vulnerable only when installed together
   with another" (CSAF 2.1 prose, § Product Tree Property - Product Paths, at the
@@ -83,7 +83,7 @@ built yet.
 
 - **One status per (author, product, vulnerability item), with a history.** The
   author's statuses for the pair are kept oldest first, the last current, as a
-  participant's statuses are; another author's statuses never replace them.
+  participant's statuses are; another author's statuses do not replace them.
 - **`attributed_to` is always set, the vendor's own included.** An empty author
   meaning "the vendor said it" would be a state stored as an absence, and the
   projection's vendor-only filter would read meaning into it.
@@ -122,16 +122,20 @@ built yet.
 - **At invitation, the reporter's statements about the invitee.** The Case Owner's
   invite may name the CSAF vendor names the invitee is. When the stub Invite creates
   the invitee's record (CM-11-006), the CASE_MANAGER reads the original report's
-  stored CSAF record and adds the products and the reporter's statuses for those
-  names. No vendor name is matched to an actor by spelling; the Case Owner states
-  the link. Reuse the reader's vendor-by-product map
-  (`vultron/wire/csaf/reader.py`, `_vendors_by_product`), which today feeds only the
-  candidate-parties signal (CSAF-04-007).
-- **CSAF-02-002 changes with this code.** It forbids changing case data from a CSAF
-  document on a report that already belongs to a case. The general rule replacing
-  it: an actor may read the original report again, CSAF or not, when its
-  information becomes relevant. This is still the first report's statement, the
-  one ADR-0184 admits.
+  CSAF document again and adds the products and the reporter's statuses for those
+  names; the stored claims reading (`ReportClaims`) holds only
+  `known_affected_vendors` today. No vendor name is matched to an invitee by
+  spelling; the Case Owner states the link. At case creation the comparison is
+  with the Case Owner's own `name`, the one CSAF-04-007 already makes. Reuse the
+  reader's vendor-by-product map (`vultron/wire/csaf/reader.py`,
+  `_vendors_by_product`), which today feeds only the candidate-parties signal
+  (CSAF-04-007).
+- **CSAF-02-002 changes with this code.** One of its clauses forbids changing case
+  data from a CSAF document on a report that already belongs to a case. The general
+  rule replacing that clause: an actor may read the original report again, CSAF or
+  not, when its information becomes relevant. This is still the first report's
+  statement, the one ADR-0184 admits, so the clauses on a document on another
+  activity or of another category stay.
 
 ## Fix Readiness Reads Product Statuses
 
@@ -149,7 +153,7 @@ built yet.
   `UNSTATED` (none), `NOT_AFFECTED` (no product `AFFECTED`, none unknown or under
   investigation), `NONE_READY`, `PARTIAL`, `COMPLETE` (every planned fix available,
   at least one) and `NO_FIX` (every affected product `NO_FIX_PLANNED`). Compute it
-  where read; never store it. A case-level read lists each vendor's coverage.
+  where read; do not store it. A case-level read lists each vendor's coverage.
 - **The deployer gate also accepts a product-level fix.** CSB-15-004 lets a deployer
   move d→D when some vendor is at `VF`; it also passes when a vendor's own current
   status is `FIX_AVAILABLE` for some product. Change the predicate
@@ -169,7 +173,7 @@ changes them.
 | No new embargo, reject a pending proposal (VP-14-007, CSB-10-001) | case at `VF` | f |
 | Prepare to end an embargo (VP-14-008) | case at `VF` | f |
 | Extensions for trailing vendors (VP-14-009, VP-14-014) | vendors not at `VF` | f: a partly fixed vendor is trailing |
-| Fix-ready embargo end and its quorum (EMB-13-010, EMB-13-013; `vultron/core/behaviors/embargo/nodes/chosen_cause.py`) | vendors at `VF` | policy: list `PARTIAL` vendors apart for the Case Owner |
+| Fix-ready embargo end and its quorum (VP-09-007, EMB-13-010, EMB-13-013; `vultron/core/behaviors/embargo/nodes/chosen_cause.py`) | vendors at `VF` | policy: list `PARTIAL` vendors apart for the Case Owner |
 | Develop-fix short-circuit (`vultron/core/behaviors/report/nodes/develop_fix_conditions.py`) | own `VF` | f: work remains |
 | Embargo ended on its own terms (`vultron/measure/standing/joint.py`) | every vendor `VF` | f |
 | F≺P, F≺X, F≺A desiderata and event history (CEH-04-003) | the vendor's `VF` event | f: the full-F time |
@@ -182,8 +186,9 @@ changes them.
   on: the public profile omits participants, but an advisory needs product status.
   Each profile substitutes a vendor record with its products and the statuses it
   shows, and every other field of the record stays as the profile already cuts it.
-- **Whose statements, chosen by the profile.** A profile shows the vendor's own
-  statuses only, or every author's; the call site fixes which, as it fixes the TLP.
+- **Whose statements, chosen by the profile.** A profile shows the vendor's and the
+  projecting actor's own statuses only, or every author's; the call site fixes
+  which, as it fixes the TLP.
   The public profile shows only the vendor's and the projecting actor's own
   statuses, so it names no other participant, which keeps it within ADR-0218's
   no-public-credit rule; the joined profile shows every author's.
@@ -202,8 +207,9 @@ changes them.
 
 Each lands with the code that tests it, citing ADR-0220.
 
-- MUST: A product MUST be held on the participant record of its vendor, and that
-  record's participant MUST hold the VENDOR role.
+- MUST: A product MUST be held on the participant record of its vendor.
+- MUST: A participant record that holds a product MUST belong to a participant that
+  holds the VENDOR role.
 - MUST: A participant that proposes a new product, or a change to a held product,
   MUST send the CASE_MANAGER an `Offer` of the `Add` or `Update` of that product.
 - MUST: Every product status MUST name its author, its product and its
@@ -220,10 +226,13 @@ Each lands with the code that tests it, citing ADR-0220.
   not a participant.
 - MAY: An actor MAY read a case's original report again when its information
   becomes relevant, and take the sender's statements in it as that sender's
-  (replaces CSAF-02-002).
-- MUST: A vendor participant MUST NOT declare `VF`, and the CASE_MANAGER MUST refuse
-  a received `VF`, while the vendor's own current product statuses hold an
-  affected product whose fix plan is neither fix available nor no fix planned.
+  (replaces CSAF-02-002's clause on a report that already belongs to a case).
+- MUST_NOT: A vendor participant MUST NOT declare `VF` while its own current product
+  statuses hold an affected product whose fix plan is neither fix available nor no
+  fix planned.
+- MUST: The CASE_MANAGER MUST refuse a received `VF` while the vendor's own current
+  product statuses hold an affected product whose fix plan is neither fix available
+  nor no fix planned.
 - MUST_NOT: The CASE_MANAGER MUST NOT refuse a product status because its vendor is
   at `VF`.
 - MUST: A deployer that does not hold the VENDOR role MUST be permitted d→D when a

@@ -146,7 +146,7 @@ new case field fails the profile check until it is classified.
   REPORTER role, derived from the case; that default needs no digest in the id.
   In `csaf_base` an absent list carries no "no credit wanted" meaning; the
   Vulnerability Report rule of ADR-0218 applies once a projection can use that
-  category (#6707).
+  category (#6785).
 - **Involvement from the cut ledger.** `document.involvement.actions[]` holds one
   item per act whose ledger entries have a CSAF meaning, by the rules of the
   crosswalk concept mapping page
@@ -204,8 +204,8 @@ test does not check. Each cites ADR-0219.
 - MUST: The draft step of the publication pipeline MUST use the public profile,
   and the operator CSAF endpoint MUST use the joined profile.
 - MUST: Every profile MUST name one operation for every case field.
-- MUST: A CSAF projection MUST be of category `csaf_base` and MUST pass the pinned
-  CSAF 2.1 schema.
+- MUST: A CSAF projection MUST be of category `csaf_base` while the case holds no
+  products (ADR-0220, #6785 widens it) and MUST pass the pinned CSAF 2.1 schema.
 - MUST: `document.tracking.id` MUST be derived from the case ID, the versioned
   profile name, the log index of the preview's ledger position and, when the
   caller supplies acknowledgments, a digest of that input.

@@ -71,7 +71,7 @@ The decision has seven parts.
    An active participant declares a product status, and the CASE_MANAGER admits it when the sender, its target and its values pass the protocol's checks; no one decides whether it is true.
    Statements by different authors about the same product and vulnerability sit side by side, and none replaces another.
    An author's later statement about the same pair supersedes its own earlier one, which stays in its history.
-   The CASE_MANAGER or the Case Owner may state product statuses on the record of a vendor that is on the case but has never answered.
+   The CASE_MANAGER or the Case Owner may state product statuses on the record of a vendor that is on the case but is not an active participant.
 3. **A product status has two named dimensions.**
    Affectedness is one of unknown, under investigation, affected, not affected with a justification, or fixed (this product contains the fix).
    For an affected product, the fix plan is one of none available, fix planned, fix available with the fixed product it points at, or no fix planned with a reason, such as the product's end of life.
@@ -84,17 +84,18 @@ The decision has seven parts.
 5. **A statement waits for its vendor's record.**
    The case holds no product statement about a vendor that is not a participant.
    The statements in a case's original report stay in the report, and an actor may read them again when they become relevant.
+   When the case is created and its Case Owner holds the VENDOR role, the report's statements about the products it lists under the Case Owner's own name join the Case Owner's record, authored by the reporter.
    When the Case Owner invites an actor, it may say which vendor names in the original report that actor is, and the report's statements about those names then join the new participant's record, authored by the reporter.
-   This reads only the first report's statement, the one occasion when a CSAF document speaks for its sender ([ADR-0184](0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)), and no vendor name is matched to an actor by its spelling alone.
+   This reads only the first report's statement, the one occasion when a CSAF document speaks for its sender ([ADR-0184](0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)), and no vendor name is matched to an invitee by its spelling alone.
 6. **Fix readiness stays binary and means every planned fix is ready.**
    A vendor declares fix ready only when every product it states as affected has a fix available or no fix planned, and the CASE_MANAGER refuses a declaration that disagrees with the vendor's own statements.
    A vendor that states no product status declares fix readiness as before.
-   Partial readiness is a reading derived from the vendor's own statements, never a stored state, with named values for no statements, no fix ready, some fixes ready, every planned fix ready, and no fix planned for any product.
+   Partial readiness is a reading derived from the vendor's own statements, not a stored state, with named values for no statements, no product affected, no fix ready, some fixes ready, every planned fix ready, and no fix planned for any product.
    A statement made after the vendor reached fix ready is admitted, the vendor's fix readiness does not move back, and the derived reading shows partial readiness again.
    Each reader that needs to decide whether "some fixes ready" is enough chooses its reading where it decides.
    A reader asking whether someone can act on an existing fix counts a vendor's own fix-available statement for that product, and a reader asking whether a vendor is done counts only every planned fix.
 7. **A projection gives each product one status.**
-   The profile of the call site chooses whether the projection shows only the vendor's own statements or the statements of every author.
+   The profile of the call site chooses whether the projection shows only the vendor's and the projecting actor's own statements, or the statements of every author.
    Where several statements are shown, the status of a product takes the vendor's own statement, else the projecting actor's own, else the most recent one.
    Every shown statement that does not give the status is rendered as a note that names its author, so a disagreement stays visible.
 
