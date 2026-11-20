@@ -63,13 +63,13 @@ For each case field the profile names the operations the protocol permits and th
 | `content`, `case_participants`, `vulnerability_reports`, `notes`, `case_references`, `parent_cases`, `child_cases`, `sibling_cases`, and every other AS2 property | A `Redacted` marker when the case holds a value; left out when it holds none ([MV-12-004](vultron-spec/requirements/messages.md#mv-12-004)) |
 
 `CasePreview.for_projection` cuts a preview for a projection by one of the two profiles in `vultron/core/models/case_projection_profile.py`.
-`ProjectionCut.of` in `vultron/core/models/case_projection.py` pairs that preview with the profile's name and Traffic Light Protocol (TLP) label:
+`ProjectionCut.of` in `vultron/core/models/case_projection.py` pairs that preview with the profile, whose name and Traffic Light Protocol (TLP) label the document takes:
 
 | Field | Public profile (`public-v1`, `CLEAR`) | Joined profile (`joined-v1`, `AMBER+STRICT`) |
 |---|---|---|
 | `id_` | The case's identifier | The case's identifier |
 | `name`, `summary`, `published`, `updated`, `vulnerability_items`, `case_references`, `ledger_position` | The case's values | The case's values |
-| `case_statuses` | The current status alone | The current status alone |
+| `case_statuses` | The current status alone, cut to its PXA state: no EM state and no author | The current status alone, whole |
 | `content`, `notes`, `vulnerability_reports`, `attributed_to`, `embargo_register`, `case_participants` | Left out | The case's values |
 | `ledger_entries` | Left out | The entries whose act has a CSAF meaning, each cut to its coordinates and the actor, recipients, time and reply target of its activity, as ids |
 | The other bookkeeping, related cases, `stub_summary` and every other AS2 property | Left out | Left out |

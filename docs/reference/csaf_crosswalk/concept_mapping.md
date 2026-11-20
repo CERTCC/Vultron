@@ -670,11 +670,11 @@ Vultron controls who sees the case through entitlement and the embargo, and the 
 </tr>
 <tr markdown="1">
 <td markdown="span">Ledger position of a projection</td>
-<td markdown="span">`document.tracking.version` and `revision_history[]`</td>
+<td markdown="span">`document.tracking.id`, `document.tracking.version` and `revision_history[]`</td>
 <td markdown="span">One to one</td>
 <td markdown="span">Derived</td>
 <td markdown="span">None</td>
-<td markdown="span">No change proposed: each new projection of the same case is a new revision of one CSAF document, and its revision history names the ledger position.</td>
+<td markdown="span">No change proposed: the ledger position is part of the identity of a projection ([ADR-0219](../../adr/0219-a-csaf-projection-is-a-case-preview-cut-by-its-call-sites-profile-then-rendered-to-csaf.md)). `document.tracking.id` comes from the case ID, the versioned profile name and the log index of the position. Every projection has version `1` and one revision, so a projection at a later position is a different document, not a new revision of the same document.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Case state at the ledger position</td>
