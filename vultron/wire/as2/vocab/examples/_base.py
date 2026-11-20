@@ -28,6 +28,7 @@ from vultron.core.models._helpers import (
     install_id_source,
 )
 from vultron.core.models.actor import hosted_endpoints
+from vultron.core.models.vulnerability_item import VulnerabilityItemId
 from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
@@ -37,6 +38,9 @@ from vultron.wire.as2.vocab.base.objects.actors import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_item import (
+    as_VulnerabilityItem,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -330,6 +334,18 @@ def case(fresh_id: bool = False, **kwargs: Any) -> as_VulnerabilityCase:
             **{**_example_stamp(), **kwargs},
         )
     return _CASE
+
+
+def vulnerability_item() -> as_VulnerabilityItem:
+    """The example case's one vul item, which the CVE ID names (CM-05-018)."""
+    _case = case()
+    return as_VulnerabilityItem(
+        id_=f"{_case.id_}/items/1",
+        ids=[VulnerabilityItemId.cve("CVE-2026-0001")],
+        title="Buffer overflow in the widget parser",
+        context=_case.id_,
+        **_example_stamp(),
+    )
 
 
 def gen_report() -> as_VulnerabilityReport:

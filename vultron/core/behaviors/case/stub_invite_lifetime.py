@@ -112,8 +112,8 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
     invite_id = getattr(obj, "id_", None)
     if not isinstance(case_id, str) or not invitee_id or not invite_id:
         return None
-    # The embargo terms the preview shows, by id; a withheld or id-less
-    # embargo names none (ADR-0217).
+    # The embargo terms the preview's in-force register entry shows, by id;
+    # a withheld or id-less embargo names none (ADR-0217).
     embargo_id = preview_embargo_id(getattr(reference, "preview", None))
     return RecordedStubInvite(
         invite_id=invite_id,
@@ -210,9 +210,9 @@ def superseded_reason(
 def current_preview_embargo_id(case: VulnerabilityCase) -> str | None:
     """The embargo whose terms a stub Invite sent now would carry.
 
-    A stub carries the embargo in force whenever there is one: EM ``ACTIVE``
-    or ``REVISE``, never the open revision (CM-17-002, CM-17-014).  With none in force it
-    carries none.
+    The embargo of the one register entry a preview's ``embargoRegister``
+    keeps, the in-force one: EM ``ACTIVE`` or ``REVISE``, never the open
+    revision (CM-17-002, CM-17-014).  With none in force it carries none.
     """
     return case.active_embargo_id
 
@@ -220,11 +220,14 @@ def current_preview_embargo_id(case: VulnerabilityCase) -> str | None:
 def current_preview_embargo_end(
     dl: CasePersistence, case: VulnerabilityCase
 ) -> datetime | None:
-    """The end of the embargo a stub sent now would carry; caps its deadline."""
-    embargo_id = current_preview_embargo_id(case)
-    if embargo_id is None:
-        return None
-    embargo = dl.read(embargo_id)
+    """The end of the embargo a stub sent now would carry; caps its deadline.
+
+    Read from the in-force entry's embargo when the register holds it whole,
+    as the preview carries it, else from the store.
+    """
+    embargo: object = case.active_embargo
+    if isinstance(embargo, str):
+        embargo = dl.read(embargo)
     return embargo.end_time if isinstance(embargo, EmbargoEvent) else None
 
 

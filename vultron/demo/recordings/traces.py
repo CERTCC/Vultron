@@ -188,7 +188,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "preferredDuration",
         "preferredUsername",
         # The case and who takes part in it.
-        "activeEmbargo",
         "activeParticipants",
         "caseParticipants",
         "caseReferences",

@@ -606,8 +606,8 @@ Invite carry the roles they propose in one field, `roles`, declared on
 
 Every other field is a Vultron term. `title` is a clash only until #6413 renames the
 item's. `state`, `status` and `kind` are each used once on the wire, and
-`caseStatus` is one meaning in two shapes (an object or a link), so none of them is
-a clash.
+`caseStatus` is declared once, on a participant status, so none of them is a
+clash.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
 EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context
@@ -743,7 +743,7 @@ types are URIs. CORE §4.2: Link properties are hints about the referenced resou
 type, and only `related` is IANA-registered, so it stays a bare name. The wire
 `as_Link.rel` takes one value or a list, because `rel` is not functional.
 
-**Touches.** CM-05-004, CM-05-005, CM-05-010, CM-05-012, CM-34-003, CSAF-03-009, and
+**Touches.** CM-05-004, CM-05-005, CM-05-012, CM-34-003, CSAF-03-009, and
 a future FIRST VRDX-SIG vxref Idea (`FIRSTdotorg/vrdx-sig-vxref-wip`), which may
 supply more `rel` values. A new value joins `CVE_REFERENCE_TAG_RELS` (or the
 vocabulary beside it) and the `docs/ns/` relation table together.

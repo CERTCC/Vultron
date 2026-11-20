@@ -478,6 +478,7 @@ def test_a_stub_invite_resolves_to_the_invite_of_a_case_signature():
             "id": CASE_ID,
             "preview": {
                 "type": "CasePreview",
+                "attributedTo": "https://example.org/actors/vendor",
                 "id": "https://example.org/previews/1",
                 "summary": "A case to join",
             },

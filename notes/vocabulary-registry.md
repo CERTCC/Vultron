@@ -161,7 +161,7 @@ the term is typed from (VM-10-008, VM-10-010):
 A container kind takes `items=PropertyValueKind.IRI` when its values are links,
 which adds `"@type": "@id"`. Two declarations of one wire name agree on both
 (VM-10-012), so a name declared on several classes is one shared constant
-(`LEDGER_POSITION_PROPERTY`, `CASE_STATUS_PROPERTY`), and the generator refuses
+(`LEDGER_POSITION_PROPERTY`), and the generator refuses
 two that disagree. The generator keys the term by the field's wire name
 (`vultron_property_terms`). It walks core classes too, because a paired type's
 wire class is its core class (ARCH-25-003): a case's `ledgerPosition` is marked

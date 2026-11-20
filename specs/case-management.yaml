@@ -1001,27 +1001,6 @@ groups:
       CERT/CC VU# ID)
     stories:
     - story_2022_030
-  - id: CM-05-010
-    priority: MUST
-    kind: protocol
-    statement: >-
-      When a vulnerability item carries a CVE record as its content, that content MUST
-      conform to the CVE JSON schema (<https://github.com/CVEProject/cve-schema>).
-    rationale: >-
-      Tools that read a CVE record expect the CVE JSON schema, and they refuse or misread
-      data that does not conform. A CVE ID on its own is an identifier, not a CVE record,
-      so it carries no data for the schema to check (CM-05-008, ADR-0187). A case
-      reference borrows only the schema's reference tag names, as the `rel` values of
-      its `url` Link (CM-05-012); that is a vocabulary, not CVE record content, so this
-      rule does not reach it.
-    verification: >-
-      A test marked `CM-05-010` gives a vulnerability item CVE record content that fails
-      the CVE JSON schema and asserts it is refused, and gives an item a CVE ID with no
-      content and asserts it is accepted.
-    adr:
-    - ADR-0187
-    stories:
-    - story_2022_030
   - id: CM-05-011
     priority: SHOULD
     kind: protocol
@@ -3912,9 +3891,9 @@ groups:
     rationale: >-
       An AS2 `Invite` names what one is invited to as its `object`, and the invited
       party as its `target` (ADR-0205). When the object carries only the case's
-      preview, no case content goes to an invitee that is not yet entitled to it
-      (CM-10-004, CM-17-022). The object's form lets a receiver tell this Invite from
-      the full-case Invite (CM-11-013).
+      preview, the invitee sees only what that preview shows, not the case it is
+      not yet entitled to (CM-10-004, CM-17-010). The object's form lets a
+      receiver tell this Invite from the full-case Invite (CM-11-013).
     verification: >-
       Integration tests in `test/demo/` confirm that the stub Invite emitted by the
       CASE_MANAGER names the invitee as its `target` and carries the case's previewed
@@ -3934,8 +3913,9 @@ groups:
     statement: >-
       This rule covers a stub Invite sent while an embargo is in force. Then EM
       is `ACTIVE` or `REVISE`, and the case's embargo register holds an `ACTIVE`
-      entry. Its case stub MUST carry the active embargo (`activeEmbargo`), inline
-      or by an ID that the invitee can ask the inviter to resolve.
+      entry. Its case stub MUST carry that entry as its `embargoRegister`, reduced
+      to the one entry. The entry holds the embargo inline, or by an ID that the
+      invitee can ask the inviter to resolve.
     rationale: >-
       The invite-accept cycle is the only consent signal for a late joiner. An Accept
       without the embargo terms is not informed consent (CM-11-001). The invitee has
@@ -3945,12 +3925,13 @@ groups:
       embargo stays in force (EP-05-002), so the invitee needs its terms then too.
     verification: >-
       Integration tests in `test/demo/` confirm that when an embargo is in force at
-      invite time, the case stub on the wire carries `activeEmbargo`; unit tests
-      marked `CM-17-002` in
-      `test/core/use_cases/triggers/test_actor_triggers.py` and
+      invite time, the case stub on the wire carries the in-force
+      `embargoRegister` entry; unit tests marked `CM-17-002` in
+      `test/core/use_cases/triggers/test_actor_triggers.py`,
+      `test/core/models/test_case_preview_profile.py` and
       `test/wire/as2/factories/test_case_factories.py` confirm the same for EM
       `ACTIVE` and `REVISE`, and that a stub sent with no embargo in force (none
-      yet, a proposal only, or an ended one) carries no embargo.
+      yet, a proposal only, or an ended one) carries no `embargoRegister`.
     relationships:
     - rel_type: extends
       spec_id: CM-17-001
@@ -3964,17 +3945,22 @@ groups:
     kind: protocol
     statement: >-
       When an embargo is in force as the CASE_MANAGER sends a stub Invite, the
-      case stub MUST carry the case's EM state (`caseStatus.emState`).
+      case stub MUST carry the case's EM state. The state travels in the last
+      entry of the stub's `caseStatuses`, the case's current status.
     rationale: >-
       The EM state tells the invitee whether a revision of the embargo is open. In EM
       `REVISE`, the invitee learns from it that a proposal is pending, which it
-      receives after it joins (EP-09-011). The `caseStatus` is a `CaseStatus`, so it
-      also carries the `published` time every status carries (CLP-15-010).
+      receives after it joins (EP-09-011). The entry is the case's own current
+      `CaseStatus`, so its EM and PXA states are the case's, and it carries the
+      `published` time every status carries (CLP-15-010).
     verification: >-
       `test_active_embargo_enriches_case_stub` and
       `test_revise_stub_carries_the_embargo_in_force` in
-      `test/core/use_cases/triggers/test_actor_triggers.py` confirm the stub carries
-      `emState` `ACTIVE` or `REVISE`.
+      `test/core/use_cases/triggers/test_actor_triggers.py` confirm the stub's
+      current status carries `emState` `ACTIVE` or `REVISE`;
+      `test_enriched_stub_carries_the_current_status_and_in_force_entry` in
+      `test/wire/as2/factories/test_case_factories.py` confirms it is the case's
+      current status, whole.
     relationships:
     - rel_type: extends
       spec_id: CM-17-002
@@ -3985,16 +3971,21 @@ groups:
     kind: protocol
     statement: >-
       A case stub MUST NOT carry an open embargo revision proposal. The invitee
-      learns of the proposal from `caseStatus.emState` and receives it after
-      joining (EP-09-011).
+      learns of the proposal from the EM state of its current status and receives
+      it after joining (EP-09-011).
     rationale: >-
-      The revision is not yet binding, and CM-17-022 keeps other case content out of
-      the stub. When the joiner holds the case, EP-09-011 relays to it each open
-      proposal that it has not answered.
+      The revision is not yet binding, so the invitee consents only to the
+      embargo in force (CM-17-002). The stub's `embargoRegister` is the case's
+      register reduced to the in-force entry, so no proposal is in it. When the
+      joiner holds the case, EP-09-011 relays to it each open proposal that it
+      has not answered.
     verification: >-
       `test_revise_stub_carries_the_embargo_in_force_not_the_revision` in
       `test/wire/as2/factories/test_case_factories.py` confirms that a `REVISE` stub
-      carries the embargo in force and not the revision.
+      carries the embargo in force and not the revision;
+      `test_a_preview_hiding_the_embargo_in_force_is_refused` in
+      `test/wire/as2/test_invitation_preview_envelope.py` confirms a receiver
+      refuses a stub carrying an open proposal.
     relationships:
     - rel_type: extends
       spec_id: CM-17-002
@@ -4071,16 +4062,20 @@ groups:
     statement: >-
       Presence in the case participant list MUST NOT be treated as acceptance of the
       invitation or as entitlement to case content. An invitee is in the list from the
-      stub Invite onward (CM-11-006); only an active participant (CM-10-004) is entitled
-      to case content.
+      stub Invite onward (CM-11-006). It sees what the stub's preview shows
+      (CM-17-010), and only an active participant (CM-10-004) is entitled to other
+      case content.
     rationale: >-
       The CASE_MANAGER tracks every invitee from the moment it is invited, including one
       that declines, so the participant list holds inert participants. Any consumer that
       reads membership as "accepted" would hand case content to an actor that has not
-      consented.
+      consented. The preview is the one exception, and it is cut from the case by a
+      fixed profile, so what an invitee sees does not depend on who reads the list.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-10-004
+    - rel_type: uses_definition
+      spec_id: CM-17-010
     adr:
     - ADR-0114
     stories:
@@ -4307,28 +4302,30 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A sender's case preview (`CasePreview`) MUST carry exactly `id`, `type`, a
-      non-empty `summary` (MV-10-001) and, with an embargo in force, the CM-17-002
-      embargo terms. The JSON-LD `@context` is not content.
+      A stub Invite's preview (`CasePreview`) MUST show its `summary`
+      (MV-10-001), the Case Owner and, while an embargo is in force, the embargo
+      terms (CM-17-002) and EM state (CM-17-013).
     rationale: >-
-      An invitee is not yet entitled to case content (CM-10-004, CM-17-005). For
-      informed consent, the invitee needs the case's identity, a summary that a person
-      can read of what it is asked to join, and the embargo terms (CM-17-002). The
-      case's identity is the `id` of the case reference the stub is the preview of
-      (CM-11-013, ADR-0205), so the stub names no case of its own.
+      An invitee cannot decide to join without a summary it can read, the actor
+      that runs the case, and the embargo terms it consents to by joining
+      (CM-17-002). To show a field is to include its value or a substitute, never
+      a `Redacted` marker or no key. Every other case field is the sender's
+      choice of include, substitute, redact or omit, apart from what CM-17-014
+      and CM-17-025 keep out. The case reference carrying the preview names the
+      case (CM-11-013).
     note: >-
-      Open question: whether a stub relayed by a third party should name the
-      coordinator and Case Owner is tracked in #4184.
+      Open question: whether the preview should also name the CASE_MANAGER is
+      tracked in #4184.
     verification: >-
-      `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_a_non_empty_summary`
-      asserts a stub projected from a full case serialises with only `id`, `type`
-      and a non-empty `summary`; #4165 removed the strict-xfail marker when the
-      factory was implemented.
-      `test_the_preview_carries_exactly_its_id_type_and_summary`
-      in `test/wire/as2/test_parser_case_stub.py` asserts the stub carries no case ID.
-      `test_enriched_stub_carries_only_the_embargo_terms` in
-      the same file asserts that a stub sent with an embargo in force adds only
-      `activeEmbargo` and `caseStatus`.
+      `test_rm_invite_stub_shows_the_owner_name_and_status` in
+      `test/wire/as2/factories/test_case_factories.py` and
+      `test_the_cut_shows_the_owner_name_times_and_current_status` in
+      `test/core/models/test_case_preview_profile.py` confirm the cut shows the
+      summary and the Case Owner; `test_a_case_with_no_stub_summary_is_refused`
+      and `test_a_case_with_no_owner_is_refused` there confirm a cut without
+      them is refused. `test_the_cut_of_every_valid_case_is_a_valid_preview` in
+      `test/wire/as2/test_invitation_preview_envelope.py` confirms every cut of a
+      valid case shows each item the requirement names.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-11-013
@@ -4336,12 +4333,15 @@ groups:
       spec_id: MV-10-001
     - rel_type: uses_definition
       spec_id: CM-17-002
+    - rel_type: uses_definition
+      spec_id: CM-17-013
     stories:
     - story_2022_023
     - story_2026_097
     adr:
     - ADR-0205
     - ADR-0114
+    - ADR-0217
   - id: CM-17-020
     priority: MAY
     kind: protocol
@@ -4349,72 +4349,18 @@ groups:
       The sender chooses the stub's `summary`, which MAY be the case name or a
       deliberately less revealing string.
     rationale: >-
-      The case name can be an opsec risk. Thus the sender writes the summary for the
-      invitee, and does not have to copy it from the case.
+      The summary is what a person reads to decide whether to join, so the
+      sender writes it for the invitee rather than copying the case's own
+      `summary`, which is written for participants. The sender may also
+      withhold the case name, which can itself reveal what the embargo protects.
     verification: >-
       `test_rm_invite_to_case_refuses_when_no_stub_summary` in
       `test/wire/as2/factories/test_case_factories.py` confirms the factory takes
       the summary the sender set, and does not fall back to the case name.
+      This implementation's invitation profile shows the case `name`
+      (`INVITATION_PROFILE` in `vultron/core/models/case_preview_profile.py`).
     relationships:
     - rel_type: uses_definition
-      spec_id: CM-17-010
-    stories:
-    - story_2022_023
-  - id: CM-17-021
-    priority: MUST_NOT
-    kind: protocol
-    statement: >-
-      The sender MUST NOT assume the case name is safe to share with an invitee
-      not yet bound by the embargo.
-    rationale: >-
-      The case name can reveal what the embargo protects. An invitee that has not
-      joined has not agreed to the embargo, so the sender decides what the stub's
-      summary reveals to it.
-    verification: >-
-      `test_rm_invite_to_case_refuses_when_no_stub_summary` in
-      `test/wire/as2/factories/test_case_factories.py` confirms the factory refuses
-      a stub with no summary set by the sender, instead of sending the case name.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-17-020
-    stories:
-    - story_2022_023
-  - id: CM-17-022
-    priority: MUST_NOT
-    kind: protocol
-    statement: >-
-      A sender MUST NOT put any other case content in a case stub.
-    rationale: >-
-      An invitee is not yet entitled to case content (CM-10-004, CM-17-005). This
-      constrains what is sent.
-    verification: >-
-      `test_rm_invite_stub_carries_no_case_content` and
-      `test_enriched_stub_carries_only_the_embargo_terms` in
-      `test/wire/as2/factories/test_case_factories.py` assert the stub carries no
-      other case content.
-    relationships:
-    - rel_type: derives_from
-      spec_id: CM-17-010
-    stories:
-    - story_2022_023
-  - id: CM-17-023
-    priority: MUST_NOT
-    kind: protocol
-    statement: >-
-      A sender MUST NOT name the case's coordinator or Case Owner in a case stub.
-    rationale: >-
-      The Invite that carries the stub already identifies the inviter in its `actor`
-      and `attributedTo`. If the stub named the coordinator or the Case Owner, it
-      would repeat what the Invite states.
-    note: >-
-      Open question: whether a stub relayed by a third party should name the
-      coordinator and Case Owner is tracked in #4184.
-    verification: >-
-      `test_rm_invite_stub_carries_no_case_content` in
-      `test/wire/as2/factories/test_case_factories.py` asserts the case's
-      `attributedTo` never travels in the stub.
-    relationships:
-    - rel_type: derives_from
       spec_id: CM-17-010
     stories:
     - story_2022_023
@@ -4423,7 +4369,8 @@ groups:
     kind: project
     statement: >-
       When a stub carries the active embargo, this codebase MUST embed the whole
-      `EmbargoEvent` as the inviter holds it, not just its ID and `end_time`.
+      `EmbargoEvent` as the inviter holds it, not just its ID and `end_time`. The
+      embargo sits in the stub's `embargoRegister` entry.
     rationale: >-
       This is a prototype decision, not a protocol decision. An implementation can let
       the invitee get the embargo from the inviter by its ID. This prototype does not
@@ -4434,7 +4381,8 @@ groups:
       `test_rm_invite_stub_embeds_the_full_active_embargo` in
       `test/wire/as2/factories/test_case_factories.py`, run once with the case naming
       the embargo by ID and once with it holding the embargo inline, confirms the
-      stub's `activeEmbargo` equals the stored embargo's full serialization;
+      embargo of the stub's `embargoRegister` entry equals the stored embargo's
+      full serialization;
       `test_invite_stub_embeds_the_stored_embargo` in
       `test/adapters/driven/trigger_activity_adapter/test_actors.py` confirms the
       same for an embargo the inviter reads from its store.
@@ -4447,8 +4395,8 @@ groups:
     kind: project
     statement: >-
       This codebase MUST NOT send a stub Invite whose active embargo the inviter
-      cannot embed. It cannot embed it when it holds only the ID, or another
-      embargo object.
+      cannot embed. It cannot embed it when it holds only the ID, or an object
+      that is not that embargo.
     rationale: >-
       A stub that names the embargo only by ID would give the invitee no method to
       read the terms, because this prototype supplies no fetch (CM-17-002). A stub
@@ -4456,15 +4404,42 @@ groups:
     verification: >-
       `test_rm_invite_refuses_an_active_embargo_it_cannot_embed`,
       `test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one` and
-      `test_preview_embargo_refuses_when_no_active_embargo_is_named` in
-      `test/wire/as2/factories/test_case_factories.py` confirm the Invite is refused
-      when the active embargo cannot be embedded;
+      `test_rm_invite_refuses_a_supplied_embargo_that_is_no_embargo` in
+      `test/wire/as2/factories/test_case_factories.py`, and
+      `test_an_in_force_embargo_held_by_id_is_refused` in
+      `test/core/models/test_case_preview_profile.py`, confirm the Invite is
+      refused when the active embargo cannot be embedded;
       `test_invite_is_refused_when_the_embargo_is_not_in_the_store` in
       `test/adapters/driven/trigger_activity_adapter/test_actors.py` confirms the
       refusal when it is missing from the inviter's store.
     relationships:
     - rel_type: derives_from
       spec_id: CM-17-011
+  - id: CM-17-025
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A stub Invite's preview MUST NOT carry the case's bookkeeping: its ledger
+      position, genesis hash, participant index, pending-proposal index or stub
+      summary.
+    rationale: >-
+      These fields keep the case's own records in step, and mean nothing outside
+      the case. The pending-proposal index would also name open proposals, which
+      an invitee receives only after it joins (CM-17-014). The stub summary
+      reaches the invitee as the preview's `summary`, not under its own name.
+    verification: >-
+      `test_the_cut_leaves_out_the_case_bookkeeping` in
+      `test/core/models/test_case_preview_profile.py` confirms the cut carries
+      none of them, and `test_every_omit_only_field_is_absent_from_the_preview`
+      there confirms the preview type declares none, so a received one is set
+      aside (MV-11-003).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-010
+    stories:
+    - story_2022_023
+    adr:
+    - ADR-0217
   - id: CM-17-012
     priority: MUST
     kind: project
