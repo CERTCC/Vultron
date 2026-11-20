@@ -152,7 +152,7 @@ The page shows the case as it stands at its last ledger entry, unless you pick a
   A misplaced rule (⚠️) names a move that the state machines do not allow there, or one that the rule's roles may not make.
   An unclaimed move (💡) is harm-free for the Vendor, and no matching rule names it.
   A warning above the table counts the flagged rows; neither the rule nor the band is ground truth, so you judge which one is wrong.
-  **Rules with no number** lists the rules that no band can check, with the reason: an action that changes no state, a step that happens anyway, or a rule that names no desideratum.
+- **Rules with no number**, a closed group below the action rules, lists the rules that no band can check, with the reason: an action that changes no state, a step that happens anyway, or a rule that names no desideratum.
   A rule that reads a Vendor's consent to an embargo, which the reading does not hold, shows as undecided (❔).
   A rule never removes a move from the bands.
   [Action Rules Against Move Advice](../topics/measuring_cvd/action_rule_comparison.md) gives the same comparison at every position of one Vendor.
