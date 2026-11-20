@@ -20,6 +20,7 @@ related_specs:
   - specs/message-validation.yaml (MV-12)
   - specs/behavior-tree-integration.yaml (BT-20-004)
 related_notes:
+  - notes/affected-products.md
   - notes/selective-disclosure.md
   - notes/csaf-report-content.md
   - notes/vulnerability-items.md
@@ -105,10 +106,15 @@ new case field fails the profile check until it is classified.
 
 ## Rendering Rules
 
-- **Category `csaf_base` for every call site.** The case holds no products
-  (ADR-0187), and the Vulnerability Report and Security Advisory profiles require
-  `product_tree` and product status. A projection never copies a reporter's
-  product tree: that republishes the reporter's claim as the projector's.
+- **Category `csaf_base` for every call site, until the case holds products.**
+  The Vulnerability Report and Security Advisory profiles require `product_tree`
+  and product status, and the case holds no products yet (ADR-0187). Once a
+  vendor's record holds products and authored product statuses (ADR-0220), a call
+  site renders the category whose requirements its preview meets
+  (`notes/affected-products.md` § "The Projection"). A projection never copies a
+  reporter's product tree: that republishes the reporter's claim as the
+  projector's. A reporter's statements reach the case as statuses authored by the
+  reporter, and render as the reporter's.
 - **A projection is a pure function of its identity.** No revision counter is
   kept. `document.tracking.id` is derived from the case ID, the versioned profile
   name (`public-v1`, `joined-v1`), the `log_index` of the preview's ledger

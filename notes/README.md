@@ -35,6 +35,11 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`act-instant.md`** · `plan`
   One clock read per act: tree-run instant, no clock in core, recordings via the port (ADR-0176).
   **Load when**: adding or changing code that reads the clock or stamps a time.
+- **`affected-products.md`** · `plan`
+  A vendor's products and the authored product statuses on its participant record;
+  fix readiness stays binary and partial readiness is a derived read (ADR-0220).
+  **Load when**: building products, product statuses, the fix-readiness check, or
+  the CSAF projection's product tree.
 - **`as2-vocabulary-alignment.md`** · `plan`
   Wire changes from the AS2 vocabulary review: Move/Add in splits, Invite slots,
   ledger as a collection, Refuse, embargo end as Update, JSON-LD terms.
