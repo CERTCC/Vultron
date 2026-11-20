@@ -16,12 +16,15 @@ groups:
   - id: CP-01-001
     priority: MUST
     kind: project
-    statement: The core layer MUST define a `CaseProposal` object type, a `CoreObject` whose wire name `as_CaseProposal`
-      is an alias of it (ARCH-25-003).
+    statement: >-
+      The core layer MUST define a `CaseProposal` object type, a `CoreObject` whose
+      wire name `as_CaseProposal` is an alias of it (ARCH-25-003).
     rationale: A dedicated object type enables pattern-discriminated routing in the semantic extractor and preserves AS2 semantics
       by separating the proposal object from the eventual `VulnerabilityCase`.
-    verification: '`test_the_wire_name_is_the_core_class` in `test/core/models/test_case_proposal.py` confirms
-      `as_CaseProposal is CaseProposal`, the `CoreObject` declared in `vultron/core/models/case_proposal.py`.'
+    verification: >-
+      `test_the_wire_name_is_the_core_class` in `test/core/models/test_case_proposal.py`
+      confirms `as_CaseProposal is CaseProposal`, the `CoreObject` declared in
+      `vultron/core/models/case_proposal.py`.
     see_also:
     - spec_id: ARCH-25-003
       reason: 'the one class a domain type has'
@@ -38,8 +41,9 @@ groups:
       (CP-05-010). A full URI names one object across all actors, so proposals from
       different proposers do not share a key by accident. CP-05-010 refuses a sender
       that reuses another proposer's identifier.
-    verification: Inspection of `vultron/core/models/case_proposal.py` confirms `id_` is inherited from
-      `CoreObject` as a URI field on every `CaseProposal` instance.
+    verification: >-
+      Inspection of `vultron/core/models/case_proposal.py` confirms `id_` is
+      inherited from `CoreObject` as a URI field on every `CaseProposal` instance.
     adr:
     - ADR-0023
   - id: CP-01-003
@@ -51,21 +55,25 @@ groups:
       The CASE_MANAGER seats the actor this field names as the Case Owner of the new
       case (CP-09-001), and it checks that the `actor` of the `Create` names the same
       actor (CP-01-015). Without the field, the case would have no owner to record.
-    verification: Inspection of `vultron/core/models/case_proposal.py` confirms `attributed_to` is a required
-      `NonEmptyString` field on `CaseProposal`.
+    verification: >-
+      Inspection of `vultron/core/models/case_proposal.py` confirms `attributed_to`
+      is a required `NonEmptyString` field on `CaseProposal`.
     adr:
     - ADR-0023
   - id: CP-01-004
     priority: MUST
     kind: project
-    statement: '`as_CaseProposal` MUST include an `object_` field containing a fully inline `VulnerabilityReport` around
-      which the case is to be created. URI references to the report are NOT permitted (see AKM-03-003).'
+    statement: >-
+      `as_CaseProposal` MUST include an `object_` field containing a fully inline
+      `VulnerabilityReport` around which the case is to be created. URI references to
+      the report are NOT permitted (see AKM-03-003).
     rationale: The case-actor service needs the vulnerability report to initialize the case. URI references are prohibited
       because the receiver may not have the referenced object, and this codebase
       fetches only the objects the note on AKM-05-007 lists (AKM-03-003).
-    verification: Inspection of `vultron/core/models/case_proposal.py` confirms `object_` is typed as
-      `VulnerabilityReport | NonEmptyString` and named in `inline_required_refs`, so persistence keeps the report inline
-      (CP-01-004, #2482).
+    verification: >-
+      Inspection of `vultron/core/models/case_proposal.py` confirms `object_` is typed
+      as `VulnerabilityReport | NonEmptyString` and named in `inline_required_refs`,
+      so persistence keeps the report inline (#2482).
     adr:
     - ADR-0023
     see_also:
@@ -81,8 +89,9 @@ groups:
       itself which service the report receiver asked to create the case, so the request
       names its addressee wherever it is stored or read, not only in the delivery's
       `to`.
-    verification: Inspection of `vultron/core/models/case_proposal.py` confirms `target` is a required
-      `NonEmptyString` field on `CaseProposal`.
+    verification: >-
+      Inspection of `vultron/core/models/case_proposal.py` confirms `target` is a
+      required `NonEmptyString` field on `CaseProposal`.
     adr:
     - ADR-0023
   - id: CP-01-006
