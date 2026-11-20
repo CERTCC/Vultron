@@ -40,7 +40,6 @@ from vultron.wire.as2.typed_reference import (
     is_previewed_reference,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 
 # ---------------------------------------------------------------------------
 # Activity snapshot builder
@@ -137,7 +136,7 @@ def _build_activity_snapshot(
 
 # Dispatch table: obj type_ string → builder function.
 # VULNERABILITY_REPORT and VULNERABILITY_CASE are handled explicitly in
-# _build_object_kwargs (before the as_Event isinstance check) to preserve
+# _build_object_kwargs (before the EmbargoEvent isinstance check) to preserve
 # the original priority order.
 _OBJ_BUILDERS: dict[str, Callable[[object], dict[str, Any]]] = {
     str(VOtype.CASE_PARTICIPANT): _build_participant_object,
@@ -167,7 +166,7 @@ def _build_object_kwargs(
 
     Uses type_ string comparison because the wire parser returns ``as_Object``
     (base class) for nested objects; isinstance checks against Vultron subtypes
-    would always fail.  The ``as_Event`` check is an exception and is placed
+    would always fail.  The ``EmbargoEvent`` check is an exception and is placed
     after the VULNERABILITY_REPORT / VULNERABILITY_CASE type-string checks to
     preserve the original priority order.
     """
@@ -197,7 +196,9 @@ def _build_object_kwargs(
         kw["object_"] = _to_domain_obj(obj)
     elif _obj_type == str(VOtype.VULNERABILITY_CASE):
         kw.update(_build_case_object(obj))
-    elif isinstance(obj, (as_Event, EmbargoEvent)):
+    elif isinstance(obj, EmbargoEvent):
+        # Only an EmbargoEvent is an embargo; a plain AS2 Event is not read
+        # as one (ADR-0201).
         kw.update(_build_embargo_event_object(obj, context, target))
     elif builder := _OBJ_BUILDERS.get(_obj_type):
         kw.update(builder(obj))

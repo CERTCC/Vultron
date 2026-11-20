@@ -1142,7 +1142,8 @@ groups:
       sender and every receiver must use the same wire form, or a receiver classifies
       the activity as unknown.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `RemoveEmbargoEventFromCasePattern` uses `TAtype.REMOVE` and `AOtype.EVENT` with no target constraint;
+      `RemoveEmbargoEventFromCasePattern` uses `TAtype.REMOVE` and
+      `VOtype.EMBARGO_EVENT` with no target constraint;
       integration tests in `test/demo/test_manage_embargo_demo.py` exercise this flow.
       `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
       asserts that the `remove_embargo` vocabulary example extracts as this semantic type.
@@ -1159,7 +1160,8 @@ groups:
       embargo belongs to.
     verification: >-
       Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `AnnounceEmbargoEventToCasePattern` uses `TAtype.ANNOUNCE`, `AOtype.EVENT`, and
+      `AnnounceEmbargoEventToCasePattern` uses `TAtype.ANNOUNCE`,
+      `VOtype.EMBARGO_EVENT`, and
       `context_=VULNERABILITY_CASE`; integration tests in
       `test/demo/test_manage_embargo_demo.py` exercise this flow.
       `test_wire_form_examples_map_to_their_semantics` in
@@ -1183,7 +1185,7 @@ groups:
       separate from the Invite of an actor to a case.
     verification: >-
       Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `InviteToEmbargoOnCasePattern` uses `TAtype.INVITE`, `AOtype.EVENT`,
+      `InviteToEmbargoOnCasePattern` uses `TAtype.INVITE`, `VOtype.EMBARGO_EVENT`,
       `target_=ACTOR` and `context_=VULNERABILITY_CASE`; integration tests in
       `test/demo/test_establish_embargo_demo.py` exercise this flow.
       `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
@@ -1257,7 +1259,7 @@ groups:
       `ACTIVATE_EMBARGO_ON_CASE` and no other semantics, and that neither it nor
       `Accept(Invite(EmbargoEvent))` matches the other's pattern. Inspection of
       `_instances.py` confirms `ActivateEmbargoOnCasePattern` uses `TAtype.ADD`,
-      `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
+      `VOtype.EMBARGO_EVENT`, and `target_=VULNERABILITY_CASE`.
       `test/architecture/test_response_in_reply_to.py` confirms the activity cannot be
       built without `inReplyTo`.
     adr:
@@ -1281,7 +1283,7 @@ groups:
       `Reject(EmbargoEvent)[target=VulnerabilityCase]` maps to
       `REJECT_EMBARGO_PROPOSAL_ON_CASE` and no other semantics, and inspection of
       `_instances.py` confirms `RejectEmbargoProposalOnCasePattern` uses `TAtype.REJECT`,
-      `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
+      `VOtype.EMBARGO_EVENT`, and `target_=VULNERABILITY_CASE`.
       `test/architecture/test_response_in_reply_to.py` confirms the activity cannot be
       built without `inReplyTo`.
     adr:
@@ -1335,7 +1337,8 @@ groups:
       `Leave(EmbargoEvent)[context=VulnerabilityCase]` maps to
       `WITHDRAW_FROM_EMBARGO_ON_CASE` and `Leave(VulnerabilityCase)` still maps to
       `CLOSE_CASE`, and inspection of `_instances.py` confirms
-      `WithdrawFromEmbargoOnCasePattern` uses `TAtype.LEAVE`, `AOtype.EVENT`, and
+      `WithdrawFromEmbargoOnCasePattern` uses `TAtype.LEAVE`,
+      `VOtype.EMBARGO_EVENT`, and
       `context_=VULNERABILITY_CASE`.
     adr:
     - ADR-0122

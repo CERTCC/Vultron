@@ -76,9 +76,8 @@ def test_format_pattern_with_target_qualifier():
 def test_format_pattern_writes_the_embargo_type_the_sender_emits(
     semantics: MessageSemantics, expected: str
 ):
-    """An embargo pattern matches ``Event``, but the sender emits
-    ``EmbargoEvent``, which is what Wire Activity notation writes (Annex C,
-    #5155)."""
+    """An embargo pattern matches ``EmbargoEvent``, the type the sender
+    emits, which is what Wire Activity notation writes (Annex C, ADR-0201)."""
     entry = lookup_entry(semantics)
     assert entry is not None and entry.pattern is not None
     assert format_pattern(entry.pattern) == expected
