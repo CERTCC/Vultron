@@ -292,8 +292,9 @@ class InviteActorToCaseReceivedEvent(LedgerPositionedEvent):
 
     @property
     def invitee_id(self) -> str:
-        """The actor invited: the Invite's ``target``."""
-        return self._required("invitee_id", self.target_id)
+        """The actor invited, normalised: the Invite's ``target``, looked up
+        and stored as the invitee (OID-01-006)."""
+        return normalise_actor_id(self._required("invitee_id", self.target_id))
 
     @property
     def preview(self) -> CasePreview:
@@ -301,6 +302,16 @@ class InviteActorToCaseReceivedEvent(LedgerPositionedEvent):
         on (CM-17-010); the stub Invite's pattern matches only an object
         that carries one (SE-01-009)."""
         return self._required("preview", case_preview_of(self.object_))
+
+    @property
+    def roles(self) -> list[str] | None:
+        """The roles the Invite offers the invitee (``roles``, CM-17-003).
+
+        ``None`` when the Invite names none; the Case Owner's Invite without
+        one is refused at the CASE_MANAGER, which assigns no default
+        (CM-11-050).
+        """
+        return self.activity.roles
 
 
 class AcceptInviteActorToCaseReceivedEvent(VultronEvent):

@@ -91,25 +91,6 @@ ENTRIES: list[SemanticEntry] = [
                 howto=HowToGuide.SUGGEST_ACTOR,
                 shorthand=ProtocolShorthand.GI,
             ),
-            Occasion(
-                when=("the Case Owner decides to invite an actor to the case"),
-                anchor="request-invite-actor-to-case",
-                addressee=AddresseeSide.CASE_MANAGER,
-                heading="Ask the CASE_MANAGER to invite an actor",
-                description=(
-                    "Asks the CASE_MANAGER to invite the actor named by the "
-                    "object to the case named by the target, with the roles "
-                    "in `roles`. For an actor with no record on the "
-                    "case, or an invitee that has not answered, the "
-                    "CASE_MANAGER answers with the Stub Invite to that actor, "
-                    "not with an offer to the Case Owner."
-                ),
-                example="request_invite_actor_to_case",
-                distinguisher=SenderStanding(
-                    kind=SenderEntitlementKind.CASE_OWNER, holds=True
-                ),
-                howto=HowToGuide.INVITE_ACTOR,
-            ),
         ),
         page=MessagePage.GENERAL,
     ),

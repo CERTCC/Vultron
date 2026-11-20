@@ -258,9 +258,10 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
-        # OFFER_ACTOR_TO_CASE: the CASE_MANAGER's stub Invite, first or
-        # re-invite, is stamped with the same RSVP window (CM-11-014).
-        MessageSemantics.OFFER_ACTOR_TO_CASE,
+        # INVITE_ACTOR_TO_CASE: at the CASE_MANAGER, the Case Owner's
+        # Invite makes the CASE_MANAGER's stub Invite, first or re-invite,
+        # stamped with the same RSVP window (CM-11-014, CM-17-007).
+        MessageSemantics.INVITE_ACTOR_TO_CASE,
         # The case owner's decision for the case (ADR-0122): activating a
         # revision re-issues the CASE_MANAGER's outstanding stub Invites
         # (CM-11-016), each stamped with the same RSVP window (CM-11-014), and

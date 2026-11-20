@@ -161,17 +161,19 @@ ADR-0121).
 
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
-  → Case Owner sends its own Offer(Actor)[target=VulnerabilityCase],
-    carrying the suggested roles
-    → CASE_MANAGER's inbox (CM-17-007, ADR-0109)
-  → CASE_MANAGER's recommend-actor tree takes the owner-direct branch, since
-    the recommender holds CVDRole.CASE_OWNER (it does not forward the Offer)
+  → Case Owner sends its own Invite(VulnerabilityCase preview)[target=Actor],
+    carrying the roles
+    → CASE_MANAGER's inbox only (CM-17-007, ADR-0109, ADR-0199)
+  → CASE_MANAGER refuses it with a refusal notice unless the sender holds
+    CVDRole.CASE_OWNER and the invitee is invitable (CM-17-026); else it
+    commits the Owner's Invite as one entry (CM-17-018)
+  → CASE_MANAGER sends its own Invite(VulnerabilityCase preview)[target=Actor]
+    (sent by case_actor_id, attributedTo case_owner_id, inReplyTo the Owner's
+    Invite), commits it in the emitting tree, no cc: (CM-17-006, CM-17-015)
+    → invitee's inbox
   → CASE_MANAGER creates the invitee's CaseParticipant (inert: RM.RECEIVED,
     VF v for a vendor, consent INVITED if an embargo is active) and commits
     the creation to the ledger (CM-11-006)
-  → CASE_MANAGER sends Invite(VulnerabilityCase preview)[target=Actor]
-    (sent by case_actor_id, attributedTo case_owner_id), commits it in the
-    emitting tree, no cc: (CM-17-006, CM-17-015) → invitee's inbox
 
 Invitee sends Accept(Invite(VulnerabilityCase preview)[target=Actor])
   (sent by invitee_id, addressed to case_actor_id)

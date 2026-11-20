@@ -29,6 +29,7 @@ import logging
 from collections.abc import Iterable
 from typing import Any, cast
 
+from vultron.config.actor import ActorConfig
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -55,6 +56,9 @@ class RegistryTriggerDispatcher:
             (SYNC-02-003); given to every ``bt_backed`` row.
         clock: The act clock, given to every row: each trigger invocation is
             one act and reads it once, after taking the tree lock (ADR-0176).
+        actor_config: The local actor's configuration, given to every row
+            that ``takes_actor_config``; ``None`` leaves those rows on the
+            ``ActorConfig`` defaults.
 
     Port injection is keyed on the row's ``bt_backed`` flag, never on its
     verb: a BT-backed use case is built with the whole BT port bundle, and the
@@ -69,9 +73,11 @@ class RegistryTriggerDispatcher:
         wire_render_port: WireRenderPort,
         sync_port: SyncActivityPort,
         clock: ClockPort,
+        actor_config: ActorConfig | None = None,
     ) -> None:
         self._by_request = index_by_request_model(entries)
         self._clock = clock
+        self._actor_config = actor_config
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
@@ -98,6 +104,8 @@ class RegistryTriggerDispatcher:
         if entry.bt_backed:
             ports["wire_render_port"] = self._wire_render_port
             ports["sync_port"] = self._sync_port
+        if entry.takes_actor_config:
+            ports["actor_config"] = self._actor_config
         return ports
 
     def trigger(

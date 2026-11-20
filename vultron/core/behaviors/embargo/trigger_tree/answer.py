@@ -169,6 +169,7 @@ def accept_embargo_trigger_bt(
     embargo_id: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for accepting an embargo invite (EP-09-008).
 
@@ -189,6 +190,7 @@ def accept_embargo_trigger_bt(
             _ACCEPT_SEMANTIC_TYPE,
             result_out,
             activity_builder,
+            actor_config,
         ),
     )
 
@@ -200,6 +202,7 @@ def reject_embargo_trigger_bt(
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
     own_consent_out: dict[str, object] | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for rejecting an embargo invite (EP-09-008).
 
@@ -233,6 +236,7 @@ def reject_embargo_trigger_bt(
             ],
             result_out,
             activity_builder,
+            actor_config,
         ),
     )
 
@@ -243,6 +247,7 @@ def withdraw_embargo_trigger_bt(
     embargo_id: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for withdrawing from the embargo in force (EP-09-013).
 
@@ -266,6 +271,7 @@ def withdraw_embargo_trigger_bt(
             _WITHDRAW_SEMANTIC_TYPE,
             result_out,
             activity_builder,
+            actor_config,
         ),
     )
 
@@ -276,6 +282,7 @@ def activate_embargo_trigger_bt(
     embargo_id: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for the case owner's activation (EP-09-008).
 
@@ -306,6 +313,7 @@ def activate_embargo_trigger_bt(
             ],
             result_out,
             activity_builder,
+            actor_config,
         ),
     )
 
@@ -316,6 +324,7 @@ def reject_embargo_proposal_trigger_bt(
     embargo_id: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for the case owner's rejection (EP-09-008).
 
@@ -340,6 +349,7 @@ def reject_embargo_proposal_trigger_bt(
             EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
             result_out,
             activity_builder,
+            actor_config,
             ends_embargo_after_disclosure=True,
         ),
     )

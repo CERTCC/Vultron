@@ -2728,10 +2728,11 @@ groups:
     note: >-
       The default role list for a suggested actor is a separate flow (CM-16-003).
     verification: >-
-      `test_validated_invitee_roles_never_defaults` and
-      `test_require_explicit_roles_fails_when_no_roles_given` in
-      `test/core/behaviors/case/test_suggest_actor_tree.py` find no VENDOR default
-      when no roles are given.
+      `test_validated_invitee_roles_never_defaults` in
+      `test/core/behaviors/case/test_suggest_actor_tree.py` and
+      `test_no_roles_is_refused_not_defaulted` in
+      `test/core/use_cases/triggers/test_actor_triggers.py` find no VENDOR
+      default when no roles are given.
     relationships:
     - rel_type: extends
       spec_id: CM-11-019
@@ -4000,7 +4001,7 @@ groups:
     kind: project
     statement: >-
       The `Invite` activity MUST embed the intended `roles: list[CVDRole]` for the
-      invitee so that `EmitInviteActorToCaseNode` can include them in the wire activity.
+      invitee so that the stub Invite emit node can include them in the wire activity.
     rationale: >-
       The CASE_MANAGER cannot route messages for a participant with no roles, or give it
       the correct access (CM-11-019). The participant record that the stub Invite
@@ -4098,7 +4099,7 @@ groups:
       same id, and the receiver drops it (ID-02-001). The commit records the Invite one
       time.
     verification: >-
-      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
+      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestStubInviteQueuesBeforeCommitting`
       asserts the emit node appends to the outbox before it commits;
       `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce` asserts a
       retry queues and commits the Invite once.
@@ -4117,7 +4118,7 @@ groups:
       A copy addressed to the CASE_MANAGER would loop back to its own inbox, where a
       received-side path could record the same Invite a second time (ADR-0109).
     verification: >-
-      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
+      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestStubInviteQueuesBeforeCommitting`
       asserts the emitted Invite sets no `cc`.
     relationships:
     - rel_type: extends
@@ -4149,85 +4150,139 @@ groups:
       This rule covers the direct-trigger path, where the Case Owner calls
       `invite-actor-to-case` with a `roles` list. In that path,
       `SvcInviteActorToCaseUseCase` MUST send the CASE_MANAGER the Case Owner's
-      own recommend-actor `Offer(Actor)[target=VulnerabilityCase]`, carrying those
-      roles, from the
-      Case Owner's identity and outbox.
+      own `Invite(<case preview>)[target=<invitee>]`, carrying those roles, from
+      the Case Owner's identity and outbox, and send no recommend-actor
+      `Offer(Actor)[target=VulnerabilityCase]`.
     rationale: >-
-      The owner's direct invite is the recommend-actor flow with the recommender and the
-      decider being the same participant, so it reuses that flow rather than adding a message
-      type. This is one path for every topology: when the Case Owner's container also hosts the
-      CASE_MANAGER the Offer loops back over HTTP (OX-12-001), and when it does not the Offer
-      is the only way to reach the CASE_MANAGER without emitting in its name from a store that
-      is not the ledger's home (ADR-0109).
+      The Case Owner decides whom the case invites, so it sends the decision it
+      makes, and the CASE_MANAGER makes the ask the invitee answers (ADR-0199). An
+      `Offer` would ask for a decision the Owner has already made. The Owner's
+      Invite and the stub Invite share one wire shape; an Invite addressed to the
+      CASE_MANAGER that names another actor in `target` is the Owner's. The Owner
+      never emits in the CASE_MANAGER's name (ADR-0109).
     verification: >-
-      `test/core/use_cases/triggers/test_actor_triggers.py` asserts the trigger enqueues an
-      `Offer(Actor)[target=VulnerabilityCase]` addressed to the CASE_MANAGER with the
-      offered roles, from the
-      owner's outbox only; and
-      `test/demo/test_remote_case_actor_invite.py` runs the flow on three containers and
-      asserts the Invite is emitted and committed on the CASE_MANAGER's container with no `cc`.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcInviteActorToCaseUseCase`
+      asserts the trigger enqueues the Owner's own `Invite` addressed to the
+      CASE_MANAGER with the offered roles, from the owner's outbox only, and no
+      `Offer(Actor)`; and `test/demo/test_remote_case_actor_invite.py` runs the
+      flow on three containers and asserts the stub Invite is emitted and committed
+      on the CASE_MANAGER's container with no `cc`.
     adr:
     - ADR-0109
+    - ADR-0199
   - id: CM-17-017
     priority: MUST_NOT
     kind: project
     statement: >-
       In the direct-trigger path, `SvcInviteActorToCaseUseCase` MUST NOT execute
-      the invite tree locally as the CASE_MANAGER.
+      the invite tree locally as the CASE_MANAGER, unless the Case Owner holds the
+      CASE_MANAGER role itself.
     rationale: >-
       A local run would emit in the CASE_MANAGER's name from a store that is not the
-      ledger's home (ADR-0109). The CASE_MANAGER emits the Invite on its own
-      container, from the Offer it received.
+      ledger's home (ADR-0109). The CASE_MANAGER makes its stub Invite on its own
+      container, from the Owner's Invite it received. An Owner that holds the role
+      has no one to ask: its stub Invite is its own act, with neither `attributedTo`
+      nor `inReplyTo` (CM-24-021, ADR-0199).
     verification: >-
-      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcInviteActorToCaseUseCase::test_invite_sends_the_owners_own_offer_to_the_case_manager`
-      asserts the trigger runs no tree as the CASE_MANAGER.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcInviteActorToCaseUseCase::test_invite_is_queued_in_the_owners_outbox_only`
+      asserts the trigger runs no tree as the CASE_MANAGER;
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestOwnerHoldingTheCaseManagerRoleInvitesDirectly`
+      asserts an Owner holding the role sends its own stub Invite, ledgered once.
     relationships:
     - rel_type: extends
       spec_id: CM-17-007
     adr:
     - ADR-0109
+    - ADR-0199
   - id: CM-17-018
     priority: MUST
     kind: project
     statement: >-
-      This rule covers an `Offer(Actor)[target=VulnerabilityCase]` whose recommender
-      holds
-      `CVDRole.CASE_OWNER` for the case. The CASE_MANAGER's recommend-actor
-      received tree MUST emit the `Invite` directly with the offered roles,
-      instead of forwarding the Offer to the Case Owner (CM-16-003, CM-16-004).
+      This rule covers the Case Owner's `Invite(<case preview>)[target=<invitee>]`
+      received by the CASE_MANAGER (CM-17-007). The CASE_MANAGER MUST commit an
+      admitted Invite as one ledger entry, then send the invitee its own stub Invite.
+      That stub Invite carries the same `object`, `target` and roles, with
+      `attributedTo` the Case Owner and `inReplyTo` the Owner's Invite (CM-24-002,
+      CM-24-020).
     rationale: >-
-      When the recommender is the Case Owner, the recommender and the decider are the
-      same participant. Forwarding the Offer would ask the Case Owner a question it
-      has already answered.
+      The decider's act is ledgered as the decision, and the CASE_MANAGER makes the
+      ask the invitee answers (ADR-0199). The two fields let the invitee and every
+      replica recover who decided and which decision the stub carries out. A
+      re-invite of an invitee that has not answered names the stub it supersedes in
+      `inReplyTo` instead (CM-11-044).
     verification: >-
-      `test/core/behaviors/case/test_suggest_actor_tree.py` asserts the CASE_OWNER
-      branch sits behind the duplicate branches and ahead of the fresh path;
-      `test/core/use_cases/received/actor/test_suggest.py` asserts the CASE_MANAGER
-      emits the Invite, commits it, and does not forward the Offer.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestCaseManagerJudgesTheOwnersInvite::test_an_admitted_invite_is_one_entry_then_the_stub_invite`
+      asserts the one entry for the Owner's Invite and the stub Invite's fields;
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestStubInviteIsRecordedAfterItIsSent`
+      asserts the order of the writes.
     relationships:
     - rel_type: extends
       spec_id: CM-17-007
-    - rel_type: supersedes
-      spec_id: CM-16-004
     adr:
     - ADR-0109
+    - ADR-0199
     see_also:
-    - spec_id: CM-16-003
-      reason: 'context for the reader'
+    - spec_id: CM-24-002
+      reason: 'the delegated-authorship field the stub sets'
+    - spec_id: CM-24-020
+      reason: 'the delegated-authorship field the stub sets'
+  - id: CM-17-026
+    priority: MUST
+    kind: project
+    statement: >-
+      The CASE_MANAGER MUST refuse the Case Owner's Invite with a refusal notice,
+      committing nothing, in each of these cases. The sender does not hold
+      `CASE_OWNER`. The `target` is the CASE_MANAGER or the Owner. The invitee has
+      joined, is at `RM.CLOSED` or was removed.
+    rationale: >-
+      Only the Case Owner decides whom the case invites, and a refused decision is
+      answered so the sender learns why (CLP-05-001). The CASE_MANAGER never
+      invites itself (CM-17-015), and a joined, closed or removed participant is
+      sent no stub Invite (CM-11-043, CM-31-013).
+    verification: >-
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestCaseManagerJudgesTheOwnersInvite`
+      asserts each refusal: the refusal notice, no ledger entry and no stub Invite.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-17-018
+    adr:
+    - ADR-0199
+  - id: CM-17-027
+    priority: MUST
+    kind: project
+    statement: >-
+      The CASE_MANAGER MUST refuse with a refusal notice an
+      `Offer(Actor)[target=VulnerabilityCase]` whose sender holds `CASE_OWNER` for
+      the case, committing nothing.
+    rationale: >-
+      The Owner's decision to invite has one wire form, its own Invite (CM-17-007,
+      ADR-0199). A recommendation is a suggestion the Owner decides, so an Owner's
+      recommendation would ask it a question it has already answered.
+    verification: >-
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestCaseManagerJudgesTheOwnersInvite::test_the_owners_recommend_actor_offer_is_refused`
+      asserts the refusal notice, with no ledger entry and no stub Invite.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-17-007
+    adr:
+    - ADR-0199
   - id: CM-17-019
     priority: MUST
     kind: project
     statement: >-
-      The CASE_MANAGER's Invite for the Case Owner's direct invite MUST carry the
-      offered roles, so its `roles` is never empty (CM-17-003).
+      The CASE_MANAGER's stub Invite for the Case Owner's Invite MUST carry the roles
+      the Owner's Invite offers, so its `roles` is never empty (CM-17-003). An
+      Owner's Invite that offers no role is refused, never defaulted (CM-11-050).
     rationale: >-
-      The roles travel in the Offer, and the CASE_MANAGER reads them from the received
-      Offer it stored. That is the stored activity, not a value the trigger response
-      carried, the same discipline CM-16-018 applies to the CASE_MANAGER's own
-      outgoing Offer on `Accept`.
+      The roles travel in the Owner's Invite, and the CASE_MANAGER reads them from
+      the received Invite it stored. That is the stored activity, not a value the
+      trigger response carried, the same discipline CM-16-018 applies to the
+      CASE_MANAGER's own outgoing Offer on `Accept` (ADR-0199).
     verification: >-
-      `test/core/use_cases/received/actor/test_suggest.py::TestOwnerDirectInviteAtCaseManager::test_requested_roles_are_carried`
-      asserts the Invite carries the offered roles.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRolesAndEmbargoEnrichment::test_roles_carried_to_the_case_managers_invite`
+      asserts the stub Invite carries the offered roles, and
+      `test_no_roles_requested_is_refused` in the same class asserts an Invite with
+      none is refused.
     relationships:
     - rel_type: extends
       spec_id: CM-17-018
@@ -4235,6 +4290,10 @@ groups:
       spec_id: CM-17-003
     adr:
     - ADR-0109
+    - ADR-0199
+    see_also:
+    - spec_id: CM-11-050
+      reason: 'the no-default rule the refusal applies'
   - id: CM-17-008
     priority: MUST
     kind: project
@@ -5155,12 +5214,12 @@ groups:
       No invitation confers either role: ownership moves by transfer (CM-21) and the
       `CASE_MANAGER` role by delegation (CM-02-014), as for a role Offer (CM-33-003).
       Removing the role and going on would invite the actor with roles that nobody
-      asked for, and the sender would not know. The rule also covers the Case
-      Owner's own `Offer(Actor)`, which takes the same path (CM-17-007).
+      asked for, and the sender would not know. The Case Owner's own Invite is
+      refused the same way (CM-17-026).
     verification: >-
       `test_a_suggestion_naming_an_authority_role_is_refused` and
       `test_an_owner_invite_naming_an_authority_role_is_refused` in
-      `test/core/use_cases/received/actor/test_suggest.py`, and
+      `test/core/use_cases/received/actor/test_suggest.py` (the Owner's Invite), and
       `test_an_accept_of_an_offer_naming_an_authority_role_is_refused` in
       `test/core/use_cases/received/actor/test_offer_case_participant.py`, assert
       `REFUSED` with no ledger entry, no Invite, and, where the sender is owed one, a
