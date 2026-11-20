@@ -21,8 +21,9 @@
 the case's level 1 standing as a scoreboard, each state on a small map of
 its state machine (#6674), with its open moves in the bands of the case's
 move advice (ADR-0200), and the case narrative: one line per ledger entry,
-naming who did what, when, and which states it changed.  Beside the
-analysis it always
+naming who did what, when, and which states it changed, each line with its
+hindsight mark: the step it took, graded against the move advice open just
+before it (#6672).  Beside the analysis it always
 shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
@@ -69,10 +70,11 @@ here:
   state maps, participants and desiderata.
 * :mod:`~vultron.shadow.dashboard.page.advice` — the move bands and their
   legends.
-* :mod:`~vultron.shadow.dashboard.page.narrative` — the case narrative.
+* :mod:`~vultron.shadow.dashboard.page.narrative` — the case narrative and
+  its hindsight marks.
 * :mod:`~vultron.shadow.dashboard.page.reader_report` — the reader's report.
-* :mod:`~vultron.shadow.dashboard.page.common` — the logger and table every
-  part shares.
+* :mod:`~vultron.shadow.dashboard.page.common` — the logger and tables
+  every part shares.
 """
 
 from vultron.shadow.dashboard.page.follow import (
@@ -90,14 +92,20 @@ from vultron.shadow.dashboard.page.frame import (
     forget_case,
     render,
 )
-from vultron.shadow.dashboard.page.narrative import NARRATIVE_NOTE
+from vultron.shadow.dashboard.page.narrative import (
+    GRADING_NOTE,
+    HINDSIGHT_NOTE,
+    NARRATIVE_NOTE,
+)
 from vultron.shadow.dashboard.page.points import POINT_KEY, POINT_WIDGET_KEY
 from vultron.shadow.dashboard.page.scoreboard import END_UNCONFIRMED_NOTE
 
 __all__ = [
     "CASE_KEY",
     "END_UNCONFIRMED_NOTE",
+    "GRADING_NOTE",
     "HEARTBEAT_KEY",
+    "HINDSIGHT_NOTE",
     "LAST_READING_KEY",
     "LIVE_NOTE",
     "NARRATIVE_NOTE",
