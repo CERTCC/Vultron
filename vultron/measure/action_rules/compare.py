@@ -78,6 +78,12 @@ class ResultKind(StrEnum):
     UNCLAIMED_MOVE = "unclaimed move"
 
 
+#: The results the case shadow tool and the docs page flag: an authoring
+#: error, or a claim the bands contradict (SHD-06-003).
+FLAGGED: frozenset[ResultKind] = frozenset(
+    {ResultKind.RULE_DISAGREEMENT, ResultKind.MISPLACED_RULE}
+)
+
 #: The results that carry a band, the deciding part and the named changes.
 _BANDED = frozenset({ResultKind.AGREEMENT, ResultKind.RULE_DISAGREEMENT})
 

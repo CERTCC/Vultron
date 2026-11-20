@@ -41,6 +41,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.measure.action_rules.authored import authored_rules
 from vultron.measure.action_rules.compare import (
+    FLAGGED,
     ResultKind,
     RuleResult,
     compare_point,
@@ -55,6 +56,7 @@ from vultron.measure.action_rules.model import (
     AuthoredRule,
     MoveName,
     RulePattern,
+    rule_number,
 )
 from vultron.measure.action_rules.verdicts import VendorPoint, vendor_points
 from vultron.primitives import NonEmptyString
@@ -71,12 +73,6 @@ type OutcomeKind = ResultKind | Literal["undecided", "no result"]
 
 #: The order outcomes are stated in.
 _KIND_ORDER: tuple[OutcomeKind, ...] = (*ResultKind, UNDECIDED, NO_RESULT)
-
-#: The outcomes the page flags: an authoring error, or a claim the bands
-#: contradict (SHD-06-003).
-FLAGGED: frozenset[OutcomeKind] = frozenset(
-    {ResultKind.RULE_DISAGREEMENT, ResultKind.MISPLACED_RULE}
-)
 
 
 class Outcome(BaseModel):
@@ -96,7 +92,7 @@ class Outcome(BaseModel):
 
     @property
     def flagged(self) -> bool:
-        """Whether the page flags it (SHD-06-003)."""
+        """Whether the page flags it (:data:`FLAGGED`, SHD-06-003)."""
         return self.kind in FLAGGED
 
     @property
@@ -314,14 +310,14 @@ def comparison_report(
     points = vendor_points() if points is None else points
     rules = authored_rules() if rules is None else rules
     every = list(dict.fromkeys(_key(p) for p in points))
-    by_rule: dict[int, _Variants] = {}
+    by_rule: dict[int, _Variants] = {}  # by rule number
     by_move: dict[str, _Variants] = {}
     for point in points:
         key = _key(point)
         opened = frozenset(point.open_desiderata or ())
         comparison = compare_point(point, rules)
         for rule in comparison.undecided:
-            by_rule.setdefault(rules.index(rule), {}).setdefault(
+            by_rule.setdefault(rule_number(rule, rules), {}).setdefault(
                 key, []
             ).append((Outcome(kind=UNDECIDED), opened))
         unclaimed: set[str] = set()
@@ -330,7 +326,7 @@ def comparison_report(
                 assert result.move is not None, "an unclaimed move names it"
                 unclaimed.add(result.move)
                 continue
-            by_rule.setdefault(rules.index(result.rule), {}).setdefault(
+            by_rule.setdefault(rule_number(result.rule, rules), {}).setdefault(
                 key, []
             ).append((_outcome(result), opened))
         for name in dict.fromkeys(
@@ -343,12 +339,12 @@ def comparison_report(
                 (Outcome(kind=kind), opened)
             )
     reports = []
-    for index in sorted(by_rule):
-        spans, conditionals = _split(by_rule[index], every)
+    for number in sorted(by_rule):
+        spans, conditionals = _split(by_rule[number], every)
         reports.append(
             RuleReport(
-                number=index + 1,
-                rule=rules[index],
+                number=number,
+                rule=rules[number - 1],
                 spans=tuple(spans),
                 conditionals=tuple(conditionals),
             )
@@ -382,7 +378,6 @@ def _unclaimed(
 __all__ = [
     "ComparisonReport",
     "ConditionalOutcome",
-    "FLAGGED",
     "NO_RESULT",
     "Outcome",
     "OutcomeBranch",

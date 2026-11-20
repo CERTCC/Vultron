@@ -38,7 +38,7 @@ publication, is named by its member of
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from enum import StrEnum
 from functools import cache
 from types import MappingProxyType
@@ -629,16 +629,27 @@ class AuthoredRule(BaseModel):
         return self.action if isinstance(self.action, str) else None
 
     @property
+    def carried_action(self) -> Actions | None:
+        """The ``Actions`` member the rule names, or else the one its source
+        pair carries; ``None`` for a new rule that names a move."""
+        if isinstance(self.action, Actions):
+            return self.action
+        return None if self.source is None else self.source.action
+
+    @property
     def action_label(self) -> str:
         """Its action as text: the ``Actions`` member it names or carries
         over, in words, with the move it names in parentheses: ``Create fix
         (cs.fix_is_ready)``, ``Monitor for attacks``, or a new rule's bare
         move name."""
-        if isinstance(self.action, Actions):
-            return action_words(self.action)
-        if self.source is None:
+        carried = self.carried_action
+        if carried is None:
+            assert isinstance(self.action, str), "a rule naming no Actions"
             return self.action
-        return f"{action_words(self.source.action)} ({self.action})"
+        words = action_words(carried)
+        if isinstance(self.action, Actions):
+            return words
+        return f"{words} ({self.action})"
 
     @property
     def roles_label(self) -> str:
@@ -651,6 +662,21 @@ class AuthoredRule(BaseModel):
         """Whether the rule's roles include *role*; ``None`` is any role,
         which every rule's roles include."""
         return role is None or self.roles == ANY_ROLE or role in self.roles
+
+
+def rule_number(rule: AuthoredRule, rules: Sequence[AuthoredRule]) -> int:
+    """*rule*'s place in *rules*, from 1: the number the docs and the page
+    give it.
+
+    Raises:
+        ValueError: *rule* is not one of *rules*.
+    """
+    return list(rules).index(rule) + 1
+
+
+def rule_label(number: int) -> str:
+    """A rule by its number: ``Rule 12``."""
+    return f"Rule {number}"
 
 
 def action_words(action: Actions) -> str:

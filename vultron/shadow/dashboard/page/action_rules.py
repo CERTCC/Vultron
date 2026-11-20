@@ -52,4 +52,4 @@ def _show_action_rules(
         st.warning(warning)
     _table(rows.checked, view.NO_CHECKED_RULE)
     with st.expander(f"Rules with no number ({len(rows.unnumbered)})"):
-        _table(rows.unnumbered, "None: every matching rule is checked.")
+        _table(rows.unnumbered, view.NO_UNNUMBERED_RULE)

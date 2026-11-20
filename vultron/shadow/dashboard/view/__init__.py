@@ -53,6 +53,7 @@ Each concern has its own module, and every name is imported from here:
 from vultron.shadow.dashboard.view.action_rules import (
     ACTION_RULES_NOTE,
     NO_CHECKED_RULE,
+    NO_UNNUMBERED_RULE,
     RESULT_FLAGS,
     UNDECIDED_FLAG,
     UNDECIDED_REASON,
@@ -124,6 +125,7 @@ from vultron.shadow.dashboard.view.standing import (
 __all__ = [
     "ACTION_RULES_NOTE",
     "NO_CHECKED_RULE",
+    "NO_UNNUMBERED_RULE",
     "RESULT_FLAGS",
     "UNDECIDED_FLAG",
     "UNDECIDED_REASON",

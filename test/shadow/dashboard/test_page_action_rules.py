@@ -168,3 +168,32 @@ def test_a_misplaced_rule_is_flagged_on_the_page():
     results = [r["Result"] for r in _rule_tables(at)["checked"]]
     assert results.count(_MISPLACED) == 2
     assert any("2 flagged results" in str(w.value) for w in at.warning)
+
+
+_NO_VENDOR_PAGE = """
+from test.measure.history.builders import OWNER, Ledger, participant, status
+from vultron.measure.standing import case_standing
+from vultron.shadow.dashboard.page.action_rules import _show_action_rules
+
+ledger = Ledger()
+ledger.genesis(
+    [
+        participant(
+            OWNER, [status("owner-r", OWNER, "RECEIVED")], roles=("CASE_OWNER",)
+        )
+    ],
+    with_embargo=False,
+)
+_show_action_rules(case_standing(ledger.case_ledger()), {})
+"""
+
+
+def test_a_case_with_no_vendor_says_so_in_both_tables():
+    """No vendor has a position, so no rule matches: each table says so and
+    nothing is flagged."""
+    at = AppTest.from_string(_NO_VENDOR_PAGE, default_timeout=_TIMEOUT).run()
+    assert not at.exception
+    captions = [str(c.value) for c in at.caption]
+    assert view.NO_CHECKED_RULE in captions
+    assert view.NO_UNNUMBERED_RULE in captions
+    assert not at.warning

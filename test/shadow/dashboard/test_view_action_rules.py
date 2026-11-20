@@ -12,12 +12,20 @@ from test.measure.history.builders import (
     two_vendors_ledger,
 )
 from vultron.core.scoring.potential_actions import Actions
+from vultron.core.states.cs import CS
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.measure.action_rules import ResultKind, RulePattern
+from vultron.measure.action_rules import (
+    PointComparison,
+    Position,
+    ResultKind,
+    RulePattern,
+    RuleResult,
+)
 from vultron.measure.standing import StandingRecord, case_standing
 from vultron.shadow.dashboard import view
 
@@ -160,3 +168,31 @@ def test_a_rule_outside_the_numbering_table_is_refused(standing):
     comparisons = view.rule_comparisons(standing, [_publish()])
     with pytest.raises(ValueError):
         view.action_rule_rows(comparisons, _NAMES, [])
+
+
+def test_a_result_for_one_open_proposal_names_it():
+    """A rule with a proposal part matches once for each open proposal, so
+    its row names the proposal (SHD-05-020)."""
+    rule = make_rule(
+        action="em.terminate",
+        roles=frozenset({CVDRole.VENDOR}),
+        pattern=RulePattern(em=frozenset({EM.ACTIVE})),
+    )
+    result = RuleResult(
+        kind=ResultKind.MISPLACED_RULE,
+        vendor=BUILT_VENDOR,
+        rule=rule,
+        proposal="urn:uuid:proposal-1",
+        move="em.terminate",
+        reason="em.terminate is made by CASE_OWNER",
+    )
+    comparison = PointComparison(
+        position=Position(
+            vendor=BUILT_VENDOR, rm=RM.ACCEPTED, cs=CS.VFdpxa, em=EM.ACTIVE
+        ),
+        results=(result,),
+    )
+    (row,) = view.action_rule_rows([comparison], _NAMES, [rule]).checked
+    assert row["Note"] == (
+        "for proposal urn:uuid:proposal-1; em.terminate is made by CASE_OWNER"
+    )

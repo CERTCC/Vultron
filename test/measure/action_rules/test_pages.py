@@ -44,6 +44,11 @@ _PAGE = ROOT / "docs/topics/measuring_cvd/action_rule_comparison.md"
 _OTHER_USES = ROOT / "docs/topics/other_uses/action_rules.md"
 
 
+def _pattern_of(math: str) -> str:
+    """The ``vfdpxa`` pattern a table cell's math spells."""
+    return math.strip("$").replace(r"\cdot", ".").replace(" ", "")
+
+
 def _rows(text: str, heading: str | None = None) -> list[list[str]]:
     """The body rows of the table under *heading*, or of the only table."""
     if heading is not None:
@@ -154,7 +159,14 @@ def test_the_authored_table_holds_one_row_for_each_carried_over_rule():
     catalog = move_advice_desiderata()
     for row, (number, rule) in zip(rows, carried, strict=True):
         assert row[0] == str(number)
+        assert _pattern_of(row[1].split("<br/>")[0]) == rule.pattern.cs
+        for part in (rule.pattern.rm, rule.pattern.em, rule.pattern.proposal):
+            for state in part or ():
+                assert state.name in row[1]
+        assert _pattern_of(row[2]) == rule.source.pattern
         assert row[3] == rule.roles_label
+        action = rule.action if rule.move is None else rule.source.action
+        assert row[4] == action.name.replace("_", " ").capitalize()
         assert row[5] == rule.reason.replace("|", r"\|")
         for desideratum in rule.desiderata:
             assert catalog[desideratum].notation in row[6]

@@ -37,6 +37,7 @@ from vultron.measure.action_rules.authored import (
     authored_rules,
 )
 from vultron.measure.action_rules.compare import (
+    FLAGGED,
     FORCED_STEP,
     NO_STATE_CHANGE,
     NOT_MEASURED,
@@ -80,6 +81,8 @@ from vultron.measure.action_rules.model import (
     machine_of,
     move_advice_desiderata,
     move_names,
+    rule_label,
+    rule_number,
     trigger_of,
 )
 from vultron.measure.action_rules.verdicts import (
@@ -104,6 +107,7 @@ __all__ = [
     "ConditionalVerdict",
     "ConsentReading",
     "DesideratumShift",
+    "FLAGGED",
     "FORCED_STEP",
     "GeneratedRule",
     "Machine",
@@ -146,7 +150,9 @@ __all__ = [
     "point_at",
     "point_prefix",
     "resolve_action",
+    "rule_label",
     "rule_move",
+    "rule_number",
     "rules_from",
     "vendor_points",
     "vendor_score",

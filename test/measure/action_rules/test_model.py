@@ -49,6 +49,8 @@ from vultron.measure.action_rules import (
     cs_action_pairs,
     machine_of,
     move_advice_desiderata,
+    rule_label,
+    rule_number,
     trigger_of,
 )
 
@@ -543,3 +545,59 @@ def test_a_move_name_splits_into_its_machine_and_trigger():
     assert trigger_of("cs.fix_is_ready") == "fix_is_ready"
     with pytest.raises(ValueError, match="names no move"):
         trigger_of("em.no_such_trigger")
+
+
+# --- labels the docs and the page share ---
+
+
+def test_a_pattern_label_names_each_part_that_names_states():
+    pattern = RulePattern(
+        cs="VFdp..",
+        rm=frozenset({RM.DEFERRED, RM.ACCEPTED}),
+        em=frozenset({EM.ACTIVE}),
+        in_force=frozenset({EmbargoConsentState.AGREED}),
+        proposal=frozenset({EmbargoConsentState.INVITED}),
+    )
+    assert pattern.label == (
+        "VFdp.. · RM DEFERRED, ACCEPTED · EM ACTIVE"
+        " · in-force PEC AGREED · proposal PEC INVITED"
+    )
+    assert RulePattern().label == "......"
+
+
+@pytest.mark.parametrize(
+    ("fields", "carried", "label"),
+    [
+        (
+            {"action": Actions.MONITOR_FOR_ATTACKS},
+            Actions.MONITOR_FOR_ATTACKS,
+            "Monitor for attacks",
+        ),
+        (
+            {
+                "action": "cs.fix_is_ready",
+                "roles": frozenset({CVDRole.VENDOR}),
+                "pattern": RulePattern(cs="Vfd..."),
+                "source": SourcePair(
+                    pattern="Vfd...", action=Actions.CREATE_FIX
+                ),
+            },
+            Actions.CREATE_FIX,
+            "Create fix (cs.fix_is_ready)",
+        ),
+        ({"action": "cs.fix_is_deployed"}, None, "cs.fix_is_deployed"),
+    ],
+    ids=["action", "carried-move", "new-move"],
+)
+def test_an_action_label_names_the_action_and_any_move(fields, carried, label):
+    rule = make_rule(**fields)
+    assert rule.carried_action == carried
+    assert rule.action_label == label
+
+
+def test_a_rule_is_numbered_by_its_place_in_the_table():
+    rules = authored_rules()
+    assert rule_number(rules[0], rules) == 1
+    assert rule_label(rule_number(rules[-1], rules)) == f"Rule {len(rules)}"
+    with pytest.raises(ValueError):
+        rule_number(make_rule(), rules[:1])

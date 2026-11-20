@@ -39,6 +39,7 @@ from collections.abc import Mapping, Sequence
 from pydantic import BaseModel, ConfigDict
 
 from vultron.measure.action_rules import (
+    FLAGGED,
     AuthoredRule,
     PointComparison,
     ResultKind,
@@ -46,6 +47,8 @@ from vultron.measure.action_rules import (
     authored_rules,
     case_points,
     compare_points,
+    rule_label,
+    rule_number,
 )
 from vultron.measure.standing import StandingRecord
 from vultron.shadow.dashboard.view.bands import size_text
@@ -79,14 +82,14 @@ ACTION_RULES_NOTE = (
     " it.  A rule never removes a move from the bands."
 )
 
+#: What the page says when no rule lacks a number.
+NO_UNNUMBERED_RULE = "None: every matching rule is checked against a band."
+
 #: What the page says when no rule is checked against a band.
 NO_CHECKED_RULE = (
     "No matching rule names a move with a band here, and no harm-free move"
     " is unclaimed."
 )
-
-#: The flagged results.
-_FLAGGED = frozenset({ResultKind.RULE_DISAGREEMENT, ResultKind.MISPLACED_RULE})
 
 
 class RuleRows(BaseModel):
@@ -125,9 +128,7 @@ def _rule_name(
     Raises:
         ValueError: *rule* is not one of *rules*.
     """
-    if rule is None:
-        return "—"
-    return f"Rule {list(rules).index(rule) + 1}"
+    return "—" if rule is None else rule_label(rule_number(rule, rules))
 
 
 def _note(result: RuleResult) -> str:
@@ -222,7 +223,7 @@ def action_rule_rows(
                     )
                 )
                 continue
-            flagged += result.kind in _FLAGGED
+            flagged += result.kind in FLAGGED
             checked.append(_checked_row(result, names, table))
         unnumbered.extend(
             _unnumbered_row(
@@ -252,6 +253,7 @@ def flagged_note(rows: RuleRows) -> str | None:
 __all__ = [
     "ACTION_RULES_NOTE",
     "NO_CHECKED_RULE",
+    "NO_UNNUMBERED_RULE",
     "RESULT_FLAGS",
     "UNDECIDED_FLAG",
     "UNDECIDED_REASON",

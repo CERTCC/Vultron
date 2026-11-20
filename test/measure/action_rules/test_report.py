@@ -28,6 +28,7 @@ from vultron.measure.action_rules import (
     ResultKind,
     authored_rules,
     compare_point,
+    rule_number,
     vendor_points,
 )
 from vultron.measure.action_rules.report import (
@@ -78,35 +79,58 @@ def _stated(report: RuleReport, key: PositionKey) -> set[Outcome]:
     return found
 
 
-@pytest.mark.spec("SHD-06-004")
-def test_the_report_states_every_rules_result_at_every_valid_position():
-    """At each point, each authored rule's result is the one the report
-    states at that position, and a rule that does not match there has no
-    stated outcome."""
+@cache
+def _results() -> dict[int, dict[PositionKey, set[Outcome]]]:
+    """Each rule's outcomes at each position, over every history there."""
     rules = authored_rules()
-    by_number = {r.number: r for r in _report().rules}
+    found: dict[int, dict[PositionKey, set[Outcome]]] = {}
     for point in vendor_points():
         key = _key(point)
         comparison = compare_point(point, rules)
-        got: dict[int, set[Outcome]] = {}
         for result in comparison.results:
-            if result.rule is not None:
-                outcome = Outcome(
-                    kind=result.kind,
-                    reason=result.reason,
-                    blind_spot=result.blind_spot,
-                )
-                got.setdefault(rules.index(result.rule) + 1, set()).add(
-                    outcome
-                )
-        for rule in comparison.undecided:
-            got.setdefault(rules.index(rule) + 1, set()).add(
-                Outcome(kind=UNDECIDED)
+            if result.rule is None:
+                continue
+            outcome = Outcome(
+                kind=result.kind,
+                reason=result.reason,
+                blind_spot=result.blind_spot,
             )
-        for number, report in by_number.items():
-            stated = _stated(report, key)
-            assert got.get(number, set()) <= stated
-            assert bool(stated) == (number in got)
+            number = rule_number(result.rule, rules)
+            found.setdefault(number, {}).setdefault(key, set()).add(outcome)
+        for rule in comparison.undecided:
+            found.setdefault(rule_number(rule, rules), {}).setdefault(
+                key, set()
+            ).add(Outcome(kind=UNDECIDED))
+    return found
+
+
+@pytest.mark.spec("SHD-06-004")
+def test_the_report_states_every_rules_result_at_every_valid_position():
+    """At each position, one span states a rule's one outcome there, or
+    one conditional states its several; a rule that does not match there
+    has no stated outcome."""
+    keys = list(dict.fromkeys(_key(p) for p in vendor_points()))
+    reports = {r.number: r for r in _report().rules}
+    assert set(reports) == set(_results())
+    for number, report in reports.items():
+        results = _results()[number]
+        for key in keys:
+            spans = [
+                s
+                for s in report.spans
+                if any(_covers(p, key) for p in s.patterns)
+            ]
+            here = [c for c in report.conditionals if c.position == key]
+            got = results.get(key, set())
+            if len(got) == 1:
+                assert [s.outcome for s in spans] == list(got)
+                assert here == []
+            elif got:
+                assert spans == []
+                (conditional,) = here
+                assert {b.outcome for b in conditional.branches} == got
+            else:
+                assert spans == [] and here == []
 
 
 def test_the_extension_rule_disagrees_and_cites_its_blind_spot():
@@ -183,8 +207,14 @@ def test_a_conditional_outcome_needs_two_branches():
 
 
 def test_the_report_over_given_points_and_rules_reads_only_them():
-    """Given points and rules, the report compares only those."""
-    rules = authored_rules()[:3]
+    """Given the extension position's points and the #6492 rule alone, the
+    report states that rule's disagreement there and nothing else."""
+    (rule,) = [r for r in authored_rules() if r.blind_spot == 6492]
     points = [p for p in vendor_points() if _key(p) == _EXTENSION]
-    report = comparison_report(points, rules)
-    assert {r.number for r in report.rules} <= {1, 2, 3}
+    report = comparison_report(points, [rule])
+    (only,) = report.rules
+    assert only.number == 1 and only.rule == rule
+    (span,) = only.spans
+    assert span.outcome.kind is ResultKind.RULE_DISAGREEMENT
+    assert all(_covers(p, _EXTENSION) for p in span.patterns)
+    assert only.conditionals == ()
