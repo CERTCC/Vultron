@@ -10,13 +10,16 @@
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
 #  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
 """Render a case preview cut for a projection as a CSAF 2.1 document.
 
 The second step of a projection (ADR-0219): a call site's profile has cut
 the case and its ledger into a
-:class:`~vultron.core.models.case_preview.CasePreview`, and this module
-translates only that preview, with the inputs its call site passes
-(:class:`~vultron.core.models.case_projection_inputs.ProjectionInputs`),
+:class:`~vultron.core.models.case_projection.ProjectionCut`, and this module
+translates only that cut, with the inputs its call site passes
+(:class:`~vultron.core.models.case_projection.ProjectionInputs`),
 into a document of category ``csaf_base``.  It reads no case and no ledger,
 so it cannot show what the profile withheld; it selects, and may leave out a
 value the preview shows because CSAF cannot express it.
@@ -37,7 +40,10 @@ value the preview shows because CSAF cannot express it.
   have a CSAF meaning, by the crosswalk concept mapping
   (``docs/reference/csaf_crosswalk/concept_mapping.md``), becomes one
   ``completed`` action: a ledger entry records a completed act, never an
-  ``attempted`` (an outbox fact) or ``planned`` one.
+  ``attempted`` (an outbox fact) or ``planned`` one.  An action whose CSAF
+  category loses a Vultron distinction says it in its ``summary``: whether an
+  assessment found the report valid, and that a confirmation records
+  acceptance, not only receipt.
 
 The document is built with the generated models (CSAF-05-002).  This module
 imports only core models (ARCH-22-001).
@@ -48,16 +54,17 @@ import json
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import AwareDatetime, JsonValue, TypeAdapter, ValidationError
 
 from vultron.core.models.case_preview import CasePreview
 from vultron.core.models.case_preview_envelope import preview_in_force_entry
-from vultron.core.models.case_projection_inputs import (
+from vultron.core.models.case_projection import (
     Acknowledgment,
     ProjectingActor,
+    ProjectionCut,
     ProjectionInputs,
 )
 from vultron.core.models.events.base import MessageSemantics
@@ -87,6 +94,16 @@ ACTION_CATEGORIES: dict[str, str] = {
     MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value: "dispute",
 }
 
+#: The ``summary`` of an action whose CSAF category loses a Vultron
+#: distinction, by the crosswalk concept mapping.
+ACTION_SUMMARIES: dict[str, str] = {
+    MessageSemantics.VALIDATE_REPORT.value: "The report was found valid.",
+    MessageSemantics.INVALIDATE_REPORT.value: "The report was found invalid.",
+    MessageSemantics.ENGAGE_CASE.value: (
+        "The participant accepted the report for action, not only received it."
+    ),
+}
+
 #: The CSAF category of a party by the first role it holds, in this order.
 _ROLE_CATEGORIES: tuple[tuple[CVDRole, str], ...] = (
     (CVDRole.VENDOR, "vendor"),
@@ -112,7 +129,7 @@ def _shown_text(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def _shown_items(value: object) -> list[Any]:
+def _shown_items(value: object) -> list[object]:
     """The items a shown list holds that are themselves shown objects: an
     item named only by id, or a marker, has nothing to render."""
     value = _shown(value)
@@ -170,16 +187,6 @@ class _Position:
         self.entry_hash = entry_hash
 
 
-def _case_id(preview: CasePreview) -> str:
-    case_id = _shown_text(preview.id_)
-    if case_id is None:
-        raise VultronValidationError(
-            "the preview names no case, so a projection has no identity"
-            " (ADR-0219)"
-        )
-    return case_id
-
-
 def acknowledgments_digest(acknowledgments: Sequence[Acknowledgment]) -> str:
     """A short digest of the caller's acknowledgments, written as canonical
     JSON, for a ``tracking.id``."""
@@ -206,14 +213,15 @@ def tracking_id(
 
 
 def _tracking(
-    preview: CasePreview, inputs: ProjectionInputs, position: _Position
+    cut: ProjectionCut, inputs: ProjectionInputs, position: _Position
 ) -> dict[str, JsonValue]:
+    preview = cut.preview
     date = inputs.position_committed_at.isoformat()
     return {
         "current_release_date": date,
         "id": tracking_id(
-            _case_id(preview),
-            inputs.profile_name,
+            preview.id_,
+            cut.profile_name,
             position.log_index,
             inputs.caller_acknowledgments,
         ),
@@ -251,7 +259,8 @@ def _external_references(references: object) -> list[dict[str, JsonValue]]:
     """Each shown case reference as a CSAF ``external`` reference."""
     rendered: list[dict[str, JsonValue]] = []
     for reference in _shown_items(references):
-        url = _shown_text(getattr(_shown(reference.url), "href", None))
+        link = _shown(getattr(reference, "url", None))
+        url = _shown_text(getattr(link, "href", None))
         if url is None:
             continue
         summary = _shown_text(getattr(reference, "name", None)) or url
@@ -367,23 +376,29 @@ class _Act:
     recipients: tuple[str, ...]
     in_reply_to: str | None
     date: str
+    summary: str | None = None
 
     @property
     def action_id(self) -> str:
         return f"ACT-{self.log_index}"
 
 
-def _read_act(entry: Any) -> _Act | None:
+def _read_act(entry: object) -> _Act | None:
     """The act *entry* records, or ``None`` when it has no CSAF meaning or
     shows too little to be an action: no act id, actor or time."""
-    category = ACTION_CATEGORIES.get(str(_shown(entry.semantic_type) or ""))
-    payload = _shown(entry.payload_snapshot)
+    semantic_type = str(_shown(getattr(entry, "semantic_type", None)) or "")
+    category = ACTION_CATEGORIES.get(semantic_type)
+    payload = _shown(getattr(entry, "payload_snapshot", None))
     if category is None or not isinstance(payload, dict):
         return None
-    act_id = _shown_text(payload.get("id")) or _shown_text(entry.log_object_id)
-    log_index = _shown(entry.log_index)
+    act_id = _shown_text(payload.get("id")) or _shown_text(
+        getattr(entry, "log_object_id", None)
+    )
+    log_index = _shown(getattr(entry, "log_index", None))
     actor = _actor_id(payload.get("actor"))
-    date = _act_date(payload.get("published"), _shown(entry.published))
+    date = _act_date(
+        payload.get("published"), _shown(getattr(entry, "published", None))
+    )
     if (
         act_id is None
         or actor is None
@@ -407,6 +422,7 @@ def _read_act(entry: Any) -> _Act | None:
         recipients=recipients,
         in_reply_to=_actor_id(payload.get("inReplyTo")),
         date=date,
+        summary=ACTION_SUMMARIES.get(semantic_type),
     )
 
 
@@ -495,6 +511,8 @@ def _involvement(preview: CasePreview) -> dict[str, JsonValue] | None:
             action["receiving_entity_refs"] = [
                 entity(recipient) for recipient in act.recipients
             ]
+        if act.summary is not None:
+            action["summary"] = act.summary
         if act.in_reply_to in by_act:
             action["referenced_action_ids"] = [by_act[act.in_reply_to]]
         actions.append(action)
@@ -523,26 +541,29 @@ def _sections(
 
 
 def render_csaf(
-    preview: CasePreview,
+    cut: ProjectionCut,
     inputs: ProjectionInputs,
     *,
     category: CsafCategory = "csaf_base",
 ) -> dict[str, JsonValue]:
-    """Render *preview*, cut for a projection, as a CSAF 2.1 document.
+    """Render *cut* as a CSAF 2.1 document.
 
-    Reads only *preview* and *inputs* (ADR-0219).  The result has been
+    Reads only *cut* and *inputs* (ADR-0219).  The preview's ``id`` is the
+    case's, as both projection profiles include it, and its distribution
+    label and identity name the profile that cut it.  The result has been
     checked by the generated models, written as JSON with no unset or
     ``None`` member.
 
     Raises:
-        VultronValidationError: When the preview names no case or shows no
-            ledger position, so the document has no identity, or the
-            projecting actor's id has no origin.
+        VultronValidationError: When the preview shows no ledger position,
+            so the document has no identity, or the projecting actor's id
+            has no origin.
         pydantic.ValidationError: When the document the preview gives does
             not pass the generated models, which is a defect here.
     """
+    preview = cut.preview
     position = _Position(preview)
-    case_id = _case_id(preview)
+    case_id = preview.id_
     references: list[JsonValue] = [
         _self_reference(case_id, position),
         *_external_references(preview.case_references),
@@ -550,11 +571,11 @@ def render_csaf(
     document: dict[str, JsonValue] = {
         "category": category,
         "csaf_version": CSAF_21_VERSION,
-        "distribution": {"tlp": {"label": inputs.distribution.value}},
+        "distribution": {"tlp": {"label": cut.distribution.value}},
         "publisher": _publisher(inputs.projecting_actor),
         "references": references,
         "title": _shown_text(preview.name) or f"Vultron case {case_id}",
-        "tracking": _tracking(preview, inputs, position),
+        "tracking": _tracking(cut, inputs, position),
         **dict(_sections(preview, inputs)),
     }
     data: dict[str, JsonValue] = {
@@ -574,6 +595,7 @@ def render_csaf(
 __all__ = [
     "ACKNOWLEDGMENTS_DIGEST_LENGTH",
     "ACTION_CATEGORIES",
+    "ACTION_SUMMARIES",
     "CsafCategory",
     "acknowledgments_digest",
     "render_csaf",

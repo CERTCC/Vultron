@@ -26,7 +26,7 @@ from test.support.objects import make
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.case_projection_inputs import ProjectingActor
+from vultron.core.models.case_projection import ProjectingActor
 from vultron.core.models.case_reference import CaseReference, CaseReferenceLink
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics

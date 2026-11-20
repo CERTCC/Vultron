@@ -40,10 +40,12 @@ from test.support.case_projection import (
     projected_case,
     projected_ledger,
 )
+from test.support.objects import make
 from vultron.core.models.case_preview import CasePreview
-from vultron.core.models.case_projection_inputs import (
+from vultron.core.models.case_projection import (
     Acknowledgment,
     ProjectingActor,
+    ProjectionCut,
     ProjectionInputs,
     PublicationStatus,
 )
@@ -53,14 +55,20 @@ from vultron.core.models.case_projection_profile import (
     PUBLIC_PROFILE,
     ProjectionProfile,
 )
+from vultron.core.models.case_reference import CaseReference, CaseReferenceLink
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.redacted import Redacted
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItem,
+    VulnerabilityItemId,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 from vultron.metadata.csaf.pin import PINNED_COPY_DIR, load_pin
 from vultron.wire.csaf.projection import (
     ACTION_CATEGORIES,
+    ACTION_SUMMARIES,
     render_csaf,
     role_category,
     tracking_id,
@@ -109,7 +117,7 @@ def _inputs(profile: ProjectionProfile, **fields: Any) -> ProjectionInputs:
         "projecting_actor": PROJECTOR,
         "position_committed_at": COMMITTED_AT,
     }
-    return ProjectionInputs.for_profile(profile, **{**defaults, **fields})
+    return ProjectionInputs(**{**defaults, **fields})
 
 
 def _preview(profile: ProjectionProfile, **case_fields: Any) -> CasePreview:
@@ -118,14 +126,29 @@ def _preview(profile: ProjectionProfile, **case_fields: Any) -> CasePreview:
     )
 
 
-def _csaf(preview: CasePreview, inputs: ProjectionInputs) -> dict[str, Any]:
+def _cut(preview: CasePreview, profile: ProjectionProfile) -> ProjectionCut:
+    """*preview* as a cut by *profile*, built by hand."""
+    return ProjectionCut(
+        preview=preview,
+        profile_name=profile.name,
+        distribution=profile.distribution,
+    )
+
+
+def _csaf(
+    preview: CasePreview,
+    inputs: ProjectionInputs,
+    profile: ProjectionProfile = PUBLIC_PROFILE,
+) -> dict[str, Any]:
     """The rendered document, read as plain JSON."""
-    rendered: dict[str, Any] = render_csaf(preview, inputs)
+    rendered: dict[str, Any] = render_csaf(_cut(preview, profile), inputs)
     return rendered
 
 
 def _render(profile: ProjectionProfile, **inputs: Any) -> dict[str, Any]:
-    return _csaf(_preview(profile), _inputs(profile, **inputs))
+    cut = ProjectionCut.of(projected_case(), projected_ledger(), profile)
+    rendered: dict[str, Any] = render_csaf(cut, _inputs(profile, **inputs))
+    return rendered
 
 
 def _document(rendered: dict[str, Any]) -> dict[str, Any]:
@@ -191,7 +214,7 @@ def test_the_renderer_needs_no_case_only_a_preview_and_inputs() -> None:
 )
 def test_a_preview_with_no_identity_is_refused(preview: CasePreview) -> None:
     with pytest.raises(VultronValidationError, match="ADR-0219"):
-        render_csaf(preview, _inputs(PUBLIC_PROFILE))
+        _csaf(preview, _inputs(PUBLIC_PROFILE))
 
 
 def test_a_projecting_actor_with_no_origin_is_refused() -> None:
@@ -244,7 +267,9 @@ def test_a_redacted_field_renders_as_an_absence_with_no_note() -> None:
         }
     )
 
-    document = _document(_csaf(preview, _inputs(JOINED_PROFILE)))
+    document = _document(
+        _csaf(preview, _inputs(JOINED_PROFILE), JOINED_PROFILE)
+    )
 
     assert [note["category"] for note in document["notes"]] == ["summary"]
     assert [ref["category"] for ref in document["references"]] == ["self"]
@@ -262,7 +287,7 @@ def test_the_same_inputs_give_an_identical_document(
     preview = _preview(profile)
     inputs = _inputs(profile)
 
-    assert render_csaf(preview, inputs) == render_csaf(preview, inputs)
+    assert _csaf(preview, inputs, profile) == _csaf(preview, inputs, profile)
     assert _render(profile) == _render(profile)
 
 
@@ -273,8 +298,12 @@ def test_the_tracking_id_derives_from_case_profile_and_log_index() -> None:
     assert tracking["id"] == f"{CASE_ID}/public-v1/{POSITION.log_index}"
 
 
-def _tracking_id(preview: CasePreview, inputs: ProjectionInputs) -> str:
-    return str(_document(_csaf(preview, inputs))["tracking"]["id"])
+def _tracking_id(
+    preview: CasePreview,
+    inputs: ProjectionInputs,
+    profile: ProjectionProfile = PUBLIC_PROFILE,
+) -> str:
+    return str(_document(_csaf(preview, inputs, profile))["tracking"]["id"])
 
 
 @pytest.mark.spec("CSAF-06-005")
@@ -292,12 +321,16 @@ def test_a_different_log_index_profile_or_credit_gives_another_id() -> None:
         PUBLIC_PROFILE,
         caller_acknowledgments=[Acknowledgment(names=("Sam Finder",))],
     )
-    bumped = inputs.model_copy(update={"profile_name": "public-v2"})
+    bumped = ProjectionProfile(
+        name="public-v2",
+        distribution=PUBLIC_PROFILE.distribution,
+        fields=PUBLIC_PROFILE.fields,
+    )
 
     ids = [
         _tracking_id(preview, inputs),
         _tracking_id(later, inputs),
-        _tracking_id(preview, bumped),
+        _tracking_id(preview, inputs, bumped),
         _tracking_id(preview, credited),
         _tracking_id(preview, other_credit),
     ]
@@ -467,7 +500,9 @@ def test_an_acts_later_entry_joins_its_first() -> None:
         projected_case(), [first, again], JOINED_PROFILE
     )
 
-    document = _document(_csaf(preview, _inputs(JOINED_PROFILE)))
+    document = _document(
+        _csaf(preview, _inputs(JOINED_PROFILE), JOINED_PROFILE)
+    )
 
     assert [a["action_id"] for a in document["involvement"]["actions"]] == [
         "ACT-0"
@@ -481,7 +516,9 @@ def test_an_act_with_no_actor_is_left_out() -> None:
         projected_case(), [entry], JOINED_PROFILE
     )
 
-    document = _document(_csaf(preview, _inputs(JOINED_PROFILE)))
+    document = _document(
+        _csaf(preview, _inputs(JOINED_PROFILE), JOINED_PROFILE)
+    )
 
     assert "involvement" not in document
 
@@ -493,7 +530,9 @@ def test_an_act_with_no_claimed_time_is_dated_by_its_commit() -> None:
         projected_case(), [entry], JOINED_PROFILE
     )
 
-    document = _document(_csaf(preview, _inputs(JOINED_PROFILE)))
+    document = _document(
+        _csaf(preview, _inputs(JOINED_PROFILE), JOINED_PROFILE)
+    )
     (action,) = document["involvement"]["actions"]
 
     assert datetime.fromisoformat(action["date"]) == COMMITTED_AT
@@ -614,3 +653,120 @@ def test_the_position_is_read_from_the_preview() -> None:
     tracking = _document(_csaf(preview, _inputs(PUBLIC_PROFILE)))["tracking"]
 
     assert tracking["id"].endswith("/public-v1/11")
+
+
+def test_an_action_that_loses_a_distinction_says_it_in_its_summary() -> None:
+    actions = _document(_render(JOINED_PROFILE))["involvement"]["actions"]
+    by_id = {action["action_id"]: action for action in actions}
+
+    assert (
+        by_id["ACT-1"]["summary"]
+        == ACTION_SUMMARIES[MessageSemantics.VALIDATE_REPORT.value]
+    )
+    assert "summary" not in by_id["ACT-0"]
+
+
+def test_a_case_reference_renders_as_an_external_reference() -> None:
+    references = _document(_render(PUBLIC_PROFILE))["references"]
+
+    assert references[1:] == [
+        {
+            "category": "external",
+            "summary": "The vendor's bulletin",
+            "url": "https://vendor.example.org/bulletins/17",
+        }
+    ]
+
+
+def test_a_reference_with_no_name_is_summarized_by_its_url() -> None:
+    reference = make(
+        CaseReference,
+        context=CASE_ID,
+        url=CaseReferenceLink(href="https://example.org/advisory"),
+    )
+    preview = CasePreview.for_projection(
+        projected_case(case_references=[reference]), [], PUBLIC_PROFILE
+    )
+
+    references = _document(_csaf(preview, _inputs(PUBLIC_PROFILE)))[
+        "references"
+    ]
+
+    assert references[1]["summary"] == "https://example.org/advisory"
+
+
+def test_a_vul_items_own_references_render_on_its_vulnerability() -> None:
+    reference = make(
+        CaseReference,
+        context=CASE_ID,
+        name="The item's write-up",
+        url=CaseReferenceLink(href="https://example.org/items/1"),
+    )
+    item = make(
+        VulnerabilityItem,
+        context=CASE_ID,
+        ids=[VulnerabilityItemId.cve("CVE-2026-9999")],
+        references=[reference, "https://example.org/references/by-id"],
+    )
+    preview = CasePreview.for_projection(
+        projected_case(vulnerability_items=[item]), [], PUBLIC_PROFILE
+    )
+
+    rendered = _csaf(preview, _inputs(PUBLIC_PROFILE))
+    (vulnerability,) = rendered["vulnerabilities"]
+
+    assert vulnerability == {
+        "cve": "CVE-2026-9999",
+        "references": [
+            {
+                "category": "external",
+                "summary": "The item's write-up",
+                "url": "https://example.org/items/1",
+            }
+        ],
+    }
+    assert _validator().is_valid(rendered)
+
+
+def test_a_vul_item_with_nothing_shown_is_left_out() -> None:
+    preview = _preview(PUBLIC_PROFILE).model_copy(
+        update={
+            "vulnerability_items": [
+                Redacted(),
+                "https://example.org/items/by-id",
+                {"ids": [Redacted()], "vulNotes": [{"content": Redacted()}]},
+            ]
+        }
+    )
+    preview = CasePreview.model_validate(
+        preview.model_dump(by_alias=True, exclude_none=True)
+    )
+
+    assert "vulnerabilities" not in _csaf(preview, _inputs(PUBLIC_PROFILE))
+
+
+def test_an_act_with_no_time_at_all_is_left_out() -> None:
+    preview = CasePreview.model_validate(
+        {
+            "id": CASE_ID,
+            "ledgerPosition": {"logIndex": 0, "entryHash": "ef"},
+            "ledgerEntries": [
+                {
+                    "type": "CaseLedgerEntry",
+                    "logIndex": 0,
+                    "semanticType": MessageSemantics.SUBMIT_REPORT.value,
+                    "payloadSnapshot": {
+                        "id": "https://example.org/activities/0",
+                        "actor": REPORTER,
+                        "published": "not a time",
+                    },
+                }
+            ],
+        }
+    )
+
+    document = _document(
+        _csaf(preview, _inputs(JOINED_PROFILE), JOINED_PROFILE)
+    )
+
+    assert "involvement" not in document

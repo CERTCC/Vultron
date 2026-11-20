@@ -809,8 +809,10 @@ groups:
     lint_suppress: [compound_statement]
     verification: >-
       `test/wire/csaf/test_projection.py::test_the_renderer_needs_no_case_only_a_preview_and_inputs`
-      renders a preview built by hand, with no case behind it, from the preview
-      and the inputs alone, and
+      renders a preview built by hand, with no case behind it, from the cut
+      and the inputs alone;
+      `test/core/models/test_case_projection_profile.py::test_a_cut_carries_the_name_and_label_of_its_profile`
+      checks that a cut names the profile that made it; and
       `::test_a_preview_with_no_identity_is_refused` checks that a preview that
       shows no ledger position is refused rather than completed from elsewhere.
   - id: CSAF-06-002
@@ -921,7 +923,10 @@ groups:
       Every date in the `document.tracking` of a CSAF projection MUST be the
       commit time of the ledger entry at the preview's position.
     rationale: >-
-      A clock read would give one identifier two documents (ADR-0176).
+      A clock read would give one identifier two documents (ADR-0176). The
+      other dates a projection states are facts the preview shows, not
+      document dates: an action's date is its act's own time and a
+      disclosure date is the end of the embargo in force.
     adr:
     - ADR-0219
     - ADR-0176
@@ -951,21 +956,25 @@ groups:
     statement: >-
       A CSAF projection MUST take its acknowledgments from its caller, or from
       the participants that hold the `REPORTER` role when the caller supplies
-      none.
+      none, and MUST NOT derive them from other case data.
     rationale: >-
       A case records no public credit, so a projection needs an input from
       outside the case; the `REPORTER` default is an implementation choice that
-      ADR-0218 permits.
+      ADR-0218 permits. Any other case data, such as a finder named in a
+      report, is text with no credit meaning (ADR-0078).
     adr:
     - ADR-0219
     - ADR-0218
+    lint_suppress: [compound_statement]
     verification: >-
       `test/wire/csaf/test_projection.py::test_the_document_credits_the_caller_over_the_default`,
       `::test_with_no_caller_credit_the_document_credits_the_default` and
       `::test_a_caller_that_credits_no_one_gives_no_acknowledgments` render each
       case;
       `test/core/models/test_case_projection_profile.py::test_the_default_credit_is_the_reporter_participants`
-      checks that the default names the `REPORTER` participants and no one else.
+      checks that the default names the `REPORTER` participants and no one else,
+      and `::test_a_participant_held_by_id_is_not_credited` that a participant
+      the case holds only by id is not credited.
   - id: CSAF-06-010
     priority: MUST
     kind: project

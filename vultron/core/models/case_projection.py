@@ -13,15 +13,19 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""What a projection's call site passes beside the cut preview (ADR-0219).
+"""A case cut for a projection, and what its call site passes (ADR-0219).
 
-A renderer reads only the preview and these inputs, never the case or its
-ledger, so a renderer cannot show what the profile withheld.  Nothing here
-names a format: a CSAF renderer is the first that reads them, and a CVE
-record or a CERT Vulnerability Note renderer reads the same inputs.
+A renderer reads only a :class:`ProjectionCut` and the call site's
+:class:`ProjectionInputs`, never the case or its ledger, so a renderer cannot
+show what the profile withheld.  Nothing here names a format: a CSAF renderer
+is the first that reads them, and a CVE record or a CERT Vulnerability Note
+renderer reads the same two.
 
-- The profile's versioned name and its distribution label
-  (:class:`~vultron.core.models.case_projection_profile.ProjectionProfile`).
+The cut carries the versioned name and distribution label of the profile
+that made it (:meth:`ProjectionCut.of`), so a document cannot be labelled or
+named by another profile than the one that decided what it holds.  The
+inputs carry the rest:
+
 - The call site's publication status: ``final`` at publication, ``interim``
   for the operator's coordination document.
 - The projecting actor, who publishes the document, and the roles it holds.
@@ -41,7 +45,9 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_preview import CasePreview
 from vultron.core.models.case_projection_profile import (
     DistributionLabel,
     ProjectionProfile,
@@ -98,16 +104,51 @@ class Acknowledgment(_Value):
         return self
 
 
-class ProjectionInputs(_Value):
-    """What a projection's call site passes beside the preview (ADR-0219).
+class ProjectionCut(_Value):
+    """A case and its ledger cut by one projection profile (ADR-0219).
+
+    Built by :meth:`of`, so the name and label are those of the profile
+    that cut :attr:`preview`.
 
     Attributes:
-        profile_name: The versioned name of the profile that cut the preview.
-        distribution: The label the document is shared under.
+        preview: The cut.
+        profile_name: The versioned name of the profile that cut it.
+        distribution: The label every document of the cut is shared under.
+    """
+
+    preview: CasePreview
+    profile_name: NonEmptyString
+    distribution: DistributionLabel
+
+    @classmethod
+    def of(
+        cls,
+        case: VulnerabilityCase,
+        ledger: Sequence[CaseLedgerEntry],
+        profile: ProjectionProfile,
+    ) -> ProjectionCut:
+        """Cut *case* and its *ledger* by *profile*.
+
+        Raises:
+            VultronActivityConstructionError: When a substitution cannot be
+                made (:meth:`~vultron.core.models.case_preview.CasePreview.
+                for_projection`).
+        """
+        return cls(
+            preview=CasePreview.for_projection(case, ledger, profile),
+            profile_name=profile.name,
+            distribution=profile.distribution,
+        )
+
+
+class ProjectionInputs(_Value):
+    """What a projection's call site passes beside the cut (ADR-0219).
+
+    Attributes:
         status: The call site's publication status.
         projecting_actor: The publisher.
         position_committed_at: The commit time of the ledger entry at the
-            preview's position: every date the document states.
+            preview's position: every date the document's tracking states.
         caller_acknowledgments: The credit the caller supplies; ``None`` when
             it supplies none, which is distinct from an empty list, a caller
             that credits no one.
@@ -115,40 +156,11 @@ class ProjectionInputs(_Value):
             supplies none (:func:`reporter_acknowledgments`).
     """
 
-    profile_name: NonEmptyString
-    distribution: DistributionLabel
     status: PublicationStatus
     projecting_actor: ProjectingActor
     position_committed_at: AwareDatetime
     caller_acknowledgments: tuple[Acknowledgment, ...] | None = None
     default_acknowledgments: tuple[Acknowledgment, ...] = ()
-
-    @classmethod
-    def for_profile(
-        cls,
-        profile: ProjectionProfile,
-        *,
-        status: PublicationStatus,
-        projecting_actor: ProjectingActor,
-        position_committed_at: AwareDatetime,
-        caller_acknowledgments: Sequence[Acknowledgment] | None = None,
-        default_acknowledgments: Sequence[Acknowledgment] = (),
-    ) -> ProjectionInputs:
-        """The inputs of a projection cut by *profile*: its name and label,
-        and what the call site passes."""
-        return cls(
-            profile_name=profile.name,
-            distribution=profile.distribution,
-            status=status,
-            projecting_actor=projecting_actor,
-            position_committed_at=position_committed_at,
-            caller_acknowledgments=(
-                None
-                if caller_acknowledgments is None
-                else tuple(caller_acknowledgments)
-            ),
-            default_acknowledgments=tuple(default_acknowledgments),
-        )
 
     @property
     def acknowledgments(self) -> tuple[Acknowledgment, ...]:
@@ -185,6 +197,7 @@ def reporter_acknowledgments(
 __all__ = [
     "Acknowledgment",
     "ProjectingActor",
+    "ProjectionCut",
     "ProjectionInputs",
     "PublicationStatus",
     "reporter_acknowledgments",

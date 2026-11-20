@@ -112,9 +112,13 @@ SHOWN_ENTRY_FIELDS = (
 #: whom, when, and which act it answers.  The activity's ``object``,
 #: ``target`` and any other member are left out, because the snapshot holds
 #: the activity verbatim, and a value the profile withholds elsewhere, such
-#: as an embargo proposal, could otherwise leave the case inside it
-#: (ADR-0219).
+#: as the case bookkeeping or another participant's report, could otherwise
+#: leave the case inside it (ADR-0219).
 SHOWN_PAYLOAD_KEYS = ("id", "type", "actor", "to", "published", "inReplyTo")
+
+#: The kept payload members that name other objects.  Each is cut to the ids
+#: it names, so an object the activity embeds there is not carried whole.
+_REFERENCE_KEYS = frozenset({"actor", "to", "inReplyTo"})
 
 
 @dataclass(frozen=True)
@@ -176,25 +180,37 @@ class ProjectionProfile:
         return kept or None
 
 
+def _named_id(value: object) -> object:
+    """The id *value* names: itself when a string, else an object's ``id``;
+    ``None`` when it names none."""
+    if isinstance(value, Mapping):
+        value = value.get("id")
+    return value if isinstance(value, str) and value else None
+
+
+def _ids_only(value: object) -> object:
+    """*value*, one reference or a list of them, cut to the ids it names."""
+    if isinstance(value, list):
+        named = [_named_id(item) for item in value]
+        return [item for item in named if item is not None] or None
+    return _named_id(value)
+
+
 def _cut_entry(entry: CaseLedgerEntry) -> PreviewObject:
     """*entry* as a projection shows it: its coordinates, its act's label
-    and the envelope of the activity it records."""
-    payload = {
-        key: entry.payload_snapshot[key]
-        for key in SHOWN_PAYLOAD_KEYS
-        if key in entry.payload_snapshot
-    }
+    and the envelope of the activity it records, its references cut to
+    ids."""
+    payload: dict[str, object] = {}
+    for key in SHOWN_PAYLOAD_KEYS:
+        value = entry.payload_snapshot.get(key)
+        if key in _REFERENCE_KEYS:
+            value = _ids_only(value)
+        if value is not None:
+            payload[key] = value
     return to_loose(
         entry.model_copy(update={"payload_snapshot": payload}),
         SHOWN_ENTRY_FIELDS,
     )
-
-
-def _rule(chosen: PreviewOperation) -> PreviewFieldRule:
-    """A row a projection may cut any way; it applies *chosen*."""
-    if chosen is _OP.SUBSTITUTE:
-        raise ValueError("a substitute row names its substitution")
-    return PreviewFieldRule(permitted=_ANY, chosen=chosen)
 
 
 def _substitute(substitution: Substitution) -> PreviewFieldRule:
@@ -204,8 +220,10 @@ def _substitute(substitution: Substitution) -> PreviewFieldRule:
     )
 
 
-_INCLUDE = _rule(_OP.INCLUDE)
-_OMIT = _rule(_OP.OMIT)
+#: A row a projection may cut any way; it shows the value as held.
+_INCLUDE = PreviewFieldRule(permitted=_ANY, chosen=_OP.INCLUDE)
+#: A row a projection may cut any way; it leaves the field out.
+_OMIT = PreviewFieldRule(permitted=_ANY, chosen=_OP.OMIT)
 
 #: The rows the two profiles share, as the field-group table of
 #: ``notes/csaf-projection.md`` lists them.  A projection is not carried in

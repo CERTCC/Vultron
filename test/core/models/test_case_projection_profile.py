@@ -28,6 +28,7 @@ from test.support.case_projection import (
     PAYLOAD_ONLY_VALUE,
     POSITION,
     REPORTER,
+    ledger_entry,
     projected_case,
     projected_ledger,
 )
@@ -41,9 +42,10 @@ from vultron.core.models.case_preview_profile import (
     INVITATION_PROFILE,
     PreviewOperation,
 )
-from vultron.core.models.case_projection_inputs import (
+from vultron.core.models.case_projection import (
     Acknowledgment,
     ProjectingActor,
+    ProjectionCut,
     ProjectionInputs,
     PublicationStatus,
     reporter_acknowledgments,
@@ -287,20 +289,31 @@ _ACTOR = ProjectingActor(id_="https://example.org/actors/a", name="A")
 
 
 def _inputs(**fields: object) -> ProjectionInputs:
-    return ProjectionInputs.for_profile(
-        PUBLIC_PROFILE,
-        status=PublicationStatus.FINAL,
-        projecting_actor=_ACTOR,
-        position_committed_at=projected_case().published,
-        **fields,  # type: ignore[arg-type]
+    return ProjectionInputs.model_validate(
+        {
+            "status": PublicationStatus.FINAL,
+            "projecting_actor": _ACTOR,
+            "position_committed_at": projected_case().published,
+            **fields,
+        }
     )
 
 
-def test_the_inputs_carry_the_profiles_name_and_label() -> None:
-    inputs = _inputs()
+@pytest.mark.parametrize("profile", _PROFILES, ids=lambda p: p.name)
+def test_a_cut_carries_the_name_and_label_of_its_profile(
+    profile: ProjectionProfile,
+) -> None:
+    """A document cannot be named or labelled by another profile than the
+    one that decided what it holds (ADR-0219)."""
+    case, ledger = projected_case(), projected_ledger()
 
-    assert inputs.profile_name == PUBLIC_PROFILE.name
-    assert inputs.distribution is PUBLIC_PROFILE.distribution
+    cut = ProjectionCut.of(case, ledger, profile)
+
+    assert (cut.profile_name, cut.distribution) == (
+        profile.name,
+        profile.distribution,
+    )
+    assert cut.preview == CasePreview.for_projection(case, ledger, profile)
 
 
 @pytest.mark.spec("CSAF-06-009")
@@ -348,3 +361,47 @@ def test_a_reporter_with_no_name_is_credited_by_its_actor() -> None:
     assert reporter_acknowledgments(case) == (
         Acknowledgment(names=(REPORTER,)),
     )
+
+
+def test_a_participant_held_by_id_is_not_credited() -> None:
+    case = projected_case()
+    case.case_participants = [
+        "https://example.org/participants/by-id",
+        *case.case_participants,
+    ]
+
+    assert reporter_acknowledgments(case) == (
+        Acknowledgment(names=(JOINED_ONLY_VALUES["reporter_name"],)),
+    )
+
+
+def test_the_joined_cut_keeps_only_the_ids_an_activity_names() -> None:
+    """An object the activity embeds as its actor, recipient or reply
+    target is cut to its id, so it is not carried whole."""
+    entry = ledger_entry(
+        0,
+        MessageSemantics.SUBMIT_REPORT,
+        actor=REPORTER,
+        to=["https://example.org/actors/v"],
+    )
+    entry.payload_snapshot["actor"] = {"id": REPORTER, "name": "Inline"}
+    entry.payload_snapshot["to"] = [
+        {"id": "https://example.org/actors/v", "summary": "Inline"},
+        {"type": "Note"},
+    ]
+    entry.payload_snapshot["inReplyTo"] = {
+        "id": "https://example.org/activities/x",
+        "type": "Offer",
+        "object": {"content": PAYLOAD_ONLY_VALUE},
+    }
+
+    (cut,) = _entries(
+        CasePreview.for_projection(projected_case(), [entry], JOINED_PROFILE)
+    )
+
+    assert cut["payloadSnapshot"]["actor"] == REPORTER
+    assert cut["payloadSnapshot"]["to"] == ["https://example.org/actors/v"]
+    assert cut["payloadSnapshot"]["inReplyTo"] == (
+        "https://example.org/activities/x"
+    )
+    assert "Inline" not in str(cut)

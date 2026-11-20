@@ -5,6 +5,7 @@ kind: plan
 tracks:
   - "#6706"
   - "#6785"   # products and statuses in the projection
+  - "#6791"
   - "#5130"
   - "#6758"   # epic: CVE record and Vulnerability Note adapters on the same port
 description: >
@@ -38,8 +39,9 @@ A participant produces a CSAF 2.1 document from its replica in two steps: its ca
 site's profile cuts the case into a preview, then a renderer translates the
 preview into CSAF (ADR-0219). Built: the public and joined profiles
 (`vultron/core/models/case_projection_profile.py`), the preview's ledger list and
-`CasePreview.for_projection`, the call site's inputs
-(`vultron/core/models/case_projection_inputs.py`) and the CSAF renderer
+`CasePreview.for_projection`, the cut and the call site's inputs
+(`ProjectionCut`, `ProjectionInputs` in `vultron/core/models/case_projection.py`)
+and the CSAF renderer
 (`vultron/wire/csaf/projection.py`); `specs/csaf-report-content.yaml` CSAF-06
 states their rules. No call site uses them yet.
 
@@ -51,10 +53,12 @@ states their rules. No call site uses them yet.
   core and calls an injected render port that the adapter layer wires to the CSAF
   renderer, in the pattern of `WireRenderPort` (`notes/core-wire-rendering-port.md`).
   It is a new port, not `WireRenderPort`: that port renders one object for
-  delivery, while this one takes the preview with the call site's
+  delivery, while this one takes a `ProjectionCut` with the call site's
   `ProjectionInputs`. A missing port is a wiring error, never a fallback.
 - **The projection port names no format; each format is an adapter.** The port
-  takes the cut preview and `ProjectionInputs`, which name no format; the CSAF
+  takes a `ProjectionCut` (`ProjectionCut.of(case, ledger, profile)`, which carries
+  the profile's name and label so a document cannot be labelled by another
+  profile) and `ProjectionInputs`; neither names a format, and the CSAF
   adapter fixes the category, `csaf_base`. A CVE record drafted at the CVE ID
   assignment call-out and a CERT Vulnerability Note in the VINCE publication
   format are later adapters (#6759, #6760). A port shaped for CSAF would make each
@@ -72,8 +76,8 @@ states their rules. No call site uses them yet.
 
 ## Rendering Rules Not Built Yet
 
-- **Derived involvement statuses.** The renderer makes only `completed` actions,
-  one per act the joined profile keeps. `outstanding`, `deferred` and
+- **Derived involvement statuses (#6791).** The renderer makes only `completed`
+  actions, one per act the joined profile keeps. `outstanding`, `deferred` and
   `discontinued` derive from the state at the preview's position (the crosswalk
   concept mapping, `docs/reference/csaf_crosswalk/concept_mapping.md`); adding one
   bumps the joined profile's version.
