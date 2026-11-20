@@ -13,27 +13,38 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The inputs of a case created from a proposal, filled from its CSAF report.
+"""The inputs of a case created from a proposal.
 
 A ``Create(CaseProposal)`` carries the initial ``Offer(VulnerabilityReport)``
 inline (CP-01-008).  The proposer and the CASE_MANAGER are two roles of the
 one coordinating function that received the report, so the CSAF document on
 that Offer's report is the initial report reaching it, not a document on
-another activity (ADR-0184, CSAF-02-001, CSAF-02-002).  When the proposal
-creates a new case, the CASE_MANAGER fills the case's name, summary, P/X/A
-and proposed embargo end from it, by the one mapping
-:func:`~vultron.core.services.report_case_inputs.case_inputs_from_claims`,
-measured against its own receipt of the proposal: the receiver's receipt
-time travels on no message.
+another activity (ADR-0184, CSAF-02-001, CSAF-02-002).
 
-:class:`ResolveReportCaseInputsNode` runs that mapping ahead of
+A new case's inputs have two sources, and a proposal picks one whole:
+
+- the proposal's ``caseInputs``, when it carries them: the proposer has
+  spoken for every input, so the CASE_MANAGER reads no CSAF document and
+  refills nothing from one (CP-01-024);
+- else the CSAF document on the carried Offer's report, by the one mapping
+  :func:`~vultron.core.services.report_case_inputs.case_inputs_from_claims`
+  (CP-01-025).
+
+Both pass through one date step,
+:func:`~vultron.core.services.report_case_inputs.case_inputs_from_proposal`,
+measured against the act's instant: the CASE_MANAGER judges every date when
+it builds the case, and the receiver's receipt time travels on no message
+(CP-01-023, CSAF-03-001).
+
+:class:`ResolveReportCaseInputsNode` resolves the inputs ahead of
 ``CreateCaseFromProposalNode``, which builds the case from its result;
 :class:`StoreCaseInputClaimsRecordsNode` records, after the case exists, what
-became of each claimed value (CSAF-04-004).  Only this creating side marks a
-value ``applied`` or ``overridden``; the receiver's own record keeps every
-value display only, so no stored record says a value shaped a case it did not
-shape.  Both run only on the new-case arm, so a proposal that resolves to an
-existing case changes nothing from the document (CSAF-02-002, EP-04-029).
+became of each claimed value of a document it read (CSAF-04-004).  Only this
+creating side marks a value ``applied`` or ``overridden``; the receiver's own
+record keeps every value display only, so no stored record says a value
+shaped a case it did not shape.  Both run only on the new-case arm, so a
+proposal that resolves to an existing case changes nothing from its inputs
+(CSAF-02-002, EP-04-029).
 """
 
 from collections.abc import Sequence
@@ -47,6 +58,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models._helpers import embargo_authored_times
 from vultron.core.models.activity_ids import derived_object_id
+from vultron.core.models.case_proposal import ProposedCaseInputs
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report_claims import (
     ClaimsReading,
@@ -56,6 +68,7 @@ from vultron.core.services.report_case_inputs import (
     ReportCaseInputs,
     StatedReportFields,
     case_inputs_from_claims,
+    case_inputs_from_proposal,
     fills_case_inputs,
 )
 
@@ -85,18 +98,22 @@ def csaf_proposed_embargo_id(proposal_id: str) -> str:
 
 
 class ResolveReportCaseInputsNode(DataLayerActionWithPorts):
-    """Fill a new case's inputs from the proposal's carried CSAF report.
+    """Resolve a new case's inputs: the proposal's, else its CSAF report's.
 
     Writes the :class:`ReportCaseInputs` to ``report_case_inputs`` for
-    ``CreateCaseFromProposalNode``.  When the carried Offer has no
-    ``proposedEmbargo`` and the document gives a proposed end, that end
-    becomes the sender's proposal the embargo resolution reads
+    ``CreateCaseFromProposalNode``.  *proposed*, the proposal's
+    ``caseInputs``, is taken whole when given, and no document is read
+    (CP-01-024); otherwise the first ``csaf_vulnerability_report`` reading
+    fills them (CP-01-025).  Either way the disclosure date is judged at the
+    act's instant (CP-01-023).  When the carried Offer has no
+    ``proposedEmbargo`` and the inputs give a proposed end, that end becomes
+    the sender's proposal the embargo resolution reads
     (``sender_proposed_embargo_duration`` and ``sender_proposed_embargo``),
     so it competes with the owner's actor default like any sender proposal
     (CSAF-03-001, EP-04-003).
 
-    With no document to read, it writes the report's own name and summary
-    and reads no clock.  It writes nothing to the store.
+    With neither, it writes the report's own name and summary and reads no
+    clock.  It writes nothing to the store.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -133,42 +150,61 @@ class ResolveReportCaseInputsNode(DataLayerActionWithPorts):
         proposal_id: str,
         readings: Sequence[ClaimsReading],
         stated: StatedReportFields,
+        proposed: ProposedCaseInputs | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
         self._proposal_id = proposal_id
-        self._reading = filling_reading(readings)
+        # All or nothing (CP-01-024): stated inputs leave no document to read.
+        self._reading = (
+            None if proposed is not None else filling_reading(readings)
+        )
         self._stated = stated
+        self._proposed = proposed
 
     def update(self) -> Status:
-        if self._reading is None:
+        if self._proposed is None and self._reading is None:
             self._set_output(
                 REPORT_CASE_INPUTS_KEY,
                 ReportCaseInputs.from_stated(self._stated),
             )
             return Status.SUCCESS
         received_at = self._require_act_instant()
-        inputs = case_inputs_from_claims(
-            self._reading.claims,
-            reference_time=received_at,
-            stated=self._stated,
-        )
+        if self._proposed is not None:
+            inputs = case_inputs_from_proposal(
+                self._proposed,
+                reference_time=received_at,
+                proposed_embargo_end=self._stated.proposed_embargo_end,
+            )
+            source = "the proposal's caseInputs (CP-01-024)"
+        else:
+            assert self._reading is not None
+            inputs = case_inputs_from_claims(
+                self._reading.claims,
+                reference_time=received_at,
+                stated=self._stated,
+            )
+            source = (
+                f"{self._reading.document_format} document"
+                f" '{self._reading.document_id}' (CSAF-02-001, CP-01-025)"
+            )
         self._set_output(REPORT_CASE_INPUTS_KEY, inputs)
         self._propose_csaf_embargo(inputs, received_at)
         self.logger.info(
-            "%s: proposal '%s' fills its new case from %s document '%s':"
-            " name %s, summary %s, P/X/A %s/%s/%s, proposed embargo end %s"
-            " (CSAF-02-001, CSAF-03)",
+            "%s: proposal '%s' fills its new case from %s:"
+            " name %s, summary %s, P/X/A %s/%s/%s, %d item(s),"
+            " %d reference(s), proposed embargo end %s",
             self.name,
             self._proposal_id,
-            self._reading.document_format,
-            self._reading.document_id,
+            source,
             "set" if inputs.name else "unset",
             "set" if inputs.summary else "unset",
             inputs.public,
             inputs.exploit_public,
             inputs.attacks_observed,
+            len(inputs.proposed_items),
+            len(inputs.reference_links),
             (
                 inputs.proposed_embargo_end.isoformat()
                 if inputs.proposed_embargo_end
@@ -180,7 +216,7 @@ class ResolveReportCaseInputsNode(DataLayerActionWithPorts):
     def _propose_csaf_embargo(
         self, inputs: ReportCaseInputs, received_at: datetime
     ) -> None:
-        """Seed the document's embargo end as the sender's proposal.
+        """Seed the disclosure date's embargo end as the sender's proposal.
 
         Only when the Offer proposed none (CSAF-03-001) and the case may
         start under an embargo (EP-04-020).  Its subject is the report until

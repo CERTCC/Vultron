@@ -198,6 +198,107 @@ groups:
     - ADR-0096
     - ADR-0107
     - ADR-0184
+  - id: CP-01-022
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A `CaseProposal` MAY carry, as `caseInputs`, the starting content its proposer
+      states for the case: its name, summary, whether an exploit is public (X), whether
+      attacks are observed (A), its vulnerability items, its case references and the
+      earliest CSAF disclosure date.
+    rationale: >-
+      The proposer is the case owner, and it may review what a CSAF report says before
+      the case exists. Stating the inputs on the proposal lets the CASE_MANAGER build the
+      case the owner reviewed, rather than reading the document again on its own.
+    verification: >-
+      `test/core/models/test_case_proposal.py` round-trips a proposal carrying
+      `caseInputs` through its AS2 form and the wire parser.
+    stories:
+    - story_2026_099
+    adr:
+    - ADR-0184
+  - id: CP-01-023
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A proposer MUST carry the CSAF disclosure date in `caseInputs` as the document
+      states it, and MUST NOT state in `caseInputs` whether the vulnerability is public.
+    rationale: >-
+      Whether the date has passed is decided when the case is built, which can be well
+      after the proposer's receipt when delivery retries. A P flag judged at the
+      proposer's receipt would be stale by then.
+    verification: >-
+      `test/core/models/test_case_proposal.py` refuses a `caseInputs` with a public
+      field, `test/core/services/test_report_case_inputs.py` checks that
+      `proposed_case_inputs_from_claims` keeps a past date as the document states it,
+      and `test_the_stated_date_is_judged_when_the_case_is_created` in
+      `test/core/use_cases/received/test_case_from_csaf_report.py` judges it at case
+      creation.
+    stories:
+    - story_2026_099
+    adr:
+    - ADR-0184
+  - id: CP-01-024
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a proposal carries `caseInputs`, the CASE_MANAGER MUST build the new case from
+      them and MUST NOT read a CSAF document on the proposal's carried Offer.
+    rationale: >-
+      The inputs are all or nothing: their presence means the owner spoke for every
+      input. A per-field fallback to the document would refill a list the owner emptied,
+      and cannot tell an unset X or A from one the owner cleared.
+    verification: >-
+      `test_a_case_is_built_from_the_case_inputs_a_proposal_states` and
+      `test_emptied_inputs_are_never_refilled_from_the_document` in
+      `test/core/use_cases/received/test_case_from_csaf_report.py` build a case from
+      `caseInputs` that differ from the carried Offer's CSAF document, and confirm no
+      claims record is written.
+    stories:
+    - story_2026_099
+    adr:
+    - ADR-0184
+  - id: CP-01-025
+    priority: MAY
+    kind: protocol
+    statement: >-
+      When a proposal carries no `caseInputs`, the CASE_MANAGER MAY fill the case inputs
+      from the CSAF document on the carried Offer (CSAF-02-001, CSAF-03).
+    rationale: >-
+      A proposer that does not convert the document still reaches a case filled from it,
+      since the carried Offer is the initial report reaching the coordinating function
+      (ADR-0184).
+    verification: >-
+      `test/core/use_cases/received/test_case_from_csaf_report.py` fills a case from the
+      carried Offer's CSAF document when the proposal carries no `caseInputs`.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CSAF-02-001
+    stories:
+    - story_2026_099
+    adr:
+    - ADR-0184
+  - id: CP-01-026
+    priority: MUST
+    kind: project
+    statement: >-
+      In this implementation, a report receiver MUST send `caseInputs` on a proposal
+      whose initial report carries a CSAF document of category
+      `csaf_vulnerability_report`, and the CASE_MANAGER MUST apply CP-01-025 to a
+      proposal that carries none.
+    rationale: >-
+      The receiver's conversion is what lets the owner review the inputs before it
+      sends. The CASE_MANAGER's own reading stays as the fallback for a proposer that
+      sends none.
+    verification: >-
+      `test/core/use_cases/received/test_case_from_csaf_report.py` covers the
+      CASE_MANAGER's fallback; the receiver's half is held there by a strict `xfail`
+      until #6723 builds it.
+    relationships:
+    - rel_type: implements
+      spec_id: CP-01-025
+    adr:
+    - ADR-0184
   - id: CP-01-009
     priority: MAY
     kind: protocol

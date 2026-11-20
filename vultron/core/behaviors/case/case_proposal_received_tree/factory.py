@@ -45,6 +45,7 @@ from vultron.core.behaviors.sender_guard import (
     AuthoredCaseProposal,
     SenderCheckContext,
 )
+from vultron.core.models.case_proposal import ProposedCaseInputs
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_claims import ClaimsReading
 from vultron.core.predicates.addressing import normalise_actor_id
@@ -75,6 +76,7 @@ def create_case_proposal_received_tree(
     sender_rule: SenderRule,
     claims_readings: Sequence[ClaimsReading] = (),
     stated_report_fields: StatedReportFields | None = None,
+    case_inputs: ProposedCaseInputs | None = None,
     activity_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(CaseProposal)``.
@@ -244,6 +246,9 @@ def create_case_proposal_received_tree(
             report the carried Offer offered (CSAF-02-001).
         stated_report_fields: What that Offer and its report state for the
             values a CSAF document can fill; they win (CSAF-02-003).
+        case_inputs: The proposal's ``caseInputs``; when given, a new case
+            is built from them and *claims_readings* are not read
+            (CP-01-024).
         activity_id: The ``Create(CaseProposal)`` the claims records name.
 
     Returns:
@@ -276,6 +281,7 @@ def create_case_proposal_received_tree(
         offer_id=offer_id,
         claims_readings=claims_readings,
         stated_report_fields=stated_report_fields,
+        case_inputs=case_inputs,
         activity_id=activity_id,
     )
     closed_case_arm = decline_closed_case_proposal_arm(

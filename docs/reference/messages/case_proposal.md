@@ -40,7 +40,21 @@ That is how a Reporter's proposed embargo terms reach the case-actor (EP-04-004)
   The case-actor refuses an `actor` that is a Link, an untyped or non-actor object, or one naming another actor, at the parse edge (CP-01-015).
 - **Case roles:** the proposal's `proposerCaseRoles` lists the Coordinated Vulnerability Disclosure (CVD) roles the proposer holds in a case it owns, taken from its own configuration (CP-01-011, CP-01-013).
   The case-actor seats the proposer with those roles plus `CASE_OWNER`, and refuses a proposal that claims `CASE_MANAGER` (CP-01-012, [ADR-0133](../../adr/0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md)).
-- **Spec:** CP-01-010, CP-01-011, CP-01-012, CP-01-013, CP-03-001, CP-04-001.
+- **Case inputs:** the proposal may carry `caseInputs`, the starting content the proposer states for the case (CP-01-022).
+  Its fields are `name`, `summary`, `exploitPublic` (X), `attacksObserved` (A), `proposedItems`, `referenceLinks` and `disclosureDate`.
+  Each entry in `proposedItems` is a vulnerability item with no `id` of its own: its `ids`, `name`, `vulNotes` and `referenceLinks`.
+  Each entry in `referenceLinks` is an AS2 `Link` to the referenced resource, and the Link's `name` becomes the case reference's name.
+  `disclosureDate` is the earliest CSAF `vulnerabilities[].disclosure_date`, as the document states it.
+  No field states whether the vulnerability is public (CP-01-023).
+- **When the case-actor reads the CSAF document:** `caseInputs` is all or nothing.
+  When the proposal carries it, the case-actor builds a new case from it and reads no CSAF document on the carried Offer (CP-01-024).
+  An empty `proposedItems` list, or a false `exploitPublic` or `attacksObserved`, stays so, even when the document states otherwise.
+  When the proposal carries no `caseInputs`, the case-actor fills the case inputs from the CSAF document on the carried Offer's report (CP-01-025, CSAF-02-001).
+- **The disclosure date:** the case-actor judges the date when it creates the case.
+  A date no later than that instant makes the case public, and the case starts with no embargo (CSAF-03-003, EP-04-020).
+  A later date is the Reporter's proposed embargo end, unless the Offer carries a `proposedEmbargo`, which wins.
+  That proposed end is then weighed against the Case Owner's actor default, and the shorter one is used (CSAF-03-001, EP-04-003).
+- **Spec:** CP-01-010, CP-01-011, CP-01-012, CP-01-013, CP-01-022, CP-01-023, CP-01-024, CP-01-025, CP-03-001, CP-04-001.
 - **Example artifact:** [create_case_proposal.json](../examples/create_case_proposal.json).
 
 {% include-markdown "./_occasions/sections/accept-case-proposal.md" %}

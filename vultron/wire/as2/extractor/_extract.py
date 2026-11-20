@@ -116,11 +116,16 @@ def _report_claims_kwargs(
     inline Offer yields nothing: the terms are read only from the carried
     Offer (CP-01-021).
 
+    A proposal that carries ``caseInputs`` yields those instead, and no
+    document is read: the proposer has spoken for every input (CP-01-024).
+
     Read at the edge, so core receives claims and never a CSAF document
     (ADR-0032).  An unreadable attachment yields no reading; nothing here
     refuses the activity (CSAF-02-006).
     """
     if isinstance(obj, as_CaseProposal):
+        if obj.case_inputs is not None:
+            return {"case_inputs": obj.case_inputs}
         report = getattr(obj.in_reply_to, "object_", None)
         if not isinstance(report, VulnerabilityReport):
             return {}

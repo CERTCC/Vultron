@@ -270,6 +270,7 @@ class CreateCaseProposalReceivedUseCase:
             proposer_case_roles=request.proposer_case_roles,
             sender_rule=self.sender_entitlement,
             claims_readings=request.claims_readings,
+            case_inputs=request.case_inputs,
             stated_report_fields=_stated_report_fields(
                 request, inline_report, sender_terms
             ),

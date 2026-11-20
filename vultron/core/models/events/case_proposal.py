@@ -24,6 +24,7 @@ from typing import ClassVar, Literal
 from pydantic import Field, field_validator
 
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.case_proposal import ProposedCaseInputs
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.report_claims import ClaimsReading
@@ -57,6 +58,11 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     offered_report_name: NonEmptyString | None = None
     offered_report_summary: NonEmptyString | None = None
     claims_readings: list[ClaimsReading] = Field(default_factory=list)
+    # The starting content the proposer states on the proposal, its
+    # ``caseInputs`` (CP-01-022).  All or nothing: when present, the
+    # CASE_MANAGER builds a new case from it and reads no CSAF document, so
+    # the edge reads none and ``claims_readings`` stays empty (CP-01-024).
+    case_inputs: ProposedCaseInputs | None = None
     # The proposer's actor profile: sent inline as the Create's ``actor``, or
     # named by its id, which the inbox dereferences from the proposer before
     # dispatch and swaps for the fetched profile (CP-01-009, AKM-05-007).  Its
