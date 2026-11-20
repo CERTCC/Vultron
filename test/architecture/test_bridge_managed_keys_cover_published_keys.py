@@ -73,6 +73,7 @@ import pytest
 from py_trees.common import Access
 from py_trees.ports import PortInformation
 
+from test.architecture import _corpus
 from test.architecture._received_tree_builds import built_received_trees
 from test.architecture.test_act_key_vocabulary import (
     _INSTANCE_HOOKS_OUTSIDE_RECEIVED_TREES,
@@ -521,12 +522,13 @@ def test_a_bridge_that_does_not_restore_the_seams_keys_fails_the_check(
     shape: str,
 ) -> None:
     """The AST check passes only the shape that snapshots the seams' keys."""
-    module = ast.parse(
+    module = _corpus.parse_inline(
         "def execute_with_setup(tree, activity, storage, managed_keys):\n"
         + "".join(
             f"    {line}\n" for line in _BRIDGE_SHAPES[shape].split("\n")
         )
     )
+    assert isinstance(module, ast.Module)
     fn = module.body[0]
     assert isinstance(fn, ast.FunctionDef)
     assert _restores_call_out_keys(fn) is (shape == "restores")
