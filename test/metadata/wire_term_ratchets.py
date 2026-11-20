@@ -24,8 +24,3 @@ When an owner Task fixes its fields, it deletes its constant or leaves it
 empty, and the close guard refuses a pull request that closes an owner still
 cited here (ARCH-18-012).
 """
-
-# owner: #6418
-KNOWN_ACTOR_KEY_TERM_VIOLATIONS = frozenset(
-    {"CoreActor.assertionMethod: VM-10-007"}
-)

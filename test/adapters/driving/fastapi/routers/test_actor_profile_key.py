@@ -16,6 +16,7 @@ Each test serves one actor's store with a real app and fetches its profile
 with a plain GET (SIG-02-002).
 """
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
@@ -31,14 +32,19 @@ from test.support.signing import TEST_PROOF_CREATED, published_multikeys
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.driving.fastapi.routers.actors._lookup import (
+    profile_of_record,
+)
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
     hosted_endpoints,
 )
-from vultron.core.models.base.context import VULTRON_CONTEXT_URI
+from vultron.core.models.base.context import DEFAULT_JSONLD_CONTEXT
 from vultron.core.models.multikey import Multikey
+from vultron.metadata.wire_context.pin import ContextTerms, load_all_terms
 from vultron.wire.as2 import signing
+from vultron.wire.as2.vocab.base.base import ACTIVITY_STREAMS_NS
 
 
 def _get(store: Path, segment: str, path: str) -> dict[str, Any]:
@@ -69,25 +75,113 @@ def test_an_unsigned_get_returns_the_profile_with_its_key(tmp_path: Path):
 
 
 @pytest.mark.spec("ENC-01-002")
-def test_the_profile_context_defines_the_key_terms(tmp_path: Path):
-    """The Multikey context follows the profile's own, which stays first.
+def test_the_profile_context_cites_the_key_contexts_after_its_own(
+    tmp_path: Path,
+):
+    """Multikey v1, then Controlled Identifiers v1, follow the profile's own.
 
-    The Vultron context defines no ``assertionMethod``, ``Multikey``,
-    ``controller`` or ``publicKeyMultibase``, so a JSON-LD-expanding verifier
-    would drop the key without it.
+    The profile's own default context stays first, and each key context is
+    cited once.
     """
     profile = _profile(tmp_path / "context.db", "profile-key-context")
 
     context = profile["@context"]
-    assert isinstance(context, list), context
-    assert context[-1] == signing.MULTIKEY_CONTEXT
-    assert context.count(signing.MULTIKEY_CONTEXT) == 1
-    assert VULTRON_CONTEXT_URI in context[:-1]
+    assert context == [
+        *DEFAULT_JSONLD_CONTEXT,
+        signing.MULTIKEY_CONTEXT,
+        signing.CONTROLLED_IDENTIFIERS_CONTEXT,
+    ]
+    assert signing.PROFILE_KEY_CONTEXTS == (
+        signing.MULTIKEY_CONTEXT,
+        signing.CONTROLLED_IDENTIFIERS_CONTEXT,
+    )
     # A list context still validates as the core actor a peer stores.
     assert (
         CoreActor.model_validate(with_times(CoreActor, profile)).context_
         == context
     )
+
+
+def _defined_terms(
+    contexts: list[str], pinned: Mapping[str, ContextTerms]
+) -> tuple[frozenset[str], dict[str, frozenset[str]]]:
+    """The top-level and type-scoped terms the pinned *contexts* define.
+
+    A context with no pinned copy (the Vultron one) contributes nothing: it
+    defines no key term.
+    """
+    cited = [pinned[url] for url in contexts if url in pinned]
+    scoped: dict[str, frozenset[str]] = {}
+    for terms in cited:
+        for scope, names in terms.type_scoped.items():
+            scoped[scope] = scoped.get(scope, frozenset()) | names
+    return frozenset().union(*(t.top_level for t in cited)), scoped
+
+
+@pytest.mark.spec("ENC-01-002")
+@pytest.mark.spec("VM-10-007")
+def test_the_served_profile_key_terms_are_defined_by_its_contexts(
+    tmp_path: Path,
+):
+    """A JSON-LD reader resolves ``assertionMethod`` and the ``Multikey``.
+
+    The terms are read from the pinned copies of the contexts the served
+    profile cites (VM-10-011), so a reader that expands it keeps the key
+    rather than mapping ``assertionMethod`` to a blank node.
+    """
+    profile = _profile(tmp_path / "terms.db", "profile-key-terms")
+    pinned = load_all_terms()
+    top_level, scoped = _defined_terms(profile["@context"], pinned)
+
+    assert "assertionMethod" in profile
+    assert "assertionMethod" in top_level
+    [key] = published_multikeys(profile)
+    assert key["type"] == "Multikey"
+    assert "Multikey" in top_level
+    multikey_terms = top_level | scoped.get("Multikey", frozenset())
+    assert set(key) <= multikey_terms | {"id", "type"}, key
+
+
+@pytest.mark.spec("ENC-01-002")
+def test_without_controlled_identifiers_assertion_method_has_no_term():
+    """Multikey v1 alone leaves ``assertionMethod`` undefined at top level.
+
+    So the Controlled Identifiers context is the one that resolves it, and
+    dropping it from the profile would drop the key for a JSON-LD reader.
+    """
+    pinned = load_all_terms()
+    contexts = [
+        url
+        for url in [*DEFAULT_JSONLD_CONTEXT, *signing.PROFILE_KEY_CONTEXTS]
+        if url != signing.CONTROLLED_IDENTIFIERS_CONTEXT
+    ]
+
+    top_level, _ = _defined_terms(contexts, pinned)
+
+    assert "Multikey" in top_level
+    assert "assertionMethod" not in top_level
+
+
+@pytest.mark.spec("ENC-01-002")
+def test_a_record_context_citing_a_key_context_is_not_repeated():
+    """A record whose context already cites a key context lists it once.
+
+    The record's own entries keep their order, and only the missing key
+    context is appended.
+    """
+    actor_id = canonical_actor_uri("profile-key-cited")
+    record = object_to_record(
+        make(VultronOrganization, id_=actor_id, name="cited")
+    ).model_dump()
+    own_context = [
+        ACTIVITY_STREAMS_NS,
+        signing.CONTROLLED_IDENTIFIERS_CONTEXT,
+    ]
+    record["data_"]["@context"] = own_context
+
+    profile = profile_of_record(record)
+
+    assert profile["@context"] == [*own_context, signing.MULTIKEY_CONTEXT]
 
 
 @pytest.mark.spec("SIG-05-001")
