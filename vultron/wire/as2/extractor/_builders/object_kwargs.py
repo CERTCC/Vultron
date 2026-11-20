@@ -199,7 +199,7 @@ def _build_object_kwargs(
     elif isinstance(obj, EmbargoEvent):
         # Only an EmbargoEvent is an embargo; a plain AS2 Event is not read
         # as one (ADR-0201).
-        kw.update(_build_embargo_event_object(obj, context, target))
+        kw.update(_build_embargo_event_object(obj))
     elif builder := _OBJ_BUILDERS.get(_obj_type):
         kw.update(builder(obj))
     elif (domain_obj := _to_domain_obj(obj)) is not None:

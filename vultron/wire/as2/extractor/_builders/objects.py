@@ -220,23 +220,17 @@ def _build_case_object(obj: object) -> dict[str, Any]:
     return {}
 
 
-def _build_embargo_event_object(
-    obj: EmbargoEvent, context: object, target: object
-) -> dict[str, Any]:
-    """The received embargo *obj*, kept whole, or nothing.
+def _build_embargo_event_object(obj: EmbargoEvent) -> dict[str, Any]:
+    """The received embargo *obj*, kept whole.
 
     Only an ``EmbargoEvent`` is an embargo; a plain AS2 ``Event`` is not
     read as one (ADR-0201).  The parsed object is already the core type
-    (ADR-0099), so every field it carries is kept: the CASE_MANAGER stores
-    the embargo its committed entry carries, and replicas that copy the
-    entry match it (CM-23-016).
+    (ADR-0099), whose ``id`` and ``context`` validated at construction, so
+    every field it carries is kept: the CASE_MANAGER stores the embargo its
+    committed entry carries, and replicas that copy the entry match it
+    (CM-23-016).
     """
-    embargo_context = (
-        _get_id(obj.context) or _get_id(context) or _get_id(target)
-    )
-    if embargo_context and _get_id(obj):
-        return {"object_": obj.model_copy(deep=True)}
-    return {}
+    return {"object_": obj.model_copy(deep=True)}
 
 
 def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
