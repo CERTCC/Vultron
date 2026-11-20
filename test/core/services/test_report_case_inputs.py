@@ -226,12 +226,17 @@ def test_a_vulnerability_item_copies_the_identity_fields() -> None:
     )
     item = vulnerability_item_from_claims(vul, published=_NOW)
     assert item.name == "Overflow"
-    assert [(i.system_name, i.text) for i in item.ids] == [
+    assert [(i.system_name, i.identifier) for i in item.ids] == [
         ("CVE", "CVE-2026-0001"),
         ("VU#", "VU#1"),
     ]
-    [note] = item.notes
-    assert (note.category, note.text, note.title, note.audience) == (
+    [note] = item.vul_notes
+    assert (
+        note.category,
+        note.content,
+        note.name,
+        note.intended_audience,
+    ) == (
         NoteCategory.SUMMARY,
         "It overflows.",
         None,

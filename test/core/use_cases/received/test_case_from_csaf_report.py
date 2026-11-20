@@ -529,13 +529,13 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_item() -> None:
 
     first, second = _items(manager, case)
     # The CSAF ``cve`` is the item's first ``ids`` entry (CM-05-018).
-    assert [(i.system_name, i.text) for i in first.ids] == [
+    assert [(i.system_name, i.identifier) for i in first.ids] == [
         ("CVE", "CVE-2026-0001"),
         ("Example tracker", "EX-17"),
     ]
     assert first.name == "Widget overflow"
-    [note] = first.notes
-    assert (note.category, note.text, note.title) == (
+    [note] = first.vul_notes
+    assert (note.category, note.content, note.name) == (
         NoteCategory.DESCRIPTION,
         "The widget overflows its buffer.",
         "What goes wrong",
@@ -547,7 +547,7 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_item() -> None:
         "The vendor's bulletin",
     )
     # An identifier is copied as written, never read as a CVE (CM-05-008).
-    assert [(i.system_name, i.text) for i in second.ids] == [
+    assert [(i.system_name, i.identifier) for i in second.ids] == [
         ("VU#", "VU#123456")
     ]
     assert second.name == "Widget crash"
@@ -577,7 +577,7 @@ def test_a_vulnerability_with_no_cve_and_no_ids_makes_no_item() -> None:
 
     [item] = _items(manager, case)
     assert ("CVE", "CVE-2026-0001") in [
-        (i.system_name, i.text) for i in item.ids
+        (i.system_name, i.identifier) for i in item.ids
     ]
     [record] = manager.records()
     assert (

@@ -335,7 +335,7 @@ def test_each_vul_item_is_cut_to_its_ids() -> None:
     shown, empty, marked = _dump(preview)["vulnerabilityItems"]
     assert shown == {
         "type": "VulnerabilityItem",
-        "ids": [{"systemName": "CVE", "text": "CVE-2026-1234"}],
+        "ids": [{"systemName": "CVE", "identifier": "CVE-2026-1234"}],
     }
     assert empty == {"type": "VulnerabilityItem", "ids": []}
     assert marked == {"type": "Redacted"}

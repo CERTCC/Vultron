@@ -280,7 +280,7 @@ CUT_DOWN_OBJECTS: dict[str, dict[str, Any]] = {
         "vulnerabilityItems": [
             {
                 "type": "VulnerabilityItem",
-                "ids": [{"systemName": "CVE", "text": "CVE-2026-1234"}],
+                "ids": [{"systemName": "CVE", "identifier": "CVE-2026-1234"}],
             }
         ]
     },
@@ -323,7 +323,7 @@ CUT_DOWN_OBJECTS: dict[str, dict[str, Any]] = {
         "attachment": [
             {
                 "type": "VulnerabilityItem",
-                "ids": [{"systemName": "CVE", "text": "CVE-2026-1234"}],
+                "ids": [{"systemName": "CVE", "identifier": "CVE-2026-1234"}],
             }
         ]
     },
@@ -541,7 +541,7 @@ CUT_PREVIEW: dict[str, Any] = {
     "vulnerabilityItems": [
         {
             "type": "VulnerabilityItem",
-            "ids": [{"systemName": "CVE", "text": "CVE-2026-1234"}],
+            "ids": [{"systemName": "CVE", "identifier": "CVE-2026-1234"}],
         }
     ],
     "content": {"type": "Redacted"},
@@ -618,7 +618,7 @@ TYPELESS_EXTRAS: dict[str, tuple[dict[str, Any], str, str]] = {
                         {
                             "type": "NoSuchType",
                             "systemName": "CVE",
-                            "text": "CVE-2026-1234",
+                            "identifier": "CVE-2026-1234",
                         }
                     ],
                 }

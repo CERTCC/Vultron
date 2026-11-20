@@ -110,7 +110,7 @@ def test_a_tracking_id_and_a_vulnerability_id_never_parse_as_each_other():
     from vultron.core.models.participant_status import ParticipantTrackingId  # type: ignore[attr-defined]
 
     tracking = ParticipantTrackingId(value="SEC-1234", tracker="PSIRT")
-    vul_id = VulnerabilityItemId(system_name="VINCE", text="VU#123456")
+    vul_id = VulnerabilityItemId(system_name="VINCE", identifier="VU#123456")
 
     with pytest.raises(ValidationError):
         VulnerabilityItemId.model_validate(

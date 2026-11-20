@@ -265,7 +265,11 @@ def vulnerability_item_from_claims(
     Its ``ids`` and ``notes`` are copied as claimed, its ``cve`` becoming
     the first ``ids`` entry, with system ``CVE`` (CM-05-018,
     :func:`ids_from_csaf`), and its ``title`` becoming the item's AS2
-    ``name`` (CM-05-018); no identifier is interpreted (CM-05-008).  Each of
+    ``name`` (CM-05-018); no identifier is interpreted (CM-05-008).  The
+    item's names differ from CSAF's where a wire name would mean two things
+    (VM-10-012): an id's ``text`` is its ``identifier``, the ``notes`` are
+    the item's ``vul_notes``, and a note's ``text``, ``title`` and
+    ``audience`` are its ``content``, ``name`` and ``intended_audience``.  Each of
     its references becomes a case reference held inline on the item.  The
     item and its references are stamped *published*, the instant of the act
     that creates them (ADR-0176).
@@ -283,17 +287,19 @@ def vulnerability_item_from_claims(
         ids=ids_from_csaf(
             vul.cve,
             (
-                VulnerabilityItemId(system_name=i.system_name, text=i.text)
+                VulnerabilityItemId(
+                    system_name=i.system_name, identifier=i.text
+                )
                 for i in vul.ids
             ),
         ),
         name=vul.title,
-        notes=[
+        vul_notes=[
             VulnerabilityItemNote(
                 category=note.category,
-                text=note.text,
-                title=note.title,
-                audience=note.audience,
+                content=note.text,
+                name=note.title,
+                intended_audience=note.audience,
             )
             for note in vul.notes
         ],
