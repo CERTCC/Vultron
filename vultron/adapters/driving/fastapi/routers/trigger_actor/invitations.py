@@ -277,11 +277,13 @@ def trigger_reject_full_case_invite(
 @router.post(
     "/{actor_id}/trigger/invite-actor-to-case",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Directly invite an actor to a case.",
+    summary="Invite an actor to a case as its Case Owner.",
     description=(
-        "Sends the case owner's Offer of the invitee, with the offered "
-        "roles, to the case's CASE_MANAGER, which emits and commits the "
-        "Invite (ADR-0109).  The case must exist in the actor's DataLayer."
+        "Sends the Case Owner's own Invite of the invitee, with the offered "
+        "roles, to the case's CASE_MANAGER, which records it and sends its "
+        "own stub Invite to the invitee (ADR-0109, ADR-0199).  A Case Owner "
+        "that is the CASE_MANAGER sends the stub Invite itself.  The roles "
+        "are required, and the case must exist in the actor's DataLayer."
     ),
     operation_id="actors_trigger_invite_actor_to_case",
     response_model=ActivityResult,

@@ -14,7 +14,6 @@ from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 
 if TYPE_CHECKING:
-    from vultron.config.actor import ActorConfig
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
@@ -62,14 +61,12 @@ class OfferActorToCaseReceivedUseCase:
         trigger_activity: TriggerActivityPort | None = None,
         sync_port: SyncActivityPort | None = None,
         wire_render_port: WireRenderPort | None = None,
-        actor_config: ActorConfig | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request = request
         self._trigger_activity = trigger_activity
-        self._actor_config = actor_config
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -105,7 +102,6 @@ class OfferActorToCaseReceivedUseCase:
             case_id=request.case_id,
             offer_content=offer_content,
             suggested_roles=suggested_roles,
-            actor_config=self._actor_config,
             sender_rule=self.sender_entitlement,
         )
         return run_received_tree(

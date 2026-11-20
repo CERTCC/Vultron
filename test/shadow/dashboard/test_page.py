@@ -1,7 +1,8 @@
 """The case shadow tool's page, run headless with Streamlit's ``AppTest``.
 
 The real script over a committed recording shows the case's states,
-desiderata and open moves (AC-1); the move advice reads band by band, with
+desiderata and open moves (AC-1), and each narrative line its hindsight
+mark (#6672); the move advice reads band by band, with
 its shades, marks, harms and unbanded moves (#6603); a fake reader's
 untranslated facts, inferences and unobservable facts are shown beside the
 analysis (AC-2); a read the reader refuses, a ledger with a hole, a reading
@@ -25,6 +26,7 @@ from vultron.config import clear_config_cache, config_override
 from vultron.config.shadow import ShadowConfig
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.advice import (
+    BAND_COLOUR_MAPS,
     CHANCE_EVENT,
     DOMINATED_BY_HARM_FREE,
     HARM_NOTE,
@@ -40,6 +42,7 @@ from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
     END_UNCONFIRMED_NOTE,
     HEARTBEAT_KEY,
+    HINDSIGHT_NOTE,
     LAST_READING_KEY,
     LIVE_NOTE,
     NARRATIVE_NOTE,
@@ -236,12 +239,14 @@ _COLUMNS = {
     ],
     "Case narrative": [
         "#",
+        "Hindsight",
         "Time",
         "Committed",
         "Actor",
         "Activity",
         "Object",
         "State changes",
+        "Hindsight note",
     ],
     "Not translated": ["Source record", "Fact", "Why"],
     "Inferred": ["Entry", "Rule", "Caveat"],
@@ -479,6 +484,43 @@ def test_a_recorded_case_shows_its_narrative_one_line_per_entry(
     assert narrative["Activity"].tolist()[0] == "Case Actor created the case"
     changes = " ".join(narrative["State changes"])
     assert "EM: " in changes and "VFD: " in changes and "PXA: " in changes
+
+
+def test_each_narrative_line_carries_its_hindsight_mark_in_its_shade(
+    recordings_app,
+):
+    """#6672 AC-1: one mark per line, each an icon from the mark table,
+    with the note saying what it graded; a best, good or sub-optimal mark's
+    cell alone takes a shade from its band's legend."""
+    at = recordings_app.run()
+    at.selectbox[0].select("rcvv-embargo/case-actor.jsonl").run()
+    assert not at.exception
+    assert HINDSIGHT_NOTE in _texts(at.caption)
+    narrative = _table(at, "Case narrative")
+    marks = narrative[view.HINDSIGHT_COLUMN].tolist()
+    labels = {f"{icon} {mark}" for mark, icon in view.HINDSIGHT_ICONS.items()}
+    assert set(marks) <= labels
+    assert "⭐ best" in marks and "💬 not a move" in marks
+    notes = narrative[view.HINDSIGHT_NOTE_COLUMN].tolist()
+    assert all(
+        note for mark, note in zip(marks, notes, strict=True) if "💬" in mark
+    )
+    styles = _frame(at, "Case narrative").proto.arrow_data.styler.styles
+    # Only the mark's column is styled, and only on a shaded mark's row.
+    assert set(re.findall(r"_col(\d+)", styles)) == {"1"}
+    assert {int(r) for r in re.findall(r"row(\d+)_col1", styles)} == {
+        row
+        for row, mark in enumerate(marks)
+        if mark.split()[0] in ("⭐", "👍", "⚠️")
+    }
+    shaded = _BACKGROUND.findall(styles)
+    legend_shades = {
+        s.background
+        for colour_map in BAND_COLOUR_MAPS.values()
+        for deepest in range(1, 6)
+        for s in view.band_legend_shades(colour_map, deepest)
+    }
+    assert set(shaded) <= legend_shades
 
 
 #: The tables a scoreboard draws, which follow the picked point.

@@ -321,10 +321,10 @@ def test_each_vul_item_is_cut_to_its_ids() -> None:
     item = make(
         VulnerabilityItem,
         context=CASE_ID,
-        title="Buffer overflow in the parser",
+        name="Buffer overflow in the parser",
         ids=[VulnerabilityItemId.cve("CVE-2026-1234")],
     )
-    bare = make(VulnerabilityItem, context=CASE_ID, title="No ids yet")
+    bare = make(VulnerabilityItem, context=CASE_ID, name="No ids yet")
     held_by_id = "https://example.org/items/by-id"
 
     preview = CasePreview.from_case(

@@ -454,7 +454,7 @@ A computable hash still leaves a targeted-DoS gap; the planned fix is in
 
 ## Snapshots Are the Body Sent
 
-- `EmitInviteActorToCaseNode` commits its entry through
+- The stub Invite emit (`_StubInviteEmitBase`) commits its entry through
   `create_commit_log_entry_tree`, and every entry passes
   `_validate_canonical_entry`; there is no bypass (CLP-04-007).
 - The `payloadSnapshot` is `json.loads(activity_blob)`, the exact blob the outbox

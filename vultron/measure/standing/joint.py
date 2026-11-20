@@ -139,7 +139,7 @@ def _keyed_sequence(
     return keyed
 
 
-def _embargo_end(exit_: CaseEvent | None) -> EmbargoEnd:
+def embargo_end(exit_: CaseEvent | None) -> EmbargoEnd:
     """Why the case's embargo exited, from its exit event.
 
     An embargo that reached its end time ends on its own terms.  An early
@@ -291,7 +291,7 @@ def case_prefix(
     if em is EM.EXITED:
         exits = history.of_kind(HistoryKind.EMBARGO_EXIT)
         exit_ = exits[-1] if exits else None
-        end = _embargo_end(exit_)
+        end = embargo_end(exit_)
         if exit_ is not None:
             position = history.events.index(exit_)
             key = (exit_.log_index, position, 0)

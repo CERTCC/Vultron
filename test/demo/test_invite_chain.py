@@ -542,8 +542,9 @@ def test_step_and_gate_labels_are_pinned(chain_mocks):
 
 
 def test_chain_seeds_stub_summary_on_case_manager_before_inviting(chain_mocks):
-    """The CASE_MANAGER builds the stub Invite from its own case copy, which
-    has no ``stub_summary`` until seeded (CM-17-010, MV-10-001, #4285)."""
+    """The CASE_MANAGER and the inviter build their Invites from their own
+    case copies, which have no ``stub_summary`` until seeded (CM-17-010,
+    MV-10-001, #4285)."""
     order: list[str] = []
     manager_client = MagicMock()
     chain_mocks.invite.side_effect = lambda *a, **k: (
@@ -570,8 +571,10 @@ def test_chain_seeds_stub_summary_on_case_manager_before_inviting(chain_mocks):
         _run(case_manager_client=manager_client)
 
     get_actor.assert_called_once_with(manager_client, "urn:t:case-actor")
-    seed.assert_called_once()
-    assert order == ["seed", "invite"]
+    # The CASE_MANAGER's copy, then the inviter's: the Case Owner's Invite
+    # carries its own preview of the case (CM-17-007, CM-17-010).
+    assert seed.call_count == 2
+    assert order == ["seed", "seed", "invite"]
 
 
 def test_chain_without_case_manager_client_does_not_seed(chain_mocks):

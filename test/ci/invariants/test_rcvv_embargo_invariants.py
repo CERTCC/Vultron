@@ -17,8 +17,9 @@ RCVV-embargo-specific invariants (DEMOMA-21-007):
   as do both of the owner's activations, so the order is checked on the
   entries of each type.
 - the embargo is torn down exactly once, by the CS.P collapse (DEMOMA-21-004).
-- ``invite_actor_to_case`` appears exactly twice (the two vendors; the Reporter
-  is seated when the case is created and is never invited).
+- the two vendors are invited once each: two Case Owner's Invites and the two
+  stub Invites answering them, all ``invite_actor_to_case`` (the Reporter is
+  seated when the case is created and is never invited).
 - ``close_case`` is present and the Vendor2 replica holds the whole log from
   genesis (it joined late).
 
@@ -34,6 +35,7 @@ import pytest
 
 from test.ci.invariants.common import (
     auth_entries,
+    check_case_invitations,
     check_late_joiner_has_full_history,
     check_semantic_type_count,
     check_semantic_type_present,
@@ -210,19 +212,17 @@ def test_rcvv_embargo_torn_down_exactly_once(
 
 
 @pytest.mark.case_ledger_invariants
-def test_rcvv_embargo_invite_actor_to_case_exactly_twice(
+def test_rcvv_embargo_vendors_invited_exactly_once_each(
     rcvv_embargo_replicas: dict[str, list[dict]],
 ) -> None:
-    """``invite_actor_to_case`` appears exactly twice (Vendor1 and Vendor2).
+    """Vendor1 and Vendor2 are invited once each: two Owner's Invites, two stubs.
 
     The Reporter is seated as a participant when the case is created
     (CP-09-002), so only the two vendors are invited.
 
     Spec: DEMOMA-21-008 (phases 1 and 4).
     """
-    violations = check_semantic_type_count(
-        rcvv_embargo_replicas, "invite_actor_to_case", min_count=2, max_count=2
-    )
+    violations = check_case_invitations(rcvv_embargo_replicas, invitee_count=2)
     assert not violations, violations[0] if violations else ""
 
 

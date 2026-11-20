@@ -47,7 +47,12 @@ from vultron.core.ports.clock import BookkeepingClockPort
 from vultron.core.ports.datalayer import StorableRecord
 
 from . import crud, hydration, queries, queues
-from .engine import dispose_actor_engines, get_actor_engine, session_guard
+from .engine import (
+    dispose_actor_engines,
+    get_actor_engine,
+    schema_guard,
+    session_guard,
+)
 from .schema import (
     StoredRow,
     VultronObjectRecord,
@@ -104,7 +109,10 @@ class SqliteDataLayer:
             # would roll back a transaction another thread holds open
             # (#3602).  A store with a transaction open in this thread is
             # already open and its schema checked, so it skips the check.
-            with session_guard(self._engine):
+            # The schema lock serialises this store's openers on both pool
+            # kinds, so two that race on a new store do not both create
+            # its tables (#5999).
+            with session_guard(self._engine), schema_guard(self._engine):
                 SQLModel.metadata.create_all(self._engine)
                 require_outbox_pending_index(self._engine)
 

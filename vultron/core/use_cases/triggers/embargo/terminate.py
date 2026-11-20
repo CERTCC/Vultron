@@ -155,12 +155,14 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
                 case_id=self._case.id_,
                 result_out=self._result_out,
                 activity_builder=_build_activity,
+                actor_config=self._actor_config,
             )
         return terminate_embargo_bt(
             case_id=self._case.id_,
             result_out=self._result_out,
             termination=self._termination,
             activity_builder=_build_activity,
+            actor_config=self._actor_config,
         )
 
     def _handle_result(self) -> None:

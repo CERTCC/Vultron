@@ -32,8 +32,8 @@ from test.support.act_key_inputs import (
     unseeded_key_cases,
 )
 from vultron.core.behaviors.act_keys import (
+    CASE_ACTOR_ID,
     CASE_ID,
-    CASE_MANAGER_ID,
     CAUSE_ID,
     EMBARGO,
     EMBARGO_ID,
@@ -146,7 +146,7 @@ _NODES: list[tuple[NodeBuild, tuple[ActKey, ...]]] = [
         ),
         (CASE_ID,),
     ),
-    (SendTerminateEmbargoActivityNode, (CASE_ID, EMBARGO_ID, CASE_MANAGER_ID)),
+    (SendTerminateEmbargoActivityNode, (CASE_ID, EMBARGO_ID, CASE_ACTOR_ID)),
     (TeardownAskPendingNode, (CASE_ID, EMBARGO_ID)),
     (
         lambda: TerminationCauseIsAdmissibleNode(

@@ -38,8 +38,9 @@ When run as a script, this module will:
 5. Verify side effects in the data layer
 
 Note on puppeteering:
-The vendor asks the CASE_MANAGER to invite the coordinator by trigger, and the
-coordinator answers the Invite the CASE_MANAGER sent and recorded by trigger.
+The vendor sends the CASE_MANAGER its own Invite of the coordinator by trigger,
+and the coordinator answers the stub Invite the CASE_MANAGER sent and recorded
+(ADR-0199), by trigger.
 A reply to an Invite the CASE_MANAGER has no record of is refused (CM-11-017),
 so the demo does not build the Invite or the reply itself.
 """
@@ -198,7 +199,7 @@ def demo_invite_actor_reject(
     """Reject path of the invite-actor-to-case workflow.
 
     ADR-0114 / CM-11-006: the invite-actor-to-case trigger is called first so
-    that ``CreateInertInviteeParticipantNode`` records an inert
+    that the CASE_MANAGER records an inert
     ``CaseParticipant`` for coordinator at invite-send time.  Coordinator
     then rejects the Invite the CASE_MANAGER recorded.  After the Reject,
     ``ApplyInviteRejectToParticipantNode`` closes the inert record at

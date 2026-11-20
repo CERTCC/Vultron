@@ -59,7 +59,6 @@ from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
 from test.support.objects import authored_at, make
 from test.support.received import received_event
-from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -82,7 +81,9 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_preview import preview_embargo_id
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.events.actor import OfferActorToCaseReceivedEvent
+from vultron.core.models.events.actor import (
+    InviteActorToCaseReceivedEvent,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_EXPIRY,
@@ -95,17 +96,17 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
-from vultron.core.use_cases.received.actor.suggest import (
-    OfferActorToCaseReceivedUseCase,
+from vultron.core.use_cases.received.actor.invite import (
+    InviteActorToCaseReceivedUseCase,
 )
-from vultron.core.use_cases.triggers.actor import SvcSuggestActorToCaseUseCase
 from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
-    SuggestActorToCaseTriggerRequest,
     TerminateEmbargoTriggerRequest,
 )
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import remove_embargo_from_case_activity
+from vultron.wire.as2.factories import (
+    remove_embargo_from_case_activity,
+    rm_invite_to_case_activity,
+)
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -489,32 +490,24 @@ def test_manager_refuses_a_reinvite_of_a_closed_participant(
         dl, manager.id_, invitee.id_, RM.CLOSED
     )
     _hold_case_owner(dl, case.id_, manager.id_)
-    offer = activity_of(
-        run_in_act(
-            SvcSuggestActorToCaseUseCase(
-                dl,
-                SuggestActorToCaseTriggerRequest(
-                    actor_id=manager.id_,
-                    case_id=case.id_,
-                    suggested_actor_id=invitee.id_,
-                    roles=[CVDRole.VENDOR],
-                ),
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=SyncActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                clock=SystemClock(),
-            )
-        )
+    # The Case Owner's own Invite, as it arrives (CM-17-007); the trigger
+    # would refuse it before sending, so it is built here.
+    owner_invite = rm_invite_to_case_activity(
+        invitee,
+        case=dl.read_case(case.id_),
+        roles=["vendor"],
+        actor=manager.id_,
+        to=[manager.id_],
+        at=authored_at(),
     )
-    stored = dl.read(offer["id"])
-    event = received_event(stored, at=dl).model_copy(
+    event = received_event(owner_invite, at=dl).model_copy(
         update={"receiving_actor_id": manager.id_}
     )
-    assert isinstance(event, OfferActorToCaseReceivedEvent)
+    assert isinstance(event, InviteActorToCaseReceivedEvent)
     before = set(dl.outbox_list())
 
     result = run_in_act(
-        OfferActorToCaseReceivedUseCase(
+        InviteActorToCaseReceivedUseCase(
             dl,
             event,
             trigger_activity=TriggerActivityAdapter(dl),

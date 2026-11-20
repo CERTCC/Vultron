@@ -260,7 +260,7 @@ def _item(**fields: Any) -> VulnerabilityItem:
     return make(
         VulnerabilityItem,
         context=CASE_ID,
-        title="Buffer overflow",
+        name="Buffer overflow",
         ids=[VulnerabilityItemId.cve("CVE-2026-1234")],
         **fields,
     )

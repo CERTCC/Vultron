@@ -17,8 +17,8 @@
 
 Three containers, as ``test_remote_case_actor_invite`` arranges them, with the
 in-process router instrumented to keep every body it POSTs.  The owner
-triggers ``invite-actor-to-case``, which sends the owner's Offer to the
-CaseActor; the CaseActor emits the Invite (ADR-0109).  Then:
+triggers ``invite-actor-to-case``, which sends the owner's own Invite to the
+CaseActor; the CaseActor emits its stub Invite (ADR-0109, ADR-0199).  Then:
 
 - the body the router delivered to the invitee is the body the adapter
   sealed, byte for byte — the ledger snapshot on the emitting side is that
@@ -192,7 +192,7 @@ class TestTheWireCarriesTheSealedBody:
     ):
         """The router relays the sealed body, so the proof crosses with it.
 
-        The owner's Offer and the CaseActor's Invite both arrive signed, each
+        The owner's Invite and the CaseActor's stub Invite both arrive signed, each
         verifying by its sender's published key (#5382).
         """
         topo, router = recorded_topology

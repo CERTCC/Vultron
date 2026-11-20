@@ -262,13 +262,13 @@ def vulnerability_item_from_claims(
 ) -> VulnerabilityItem:
     """The vulnerability item *vul* becomes, field for field (CSAF-03-008).
 
-    Its ``ids``, ``title`` and ``notes`` are copied as claimed, its ``cve``
-    becoming the first ``ids`` entry, with system ``CVE`` (CM-05-018,
-    :func:`ids_from_csaf`), and no identifier is interpreted (CM-05-008);
-    each of its references becomes a case reference held inline on the
-    item.  The item and its references
-    are stamped *published*, the instant of the act that creates them
-    (ADR-0176).
+    Its ``ids`` and ``notes`` are copied as claimed, its ``cve`` becoming
+    the first ``ids`` entry, with system ``CVE`` (CM-05-018,
+    :func:`ids_from_csaf`), and its ``title`` becoming the item's AS2
+    ``name`` (CM-05-018); no identifier is interpreted (CM-05-008).  Each of
+    its references becomes a case reference held inline on the item.  The
+    item and its references are stamped *published*, the instant of the act
+    that creates them (ADR-0176).
 
     Raises:
         ValueError: when *vul* names no vulnerability
@@ -287,7 +287,7 @@ def vulnerability_item_from_claims(
                 for i in vul.ids
             ),
         ),
-        title=vul.title,
+        name=vul.title,
         notes=[
             VulnerabilityItemNote(
                 category=note.category,

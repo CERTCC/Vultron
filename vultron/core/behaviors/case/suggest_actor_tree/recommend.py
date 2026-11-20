@@ -21,19 +21,15 @@ recommending participant (CM-16-001..004).
 
 import py_trees
 
-from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import CASE_ID, SENDER_ID
 from vultron.core.behaviors.case.nodes.actor import (
-    EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
-from vultron.core.behaviors.case.nodes.invite_inert_participant import (
-    CreateInertInviteeParticipantNode,
+from vultron.core.behaviors.case.nodes.owner_invite import (
+    RecommenderIsNotCaseOwnerNode,
 )
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
-from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
-    ReinviteAwaitingNode,
-    ReinviteNotToClosedParticipantNode,
-)
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     ActorAlreadyParticipantNode,
     EmitAcceptActorRecommendationNode,
@@ -48,10 +44,8 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case_id_scope import with_case_id
-from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import SenderCheckContext
-from vultron.enums.roles import CVDRole
 
 
 def create_recommend_actor_to_case_received_tree(
@@ -61,45 +55,38 @@ def create_recommend_actor_to_case_received_tree(
     case_id: str,
     offer_content: str | None = None,
     suggested_roles: list[str] | None = None,
-    actor_config: ActorConfig | None = None,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Offer(Actor)[target=VulnerabilityCase] on the CASE_MANAGER's
     inbox.
 
-    Refuses, before any commit, the recommendation of a removed participant:
-    it is sent no stub Invite, and only the Case Owner's
-    ``Add(CaseParticipant)`` reinstates it (CM-31-013, CM-31-011).  Refuses
-    the same way a recommendation whose suggested roles name
+    The recommendation is a suggestion the Case Owner decides (CM-16-001).
+    The Case Owner's own decision to invite is its
+    ``Invite(<case preview>)[target=<invitee>]`` (CM-17-007), so an Offer
+    from the Case Owner is refused with the refusal notice, before any
+    commit: the decision has one wire form (ADR-0199).  Refuses the same way
+    the recommendation of a removed participant: it is sent no stub Invite,
+    and only the Case Owner's ``Add(CaseParticipant)`` reinstates it
+    (CM-31-013, CM-31-011).  And a recommendation whose suggested roles name
     ``CASE_MANAGER`` or ``CASE_OWNER``: an invitation confers neither, and
-    the roles are never stripped (CM-20-008).  Otherwise
-    commits a canonical ``CaseLedgerEntry`` for the received Offer
-    (CM-16-002), then routes to one of six branches via a Selector:
+    the roles are never stripped (CM-20-008).  Otherwise commits a canonical
+    ``CaseLedgerEntry`` for the received Offer (CM-16-002), then routes to
+    one of four branches via a Selector:
 
-    0. **Re-invite** — the recommender holds ``CVDRole.CASE_OWNER`` and the
-       recommended actor has an inert record that has not answered (or whose
-       stub Invite expired): send a fresh stub Invite on that record with a
-       new deadline, ahead of every duplicate arm (CM-11-015).  Before any
-       arm, an owner's re-invite of a participant at ``RM.CLOSED`` is refused
-       (CM-11-015, ADR-0085).
     1. **AC-7b** — already participant: auto-accept to recommender (CM-16-009).
     2. **AC-7a** — invite in-flight: auto-accept to recommender (CM-16-009).
     3. **AC-6** — pending Case Owner decision: record the reinforcing note
        as the CASE_MANAGER's own ``add_note_to_case`` entry, no second Offer
        (CM-16-008, CM-16-016).
-    4. **Owner-direct** — the recommender holds ``CVDRole.CASE_OWNER``: the
-       recommender is also the decider, so evaluate roles (the offered ones
-       when the Offer carries any) and emit the ``Invite`` directly, committed
-       in this tree (CM-17-006, CM-17-007, ADR-0109).  Forwarding the Offer to
-       the owner would only ask the owner a question it has already answered.
-    5. **Fresh path** — evaluate default roles and forward
+    4. **Fresh path** — evaluate default roles and forward
        ``Offer(CaseParticipant)`` to the Case Owner (CM-16-003, CM-16-004).
 
     Tree structure::
 
         RecommendActorToCaseBT (Sequence, memory=False)
         ├── ReceivedPathNode                     — manager path only (HP-01-038)
+        ├── RecommenderIsNotCaseOwner            — CM-17-007 guard
         ├── SuggestedActorAdmissible (Sequence, memory=False)
         │   ├── SuggestedActorNotRemoved          — CM-31-013 guard
         │   └── SuggestedRolesGrantable           — CM-20-008 guard
@@ -115,11 +102,7 @@ def create_recommend_actor_to_case_received_tree(
                     │                   EmitAcceptActorRecommendationNode)
                     ├── AC-6:  Sequence(PendingOfferCaseParticipantNode,
                     │                   EmitNoteDuplicateRecommendationToOwnerNode)
-                    ├── Owner: Sequence(ActorHoldsRoleInCaseNode(recommender),
-                    │                   EvaluateDefaultRolesNode,
-                    │                   EmitInviteActorToCaseNode)
-                    └── Fresh: Sequence(Inverter(ActorHoldsRoleInCaseNode),
-                                        EvaluateDefaultRolesNode,
+                    └── Fresh: Sequence(EvaluateDefaultRolesNode,
                                         EmitOfferCaseParticipantToOwnerNode)
 
     The tree declares the CASE_MANAGER path alone, so the path stage refuses
@@ -146,12 +129,8 @@ def create_recommend_actor_to_case_received_tree(
             (``roles``), as the CASE_MANAGER stored it.  The
             precondition guard refuses them when they name ``CASE_MANAGER``
             or ``CASE_OWNER`` (CM-20-008); otherwise they are injected into
-            the role Evaluator on the re-invite, owner-direct and fresh
-            paths, and ``None`` leaves the choice to the Evaluator's default
-            (CM-16-003).
-        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
-            the reply deadline of every stub Invite it sends (CM-11-014,
-            CM-28-012).  ``None`` applies the ``ActorConfig`` defaults.
+            the role Evaluator on the fresh path, and ``None`` leaves the
+            choice to the Evaluator's default (CM-16-003).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
@@ -213,126 +192,10 @@ def create_recommend_actor_to_case_received_tree(
         ],
     )
 
-    reinvite = py_trees.composites.Sequence(
-        name="OwnerReinvite",
-        memory=False,
-        children=[
-            with_case_id(
-                ActorHoldsRoleInCaseNode(
-                    actor_id=recommender_id,
-                    role=CVDRole.CASE_OWNER,
-                    name="RecommenderIsCaseOwnerForReinvite",
-                ),
-                case_id,
-            ),
-            ReinviteAwaitingNode(invitee_id=recommended_id, case_id=case_id),
-            EvaluateDefaultRolesNode(
-                suggested_actor_id=recommended_id,
-                case_id=case_id,
-                recommendation_id=recommendation_id,
-                injected_roles=suggested_roles,
-                require_explicit_roles=True,
-            ),
-            # The record already exists and is on the roster, so only the
-            # Invite goes out: no new participant, no Add(CaseParticipant).
-            EmitInviteActorToCaseNode(
-                invitee_id=recommended_id,
-                case_id=case_id,
-                attributed_to=recommender_id,
-                recommendation_id=recommendation_id,
-                # CM-11-015: the fresh stub replaces the earlier one, so
-                # there is one live stub per invitee.
-                replaces_previous_stub=True,
-                actor_config=actor_config,
-                # A retry for the same Offer rebuilds the same Invite
-                # (OX-06-002).
-                answers=recommendation_id,
-            ),
-        ],
-    )
-
-    # CM-11-043: the owner may not re-invite a participant at RM.CLOSED.
-    # Anyone else's suggestion is answered as before.
-    closed_is_not_reinvited = py_trees.composites.Selector(
-        name="ReinviteIsNotToClosedParticipant",
-        memory=False,
-        children=[
-            py_trees.decorators.Inverter(
-                name="RecommenderIsNotCaseOwnerForReinvite",
-                child=with_case_id(
-                    ActorHoldsRoleInCaseNode(
-                        actor_id=recommender_id,
-                        role=CVDRole.CASE_OWNER,
-                        name="RecommenderHoldsCaseOwnerForReinvite",
-                    ),
-                    case_id,
-                ),
-            ),
-            ReinviteNotToClosedParticipantNode(
-                invitee_id=recommended_id, case_id=case_id
-            ),
-        ],
-    )
-
-    owner_direct_invite = py_trees.composites.Sequence(
-        name="OwnerDirectInvite",
-        memory=False,
-        children=[
-            with_case_id(
-                ActorHoldsRoleInCaseNode(
-                    actor_id=recommender_id,
-                    role=CVDRole.CASE_OWNER,
-                    name="RecommenderIsCaseOwner",
-                ),
-                case_id,
-            ),
-            EvaluateDefaultRolesNode(
-                suggested_actor_id=recommended_id,
-                case_id=case_id,
-                recommendation_id=recommendation_id,
-                injected_roles=suggested_roles,
-                # CM-11-019: the Case Owner's direct invite MUST give explicit
-                # roles; no VENDOR default for the owner-direct path.
-                require_explicit_roles=True,
-            ),
-            EmitInviteActorToCaseNode(
-                invitee_id=recommended_id,
-                case_id=case_id,
-                attributed_to=recommender_id,
-                recommendation_id=recommendation_id,
-                actor_config=actor_config,
-                # A retry for the same Offer rebuilds the same Invite
-                # (OX-06-002).
-                answers=recommendation_id,
-            ),
-            # AC-1: record the inert participant at invite-send time
-            # (ADR-0114, CM-11-006).
-            CreateInertInviteeParticipantNode(
-                invitee_id=recommended_id,
-                case_id=case_id,
-                recommendation_id=recommendation_id,
-            ),
-        ],
-    )
-
-    # The fresh path re-checks that the recommender is *not* the owner, so an
-    # owner-direct emit that fails does not fall through to forwarding the
-    # owner's own Offer back to it: the failure surfaces instead.
     fresh_path = py_trees.composites.Sequence(
         name="FreshRecommendation",
         memory=False,
         children=[
-            py_trees.decorators.Inverter(
-                name="RecommenderIsNotCaseOwner",
-                child=with_case_id(
-                    ActorHoldsRoleInCaseNode(
-                        actor_id=recommender_id,
-                        role=CVDRole.CASE_OWNER,
-                        name="RecommenderHoldsCaseOwner",
-                    ),
-                    case_id,
-                ),
-            ),
             EvaluateDefaultRolesNode(
                 suggested_actor_id=recommended_id,
                 case_id=case_id,
@@ -353,11 +216,9 @@ def create_recommend_actor_to_case_received_tree(
         name="DuplicateOrFreshSelector",
         memory=False,
         children=[
-            reinvite,
             ac7b_already_participant,
             ac7a_invite_in_flight,
             ac6_pending_offer,
-            owner_direct_invite,
             fresh_path,
         ],
     )
@@ -378,6 +239,14 @@ def create_recommend_actor_to_case_received_tree(
             sender_id=recommender_id, case_id=case_id
         ),
         precondition_guards=[
+            # The Case Owner decides with its own Invite, so its Offer is
+            # refused: the decision has one wire form (CM-17-007, ADR-0199).
+            with_act_keys(
+                RecommenderIsNotCaseOwnerNode(
+                    name="RecommenderIsNotCaseOwner"
+                ),
+                {CASE_ID: case_id, SENDER_ID: recommender_id},
+            ),
             # The admission check is the CASE_MANAGER's adjudication; the
             # tree runs nowhere else (HP-01-038).
             case_manager_admits_suggested_actor_guard(
@@ -385,10 +254,9 @@ def create_recommend_actor_to_case_received_tree(
                 recommended_id=recommended_id,
                 case_id=case_id,
                 suggested_roles=suggested_roles,
-            )
+            ),
         ],
         manager_effects=[
-            closed_is_not_reinvited,
             RecordRecommendationRecommenderNode(
                 recommendation_id=recommendation_id,
                 recommender_id=recommender_id,
