@@ -27,7 +27,6 @@ from test.support.future_dates import days_from_now
 from test.support.objects import authored_at, make
 from test.support.received import stamped
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.embargo_termination import EndTimeReachedCause
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2 import factories as F
@@ -219,7 +218,8 @@ BUILDERS: dict[str, Callable[[], as_Activity]] = {
     "Remove(EmbargoEvent)": lambda: F.remove_embargo_from_case_activity(
         _embargo(),
         origin=_case(),
-        cause=EndTimeReachedCause(),
+        # No cause: a Remove whose object is cut, naming a cause, is refused
+        # for the cause (EMB-13-005), not for the slot under test.
         **_sent(),
     ),
     "Add(Note)": lambda: F.add_note_to_case_activity(
