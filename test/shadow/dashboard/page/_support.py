@@ -1,16 +1,21 @@
-"""What the page tests share: the fake case's page script, the tables a
-page draws and what its scoreboard shows."""
+"""What the page tests share: the fake case's page script, the page run
+over one ledger file, the tables a page draws and the shades in their
+styles, what its scoreboard shows and its point picker."""
 
 from __future__ import annotations
 
 import re
 from typing import TYPE_CHECKING
 
-from test.shadow.dashboard._support import texts
+from streamlit.testing.v1 import AppTest
+
+from test.shadow.dashboard._support import TIMEOUT, texts
+from vultron.config import config_override
+from vultron.shadow.dashboard.app import APP_PATH
 from vultron.shadow.dashboard.page import END_UNCONFIRMED_NOTE
 
 if TYPE_CHECKING:
-    from streamlit.testing.v1 import AppTest
+    from pathlib import Path
 
 #: The page over the fake case reader's one case.
 FAKE_PAGE = """
@@ -19,6 +24,16 @@ from vultron.shadow.dashboard.page import render
 
 render(FakeCaseReader({FAKE_CASE: fake_case_records()}))
 """
+
+
+def page_over_file(ledger_dir: Path, name: str) -> AppTest:
+    """The page over the ledgers in *ledger_dir*, run with the file *name*
+    picked."""
+    with config_override(VULTRON_SHADOW__LEDGER_DIR=str(ledger_dir)):
+        at = AppTest.from_file(str(APP_PATH), default_timeout=TIMEOUT).run()
+        at.selectbox[0].select(name).run()
+    return at
+
 
 #: Each table's columns, which tell the tables apart.
 COLUMNS = {

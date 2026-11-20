@@ -19,18 +19,17 @@ from test.shadow.dashboard._support import (
 from test.shadow.dashboard.page._support import (
     BACKGROUND,
     FAKE_PAGE,
+    page_over_file,
     page_table,
     point_picker,
     scoreboard,
 )
 from test.support.ledger_stream import recording_rows
-from vultron.config import config_override
 from vultron.measure.advice import case_advice
 from vultron.measure.baselines import scope_desiderata
 from vultron.measure.standing import DesideratumStatus
 from vultron.shadow.analysis import point_analysis
 from vultron.shadow.dashboard import minimap, view
-from vultron.shadow.dashboard.app import APP_PATH
 from vultron.shadow.dashboard.page import END_UNCONFIRMED_NOTE, POINT_KEY
 from vultron.shadow.dashboard.view import (
     DESIDERATA_NOTE,
@@ -44,9 +43,7 @@ def _cut_page(tmp_path, recording, count: int) -> AppTest:
     """The page over a copy of *recording* cut after *count* entries."""
     rows = recording.read_text().splitlines()[:count]
     (tmp_path / "cut.jsonl").write_text("\n".join(rows) + "\n")
-    with config_override(VULTRON_SHADOW__LEDGER_DIR=str(tmp_path)):
-        at = AppTest.from_file(str(APP_PATH), default_timeout=TIMEOUT).run()
-        at.selectbox[0].select("cut.jsonl").run()
+    at = page_over_file(tmp_path, "cut.jsonl")
     assert not at.exception
     return at
 

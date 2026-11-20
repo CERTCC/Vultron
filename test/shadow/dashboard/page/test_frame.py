@@ -11,9 +11,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from test.shadow.dashboard._support import TIMEOUT, texts
-from test.shadow.dashboard.page._support import FAKE_PAGE
-from vultron.config import config_override
-from vultron.shadow.dashboard.app import APP_PATH
+from test.shadow.dashboard.page._support import FAKE_PAGE, page_over_file
 from vultron.shadow.dashboard.page import TITLE
 
 _SPY_PAGE = """
@@ -66,9 +64,7 @@ def test_the_page_reads_the_case_only_through_read_case():
 
 def test_a_case_the_reader_refuses_shows_every_reason(tmp_path):
     (tmp_path / "bad.jsonl").write_text("not json\n{}\n")
-    with config_override(VULTRON_SHADOW__LEDGER_DIR=str(tmp_path)):
-        at = AppTest.from_file(str(APP_PATH), default_timeout=TIMEOUT).run()
-        at.selectbox[0].select("bad.jsonl").run()
+    at = page_over_file(tmp_path, "bad.jsonl")
     assert not at.exception
     (error,) = texts(at.error)
     assert "Cannot read a case from bad.jsonl (2 violation(s))" in error

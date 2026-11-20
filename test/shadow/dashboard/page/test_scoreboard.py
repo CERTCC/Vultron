@@ -17,13 +17,11 @@ from test.shadow.dashboard._support import (
     recording_analysis,
     texts,
 )
-from test.shadow.dashboard.page._support import page_table
-from vultron.config import config_override
+from test.shadow.dashboard.page._support import page_over_file, page_table
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.advice import Band
 from vultron.measure.baselines import scope_desiderata
 from vultron.shadow.dashboard import minimap
-from vultron.shadow.dashboard.app import APP_PATH
 from vultron.shadow.dashboard.view import (
     BAND_EMPTY,
     DESIDERATA_NOTE,
@@ -242,9 +240,7 @@ def test_a_ledger_with_a_hole_shows_the_hole_not_a_standing(tmp_path):
     (tmp_path / "holed.jsonl").write_text(
         "\n".join(rows[:2] + rows[3:]) + "\n"
     )
-    with config_override(VULTRON_SHADOW__LEDGER_DIR=str(tmp_path)):
-        at = AppTest.from_file(str(APP_PATH), default_timeout=TIMEOUT).run()
-        at.selectbox[0].select("holed.jsonl").run()
+    at = page_over_file(tmp_path, "holed.jsonl")
     assert not at.exception
     assert any("has a hole" in e for e in texts(at.error))
     assert "- Missing log indices: [2]" in texts(at.markdown)
