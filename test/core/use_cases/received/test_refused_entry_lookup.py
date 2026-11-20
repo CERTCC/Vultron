@@ -237,3 +237,87 @@ def test_commits_lookup_case_needs_a_lookup() -> None:
             precondition_guards=[],
             commits_lookup_case=False,
         )
+
+
+@pytest.mark.spec("BT-25-010")
+@pytest.mark.spec("BT-17-007")
+def test_a_found_entry_does_not_leak_into_the_next_run() -> None:
+    """The bridge restores every key the lookup publishes, so a later fault
+    naming no entry is refused by the miss guard, not admitted on a stale
+    entry."""
+    net, announce_id = _announced("refused-entry-no-leak")
+    _look_up(net, MANAGER, announce_id)
+    storage = py_trees.blackboard.Blackboard.storage
+    assert all(
+        storage.get(key.path) is None
+        for key in (CASE_ID, REFUSED_ENTRY, ANNOUNCE_ID)
+    )
+
+    guard = RefusedLedgerEntryFound(
+        answer="re-seed", requirement="SYNC-16-003"
+    )
+    tree = py_trees.composites.Sequence(
+        "LookupAndGuard",
+        memory=False,
+        children=[FindRefusedLedgerEntry(), guard],
+    )
+    result = run_tree(
+        BTBridge(datalayer=net.stores[MANAGER]),
+        tree=tree,
+        actor_id=MANAGER,
+        activity=SimpleNamespace(failed_activity_id=None),
+    )
+
+    assert result.status is Status.FAILURE
+    assert guard.declared_refusal == unnamed_entry_reason(
+        answer="re-seed", requirement="SYNC-16-003"
+    )
+
+
+@pytest.mark.spec("HP-01-036")
+@pytest.mark.spec("HP-01-041")
+def test_an_entry_whose_case_this_store_lacks_is_refused_on_the_no_case_side() -> (
+    None
+):
+    """The lookup finds the entry but the store holds no case for it: the
+    path stage reads the no-case path, the miss guard admits the found
+    entry, and the sender guard's no-case side, which admits no sender,
+    refuses it (HP-01-036).  Not reached in practice: the CASE_MANAGER
+    stores every Add it sends beside the case."""
+    from test.support.objects import authored_at, make
+    from test.support.received import delivered_body
+    from vultron.core.models.fault_classes import (
+        VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
+    )
+    from vultron.core.models.use_case_result import HandlerDisposition
+    from vultron.wire.as2.factories import create_processing_fault_activity
+    from vultron.wire.as2.vocab.objects.processing_fault import (
+        as_ProcessingFault,
+    )
+
+    net, announce_id = _announced("refused-entry-case-missing")
+    fault = create_processing_fault_activity(
+        actor=BYSTANDER,
+        fault=make(
+            as_ProcessingFault,
+            failure_class=VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
+            in_reply_to=announce_id,
+        ),
+        to=[MANAGER],
+        at=authored_at(),
+    )
+
+    store = net.stores[MANAGER]
+    case = store.read(net.case_id)
+    assert case is not None
+    assert store.delete("VulnerabilityCase", net.case_id)
+    try:
+        verdict = net.receive(MANAGER, delivered_body(fault))
+    finally:
+        # The network's own checks expect the case back.
+        store.save(case)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    reason = verdict.reason or ""
+    assert "No sender is entitled" in reason
+    assert "names no Add(CaseLedgerEntry)" not in reason

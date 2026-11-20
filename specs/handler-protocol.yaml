@@ -950,7 +950,9 @@ groups:
       report-scoped verdict is such a type: its tree finds the report's case at
       run time (BT-25-009), so a receiver that holds none is on the no-case path.
       A verdict the CASE_MANAGER applies (InvalidateReport) has a sender rule whose
-      `outside_case` side admits no sender there.
+      `outside_case` side admits no sender there. A refused-entry ledger fault is
+      such a type too: it carries no case (ASK-07-006), and its tree finds the
+      case from the refused entry at run time.
     rationale: >-
       A case-scoped message that arrives before its case is not an error: the inbox
       holds it until the case is known (IO-02-001). Declaring the no-case branch for
@@ -970,6 +972,10 @@ groups:
       `test/core/behaviors/case/test_received_path_stage.py::test_a_no_case_declaration_on_a_run_time_case_must_admit_no_sender`
       asserts the factory refuses that declaration with a side that admits a
       sender.
+      `test/core/behaviors/test_declared_received_paths.py::test_the_declared_paths_are_pinned`
+      pins the two ledger-fault trees to the manager and no-case paths, and
+      `test/core/use_cases/received/test_refused_entry_lookup.py` drives a fault
+      whose entry was found but whose case this store lacks to the empty side.
     relationships:
     - rel_type: depends_on
       spec_id: HP-01-038
@@ -981,6 +987,9 @@ groups:
     - spec_id: BT-25-009
       reason: 'an example: how a report-scoped tree learns its case, which puts a
         receiver without one on the no-case path'
+    - spec_id: ASK-07-006
+      reason: 'an example: a ledger fault carries no case, so the inbox delivers
+        it without its case being known'
   - id: HP-01-042
     priority: MUST
     kind: architecture

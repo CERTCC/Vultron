@@ -38,7 +38,7 @@ is no exemption list.
 """
 
 import ast
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 import pytest
@@ -175,12 +175,96 @@ def _is_super_init(func: ast.expr) -> bool:
     )
 
 
+#: Each function or class under ``received/``, by name: the function, or
+#: the class's ``__init__`` (``None`` when it has none) with its base names.
+type _Definitions = dict[
+    str, list[tuple[ast.FunctionDef | ast.AsyncFunctionDef | None, list[str]]]
+]
+
+
+def definitions_in(trees: Iterable[ast.AST]) -> _Definitions:
+    """The callables a store may be handed to, from *trees*."""
+    found: _Definitions = {}
+    for tree in trees:
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                found.setdefault(node.name, []).append((node, []))
+            elif isinstance(node, ast.ClassDef):
+                init = next(
+                    (
+                        n
+                        for n in node.body
+                        if isinstance(
+                            n, (ast.FunctionDef, ast.AsyncFunctionDef)
+                        )
+                        and n.name == "__init__"
+                    ),
+                    None,
+                )
+                bases = [
+                    b.id if isinstance(b, ast.Name) else ast.unparse(b)
+                    for b in node.bases
+                ]
+                found.setdefault(node.name, []).append((init, bases))
+    return found
+
+
+def _initialisers(
+    name: str, definitions: _Definitions, depth: int = 0
+) -> list[ast.FunctionDef | ast.AsyncFunctionDef] | None:
+    """The functions a call of *name* runs with its arguments, or ``None``
+    when one cannot be found (a class whose ``__init__`` lies outside
+    ``received/``)."""
+    candidates = definitions.get(name)
+    if not candidates or depth > 8:
+        return None
+    found: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
+    for fn, bases in candidates:
+        if fn is not None:
+            found.append(fn)
+            continue
+        inherited = [
+            _initialisers(base.partition("[")[0], definitions, depth + 1)
+            for base in bases
+        ]
+        resolved = [fns for fns in inherited if fns is not None]
+        if not resolved:
+            return None
+        found.extend(resolved[0])
+    return found
+
+
+def _receives_a_store(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef,
+    position: int | None,
+    keyword: str | None,
+) -> bool:
+    """Whether *fn*'s parameter at *position* (or named *keyword*) is one
+    this scan checks as a store."""
+    params = [*fn.args.posonlyargs, *fn.args.args]
+    if params and params[0].arg in ("self", "cls"):
+        params = params[1:]
+    if keyword is not None:
+        name = keyword
+    elif position is not None and position < len(params):
+        name = params[position].arg
+    else:
+        return False
+    return name in _store_parameters(fn)
+
+
 def _allowed_use(
     node: ast.expr,
     parents: dict[ast.AST, ast.AST],
     allowed_callees: frozenset[str],
+    definitions: _Definitions,
 ) -> bool:
-    """Whether the store reference *node* is kept or handed on, not used."""
+    """Whether the store reference *node* is kept or handed on, not used.
+
+    A store handed to a callable under ``received/`` must land in a
+    parameter this scan checks as a store, so the callee's own uses are
+    checked in turn.
+    """
     parent = parents.get(node)
     if isinstance(parent, ast.Assign) and all(
         _is_self_attr(t) for t in parent.targets
@@ -189,15 +273,22 @@ def _allowed_use(
     call = parents.get(parent) if isinstance(parent, ast.keyword) else parent
     if not isinstance(call, ast.Call) or node is call.func:
         return False
-    if not (
-        node in call.args or any(kw.value is node for kw in call.keywords)
-    ):
+    position = next((i for i, a in enumerate(call.args) if a is node), None)
+    keyword = next((kw.arg for kw in call.keywords if kw.value is node), None)
+    if position is None and keyword is None:
         return False
     func = call.func
     if _is_super_init(func):
         return True
-    return isinstance(func, ast.Name) and (
-        func.id == _RUNNER or func.id in allowed_callees
+    if not isinstance(func, ast.Name):
+        return False
+    if func.id == _RUNNER:
+        return True
+    if func.id not in allowed_callees:
+        return False
+    callees = _initialisers(func.id, definitions)
+    return bool(callees) and all(
+        _receives_a_store(fn, position, keyword) for fn in callees or ()
     )
 
 
@@ -216,12 +307,26 @@ def _is_store_reference(
     )
 
 
-def store_violations(tree: ast.AST, rel: str, package: str) -> list[str]:
+def store_violations(
+    tree: ast.AST,
+    rel: str,
+    package: str,
+    *,
+    definitions: _Definitions | None = None,
+    store_attributes: frozenset[str] = frozenset(),
+) -> list[str]:
     """Each store use or ``BTBridge`` reference in module *rel* the rule
-    forbids, as ``rel:line: what``."""
+    forbids, as ``rel:line: what``.
+
+    *definitions* are the callables under ``received/`` (this module's
+    alone by default) and *store_attributes* the ``self`` attributes any
+    module there keeps a store in, so a subclass reading a base's store
+    attribute is checked too.
+    """
     parents = _parents(tree)
     allowed = _local_definitions(tree) | _received_imports(tree, package)
-    attrs = _store_attributes(tree, parents)
+    attrs = _store_attributes(tree, parents) | store_attributes
+    defs = definitions if definitions is not None else definitions_in([tree])
     found: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.alias) and _BRIDGE in (node.name, node.asname):
@@ -237,6 +342,7 @@ def store_violations(tree: ast.AST, rel: str, package: str) -> list[str]:
             node,  # type: ignore[arg-type]
             parents,
             allowed,
+            defs,
         ):
             context = parents.get(node)
             shown = ast.unparse(context if context is not None else node)
@@ -273,6 +379,10 @@ def test_no_received_use_case_reaches_the_store_or_the_bridge() -> None:
         if _store_attributes(tree, _parents(tree))
     ]
     assert kept, "corpus drifted: no received use case keeps a store"
+    definitions = definitions_in(tree for _, tree in modules)
+    attributes = frozenset().union(
+        *(_store_attributes(tree, _parents(tree)) for _, tree in modules)
+    )
     violations = [
         line
         for path, tree in modules
@@ -280,6 +390,8 @@ def test_no_received_use_case_reaches_the_store_or_the_bridge() -> None:
             tree,
             path.relative_to(_corpus.REPO_ROOT).as_posix(),
             _corpus.package_of(path),
+            definitions=definitions,
+            store_attributes=attributes,
         )
     ]
     assert not violations, (
@@ -347,9 +459,43 @@ _PKG = f"{_RECEIVED_PACKAGE}.fault"
             "    def execute(self):\n"
             "        return run_offer_reply_tree(dl=self._dl, request=r)\n"
             "class Other:\n"
-            "    pass\n",
+            "    def __init__(self, dl: CasePersistence, request):\n"
+            "        self._dl = dl\n"
+            "# the imported helper, as the corpus-wide index finds it\n"
+            "def run_offer_reply_tree(*, dl: CaseOutboxPersistence, request):\n"
+            "    return run_received_tree(t, dl=dl, request=request)\n",
             [],
             id="handed-to-super-a-sibling-and-a-received-helper",
+        ),
+        pytest.param(
+            "def _peek(thing):\n"
+            "    return thing.read('x')\n"
+            "class UC:\n"
+            "    def __init__(self, dl: CasePersistence, request):\n"
+            "        self._dl = dl\n"
+            "    def execute(self):\n"
+            "        return _peek(self._dl)\n",
+            ["m.py:7: _peek(self._dl)"],
+            id="store-into-an-unchecked-local-parameter",
+        ),
+        pytest.param(
+            "class Helper:\n"
+            "    def __init__(self, store: CasePersistence):\n"
+            "        self._store = store\n"
+            "class UC:\n"
+            "    def __init__(self, dl: CasePersistence, request):\n"
+            "        self._helper = Helper(dl)\n",
+            [],
+            id="store-into-a-checked-constructor-parameter",
+        ),
+        pytest.param(
+            "class Opaque:\n"
+            "    pass\n"
+            "class UC:\n"
+            "    def __init__(self, dl: CasePersistence, request):\n"
+            "        self._x = Opaque(dl)\n",
+            ["m.py:5: Opaque(dl)"],
+            id="store-into-a-class-whose-init-is-not-found",
         ),
         pytest.param(
             "class UC:\n"
@@ -386,3 +532,16 @@ def test_detector(source: str, expected: list[str]) -> None:
         store_violations(_corpus.parse_inline(source), "m.py", _PKG)
         == expected
     )
+
+
+@pytest.mark.spec("HP-01-044")
+def test_a_store_attribute_kept_by_a_base_is_checked_in_a_subclass() -> None:
+    """A subclass in another module reads the store its base kept."""
+    sub = _corpus.parse_inline(
+        "class Sub(Base):\n"
+        "    def execute(self):\n"
+        "        return self._dl.read('x')\n"
+    )
+    assert store_violations(
+        sub, "m.py", _PKG, store_attributes=frozenset({"_dl"})
+    ) == ["m.py:3: self._dl.read"]
