@@ -314,10 +314,13 @@ class SenderRule:
         receiver acts on the message.
 
         For a message type addressed to the CASE_MANAGER alone, whose tree
-        declares the manager path only (HP-01-038): a participant replica
+        declares the manager path (HP-01-038): a participant replica
         learns of the change from the ledger fan-out, never from a copy of
         the message (PCR-03-001, RSH-08-003), so the path stage refuses it
-        before any side is read (HP-01-005, HP-01-039).
+        before any side is read (HP-01-005, HP-01-039).  A tree that finds
+        its case at run time may declare the no-case path too, where the
+        empty ``outside_case`` side admits no sender (HP-01-041): the report
+        verdicts and the ledger faults.
         """
         return cls(at_case_manager=any_of(*kinds))
 

@@ -57,13 +57,14 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
+from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     cooldown_elapsed,
     read_replication_state,
     update_replication_state,
 )
-from vultron.core.models._helpers import _as_id, as_utc
+from vultron.core.models._helpers import as_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
@@ -73,16 +74,13 @@ from vultron.core.sync_helpers import sorted_case_ledger_entries
 from vultron.errors import (
     VultronBTInternalError,
     VultronError,
-    VultronNotFoundError,
 )
-from vultron.primitives import same_actor_id
 
 __all__ = [
     "RESEED_COOLDOWN_SECONDS",
     "ReportRepeatDivergenceNode",
     "ReseedPeerNode",
     "announce_case_to_peer",
-    "announced_ledger_entry",
     "record_reseed",
     "should_reseed",
 ]
@@ -159,39 +157,7 @@ def announce_case_to_peer(
     )
 
 
-def announced_ledger_entry(
-    datalayer: CasePersistence, announce_id: str, announcer_id: str
-) -> CaseLedgerEntry:
-    """The ``CaseLedgerEntry`` *announcer_id*'s ``Add`` *announce_id* carried.
-
-    A fault about a refused ledger entry names the refused
-    ``Add(CaseLedgerEntry)`` by reference and carries no case
-    (ASK-07-004, ASK-07-006).  The CASE_MANAGER stored that ``Add`` when it
-    sent it, so the entry, and with it the case and its index, is read from
-    there.  Only an ``Add`` *announcer_id* sent counts: one this store
-    merely received names nothing *announcer_id* sent the peer.
-
-    Raises:
-        VultronNotFoundError: This store holds no ``Add`` of a
-            ``CaseLedgerEntry`` by *announcer_id* under *announce_id*.
-    """
-    activity = datalayer.read(announce_id)
-    sender = _as_id(getattr(activity, "actor", None))
-    if (
-        getattr(activity, "type_", None) != "Add"
-        or not isinstance(sender, str)
-        or not same_actor_id(sender, announcer_id)
-    ):
-        raise VultronNotFoundError("Add(CaseLedgerEntry)", announce_id)
-    entry: object = getattr(activity, "object_", None)
-    if isinstance(entry, str):
-        entry = datalayer.read(entry)
-    if not isinstance(entry, CaseLedgerEntry):
-        raise VultronNotFoundError("Add(CaseLedgerEntry)", announce_id)
-    return entry
-
-
-class ReseedPeerNode(_EmitSingleActivityBase):
+class ReseedPeerNode(DeclaredRefusalMixin, _EmitSingleActivityBase):
     """Send the peer ``Announce(VulnerabilityCase)`` of its case, rate-bounded.
 
     The case is ``/case_id`` and the peer is ``/sender_id``, the sender of
@@ -199,7 +165,8 @@ class ReseedPeerNode(_EmitSingleActivityBase):
 
     Returns SUCCESS whether or not it sends, and says which it was:
     ``withheld`` when the peer is not an active participant, so it is sent
-    no case content (CM-10-004); ``rate_limited`` when the peer was
+    no case content (CM-10-004), unless *refuses_withheld_peer* makes that a
+    declared refusal (below); ``rate_limited`` when the peer was
     re-seeded within the cooldown (SYNC-16-004); ``reseeded`` when this run
     queued a copy.  The copy, its outbox entry and the record of its ledger
     position (:func:`record_reseed`) are written in one transaction, so a
@@ -210,6 +177,13 @@ class ReseedPeerNode(_EmitSingleActivityBase):
     actor's own fault, never the peer's, so it raises
     :class:`~vultron.errors.VultronBTInternalError` with nothing written
     (BT-14-001).
+
+    A tree whose re-seed is the whole answer to the sender's request (the
+    case-diverged fault, SYNC-16-003) passes *refuses_withheld_peer*: a
+    withheld peer then fails the node with a declared refusal naming the
+    case (CM-10-004), so the verdict is the node's, never a reader's
+    (ADR-0195).  A re-seed that is one part of a larger answer (the stale
+    ledger-position answer) leaves it off and keeps ``withheld`` a success.
 
     Authored as the executing actor; it belongs inside a CASE_MANAGER gate
     (BT-17-008).
@@ -229,8 +203,15 @@ class ReseedPeerNode(_EmitSingleActivityBase):
             **act_key_remappings(CASE_ID, SENDER_ID),
         }
 
-    def __init__(self, name: str | None = None) -> None:
+    def __init__(
+        self,
+        name: str | None = None,
+        *,
+        refuses_withheld_peer: bool = False,
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        self.refuses_withheld_peer = refuses_withheld_peer
+        """Whether a withheld peer is a declared refusal, not a success."""
         self.reseeded = False
         """True when the last run queued the case copy."""
         self.withheld = False
@@ -263,6 +244,11 @@ class ReseedPeerNode(_EmitSingleActivityBase):
                 self.peer_id,
                 self.case_id,
             )
+            if self.refuses_withheld_peer:
+                return self._refuse(
+                    f"the sender is not an active participant of case"
+                    f" '{self.case_id}'; no case copy sent (CM-10-004)"
+                )
             return Status.SUCCESS
         if not should_reseed(
             datalayer, case_id=self.case_id, peer_id=self.peer_id, at=at

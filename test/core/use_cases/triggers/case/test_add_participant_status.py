@@ -38,6 +38,10 @@ from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.rm import RM
 from vultron.errors import VultronValidationError
 
+TRACKING_IDS_PENDING = (
+    "CM-35: participant tracking IDs are not built yet. Tracked by #6762."
+)
+
 # ---------------------------------------------------------------------------
 # Test stubs
 # ---------------------------------------------------------------------------
@@ -156,11 +160,13 @@ def _seed_copied_status(
     vf: CS_vf | None = None,
     d: CS_d | None = None,
     pxa: CS_pxa | None = None,
+    **fields: object,
 ) -> None:
     """Append a status to the record as a replica's copy of the entry would.
 
     The baseline a later trigger validates against: a trigger's own write no
-    longer moves the record (RSH-08-003, CM-23-016).
+    longer moves the record (RSH-08-003, CM-23-016). *fields* are passed to
+    the status as given, for a field the dimensions above do not name.
     """
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.core.models.case_status import CaseStatus
@@ -183,6 +189,7 @@ def _seed_copied_status(
             if pxa is not None
             else None
         ),
+        **fields,
     )
     dl.create(status)
     participant.participant_statuses.append(status)
@@ -1011,6 +1018,52 @@ class TestCreateParticipantStatusNode:
         assert isinstance(stored, ParticipantStatus)
         # No prior statuses → defaults to RM.START
         assert stored.rm.state == RM.START
+
+    def _latest_tracking_values(self, result_out: dict) -> list[str]:
+        """The tracking-ID values of the status *result_out* names."""
+        from vultron.core.models.participant_status import ParticipantStatus
+
+        stored = self.dl.read(result_out["status_id"])
+        assert isinstance(stored, ParticipantStatus)
+        return [entry.value for entry in stored.tracking_ids]  # type: ignore[attr-defined]
+
+    @pytest.mark.xfail(strict=True, reason=TRACKING_IDS_PENDING)
+    @pytest.mark.spec("CM-35-004")
+    def test_a_status_written_without_tracking_ids_keeps_the_previous_set(
+        self,
+    ):
+        """A status sent for an RM move keeps the participant's tracking IDs."""
+        _seed_copied_status(
+            self.dl,
+            self.actor_participant.id_,
+            tracking_ids=[{"value": "SEC-1234", "tracker": "PSIRT"}],
+        )
+
+        _, result_out = self._run_node(
+            rm_state=RM.RECEIVED, vf_state=None, d_state=None, pxa_state=None
+        )
+
+        assert self._latest_tracking_values(result_out) == ["SEC-1234"]
+
+    @pytest.mark.xfail(strict=True, reason=TRACKING_IDS_PENDING)
+    @pytest.mark.spec("CM-35-005")
+    def test_a_supplied_tracking_id_list_replaces_the_set(self):
+        """Each supplied list is the whole set, and an empty list clears it."""
+        for supplied in (
+            ["ID1"],
+            ["ID1", "ID2", "ID3", "ID4"],
+            ["ID1", "ID3"],
+            [],
+        ):
+            _, result_out = self._run_node(
+                rm_state=None,
+                vf_state=None,
+                d_state=None,
+                pxa_state=None,
+                tracking_ids=[{"value": value} for value in supplied],
+            )
+
+            assert self._latest_tracking_values(result_out) == supplied
 
     def _cs_narrative_records(self, caplog):
         """Return INFO-level CS narrative records emitted during the run."""

@@ -34,20 +34,22 @@ from vultron.measure.advice import (
     Band,
     BandAdvice,
     CaseAdvice,
+    deepest_layer,
 )
 from vultron.measure.advice.case import AllowedMove
 from vultron.shadow.dashboard.view.labels import Row, actor_label
 from vultron.shadow.dashboard.view.shades import Shade, band_legend_shades
 
 
-def _move_label(move: AllowedMove) -> tuple[str, str]:
+def move_label(move: AllowedMove) -> tuple[str, str]:
+    """*move*'s machine and its trigger in words: ``("RM", "Accept")``."""
     machine, _, trigger = move.name.partition(".")
     return machine.upper(), trigger.replace("_", " ").capitalize()
 
 
 def _move_cells(move: AllowedMove, names: Mapping[str, str]) -> Row:
     """Who makes *move*, in which machine, and from which state to which."""
-    machine, label = _move_label(move)
+    machine, label = move_label(move)
     return {
         "Who": actor_label(move.participant, names),
         "Machine": machine,
@@ -77,7 +79,8 @@ TOP_MARK = "⭐ top"
 LEADING_MARK = "👉 leading among yours"
 
 
-def _size(size: Fraction) -> str:
+def size_text(size: Fraction) -> str:
+    """*size* to three significant figures, with a true minus sign."""
     return f"{float(size):.3g}".replace("-", "−")
 
 
@@ -85,7 +88,7 @@ def harm_text(move: AdvisedMove, names: Mapping[str, str]) -> str:
     """Each negative part of *move*'s shift, by vendor, with its size."""
     return (
         "; ".join(
-            f"{actor_label(h.vendor, names)}: {h.part} {_size(h.size)}"
+            f"{actor_label(h.vendor, names)}: {h.part} {size_text(h.size)}"
             for h in move.harms
         )
         or "none"
@@ -161,12 +164,6 @@ def _layer(move: AdvisedMove) -> int:
     return move.layer
 
 
-def _deepest(advice: CaseAdvice) -> int:
-    return max(
-        (m.layer for m in advice.moves if m.layer is not None), default=1
-    )
-
-
 def _advised_row(
     move: AdvisedMove, band: BandAdvice, names: Mapping[str, str]
 ) -> Row:
@@ -192,7 +189,7 @@ def band_views(advice: CaseAdvice, names: Mapping[str, str]) -> list[BandView]:
     its rows' shades are read from it (SHD-03-003).  Nothing here orders or
     scores a move: the moves keep the advice's order (SHD-03-002).
     """
-    deepest = _deepest(advice)
+    deepest = deepest_layer(m.layer for m in advice.moves)
     views = []
     for band in advice.bands:
         legend = (
@@ -232,5 +229,7 @@ __all__ = [
     "BandView",
     "band_views",
     "harm_text",
+    "move_label",
+    "size_text",
     "unbanded_rows",
 ]

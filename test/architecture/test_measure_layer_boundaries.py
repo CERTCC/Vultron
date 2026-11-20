@@ -217,7 +217,11 @@ _WRITE_MODE_CHARS = frozenset("wax+")
 #: ``path::function`` of each command that writes its own output file — the one
 #: write CEH-01-002 admits.
 OUTPUT_FILE_WRITERS: frozenset[str] = frozenset(
-    {"vultron/measure/history/cli.py::_write_output"}
+    {
+        "vultron/measure/history/cli.py::_write_output",
+        # The generated action rule docs fragments (SHD-05-008).
+        "vultron/measure/action_rules/pages.py::rebuild_fragments",
+    }
 )
 
 

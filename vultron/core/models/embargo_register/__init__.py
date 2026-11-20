@@ -50,6 +50,7 @@ from vultron.core.models.embargo_register.entry import (
 from vultron.core.models.embargo_register.step import (
     apply_register_step,
     em_move_violations,
+    em_triggers_of,
     register_step_em_trigger,
     register_step_is_legal,
 )
@@ -61,6 +62,7 @@ __all__ = [
     "activation_changes",
     "apply_register_step",
     "em_move_violations",
+    "em_triggers_of",
     "proposal_changes",
     "register_step_em_trigger",
     "rejection_changes",
