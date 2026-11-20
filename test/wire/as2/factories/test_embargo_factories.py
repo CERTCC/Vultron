@@ -810,7 +810,14 @@ def test_remove_embargo_from_case_target_not_used(sample_embargo):
         (OtherCause(), "The embargo ended before its end time."),
         (None, "The embargo ended before its end time."),
     ],
-    ids=lambda v: getattr(v, "kind", None) or "none",
+    ids=[
+        "end-time-reached",
+        "threat-signal",
+        "fix-ready",
+        "fix-deployed",
+        "other",
+        "no-cause",
+    ],
 )
 def test_remove_embargo_summary_defaults_to_an_account_of_its_cause(
     sample_embargo, cause, summary
@@ -823,6 +830,7 @@ def test_remove_embargo_summary_defaults_to_an_account_of_its_cause(
     assert result.content is None
 
 
+@pytest.mark.spec("EMB-13-004")
 def test_remove_embargo_summary_given_overrides_the_default(sample_embargo):
     result = remove_embargo_from_case_activity(
         embargo=sample_embargo,

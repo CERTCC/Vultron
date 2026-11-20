@@ -98,7 +98,6 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         # (EMB-13-005).
         requested = request.cause or OtherCause()
         self._cause: TerminationCause = requested
-        self._termination = EmbargoTermination(cause=requested)
 
         # Once the end time has passed, the embargo ends with
         # END_TIME_REACHED whatever was asked (EMB-13-003): this trigger runs
@@ -116,7 +115,6 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
                 requested.kind,
             )
             self._cause = EndTimeReachedCause()
-            self._termination = EmbargoTermination(cause=self._cause)
 
         # An end-time request before the end time is refused on every actor,
         # so a participant never asks the CASE_MANAGER for one (ADR-0122).
@@ -130,6 +128,11 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
             raise VultronInvalidStateTransitionError(
                 f"Case '{self._case.id_}': " + "; ".join(violations)
             )
+
+    @property
+    def _termination(self) -> EmbargoTermination:
+        """The termination this request ends the embargo with: its cause."""
+        return EmbargoTermination(cause=self._cause)
 
     def _assertion_subject(self) -> str | None:
         return self._embargo_id or None

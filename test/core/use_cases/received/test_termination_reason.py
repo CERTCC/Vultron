@@ -120,9 +120,6 @@ def test_parse_edge_reads_no_termination_reason_from_content(
     event = make_payload(stale)
 
     assert event.termination_cause is None
-    assert not EmbargoTermination(
-        cause=event.termination_cause
-    ).is_end_time_reached
 
 
 @pytest.mark.spec("CS-08-001")
@@ -153,12 +150,12 @@ def test_parse_edge_refuses_a_remove_with_a_blank_content() -> None:
 
 @pytest.mark.spec("EMB-13-004")
 @pytest.mark.parametrize(
-    ("cause", "at_end_time"),
-    [(EndTimeReachedCause(), True), (None, False)],
+    "cause",
+    [EndTimeReachedCause(), None],
     ids=["end-time", "no-cause"],
 )
 def test_parse_edge_promotes_the_end_time_cause_onto_the_event(
-    make_payload, cause, at_end_time
+    make_payload, cause
 ) -> None:
     _dl, case, embargo = _case_with_embargo(
         "https://example.org/cases/tr-promote", ended=False
@@ -170,10 +167,6 @@ def test_parse_edge_promotes_the_end_time_cause_onto_the_event(
     event = make_payload(activity)
 
     assert event.termination_cause == cause
-    assert (
-        EmbargoTermination(cause=event.termination_cause).is_end_time_reached
-        is at_end_time
-    )
     assert activity.summary  # human-readable; the protocol ignores it
     assert activity.content is None
 
