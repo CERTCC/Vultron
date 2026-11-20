@@ -102,7 +102,7 @@ class EmitCloseCaseNode(_EmitSingleActivityBase):
         case_manager_id = self.case_manager_id
         if not case_manager_id:
             self.feedback_message = (
-                f"EmitCloseCase: case_manager_id not set on blackboard"
+                f"EmitCloseCase: case_actor_id not set on blackboard"
                 f" for case '{self.case_id}' — cannot emit"
             )
             self.logger.warning("%s", self.feedback_message)

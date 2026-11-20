@@ -231,9 +231,12 @@ def terminate_embargo_bt(
                         case_id,
                     ),
                 ],
-                # The ask reads the manager's id off ``/case_actor_id``, which
-                # the role guards ahead of it publish too, so it is resolved
-                # again here rather than relied on to survive them.
+                # The ask reads the manager's id off ``/case_actor_id``, a key
+                # several nodes in this tree publish.  Until it has one
+                # source, a reader follows its own publisher in its own arm
+                # (``notes/bt-integration.md``), so the manager is resolved
+                # again here.  Today the value is the top-level resolve's: the
+                # failed role guards ahead of this arm write nothing.
                 otherwise=[
                     with_case_id(ResolveCaseManagerNode(), case_id),
                     ask,

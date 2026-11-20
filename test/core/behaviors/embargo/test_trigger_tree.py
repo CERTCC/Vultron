@@ -311,14 +311,14 @@ class TestTerminateEmbargoBt:
         ], "the termination is the arm's only commit"
         assert not any(isinstance(n, _EmbargoLifecycleNode) for n in manager)
 
-    @pytest.mark.spec("BT-25-011")
     @pytest.mark.parametrize("use_builder", [True, False])
     def test_the_ask_resolves_the_manager_it_addresses(
         self, result_out, activity_builder, use_builder
     ):
         """The ask's reader of ``/case_actor_id`` follows a resolve in its
-        own arm, so a role guard that publishes the same key cannot decide
-        the address (#6667)."""
+        own arm, with no role guard between them: a reader of an undeclared
+        multi-publisher key follows its own publisher
+        (``notes/bt-integration.md``, #6667)."""
         tree = terminate_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
