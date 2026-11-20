@@ -3503,8 +3503,10 @@ groups:
       not-found or refused result; BT-25-010 covers received trees only.
     verification: >-
       Two architecture tests under `test/architecture/` check that no store read
-      happens before a run. The test #6499 adds fails on any DataLayer or `BTBridge`
-      call in a received use case. The test #6605 adds lists the trigger use cases
+      happens before a run.
+      `test/architecture/test_received_use_cases_reach_no_store.py` fails on any
+      DataLayer or `BTBridge` call or argument in a received use case
+      (HP-01-044). The test #6605 adds lists the trigger use cases
       that still read the store before their tree runs; it fails on a new one, and
       its list only shrinks and ends empty (#6606 empties it). Lookup-node tests
       assert that each lookup node publishes the key it found.

@@ -99,10 +99,13 @@ def test_fault_event_carries_failure_class(make_payload):
 
 @pytest.mark.spec("SYNC-16-003")
 @pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("BT-25-010")
 def test_case_diverged_fault_naming_no_announce_is_refused(make_payload):
     """A divergence fault with no ``inReplyTo`` names no case to re-seed.
 
-    It is still recorded by intake (CLP-10-018), and nothing is sent.
+    The tree's miss guard refuses it as a door, before intake, so nothing is
+    written or sent; the inbox's outcome stage leaves the receipt stub
+    (BT-25-010, CLP-10-018).
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     activity = create_processing_fault_activity(
@@ -117,11 +120,11 @@ def test_case_diverged_fault_naming_no_announce_is_refused(make_payload):
     )
 
     assert result.disposition == HandlerDisposition.REFUSED
-    assert "names no case" in (result.reason or "")
-    assert isinstance(
-        dl.read(ReceivedActivityRecord.build_id(activity.id_)),
-        ReceivedActivityRecord,
+    assert result.reason == (
+        "the fault names no Add(CaseLedgerEntry) this actor sent, so it"
+        " names no case to re-seed (SYNC-16-003, ASK-07-004)"
     )
+    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is None
     assert dl.outbox_list() == []
 
 
