@@ -83,6 +83,7 @@ from vultron.core.models.registry import (
 )
 from vultron.core.models.type_terms import (
     read_type_list_as_own,
+    type_terms,
     with_supertype_term,
 )
 from vultron.primitives import NonEmptyString
@@ -538,18 +539,28 @@ class CoreObject(CoreRecord):
     @model_validator(mode="before")
     @classmethod
     def _read_type_list_as_own_type(cls, data: Any) -> Any:
-        """Read a ``type`` list that names this class's type as that type.
+        """Read the ``type`` list this class writes back as its own type.
 
         ``type_`` holds one string, and an extension type's AS2 dump writes
         the list ``[own type, core type]`` (VM-03-005, ADR-0201), so the
-        class reads that list, or any list naming its own type, back as its
-        own type (VM-03-006).  A list that does not name it is left for the
-        field to refuse.  The parse edge resolves a received list before a
-        class validates it; this is the read for a dump validated directly.
+        class reads that list, in either order, back as its own type.  Core
+        cannot ask the wire vocabulary whether another term is unknown or an
+        unrelated known type (VM-03-007, ARCH-01-001), so a list naming any
+        term but these two is left for the field to refuse.  The parse edge
+        resolves a received list before a class validates it; this is the
+        read for a dump validated directly.
         """
         own = declared_type_value(cls)
         if own is None or not isinstance(data, dict):
             return data
+        written = {own, cls._as2_core_supertype_term}
+        for key in ("type", "type_"):
+            value = data.get(key)
+            if (
+                isinstance(value, list)
+                and not set(type_terms(value)) <= written
+            ):
+                return data
         return read_type_list_as_own(data, own) or data
 
 

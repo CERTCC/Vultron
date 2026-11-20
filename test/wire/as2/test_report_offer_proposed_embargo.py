@@ -338,12 +338,11 @@ def test_case_proposal_without_terms_extracts_none():
 
 
 @pytest.mark.spec("EP-04-004")
-def test_a_generic_event_shaped_proposal_is_projected_to_embargo_terms() -> (
-    None
-):
-    """A sender that types the proposal as a plain AS2 ``Event`` is read the
-    same way an ``Invite(EmbargoEvent)``'s object is: end and context become an
-    ``EmbargoEvent``."""
+def test_a_plain_event_proposal_is_read_as_no_proposal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A proposal typed as a plain AS2 ``Event`` is no embargo (ADR-0201): it
+    is logged and read as no proposal, as a reference is."""
     report = _report()
     body = resigned(
         _wire(_offer(report)),
@@ -355,13 +354,11 @@ def test_a_generic_event_shaped_proposal_is_projected_to_embargo_terms() -> (
             "endTime": _END.isoformat(),
         },
     )
-    event = extract_event(parse_activity(body))
+    with caplog.at_level(logging.WARNING):
+        event = extract_event(parse_activity(body))
     assert isinstance(event, SubmitReportReceivedEvent)
-    terms = event.proposed_embargo
-    assert isinstance(terms, EmbargoEvent)
-    assert terms.id_ == f"{report.id_}/embargo_proposals/generic"
-    assert terms.context == report.id_
-    assert terms.end_time == _END
+    assert event.proposed_embargo is None
+    assert any("not an EmbargoEvent" in r.getMessage() for r in caplog.records)
 
 
 @pytest.mark.spec("CP-01-008")

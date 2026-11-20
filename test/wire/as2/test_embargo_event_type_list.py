@@ -23,6 +23,7 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.examples.embargo as examples
 from test.support.objects import make
@@ -37,8 +38,14 @@ from vultron.semantic_registry import (
 )
 from vultron.wire.as2.extractor._pattern import ActivityPattern
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.typed_reference import is_of_kind
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
-from vultron.wire.as2.vocab.base.objects.object_types import as_Event
+from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.base.objects.object_types import (
+    as_Document,
+    as_Event,
+    as_Page,
+)
 from vultron.wire.as2.vocab.base.registry import (
     WIRE_TYPE_MAP,
     core_supertype_term,
@@ -254,7 +261,7 @@ def test_a_plain_event_is_not_read_as_an_embargo(
 
     assert (
         find_matching_semantics(parse_activity(body))
-        != EMBARGO_EXAMPLES[build]
+        == MessageSemantics.UNKNOWN
     )
 
 
@@ -291,3 +298,40 @@ def test_a_typed_reference_routes_by_the_embargo_type(
     body["object"] = {"id": body["object"]["id"], "type": type_value}
 
     assert find_matching_semantics(parse_activity(body)) == expected
+
+
+@pytest.mark.spec("VM-03-006")
+@pytest.mark.parametrize(
+    "type_value",
+    [["EmbargoEvent", "Note"], ["EmbargoEvent", "Foo"]],
+    ids=["another-known-type", "an-unknown-term"],
+)
+def test_the_embargo_refuses_a_list_it_does_not_write(
+    type_value: list[str],
+) -> None:
+    """Core reads back only the list it writes: it cannot ask the wire
+    vocabulary whether another term is unrelated (VM-03-007), so the parse
+    edge, not the class, decides such a list."""
+    data = _wire(examples.embargo_event())
+    data["type"] = type_value
+
+    with pytest.raises(ValidationError):
+        EmbargoEvent.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("cls", "kind"),
+    [
+        (EmbargoEvent, as_Event),
+        (EmbargoEvent, as_Object),
+        (as_Page, as_Document),
+    ],
+    ids=["embargo-is-an-event", "embargo-is-an-object", "page-is-a-document"],
+)
+def test_is_of_kind_follows_the_as2_subtype_relation(
+    cls: type, kind: type
+) -> None:
+    """A pattern and rehydration ask one rule: an AS2 subtype is a kind of
+    its supertype even without subclassing its class (MV-10-011)."""
+    assert is_of_kind(cls, kind)
+    assert not is_of_kind(kind, cls)
