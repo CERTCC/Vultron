@@ -51,8 +51,8 @@ record's creation is the CASE_MANAGER's own act and has its own
 vendor's VF status is a CASE_MANAGER-written object with its own id and times, so
 ``CommitInviteeAcceptEntriesNode`` commits it as an
 ``add_participant_status_to_participant`` entry.  No ``Add(CaseParticipant)``
-follows and no ``add_case_participant`` entry is committed: that message now
-means reinstatement only (CM-31-012, ADR-0116).
+follows and no ``add_case_participant`` entry is committed (CM-31-012,
+ADR-0114).
 The same handler runs on any actor that holds a copy of the Accept, so the
 effects sit behind a role gate and a receiver that is not the case's
 CASE_MANAGER does nothing (#3752).

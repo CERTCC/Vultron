@@ -175,6 +175,34 @@ class LeaveCaseRequest(CaseTriggerRequest):
     """
 
 
+class ParticipantMoveRequest(CaseTriggerRequest):
+    """Request body shared by the remove-participant and reinstate-participant triggers.
+
+    Names the case and the actor the Case Owner's act names
+    (CM-31-004, CM-31-011, ADR-0199).
+    TRIG-03-001: Must include case_id and participant_actor_id.
+    TRIG-03-002: Unknown fields are silently ignored.
+    """
+
+    participant_actor_id: UriString
+
+
+class RemoveParticipantRequest(ParticipantMoveRequest):
+    """Request body for the remove-participant trigger.
+
+    The Case Owner removes the actor from active participation by sending
+    ``Remove(<Actor>, origin=<case>)`` to the CASE_MANAGER (CM-31-004).
+    """
+
+
+class ReinstateParticipantRequest(ParticipantMoveRequest):
+    """Request body for the reinstate-participant trigger.
+
+    The Case Owner reinstates the removed actor by sending
+    ``Add(<Actor>, target=<case>)`` to the CASE_MANAGER (CM-31-011).
+    """
+
+
 class SyncLogEntryRequest(CaseTriggerRequest):
     """Request body for the demo sync-log-entry trigger.
 

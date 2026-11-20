@@ -67,7 +67,7 @@ def create_recommend_actor_to_case_received_tree(
     from the Case Owner is refused with the refusal notice, before any
     commit: the decision has one wire form (ADR-0199).  Refuses the same way
     the recommendation of a removed participant: it is sent no stub Invite,
-    and only the Case Owner's ``Add(CaseParticipant)`` reinstates it
+    and only the Case Owner's ``Add(<Actor>)`` reinstates it
     (CM-31-013, CM-31-011).  And a recommendation whose suggested roles name
     ``CASE_MANAGER`` or ``CASE_OWNER``: an invitation confers neither, and
     the roles are never stripped (CM-20-008).  Otherwise commits a canonical

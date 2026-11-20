@@ -34,7 +34,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -121,61 +120,6 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         self.assertEqual(add_report_to_case.actor, vendor.id_)
         self.assertEqual(add_report_to_case.object_, report)
         self.assertEqual(add_report_to_case.target, case.id_)
-
-
-class TestVocabCaseParticipantExamples(unittest.TestCase):
-    def test_add_vendor_participant_to_case(self):
-        activity = examples.add_vendor_participant_to_case()
-        self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
-        case = examples.case()
-
-        self.assertIsInstance(activity, as_Add)
-        self.assertEqual(activity.type_, "Add")
-
-        self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.target, case.id_)
-
-        participant = cast(as_CaseParticipant, activity.object_)
-        self.assertEqual(participant.attributed_to, vendor.id_)
-        self.assertEqual(participant.name, vendor.name)
-        self.assertEqual(participant.context, case.id_)
-
-    def test_add_finder_participant_to_case(self):
-        activity = examples.add_finder_participant_to_case()
-        self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
-        finder = examples.finder()
-        case = examples.case()
-
-        self.assertIsInstance(activity, as_Add)
-        self.assertEqual(activity.type_, "Add")
-
-        self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.target, case.id_)
-
-        participant = cast(as_CaseParticipant, activity.object_)
-        self.assertEqual(participant.attributed_to, finder.id_)
-        self.assertEqual(participant.name, finder.name)
-        self.assertEqual(participant.context, case.id_)
-
-    def test_add_coordinator_participant_to_case(self):
-        activity = examples.add_coordinator_participant_to_case()
-        self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
-        coordinator = examples.coordinator()
-        case = examples.case()
-
-        self.assertIsInstance(activity, as_Add)
-        self.assertEqual(activity.type_, "Add")
-
-        self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.target, case.id_)
-
-        participant = cast(as_CaseParticipant, activity.object_)
-        self.assertEqual(participant.attributed_to, coordinator.id_)
-        self.assertEqual(participant.name, coordinator.name)
-        self.assertEqual(participant.context, case.id_)
 
 
 class TestVocabCaseLifecycleExamples(unittest.TestCase):

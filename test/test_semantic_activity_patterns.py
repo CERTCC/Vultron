@@ -1628,7 +1628,7 @@ def test_case_manager_acts_map_to_their_semantics(
 
 # ---------------------------------------------------------------------------
 # VAM-02-002, VAM-05-003, VAM-05-005, VAM-08-002, and per row VAM-03-006,
-# VAM-05-004, VAM-06-003, VAM-06-004 — each wire form maps to its semantic type
+# VAM-05-004, VAM-06-006 to VAM-06-008 — each wire form maps to its semantics
 # ---------------------------------------------------------------------------
 
 
@@ -1669,15 +1669,27 @@ def test_case_manager_acts_map_to_their_semantics(
         ),
         pytest.param(
             "participant",
-            "add_vendor_participant_to_case",
-            MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
-            marks=pytest.mark.spec("VAM-06-004"),
+            "remove_participant_from_case",
+            MessageSemantics.REMOVE_PARTICIPANT_FROM_CASE,
+            marks=pytest.mark.spec("VAM-06-006"),
         ),
         pytest.param(
             "participant",
-            "remove_participant_from_case",
-            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
-            marks=pytest.mark.spec("VAM-06-003"),
+            "reinstate_participant_in_case",
+            MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
+            marks=pytest.mark.spec("VAM-06-007"),
+        ),
+        pytest.param(
+            "participant",
+            "announce_participant_removal",
+            MessageSemantics.ANNOUNCE_ADMITTED_ACT,
+            marks=pytest.mark.spec("VAM-06-008"),
+        ),
+        pytest.param(
+            "participant",
+            "announce_participant_reinstatement",
+            MessageSemantics.ANNOUNCE_ADMITTED_ACT,
+            marks=pytest.mark.spec("VAM-06-008"),
         ),
     ],
 )
