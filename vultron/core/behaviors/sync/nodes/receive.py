@@ -392,16 +392,14 @@ class SendRejectLogEntryNode(DeclaredRefusalMixin, DataLayerActionWithPorts):
             raise VultronError(
                 f"{self.name}: activity.actor_id missing for rejection target"
             )
-        announce_id = getattr(self.activity, "activity_id", None)
-        if not announce_id:
+        add_id = getattr(self.activity, "activity_id", None)
+        if not add_id:
             raise VultronError(
                 f"{self.name}: activity.activity_id missing for the"
                 " rejection's inReplyTo (RF-08-004)"
             )
 
-        self._reject(
-            entry, self._sync_port, self.actor_id, sender_id, announce_id
-        )
+        self._reject(entry, self._sync_port, self.actor_id, sender_id, add_id)
         return self._refuse(self._refusal_of(entry))
 
     def _refusal_of(self, entry: CaseLedgerEntry) -> str:
@@ -417,11 +415,11 @@ class SendRejectLogEntryNode(DeclaredRefusalMixin, DataLayerActionWithPorts):
         sync_port: SyncActivityPort,
         actor_id: str,
         sender_id: str,
-        announce_id: str,
+        add_id: str,
     ) -> None:
         """Queue the ``Reject(CaseLedgerEntry)`` of *entry* to *sender_id*.
 
-        The Reject names *announce_id*, the ``Add(CaseLedgerEntry)``
+        The Reject names *add_id*, the ``Add(CaseLedgerEntry)``
         that carried *entry*, in ``inReplyTo`` (RF-08-004).
         """
         self.logger.warning(
@@ -437,7 +435,7 @@ class SendRejectLogEntryNode(DeclaredRefusalMixin, DataLayerActionWithPorts):
             tail_hash=self.tail_hash,
             actor_id=actor_id,
             to=[sender_id],
-            in_reply_to=announce_id,
+            in_reply_to=add_id,
             at=self._require_act_instant(),
         )
 

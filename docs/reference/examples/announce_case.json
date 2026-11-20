@@ -112,7 +112,6 @@
     "notes": [],
     "embargoRegister": [],
     "pendingEmbargoProposalIndex": {},
-    "caseActivity": [],
     "genesisHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d",
     "ledgerPosition": {
       "logIndex": -1,
@@ -137,6 +136,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4J5gJPv9kLKAJtyGM96TcyYvWoUVUaZ6gEah5buP6YU7iL6roYiMhE6K9TydJdksL2qoH2hLgqr4fwhE1EfzZjGb"
+    "proofValue": "z5tupCQtu7cEMfoT3tevYaoPTq1tiSjHxqdYuNPDu7YpteK9UEvey5QyYkr2ja8rKuCwizmLU6Z8QzYsAG13LMq6V"
   }
 }

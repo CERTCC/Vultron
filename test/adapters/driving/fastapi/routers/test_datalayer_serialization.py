@@ -154,7 +154,6 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
         case_participants=[],  # Empty but should be included
         vulnerability_reports=[],  # Empty but should be included
         embargo_register=[],  # Empty but should be included
-        case_activity=[],  # Empty but should be included
     )
 
     # Store in data layer
@@ -172,7 +171,6 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
         "vulnerabilityReports",
         "caseStatuses",
         "embargoRegister",
-        "caseActivity",
         "parentCases",
         "childCases",
         "siblingCases",

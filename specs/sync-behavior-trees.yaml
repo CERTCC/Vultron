@@ -74,7 +74,7 @@ groups:
           Sync BTs MUST be organized as separate trees, each corresponding
           to a single message-type use case: (1) AddLogEntryReceivedBT,
           (2) RejectLogEntryReceivedBT, (3) CommitLogEntryBT, (4)
-          ReadLogEntryReceivedBT, the CASE_MANAGER's answer to a position
+          ReadLedgerReceivedBT, the CASE_MANAGER's answer to a position
           statement (SYNC-17-002), and (5) the participant's
           StateLedgerPositions tree that sends one (SYNC-17-007). This
           preserves the one-message-type-per-use-case pattern.

@@ -374,7 +374,7 @@ def create_receive_activity_tree(
     after it replayed, and a split one is logged at ERROR and an active
     participant re-seeded; nothing it does changes the act's outcome.  A
     tree that answers the position itself names a registered
-    ``ledger_position_exemption`` (``Read(CaseLedgerEntry)``, SYNC-17-005).
+    ``ledger_position_exemption`` (``Read(<case>/ledger)``, SYNC-17-005).
 
     The same trees judge the ``senderSequence`` the activity's sender
     numbers it with, next
@@ -383,7 +383,7 @@ def create_receive_activity_tree(
     is held, and a late, reused or missing number refused with a notice,
     before anything judges the act; every other activity goes on in its
     sender's order.  A tree whose activity takes no number names a
-    registered ``sender_sequence_exemption`` (``Read(CaseLedgerEntry)``,
+    registered ``sender_sequence_exemption`` (``Read(<case>/ledger)``,
     SYNC-21-001).
 
     ``CaseOpenToExternalWrites`` is the post-close write boundary

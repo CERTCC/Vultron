@@ -183,25 +183,26 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
     replaying from it (SYNC-03-002).
 
     The ``Reject`` names the last entry the chain stores.  A replica whose
-    chain stores none has no entry to name, so it sends the ``Reject`` that
-    names no entry, stating the empty chain's position and the case as its
-    target: the CASE_MANAGER answers it by replaying from genesis, and each
-    entry up to the copy's position is stored as a no-op (SYNC-16-023).
+    chain stores none has no entry to name, so it states its position with
+    ``Read(<case>/ledger)`` at the empty chain's position, index -1 with the
+    case's genesis hash: the CASE_MANAGER answers it by replaying every
+    entry, and each entry up to the copy's position is stored as a no-op
+    (SYNC-16-023, SYNC-16-027, ADR-0204).
 
-    A repeat of the same copy, such as the one the CASE_MANAGER's genesis
-    answer starts with, asks again while the chain is still short.  The
-    ``Reject``'s id is derived from what it asks for, so that is the same
-    request queued once more, which the receiver deduplicates (ID-04-005),
-    never a new one.
+    A repeat of the same copy asks again while the chain is still short.
+    Each request answers the copy, so its id is derived from what it asks
+    for: the ``Reject``'s from the chain's tail, the ``Read``'s from the
+    copy's position.  A repeat is the same request queued once more, which
+    the receiver deduplicates (ID-04-005), never a new one.
 
-    The ``Reject``'s ``inReplyTo`` names the ``Announce(VulnerabilityCase)``
-    that carried the copy (RF-08-004).  That id does not key the
-    ``Reject``'s, so a stored body sent again for a later copy still names
-    the first copy: a true cause, and the replay it asks for is the same.
+    Both name the ``Announce(VulnerabilityCase)`` that carried the copy in
+    ``inReplyTo`` (RF-08-004).  That id does not key theirs, so a stored
+    body sent again for a later Announce still names the first one: a true
+    cause, and the replay it asks for is the same.
 
     Raises:
-        VultronWiringError: A ``Reject`` is due and no ``sync_port`` was
-            injected.
+        VultronWiringError: A ``Reject`` or ``Read`` is due and no
+            ``sync_port`` was injected.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -267,17 +268,20 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
         chain_tail = judgement.chain_tail
         self.logger.info(
             "%s: case '%s' replaced by a copy at entry %d, ahead of this"
-            " replica's chain at %d; sending Reject(CaseLedgerEntry) to '%s'"
-            " (SYNC-16-007)",
+            " replica's chain at %d; sending %s to '%s' (SYNC-16-007)",
             self.name,
             self.case_id,
             position.log_index,
             judgement.chain_index,
+            "Read(<case>/ledger)"
+            if chain_tail is None
+            else "Reject(CaseLedgerEntry)",
             self._request.actor_id,
         )
         if chain_tail is None:
-            # No entry to name: ask for a replay from genesis (SYNC-16-027).
-            self._sync_port.send_genesis_replay_reject(
+            # No entry to name: state the empty chain's position, which asks
+            # for every entry (SYNC-16-027, ADR-0204).
+            self._sync_port.send_empty_chain_read(
                 case_id=self.case_id,
                 copy_tail_hash=position.entry_hash,
                 actor_id=self.actor_id,
@@ -302,7 +306,7 @@ class StateSeededLedgerPositionNode(DataLayerActionWithPorts):
     Runs after :class:`SeedAnnouncedCaseNode` has stored the case.  When the
     copy seeded a replica this actor did not hold (``/case_copy_replaces`` is
     ``False``, PCR-02-003), the participant queues one
-    ``Read(CaseLedgerEntry)`` to the case's CASE_MANAGER stating the stored
+    ``Read(<case>/ledger)`` to the case's CASE_MANAGER stating the stored
     case's ledger position (SYNC-17-008,
     :func:`~vultron.core.behaviors.sync.nodes.position_statement.stated_replica_position`).
     That is the replica's tail: a first seed finds no entry stored, since a
@@ -316,10 +320,11 @@ class StateSeededLedgerPositionNode(DataLayerActionWithPorts):
 
     It sends nothing for a copy that replaced a held case: the participant
     already held the case, and :class:`RequestCaseCopyBackfillNode` asks for
-    what it lacks.  It sends nothing either for a case at the empty ledger's
-    position, which names no entry (SYNC-17-001), or one
+    what it lacks.  It sends nothing either for a case
     :func:`~vultron.core.behaviors.sync.nodes.position_statement.position_statement_recipient`
     names no CASE_MANAGER for, such as a copy of a case this actor manages.
+    A copy at the empty ledger's position is stated there, at index -1
+    (SYNC-16-027).
 
     Raises:
         VultronWiringError: A statement is due and no ``sync_port`` was
@@ -368,10 +373,10 @@ class StateSeededLedgerPositionNode(DataLayerActionWithPorts):
         manager_id = position_statement_recipient(
             case, self.datalayer, self.actor_id
         )
-        position = stated_replica_position(case, self.datalayer)
-        if manager_id is None or position is None:
+        if manager_id is None:
             self.logger.debug(
-                "%s: case '%s' seeded; no ledger position to state",
+                "%s: case '%s' seeded; no CASE_MANAGER to state its ledger"
+                " position to",
                 self.name,
                 self.case_id,
             )
@@ -381,7 +386,8 @@ class StateSeededLedgerPositionNode(DataLayerActionWithPorts):
                 f"{self.name}: sync_port must be injected to state the"
                 " ledger position a case copy seeded (SYNC-17-008)"
             )
-        self._sync_port.send_read_ledger_entry(
+        position = stated_replica_position(case, self.datalayer)
+        self._sync_port.send_read_ledger(
             case_id=self.case_id,
             ledger_position=position,
             actor_id=self.actor_id,

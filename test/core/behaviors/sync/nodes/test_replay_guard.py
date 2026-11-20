@@ -387,7 +387,7 @@ def _record(datalayer, *, from_hash: str, through_index: int | None) -> None:
     )
 
 
-def _answered(datalayer, rejected_index: int | None) -> bool:
+def _answered(datalayer, rejected_index: int) -> bool:
     return genesis_reject_answered(
         datalayer,
         case_id=CASE_ID,
@@ -442,11 +442,6 @@ class TestGenesisReplayCoverage:
     def test_a_reject_above_the_index_is_not_answered(self, datalayer):
         _record(datalayer, from_hash="", through_index=4)
         assert _answered(datalayer, 5) is False
-
-    @pytest.mark.spec("SYNC-15-024")
-    def test_a_reject_naming_no_entry_is_not_answered(self, datalayer):
-        _record(datalayer, from_hash="", through_index=4)
-        assert _answered(datalayer, None) is False
 
     @pytest.mark.spec("SYNC-15-024")
     def test_no_record_answers_nothing(self, datalayer):

@@ -53,15 +53,13 @@ def create_reject_log_entry_tree(
     halts the tree before replication state is written.  The factory composes
     that guard from the use case's declared ``LEDGER_PEER`` rule; its node
     reads the case from the rejected entry when the tree runs
-    (:class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`),
-    or, for the ``Reject`` that names no entry because the peer holds none,
-    from its ``target``; that form states no entry (index -1), so it is answered
-    as a replay from genesis (SYNC-16-029).
+    (:class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`).
+    A replica that holds no entry to reject states its position with
+    ``Read(<case>/ledger)`` at index -1 instead (SYNC-16-027).
 
     Args:
         case_id: The case the peer's ``Reject`` is about: its rejected
-            entry's case, or the case its ``target`` names when it names no
-            entry (SYNC-16-027).  Its CASE_MANAGER gates the answer.
+            entry's case.  Its CASE_MANAGER gates the answer.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
     # The envelope is never a canonical entry (CLP-10-004): no commit stage.

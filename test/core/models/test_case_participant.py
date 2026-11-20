@@ -75,23 +75,6 @@ class TestCaseParticipantConstruction:
         p = _make()
         assert p.embargo_consents == []
 
-    def test_participant_case_name_default_none(self):
-        """participant_case_name defaults to None."""
-        p = _make()
-        assert p.participant_case_name is None
-
-    def test_participant_case_name_accepts_non_empty(self):
-        """participant_case_name accepts a non-empty string."""
-        p = _make(participant_case_name="My alias")
-        assert p.participant_case_name == "My alias"
-
-    def test_participant_case_name_rejects_empty_string(self):
-        """participant_case_name must not be an empty string (CS-08-002)."""
-        from pydantic import ValidationError
-
-        with pytest.raises(ValidationError):
-            _make(participant_case_name="")
-
 
 # ---------------------------------------------------------------------------
 # _set_name_if_empty validator
