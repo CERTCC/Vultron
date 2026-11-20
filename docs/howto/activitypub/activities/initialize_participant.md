@@ -60,13 +60,14 @@ flowchart LR
 
 3. The CASE_MANAGER sends the new participant the case and the ledger it missed, then the full-case Invite that asks it to judge the case.
    The ledger holds the messages exchanged.
-   First is the CASE_MANAGER's entry for creating the inert record.
+   First is the CASE_MANAGER's entry for the inert record.
+   It is an `Add(CaseParticipant)` with the case as its `target`, which adds the record to the case's participant list.
    Then comes the invitee's `Accept(Invite(VulnerabilityCase preview))` itself, which every other replica applies.
    The ledger also holds the CASE_MANAGER's entry for a vendor's VF status.
 
 If all participants are known when the case is created, seat them inline on the `Create(VulnerabilityCase)` activity instead — see [How to Initialize a Case](initialize_case.md).
 
-!!! warning "An `Add` does not seat a member"
+!!! warning "The Case Owner's `Add(Actor)` does not seat a member"
 
     The Case Owner's `Add(Actor)` reinstates a participant it removed earlier.
     The CASE_MANAGER refuses one that names an actor that never joined, so an `Add` cannot take the place of the Invite.

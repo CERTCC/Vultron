@@ -381,7 +381,8 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 
 - **Protocol role:** a participant record comes into existence only as the CASE_MANAGER's consequence of an act it records ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-020).
   The CASE_MANAGER creates the invitee's participant record when it sends a stub Invite.
-  The record joins the case's participant list, so the CASE_MANAGER commits it as its own `Add`, with the case as its `target` and `context`, carrying the record in full ([CLP-07-021](../vultron-spec/requirements/ledger-replication.md#clp-07-021)).
+  The record joins the case's participant list.
+  The CASE_MANAGER commits it as its own `Add`, with the case as its `target` and `context`, and carries the record in full ([CLP-07-021](../vultron-spec/requirements/ledger-replication.md#clp-07-021)).
   Replicas copy the record from the ledger fan-out ([§10.2 Routing Topology](../vultron-spec/interactions.md#102-routing-topology)) into the case its `target` names.
   A `Create(CaseParticipant)` is not a protocol message: an inbox refuses it as an unrecognized activity (VAM-01-017).
   An actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
