@@ -16,6 +16,8 @@ from collections.abc import Hashable, Iterator
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from test.shadow.dashboard._support import RV, TIMEOUT
+from test.shadow.dashboard.page._support import point_picker
 from vultron.config import config_override
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.action_rules import ResultKind
@@ -23,11 +25,6 @@ from vultron.shadow.analysis import analyse, point_analysis
 from vultron.shadow.dashboard import view
 from vultron.shadow.dashboard.app import APP_PATH
 from vultron.shadow.readers import VultronCaseReader
-
-#: Seconds one script run may take; the first run imports the measures.
-_TIMEOUT = 60
-
-_RV = RECORDINGS_DIR / "rv" / "case-actor.jsonl"
 
 #: Just after this entry of the rv recording the vendor stands at the
 #: #6492 extension position.
@@ -75,7 +72,7 @@ def _rule_tables(at: AppTest) -> dict[str, list[dict[Hashable, object]]]:
 def _expected(log_index: int | None) -> view.RuleRows:
     """The rows the view gives the rv case at *log_index*, or now."""
     analysis = analyse(
-        VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RV))
+        VultronCaseReader(root=RECORDINGS_DIR).read_case(str(RV))
     )
     if log_index is not None:
         analysis = point_analysis(analysis, log_index)
@@ -85,15 +82,10 @@ def _expected(log_index: int | None) -> view.RuleRows:
     )
 
 
-def _point_picker(at: AppTest):
-    (picker,) = [box for box in at.selectbox if box.label.startswith("Show")]
-    return picker
-
-
 @pytest.fixture
 def rv_page() -> Iterator[AppTest]:
     with config_override(VULTRON_SHADOW__LEDGER_DIR=str(RECORDINGS_DIR)):
-        at = AppTest.from_file(str(APP_PATH), default_timeout=_TIMEOUT).run()
+        at = AppTest.from_file(str(APP_PATH), default_timeout=TIMEOUT).run()
         at.selectbox[0].select("rv/case-actor.jsonl").run()
         assert not at.exception
         yield at
@@ -107,7 +99,7 @@ def test_the_rules_follow_the_picked_point_and_flag_the_extension(rv_page):
     now it shows that point's rules, and the flag is gone."""
     now = _rule_tables(rv_page)
     assert "Action rules" in [str(h.value) for h in rv_page.subheader]
-    _point_picker(rv_page).select(_EXTENSION_ENTRY).run()
+    point_picker(rv_page).select(_EXTENSION_ENTRY).run()
     assert not rv_page.exception
     at_point = _rule_tables(rv_page)
     expected = _expected(_EXTENSION_ENTRY)
@@ -162,7 +154,7 @@ _show_action_rules(
 @pytest.mark.spec("SHD-06-003")
 def test_a_misplaced_rule_is_flagged_on_the_page():
     """A rule naming a move neither vendor may make here is flagged."""
-    at = AppTest.from_string(_MISPLACED_PAGE, default_timeout=_TIMEOUT).run()
+    at = AppTest.from_string(_MISPLACED_PAGE, default_timeout=TIMEOUT).run()
     assert not at.exception
     results = [r["Result"] for r in _rule_tables(at)["checked"]]
     assert results.count(_MISPLACED) == 2
@@ -190,7 +182,7 @@ _show_action_rules(case_standing(ledger.case_ledger()), {})
 def test_a_case_with_no_vendor_says_so_in_both_tables():
     """No vendor has a position, so no rule matches: each table says so and
     nothing is flagged."""
-    at = AppTest.from_string(_NO_VENDOR_PAGE, default_timeout=_TIMEOUT).run()
+    at = AppTest.from_string(_NO_VENDOR_PAGE, default_timeout=TIMEOUT).run()
     assert not at.exception
     captions = [str(c.value) for c in at.caption]
     assert view.NO_CHECKED_RULE in captions
