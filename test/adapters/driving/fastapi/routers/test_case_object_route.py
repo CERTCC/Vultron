@@ -89,7 +89,7 @@ def test_a_participant_gets_an_object_the_case_names(client, host):
     )
     body = response.json()
     assert body["id"] == embargo.id_
-    assert body["type"] == "EmbargoEvent"
+    assert body["type"] == ["EmbargoEvent", "Event"]
 
 
 @pytest.mark.spec("AKM-05-009")

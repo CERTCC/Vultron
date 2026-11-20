@@ -57,6 +57,7 @@ from test.support.case_preview import current_em_state, in_force_embargo
 from test.support.objects import make
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.config import app_config_scope
+from vultron.core.models.type_terms import names_type
 from vultron.demo.helpers.seeding import seed_case_actor_peers
 from vultron.demo.in_process import (
     InProcessRouter,
@@ -248,7 +249,7 @@ _ACTOR_TYPES = frozenset(
 def _inline_actors(value: Any) -> Iterator[dict[str, Any]]:
     """Every inline actor object anywhere in a decoded body."""
     if isinstance(value, dict):
-        if value.get("type") in _ACTOR_TYPES and "id" in value:
+        if names_type(value.get("type"), _ACTOR_TYPES) and "id" in value:
             yield value
         for nested in value.values():
             yield from _inline_actors(nested)
