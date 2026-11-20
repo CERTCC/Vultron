@@ -216,12 +216,23 @@ def _queued_invites(scenario: BTTestScenario) -> list[VultronActivity]:
     ]
 
 
-def _collected_recipients() -> list[str]:
-    """The roster the collect node left on the (process-global) blackboard."""
-    return cast(
-        list[str],
-        py_trees.blackboard.Blackboard.storage["/embargo_invite_recipients"],
+_RECIPIENTS_KEY = "/embargo_invite_recipients"
+
+
+def _collect_recipients(
+    scenario: BTTestScenario, proposer: str
+) -> tuple[BTExecutionResult, list[str]]:
+    """Run the collect node and read the roster it published.
+
+    The bridge restores the key when the run returns (BT-17-020), so a
+    probe in the same run reads it.
+    """
+    result, recipients = scenario.run_capturing(
+        CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
+        _RECIPIENTS_KEY,
+        embargo_proposer_id=proposer,
     )
+    return result, cast(list[str], recipients)
 
 
 def _ledger_semantic_types(scenario: BTTestScenario) -> list[str]:
@@ -360,12 +371,13 @@ class TestPublishEmbargoProposerNode:
         """The collect node never guesses the proposer: no publisher, an
         internal error, and no recipients."""
         _seed_case(bt_scenario, participants={OTHER_A: None})
-        result = bt_scenario.run(
-            CollectEmbargoInviteRecipientsNode(case_id=CASE_ID)
+        result, recipients = bt_scenario.run_capturing(
+            CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
+            _RECIPIENTS_KEY,
         )
         assert result.status == Status.FAILURE
         assert result.internal_error is True
-        assert _collected_recipients() == []
+        assert not recipients
 
 
 class TestCollectEmbargoInviteRecipientsNode:
@@ -379,10 +391,9 @@ class TestCollectEmbargoInviteRecipientsNode:
             participants={OTHER_A: None, OTHER_B: None},
             signatories=(OTHER_B,),
         )
-        node = CollectEmbargoInviteRecipientsNode(case_id=CASE_ID)
-        result = bt_scenario.run(node, embargo_proposer_id=PROPOSER)
+        result, recipients = _collect_recipients(bt_scenario, PROPOSER)
         assert result.status == Status.SUCCESS
-        assert sorted(_collected_recipients()) == sorted([OTHER_A, OTHER_B])
+        assert sorted(recipients) == sorted([OTHER_A, OTHER_B])
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("CM-10-009")
@@ -429,22 +440,18 @@ class TestCollectEmbargoInviteRecipientsNode:
         bt_scenario.dl.save(closed)
         bt_scenario.dl.save(case)
 
-        result = bt_scenario.run(
-            CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
-            embargo_proposer_id=PROPOSER,
-        )
+        result, recipients = _collect_recipients(bt_scenario, PROPOSER)
         assert result.status == Status.SUCCESS
-        assert sorted(_collected_recipients()) == sorted([OTHER_A, OTHER_B])
+        assert sorted(recipients) == sorted([OTHER_A, OTHER_B])
 
     @pytest.mark.executes_as(MANAGER)
     def test_a_proposal_from_the_manager_itself_invites_everyone_else(
         self, bt_scenario: BTTestScenario
     ) -> None:
         _seed_case(bt_scenario, participants={OTHER_A: None})
-        node = CollectEmbargoInviteRecipientsNode(case_id=CASE_ID)
-        result = bt_scenario.run(node, embargo_proposer_id=MANAGER)
+        result, recipients = _collect_recipients(bt_scenario, MANAGER)
         assert result.status == Status.SUCCESS
-        assert sorted(_collected_recipients()) == sorted([PROPOSER, OTHER_A])
+        assert sorted(recipients) == sorted([PROPOSER, OTHER_A])
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("BT-19-003")
