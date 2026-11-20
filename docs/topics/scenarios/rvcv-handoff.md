@@ -143,8 +143,9 @@ recorded.
 ### 7. Vendor1 offers case ownership to the Coordinator
 
 Vendor1 decides that the Coordinator is better positioned to manage the case and initiates a case-ownership transfer.
-Vendor1 proposes the transfer to the **Case Actor**, not to the Coordinator (ADR-0053, ADR-0148).
-The Case Actor makes the offer itself, under its own identity, and records it as an `offer_case_ownership_transfer` entry, so every participant learns that a transfer is on offer.
+Vendor1 proposes the transfer with its own offer of the case to the **Case Actor**, not to the Coordinator (ADR-0053, ADR-0148, ADR-0199).
+The Case Actor records Vendor1's offer, then makes its own offer under its own identity and records that one too.
+Both are `offer_case_ownership_transfer` entries, so every participant learns that a transfer is on offer.
 The offer the Coordinator receives is the Case Actor's own, with an identity the Case Actor derived from Vendor1's proposal.
 
 *Antecedent:* Coordinator's `accept_invite_actor_to_case` entry is in the ledger.
