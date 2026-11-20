@@ -130,17 +130,25 @@ built yet.
   becomes a status authored by the reporter. Build it into the case inputs the
   receiver converts (`notes/csaf-case-inputs-on-proposal.md`), beside the
   vulnerability items of CSAF-03-008.
-- **At invitation, the reporter's statements about the invitee.** The Case Owner's
-  invite may name the CSAF vendor names the invitee is. When the stub Invite creates
-  the invitee's record (CM-11-006), the CASE_MANAGER reads the original report's
-  CSAF document again and adds the products and the reporter's statuses for those
-  names; the stored claims reading (`ReportClaims`) holds only
-  `known_affected_vendors` today. No vendor name is matched to an invitee by
-  spelling; the Case Owner states the link. At case creation the comparison is
-  with the Case Owner's own `name`, the one CSAF-04-007 already makes. Reuse the
-  reader's vendor-by-product map (`vultron/wire/csaf/reader.py`,
-  `_vendors_by_product`), which today feeds only the candidate-parties signal
-  (CSAF-04-007).
+- **At invitation, the Case Owner lists the reporter's statements about the
+  invitee.** The Case Owner's trigger reads the original report's CSAF document for
+  the vendor names the operator says the invitee is, converts their products and
+  `product_status` entries with the case-input conversion, and carries them on the
+  Case Owner's Invite (CM-17-007); the Case Owner may change them before sending.
+  When the stub Invite creates the invitee's record (CM-11-006), the CASE_MANAGER
+  checks them as it checks offered products and statuses and puts them on the
+  record, authored by the reporter, reading no document. The Case Owner reads the
+  CSAF, as for the case inputs, so CSAF is read in one place. No vendor name is
+  matched to an invitee by spelling; the Case Owner states the link. At case
+  creation the comparison is with the Case Owner's own `name`, the one CSAF-04-007
+  already makes. Reuse the reader's vendor-by-product map
+  (`vultron/wire/csaf/reader.py`, `_vendors_by_product`); the stored claims reading
+  (`ReportClaims`) holds only `known_affected_vendors` today.
+- **The CASE_MANAGER's fallback is protocol, not code.** The requirement lets the
+  CASE_MANAGER extract the invitee's statements from the original report when the
+  Case Owner's Invite carries none (MAY), so another implementation can serve a
+  Case Owner that does not convert. This codebase does not build it: an Invite that
+  carries none gives the invitee none (#6783).
 - **CSAF-02-002 changes with this code.** One of its clauses forbids changing case
   data from a CSAF document on a report that already belongs to a case. The general
   rule replacing that clause: an actor may read the original report again, CSAF or
