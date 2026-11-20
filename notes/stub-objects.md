@@ -119,8 +119,9 @@ sender's cut runs too, so both sides judge one envelope.
   Do not build a status for the stub: a class default states a value nobody
   observed.
 - "In force" means the register holds an `ACTIVE` entry: EM `ACTIVE` or
-  `REVISE`, never the exact EM state alone. Read it with `in_force_entry`, the
-  entry the consent row and the Accept's signing name (CM-11-001, CM-11-006),
+  `REVISE`, never the exact EM state alone. Read it with
+  `VulnerabilityCase.active_register_entry`, the entry the consent row and the
+  Accept's signing name (CM-11-001, CM-11-006),
   or a `REVISE` invitee is bound to terms it never saw (CM-17-014, #4697). The
   open revision stays out of the stub; EP-09-011 relays it after joining.
 - The stub's `embargoRegister` is that one entry, its embargo the full

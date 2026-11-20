@@ -462,7 +462,7 @@ def test_a_profile_whose_cut_breaks_the_envelope_is_refused() -> None:
 
 
 @pytest.mark.spec("CM-17-002")
-def test_in_force_entry_is_the_active_one() -> None:
+def test_active_register_entry_is_the_active_one() -> None:
     embargo = _embargo()
     case = _case(
         embargo_register=register(active=embargo, proposed=[_embargo()])

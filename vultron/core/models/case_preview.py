@@ -115,10 +115,9 @@ class CasePreview(PreviewObject):
     - ``summary`` is the required human-readable context (CM-17-010, MV-10-001).
       The sender chooses it (CM-17-020): the case's ``stub_summary``,
       written for the invitee rather than for participants.  A receiver
-      MUST refuse a preview
-      whose ``summary`` is absent or blank.  On the inbound parse path,
-      absence triggers :meth:`_refuse_absent_summary`.  It is the one case
-      field a marker may not stand in.
+      MUST refuse a preview whose ``summary`` is absent or blank.  On the
+      inbound parse path, absence triggers :meth:`_refuse_absent_summary`.
+      It is the one case field a marker may not stand in.
 
     Every other field is the case's field of the same name, optional, and it
     may hold a ``Redacted`` marker (MV-12-001): the sender withholds a value
