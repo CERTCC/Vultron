@@ -26,6 +26,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BlackboardKeyProbe
 from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
     _make_entry,
@@ -73,6 +74,7 @@ from ._embargo_gate_support import (
     accept_embargo,
     close,
     collect_recipients,
+    collect_recipients_and_withheld,
     fan_out,
     manager_datalayer,
     paused_from,
@@ -115,12 +117,11 @@ def test_fanout_withholds_entries_from_non_signatory(
 ) -> None:
     seed_case(datalayer, embargo_active=True)
 
-    recipients = collect_recipients(bridge, node_cls)
+    recipients, withheld = collect_recipients_and_withheld(bridge, node_cls)
 
     assert SIGNATORY_ID in recipients
     assert NON_SIGNATORY_ID not in recipients
-    withheld = py_trees.blackboard.Blackboard.storage["/fanout_withheld"]
-    assert list(withheld) == [NON_SIGNATORY_ID]
+    assert withheld == [NON_SIGNATORY_ID]
 
 
 @pytest.mark.spec("CM-10-005")
@@ -412,21 +413,22 @@ def test_embargo_invite_still_reaches_non_signatory(datalayer) -> None:
     """Embargo meta-protocol is not case content: the relayed Invite goes out."""
     seed_case(datalayer, embargo_active=True)
 
+    tree, probe = BlackboardKeyProbe.after(
+        CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
+        "/embargo_invite_recipients",
+    )
     result = run_tree(
         BTBridge(
             datalayer=datalayer,
             trigger_activity=MagicMock(spec=TriggerActivityPort),
         ),
-        tree=CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
+        tree=tree,
         actor_id=MANAGER_ID,
         embargo_proposer_id=SIGNATORY_ID,
     )
 
     assert result.status == Status.SUCCESS
-    recipients = py_trees.blackboard.Blackboard.storage[
-        "/embargo_invite_recipients"
-    ]
-    assert NON_SIGNATORY_ID in recipients
+    assert NON_SIGNATORY_ID in probe.value
 
 
 def _remove(datalayer, actor_id: str) -> None:

@@ -31,7 +31,7 @@ import pytest
 from py_trees.ports import NoDataAvailable
 
 import vultron.core.behaviors.sync.nodes as sync_nodes_pkg
-from test.core.behaviors.bt_harness import BTTestScenario
+from test.core.behaviors.bt_harness import BlackboardKeyWatch, BTTestScenario
 from test.core.behaviors.port_contract import (
     PortDecl,
     decl_id,
@@ -271,17 +271,15 @@ class TestCollectLogEntryRecipientsNodeOutputPorts:
             received_at=ACT_AT,
             published=ACT_AT,
         )
-        result = bt_scenario.run(
+        result, written = bt_scenario.run_capturing(
             with_act_keys(
                 CollectLogEntryRecipientsNode(), {act_keys.CASE_ID: case_id}
             ),
+            "/fanout_recipients",
             actor_id=ACTOR_ID,
             log_entry=entry,
         )
         bt_scenario.assert_success(result)
-        written = py_trees.blackboard.Blackboard.storage.get(
-            "/fanout_recipients"
-        )
         assert written is not None
         assert isinstance(written, list)
 
@@ -317,20 +315,17 @@ class TestFanoutCollectorsRequireCase:
             received_at=ACT_AT,
             published=ACT_AT,
         )
-        result = bt_scenario.run(
-            with_case_id(node_cls(), case_id),
-            actor_id=ACTOR_ID,
-            log_entry=entry,
+        watch = BlackboardKeyWatch(
+            with_case_id(node_cls(), case_id), "/fanout_recipients"
         )
+        result = bt_scenario.run(watch, actor_id=ACTOR_ID, log_entry=entry)
         bt_scenario.assert_failure(result)
         assert result.feedback_message == (
             f"case '{case_id}' not found in DataLayer"
         )
         # No recipients written: the flip is a hard fail, not a silent [].
-        assert (
-            py_trees.blackboard.Blackboard.storage.get("/fanout_recipients")
-            is None
-        )
+        assert watch.ran
+        assert watch.value is None
 
 
 # ---------------------------------------------------------------------------

@@ -388,12 +388,11 @@ def test_accept_with_an_inert_record_reuses_it(
         case_id=_CM21_CASE_ID, invitee_id=_CM21_INVITEE_ID
     )
 
-    result = bt_scenario.run(node, actor_id=bt_scenario.actor_id)
+    result, stored = bt_scenario.run_capturing(
+        node, "/new_invite_participant", actor_id=bt_scenario.actor_id
+    )
 
     assert result.status == Status.SUCCESS
-    stored = py_trees.blackboard.Blackboard.storage.get(
-        "/new_invite_participant"
-    )
     assert isinstance(stored, CaseParticipant)
     assert stored.id_ == participant.id_
 

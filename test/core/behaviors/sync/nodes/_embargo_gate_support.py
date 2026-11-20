@@ -16,9 +16,9 @@ Imported by ``test_fanout_embargo_gate.py`` and ``test_embargo_backfill.py``,
 which test the fan-out/replay gate and the admission backfill node.
 """
 
-import py_trees
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BlackboardKeyProbe
 from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
     OWNER_ACTOR_ID,
@@ -101,15 +101,27 @@ def seed_case(datalayer, *, embargo_active: bool) -> None:
     datalayer.save(case)
 
 
-def collect_recipients(bridge, node_cls: type) -> list[str]:
+def collect_recipients_and_withheld(
+    bridge, node_cls: type
+) -> tuple[list[str], list[str]]:
+    """Run *node_cls* and read the recipients and withheld ids it published.
+
+    The bridge restores both keys when the run returns (BT-17-020), so
+    probes in the same run read them.
+    """
+    tree, recipients = BlackboardKeyProbe.after(
+        with_case_id(node_cls(), CASE_ID), "/fanout_recipients"
+    )
+    tree, withheld = BlackboardKeyProbe.after(tree, "/fanout_withheld")
     result = run_tree(
-        bridge,
-        tree=with_case_id(node_cls(), CASE_ID),
-        actor_id=MANAGER_ID,
-        log_entry=_make_entry(0),
+        bridge, tree=tree, actor_id=MANAGER_ID, log_entry=_make_entry(0)
     )
     assert result.status == Status.SUCCESS
-    return list(py_trees.blackboard.Blackboard.storage["/fanout_recipients"])
+    return list(recipients.value), list(withheld.value)
+
+
+def collect_recipients(bridge, node_cls: type) -> list[str]:
+    return collect_recipients_and_withheld(bridge, node_cls)[0]
 
 
 def accept_embargo(datalayer, actor_id: str) -> None:

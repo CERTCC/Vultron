@@ -34,7 +34,7 @@ Usage
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any, cast
 
 import py_trees
@@ -88,6 +88,37 @@ class BlackboardKeyProbe(py_trees.behaviour.Behaviour):
             children=[tree, probe],
         )
         return probed, probe
+
+
+class BlackboardKeyWatch(py_trees.decorators.Decorator):
+    """Record blackboard *key* as *child*'s tick leaves it, on every outcome.
+
+    :class:`BlackboardKeyProbe` reads a key after its sibling succeeds; this
+    reads it when the child's tick ends, even when the child fails or
+    raises, so a test can see the sentinel a node writes before it fails
+    (BT-17-003).  The bridge restores the key once the run returns
+    (BT-17-020), so it cannot be read afterwards.  ``value`` is ``None``
+    when the key is absent; ``ran`` tells whether the child ticked.
+    """
+
+    def __init__(self, child: py_trees.behaviour.Behaviour, key: str) -> None:
+        super().__init__(name=f"{child.name}Watch", child=child)
+        bare = key.lstrip("/")
+        self._keys = (f"/{bare}", bare)
+        self.ran = False
+        self.value: Any = None
+
+    def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
+        try:
+            yield from super().tick()
+        finally:
+            storage = py_trees.blackboard.Blackboard.storage
+            self.ran = True
+            self.value = storage.get(self._keys[0], storage.get(self._keys[1]))
+
+    def update(self) -> py_trees.common.Status:
+        self.feedback_message = self.decorated.feedback_message
+        return self.decorated.status
 
 
 class BTTestScenario:

@@ -364,38 +364,37 @@ def test_collect_and_find_replay_context_writes_blackboard(bridge, datalayer):
     datalayer.save(first_entry)
     event = _make_reject_event(tail_hash=first_entry.entry_hash)
 
-    collect_result = run_tree(
-        bridge,
-        tree=CollectAndSortCaseLedgerEntriesNode(
+    collect, entries_probe = BlackboardKeyProbe.after(
+        CollectAndSortCaseLedgerEntriesNode(
             name="CollectAndSortCaseLedgerEntries"
         ),
-        actor_id=OWNER_ACTOR_ID,
-        activity=event,
+        "/replay_case_ledger_entries",
+    )
+    collect, peer_probe = BlackboardKeyProbe.after(collect, "/replay_peer_id")
+    collect_result = run_tree(
+        bridge, tree=collect, actor_id=OWNER_ACTOR_ID, activity=event
     )
 
     assert collect_result.status == Status.SUCCESS
-    replay_entries = py_trees.blackboard.Blackboard.storage.get(
-        "/replay_case_ledger_entries"
-    )
+    replay_entries = entries_probe.value
     assert replay_entries is not None
     assert [entry.log_index for entry in replay_entries] == [0, 1]
-    assert (
-        py_trees.blackboard.Blackboard.storage.get("/replay_peer_id")
-        == PARTICIPANT_ACTOR_ID
-    )
+    assert peer_probe.value == PARTICIPANT_ACTOR_ID
 
+    find, index_probe = BlackboardKeyProbe.after(
+        FindDivergenceIndexNode(name="FindDivergenceIndex"),
+        "/replay_from_index",
+    )
     find_result = run_tree(
         bridge,
-        tree=FindDivergenceIndexNode(name="FindDivergenceIndex"),
+        tree=find,
         actor_id=OWNER_ACTOR_ID,
         activity=event,
         replay_case_ledger_entries=replay_entries,
     )
 
     assert find_result.status == Status.SUCCESS
-    assert (
-        py_trees.blackboard.Blackboard.storage.get("/replay_from_index") == 0
-    )
+    assert index_probe.value == 0
 
 
 @pytest.mark.spec("SYNC-02-001")
@@ -650,18 +649,20 @@ def test_a_position_that_names_no_entry_replays_from_the_start(
     assert from_hash not in {first_entry.entry_hash, second_entry.entry_hash}
     event = _make_reject_event(tail_hash=from_hash)
 
+    tree, probe = BlackboardKeyProbe.after(
+        FindDivergenceIndexNode(name="FindDivergenceIndex"),
+        "/replay_from_index",
+    )
     result = run_tree(
         bridge,
-        tree=FindDivergenceIndexNode(name="FindDivergenceIndex"),
+        tree=tree,
         actor_id=OWNER_ACTOR_ID,
         activity=event,
         replay_case_ledger_entries=[first_entry, second_entry],
     )
 
     assert result.status == Status.SUCCESS
-    assert (
-        py_trees.blackboard.Blackboard.storage.get("/replay_from_index") == -1
-    )
+    assert probe.value == -1
 
 
 @pytest.mark.spec("BTND-01-008")

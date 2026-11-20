@@ -18,7 +18,6 @@ Invite, and — while an embargo is active — a signatory, its row ``AGREED`` (
 See ``notes/case-joining.md`` and #4046.
 """
 
-import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
@@ -154,10 +153,11 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
     )
     scenario.seed(embargo, *participants.values(), case, stub_invite)
 
-    result = scenario.run(
+    result, recipients = scenario.run_capturing(
         with_act_keys(
             CollectLogEntryRecipientsNode(), {act_keys.CASE_ID: case.id_}
         ),
+        "/fanout_recipients",
         log_entry=make(
             CaseLedgerEntry,
             context=case.id_,
@@ -169,7 +169,4 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
     )
 
     scenario.assert_success(result)
-    recipients = py_trees.blackboard.Blackboard.storage.get(
-        "/fanout_recipients"
-    )
     assert recipients == [SIGNATORY_ID]
