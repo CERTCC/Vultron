@@ -3,8 +3,9 @@
 The Case Owner sends the CASE_MANAGER its own act, naming the actor:
 ``Remove(<Actor>, origin=<case>)`` (CM-31-004) or
 ``Add(<Actor>, target=<case>)`` (CM-31-011).  The CASE_MANAGER refuses an act
-that breaks the rules with a refusal notice, or admits it as the move's one
-ledger entry, changes the record and announces the act to the actor it names
+from a sender that does not hold ``CASE_OWNER`` with no refusal notice
+(CLP-05-006), refuses an Owner's act that breaks the rules with one, or
+admits it as the move's one ledger entry, changes the record and announces the act to the actor it names
 with ``Announce(<the Owner's act>)``.  It sends no ``Accept`` and makes no
 act of its own.  The announced actor's replica records the ``Announce``
 (:class:`AnnounceAdmittedActReceivedUseCase`) and takes the change from the
@@ -187,11 +188,13 @@ class ReinstateParticipantInCaseReceivedUseCase(
 ):
     """The Case Owner reinstates a removed participant (CM-31-011).
 
-    At the CASE_MANAGER: a sender that does not hold ``CASE_OWNER``
-    (CM-31-043), and a reinstatement naming the CASE_MANAGER, the Case Owner,
-    an actor with no record on the case, one that never joined, or one that
-    is not removed (CM-31-036), are all ``REFUSED``, with a refusal notice
-    and nothing committed.  An admitted reinstatement commits the Owner's
+    At the CASE_MANAGER: a sender that does not hold ``CASE_OWNER`` is
+    ``REFUSED`` with nothing committed and no refusal notice (CM-31-043,
+    CLP-05-006); the received runner logs it at WARNING (SL-03-002).  A
+    reinstatement naming the CASE_MANAGER, the Case Owner, an actor with no
+    record on the case, one that never joined, or one that is not removed
+    (CM-31-036), is ``REFUSED`` with a refusal notice and nothing
+    committed.  An admitted reinstatement commits the Owner's
     act as the one ledger entry (CM-31-044), clears the removal fact without
     asking the participant to accept again (CM-31-034, CM-31-035), backfills
     it once it is active (CM-10-006), announces the Owner's act to it
@@ -240,10 +243,11 @@ class RemoveParticipantFromCaseReceivedUseCase(
 ):
     """The Case Owner removes a participant from active participation (CM-31-004).
 
-    At the CASE_MANAGER: a sender that does not hold ``CASE_OWNER``, and a
-    removal naming the CASE_MANAGER, the Case Owner or an actor with no
-    record on the case, are ``REFUSED``, with a refusal notice and nothing
-    committed; removing an already-removed participant is ``SKIPPED``
+    At the CASE_MANAGER: a sender that does not hold ``CASE_OWNER`` is
+    ``REFUSED`` with nothing committed and no refusal notice (CLP-05-006);
+    the received runner logs it at WARNING (SL-03-002).  A removal naming
+    the CASE_MANAGER, the Case Owner or an actor with no record on the case
+    is ``REFUSED`` with a refusal notice and nothing committed; removing an already-removed participant is ``SKIPPED``
     (CM-31-022).  An admitted removal commits the Owner's act as the one
     ledger entry (CM-31-005, CM-31-025), sets the removal fact while keeping
     the record (CM-31-001, CM-31-015), and announces the Owner's act to the

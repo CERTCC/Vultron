@@ -652,3 +652,81 @@ def test_an_actor_naming_no_id_is_refused():
             semantic_type="add_note_to_case",
             at=datetime.now(UTC),
         )
+
+
+_NAMED_ACTOR = {
+    "type": "Organization",
+    "id": "https://example.org/actors/vendor",
+}
+
+
+def _actor_act(verb: str, **slots: object) -> dict[str, object]:
+    return {
+        "type": verb,
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": dict(_NAMED_ACTOR),
+        "context": CASE_ID,
+        **slots,
+    }
+
+
+@pytest.mark.spec("CM-31-024")
+@pytest.mark.parametrize(
+    ("slots", "expected"),
+    [
+        (
+            {"target": {"type": "VulnerabilityCase", "id": CASE_ID}},
+            ("VulnerabilityCase", "Actor", "Organization"),
+        ),
+        ({"target": CASE_ID}, ("VulnerabilityCase", "Actor", "Organization")),
+        ({"origin": CASE_ID}, ("Actor", "Organization")),
+    ],
+    ids=["typed-target", "case-id-target", "no-target"],
+)
+def test_an_act_on_an_actor_also_signs_as_an_act_on_actor(slots, expected):
+    """An act whose object is an actor yields the target's types, then
+    ``Actor``, then the actor's own types, so the Case Owner's
+    ``Remove(<Actor>)`` and ``Add(<Actor>)`` resolve whatever actor type they
+    carry (ADR-0199)."""
+    assert _snapshot_object_types(_actor_act("Add", **slots), CASE_ID) == (
+        expected
+    )
+
+
+def test_an_object_typed_actor_is_not_named_twice():
+    snapshot = _actor_act("Remove", origin=CASE_ID)
+    snapshot["object"] = {"type": "Actor", "id": _NAMED_ACTOR["id"]}
+
+    assert _snapshot_object_types(snapshot, CASE_ID) == ("Actor",)
+
+
+@pytest.mark.spec("CM-31-024")
+@pytest.mark.spec("CM-31-044")
+@pytest.mark.parametrize(
+    ("verb", "slots", "semantic_type"),
+    [
+        ("Remove", {"origin": CASE_ID}, "remove_participant_from_case"),
+        ("Add", {"target": CASE_ID}, "reinstate_participant_in_case"),
+    ],
+    ids=["removal", "reinstatement"],
+)
+def test_the_owners_move_of_an_actor_is_canonical(verb, slots, semantic_type):
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=_actor_act(verb, **slots),
+        semantic_type=semantic_type,
+        at=datetime.now(UTC),
+    )
+
+
+@pytest.mark.spec("CLP-07-012")
+def test_another_act_on_an_actor_stays_non_canonical():
+    """Adding ``Actor`` to the types admits only the listed ``Actor`` pairs."""
+    with pytest.raises(VultronCanonicalEntryError, match="is not canonical"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=_actor_act("Like"),
+            semantic_type="like_actor",
+            at=datetime.now(UTC),
+        )

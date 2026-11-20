@@ -1,18 +1,18 @@
 ---
 status: accepted-provisional
 status_override: >-
-  Revisions 2 and 3 edited in place with the decider's approval (Allen D.
-  Householder, issue #6487 planning interview, 2026-11-17, and issue #6626
-  planning interview, 2026-11-19); neither the announced ownership Offer of
-  revision 2 nor any of revision 1 was built, and the implementation issues
-  rewrite the dependent requirements. One sentence edited in place on
-  2026-11-20 with the decider's approval (#6465 build, epic run #6509): an
-  Owner that is also the CASE_MANAGER sends its removal or reinstatement to
-  its own inbox, which admits it through the same received tree.
+  Revisions 2, 3 and 4 edited in place with the decider's approval (Allen D.
+  Householder, issue #6487 planning interview, 2026-11-17, issue #6626
+  planning interview, 2026-11-19, and Epic #6509 run, issue #6465,
+  2026-11-20); neither the announced ownership Offer of revision 2 nor any of
+  revision 1 was built, and the implementation issues rewrite the dependent
+  requirements. Revision 4 adds one sentence: an Owner that is also the
+  CASE_MANAGER sends its removal or reinstatement to its own inbox, which
+  admits it through the same received tree.
 date: 2026-11-13
 created: 2026-11-13
 updated: 2026-11-20
-revision: 3
+revision: 4
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0053, ADR-0109, ADR-0113, ADR-0114, ADR-0116, ADR-0122,
@@ -232,6 +232,7 @@ Revision 3 (issue #6626) keeps that choice and changes how an act that needs an 
 Revision 2 had the CASE_MANAGER announce the Owner's ownership Offer to the transferee, who answered the announced Offer.
 Revision 3 has the CASE_MANAGER make its own Offer from the Owner's, so that an `Announce` only ever informs, and extends the same shape to the case invitation, whose direct path had the Owner send a recommend-actor `Offer(Actor)` for a decision the Owner makes.
 The announced Offer of revision 2 was not built.
+Revision 4 (issue #6465) states that an Owner that is also the CASE_MANAGER sends its removal or reinstatement to its own inbox, where the same received tree admits or refuses it.
 
 This record partially supersedes ADR-0116 in its choice of the removal and reinstatement messages.
 These ADR-0116 statements no longer hold: the message names the participant record with the case as its `target`; the CASE_MANAGER sends the removed party a separate, unledgered notice.

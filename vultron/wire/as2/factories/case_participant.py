@@ -262,7 +262,9 @@ def announce_admitted_act_activity(
     keeps its own author and id.  ``inReplyTo`` names the act, whose commit
     caused the ``Announce`` (ADR-0204), and ``context`` is the case.  The
     CASE_MANAGER is the ``actor``; pass it, the recipients and the derived
-    ``id_``.
+    ``id_``.  The sender refuses an ``inReplyTo`` that names anything but
+    the act; the class itself is lenient about it, as a receiver is
+    (``announce_admitted_act_received_tree``).
 
     Args:
         admitted: The admitted act, as this actor holds it.
@@ -274,16 +276,28 @@ def announce_admitted_act_activity(
         An ``as_Announce`` whose ``object_`` is the admitted act.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails,
+            or ``in_reply_to`` names anything but the act.
     """
+
+    def _fields() -> dict[str, object]:
+        act = as_answered(as_Activity, admitted)
+        fields: dict[str, object] = {
+            "object_": act,
+            "in_reply_to": act.id_,
+            "context": case_target_ref(case),
+            **kwargs,
+        }
+        if fields["in_reply_to"] != act.id_:
+            raise ValueError(
+                "an announcement names the act it carries in inReplyTo"
+            )
+        return fields
+
     return build_activity(
         "announce_admitted_act_activity",
         _AnnounceAdmittedActActivity,
         at,
-        lambda: {
-            "object_": as_answered(as_Activity, admitted),
-            "in_reply_to": getattr(admitted, "id_", None),
-            "context": case_target_ref(case),
-            **kwargs,
-        },
+        _fields,
+        also=(ValueError,),
     )

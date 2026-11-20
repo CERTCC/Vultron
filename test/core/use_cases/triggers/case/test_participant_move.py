@@ -45,12 +45,14 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.participants.role_predicate import has_role
 from vultron.core.use_cases.triggers.case import (
     ReinstateParticipantTriggerRequest,
     RemoveParticipantTriggerRequest,
     SvcReinstateParticipantUseCase,
     SvcRemoveParticipantUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.parser import parse_activity
 
@@ -178,13 +180,54 @@ def test_the_case_manager_admits_the_queued_acts_as_their_entries() -> None:
     assert not manager.participant(VENDOR).removed
 
 
+def _owner_is_the_case_manager_store() -> _RemovalCase:
+    """The CASE_MANAGER's store, where it also holds ``CASE_OWNER``."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER)
+    case = _seed(dl)
+    for actor_id, gains in ((MANAGER, True), (OWNER, False)):
+        record = dl.read(case.actor_participant_index[actor_id])
+        assert isinstance(record, CaseParticipant)
+        roles = [r for r in record.case_roles if r is not CVDRole.CASE_OWNER]
+        if gains:
+            roles.append(CVDRole.CASE_OWNER)
+        dl.save(record.model_copy(update={"case_roles": roles}))
+    assert has_role(MANAGER, CASE_ID, CVDRole.CASE_OWNER, dl)
+    assert not has_role(OWNER, CASE_ID, CVDRole.CASE_OWNER, dl)
+    return _RemovalCase(dl=dl, case=case)
+
+
 @pytest.mark.spec("OX-12-001")
+@pytest.mark.spec("CM-31-004")
+@pytest.mark.spec("CM-31-005")
+@pytest.mark.spec("CM-31-006")
 def test_an_owner_that_is_the_case_manager_addresses_itself() -> None:
     """An Owner that also holds the CASE_MANAGER role sends the same act to
-    its own inbox, which admits it under the same rules."""
-    dl = _store(MANAGER)
-    before = set(dl.outbox_list())
+    its own inbox, which admits it under the same rules (ADR-0199)."""
+    manager = _owner_is_the_case_manager_store()
+    before = set(manager.dl.outbox_list())
 
-    _trigger(dl, "remove", MANAGER)
+    _trigger(manager.dl, "remove", MANAGER)
 
-    assert _queued_body(dl, before)["to"] == [MANAGER]
+    body = _queued_body(manager.dl, before)
+    assert body["to"] == [MANAGER]
+    queued = set(manager.dl.outbox_list())
+
+    result = route_received(
+        manager.dl,
+        parse_activity(json.loads(json.dumps(body))),
+        receiving_actor_id=MANAGER,
+        sync_port=SyncActivityAdapter(manager.dl),
+        trigger_activity=TriggerActivityAdapter(manager.dl),
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert manager.ledger()[-1].log_object_id == body["id"]
+    assert manager.participant(VENDOR).removed
+    sent = [
+        read_sealed_body_dict(manager.dl, item)
+        for item in set(manager.dl.outbox_list()) - queued
+    ]
+    announces = [b for b in sent if b is not None and b["type"] == "Announce"]
+    assert len(announces) == 1
+    assert announces[0]["to"] == [VENDOR]
+    assert announces[0]["object"]["id"] == body["id"]

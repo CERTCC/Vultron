@@ -25,8 +25,9 @@ itself, to the case's CASE_MANAGER only (ADR-0199):
 
 Each act names the actor as a typed reference, never its ``CaseParticipant``.
 The trigger does not pre-judge the act: the CASE_MANAGER's received tree
-refuses one that breaks the rules with a refusal notice, or admits it as the
-move's ledger entry and announces it to the actor it names.  An Owner that
+refuses one from a sender that does not hold ``CASE_OWNER`` with no refusal
+notice (CLP-05-006), refuses an Owner's act that breaks the rules with one,
+or admits it as the move's ledger entry and announces it to the actor it names.  An Owner that
 is also the CASE_MANAGER addresses the act to itself, and its own inbox
 admits it under the same rules (OX-12-001).  The sender changes nothing on
 its own replica: like every replica, it applies the move from the ledger

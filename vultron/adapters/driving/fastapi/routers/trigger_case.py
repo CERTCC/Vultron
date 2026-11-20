@@ -186,7 +186,8 @@ def trigger_leave_case(
         "activity addressed to the case's CASE_MANAGER alone, naming the "
         "actor as a typed reference, and returns it in the response body "
         "(CM-31-004, ADR-0199, TRIG-04-001). The CASE_MANAGER refuses it "
-        "with a refusal notice, or records it as the ledger entry and "
+        "(with a refusal notice when the sender is the Case Owner, with "
+        "none otherwise, CLP-05-006), or records it as the ledger entry and "
         "announces it to the removed actor; the actor's record stays on the "
         "case (CM-31-015)."
     ),
@@ -230,7 +231,8 @@ def trigger_remove_participant(
         "activity addressed to the case's CASE_MANAGER alone, naming the "
         "actor as a typed reference, and returns it in the response body "
         "(CM-31-011, ADR-0199, TRIG-04-001). The CASE_MANAGER refuses it "
-        "with a refusal notice, or records it as the ledger entry, "
+        "(with a refusal notice when the sender is the Case Owner, with "
+        "none otherwise, CLP-05-006), or records it as the ledger entry, "
         "announces it to the reinstated actor and sends it the ledger "
         "entries it missed; the actor does not accept again (CM-31-035)."
     ),

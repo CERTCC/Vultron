@@ -168,7 +168,9 @@ class _AnnounceAdmittedActActivity(as_Announce):
     participant.  It informs and asks nothing.  The act travels inline, as
     received, keeping its own author and id; ``inReplyTo`` names it too,
     because the act's commit caused the ``Announce`` (ADR-0204), and
-    ``context`` is the case.
+    ``context`` is the case.  The class does not check that ``inReplyTo``
+    names the carried act: the sender's factory refuses a mismatch, and a
+    receiver takes one as received, since it acts on neither (CLP-15-007).
 
     object_: the admitted act, inline
     in_reply_to: the admitted act's id
@@ -184,13 +186,9 @@ class _AnnounceAdmittedActActivity(as_Announce):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
     @model_validator(mode="after")
-    def _names_the_act_and_its_case(self) -> Self:
+    def _names_its_case(self) -> Self:
         if self.context is None:
             raise ValueError("an announcement names its case in context")
-        if self.in_reply_to != self.object_.id_:
-            raise ValueError(
-                "an announcement names the act it carries in inReplyTo"
-            )
         return self
 
 

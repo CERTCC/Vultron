@@ -143,7 +143,12 @@ def _setup_case_with_vendor(
 
 
 def _activity_id(activity: dict | None, verb: str) -> str:
-    """The id of the activity the *verb* trigger returned."""
+    """The id of the activity the *verb* trigger returned.
+
+    The move triggers return an untyped result: ``WireActivityResult`` cannot
+    hold an act whose ``object`` is a bare typed actor reference (AKM-05-005),
+    so the id is checked here.
+    """
     activity_id = (activity or {}).get("id")
     if not isinstance(activity_id, str) or not activity_id:
         raise ValueError(f"The {verb} trigger returned no activity id")
