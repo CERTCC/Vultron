@@ -263,7 +263,7 @@ A coordinator proposes embargo terms with an Embargo Proposal (EP), `Invite(Emba
 The vendor then does one of two things:
 
 - The vendor **accepts** with `Accept(Invite(EmbargoEvent))`, its own consent to the terms.
-  Then, as Case Owner, it activates the embargo on the case with an Embargo Proposal Acceptance (EA), `Add(EmbargoEvent)[target=VulnerabilityCase]`, and announces it with `Announce(EmbargoEvent)`.
+  Then, as Case Owner, it activates the embargo on the case with an Embargo Proposal Acceptance (EA), `Update(EmbargoEvent{status: ACTIVE})`, and announces it with `Announce(EmbargoEvent)`.
   The Embargo Management (EM) state becomes `ACTIVE`.
 - The vendor **rejects** with `Reject(Invite(EmbargoEvent))`, its own refusal of the terms.
   The EM state does not change.
@@ -279,7 +279,7 @@ sequenceDiagram
     C->>V: Embargo Proposal (EP)<br/>Invite(EmbargoEvent)
     alt Vendor accepts
         V-->>C: Agree to the terms<br/>Accept(Invite(EmbargoEvent))
-        V->>V: Embargo Proposal Acceptance (EA)<br/>Add(EmbargoEvent)[target=VulnerabilityCase]
+        V->>V: Embargo Proposal Acceptance (EA)<br/>Update(EmbargoEvent{status: ACTIVE})
         V->>C: Announce(EmbargoEvent)
         Note over C,V: EM state = ACTIVE
     else Vendor rejects
@@ -393,7 +393,7 @@ sequenceDiagram
     alt Path 1 — Activate then terminate
         C->>V: Embargo Proposal (EP)<br/>Invite(EmbargoEvent)
         V-->>C: Agree to the terms<br/>Accept(Invite(EmbargoEvent))
-        V->>V: Embargo Proposal Acceptance (EA)<br/>Add(EmbargoEvent)[target=VulnerabilityCase],<br/>then Announce(EmbargoEvent)
+        V->>V: Embargo Proposal Acceptance (EA)<br/>Update(EmbargoEvent{status: ACTIVE}),<br/>then Announce(EmbargoEvent)
         Note over C,V: EM state = ACTIVE
         V->>C: Embargo Termination (ET)<br/>Remove(EmbargoEvent)
         Note over C,V: EM state = EXITED
@@ -404,7 +404,7 @@ sequenceDiagram
         V-->>C: Refuse the terms<br/>Reject(Invite(EmbargoEvent))
         C->>V: Embargo Proposal (EP), 90 days<br/>Invite(EmbargoEvent)
         V-->>C: Agree to the terms<br/>Accept(Invite(EmbargoEvent))
-        V->>V: Embargo Proposal Acceptance (EA)<br/>Add(EmbargoEvent)[target=VulnerabilityCase]
+        V->>V: Embargo Proposal Acceptance (EA)<br/>Update(EmbargoEvent{status: ACTIVE})
         Note over C,V: EM state = ACTIVE
     end
 ```

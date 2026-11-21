@@ -468,6 +468,9 @@ plugins:
         # ADR-0166 answered the embargo-termination-authority open question, so its
         # fragment was closed (#6012).
         reference/vultron-spec/_oq-embargo-termination-authority.md: reference/vultron-spec/interactions.md#113-status-adoption-one-authorization-gate
+        # ADR-0199 made activating an embargo the Case Owner's own act, so the
+        # delegated-activation open question was closed (#6625).
+        reference/vultron-spec/_oq-delegated-embargo-activation.md: reference/messages/em.md#the-case-owners-decision
         topics/background/notation.md: reference/vultron-spec/annex-c-notation.md
         topics/background/overview.md: topics/background/what-is-vultron.md
         # Terms and Definitions was merged into the glossary's roles section (#3624).

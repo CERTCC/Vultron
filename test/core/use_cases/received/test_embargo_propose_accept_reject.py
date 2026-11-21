@@ -200,7 +200,7 @@ class TestEmbargoProposalLifecycle:
         assert result.disposition is HandlerDisposition.APPLIED
 
         # Accept(Invite) is the sender's consent, the owner's included; the
-        # owner's decision for the case is Add(EmbargoEvent) (ADR-0122).
+        # owner's decision for the case is Update(EmbargoEvent{status: ACTIVE}) (ADR-0122).
         case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
@@ -375,7 +375,7 @@ class TestEmbargoProposalLifecycle:
     @pytest.mark.spec("EP-09-005")
     @pytest.mark.spec("MSM-07-005")
     def test_owners_accept_of_the_embargo_activates_it(self, make_payload):
-        """The owner's Add(EmbargoEvent)[target=VulnerabilityCase] activates the proposal.
+        """The owner's Update(EmbargoEvent{status: ACTIVE}) activates the proposal.
 
         The activation is also the owner's agreement, so its row for the
         embargo becomes ACCEPTED (ADR-0122).
@@ -410,7 +410,7 @@ class TestEmbargoProposalLifecycle:
         activation = activate_embargo_activity(
             embargo,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=case.id_,
+            context=case.id_,
             actor=owner_id,
             to=[coordinator_id],
             at=authored_at(),

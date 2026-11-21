@@ -376,7 +376,8 @@ groups:
       snapshot can name the sender as CASE_MANAGER and pass the trust check that must
       refuse it (PCR-03-004, CBT-01-011). A handler therefore sees the receiver's
       record of any id it holds, never the carried copy, so a guard keys on the stored
-      record (HP-08-006).
+      record (HP-08-006). The object of an `Update` is routed as carried (IO-03-008),
+      but it is still never written.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the routed
       activity carries its inline object while the receiver's store holds none.
@@ -393,22 +394,27 @@ groups:
     statement: >-
       To rebuild the routed activity, the ingress payload adapter MAY stage the inline
       objects in a holding area outside the receiving actor's DataLayer. The holding
-      area answers a read only when the DataLayer holds nothing under the id, and keeps
-      nothing past the delivery.
+      area answers a read only when the DataLayer holds nothing under the id, or when
+      the id is the object of an `Update`, and keeps nothing past the delivery.
     rationale: >-
       Routing still needs the inline object, because the rebuilt activity names it by
       id, and a bare id matches no pattern (SE-01-006). The receiver's record wins over
       the carried copy, so a carried case cannot replace the replica that the receiver
-      rebuilds from the ledger.
+      rebuilds from the ledger. An `Update` is the exception: its object is the change
+      its sender states, such as the `status` the Case Owner sets on an embargo, so the
+      held copy would erase the message (ADR-0199). Its handler compares the carried
+      copy with the held record and refuses any change it may not make.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the
-      receiver's own copy wins over the staged one.
+      receiver's own copy wins over the staged one, and that the object of an
+      `Update` routes as carried while the receiver's store still holds its own.
     relationships:
     - rel_type: implements
       spec_id: IO-03-004
     tags:
     - tooling
     adr:
+    - ADR-0199
     - ADR-0214
   - id: IO-03-009
     priority: MAY

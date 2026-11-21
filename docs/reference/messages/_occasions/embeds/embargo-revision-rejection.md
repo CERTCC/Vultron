@@ -5,7 +5,7 @@
     Rejects the revision for the case. The active embargo stays in force on its prior terms, unless the case is public, an exploit is public or attacks are observed, when the CASE_MANAGER also ends it.
 
     - **When…** the Case Owner decides to reject a proposed revision
-    - **Send:** `Reject(EmbargoEvent)[target=VulnerabilityCase]`
+    - **Send:** `Update(EmbargoEvent{status: REJECTED})[context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the Case Owner
     - **Distinguished by:** EM state `REVISE`

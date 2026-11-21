@@ -368,23 +368,23 @@ _CASES = [
     (
         ActivateEmbargoOnCaseReceivedEvent,
         MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
-        {"object_": _embargo, "target": _case},
+        {"object_": _embargo, "context": _case},
         [
             ("embargo_id", "object_id"),
             ("embargo", "object_"),
-            ("case_id", "target_id"),
-            ("case", "target"),
+            ("case_id", "context_id"),
+            ("case", "context"),
         ],
     ),
     (
         RejectEmbargoProposalOnCaseReceivedEvent,
         MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
-        {"object_": _embargo, "target": _case},
+        {"object_": _embargo, "context": _case},
         [
             ("embargo_id", "object_id"),
             ("embargo", "object_"),
-            ("case_id", "target_id"),
-            ("case", "target"),
+            ("case_id", "context_id"),
+            ("case", "context"),
         ],
     ),
     (

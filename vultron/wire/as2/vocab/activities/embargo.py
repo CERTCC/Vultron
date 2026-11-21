@@ -21,7 +21,6 @@ from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.activities.base import RepliesToObject
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Add,
     as_Announce,
     as_Create,
     as_Invite,
@@ -61,7 +60,7 @@ class _EmAcceptEmbargoActivity(RepliesToObject, as_Accept):
     """The actor is accepting an embargo proposal.
     It is the sender's own consent to those terms and carries no protocol
     shorthand: EA and EC are the Case Owner's decision,
-    ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (MSM-02-010).
+    ``Update(EmbargoEvent{status: ACTIVE})`` (MSM-02-010, ADR-0199).
     Per ActivityStreams convention: Accept(Invite(EmbargoEvent)) — the actor accepts
     the proposal activity itself, not the as_EmbargoEvent being proposed.
 
@@ -80,7 +79,7 @@ class _EmRejectEmbargoActivity(RepliesToObject, as_Reject):
     """The actor is rejecting an embargo proposal.
     A Participant's Reject is its own consent, declining those terms, and
     carries no protocol shorthand: ER and EJ are the Case Owner's decision,
-    ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (MSM-02-010).  The
+    ``Update(EmbargoEvent{status: REJECTED})`` (MSM-02-010, ADR-0199).  The
     CASE_MANAGER's own Reject abandons the proposal and is ER (MSM-02-006,
     EMB-16-001).
     Per ActivityStreams convention: Reject(Invite(EmbargoEvent)) — the actor rejects
@@ -118,46 +117,47 @@ class _EmUndoEmbargoInviteActivity(as_Undo):
     context: as_VulnerabilityCaseRef = None
 
 
-class _ActivateEmbargoActivity(as_Add):
-    """The case owner activates a proposed embargo on the case (ADR-0180).
+class _OwnerEmbargoDecisionMixin(as_Update):
+    """The Case Owner's decision on a proposed embargo (ADR-0199).
 
-    ``Add(EmbargoEvent)[target=VulnerabilityCase]``: the owner's decision
-    for the case, which puts the embargo in force, as
-    ``Remove(EmbargoEvent)[origin=VulnerabilityCase]`` ends it.  A
-    participant's consent is an answer to the Invite,
-    ``Accept(Invite(EmbargoEvent))``, so the two differ by verb.  Only the
-    case owner sends it.
-    object_: the as_EmbargoEvent being activated (inline, so a recipient
-        reads the terms without a dereference, VAM-05-010)
-    target: the VulnerabilityCase the embargo was proposed for
-    in_reply_to: the id of the ``Invite(EmbargoEvent)`` that proposed the
-        embargo (RF-08-001, ADR-0180)
+    ``Update(EmbargoEvent)[context=VulnerabilityCase]`` setting the
+    embargo's ``status``: the owner decides, so it sends the act itself, to
+    the CASE_MANAGER, which admits it as the ledger entry or refuses it.
+    The embargo is carried inline with its terms as proposed and the status
+    the decision sets; an ``Update`` that changes a term is refused, since
+    terms change only by a revision proposal.  Only the case owner sends it.
+
+    object_: the as_EmbargoEvent decided, inline, its ``status`` set
+        (VAM-05-010)
+    context: the VulnerabilityCase the embargo was proposed for
+    in_reply_to: the id of the proposer's own ``Invite(EmbargoEvent)``,
+        never an Invite the CASE_MANAGER relayed from it (RF-08-001, #6626)
     """
 
     object_: as_EmbargoEvent = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    context: as_VulnerabilityCaseRef = None
     in_reply_to: NonEmptyString = Field(default=...)
 
 
-class _RejectEmbargoProposalActivity(as_Reject):
-    """The case owner rejects a proposed embargo on the case (ADR-0122).
+class _ActivateEmbargoActivity(_OwnerEmbargoDecisionMixin, as_Update):
+    """The case owner activates a proposed embargo on the case (EA, EC).
 
-    ``Reject(EmbargoEvent)[target=VulnerabilityCase]``: the owner's decision
-    for the case, distinct from ``Reject(Invite(EmbargoEvent))``, which is
-    always the sender's own consent.  Only the case owner sends it.
-    object_: the as_EmbargoEvent being rejected (inline, VAM-05-010)
-    target: the VulnerabilityCase the embargo was proposed for
-    in_reply_to: the id of the ``Invite(EmbargoEvent)`` that proposed the
-        embargo (RF-08-001, ADR-0180)
+    ``Update(EmbargoEvent{status: ACTIVE})``: the proposal already put the
+    embargo on the case's register, so its activation is a change of its
+    status (ADR-0199, ADR-0202).  A participant's consent is an answer to
+    the Invite, ``Accept(Invite(EmbargoEvent))``.
     """
 
-    object_: as_EmbargoEvent = Field(
-        default=..., validation_alias="object", serialization_alias="object"
-    )
-    target: as_VulnerabilityCaseRef = None
-    in_reply_to: NonEmptyString = Field(default=...)
+
+class _RejectEmbargoProposalActivity(_OwnerEmbargoDecisionMixin, as_Update):
+    """The case owner rejects a proposed embargo on the case (ER, EJ).
+
+    ``Update(EmbargoEvent{status: REJECTED})`` (ADR-0199), so a ``Reject``
+    from the owner only ever means its own consent,
+    ``Reject(Invite(EmbargoEvent))``.
+    """
 
 
 class _WithdrawFromEmbargoActivity(as_Leave):

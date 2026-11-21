@@ -298,7 +298,7 @@ Admission is caught at two points:
   *before* its effect admits anyone (CLP-10-006), so
   `BackfillAdmittedParticipantsNode` (`embargo_admission_backfill_nodes()`) runs
   after the effect: accepted Invite, `Remove(EmbargoEvent)` teardown, an honored
-  late Accept (EMB-17-001), and the owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`
+  late Accept (EMB-17-001), and the owner's `Update(EmbargoEvent{status: ACTIVE})`
   activating a revision a paused participant already accepted.
 
 An admitted peer's own Reject clears the pause too: its replay resends everything

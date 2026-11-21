@@ -85,7 +85,6 @@ _ACTIVITIES: dict[type, Callable[[Any], Any]] = {
     ActivateEmbargoOnCaseReceivedUseCase: lambda e: activate_embargo_activity(
         e,
         in_reply_to=SEEDED_PROPOSAL_ID,
-        target=_CASE,
         context=_CASE,
         **_ADDRESSING,
         at=authored_at(),
@@ -94,7 +93,6 @@ _ACTIVITIES: dict[type, Callable[[Any], Any]] = {
         lambda e: reject_embargo_proposal_activity(
             e,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=_CASE,
             context=_CASE,
             **_ADDRESSING,
             at=authored_at(),

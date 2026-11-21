@@ -272,7 +272,7 @@ No case exists yet, so both messages go directly between the two actors.
 A Vendor proposes embargo terms for a case with no active embargo, Embargo Proposal (`EP`).
 The CASE_MANAGER asks each other participant about the proposal, naming the proposer in `attributedTo`, the proposal in `inReplyTo` and the deadline for an answer in `endTime`.
 A Coordinator agrees by accepting the `Invite` it received.
-That answer is the Coordinator's own consent, so it carries no shorthand: Embargo Proposal Acceptance (`EA`) is the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`.
+That answer is the Coordinator's own consent, so it carries no shorthand: Embargo Proposal Acceptance (`EA`) is the Case Owner's `Update(EmbargoEvent{status: ACTIVE})`.
 
 === "Notation"
 

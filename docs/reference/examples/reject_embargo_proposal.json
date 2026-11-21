@@ -4,15 +4,14 @@
     "https://certcc.github.io/Vultron/ns/context.jsonld",
     "https://w3id.org/security/data-integrity/v2"
   ],
-  "type": "Reject",
+  "type": "Update",
   "id": "urn:uuid:ea20455d-6b29-43fe-991d-28ddd3ccd558",
-  "name": "https://vultron.example/organizations/vendorco Reject Embargo for VendorCo Case #20260601 to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "name": "https://vultron.example/organizations/vendorco Update Embargo for VendorCo Case #20260601",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "inReplyTo": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-08-30T00:00:00+00:00",
     "type": [
@@ -26,7 +25,7 @@
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "content": "We propose to embargo VendorCo Case #20260601 for 90 days.",
-    "status": "PROPOSED"
+    "status": "REJECTED"
   },
   "proof": {
     "@context": [
@@ -39,6 +38,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z21SQJiFd39SJpumD2mPf1U7YhMJg5BrmoKtkwAhZchZLmhDmqS6UnV1zAndMUkLhBoksXVWqQH9DtZa6qJ8nyE11"
+    "proofValue": "z2xojd7V1RB9DRhbCBvY9GUdu1mni3QYD55VxZgkeNJHSBDLcYHrjLpCzLQMTDoahrn3R9rvEbiQvjWtTEUkkEGEa"
   }
 }

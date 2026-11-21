@@ -159,7 +159,7 @@ class _GateScenario:
 
         The case is in REVISE with the revision proposed, and *actor_id*'s
         participant lists the revision, so the CASE_MANAGER's receipt of the
-        owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` admits it (CM-10-004).
+        owner's ``Update(EmbargoEvent{status: ACTIVE})`` admits it (CM-10-004).
         The revision ends sooner than the active terms, so the signatories
         (AGREED rows for the active terms) carry over by containment and stay
         admitted (EP-05-003).
@@ -193,7 +193,7 @@ class _GateScenario:
         activation = activate_embargo_activity(
             revision,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=CASE_ID,
+            context=CASE_ID,
             actor=MANAGER_ID,
             at=authored_at(),
         )
@@ -422,7 +422,7 @@ def test_an_honored_late_accept_backfills_withheld_entries(
 def test_activating_a_revision_the_participant_accepted_backfills_it(
     make_payload,
 ) -> None:
-    """A received Add(EmbargoEvent) that admits the finder backfills it.
+    """A received Update(EmbargoEvent{status: ACTIVE}) that admits the finder backfills it.
 
     The Add entry is committed and fanned out while the old embargo is still
     active, so its fan-out withholds the finder; the backfill after the

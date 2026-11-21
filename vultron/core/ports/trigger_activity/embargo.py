@@ -142,13 +142,14 @@ class TriggerEmbargoPort(Protocol):
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist the case owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]``.
+        """Create and persist the case owner's ``Update(EmbargoEvent{status: ACTIVE})``.
 
-        The owner's activation of a proposed embargo (ADR-0180), distinct
+        The owner's activation of a proposed embargo (ADR-0199), distinct
         from :meth:`accept_embargo`, the sender's own consent to an Invite.
-        *proposal_id* is the ``Invite(EmbargoEvent)`` that proposed the
-        embargo, as the owner's store records it for the open proposal; the
-        activity names it in ``inReplyTo`` (RF-08-001).
+        *proposal_id* is the ``Invite(EmbargoEvent)`` the owner answers, as
+        its store records it for the open proposal; the activity names the
+        proposer's own Invite behind it in ``inReplyTo``, never an Invite the
+        CASE_MANAGER relayed from it (RF-08-001, #6626).
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -163,12 +164,11 @@ class TriggerEmbargoPort(Protocol):
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist the case owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
+        """Create and persist the case owner's ``Update(EmbargoEvent{status: REJECTED})``.
 
-        The owner's rejection of a proposed embargo (ADR-0122), distinct
+        The owner's rejection of a proposed embargo (ADR-0199), distinct
         from :meth:`reject_embargo`, the sender's own refusal of an Invite.
-        *proposal_id* is named in ``inReplyTo`` as for
-        :meth:`activate_embargo` (ADR-0180).
+        *proposal_id* is read as for :meth:`activate_embargo`.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

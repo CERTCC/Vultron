@@ -63,11 +63,8 @@ logger = logging.getLogger(__name__)
 # object *to a case*, less the types with their own flow (TRIG-10-001).  The
 # target check matters: a status ``Add`` targets a status history, not the case
 # (ADR-0204), so neither status type is one of them.
-# The Case Owner's activation of a proposed embargo is an ``Add(EmbargoEvent)``
-# too, sent only by the owner-decision paths (the accept-embargo trigger and
-# the owner's automatic answer), which name the proposal it decides
-# (ADR-0180).  So is the Case Owner's reinstatement, ``Add(<Actor>)``,
-# which its own trigger sends (ADR-0199).
+# The Case Owner's reinstatement, ``Add(<Actor>)``, also adds to the case,
+# and its own trigger sends it (ADR-0199).
 _ADD_OBJECT_TO_CASE_SEMANTICS: frozenset[MessageSemantics] = frozenset(
     entry.semantics
     for entry in SEMANTIC_REGISTRY
@@ -76,7 +73,6 @@ _ADD_OBJECT_TO_CASE_SEMANTICS: frozenset[MessageSemantics] = frozenset(
     and entry.pattern.target_ == VOtype.VULNERABILITY_CASE
 ) - {
     MessageSemantics.REINSTATE_PARTICIPANT_IN_CASE,
-    MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
 }
 
 

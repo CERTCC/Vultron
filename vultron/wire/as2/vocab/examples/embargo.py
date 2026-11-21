@@ -34,7 +34,6 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Add,
     as_Announce,
     as_Create,
     as_Invite,
@@ -319,10 +318,11 @@ def reject_embargo_revision() -> as_Reject:
     )
 
 
-def activate_embargo() -> as_Add:
-    """EA: the case owner's activation of the proposed embargo (ADR-0180).
+def activate_embargo() -> as_Update:
+    """EA: the case owner's activation of the proposed embargo (ADR-0199).
 
-    ``inReplyTo`` names the ``Invite(EmbargoEvent)`` that proposed it.
+    ``Update(EmbargoEvent{status: ACTIVE})``; ``inReplyTo`` names the
+    proposer's own ``Invite(EmbargoEvent)``.
     """
     _case = case()
     _vendor = vendor()
@@ -330,18 +330,17 @@ def activate_embargo() -> as_Add:
         embargo_event(),
         in_reply_to=propose_embargo().id_,
         actor=_vendor.id_,
-        target=_case.id_,
         context=_case.id_,
         at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
 
-def reject_embargo_proposal() -> as_Reject:
-    """ER: the case owner's rejection of the proposed embargo (ADR-0122).
+def reject_embargo_proposal() -> as_Update:
+    """ER: the case owner's rejection of the proposed embargo (ADR-0199).
 
-    ``inReplyTo`` names the ``Invite(EmbargoEvent)`` that proposed it
-    (ADR-0180).
+    ``Update(EmbargoEvent{status: REJECTED})``; ``inReplyTo`` names the
+    proposer's own ``Invite(EmbargoEvent)``.
     """
     _case = case()
     _vendor = vendor()
@@ -349,14 +348,13 @@ def reject_embargo_proposal() -> as_Reject:
         embargo_event(),
         in_reply_to=propose_embargo().id_,
         actor=_vendor.id_,
-        target=_case.id_,
         context=_case.id_,
         at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
 
-def activate_embargo_revision() -> as_Add:
+def activate_embargo_revision() -> as_Update:
     """EC: the case owner's activation of a proposed revision (MSM-02-005).
 
     The revision replaces the active embargo in the same register step.
@@ -366,13 +364,12 @@ def activate_embargo_revision() -> as_Add:
         embargo_event(120),
         in_reply_to=propose_embargo_revision().id_,
         actor=vendor().id_,
-        target=_case.id_,
         context=_case.id_,
         at=EXAMPLE_TIMESTAMP,
     )
 
 
-def reject_embargo_revision_proposal() -> as_Reject:
+def reject_embargo_revision_proposal() -> as_Update:
     """EJ: the case owner's rejection of a proposed revision (MSM-02-004).
 
     The active embargo stays in force on its prior terms, unless P/X/A is
@@ -383,7 +380,6 @@ def reject_embargo_revision_proposal() -> as_Reject:
         embargo_event(120),
         in_reply_to=propose_embargo_revision().id_,
         actor=vendor().id_,
-        target=_case.id_,
         context=_case.id_,
         at=EXAMPLE_TIMESTAMP,
     )

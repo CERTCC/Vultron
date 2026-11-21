@@ -16,15 +16,16 @@ from typing import cast
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Add,
     as_Announce,
     as_Invite,
     as_Offer,
     as_Reject,
     as_Remove,
+    as_Update,
 )
 
 
@@ -91,38 +92,35 @@ class TestVocabEmbargoExamples(unittest.TestCase):
         rejected_proposal = cast(as_Offer, activity.object_)
         self.assertEqual(rejected_proposal.id_, proposal.id_)
 
-    def test_activate_embargo(self):
-        """The owner adds the EmbargoEvent itself to the case (ADR-0180)."""
-        activity = examples.activate_embargo()
+    def _assert_owner_update(self, activity, status):
+        """The owner's Update of the EmbargoEvent, its status set (ADR-0199)."""
         vendor = examples.vendor()
         case = examples.case()
         embargo = examples.embargo_event()
 
-        self.assertIsInstance(activity, as_Add)
-        self.assertEqual(activity.type_, "Add")
+        self.assertIsInstance(activity, as_Update)
+        self.assertEqual(activity.type_, "Update")
         self.assertEqual(activity.in_reply_to, examples.propose_embargo().id_)
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.target, case.id_)
-        self.assertEqual(activity.object_, embargo)
+        self.assertEqual(activity.context, case.id_)
+        self.assertIsNone(activity.target)
+        self.assertEqual(activity.object_, embargo.with_register_state(status))
+
+    def test_activate_embargo(self):
+        """EA: the owner's Update setting the embargo ACTIVE (ADR-0199)."""
+        self._assert_owner_update(
+            examples.activate_embargo(), EmbargoRegisterStatus.ACTIVE
+        )
 
     def test_reject_embargo_proposal(self):
-        """The owner's Reject of the EmbargoEvent itself (ADR-0122, ADR-0180)."""
-        activity = examples.reject_embargo_proposal()
-        vendor = examples.vendor()
-        case = examples.case()
-        embargo = examples.embargo_event()
-
-        self.assertIsInstance(activity, as_Reject)
-        self.assertEqual(activity.type_, "Reject")
-        self.assertEqual(activity.in_reply_to, examples.propose_embargo().id_)
-
-        self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.target, case.id_)
-        self.assertEqual(activity.object_, embargo)
+        """ER: the owner's Update setting the embargo REJECTED (ADR-0199)."""
+        self._assert_owner_update(
+            examples.reject_embargo_proposal(), EmbargoRegisterStatus.REJECTED
+        )
 
     def test_revision_decisions_name_the_revision_invite(self):
-        """An owner decision on a revision names the revision's Invite (ADR-0180)."""
+        """An owner decision on a revision names the revision's Invite (ADR-0199)."""
         revision = examples.propose_embargo_revision()
         for activity in (
             examples.activate_embargo_revision(),

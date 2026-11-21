@@ -201,7 +201,7 @@ def _decide(
     *,
     sender: str = _OWNER,
 ):
-    activity = factory(embargo, target=_CASE_ID, actor=sender, to=[_MANAGER])
+    activity = factory(embargo, context=_CASE_ID, actor=sender, to=[_MANAGER])
     event = make_payload(activity, receiving_actor_id=_MANAGER, at=dl)
     return run_in_act(use_case(dl, event, **_ports(dl)))
 

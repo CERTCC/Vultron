@@ -34,6 +34,13 @@ _S = EmbargoRegisterStatus
 #: Statuses an embargo reaches only by having been ``ACTIVE``.
 _WAS_ACTIVE = frozenset({_S.ACTIVE, _S.SUPERSEDED, _S.TERMINATED})
 
+#: What an ``Update`` of an embargo setting a status may change besides the
+#: status: its termination when it ends, and nothing else (ADR-0199,
+#: ADR-0203).  A status not listed changes the status alone.
+_UPDATE_MAY_SET: dict[EmbargoRegisterStatus, frozenset[str]] = {
+    _S.TERMINATED: frozenset({"termination"}),
+}
+
 
 class EmbargoEvent(CoreObject):
     """Domain representation of an EmbargoEvent.
@@ -125,6 +132,27 @@ class EmbargoEvent(CoreObject):
                 "replaces": replaces,
                 "termination": termination,
             }
+        )
+
+    def changed_terms(self, held: EmbargoEvent) -> tuple[str, ...]:
+        """The fields this embargo, as an ``Update`` carries it, changes on *held*.
+
+        An ``Update`` of an embargo changes its ``status``, and its
+        ``termination`` when it ends; its terms change only by a revision
+        proposal (ADR-0199).  So every other field this copy states must
+        equal *held*'s, the record the receiver holds for the embargo, and
+        the names of those that differ are returned, sorted: empty when the
+        ``Update`` changes nothing it may not.
+        """
+        ignored = {"status", *_UPDATE_MAY_SET.get(self.status, frozenset())}
+        mine = self.model_dump(exclude=ignored)
+        theirs = held.model_dump(exclude=ignored)
+        return tuple(
+            sorted(
+                name
+                for name in mine.keys() | theirs.keys()
+                if mine.get(name) != theirs.get(name)
+            )
         )
 
     def with_subject(self, subject_id: str) -> EmbargoEvent:

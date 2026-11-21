@@ -96,9 +96,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Add", "VulnerabilityItem"),
     ("Add", "CaseReference"),
     ("Add", "ParticipantStatus"),
-    # The Case Owner's activation of a proposed embargo (ADR-0180), the pair
-    # of the Remove that ends one.
-    ("Add", "EmbargoEvent"),
+    # The Case Owner's decision on a proposed embargo: an Update setting its
+    # status to ACTIVE or REJECTED (ADR-0199).  Owner-authored.
+    ("Update", "EmbargoEvent"),
     ("Remove", "EmbargoEvent"),
     # CASE_MANAGER-authored record of an embargo the case's creation wrote,
     # carried in full after the genesis entry (create_embargo_event,
@@ -106,8 +106,6 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Create", "EmbargoEvent"),
     ("Offer", "EmbargoEvent"),
     ("Invite", "EmbargoEvent"),
-    # The Case Owner's rejection of a proposed embargo (ADR-0122).
-    ("Reject", "EmbargoEvent"),
     # A signatory's withdrawal from the embargo in force (MSM-07-010).
     # Participant-authored.
     ("Leave", "EmbargoEvent"),

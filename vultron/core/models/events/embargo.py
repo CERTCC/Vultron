@@ -28,36 +28,48 @@ else:
 
 
 class _OwnerEmbargoDecisionEvent(LedgerPositionedEvent):
-    """The case owner's decision on an embargo proposal (ADR-0122, ADR-0180).
+    """The case owner's decision on an embargo proposal (ADR-0199).
 
-    ``Add`` or ``Reject`` of the ``EmbargoEvent`` itself, with the case
-    as ``target`` — not an answer to the ``Invite`` that proposed it, which
-    is each sender's own consent, and which ``inReplyTo`` names.
+    ``Update(EmbargoEvent)[context=VulnerabilityCase]`` setting the
+    embargo's ``status`` — not an answer to the ``Invite`` that proposed it,
+    which is each sender's own consent, and which ``inReplyTo`` names.  The
+    embargo is carried inline (VAM-05-010), so the decision states the terms
+    it decides; a receiver refuses one that changes them.
     """
 
-    required_slots: ClassVar[tuple[str, ...]] = ("embargo_id", "case_id")
+    required_slots: ClassVar[tuple[str, ...]] = (
+        "embargo_id",
+        "embargo",
+        "case_id",
+    )
 
     @property
     def embargo_id(self) -> str:
         return self._required("embargo_id", self.object_id)
 
     @property
-    def embargo(self) -> EmbargoEvent | None:
-        return cast("EmbargoEvent | None", self.object_)
+    def embargo(self) -> EmbargoEvent:
+        """The embargo the decision carries inline, its ``status`` set.
+
+        A bare id is no inline copy: the decision must state the terms it
+        decides (VAM-05-010).
+        """
+        value = None if isinstance(self.object_, str) else self.object_
+        return self._required("embargo", cast("EmbargoEvent | None", value))
 
     @property
     def case_id(self) -> str:
-        return self._required("case_id", self.target_id)
+        return self._required("case_id", self.context_id)
 
     @property
     def case(self) -> VulnerabilityCase | None:
-        return cast("VulnerabilityCase | None", self.target)
+        return cast("VulnerabilityCase | None", self.context)
 
 
 class ActivateEmbargoOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
     """The case owner activated a proposed embargo on the case.
 
-    ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0180).
+    ``Update(EmbargoEvent{status: ACTIVE})`` (EA, EC; ADR-0199).
     """
 
     semantic_type: Literal[MessageSemantics.ACTIVATE_EMBARGO_ON_CASE] = (
@@ -68,7 +80,7 @@ class ActivateEmbargoOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
 class RejectEmbargoProposalOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
     """The case owner rejected a proposed embargo on the case.
 
-    ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122).
+    ``Update(EmbargoEvent{status: REJECTED})`` (ER, EJ; ADR-0199).
     """
 
     semantic_type: Literal[

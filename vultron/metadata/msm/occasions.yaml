@@ -783,7 +783,7 @@ groups:
     heading: Embargo Proposal Acceptance (EA)
     when: the Case Owner decides to activate a proposed embargo for a case with no active
       embargo
-    send: Add(EmbargoEvent)[target=VulnerabilityCase]
+    send: 'Update(EmbargoEvent{status: ACTIVE})[context=VulnerabilityCase]'
     send_to: the CASE_MANAGER
     sent_by: the Case Owner
     distinguished_by: EM state `PROPOSED`
@@ -799,7 +799,7 @@ groups:
   - anchor: embargo-revision-acceptance
     heading: Embargo Revision Acceptance (EC)
     when: the Case Owner decides to replace the active embargo with a proposed revision
-    send: Add(EmbargoEvent)[target=VulnerabilityCase]
+    send: 'Update(EmbargoEvent{status: ACTIVE})[context=VulnerabilityCase]'
     send_to: the CASE_MANAGER
     sent_by: the Case Owner
     distinguished_by: EM state `REVISE`
@@ -815,7 +815,7 @@ groups:
   - anchor: reject-embargo-proposal
     heading: Reject embargo proposal
     when: the Case Owner decides to reject a proposed embargo for a case with no active embargo
-    send: Reject(EmbargoEvent)[target=VulnerabilityCase]
+    send: 'Update(EmbargoEvent{status: REJECTED})[context=VulnerabilityCase]'
     send_to: the CASE_MANAGER
     sent_by: the Case Owner
     distinguished_by: EM state `PROPOSED`
@@ -831,7 +831,7 @@ groups:
   - anchor: embargo-revision-rejection
     heading: Embargo Revision Rejection (EJ)
     when: the Case Owner decides to reject a proposed revision
-    send: Reject(EmbargoEvent)[target=VulnerabilityCase]
+    send: 'Update(EmbargoEvent{status: REJECTED})[context=VulnerabilityCase]'
     send_to: the CASE_MANAGER
     sent_by: the Case Owner
     distinguished_by: EM state `REVISE`

@@ -34,6 +34,8 @@ _BASE_FIELDS = {
     "strict",
     # The form of the object as received, never its sender (SE-01-009).
     "object_form",
+    # The status the object sets, never who set it (ADR-0199).
+    "object_status",
     "to_",
     "object_",
     "target_",

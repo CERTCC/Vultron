@@ -300,7 +300,7 @@ class _Manager:
         self.dl.create(revision)
         case = self.dl.read(CASE_ID)
         assert isinstance(case, as_VulnerabilityCase)
-        embargo_register.propose(case, REVISION_ID)
+        embargo_register.propose(case, revision)
         self.dl.save(case)
         embargo_register.write_consent_rows(self.dl, case)
         return revision
@@ -440,7 +440,6 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
         reject_embargo_proposal_activity(
             revision,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=CASE_ID,
             context=CASE_ID,
             actor=OWNER,
             to=[MANAGER],
@@ -608,7 +607,7 @@ def test_owner_termination_after_the_end_time_sends_no_announce() -> None:
 
 
 def _activate_by_owner_decision(manager: _Manager, revision: Any) -> None:
-    # The owner's Add(EmbargoEvent)[target=VulnerabilityCase] is the one activation
+    # The owner's Update(EmbargoEvent{status: ACTIVE}) is the one activation
     # path (ADR-0122); the revision must be an open proposal first.
     invite = em_propose_embargo_activity(
         revision,
@@ -623,7 +622,6 @@ def _activate_by_owner_decision(manager: _Manager, revision: Any) -> None:
         activate_embargo_activity(
             revision,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=CASE_ID,
             context=CASE_ID,
             actor=OWNER,
             to=[MANAGER],

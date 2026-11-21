@@ -8,6 +8,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make, with_times
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events import MessageSemantics
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
     find_matching_semantics,
@@ -18,6 +19,7 @@ from vultron.wire.as2.extractor import (
     ActivityPattern,
     OfferCaseOwnershipTransferActivityPattern,
     ProposeCaseOwnershipTransferActivityPattern,
+    RejectEmbargoProposalOnCasePattern,
     UndoCaseOwnershipTransferActivityPattern,
 )
 from vultron.wire.as2.extractor._instances import (
@@ -47,8 +49,10 @@ from vultron.wire.as2.typed_reference import as_TypedReference, case_reference
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Add,
     as_Invite,
     as_Offer,
+    as_Reject,
 )
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,
@@ -1347,48 +1351,153 @@ def test_owner_embargo_decisions_are_distinct_from_invite_answers(
 def test_an_activation_and_an_invite_accept_differ_by_type_alone(
     activation: str,
 ) -> None:
-    """``Add(EmbargoEvent)`` and ``Accept(Invite(EmbargoEvent))`` (ADR-0180).
+    """``Update(EmbargoEvent)`` and ``Accept(Invite(EmbargoEvent))`` (ADR-0199).
 
-    The owner's activation adds the embargo to the case; a participant's
+    The owner's activation sets the embargo's status; a participant's
     consent answers the Invite.  Each pattern is refused at the verb by the
     other's example, so neither depends on the shape of the object.
     """
     import vultron.wire.as2.vocab.examples.embargo as examples
 
-    add = getattr(examples, activation)()
+    update = getattr(examples, activation)()
     accept = examples.accept_embargo()
 
-    assert add.type_ == "Add"
+    assert update.type_ == "Update"
     assert accept.type_ == "Accept"
     assert ActivateEmbargoOnCasePattern.activity_ != (
         AcceptInviteToEmbargoOnCasePattern.activity_
     )
-    assert ActivateEmbargoOnCasePattern.match(add)
+    assert ActivateEmbargoOnCasePattern.match(update)
     assert not ActivateEmbargoOnCasePattern.match(accept)
     assert AcceptInviteToEmbargoOnCasePattern.match(accept)
-    assert not AcceptInviteToEmbargoOnCasePattern.match(add)
+    assert not AcceptInviteToEmbargoOnCasePattern.match(update)
 
 
 @pytest.mark.spec("VAM-05-008")
-def test_the_retired_accept_of_the_embargo_activates_nothing() -> None:
-    """``Accept(EmbargoEvent)[target=VulnerabilityCase]`` is gone (ADR-0180).
+@pytest.mark.spec("VAM-05-009")
+@pytest.mark.parametrize("verb", [as_Accept, as_Add, as_Reject])
+def test_the_retired_owner_decision_forms_match_nothing(
+    verb: type[as_Activity],
+) -> None:
+    """``Accept``, ``Add`` and ``Reject(EmbargoEvent)[target=case]`` are gone.
 
-    Pre-1.0 the replaced activation shape is removed, not kept beside the
-    ``Add``: the old body matches no pattern at all.
+    Pre-1.0 the replaced decision shapes are removed, not kept beside the
+    ``Update`` (ADR-0180, ADR-0199): each old body matches no pattern.
     """
     import vultron.wire.as2.vocab.examples.embargo as examples
 
-    add = examples.activate_embargo()
+    update = examples.activate_embargo()
     retired = make(
-        as_Accept,
-        actor=add.actor,
+        verb,
+        actor=update.actor,
         object_=examples.embargo_event(),
-        target=add.target,
-        in_reply_to=add.in_reply_to,
+        target=update.context,
+        in_reply_to=update.in_reply_to,
     )
 
     assert not ActivateEmbargoOnCasePattern.match(retired)
+    assert not RejectEmbargoProposalOnCasePattern.match(retired)
     assert find_matching_semantics(retired) == MessageSemantics.UNKNOWN
+
+
+def _embargo_update_body(status: str | None) -> dict[str, Any]:
+    """The activation example as received, its embargo's ``status`` *status*.
+
+    ``None`` drops the key, so the embargo states no status of its own.
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    body = examples.activate_embargo().model_dump(
+        by_alias=True, mode="json", exclude_none=True
+    )
+    if status is None:
+        del body["object"]["status"]
+    else:
+        body["object"]["status"] = status
+    return body
+
+
+#: The semantic type each embargo status an ``Update`` sets is read as
+#: (ADR-0199).  A status no pattern names reads as no message at all.
+_UPDATE_STATUS_SEMANTICS: dict[EmbargoRegisterStatus, MessageSemantics] = {
+    EmbargoRegisterStatus.ACTIVE: MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+    EmbargoRegisterStatus.REJECTED: (
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE
+    ),
+}
+
+
+@pytest.mark.spec("VAM-05-008")
+@pytest.mark.spec("VAM-05-009")
+@pytest.mark.spec("MSM-02-002")
+@pytest.mark.parametrize(
+    "status",
+    # TERMINATED needs a termination to parse; #6482 names its pattern.
+    [
+        s
+        for s in EmbargoRegisterStatus
+        if s is not EmbargoRegisterStatus.TERMINATED
+    ],
+)
+def test_an_embargo_update_is_read_by_the_status_it_sets(
+    status: EmbargoRegisterStatus,
+) -> None:
+    """Each status an ``Update(EmbargoEvent)`` sets picks its own type (AC-1).
+
+    ``ACTIVE`` is the owner's activation and ``REJECTED`` its rejection; any
+    other status is no decision a pattern names, so it matches nothing.
+    """
+    activity = parse_activity(_embargo_update_body(status.value))
+
+    assert find_matching_semantics(activity) == _UPDATE_STATUS_SEMANTICS.get(
+        status, MessageSemantics.UNKNOWN
+    )
+
+
+@pytest.mark.spec("VAM-05-008")
+@pytest.mark.spec("VAM-05-009")
+def test_an_embargo_update_stating_no_status_matches_nothing() -> None:
+    """An ``Update(EmbargoEvent)`` whose embargo states no status (AC-1).
+
+    The model's default status is not one the sender set, so neither
+    decision pattern reads it.
+    """
+    activity = parse_activity(_embargo_update_body(None))
+
+    assert not ActivateEmbargoOnCasePattern.match(activity)
+    assert not RejectEmbargoProposalOnCasePattern.match(activity)
+    assert find_matching_semantics(activity) == MessageSemantics.UNKNOWN
+
+
+@pytest.mark.spec("VAM-05-008")
+def test_a_status_pattern_reads_no_status_off_a_bare_embargo_id() -> None:
+    """A bare embargo id carries no status, so no decision pattern takes it."""
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    update = examples.activate_embargo()
+    from vultron.core.models.embargo_event import EmbargoEvent
+
+    assert isinstance(update.object_, EmbargoEvent)
+    bare = update.model_copy(update={"object_": update.object_.id_})
+
+    assert not ActivateEmbargoOnCasePattern.match(bare)
+
+
+def test_object_status_needs_a_non_activity_object_type() -> None:
+    """``object_status`` with no object type, or on a nested activity, is refused."""
+    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
+
+    with pytest.raises(ValueError, match="object_status"):
+        ActivityPattern(
+            activity_=TAtype.UPDATE,
+            object_status=EmbargoRegisterStatus.ACTIVE,
+        )
+    with pytest.raises(ValueError, match="object_status"):
+        ActivityPattern(
+            activity_=TAtype.UPDATE,
+            object_=ActivateEmbargoOnCasePattern,
+            object_status=EmbargoRegisterStatus.ACTIVE,
+        )
 
 
 # ---------------------------------------------------------------------------

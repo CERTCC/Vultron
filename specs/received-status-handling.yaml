@@ -1101,7 +1101,7 @@ groups:
       participant whose ledger stream is paused. It applies an embargo-ending notice
       that the CASE_MANAGER sends it (CM-31-010).
     rationale: >-
-      If a received-side tree writes state at every inbox, `Add(EmbargoEvent)`,
+      If a received-side tree writes state at every inbox, `Update(EmbargoEvent)`,
       `Remove(EmbargoEvent)` or `Add(CaseStatus)` from any sender can change the state
       of a replica. The tree also applies an activity that gets to a replica by `cc` or
       by incorrect routing, without the decision or the sender check of the CASE_MANAGER

@@ -223,13 +223,17 @@ def opening(t: CaseTranslation) -> None:
         Act(
             at=at,
             semantic_type=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
-            activity_type="Add",
+            # The activation is an Update of the embargo setting its status
+            # (ADR-0199); the case is the entry's context.
+            activity_type="Update",
             actor=t.ids.coordinator,
-            object_=t.embargo,
+            # Validated as the embargo it activates, its status set.
+            object_=EmbargoEvent.model_validate(
+                {**t.embargo.model_dump(), "status": "ACTIVE"}
+            ),
             source_record=source,
             label="embargo",
             rules=["VINCE-EM-01"],
-            target=t.case_id,
         )
     )
 

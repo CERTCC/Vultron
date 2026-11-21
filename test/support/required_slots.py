@@ -194,17 +194,21 @@ BUILDERS: dict[str, Callable[[], as_Activity]] = {
     "Reject(CaseProposal)": lambda: F.reject_case_proposal_activity(
         RECEIVER, _proposal(), [SENDER], at=authored_at()
     ),
-    "Add(EmbargoEvent)": lambda: F.activate_embargo_activity(
-        _embargo(),
-        "https://example.org/invites/slot",
-        target=_case(),
-        **_sent(),
+    "Update(EmbargoEvent{status: ACTIVE})": lambda: (
+        F.activate_embargo_activity(
+            _embargo(),
+            "https://example.org/invites/slot",
+            context=_case(),
+            **_sent(),
+        )
     ),
-    "Reject(EmbargoEvent)": lambda: F.reject_embargo_proposal_activity(
-        _embargo(),
-        "https://example.org/invites/slot",
-        target=_case(),
-        **_sent(),
+    "Update(EmbargoEvent{status: REJECTED})": lambda: (
+        F.reject_embargo_proposal_activity(
+            _embargo(),
+            "https://example.org/invites/slot",
+            context=_case(),
+            **_sent(),
+        )
     ),
     "Leave(EmbargoEvent)": lambda: F.withdraw_from_embargo_activity(
         _embargo(), context=_case(), **_sent()
@@ -403,15 +407,15 @@ CASES: tuple[SlotCase, ...] = (
         row
         for message, semantics, case_field, objectless in (
             (
-                "Add(EmbargoEvent)",
+                "Update(EmbargoEvent{status: ACTIVE})",
                 _S.ACTIVATE_EMBARGO_ON_CASE,
-                "target",
+                "context",
                 _S.UNKNOWN,
             ),
             (
-                "Reject(EmbargoEvent)",
+                "Update(EmbargoEvent{status: REJECTED})",
                 _S.REJECT_EMBARGO_PROPOSAL_ON_CASE,
-                "target",
+                "context",
                 _S.UNKNOWN,
             ),
             (

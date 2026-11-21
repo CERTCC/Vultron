@@ -193,8 +193,6 @@ Attacks Observed differs from Public Aware and Exploit Public only at adoption: 
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-03-001", "CSB-12-001", "CSB-13-002", "CSB-14-001"))
 ```
 
-{% include-markdown "./_oq-delegated-embargo-activation.md" %}
-
 **Embargo duration selection.**
 Where several proposals are outstanding, the protocol recommends that participants accept the shortest and propose the remainder as revisions.
 The rule is a recommendation, so other policies remain admissible.

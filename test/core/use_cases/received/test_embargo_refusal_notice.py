@@ -255,7 +255,7 @@ def test_an_accept_answered_with_a_reject_gets_no_notice():
 
 
 # ---------------------------------------------------------------------------
-# The case owner's decision: Accept / Reject(EmbargoEvent)[target=VulnerabilityCase]
+# The case owner's decision: Accept / Update(EmbargoEvent{status: REJECTED})
 # ---------------------------------------------------------------------------
 
 

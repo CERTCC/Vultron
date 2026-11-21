@@ -161,17 +161,22 @@ A revision that ends later causes no such notice, because those participants nev
 
 ## The Case Owner's Decision
 
-The Case Owner decides each embargo proposal for the case with an activity of its own.
-To activate a proposal, the Case Owner adds the embargo to the case with `Add(EmbargoEvent)`, as `Remove(EmbargoEvent)` takes an embargo in force away.
-To reject a proposal, it sends `Reject(EmbargoEvent)`.
-The object of each activity is the proposed `EmbargoEvent` itself, not the Invite that proposed it.
-Its target is the case.
-Its `inReplyTo` names the `Invite(EmbargoEvent)` that proposed the embargo, so a reader links the decision to the proposal it decides (RF-08-001).
+The Case Owner decides each embargo proposal for the case, so it sends the decision as its own act (ADR-0199).
+The proposal already put the embargo on the case's register, so each decision is an `Update` of the embargo that sets its `status`.
+To activate a proposal, the Case Owner sends `Update(EmbargoEvent)` with `status` set to `ACTIVE`.
+To reject a proposal, it sends `Update(EmbargoEvent)` with `status` set to `REJECTED`.
+The object of each activity is the proposed `EmbargoEvent` itself, with its terms as proposed, not the Invite that proposed it.
+Its `context` is the case.
+Its `inReplyTo` names the proposer's own `Invite(EmbargoEvent)`, so a reader links the decision to the proposal it decides (RF-08-001).
+The `inReplyTo` never names an Invite that the CASE_MANAGER relayed from the proposal.
 A participant's consent is an `Accept` of the Invite, so the activation and a consent differ by type.
+
+An `Update` of an embargo changes only its status.
+The terms of an embargo change only through a revision proposal, so the CASE_MANAGER refuses an `Update` that changes a start time, an end time or any other term.
 
 Only the Case Owner may send either activity, and it sends them to the CASE_MANAGER.
 The CASE_MANAGER refuses any other sender.
-The CASE_MANAGER records the decision in the case ledger.
+The CASE_MANAGER admits the Case Owner's act as the case ledger entry, and sends no `Accept` and no act of its own for it.
 Every participant learns the decision from the ledger.
 
 These two activities carry the shorthands `EA`, `EC`, `ER`, and `EJ`.
@@ -281,8 +286,8 @@ The sender closes its pending request when the notice arrives.
 | `Invite(EmbargoEvent)` (`EP`, `EV`) | the embargo has ended (EM `EXITED`), which admits no proposal. The notice is a `Refuse` of the Invite, which the proposer reads as a refusal, not as a decline (ADR-0196). |
 | `Accept(Invite(EmbargoEvent))` | the case held the `EmbargoEvent`, but it is no longer available: it was decided, replaced, canceled or terminated, or its end time has passed, on time or late (CM-18-003, MSM-07-012). When the case holds current terms, a fresh `Invite` to them goes with the notice (EMB-17-003). |
 | `Reject(Invite(EmbargoEvent))` | the `EmbargoEvent` is neither the embargo in force nor an open proposal, or the sender agreed to the embargo in force, since withdrawal is `Leave(EmbargoEvent)` (MSM-07-014). |
-| `Add(EmbargoEvent)[target=VulnerabilityCase]` (`EA`, `EC`) | the `EmbargoEvent` is not an open proposal of the case, or the case is public, an exploit is public, or attacks are observed (MSM-07-029, EMB-02-002), or the Case Owner declined the terms. The notice tells the Case Owner to accept the invitation first (MSM-07-037). |
-| `Reject(EmbargoEvent)[target=VulnerabilityCase]` (`ER`, `EJ`) | the `EmbargoEvent` is not an open proposal of the case, or the termination the rejection would cause is refused (MSM-07-033, MSM-07-032). |
+| `Update(EmbargoEvent{status: ACTIVE})` (`EA`, `EC`) | the `EmbargoEvent` is not an open proposal of the case, or the `Update` changes a term of it (ADR-0199), or the case is public, an exploit is public, or attacks are observed (MSM-07-029, EMB-02-002), or the Case Owner declined the terms. The notice tells the Case Owner to accept the invitation first (MSM-07-037). |
+| `Update(EmbargoEvent{status: REJECTED})` (`ER`, `EJ`) | the `EmbargoEvent` is not an open proposal of the case, or the `Update` changes a term of it (ADR-0199), or the termination the rejection would cause is refused (MSM-07-033, MSM-07-032). |
 | `Remove(EmbargoEvent)` (`ET`) | it claims `END_TIME_REACHED` before the embargo's end time, or a Case Owner's `Remove` names a `THREAT_SIGNAL` cause (EMB-13-005). |
 | `Leave(EmbargoEvent)` | no embargo is in force, the `EmbargoEvent` is not the embargo in force, the sender's consent to it is not `AGREED`, or the sender is the Case Owner (MSM-07-036). |
 

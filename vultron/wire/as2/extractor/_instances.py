@@ -8,6 +8,7 @@ Pattern ordering does **not** matter here — ordering is enforced by the
 registry in ``vultron/semantic_registry/``.
 """
 
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.wire.as2.enums import (
     as_ObjectType as AOtype,
@@ -108,31 +109,28 @@ UndoInviteToEmbargoOnCasePattern = ActivityPattern(
 ActivateEmbargoOnCasePattern = ActivityPattern(
     description=(
         "The case owner activates a proposed embargo on a vulnerability "
-        "case: an ADD whose object is the EmbargoEvent itself and whose "
-        "target is the VulnerabilityCase, the pair of the REMOVE that ends "
-        "an embargo (ADR-0180)."
+        "case: an UPDATE of the EmbargoEvent setting its status to ACTIVE, "
+        "whose context is the VulnerabilityCase and whose inReplyTo names "
+        "the proposer's Invite (ADR-0199)."
     ),
-    activity_=TAtype.ADD,
+    activity_=TAtype.UPDATE,
     object_=VOtype.EMBARGO_EVENT,
-    target_=VOtype.VULNERABILITY_CASE,
-    # target_ is lenient: the case target is a bare URI by design (the
-    # recipient holds the case, so ``case_target_ref`` reduces it,
-    # MV-10-001).  The ADD verb tells this activity from a participant's
-    # ``Accept(Invite(EmbargoEvent))`` by type alone (ADR-0180); an embargo
-    # the receiver cannot resolve is left a bare URI, which no object_ type
-    # accepts (SE-01-006).
+    # The status tells the owner's activation, its rejection and an
+    # embargo's end apart: all three are Update(EmbargoEvent) (ADR-0199).
+    object_status=EmbargoRegisterStatus.ACTIVE,
+    context_=VOtype.VULNERABILITY_CASE,
 )
 RejectEmbargoProposalOnCasePattern = ActivityPattern(
     description=(
         "The case owner rejects a proposed embargo on a vulnerability case: "
-        "a REJECT whose object is the EmbargoEvent itself (not the Invite "
-        "that proposed it, which it names in inReplyTo) and whose target "
-        "is the VulnerabilityCase (ADR-0122, ADR-0180)."
+        "an UPDATE of the EmbargoEvent setting its status to REJECTED, "
+        "whose context is the VulnerabilityCase and whose inReplyTo names "
+        "the proposer's Invite (ADR-0199)."
     ),
-    activity_=TAtype.REJECT,
+    activity_=TAtype.UPDATE,
     object_=VOtype.EMBARGO_EVENT,
-    target_=VOtype.VULNERABILITY_CASE,
-    # target_ lenient, for the same reason as the activation pattern above.
+    object_status=EmbargoRegisterStatus.REJECTED,
+    context_=VOtype.VULNERABILITY_CASE,
 )
 
 WithdrawFromEmbargoOnCasePattern = ActivityPattern(

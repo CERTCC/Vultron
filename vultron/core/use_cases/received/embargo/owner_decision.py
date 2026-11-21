@@ -1,7 +1,7 @@
 """Received case-owner decisions on an embargo proposal (ADR-0122).
 
-``Add(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
-``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects it.  Only the case owner may
+``Update(EmbargoEvent{status: ACTIVE})`` activates a proposal and
+``Update(EmbargoEvent{status: REJECTED})`` rejects it.  Only the case owner may
 send either (EP-09-005, HP-01-006); the CASE_MANAGER applies and commits the
 decision, and every replica learns it from the ledger (EP-09-007).
 """
@@ -69,7 +69,7 @@ class _OwnerDecisionReceivedUseCase(_EmbargoEventReceivedUseCase):
 
 
 class ActivateEmbargoOnCaseReceivedUseCase(_OwnerDecisionReceivedUseCase):
-    """The case owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (EA / EC)."""
+    """The case owner's ``Update(EmbargoEvent{status: ACTIVE})`` (EA / EC)."""
 
     _tree_label = "ActivateEmbargoOnCaseBT"
 
@@ -109,7 +109,7 @@ class ActivateEmbargoOnCaseReceivedUseCase(_OwnerDecisionReceivedUseCase):
 class RejectEmbargoProposalOnCaseReceivedUseCase(
     _OwnerDecisionReceivedUseCase
 ):
-    """The case owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ER / EJ).
+    """The case owner's ``Update(EmbargoEvent{status: REJECTED})`` (ER / EJ).
 
     Takes the trigger-activity port: after the owner's rejection of the last
     open revision after disclosure, the CASE_MANAGER commits its own

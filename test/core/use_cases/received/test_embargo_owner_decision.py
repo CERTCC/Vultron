@@ -12,8 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The case owner's decision on an embargo proposal, received (ADR-0122).
 
-``Add(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
-``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects it.  The CASE_MANAGER applies
+``Update(EmbargoEvent{status: ACTIVE})`` activates a proposal and
+``Update(EmbargoEvent{status: REJECTED})`` rejects it.  The CASE_MANAGER applies
 either only when it names an open proposal and nothing refuses it; a
 refusal is decided before the commit, so nothing is ledgered for it
 (CLP-10-009, SYNC-12-001).  The non-owner sender, door check and missing ids
@@ -127,7 +127,7 @@ def _receive(
     *,
     receiver: str = _MANAGER,
 ):
-    activity = factory(embargo, target=_CASE_ID, actor=_OWNER, to=[receiver])
+    activity = factory(embargo, context=_CASE_ID, actor=_OWNER, to=[receiver])
     # Both trees emit: the refusal notice (CLP-05-001), and after the
     # commit a termination or a re-issued stub Invite.
     ports: dict[str, Any] = {
@@ -181,6 +181,84 @@ def test_the_case_manager_applies_and_commits_the_owners_activation(
     # The activation is the owner's agreement (ADR-0122).
     assert _owner(dl).consent_for(embargo.id_) == EmbargoConsentState.AGREED
     assert _ledger(dl) == ["activate_embargo_on_case"]
+
+
+@pytest.mark.spec("MSM-07-008")
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.parametrize(("factory", "use_case"), _DECISIONS)
+def test_the_owners_update_is_the_entry_and_the_manager_sends_no_act(
+    make_payload, factory, use_case
+):
+    """The CASE_MANAGER admits the Owner's Update as the entry (ADR-0199).
+
+    The entry's payload is the Owner's own act, and the CASE_MANAGER queues
+    no ``Accept`` of it and no act of its own.
+    """
+    dl, _case_obj, embargo = _store()
+    queued_before = queued_bodies(dl)
+
+    result = _receive(dl, make_payload, factory, use_case, embargo)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    entries = [
+        e
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry)
+    ]
+    assert len(entries) == 1
+    payload = entries[0].payload_snapshot
+    assert payload["type"] == "Update"
+    assert payload["actor"] == _OWNER
+    assert payload["object"]["id"] == embargo.id_
+    assert payload["object"]["status"] == (
+        "ACTIVE"
+        if use_case is ActivateEmbargoOnCaseReceivedUseCase
+        else "REJECTED"
+    )
+    # Only the entry's fan-out leaves the CASE_MANAGER: no Accept, and no
+    # act of its own.
+    sent = [b for b in queued_bodies(dl) if b not in queued_before]
+    assert [(b["type"], b["object"]["type"]) for b in sent] == [  # type: ignore[index]
+        ("Add", "CaseLedgerEntry")
+    ] * len(sent)
+
+
+#: An Update that changes a term of the proposal it decides (ADR-0199).
+_CHANGED_TERMS = [
+    pytest.param({"end_time": days_from_now(45)}, "end_time", id="end-time"),
+    pytest.param(
+        {"start_time": days_from_now(1)}, "start_time", id="start-time"
+    ),
+    pytest.param({"name": "Other terms"}, "name", id="name"),
+]
+
+
+@pytest.mark.spec("CLP-10-009")
+@pytest.mark.spec("VAM-05-010")
+@pytest.mark.parametrize(("factory", "use_case"), _DECISIONS)
+@pytest.mark.parametrize(("changes", "field"), _CHANGED_TERMS)
+def test_an_update_that_changes_a_term_is_refused_uncommitted(
+    make_payload, factory, use_case, changes, field
+):
+    """An Update of an embargo sets only its status; terms change by revision.
+
+    The CASE_MANAGER refuses it with a refusal notice naming the changed
+    field, and commits nothing (ADR-0199, AC-5).
+    """
+    dl, _case_obj, embargo = _store()
+    changed = as_EmbargoEvent.model_validate(
+        {**embargo.model_dump(), **changes}
+    )
+    before = _case(dl).embargo_register
+
+    result = _receive(dl, make_payload, factory, use_case, changed)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert field in (result.reason or "")
+    assert "revision proposal" in (result.reason or "")
+    assert _case(dl).embargo_register == before
+    assert _ledger(dl) == []
+    assert len(refusal_notices_since(dl, [], _OWNER)) == 1
 
 
 def _participant_states(dl: SqliteDataLayer) -> dict[str, list[tuple]]:

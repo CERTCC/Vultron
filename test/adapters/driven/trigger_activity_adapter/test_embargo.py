@@ -586,19 +586,21 @@ class TestTerminateEmbargo:
 
 
 @pytest.mark.parametrize(
-    ("method", "verb"),
-    [("activate_embargo", "Add"), ("reject_embargo_proposal", "Reject")],
+    ("method", "status"),
+    [("activate_embargo", "ACTIVE"), ("reject_embargo_proposal", "REJECTED")],
 )
 class TestOwnerEmbargoDecision:
-    """The case owner's Add/Reject of the EmbargoEvent itself (ADR-0180)."""
+    """The case owner's Update of the EmbargoEvent setting its status (ADR-0199)."""
 
     _PROPOSAL_ID = f"{_CASE_ID}/embargo_proposals/1"
 
-    def _build(self, adapter, dl, method: str) -> tuple[str, dict, str]:
+    def _build(
+        self, adapter, dl, method: str, proposal_id: str | None = None
+    ) -> tuple[str, dict, str]:
         embargo = _make_embargo(dl)
         activity_id, blob = getattr(adapter, method)(
             embargo_id=embargo.id_,
-            proposal_id=self._PROPOSAL_ID,
+            proposal_id=proposal_id or self._PROPOSAL_ID,
             case_id=_CASE_ID,
             actor=_ACTOR,
             to=[_PEER],
@@ -606,30 +608,66 @@ class TestOwnerEmbargoDecision:
         )
         return activity_id, json.loads(blob), embargo.id_
 
-    def test_object_is_the_inline_embargo_not_an_invite(
-        self, adapter, dl, method, verb
+    @pytest.mark.spec("VAM-05-008")
+    @pytest.mark.spec("VAM-05-009")
+    def test_object_is_the_inline_embargo_with_its_status_set(
+        self, adapter, dl, method, status
     ):
         _, body, embargo_id = self._build(adapter, dl, method)
-        assert body["type"] == verb
+        assert body["type"] == "Update"
         # An embargo is sent with its AS2 supertype (ADR-0201).
         assert body["object"]["type"] == ["EmbargoEvent", "Event"]
         assert body["object"]["id"] == embargo_id
+        assert body["object"]["status"] == status
 
-    def test_case_is_target_and_context(self, adapter, dl, method, verb):
+    def test_case_is_the_context(self, adapter, dl, method, status):
         """``context`` lets the CASE_MANAGER commit it as an entry (VM-08-003)."""
         _, body, _ = self._build(adapter, dl, method)
-        assert body["target"] == _CASE_ID
+        assert "target" not in body
         assert body["context"] == _CASE_ID
         assert body["to"] == [_PEER]
 
     @pytest.mark.spec("RF-08-001")
-    def test_names_the_proposal_in_in_reply_to(
-        self, adapter, dl, method, verb
+    def test_names_an_unheld_proposal_id_as_given(
+        self, adapter, dl, method, status
     ):
-        """Both owner decisions name the proposal's Invite (ADR-0180)."""
+        """An id the owner holds no Invite for names the proposal entry's Invite."""
         _, body, _ = self._build(adapter, dl, method)
         assert body["inReplyTo"] == self._PROPOSAL_ID
 
-    def test_persists_activity(self, adapter, dl, method, verb):
+    @pytest.mark.spec("RF-08-001")
+    def test_names_the_proposers_own_invite_not_the_managers_relay(
+        self, adapter, dl, method, status
+    ):
+        """The relayed Invite the owner answers names the proposer's (#6626)."""
+        proposers_invite = f"{_CASE_ID}/embargo_proposals/proposer"
+        embargo = _make_embargo(dl)
+        relay = em_propose_embargo_activity(
+            embargo,
+            context=_CASE_ID,
+            actor=_PEER,
+            to=[_ACTOR],
+            attributed_to=_PROPOSER,
+            in_reply_to=proposers_invite,
+            at=authored_at(),
+        )
+        archive_received(dl, relay)
+
+        _, body, _ = self._build(adapter, dl, method, proposal_id=relay.id_)
+
+        assert body["inReplyTo"] == proposers_invite
+
+    @pytest.mark.spec("RF-08-001")
+    def test_names_a_held_invite_with_no_other_author_itself(
+        self, adapter, dl, method, status
+    ):
+        """An Invite its own actor proposed is the proposer's own Invite."""
+        proposal_id, _ = _received_proposal(dl)
+
+        _, body, _ = self._build(adapter, dl, method, proposal_id=proposal_id)
+
+        assert body["inReplyTo"] == proposal_id
+
+    def test_persists_activity(self, adapter, dl, method, status):
         activity_id, _, _ = self._build(adapter, dl, method)
         assert dl.read(activity_id) is not None

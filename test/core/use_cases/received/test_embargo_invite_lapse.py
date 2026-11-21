@@ -1384,7 +1384,7 @@ class TestInviteeIsTheAddressee:
         ``Reject(Invite(EmbargoEvent))`` is always the sender's consent
         (ADR-0122): its row for proposed B becomes DECLINED, its row for the
         embargo in force is untouched, and B stays open — rejecting it for
-        the case is ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
+        the case is ``Update(EmbargoEvent{status: REJECTED})``.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee11"
@@ -1853,7 +1853,7 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
     def test_owner_activation_of_a_revision_is_refused(self, make_payload):
         """No path may leave a case naming an unreadable embargo (EMB-18-003).
 
-        The owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` must read the
+        The owner's ``Update(EmbargoEvent{status: ACTIVE})`` must read the
         embargo it replaces to settle consent (EP-05-001); the read fails
         closed, so the handler refuses (never DEFERRED) and EM and the active
         embargo are left as they were.
@@ -1896,7 +1896,7 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
         activation = activate_embargo_activity(
             revision,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=case_id,
+            context=case_id,
             actor=_COORD,
             to=[_COORD],
             at=authored_at(),
@@ -3398,8 +3398,8 @@ class TestOwnerAnswerToRelayedInvite:
             (EM.ACTIVE, [CVDRole.CASE_OWNER], 10, 30, []),
             (EM.REVISE, [CVDRole.CASE_OWNER], 10, 30, []),
             # The bounded auto-accept: no embargo yet, within own policy.
-            # The owner's acceptance is its activation (ADR-0180).
-            (EM.NONE, [CVDRole.CASE_OWNER], 10, 30, ["Add"]),
+            # The owner's acceptance is its activation (ADR-0199).
+            (EM.NONE, [CVDRole.CASE_OWNER], 10, 30, ["Update"]),
             # Beyond the owner's policy, or no policy to bound against.
             (EM.NONE, [CVDRole.CASE_OWNER], 60, 30, []),
             (EM.NONE, [CVDRole.CASE_OWNER], 10, None, []),
@@ -3507,23 +3507,24 @@ class TestOwnerAnswerToRelayedInvite:
         assert answers_in_outbox(dl, _INVITEE) == []
 
     @pytest.mark.parametrize(
-        ("roles", "verb", "object_type", "has_target"),
+        ("roles", "verb", "object_type", "is_decision"),
         [
-            ([CVDRole.CASE_OWNER], "Add", "EmbargoEvent", True),
+            ([CVDRole.CASE_OWNER], "Update", "EmbargoEvent", True),
             ([CVDRole.VENDOR], "Accept", "Invite", False),
         ],
         ids=["owner-sends-its-decision", "participant-sends-its-consent"],
     )
     @pytest.mark.spec("EP-09-005", "MSM-07-003", "MSM-07-008", "RF-08-001")
     def test_the_owners_auto_answer_is_its_decision_for_the_case(
-        self, make_payload, roles, verb, object_type, has_target
+        self, make_payload, roles, verb, object_type, is_decision
     ):
-        """The owner adds the embargo to the case; a participant accepts the Invite.
+        """The owner sets the embargo's status; a participant accepts the Invite.
 
-        ADR-0180: the owner's answer decides the proposal, so it is
-        ``Add(EmbargoEvent)[target=VulnerabilityCase]`` naming the Invite it
-        received in ``inReplyTo``; anyone else's is
-        ``Accept(Invite(EmbargoEvent))``, its own consent.
+        ADR-0199: the owner's answer decides the proposal, so it is
+        ``Update(EmbargoEvent{status: ACTIVE})`` naming the proposer's own
+        Invite in ``inReplyTo`` (here the CASE_MANAGER proposed, so the Invite
+        it received); anyone else's is ``Accept(Invite(EmbargoEvent))``, its
+        own consent.
         """
         from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 
@@ -3551,9 +3552,57 @@ class TestOwnerAnswerToRelayedInvite:
         body = read_sealed_body_dict(dl, answer_id)
         assert body is not None
         assert resolved_wire_type_name(body["object"]["type"]) == object_type
-        if has_target:
+        if is_decision:
             assert body["inReplyTo"] == invite_id
             assert body["object"]["id"] == embargo.id_
-            assert body["target"] == case.id_
+            assert body["object"]["status"] == "ACTIVE"
+            assert body["context"] == case.id_
+            assert "target" not in body
         else:
             assert body["object"]["object"]["id"] == embargo.id_
+
+    @pytest.mark.spec("RF-08-001")
+    def test_the_owners_decision_names_the_proposers_invite_not_the_relay(
+        self, make_payload
+    ):
+        """The owner answers a relay; its decision names the proposal (#6626).
+
+        The CASE_MANAGER relayed another participant's proposal, so the
+        Invite the owner received names that proposer in ``attributedTo``
+        and the proposer's own Invite in ``inReplyTo``.  The owner's
+        activation names the proposer's Invite, not the relay (ADR-0199).
+        """
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        dl = _make_dl(actor_id=_INVITEE)
+        case, embargo = seed_invitee_case(
+            dl,
+            "https://example.org/cases/owner-answer-relay",
+            em_state=EM.NONE,
+            roles=[CVDRole.CASE_OWNER],
+            proposal_days=10,
+            policy_days=30,
+        )
+        proposers_invite = f"{case.id_}/embargo_proposals/finder"
+
+        result = deliver_relayed_invite(
+            dl,
+            case,
+            embargo,
+            make_payload,
+            invite_id=f"{case.id_}/embargo_proposals/relayed",
+            relayed_from=(
+                "https://example.org/users/finder",
+                proposers_invite,
+            ),
+        )
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        (answer_id,) = [
+            activity_id
+            for activity_id in dl.outbox_list()
+            if getattr(dl.read(activity_id), "type_", None) == "Update"
+        ]
+        body = read_sealed_body_dict(dl, answer_id)
+        assert body is not None
+        assert body["inReplyTo"] == proposers_invite

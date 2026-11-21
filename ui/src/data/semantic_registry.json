@@ -223,12 +223,12 @@
     },
     {
       "semanticType": "activate_embargo_on_case",
-      "wire": "Add(EmbargoEvent)[target=VulnerabilityCase]",
+      "wire": "Update(EmbargoEvent{status: ACTIVE})[context=VulnerabilityCase]",
       "phrase": "{actor} activated the embargo"
     },
     {
       "semanticType": "reject_embargo_proposal_on_case",
-      "wire": "Reject(EmbargoEvent)[target=VulnerabilityCase]",
+      "wire": "Update(EmbargoEvent{status: REJECTED})[context=VulnerabilityCase]",
       "phrase": "{actor} rejected the proposed embargo"
     },
     {

@@ -13,12 +13,12 @@
 
 """Owner decisions and expiry commit first and replay by copying (ADR-0124).
 
-The owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` is one entry, and it is the
+The owner's ``Update(EmbargoEvent{status: ACTIVE})`` is one entry, and it is the
 whole ``ACTIVATE`` register step, the ``SUPERSEDE`` of the embargo in force
 included, and the owner's own agreement (CLP-07-013, MSM-07-028).  Each
 ``CARRY_OVER`` row a shorter revision gives an existing signatory follows as
 its own CASE_MANAGER ``Update(EmbargoConsent)`` (EP-05-003).  The owner's
-``Reject(EmbargoEvent)[target=VulnerabilityCase]`` is one entry too, the whole ``REJECT``
+``Update(EmbargoEvent{status: REJECTED})`` is one entry too, the whole ``REJECT``
 step, and changes no consent row (MSM-07-031).  An RSVP
 time-out is the CASE_MANAGER's one ``Update(EmbargoConsent)`` carrying the
 ``TIMED_OUT`` row (CM-28-009, CM-28-014).  A replica copies every entry
@@ -123,7 +123,7 @@ def _propose(net: LedgerNetwork, suffix: str, days: int) -> str:
 def _owner_decides(
     net: LedgerNetwork, embargo_id: str, *, accept: bool = True
 ) -> Any:
-    """The owner sends ``Add`` or ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
+    """The owner sends ``Add`` or ``Update(EmbargoEvent{status: REJECTED})``.
 
     It first receives the relayed Invites, so its store holds the embargo and
     the Invite its decision names in ``inReplyTo`` (ADR-0180).
@@ -141,12 +141,12 @@ def _owner_decides(
 
 
 def _owner_activates(net: LedgerNetwork, embargo_id: str) -> Any:
-    """The owner sends ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0180)."""
+    """The owner sends ``Update(EmbargoEvent{status: ACTIVE})`` (ADR-0180)."""
     return _owner_decides(net, embargo_id)
 
 
 def _owner_rejects(net: LedgerNetwork, embargo_id: str) -> Any:
-    """The owner sends ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122)."""
+    """The owner sends ``Update(EmbargoEvent{status: REJECTED})`` (ADR-0122)."""
     return _owner_decides(net, embargo_id, accept=False)
 
 

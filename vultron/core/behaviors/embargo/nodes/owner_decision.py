@@ -13,18 +13,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The case owner's decision on an embargo proposal (ADR-0122, ADR-0180).
+"""The case owner's decision on an embargo proposal (ADR-0122, ADR-0199).
 
-``Add(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
-``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects it.  These are the owner's
+``Update(EmbargoEvent{status: ACTIVE})`` activates a proposal and
+``Update(EmbargoEvent{status: REJECTED})`` rejects it.  These are the owner's
 decisions for the case and have activities of their own, so
 ``Accept``/``Reject(Invite(EmbargoEvent))`` is always the sender's consent and
 no node branches on the sender to know what a message means.
 
-- :class:`IsOpenEmbargoProposalNode`, :class:`OwnerMayActivateEmbargoNode`
-  — read-only guards ahead of the commit: the decision names an open
-  proposal, and nothing refuses its activation, neither P/X/A nor the
-  owner's own decline (CLP-10-009, MSM-07-037).
+- :class:`IsOpenEmbargoProposalNode`,
+  :class:`OwnerUpdateKeepsEmbargoTermsNode`,
+  :class:`OwnerMayActivateEmbargoNode` — read-only guards ahead of the
+  commit: the decision names an open proposal, changes none of its terms,
+  and nothing refuses its activation, neither P/X/A nor the owner's own
+  decline (CLP-10-009, MSM-07-037, ADR-0199).
 - :class:`RejectEmbargoProposalLifecycleNode` — the ``STRICT`` register
   write, as the CASE_MANAGER (EP-09-008).  The activation commits first and
   copies (``activation_commit.py``, ADR-0124).
@@ -34,17 +36,27 @@ no node branches on the sender to know what a message means.
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_key_ports import (
+    act_key_ports,
+    act_key_remappings,
+    act_value,
+)
+from vultron.core.behaviors.act_keys import CASE_ID, EMBARGO
 from vultron.core.behaviors.embargo.nodes.invite_answer import (
     SendEmbargoInviteAnswerNode,
 )
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
 )
-from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.embargo_apply import RegisterStep, RegisterStepKind
 from vultron.core.models.embargo_consent_move import (
     assert_owner_has_not_declined,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
@@ -84,6 +96,67 @@ class IsOpenEmbargoProposalNode(DataLayerConditionWithPorts):
             f" '{self._case_id}' — nothing for the owner to decide"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class OwnerUpdateKeepsEmbargoTermsNode(DataLayerConditionWithPorts):
+    """Guard: the owner's ``Update`` of the embargo changes no term of it.
+
+    An ``Update(EmbargoEvent)`` changes the embargo's ``status``, and its
+    termination when it ends; its terms change only by a revision proposal
+    (ADR-0199).  FAILURE, naming each changed field, when the embargo the
+    ``Update`` carries differs from the register's copy of it in anything
+    else: a start or end time, a name, a ``replaces``.  The factory's
+    refusal notice carries the reason (CLP-05-001).  Read-only and ahead of
+    the commit, so a refused ``Update`` commits nothing (CLP-10-009).  It
+    runs after :class:`IsOpenEmbargoProposalNode`, which finds the proposal
+    on the register.
+
+    The case is read from ``/case_id`` and the carried embargo from
+    ``/embargo`` (BTND-01-008).
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **act_key_ports(CASE_ID, EMBARGO),
+    }
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return act_key_remappings(CASE_ID, EMBARGO)
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id: str = act_value(self, CASE_ID, str)
+        self._received = act_value(self, EMBARGO, EmbargoEvent)
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+        embargo_id = self._received.id_
+        held = case.registered_embargo(embargo_id)
+        if held is None:
+            self.feedback_message = (
+                f"embargo '{embargo_id}' is not on the register of case"
+                f" '{self.case_id}'"
+            )
+        else:
+            changed = self._received.changed_terms(held)
+            if not changed:
+                return Status.SUCCESS
+            self.feedback_message = (
+                f"the Update of embargo '{embargo_id}' on case"
+                f" '{self.case_id}' changes {', '.join(changed)}: an Update"
+                " of an embargo sets only its status, and its terms change"
+                " only by a revision proposal (ADR-0199)"
+            )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
@@ -184,13 +257,13 @@ class SendOwnerEmbargoDecisionNode(SendEmbargoInviteAnswerNode):
     """Queue the case owner's decision on a proposal to the CASE_MANAGER.
 
     The owner's answer to an embargo Invite is its decision for the case, so
-    it is sent as ``Add`` (activation, ADR-0180) or ``Reject`` of the
-    ``EmbargoEvent`` with the case as ``target``, never as an answer to the
-    Invite.  Both name the received Invite, *invite_id*, in ``inReplyTo``
-    (RF-08-001, ADR-0180).  Addressing and the raise-on-failure contract
-    are :class:`SendEmbargoInviteAnswerNode`'s: the node is an arm's action
-    in the EMB-15 response Selector, so a FAILURE must never fall through to
-    the opposite answer.
+    it is sent as an ``Update`` of the ``EmbargoEvent`` setting its status
+    to ``ACTIVE`` or ``REJECTED`` (ADR-0199), never as an answer to the
+    Invite.  Both name, in ``inReplyTo``, the proposer's own Invite behind
+    the received one, *invite_id* (RF-08-001, #6626).  Addressing and the
+    raise-on-failure contract are :class:`SendEmbargoInviteAnswerNode`'s:
+    the node is an arm's action in the EMB-15 response Selector, so a
+    FAILURE must never fall through to the opposite answer.
     """
 
     def __init__(
@@ -233,6 +306,7 @@ class SendOwnerEmbargoDecisionNode(SendEmbargoInviteAnswerNode):
 __all__ = [
     "IsOpenEmbargoProposalNode",
     "OwnerMayActivateEmbargoNode",
+    "OwnerUpdateKeepsEmbargoTermsNode",
     "RejectEmbargoProposalLifecycleNode",
     "SendOwnerEmbargoDecisionNode",
 ]

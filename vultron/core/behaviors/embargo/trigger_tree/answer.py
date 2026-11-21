@@ -286,7 +286,7 @@ def activate_embargo_trigger_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for the case owner's activation (EP-09-008).
 
-    ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0180): as the CASE_MANAGER the
+    ``Update(EmbargoEvent{status: ACTIVE})`` (ADR-0180): as the CASE_MANAGER the
     owner decides the activation ``STRICT``, commits the ``Add`` (the
     whole ``ACTIVATE`` step and its own agreement) and then one
     ``Update(EmbargoConsent)`` per ``CARRY_OVER`` row, and only then writes
@@ -328,7 +328,7 @@ def reject_embargo_proposal_trigger_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for the case owner's rejection (EP-09-008).
 
-    ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122): as the CASE_MANAGER the
+    ``Update(EmbargoEvent{status: REJECTED})`` (ADR-0122): as the CASE_MANAGER the
     owner rejects the proposal ``STRICT`` and commits its decision; any other
     owner asks the CASE_MANAGER.  A rejection of the last revision after
     disclosure is followed, in the same act, by the CASE_MANAGER's

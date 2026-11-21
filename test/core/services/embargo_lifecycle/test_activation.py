@@ -69,7 +69,7 @@ def test_activate_embargo_prunes_the_proposal_from_both_records(
 ) -> None:
     """Activation decides the proposal that carried the embargo.
 
-    ``activate_embargo`` is the received-side ``Add(EmbargoEvent)`` path
+    ``activate_embargo`` is the received-side ``Update(EmbargoEvent{status: ACTIVE})`` path
     (case creation uses ``initialize_creation_embargo``); after it the
     embargo is active and no longer an open proposal in either record
     (EP-08-003, #3470).

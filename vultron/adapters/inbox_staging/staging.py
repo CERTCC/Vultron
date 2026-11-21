@@ -189,6 +189,26 @@ def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
         )
 
 
+def _updated_object_id(
+    activity_row: dict[str, Any], inline_rows: Sequence[dict[str, Any]]
+) -> str | None:
+    """The id of the inline object an ``Update`` carries, or ``None``.
+
+    An ``Update`` states its object as its sender changed it (AS2 Vocabulary
+    ``Update``), so the staged copy, not the receiver's held one, is the
+    object the activity names (ADR-0199).  ``None`` for any other verb, or
+    when the ``Update`` carried no inline object staged here.
+    """
+    if activity_row.get("type_") != "Update":
+        return None
+    data = activity_row.get("data_")
+    object_id = data.get("object_") if isinstance(data, dict) else None
+    if not isinstance(object_id, str):
+        return None
+    staged = {row.get("id_") for row in inline_rows}
+    return object_id if object_id in staged else None
+
+
 class InlineObjectStaging:
     """One actor's inbox staging: rebuild, hold for replay, release.
 
@@ -510,6 +530,9 @@ class InlineObjectStaging:
                     inline_rows=inline_rows,
                     verified_proofs=tuple(verified_proofs),
                 )
+                updated = _updated_object_id(activity_row, inline_rows)
+                if updated is not None:
+                    store.read_as_received(updated)
                 result = rehydrate(activity_id, dl=store)
             finally:
                 store.clear_all()

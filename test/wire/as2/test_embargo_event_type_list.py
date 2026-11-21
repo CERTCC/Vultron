@@ -282,9 +282,12 @@ def test_an_invite_of_a_plain_event_is_no_embargo_proposal() -> None:
 @pytest.mark.parametrize(
     ("type_value", "expected"),
     [
-        (TYPE_LIST, MessageSemantics.ACTIVATE_EMBARGO_ON_CASE),
-        (list(reversed(TYPE_LIST)), MessageSemantics.ACTIVATE_EMBARGO_ON_CASE),
-        ("EmbargoEvent", MessageSemantics.ACTIVATE_EMBARGO_ON_CASE),
+        (TYPE_LIST, MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE),
+        (
+            list(reversed(TYPE_LIST)),
+            MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE,
+        ),
+        ("EmbargoEvent", MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE),
         ("Event", MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT),
     ],
     ids=["embargo-first", "event-first", "embargo-alone", "plain-event"],
@@ -293,8 +296,12 @@ def test_a_typed_reference_routes_by_the_embargo_type(
     type_value: object, expected: MessageSemantics
 ) -> None:
     """A reference typed as an embargo routes as one; one typed only as a
-    plain ``Event`` names an object the receiver must read first."""
-    body = _wire(examples.activate_embargo())
+    plain ``Event`` names an object the receiver must read first.
+
+    The withdrawal reads no status off its embargo, so a reference reaches
+    it; the owner's decisions read the status the inline embargo sets
+    (ADR-0199)."""
+    body = _wire(examples.withdraw_from_embargo())
     body["object"] = {"id": body["object"]["id"], "type": type_value}
 
     assert find_matching_semantics(parse_activity(body)) == expected

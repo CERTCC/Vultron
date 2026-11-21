@@ -88,7 +88,7 @@ def demo_activate_then_terminate(
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
     3. Vendor, the case owner and CASE_MANAGER, activates the embargo:
-       Add(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox (ADR-0180)
+       Update(EmbargoEvent{status: ACTIVE}) → vendor inbox (ADR-0180)
     4. Vendor announces embargo to participants
     5. Verify case has active embargo
     6. Vendor terminates (removes) the embargo (RemoveEmbargoFromCaseActivity)
@@ -214,11 +214,11 @@ def demo_reject_then_repropose(
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes first embargo (45-day)
     3. Vendor, the case owner, rejects the proposal:
-       Reject(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox (ADR-0122)
+       Update(EmbargoEvent{status: REJECTED}) → vendor inbox (ADR-0122)
     4. Verify case has no active embargo after rejection
     5. Coordinator proposes a revised embargo (90-day)
     6. Vendor, the case owner, activates the revised proposal:
-       Add(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox
+       Update(EmbargoEvent{status: ACTIVE}) → vendor inbox
     7. Verify case has active embargo
 
     This follows the reject → re-propose → accept branch in

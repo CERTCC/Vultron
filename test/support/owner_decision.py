@@ -12,8 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The Invite a case owner's embargo decision names in ``inReplyTo`` (ADR-0180).
 
-The owner's ``Add`` and ``Reject(EmbargoEvent)[target=VulnerabilityCase]``
-name the ``Invite(EmbargoEvent)`` that proposed the embargo.  The owner's
+The owner's ``Update(EmbargoEvent)`` setting its status to ``ACTIVE`` or
+``REJECTED`` names the proposer's own ``Invite(EmbargoEvent)`` (ADR-0199).  The owner's
 trigger reads it from its own store's open-proposal record
 (``pending_embargo_proposal_index``); a test that builds the decision
 through the trigger-activity adapter reads it the same way.
@@ -33,8 +33,7 @@ from vultron.wire.as2.factories import (
     reject_embargo_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Add,
-    as_Reject,
+    as_Update,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -65,7 +64,7 @@ def held_proposal_id(
 SEEDED_PROPOSAL_ID = "https://example.org/embargo_proposals/seeded"
 
 
-def seeded_activation(embargo: as_EmbargoEvent, **kwargs: Any) -> as_Add:
+def seeded_activation(embargo: as_EmbargoEvent, **kwargs: Any) -> as_Update:
     """:func:`activate_embargo_activity` naming :data:`SEEDED_PROPOSAL_ID`."""
     return activate_embargo_activity(
         embargo, in_reply_to=SEEDED_PROPOSAL_ID, **kwargs, at=authored_at()
@@ -74,7 +73,7 @@ def seeded_activation(embargo: as_EmbargoEvent, **kwargs: Any) -> as_Add:
 
 def seeded_proposal_rejection(
     embargo: as_EmbargoEvent, **kwargs: Any
-) -> as_Reject:
+) -> as_Update:
     """:func:`reject_embargo_proposal_activity` naming :data:`SEEDED_PROPOSAL_ID`."""
     return reject_embargo_proposal_activity(
         embargo, in_reply_to=SEEDED_PROPOSAL_ID, **kwargs, at=authored_at()
@@ -103,10 +102,11 @@ def owner_decision_body(
 ) -> tuple[str, dict[str, Any]]:
     """The owner's decision on *embargo_id*, built by its trigger adapter.
 
-    ``Add`` when *accept*, else ``Reject(EmbargoEvent)``, addressed to
-    *manager*.  ``inReplyTo`` names *proposal_id*, by default the Invite
-    *owner_store* records for the open proposal (:func:`held_proposal_id`,
-    ADR-0180).  Returns the decision's id and its sealed body.
+    The activating ``Update`` when *accept*, else the rejecting one,
+    addressed to *manager*.  ``inReplyTo`` names the proposer's Invite behind
+    *proposal_id*, by default the Invite *owner_store* records for the open
+    proposal (:func:`held_proposal_id`, ADR-0199).  Returns the decision's
+    id and its sealed body.
     """
     adapter = TriggerActivityAdapter(owner_store)
     build = (

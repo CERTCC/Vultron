@@ -116,7 +116,7 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
         )
         activity = factory(
             embargo,
-            target=make(
+            context=make(
                 as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_="https://example.org/cases/nope",

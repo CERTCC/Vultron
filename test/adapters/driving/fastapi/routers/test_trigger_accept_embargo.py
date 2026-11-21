@@ -79,7 +79,7 @@ def test_trigger_accept_embargo_response_contains_activity_key(
 def test_trigger_accept_embargo_by_owner_accepts_the_embargo_itself(
     client_triggers, actor, case_with_proposal
 ):
-    """ADR-0180: the case owner's accept is Add(EmbargoEvent)[target=VulnerabilityCase].
+    """ADR-0199: the case owner's accept is Update(EmbargoEvent{status: ACTIVE}).
 
     The owner decides for the case, so its activity's object is the proposed
     embargo itself, not the Invite that proposed it, which ``inReplyTo``
@@ -92,9 +92,11 @@ def test_trigger_accept_embargo_by_owner_accepts_the_embargo_itself(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     activity = resp.json()["activity"]
-    assert activity["type"] == "Add"
+    assert activity["type"] == "Update"
     assert activity["object"]["id"] == embargo.id_
-    assert activity["target"] == case_obj.id_
+    assert activity["object"]["status"] == "ACTIVE"
+    assert activity["context"] == case_obj.id_
+    assert "target" not in activity
     assert activity["inReplyTo"] == proposal.id_
 
 

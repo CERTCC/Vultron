@@ -127,7 +127,7 @@ def _owner_accept(dl: SqliteDataLayer, request: AcceptEmbargoTriggerRequest):
 def test_accept_embargo_activates_the_proposed_embargo(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """The owner-manager's accept is Add(EmbargoEvent)[target=VulnerabilityCase].
+    """The owner-manager's accept is Update(EmbargoEvent{status: ACTIVE}).
 
     PROPOSED → ACTIVE, the owner's row becomes ACCEPTED, and the decision is
     committed as the owner's activation (ADR-0180), never as a consent
@@ -145,9 +145,9 @@ def test_accept_embargo_activates_the_proposed_embargo(
     )
 
     activity = activity_of(result)
-    assert activity["type"] == "Add"
+    assert activity["type"] == "Update"
     assert activity["object"]["id"] == embargo_id
-    assert activity["target"] == case.id_
+    assert activity["context"] == case.id_
     # The decision names the Invite the trigger resolved (ADR-0180).
     assert activity["inReplyTo"] == proposal_id
     updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -177,7 +177,7 @@ def test_non_manager_owner_accept_asks_the_manager_to_activate(
 ) -> None:
     """An owner that is not the CASE_MANAGER sends its activation to it.
 
-    The queued activity is Add(EmbargoEvent)[target=VulnerabilityCase], recorded as a
+    The queued activity is Update(EmbargoEvent{status: ACTIVE}), recorded as a
     pending ``activate_embargo_on_case`` assertion; the owner's replica
     writes no EM state and no consent until the manager's commit arrives.
     """
@@ -196,7 +196,7 @@ def test_non_manager_owner_accept_asks_the_manager_to_activate(
 
     activity = activity_of(result)
     assert activity["object"]["id"] == embargo_id
-    assert activity["target"] == case.id_
+    assert activity["context"] == case.id_
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.PROPOSED
     assert updated.proposed_embargo_ids == [embargo_id]
@@ -210,7 +210,7 @@ def test_non_manager_owner_accept_asks_the_manager_to_activate(
         actor_id=owner.id_,
         case_id=case.id_,
         manager_id=manager.id_,
-        activity_type="Add",
+        activity_type="Update",
         semantic_type=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value,
     )
 
@@ -358,7 +358,7 @@ def test_a_declined_owner_managers_accept_changes_its_answer_then_activates(
 
     second = activity_of(_owner_accept(dl, request))
 
-    assert second["type"] == "Add"
+    assert second["type"] == "Update"
     activated = cast(VulnerabilityCase, dl.read(case.id_))
     assert activated.current_status.em.state == EM.ACTIVE
     assert activated.active_embargo_id == embargo_id
