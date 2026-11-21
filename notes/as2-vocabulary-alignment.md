@@ -334,8 +334,9 @@ embargo (#6480).
 **Built (embargo state).** `EmbargoEvent` stores `status`, `replaces` and, once
 terminated, `termination` (cause required, `causedBy`, `summary`); the case's
 `embargoRegister` is a list of whole embargoes, with no entry type (#6481). A
-`Remove` naming no cause stores `OTHER`. The `Update`, `Announce` and the
-termination's `causedBy` and `summary` are still to build (#6625, #6482, #6483).
+`Remove` naming no cause stores `OTHER`. The Owner's decisions are `Update`s
+(#6625); the end's `Update`, `Announce` and the termination's `causedBy` and
+`summary` are still to build (#6482, #6483).
 
 **Decision.**
 
@@ -439,23 +440,14 @@ Issues: #6487, #6625. Record: ADR-0199 revision 2 (partially superseding ADR-018
 (§ "Update Versus a New Object"). FEP-8a8e sends an event's status change as
 `Update(Event)`.
 
-**Today.** `Add(EmbargoEvent)[target=VulnerabilityCase]` and
-`Reject(EmbargoEvent)[target=VulnerabilityCase]`, registered in
-`vultron/semantic_registry/embargo/decision.py`; the activation effect is
-`vultron/core/behaviors/embargo/nodes/activation_effect.py`. Patterns match types
-only (`vultron/wire/as2/extractor/_pattern.py`). Depends on the embargo carrying its
-own `status` (#6481); the `EmbargoEvent` wire type is built (#6480).
-
-**Touches.** VAM-05-008, VAM-05-009, VAM-05-010, MSM-02-002, MSM-02-005 and the ER/EJ
-shorthands, MSM-07-005, MSM-07-008, MSM-07-009, MSM-07-023, MSM-07-032, EMB-02-002,
-EP-09-005, CM-28-015, the patterns and factories in `vultron/wire/as2/`, the
-`activate_embargo`, `activate_embargo_revision`, `reject_embargo_proposal` and
-`reject_embargo_revision_proposal` examples, `vultron/measure/history/derive.py`, the
-VINCE connector (`vultron/adapters/connectors/vince/case_rows.py`),
-`docs/reference/messages/em.md` and its `_occasions/` embargo-acceptance and
-rejection fragments, `docs/reference/vultron-spec/_oq-delegated-embargo-activation.md`
-(its premise goes: activation is the Owner's act, and delegation is no longer the
-question), and `notes/participant-embargo-consent.md`.
+**Built (#6625).** Both decisions are `Update(EmbargoEvent)[context=VulnerabilityCase]`,
+registered in `vultron/semantic_registry/embargo/decision.py`. `ActivityPattern`'s
+`object_status` requires the status the inline embargo states itself, so the end's
+`TERMINATED` pattern (#6482) adds a pattern and no new field. The CASE_MANAGER's
+`OwnerUpdateKeepsEmbargoTermsNode` refuses an `Update` that changes a term, using
+`EmbargoEvent.changed_terms`, whose `_UPDATE_MAY_SET` already admits a
+`TERMINATED` Update's `termination`. Until #6482 the termination that follows a
+rejection at P/X/A is still the CASE_MANAGER's `Remove(EmbargoEvent)`.
 
 ---
 

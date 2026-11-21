@@ -556,7 +556,7 @@ class TestAcceptRejectFromCoreState:
 
 
 class TestReceivedRejectPrunesOpenProposals:
-    """Only the owner's Reject(EmbargoEvent)[target=VulnerabilityCase] prunes an open
+    """Only the owner's Update(EmbargoEvent{status: REJECTED}) prunes an open
     proposal in the CASE_MANAGER's store (EP-08-003, ADR-0122); every
     Reject(Invite(EmbargoEvent)) is consent, the owner's included (#3470).
 
@@ -642,7 +642,7 @@ class TestReceivedRejectPrunesOpenProposals:
         decision = reject_embargo_proposal_activity(
             embargo,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=case.id_,
+            context=case.id_,
             actor=self._OWNER,
             to=[self._REPLICA],
             at=authored_at(),

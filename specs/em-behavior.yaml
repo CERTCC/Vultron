@@ -382,7 +382,7 @@ groups:
       in the owner's decision), so X or A set refuses the activation as P does.
     statement: >-
       A Participant MUST NOT apply EA's transition to Active when the case is at P/X/A
-      (q^cs ∉ ···pxa). EA is the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`
+      (q^cs ∉ ···pxa). EA is the Case Owner's `Update(EmbargoEvent{status: ACTIVE})`
       (MSM-07-008). The CASE_MANAGER refuses that activation before committing it to the
       case ledger, and sends no `Reject` of the Invite for it.
     rationale: >-
@@ -416,6 +416,7 @@ groups:
       note: 'EA shorthand wire-type mapping'
     adr:
     - ADR-0180
+    - ADR-0199
     stories:
     - story_2026_033
     see_also:
@@ -931,25 +932,26 @@ groups:
       public/exploit/attack (q^cs ∈ ···pxa).
       When it receives EC for the last open proposal, it MUST move its EM state back to
       Active (q^em R → A) with the revised terms.
-      The CASE_MANAGER's commit of the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`,
+      The CASE_MANAGER's commit of the Case Owner's `Update(EmbargoEvent{status: ACTIVE})`,
       fanned out as `Add(CaseLedgerEntry)`, discharges "Emit EK".
       No EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       EC says that the Case Owner activates a revision. The revised terms replace the
       terms in force, so when no other proposal is open, EM returns to Active under the
-      revised terms. The CASE_MANAGER's commit and fan-out of the owner's Add tell
+      revised terms. The CASE_MANAGER's commit and fan-out of the owner's Update tell
       every participant of the change, so no separate EK message is necessary
       (ADR-0113).
     adr:
     - ADR-0113
     - ADR-0130
     - ADR-0180
+    - ADR-0199
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
       with CS matching ...pxa and no other open proposal transitions EM back to
       ACTIVE with revised terms, and that the
       CASE_MANAGER's commit of the Case Owner's
-      `Add(EmbargoEvent)[target=VulnerabilityCase]` and its announcement
+      `Update(EmbargoEvent{status: ACTIVE})` and its announcement
       discharge EK with no EK message queued.
     testable: true
     preconditions:
@@ -966,7 +968,7 @@ groups:
       actor: receiver
       action: >-
         CASE_MANAGER commits the Case Owner's
-        `Add(EmbargoEvent)[target=VulnerabilityCase]` and adds the entry to the ledger
+        `Update(EmbargoEvent{status: ACTIVE})` and adds the entry to the ledger
         (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
@@ -2582,8 +2584,9 @@ groups:
       row (CM-18, ADR-0122), so the Case Owner has nothing to approve. A gate
       that asks another actor for a decision is a protocol ask, not a call-out
       point (BT-18-014). The CASE_MANAGER never runs this seam for its own
-      consent. A gate where the Case Owner delegates activation to the
-      CASE_MANAGER belongs on the CASE_MANAGER's activation path (#6045).
+      consent. Activation is the Case Owner's own act, its
+      `Update(EmbargoEvent{status: ACTIVE})`, so no gate here delegates it
+      (ADR-0199).
     verification: >-
       In `test/core/behaviors/embargo/test_response_decision_tree.py`,
       `TestAcceptArm::test_accept_arm_has_two_children` and
@@ -2694,7 +2697,7 @@ groups:
     statement: >-
       An actor that rejects an embargo overture MUST answer with the activity that
       matches what it rejects. The Case Owner deciding a proposal for the case sends ER,
-      its `Reject(EmbargoEvent)[target=VulnerabilityCase]`, which returns the shared EM
+      its `Update(EmbargoEvent{status: REJECTED})`, which returns the shared EM
       to NONE
       (EMB-06, MSM-07-009). A participant answering an embargo Invite sends a `Reject`
       of the Invite, which records only its own consent (MSM-07-004). That Reject marks
@@ -2709,7 +2712,7 @@ groups:
       `test/core/use_cases/triggers/embargo/test_reject.py`
       (`test_non_manager_owner_reject_asks_the_manager_to_reject`) confirms the Case
       Owner's rejection of a proposal is
-      `Reject(EmbargoEvent)[target=VulnerabilityCase]`, and
+      `Update(EmbargoEvent{status: REJECTED})`, and
       `test/core/behaviors/embargo/nodes/test_invite_answer.py`
       (`test_queues_the_answer_to_the_case_manager`) confirms an invitee's rejection of
       an embargo Invite is a `Reject` of it, addressed to the CASE_MANAGER.

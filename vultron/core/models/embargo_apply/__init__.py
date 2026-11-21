@@ -22,10 +22,10 @@ objects an activity changes (ADR-0122, CLP-07-013).  Two kinds of entry change
 the embargo part of the case file:
 
 - **A register step.**  The act's own activity carries the whole step: the
-  owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` is ``ACTIVATE``, with the
+  owner's ``Update(EmbargoEvent{status: ACTIVE})`` is ``ACTIVATE``, with the
   ``SUPERSEDE`` of the embargo in force; ``Remove(EmbargoEvent)``
   is ``TERMINATE``, with the ``CANCEL`` of every open proposal;
-  ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` is ``REJECT``; the ``Invite`` that
+  ``Update(EmbargoEvent{status: REJECTED})`` is ``REJECT``; the ``Invite`` that
   proposes an embargo is ``PROPOSE``; and a threat signal abandoning an open
   proposal with no embargo in force is ``CANCEL``.  :class:`RegisterStep`
   names the step; the register's definition says which entries it moves.

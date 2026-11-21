@@ -2,7 +2,7 @@
 
 The Accept is the sender's own consent to the proposed terms and carries no
 protocol shorthand (MSM-02-010): EA and EC are the Case Owner's decision,
-``Add(EmbargoEvent)[target=VulnerabilityCase]`` (:mod:`.owner_decision`).
+``Update(EmbargoEvent{status: ACTIVE})`` (:mod:`.owner_decision`).
 
 One tree per delivery (CLP-10-005, ADR-0135): the door guards, the Invite
 expiry, the repeat guard, the P/X/A refusal and the answers to an embargo

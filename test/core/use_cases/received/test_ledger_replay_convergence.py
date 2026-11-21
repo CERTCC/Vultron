@@ -215,7 +215,7 @@ def _set_rm(net: LedgerNetwork, member: str, rm: RM) -> None:
 @pytest.mark.spec("EMB-18-001")
 @pytest.mark.spec("TB-06-007")
 def test_a_replica_follows_the_owners_embargo_activation():
-    """Add(EmbargoEvent): PROPOSED → ACTIVE in the manager's store and the bystander's.
+    """The activating Update: PROPOSED → ACTIVE in the manager's and the bystander's store.
 
     The activation is the owner's agreement too (ADR-0122), so the owner's
     row is AGREED in both stores.
@@ -229,7 +229,7 @@ def test_a_replica_follows_the_owners_embargo_activation():
         net,
         seeded_activation(
             _embargo(net),
-            target=net.case_id,
+            context=net.case_id,
             actor=OWNER,
             to=[MANAGER],
         ),
@@ -249,7 +249,7 @@ def test_a_replica_follows_the_owners_embargo_activation():
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("TB-06-007")
 def test_a_replica_follows_the_owners_rejection_of_a_proposal():
-    """Reject(EmbargoEvent): PROPOSED → NONE in both stores, no consent written."""
+    """The rejecting Update: PROPOSED → NONE in both stores, no consent written."""
     net = _owned(
         LedgerNetwork(
             "https://example.org/cases/replay-rejection", em_state=EM.PROPOSED
@@ -259,7 +259,7 @@ def test_a_replica_follows_the_owners_rejection_of_a_proposal():
         net,
         seeded_proposal_rejection(
             _embargo(net),
-            target=net.case_id,
+            context=net.case_id,
             actor=OWNER,
             to=[MANAGER],
         ),
@@ -333,7 +333,7 @@ def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
         net,
         seeded_activation(
             revision,
-            target=net.case_id,
+            context=net.case_id,
             actor=OWNER,
             to=[MANAGER],
         ),
@@ -376,7 +376,7 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure(
         net,
         seeded_proposal_rejection(
             revision,
-            target=net.case_id,
+            context=net.case_id,
             actor=OWNER,
             to=[MANAGER],
         ),
@@ -436,7 +436,7 @@ def test_a_refused_termination_commits_neither_entry(monkeypatch):
     monkeypatch.setattr(termination_commit, "decide_termination", _refuse)
     reject = seeded_proposal_rejection(
         revision,
-        target=net.case_id,
+        context=net.case_id,
         actor=OWNER,
         to=[MANAGER],
     )
@@ -472,7 +472,7 @@ def test_a_termination_failing_after_its_remove_commits_neither_entry(
     )
     reject = seeded_proposal_rejection(
         revision,
-        target=net.case_id,
+        context=net.case_id,
         actor=OWNER,
         to=[MANAGER],
     )
@@ -500,7 +500,7 @@ def test_a_redelivered_owner_activation_entry_changes_nothing():
         net,
         seeded_activation(
             _embargo(net),
-            target=net.case_id,
+            context=net.case_id,
             actor=OWNER,
             to=[MANAGER],
         ),
@@ -927,7 +927,7 @@ def _deliver_direct(
 @pytest.mark.spec("RSH-08-003")
 @pytest.mark.spec("TB-06-007")
 def test_embargo_activation_writes_nothing_at_a_replica():
-    """Add(EmbargoEvent) delivered straight to a replica leaves EM untouched.
+    """Update(EmbargoEvent{status: ACTIVE}) delivered straight to a replica leaves EM untouched.
 
     The owner's activation writes EM state only at the CASE_MANAGER
     (RSH-08-003); a replica takes the change from the ledger, so the same
@@ -945,7 +945,7 @@ def test_embargo_activation_writes_nothing_at_a_replica():
         BYSTANDER,
         seeded_activation(
             _embargo(net),
-            target=net.case_id,
+            context=net.case_id,
             actor=OWNER,
             to=[BYSTANDER],
         ),

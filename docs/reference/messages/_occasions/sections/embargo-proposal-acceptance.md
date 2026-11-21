@@ -7,7 +7,7 @@ Activates the proposal for the case. Any other open proposal stays open as a rev
 === "Details"
 
     - **When…** the Case Owner decides to activate a proposed embargo for a case with no active embargo
-    - **Send:** `Add(EmbargoEvent)[target=VulnerabilityCase]`
+    - **Send:** `Update(EmbargoEvent{status: ACTIVE})[context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the Case Owner
     - **Distinguished by:** EM state `PROPOSED`

@@ -16,9 +16,9 @@
 """Received-side trees for the case owner's decision on an embargo proposal.
 
 ``activate_embargo_on_case_tree`` handles
-``Add(EmbargoEvent)[target=VulnerabilityCase]`` and
+``Update(EmbargoEvent{status: ACTIVE})`` and
 ``reject_embargo_proposal_on_case_tree`` handles
-``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122).  Only the case owner sends
+``Update(EmbargoEvent{status: REJECTED})`` (ADR-0122, ADR-0199).  Only the case owner sends
 either (EP-09-005); the sender guard refuses anyone else (HP-01-006).  The
 owner addresses its decision to the CASE_MANAGER (PCR-08-001), so both trees
 declare the CASE_MANAGER path alone (HP-01-038) and their effects write
@@ -33,6 +33,8 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_inputs import declare_inputs
+from vultron.core.behaviors.act_keys import EMBARGO
 from vultron.core.behaviors.case.nodes.ledgered_repeat import (
     ActivityNotYetLedgeredNode,
 )
@@ -54,6 +56,7 @@ from vultron.core.behaviors.embargo.nodes import (
     IsOpenEmbargoProposalNode,
     OwnerMayActivateEmbargoNode,
     OwnerRejectionAppliesNode,
+    OwnerUpdateKeepsEmbargoTermsNode,
     embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.embargo.trigger_tree import (
@@ -80,7 +83,7 @@ def activate_embargo_on_case_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the case owner's activation of a proposal (EA / EC).
 
-    Handles receipt of an ``Add(EmbargoEvent)[target=VulnerabilityCase]``::
+    Handles receipt of an ``Update(EmbargoEvent{status: ACTIVE})``::
 
         ActivateEmbargoOnCaseBT (Sequence)
         ├─ ActivityAddressedToReceiverNode   # addressee door
@@ -91,10 +94,11 @@ def activate_embargo_on_case_tree(
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ ActivityNotYetLedgeredNode        # a repeat is SKIPPED (CLP-05-006)
         ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
+        ├─ OwnerUpdateKeepsEmbargoTermsNode  # status only (ADR-0199)
         ├─ OwnerMayActivateEmbargoNode       # P/X/A clear, owner not declined
         ├─ ActivationAppliesNode             # decide + trial apply (ADR-0124)
         └─ ActivateEmbargoOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
-           ├─ GuardedCommitCaseLedgerEntryBT    # the Add: ACTIVATE (+ SUPERSEDE)
+           ├─ GuardedCommitCaseLedgerEntryBT    # the Update: ACTIVATE (+ SUPERSEDE)
            └─ ActivateEmbargoOnCaseBTIfCaseManager (CASE_MANAGER gate)
               ├─ CaptureActiveEmbargoNode       # snapshot signatories before
               ├─ CommitAndApplyEmbargoActivationNode  # CARRY_OVER entries, apply
@@ -109,7 +113,7 @@ def activate_embargo_on_case_tree(
     first (CLP-05-001); the activation itself runs
     ``STRICT``.  The CASE_MANAGER decides the activation and trial-applies it
     among the guards, so a step the register refuses commits nothing; once
-    the guarded commit has committed the ``Add`` (the whole register step and the
+    the guarded commit has committed the ``Update`` (the whole register step and the
     owner's agreement), each ``CARRY_OVER`` row is committed as its own
     ``Update(EmbargoConsent)`` entry and only then is the case file written
     (ADR-0124, CLP-07-013).
@@ -122,7 +126,7 @@ def activate_embargo_on_case_tree(
     Args:
         case_id: ID of the VulnerabilityCase.
         embargo_id: ID of the proposed EmbargoEvent being activated.
-        sender_actor_id: Sender of the ``Add``; must be the case owner.
+        sender_actor_id: Sender of the ``Update``; must be the case owner.
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the deadline of a stub Invite the activation re-issues.
         sender_rule: The use case's declared sender rule; the factory
@@ -157,6 +161,9 @@ def activate_embargo_on_case_tree(
             # it is skipped before that guard refuses it (CLP-05-006).
             with_case_id(ActivityNotYetLedgeredNode(), case_id),
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
+            # The embargo the Update carries is seeded from the act
+            # (``/embargo``); it may change no term (ADR-0199).
+            with_case_id(OwnerUpdateKeepsEmbargoTermsNode(), case_id),
             OwnerMayActivateEmbargoNode(
                 case_id=case_id, embargo_id=embargo_id
             ),
@@ -180,6 +187,7 @@ def activate_embargo_on_case_tree(
         ],
         manager_case_id=case_id,
     )
+    declare_inputs(root, seeded=[EMBARGO])
     logger.info(
         "Created ActivateEmbargoOnCaseBT for case=%s embargo=%s sender=%s",
         case_id,
@@ -199,7 +207,7 @@ def reject_embargo_proposal_on_case_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the case owner's rejection of a proposal (ER / EJ).
 
-    Handles receipt of a ``Reject(EmbargoEvent)[target=VulnerabilityCase]``::
+    Handles receipt of an ``Update(EmbargoEvent{status: REJECTED})``::
 
         RejectEmbargoProposalOnCaseBT (Sequence)
         ├─ ActivityAddressedToReceiverNode   # addressee door
@@ -209,10 +217,11 @@ def reject_embargo_proposal_on_case_tree(
         ├─ IntakeReceivedActivityNode        # records what arrived (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ ActivityNotYetLedgeredNode        # a repeat is SKIPPED (CLP-05-006)
-        ├─ IsOpenEmbargoProposalNode         # read-only guard (CLP-10-009)
+        ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
+        ├─ OwnerUpdateKeepsEmbargoTermsNode  # status only (ADR-0199)
         ├─ OwnerRejectionAppliesNode         # trial REJECT (+ TERMINATE)
         └─ RejectEmbargoProposalOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
-           ├─ GuardedCommitCaseLedgerEntryBT    # the Reject: REJECT
+           ├─ GuardedCommitCaseLedgerEntryBT    # the Update: REJECT
            └─ RejectEmbargoProposalOnCaseBTIfCaseManager (CASE_MANAGER gate)
               ├─ DecideRejectedEmbargoProposalNode  # REJECT; no consent
               └─ EndEmbargoOutlivingDisclosure (Selector)
@@ -237,7 +246,7 @@ def reject_embargo_proposal_on_case_tree(
     Args:
         case_id: ID of the VulnerabilityCase.
         embargo_id: ID of the proposed EmbargoEvent being rejected.
-        sender_actor_id: Sender of the ``Reject``; must be the case owner.
+        sender_actor_id: Sender of the ``Update``; must be the case owner.
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the deadline of a stub Invite a termination re-issues.
         sender_rule: The use case's declared sender rule; the factory
@@ -266,6 +275,9 @@ def reject_embargo_proposal_on_case_tree(
             # it is skipped before that guard refuses it (CLP-05-006).
             with_case_id(ActivityNotYetLedgeredNode(), case_id),
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
+            # The embargo the Update carries is seeded from the act
+            # (``/embargo``); it may change no term (ADR-0199).
+            with_case_id(OwnerUpdateKeepsEmbargoTermsNode(), case_id),
             OwnerRejectionAppliesNode(case_id=case_id, embargo_id=embargo_id),
         ],
         manager_effects=[
@@ -281,6 +293,7 @@ def reject_embargo_proposal_on_case_tree(
         ],
         manager_case_id=case_id,
     )
+    declare_inputs(root, seeded=[EMBARGO])
     logger.info(
         "Created RejectEmbargoProposalOnCaseBT for case=%s embargo=%s"
         " sender=%s",

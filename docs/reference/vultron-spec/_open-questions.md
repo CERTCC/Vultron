@@ -10,5 +10,3 @@ Every one also appears inline at the point in the specification where it first m
 {% include-markdown "./_oq-transport-status-codes.md" %}
 
 {% include-markdown "./_oq-role-acquisition.md" %}
-
-{% include-markdown "./_oq-delegated-embargo-activation.md" %}

@@ -161,6 +161,67 @@ def test_rehydrate_routes_the_receivers_own_copy_over_the_inline_one(dl):
     assert getattr(routed.object_, "content", None) == "held"
 
 
+@pytest.mark.spec("IO-03-008", "IO-03-004", "DL-06-006")
+def test_the_object_of_an_update_routes_as_carried(dl):
+    """An Update states its object as changed, so the carried copy routes.
+
+    The receiver holds the embargo as proposed; the Case Owner's Update sets
+    its status.  Routing reads the status the Update sets (ADR-0199), and the
+    receiver's own record is left as it was: nothing staged is written.
+    """
+    from vultron.core.models.events import MessageSemantics
+    from vultron.semantic_registry import find_matching_semantics
+    from vultron.wire.as2.vocab.examples import embargo as examples
+
+    update = examples.activate_embargo()
+    held = examples.embargo_event()
+    dl.create(held)
+
+    routed = _routed(
+        dl,
+        signed_body(
+            update.model_dump(mode="json", by_alias=True, exclude_none=True)
+        ),
+    )
+
+    assert getattr(routed.object_, "status", None) == "ACTIVE"
+    assert (
+        find_matching_semantics(routed)
+        == MessageSemantics.ACTIVATE_EMBARGO_ON_CASE
+    )
+    stored = dl.read(held.id_)
+    assert isinstance(stored, EmbargoEvent)
+    assert stored.status == "PROPOSED"
+
+
+@pytest.mark.spec("IO-03-008")
+def test_the_object_of_another_update_routes_as_held(dl):
+    """Only an Update a pattern reads by status routes its object as carried.
+
+    No pattern reads an ``Update(EmbargoConsent)`` by status, so the row the
+    receiver holds is the one routing sees, as for any other activity.
+    """
+    from vultron.core.models.embargo_consent import EmbargoConsent
+    from vultron.wire.as2.vocab.examples import embargo as examples
+
+    update = examples.update_embargo_consent()
+    carried = update.object_
+    assert isinstance(carried, EmbargoConsent)
+    held = EmbargoConsent.model_validate(
+        {**carried.model_dump(), "state": "INVITED"}
+    )
+    dl.create(held)
+
+    routed = _routed(
+        dl,
+        signed_body(
+            update.model_dump(mode="json", by_alias=True, exclude_none=True)
+        ),
+    )
+
+    assert getattr(routed.object_, "state", None) == "INVITED"
+
+
 @pytest.mark.spec("IO-03-004", "CBT-03-001", "DL-06-006", "VM-08-002")
 @pytest.mark.spec("IO-03-009")
 def test_deferred_activity_replays_with_its_inline_object(dl):

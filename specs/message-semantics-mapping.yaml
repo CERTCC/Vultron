@@ -247,8 +247,8 @@ groups:
     statement: >-
       Protocol shorthand `EA` (Embargo Accepted) MUST have the semantic type
       `ACTIVATE_EMBARGO_ON_CASE`; its AS2 wire form is
-      `Add(EmbargoEvent)[target=VulnerabilityCase]` per VAM-05-008, the Case Owner's
-      decision that moves EM from PROPOSED to ACTIVE (MSM-07-008).
+      `Update(EmbargoEvent{status: ACTIVE})` per VAM-05-008, the Case Owner's decision
+      that moves EM from PROPOSED to ACTIVE (MSM-07-008).
     rationale: >-
       EA names the EM transition PROPOSED to ACTIVE, and only the Case Owner's decision
       makes it. A Participant's `Accept(Invite(EmbargoEvent))` records that Participant's
@@ -258,7 +258,7 @@ groups:
     verification: >-
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.ACTIVATE_EMBARGO_ON_CASE` is paired with an `ActivityPattern`
-      matching `Add(EmbargoEvent)[target=VulnerabilityCase]` in `SEMANTIC_REGISTRY`, and
+      matching `Update(EmbargoEvent{status: ACTIVE})` in `SEMANTIC_REGISTRY`, and
       `test/test_semantic_activity_patterns.py` asserts that it is told apart from the
       Accept of the Invite.
     relationships:
@@ -268,6 +268,7 @@ groups:
       spec_id: MSM-07-008
     adr:
     - ADR-0180
+    - ADR-0199
     stories:
     - story_2026_087
     - story_2022_023
@@ -292,7 +293,7 @@ groups:
     statement: >-
       Protocol shorthand `EJ` (Embargo Revision Rejected) MUST have the semantic type
       `REJECT_EMBARGO_PROPOSAL_ON_CASE`; its AS2 wire form is
-      `Reject(EmbargoEvent)[target=VulnerabilityCase]` per VAM-05-009, the Case Owner's
+      `Update(EmbargoEvent{status: REJECTED})` per VAM-05-009, the Case Owner's
       decision that returns EM from REVISE to ACTIVE with the prior terms in force
       (MSM-07-009).
     rationale: >-
@@ -304,7 +305,7 @@ groups:
     verification: >-
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE` is paired with an
-      `ActivityPattern` matching `Reject(EmbargoEvent)[target=VulnerabilityCase]` in
+      `ActivityPattern` matching `Update(EmbargoEvent{status: REJECTED})` in
       `SEMANTIC_REGISTRY`, and `test/test_semantic_activity_patterns.py` asserts that it
       is told apart from the Reject of the Invite.
     relationships:
@@ -321,9 +322,9 @@ groups:
     statement: >-
       Protocol shorthand `EC` (Embargo Revision Accepted) MUST have the semantic type
       `ACTIVATE_EMBARGO_ON_CASE`; its AS2 wire form is
-      `Add(EmbargoEvent)[target=VulnerabilityCase]` per VAM-05-008, the Case Owner's
-      decision that replaces the active embargo with the revision and moves EM from
-      REVISE to ACTIVE (MSM-07-008).
+      `Update(EmbargoEvent{status: ACTIVE})` per VAM-05-008, the Case Owner's decision
+      that replaces the active embargo with the revision and moves EM from REVISE to
+      ACTIVE (MSM-07-008).
     rationale: >-
       EC names the EM transition REVISE to ACTIVE, and only the Case Owner's activation
       of the revision makes it; a Participant's `Accept(Invite(EmbargoEvent))` of the revision
@@ -342,6 +343,7 @@ groups:
       spec_id: MSM-07-008
     adr:
     - ADR-0180
+    - ADR-0199
     stories:
     - story_2026_087
     - story_2022_023
@@ -351,7 +353,7 @@ groups:
     statement: >-
       Protocol shorthand `ER` (Embargo Rejected) MUST have the semantic type
       `REJECT_EMBARGO_PROPOSAL_ON_CASE`, with AS2 wire form
-      `Reject(EmbargoEvent)[target=VulnerabilityCase]` per VAM-05-009, for the Case Owner's
+      `Update(EmbargoEvent{status: REJECTED})` per VAM-05-009, for the Case Owner's
       decision that rejects a proposal, and the semantic type
       `REJECT_INVITE_TO_EMBARGO_ON_CASE`, with AS2 wire form
       `Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])` per
@@ -369,7 +371,7 @@ groups:
     verification: >-
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE` is paired with an
-      `ActivityPattern` matching `Reject(EmbargoEvent)[target=VulnerabilityCase]` and
+      `ActivityPattern` matching `Update(EmbargoEvent{status: REJECTED})` and
       `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE` with one matching
       `Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])` in
       `SEMANTIC_REGISTRY`;
@@ -1421,7 +1423,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule covers the Case Owner's Add(EmbargoEvent)[target=VulnerabilityCase]
+      This rule covers the Case Owner's `Update(EmbargoEvent{status: ACTIVE})`
       (MSM-07-008) that replaces active embargo A with revision B. The register activates
       B and supersedes A, so the derived EM goes REVISE → ACTIVE, or stays REVISE while
       another proposal is open (EMB-18-005). Implementations MUST settle every
@@ -1454,6 +1456,7 @@ groups:
     - ADR-0093
     - ADR-0122
     - ADR-0180
+    - ADR-0199
     stories:
     - story_2026_001
   - id: MSM-07-020
@@ -1530,8 +1533,9 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST commit each carried-over row as its own CASE_MANAGER
-      `Update(EmbargoConsent)` ledger entry, after the Accept's entry. The owner's own
-      row is what its Accept states, applied from the Accept's entry.
+      `Update(EmbargoConsent)` ledger entry, after the entry of the Case Owner's
+      activating `Update(EmbargoEvent{status: ACTIVE})`. The owner's own row is what its
+      activation states, applied from the activation's entry.
     rationale: >-
       The CASE_MANAGER decides the carry-over. Committing each carried-over row as its
       own entry keeps every replica's consent rows in step with the CASE_MANAGER's.
@@ -1540,14 +1544,15 @@ groups:
       fan-out.
     verification: >-
       `test/core/use_cases/received/test_embargo_activation_copy.py`
-      (`test_the_accept_then_one_update_per_carried_over_row`) confirms the Accept is
-      followed by one `Update(EmbargoConsent)` entry per carried-over row.
+      (`test_the_accept_then_one_update_per_carried_over_row`) confirms the activation
+      is followed by one `Update(EmbargoConsent)` entry per carried-over row.
     relationships:
     - rel_type: implements
       spec_id: EP-05-003
     adr:
     - ADR-0124
     - ADR-0122
+    - ADR-0199
     stories:
     - story_2026_089
   - id: MSM-07-024
@@ -1696,22 +1701,24 @@ groups:
     kind: protocol
     statement: >-
       The wire activity ACTIVATE_EMBARGO_ON_CASE (wire form:
-      Add(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as
-      the object, inReplyTo naming the Invite(EmbargoEvent) that proposed it) is
-      the Case Owner's decision for the case. It MUST activate the named proposal's
+      `Update(EmbargoEvent{status: ACTIVE})`, the EmbargoEvent itself as the object with
+      its status set, inReplyTo naming the proposer's own Invite(EmbargoEvent)) is the
+      Case Owner's decision for the case. It MUST activate the named proposal's
       embargo register entry and supersede any entry in force in the same step. The
       derived EM becomes ACTIVE (EA, or EC for a revision).
     rationale: >-
       Giving the owner's decision its own activity retires the two-audience rule: an Accept of
       an Invite is always the sender's consent (MSM-07-003), and this activity is always the
       owner's decision for the case, so neither meaning depends on who sent the message
-      (ADR-0122). The activity is an Add because the case gains the embargo, as the Remove
-      that ends it takes it away, so the decision and a consent differ by verb (ADR-0180).
-      When it replaces an embargo in force, the MSM-07-005 consent rule settles the rows.
+      (ADR-0122). The activity is an Update because the proposal already put the embargo
+      on the case's register, so the decision changes its status, and the decision and a
+      consent differ by verb (ADR-0199). The CASE_MANAGER admits the Owner's act as the
+      ledger entry and sends no act of its own for it. When it replaces an embargo in
+      force, the MSM-07-005 consent rule settles the rows.
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the Case Owner's
-      Add(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER activates
-      the proposal and
+      `Update(EmbargoEvent{status: ACTIVE})` at the CASE_MANAGER activates the proposal,
+      commits the Owner's act as the entry, refuses an Update that changes a term, and
       carries signatories over to a shorter revision, and that a replica replaying the
       committed entry converges.
     relationships:
@@ -1720,6 +1727,7 @@ groups:
     adr:
     - ADR-0122
     - ADR-0180
+    - ADR-0199
     stories:
     - story_2026_087
   - id: MSM-07-027
@@ -1855,8 +1863,8 @@ groups:
     kind: protocol
     statement: >-
       The wire activity REJECT_EMBARGO_PROPOSAL_ON_CASE (wire form:
-      Reject(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as
-      the object, inReplyTo naming the Invite(EmbargoEvent) that proposed it) is
+      `Update(EmbargoEvent{status: REJECTED})`, the EmbargoEvent itself as the object
+      with its status set, inReplyTo naming the proposer's own Invite(EmbargoEvent)) is
       the Case Owner's decision for the case. It MUST reject the named proposal's
       embargo register entry. Once no other proposal is open, the derived EM becomes
       NONE (ER) or stays ACTIVE with the prior terms in force (EJ). It stays PROPOSED or
@@ -1870,9 +1878,8 @@ groups:
       (ADR-0122).
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the Case Owner's
-      Reject(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER rejects
-      the proposal and
-      leaves another open proposal open.
+      `Update(EmbargoEvent{status: REJECTED})` at the CASE_MANAGER rejects the proposal,
+      refuses an Update that changes a term, and leaves another open proposal open.
     relationships:
     - rel_type: uses_definition
       spec_id: VAM-05-009
@@ -1881,6 +1888,7 @@ groups:
     adr:
     - ADR-0122
     - ADR-0180
+    - ADR-0199
     stories:
     - story_2026_087
   - id: MSM-07-030
@@ -1932,10 +1940,10 @@ groups:
       This rule covers REJECT_EMBARGO_PROPOSAL_ON_CASE of the last open revision while
       CS is public, exploited or attacked. The CASE_MANAGER MUST also terminate the
       embargo in the same act (EMB-04-002). It trial-applies both steps before
-      committing either. It
-      commits the Reject's entry carrying the REJECT step, then its own ET
-      `Remove(EmbargoEvent)` entry carrying the TERMINATE step. A refused termination
-      commits neither.
+      committing either. It commits the Case Owner's
+      `Update(EmbargoEvent{status: REJECTED})` as the entry carrying the REJECT step,
+      then its own ET entry carrying the TERMINATE step. A refused termination commits
+      neither.
     rationale: >-
       Reverting to the prior terms is not viable once disclosure has happened, so the
       rejection ends the embargo. Deciding both steps together means a replica copying
@@ -1947,7 +1955,7 @@ groups:
       `test/core/use_cases/received/test_ledger_replay_convergence.py`
       (`test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure`,
       `test_a_refused_termination_commits_neither_entry`) confirm the revision ends
-      REJECTED and EM EXITED on the CASE_MANAGER and on a replica, the Reject's entry
+      REJECTED and EM EXITED on the CASE_MANAGER and on a replica, the Owner's entry
       first, and that a refused termination commits neither entry.
     relationships:
     - rel_type: extends
@@ -1956,6 +1964,7 @@ groups:
       spec_id: EMB-04-002
     adr:
     - ADR-0122
+    - ADR-0199
     stories:
     - story_2026_033
   - id: MSM-07-033

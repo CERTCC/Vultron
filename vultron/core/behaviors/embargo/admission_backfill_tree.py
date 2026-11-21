@@ -18,7 +18,7 @@
 :func:`embargo_admission_backfill_nodes` sends what the ledger fan-out
 withheld once the embargo gate admits a participant, then re-issues the stub
 Invites that carry stale terms.  A received tree runs them behind the
-CASE_MANAGER gate it takes from the factory: the ``Add(EmbargoEvent)`` and
+CASE_MANAGER gate it takes from the factory: the activating ``Update(EmbargoEvent)`` and
 ``Remove(EmbargoEvent)`` trees in their ``manager_effects`` (CLP-10-026).  An
 Invite ``Accept``, on time or a late one the case honours, runs the backfill
 alone: it never changes the embargo in force, so it leaves no stub Invite

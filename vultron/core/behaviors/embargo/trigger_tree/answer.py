@@ -72,9 +72,9 @@ def _answer_arms(
     """Manager: decide, commit, apply, declare; otherwise: ask the manager.
 
     The manager's Accept or Reject of an Invite (the sender's consent), or
-    its Add or Reject of the embargo itself as the case owner (ADR-0180), is
+    its Update of the embargo's status as the case owner (ADR-0199), is
     addressed to nobody: every replica learns it from the committed entry
-    (EP-09-007).  An Add that activates a shorter revision is announced to the bound
+    (EP-09-007).  An activation of a shorter revision is announced to the bound
     signatories the ledger no longer reaches (CM-31-009).
 
     The manager arm commits before it writes (ADR-0124, CLP-07-013): the
@@ -286,8 +286,8 @@ def activate_embargo_trigger_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for the case owner's activation (EP-09-008).
 
-    ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0180): as the CASE_MANAGER the
-    owner decides the activation ``STRICT``, commits the ``Add`` (the
+    ``Update(EmbargoEvent{status: ACTIVE})`` (ADR-0199): as the CASE_MANAGER the
+    owner decides the activation ``STRICT``, commits the ``Update`` (the
     whole ``ACTIVATE`` step and its own agreement) and then one
     ``Update(EmbargoConsent)`` per ``CARRY_OVER`` row, and only then writes
     the case file (:class:`CommitAndApplyEmbargoActivationNode`, ADR-0124);
@@ -328,7 +328,7 @@ def reject_embargo_proposal_trigger_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for the case owner's rejection (EP-09-008).
 
-    ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122): as the CASE_MANAGER the
+    ``Update(EmbargoEvent{status: REJECTED})`` (ADR-0122): as the CASE_MANAGER the
     owner rejects the proposal ``STRICT`` and commits its decision; any other
     owner asks the CASE_MANAGER.  A rejection of the last revision after
     disclosure is followed, in the same act, by the CASE_MANAGER's

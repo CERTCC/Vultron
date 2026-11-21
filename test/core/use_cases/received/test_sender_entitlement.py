@@ -1407,7 +1407,7 @@ def test_owner_embargo_decision_from_a_non_owner_is_refused(
     event = make_payload(
         factory(
             embargo,
-            target=make(
+            context=make(
                 as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_=owned_case.id_,
@@ -1708,7 +1708,7 @@ def test_owner_embargo_decision_from_a_closed_owner_is_refused(
     event = make_payload(
         factory(
             embargo,
-            target=make(
+            context=make(
                 as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_=owned_case.id_,

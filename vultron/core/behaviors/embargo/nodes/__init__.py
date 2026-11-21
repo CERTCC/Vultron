@@ -106,6 +106,7 @@ from vultron.core.behaviors.embargo.nodes.manager_consent import (
 from vultron.core.behaviors.embargo.nodes.owner_decision import (
     IsOpenEmbargoProposalNode,
     OwnerMayActivateEmbargoNode,
+    OwnerUpdateKeepsEmbargoTermsNode,
     RejectEmbargoProposalLifecycleNode,
     SendOwnerEmbargoDecisionNode,
 )
@@ -196,6 +197,7 @@ __all__ = [
     "CommitAndApplyEmbargoActivationNode",
     "IsOpenEmbargoProposalNode",
     "OwnerMayActivateEmbargoNode",
+    "OwnerUpdateKeepsEmbargoTermsNode",
     "RejectEmbargoProposalLifecycleNode",
     "SendOwnerEmbargoDecisionNode",
     # Embargo-ending notices to unreached signatories (CM-31-009, CM-31-010)

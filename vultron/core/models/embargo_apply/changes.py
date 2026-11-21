@@ -53,10 +53,10 @@ class RegisterStepKind(StrEnum):
 
     #: The ``Invite(EmbargoEvent)`` that proposes a new embargo.
     PROPOSE = auto()
-    #: The owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]``; supersedes the
+    #: The owner's ``Update(EmbargoEvent{status: ACTIVE})``; supersedes the
     #: embargo in force, if any.
     ACTIVATE = auto()
-    #: The owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
+    #: The owner's ``Update(EmbargoEvent{status: REJECTED})``.
     REJECT = auto()
     #: ``Remove(EmbargoEvent)``; cancels every open proposal.
     TERMINATE = auto()

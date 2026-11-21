@@ -321,7 +321,8 @@ class _Deriver:
             self.register.propose(embargo_id)
 
     def _on_proposal_rejected(self, context: _Entry, obj: object) -> None:
-        """The Case Owner's ``Reject(EmbargoEvent)`` of a proposal."""
+        """The Case Owner's ``Update(EmbargoEvent{status: REJECTED})`` of a
+        proposal (ADR-0199)."""
         embargo_id = actor_uri(obj)
         if embargo_id is not None:
             self.register.reject(embargo_id)

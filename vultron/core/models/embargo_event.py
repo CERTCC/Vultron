@@ -127,6 +127,28 @@ class EmbargoEvent(CoreObject):
             }
         )
 
+    def changed_terms(self, held: EmbargoEvent) -> tuple[str, ...]:
+        """The terms this embargo, as an ``Update`` carries it, changes on *held*.
+
+        An ``Update`` of an embargo changes its register state: its
+        ``status``, and its ``termination`` when it ends (ADR-0199,
+        ADR-0203).  Its terms change only by a revision proposal, so every
+        other field must equal *held*'s, the record the receiver holds.  The
+        register state is compared on neither side: the receiver decides the
+        register step, ``replaces`` included, from its own register
+        (ADR-0202).  Returns the names of the terms that differ, sorted:
+        empty when the ``Update`` changes no term.
+        """
+        mine = self.with_register_state().model_dump()
+        theirs = held.with_register_state().model_dump()
+        return tuple(
+            sorted(
+                name
+                for name in mine.keys() | theirs.keys()
+                if mine.get(name) != theirs.get(name)
+            )
+        )
+
     def with_subject(self, subject_id: str) -> EmbargoEvent:
         """Return this embargo re-scoped to *subject_id*, identity kept.
 

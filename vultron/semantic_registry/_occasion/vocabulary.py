@@ -59,7 +59,7 @@ class ProtocolShorthand(StrEnum):
     wire activity with its initial-negotiation counterpart, told apart by the
     case's EM state: ``EV`` with ``EP`` on the embargo Invite, and ``EC`` and
     ``EJ`` with ``EA`` and ``ER`` on the Case Owner's decision,
-    ``Add``/``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (MSM-02).
+    ``Update(EmbargoEvent)`` setting its status (MSM-02).
     """
 
     RS = "RS"

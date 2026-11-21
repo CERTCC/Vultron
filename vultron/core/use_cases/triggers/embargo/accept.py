@@ -17,7 +17,7 @@
 
 A participant's accept is ``Accept(Invite(EmbargoEvent))``, its own consent.
 The case owner's accept is its decision for the case,
-``Add(EmbargoEvent)[target=VulnerabilityCase]``, which activates the proposal
+``Update(EmbargoEvent{status: ACTIVE})``, which activates the proposal
 (ADR-0180).  An owner whose row for the proposal reads ``DECLINED`` sends
 the ``Accept(Invite(EmbargoEvent))`` instead: the CASE_MANAGER refuses its
 activation until it has accepted (MSM-07-037), so its first accept changes

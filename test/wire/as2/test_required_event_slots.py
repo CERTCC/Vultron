@@ -41,6 +41,10 @@ from test.support.required_slots import (
 )
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.events.case import CreateCaseReceivedEvent
+from vultron.core.models.events.embargo import (
+    ActivateEmbargoOnCaseReceivedEvent,
+    RejectEmbargoProposalOnCaseReceivedEvent,
+)
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
     extract_event,
@@ -112,6 +116,18 @@ NO_ROW: dict[tuple[type[VultronEvent], str], str] = {
         "the id of the inline case, which every case object carries; a"
         " Create with no case is the ``case`` row"
     ),
+    **{
+        (event_class, "embargo"): (
+            "the inline embargo whose id is ``embargo_id``: an Update with no"
+            " object is the ``embargo_id`` row, and one naming its embargo by"
+            " a bare id states no status, so no decision pattern matches it"
+            " (ADR-0199)"
+        )
+        for event_class in (
+            ActivateEmbargoOnCaseReceivedEvent,
+            RejectEmbargoProposalOnCaseReceivedEvent,
+        )
+    },
 }
 
 

@@ -69,7 +69,7 @@ def test_activate_embargo_prunes_the_proposal_from_both_records(
 ) -> None:
     """Activation decides the proposal that carried the embargo.
 
-    ``activate_embargo`` is the received-side ``Add(EmbargoEvent)`` path
+    ``activate_embargo`` is the received-side ``Update(EmbargoEvent{status: ACTIVE})`` path
     (case creation uses ``initialize_creation_embargo``); after it the
     embargo is active and no longer an open proposal in either record
     (EP-08-003, #3470).
@@ -154,7 +154,7 @@ def test_activate_embargo_replacing_a_longer_one_carries_signatories_over(
 def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Longer arm, OBSERVED (a replica syncing an Add): nothing is written.
+    """Longer arm, OBSERVED (a replica syncing an activation): nothing is written.
 
     The owner already holds AGREED(B), so no row changes at all.  The
     signatory that never agreed to B is no longer a signatory and

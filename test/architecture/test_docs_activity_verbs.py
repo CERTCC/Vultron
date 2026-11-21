@@ -167,7 +167,7 @@ _MIN_LABELLED_NODES = 48
 
 #: Node ids whose wire form no registry entry carries on its own, mapped to the
 #: pattern that does carry it.  None today: ``ActivateEmbargo`` resolves through
-#: ``_ActivateEmbargoActivity``'s own registry entry (ADR-0180).
+#: ``_ActivateEmbargoActivity``'s own registry entry (ADR-0199).
 _FORM_ALIASES: MappingProxyType[str, str] = MappingProxyType({})
 
 #: The qualifier each node id is allowed to carry after its wire form, naming
@@ -175,16 +175,12 @@ _FORM_ALIASES: MappingProxyType[str, str] = MappingProxyType({})
 #: than stripped: the qualifier is the *only* thing distinguishing these two, so
 #: discarding it would let a label assert the exact opposite of the truth.
 #: A node id absent here may carry no qualifier at all.
-_EXPECTED_QUALIFIER = MappingProxyType(
-    {
-        # The case owner's decisions name the case they decide for (ADR-0122).
-        "ActivateEmbargo": "target=VulnerabilityCase",
-        "RejectEmbargoProposal": "target=VulnerabilityCase",
-    }
-)
+#: None today: the case owner's decisions are told apart by the ``status``
+#: their wire form sets (ADR-0199).
+_EXPECTED_QUALIFIER: MappingProxyType[str, str] = MappingProxyType({})
 
-#: A wire line's trailing bracketed qualifier, ``Add(EmbargoEvent)`` then
-#: ``[target=VulnerabilityCase]`` (Wire Activity notation, Annex C).  Only the
+#: A wire line's trailing bracketed qualifier, ``Remove(Note)`` then
+#: ``[origin=VulnerabilityCase]`` (Wire Activity notation, Annex C).  Only the
 #: group after the last ``)`` is a qualifier, so ``_render_as2_form``'s bare
 #: form is what the first group holds.
 _TRAILING_QUALIFIER = re.compile(r"(.*\))\[([^\[\]]*)\]")
@@ -272,7 +268,9 @@ def _render_as2_form(pattern: ActivityPattern) -> str:
     type the sender emits, as the occasion generator writes it (Annex C).
     The form a pattern requires of its object is written beside the type, as
     the occasion generator writes it, so the stub Invite and the full-case
-    Invite render apart (SE-01-009, ADR-0205).
+    Invite render apart (SE-01-009, ADR-0205).  So is the ``status`` a
+    pattern requires its object to set, so the Case Owner's activation and
+    rejection render apart (ADR-0199).
     """
     verb = getattr(pattern.activity_, "value", pattern.activity_)
     obj = pattern.object_
@@ -286,6 +284,8 @@ def _render_as2_form(pattern: ActivityPattern) -> str:
             inner = f"{inner} preview"
         elif pattern.object_form is ObjectForm.WHOLE_OBJECT:
             inner = f"whole {inner}"
+        if pattern.object_status is not None:
+            inner = f"{inner}{{status: {pattern.object_status}}}"
     return f"{verb}({inner})"
 
 
@@ -425,8 +425,7 @@ def test_mermaid_labels_are_the_canonical_as2_form():
     so asserting it here would only re-state a hand-maintained list.
 
     The wire line may carry a trailing ``[<qualifier>]`` naming a field the
-    reader needs to tell an activity apart, such as the case ``target`` of the
-    case owner's ``Add``/``Reject(EmbargoEvent)``. The qualifier is *checked*
+    reader needs to tell an activity apart. The qualifier is *checked*
     against ``_EXPECTED_QUALIFIER`` rather than stripped, because a discarded
     qualifier can let a label assert the opposite of the truth while this test
     passes.

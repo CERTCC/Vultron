@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The case owner's decision on a proposed embargo (ADR-0122, ADR-0180)."""
+"""The case owner's decision on a proposed embargo (ADR-0122, ADR-0199)."""
 
 import logging
 
@@ -47,10 +47,11 @@ def _send_owner_embargo_decision(
 ) -> None:
     """Send the case owner's decision on a proposal to the CASE_MANAGER.
 
-    The owner activates with ``Add`` and rejects with ``Reject`` of the
-    ``EmbargoEvent`` itself, the case as ``target`` (ADR-0180) — never an
-    answer to the Invite that proposed it, which is only the owner's own
-    consent.  Both name that Invite, *proposal_id*, in ``inReplyTo``.
+    The owner activates or rejects with an ``Update`` of the
+    ``EmbargoEvent`` itself setting its status, the case as ``context``
+    (ADR-0199) — never an answer to the Invite that proposed it, which is
+    only the owner's own consent.  Both name the proposer's own Invite,
+    *proposal_id*, in ``inReplyTo``.
     """
     build = (
         activate_embargo_activity
@@ -61,7 +62,6 @@ def _send_owner_embargo_decision(
         embargo,
         in_reply_to=proposal_id,
         actor=owner.id_,
-        target=case.id_,
         context=case.id_,
         to=[case_manager_id],
         summary=summary,
@@ -83,7 +83,7 @@ def owner_activates_embargo(
     embargo: as_EmbargoEvent,
     proposal_id: str,
 ) -> None:
-    """The case owner activates a proposed embargo (EA / EC, ADR-0180)."""
+    """The case owner activates a proposed embargo (EA / EC, ADR-0199)."""
     _send_owner_embargo_decision(
         client,
         owner,
@@ -104,7 +104,7 @@ def owner_rejects_embargo_proposal(
     embargo: as_EmbargoEvent,
     proposal_id: str,
 ) -> None:
-    """The case owner rejects a proposed embargo (ER / EJ, ADR-0122)."""
+    """The case owner rejects a proposed embargo (ER / EJ, ADR-0199)."""
     _send_owner_embargo_decision(
         client,
         owner,

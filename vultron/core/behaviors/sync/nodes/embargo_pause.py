@@ -32,7 +32,8 @@ cleared (CM-10-006). Admission is caught at two points:
   cascades) ends the embargo, then ``EmitCaseStatusUpdateNode`` commits the
   new case status;
 - **after an admitting effect** — ``BackfillAdmittedParticipantsNode`` runs
-  behind the received Accept, Remove or ``Add(EmbargoEvent)`` effect, because
+  behind the received Accept, Remove or activating ``Update(EmbargoEvent)``
+  effect, because
   a received activity is committed (and fanned out) *before* its effect admits
   anyone (CLP-10-006).
 

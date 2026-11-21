@@ -28,7 +28,7 @@ CASE_MANAGER and on every replica, on the same case file at the same ledger
 position, and both write the same row (CM-23-016):
 
 - :func:`owner_agreement` — the case owner's
-  ``Add(EmbargoEvent)[target=VulnerabilityCase]`` is its agreement to the embargo it
+  ``Update(EmbargoEvent{status: ACTIVE})`` is its agreement to the embargo it
   activates (MSM-07-028).  The CASE_MANAGER refuses an activation from a
   ``DECLINED`` row before the commit (:func:`assert_owner_has_not_declined`,
   MSM-07-037), so it never decides one; a replica copies what a committed

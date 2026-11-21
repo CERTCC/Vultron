@@ -43,6 +43,7 @@ from vultron.core.models.embargo_termination import (
     ThreatSignalCause,
 )
 from vultron.core.models.received_activity_view import ReceivedActivityView
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     activate_embargo_activity,
@@ -58,13 +59,13 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Add,
     as_Announce,
     as_Invite,
     as_Leave,
     as_Reject,
     as_Remove,
     as_Undo,
+    as_Update,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -586,62 +587,78 @@ def test_em_undo_embargo_invite_plain_invite_raises(sample_embargo):
 
 # ---------------------------------------------------------------------------
 # activate_embargo_activity / reject_embargo_proposal_activity — the case
-# owner's decision, Add/Reject(EmbargoEvent)[target=VulnerabilityCase] (ADR-0180)
+# owner's decision, Update(EmbargoEvent) setting its status (ADR-0199)
 # ---------------------------------------------------------------------------
 
 _OWNER_DECISIONS = [
-    pytest.param(activate_embargo_activity, as_Add, id="activate"),
-    pytest.param(reject_embargo_proposal_activity, as_Reject, id="reject"),
+    pytest.param(
+        activate_embargo_activity,
+        EmbargoRegisterStatus.ACTIVE,
+        id="activate",
+    ),
+    pytest.param(
+        reject_embargo_proposal_activity,
+        EmbargoRegisterStatus.REJECTED,
+        id="reject",
+    ),
 ]
 
-#: The proposal's Invite each owner decision names (ADR-0180).
+#: The proposer's own Invite each owner decision names (ADR-0199).
 _PROPOSAL_URI = "https://example.org/cases/1/embargo_proposals/1"
 
 
 @pytest.mark.spec("AF-01-002")
-@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
-def test_owner_decision_returns_plain_verb(factory, verb, sample_embargo):
+@pytest.mark.parametrize(("factory", "status"), _OWNER_DECISIONS)
+def test_owner_decision_returns_an_update(factory, status, sample_embargo):
     result = factory(
         embargo=sample_embargo,
         in_reply_to=_PROPOSAL_URI,
         actor=_ACTOR_URI,
         at=authored_at(),
     )
-    assert isinstance(result, verb)
+    assert isinstance(result, as_Update)
 
 
-@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
-def test_owner_decision_object_is_the_embargo_itself(
-    factory, verb, sample_embargo
+@pytest.mark.spec("VAM-05-008")
+@pytest.mark.spec("VAM-05-009")
+@pytest.mark.parametrize(("factory", "status"), _OWNER_DECISIONS)
+def test_owner_decision_object_is_the_embargo_with_its_status_set(
+    factory, status, sample_embargo
 ):
-    """The object is the EmbargoEvent, never the Invite that proposed it."""
+    """The object is the EmbargoEvent, its terms kept and its status set.
+
+    Never the Invite that proposed it (ADR-0199).
+    """
     result = factory(
         embargo=sample_embargo,
         in_reply_to=_PROPOSAL_URI,
         actor=_ACTOR_URI,
         at=authored_at(),
     )
-    assert result.object_ == sample_embargo
+    assert result.object_ == sample_embargo.with_register_state(status)
+    assert result.object_.status is status
+    assert not result.object_.changed_terms(sample_embargo)
     assert not isinstance(result.object_, as_Invite)
 
 
-@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
-def test_owner_decision_target_is_the_case(factory, verb, sample_embargo):
+@pytest.mark.parametrize(("factory", "status"), _OWNER_DECISIONS)
+def test_owner_decision_context_is_the_case(factory, status, sample_embargo):
     result = factory(
         embargo=sample_embargo,
         in_reply_to=_PROPOSAL_URI,
-        target=_CASE_URI,
+        context=_CASE_URI,
         actor=_ACTOR_URI,
         at=authored_at(),
     )
-    assert result.target == _CASE_URI
+    assert result.context == _CASE_URI
+    assert result.target is None
 
 
 @pytest.mark.spec("RF-08-001")
 @pytest.mark.spec("RF-08-003")
-@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
-def test_owner_decision_names_the_proposal(factory, verb, sample_embargo):
-    """``inReplyTo`` names the proposal's Invite, and is required (ADR-0180)."""
+@pytest.mark.parametrize(("factory", "status"), _OWNER_DECISIONS)
+def test_owner_decision_names_the_proposal(factory, status, sample_embargo):
+    """``inReplyTo`` names the proposal's Invite, and is required (ADR-0199)."""
     result = factory(
         embargo=sample_embargo,
         in_reply_to=_PROPOSAL_URI,
@@ -659,8 +676,8 @@ def test_owner_decision_names_the_proposal(factory, verb, sample_embargo):
 
 
 @pytest.mark.spec("AF-04-001")
-@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
-def test_owner_decision_invalid_raises(factory, verb):
+@pytest.mark.parametrize(("factory", "status"), _OWNER_DECISIONS)
+def test_owner_decision_invalid_raises(factory, status):
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         factory(
             embargo="not-an-embargo",

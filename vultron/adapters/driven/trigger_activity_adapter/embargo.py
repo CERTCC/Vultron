@@ -21,9 +21,12 @@ from typing import Any, cast
 
 from vultron.adapters.outbox_sealed_body import is_sealed, requeue_if_sealed
 from vultron.adapters.received_archive import read_held_as_received
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.primitives import same_actor_id
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     announce_embargo_activity,
@@ -249,6 +252,45 @@ class _EmbargoMixin:
         )
         return _create_and_seal(self._dl, activity, "undo_embargo_invite")
 
+    def _proposers_invite_id(self, proposal_id: str) -> str:
+        """The proposer's own Invite behind the Invite *proposal_id* (#6626).
+
+        The Case Owner's decision names, in ``inReplyTo``, the proposal it
+        decides: the proposer's own ``Invite(EmbargoEvent)``, never an
+        Invite the CASE_MANAGER relayed from it (ADR-0199).  A relayed Invite
+        this actor received names its proposer in ``attributedTo`` and the
+        proposer's Invite in ``inReplyTo`` (CM-24-002, CM-24-020), so that is
+        the id.  An Invite with no other author is the proposer's own, as is
+        an id this actor holds no activity for: the owner's open-proposal
+        record then names the proposal entry it copied, whose activity is the
+        proposer's Invite (EP-09-001).  The ledger readers name the proposal
+        from committed snapshots (``embargo_proposal``); this reads the one
+        Invite the owner holds.
+
+        Raises:
+            VultronValidationError: a relayed Invite names no request.
+        """
+        try:
+            invite = read_held_as_received(
+                self._dl, proposal_id, "Invite(EmbargoEvent)"
+            )
+        except VultronNotFoundError:
+            return proposal_id
+        actor = _as_id(getattr(invite, "actor", None))
+        attributed = _as_id(getattr(invite, "attributed_to", None))
+        request = _as_id(getattr(invite, "in_reply_to", None))
+        if not (attributed and actor) or same_actor_id(attributed, actor):
+            return proposal_id
+        if not request:
+            # A relay names the request it carries out (CM-24-020), so one
+            # that names none cannot say which proposal is decided.
+            raise VultronValidationError(
+                f"relayed Invite '{proposal_id}' names its proposer"
+                f" '{attributed}' but no request in inReplyTo (CM-24-020):"
+                " the proposal the decision answers is unknown"
+            )
+        return request
+
     def activate_embargo(
         self,
         embargo_id: str,
@@ -259,17 +301,17 @@ class _EmbargoMixin:
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist the owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]``.
+        """Create and persist the owner's ``Update(EmbargoEvent{status: ACTIVE})``.
 
-        ``inReplyTo`` names *proposal_id*, the proposal's Invite (ADR-0180).
-        ``context`` names the case as well, so the snapshot the CASE_MANAGER
-        commits carries the case URI there (VM-08-003, #4085).
+        ``inReplyTo`` names the proposer's own Invite behind *proposal_id*
+        (:meth:`_proposers_invite_id`, ADR-0199).  ``context`` names the
+        case, so the snapshot the CASE_MANAGER commits carries the case URI
+        there (VM-08-003, #4085).
         """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = activate_embargo_activity(
             embargo=embargo,
-            in_reply_to=proposal_id,
-            target=case_id,
+            in_reply_to=self._proposers_invite_id(proposal_id),
             context=case_id,
             actor=actor,
             to=to,
@@ -287,17 +329,15 @@ class _EmbargoMixin:
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist the owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
+        """Create and persist the owner's ``Update(EmbargoEvent{status: REJECTED})``.
 
-        ``inReplyTo`` names *proposal_id*, the proposal's Invite (ADR-0180).
-        ``context`` names the case as well, so the snapshot the CASE_MANAGER
-        commits carries the case URI there (VM-08-003, #4085).
+        ``inReplyTo`` and ``context`` as for :meth:`activate_embargo`
+        (ADR-0199).
         """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = reject_embargo_proposal_activity(
             embargo=embargo,
-            in_reply_to=proposal_id,
-            target=case_id,
+            in_reply_to=self._proposers_invite_id(proposal_id),
             context=case_id,
             actor=actor,
             to=to,

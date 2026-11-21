@@ -79,7 +79,7 @@ class TestEmbargoLogEntryCascade:
     def test_owner_decision_commits_log_entry(
         self, make_payload, factory, use_case, semantic_type
     ):
-        """The owner's Add/Reject(EmbargoEvent) commits one CaseLedgerEntry."""
+        """The owner's Update(EmbargoEvent) commits one CaseLedgerEntry."""
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_decide"
         dl, _case_actor, case, embargo = make_embargo_case_with_actor(
@@ -95,7 +95,7 @@ class TestEmbargoLogEntryCascade:
         case_ref = make(
             as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id
         )
-        activity = factory(embargo, target=case_ref, actor=author_id)
+        activity = factory(embargo, context=case_ref, actor=author_id)
         event = make_payload(activity, receiving_actor_id=author_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
         run_in_act(

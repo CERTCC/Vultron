@@ -168,7 +168,7 @@ def test_each_deliberate_reject_is_a_new_activity(
 def test_manager_reject_embargo_commits_the_decision(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """The owner-manager's reject is Reject(EmbargoEvent)[target=VulnerabilityCase].
+    """The owner-manager's reject is Update(EmbargoEvent{status: REJECTED}).
 
     It rejects the proposal and is committed as the owner's decision
     (ADR-0122, #4085), never as a consent answer to the Invite.  Every
@@ -193,9 +193,9 @@ def test_manager_reject_embargo_commits_the_decision(
     )
 
     activity = activity_of(result)
-    assert activity["type"] == "Reject"
+    assert activity["type"] == "Update"
     assert activity["object"]["id"] == embargo_id
-    assert activity["target"] == case.id_
+    assert activity["context"] == case.id_
     # The decision names the Invite the trigger resolved (ADR-0180).
     assert activity["inReplyTo"] == proposal_id
     updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -217,7 +217,7 @@ def test_non_manager_owner_reject_asks_the_manager_to_reject(
 ) -> None:
     """An owner that is not the CASE_MANAGER sends its rejection to it.
 
-    The queued activity is Reject(EmbargoEvent)[target=VulnerabilityCase], recorded as a
+    The queued activity is Update(EmbargoEvent{status: REJECTED}), recorded as a
     pending ``reject_embargo_proposal_on_case`` assertion; nothing moves on
     the owner's replica, its own consent row included (ADR-0122).
     """
@@ -242,7 +242,7 @@ def test_non_manager_owner_reject_asks_the_manager_to_reject(
 
     activity = activity_of(result)
     assert activity["object"]["id"] == embargo_id
-    assert activity["target"] == case.id_
+    assert activity["context"] == case.id_
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.PROPOSED
     assert updated.proposed_embargo_ids == [embargo_id]
@@ -256,7 +256,7 @@ def test_non_manager_owner_reject_asks_the_manager_to_reject(
         actor_id=owner.id_,
         case_id=case.id_,
         manager_id=manager.id_,
-        activity_type="Reject",
+        activity_type="Update",
         semantic_type=MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
     )
 

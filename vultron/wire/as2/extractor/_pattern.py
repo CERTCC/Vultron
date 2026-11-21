@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.enums import VultronObjectType as VOtype
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType as IAtype,
     as_ObjectType as AOtype,
@@ -92,6 +93,27 @@ def matches_object_form(form: ObjectForm | None, value: object) -> bool:
     return not is_previewed_reference(value)
 
 
+def matches_object_status(
+    status: EmbargoRegisterStatus | None, value: object
+) -> bool:
+    """Whether *value*, an activity's ``object``, sets the ``status`` asked.
+
+    With no status asked, any object has it.  Otherwise *value* must be an
+    inline object that states ``status`` itself, with that value
+    (ADR-0199): a default the model filled in is no status the sender set,
+    and a bare id or a reference carries none.
+    """
+    if status is None:
+        return True
+    if not isinstance(value, BaseModel) or isinstance(
+        value, (as_TypedReference, as_Link)
+    ):
+        return False
+    if "status" not in value.model_fields_set:
+        return False
+    return bool(getattr(value, "status", None) == status)
+
+
 class ActivityPattern(BaseModel):
     """Represents a pattern to match against an AS2 activity for semantic dispatch.
 
@@ -111,6 +133,14 @@ class ActivityPattern(BaseModel):
     Two patterns that differ only in it each match only their own form.
     Unset, it admits every form but a previewed reference, which only a
     pattern that asks for one matches: a preview is not the object.
+
+    ``object_status`` requires the ``status`` the object sets (ADR-0199):
+    the Case Owner's activation and rejection, and the end of an embargo,
+    are each an ``Update(EmbargoEvent)``, told apart by the status the
+    embargo carries.  The object must state that ``status`` itself: an
+    object with no ``status``, or with another value, does not match, so
+    an ``Update`` whose status no pattern names matches nothing.  Unset, the
+    status is not read.
 
     ``origin_`` matches the activity's ``origin``: where the object comes
     from or leaves, as ``target_`` matches where it goes (a ``Remove`` names
@@ -134,6 +164,7 @@ class ActivityPattern(BaseModel):
     activity_: TAtype | IAtype
     strict: bool = False
     object_form: ObjectForm | None = None
+    object_status: EmbargoRegisterStatus | None = None
 
     to_: AOtype | VOtype | ActivityPattern | None = None
     object_: AOtype | VOtype | ActivityPattern | None = None
@@ -168,6 +199,18 @@ class ActivityPattern(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def _object_status_needs_an_object_type(self) -> ActivityPattern:
+        """Refuse an ``object_status`` with no object type to read it on."""
+        if self.object_status is None:
+            return self
+        if self.object_ is None or isinstance(self.object_, ActivityPattern):
+            raise ValueError(
+                "object_status constrains the status a non-activity object"
+                " sets (ADR-0199): name the object's type in object_"
+            )
+        return self
+
     def match(self, activity: as_Activity) -> bool:
         """Return True if the given activity matches this pattern."""
         if self.activity_ != activity.type_:
@@ -184,6 +227,8 @@ class ActivityPattern(BaseModel):
         *value* must have the form ``object_form`` asks (SE-01-009).
         """
         if not matches_object_form(self.object_form, value):
+            return False
+        if not matches_object_status(self.object_status, value):
             return False
         return _match_activity_field(self.object_, value, strict=True)
 

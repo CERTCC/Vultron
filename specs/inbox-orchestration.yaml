@@ -376,7 +376,8 @@ groups:
       snapshot can name the sender as CASE_MANAGER and pass the trust check that must
       refuse it (PCR-03-004, CBT-01-011). A handler therefore sees the receiver's
       record of any id it holds, never the carried copy, so a guard keys on the stored
-      record (HP-08-006).
+      record (HP-08-006). The embargo of the Case Owner's `Update` is routed as carried
+      (IO-03-008), and still never written.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the routed
       activity carries its inline object while the receiver's store holds none.
@@ -393,22 +394,29 @@ groups:
     statement: >-
       To rebuild the routed activity, the ingress payload adapter MAY stage the inline
       objects in a holding area outside the receiving actor's DataLayer. The holding
-      area answers a read only when the DataLayer holds nothing under the id, and keeps
-      nothing past the delivery.
+      area answers a read only when the DataLayer holds nothing under the id, or when
+      the id is the object of an `Update` that a registered pattern reads by the
+      `status` it sets, and keeps nothing past the delivery.
     rationale: >-
       Routing still needs the inline object, because the rebuilt activity names it by
       id, and a bare id matches no pattern (SE-01-006). The receiver's record wins over
       the carried copy, so a carried case cannot replace the replica that the receiver
-      rebuilds from the ledger.
+      rebuilds from the ledger. The exception is an `Update` whose pattern reads the
+      `status` its object sets, today only the Case Owner's decision on an embargo: the
+      status is the message, and the held copy would erase it (ADR-0199). Its handler
+      compares the carried copy with the held record and refuses any change of terms.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the
-      receiver's own copy wins over the staged one.
+      receiver's own copy wins over the staged one, that the embargo of the Case
+      Owner's `Update` routes as carried while the receiver's store keeps its own, and
+      that the object of any other `Update` routes as held.
     relationships:
     - rel_type: implements
       spec_id: IO-03-004
     tags:
     - tooling
     adr:
+    - ADR-0199
     - ADR-0214
   - id: IO-03-009
     priority: MAY

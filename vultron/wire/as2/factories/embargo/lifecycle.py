@@ -20,11 +20,13 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 from datetime import datetime
+from typing import Any
 
 from vultron.core.models.embargo_termination import (
     TerminationCause,
     TerminationCauseKind,
 )
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
@@ -37,11 +39,10 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _WithdrawFromEmbargoActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Add,
     as_Announce,
     as_Leave,
-    as_Reject,
     as_Remove,
+    as_Update,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent,
@@ -51,90 +52,123 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 
-def activate_embargo_activity(
+def _owner_embargo_decision(
+    factory_name: str,
+    cls: type[_ActivateEmbargoActivity | _RejectEmbargoProposalActivity],
+    status: EmbargoRegisterStatus,
     embargo: as_EmbargoEvent,
     in_reply_to: str,
-    target: as_VulnerabilityCaseRef | None = None,
-    *,
+    context: as_VulnerabilityCaseRef | None,
     at: datetime,
-    **kwargs,
-) -> as_Add:
-    """Build an Add(EmbargoEvent)[target=VulnerabilityCase].
+    kwargs: dict[str, Any],
+) -> as_Update:
+    """Build the owner's ``Update(EmbargoEvent)`` setting *status* (ADR-0199).
 
-    The case owner's activation of a proposed embargo (ADR-0180): the
-    receiver activates the embargo's register entry, superseding any entry
-    in force, and records the owner's agreement.  Distinct from
-    :func:`em_accept_embargo_activity`, the sender's own consent to an
-    Invite.  Only the case owner sends it.
-
-    Args:
-        embargo: The ``as_EmbargoEvent`` being activated, carried inline.
-        in_reply_to: The id of the ``Invite(EmbargoEvent)`` that proposed
-            the embargo (RF-08-001, ADR-0180).
-        target: The ``VulnerabilityCase`` (or its URI) the embargo was
-            proposed for.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``, ``context``).
-
-    Returns:
-        An ``as_Add`` whose ``object_`` is the embargo event.
-
-    Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+    The embargo is carried with its terms as given and *status* set, and no
+    other register state: an ``Update`` of an embargo changes only its
+    status (ADR-0199).
     """
     return build_activity(
-        "activate_embargo_activity",
-        _ActivateEmbargoActivity,
+        factory_name,
+        cls,
         at,
         lambda: {
-            "object_": embargo,
-            "target": case_target_ref(target),
+            # Validated first, so an argument that is no embargo is
+            # reported as a construction failure (AF-04-001).
+            "object_": as_EmbargoEvent.model_validate(
+                embargo
+            ).with_register_state(status),
+            "context": case_target_ref(context),
             "in_reply_to": in_reply_to,
             **kwargs,
         },
     )
 
 
-def reject_embargo_proposal_activity(
+def activate_embargo_activity(
     embargo: as_EmbargoEvent,
     in_reply_to: str,
-    target: as_VulnerabilityCaseRef | None = None,
+    context: as_VulnerabilityCaseRef | None = None,
     *,
     at: datetime,
     **kwargs,
-) -> as_Reject:
-    """Build a Reject(EmbargoEvent)[target=VulnerabilityCase].
+) -> as_Update:
+    """Build an Update(EmbargoEvent{status: ACTIVE})[context=VulnerabilityCase].
 
-    The case owner's rejection of a proposed embargo (ADR-0122): the
-    receiver rejects the embargo's register entry and writes no consent.
-    Distinct from :func:`em_reject_embargo_activity`, the sender's own
-    refusal of an Invite.  Only the case owner sends it.
+    The case owner's activation of a proposed embargo (EA, EC; ADR-0199):
+    the receiver activates the embargo's register entry, superseding any
+    entry in force, and records the owner's agreement.  Distinct from
+    :func:`em_accept_embargo_activity`, the sender's own consent to an
+    Invite.  Only the case owner sends it.
 
     Args:
-        embargo: The ``as_EmbargoEvent`` being rejected, carried inline.
-        in_reply_to: The id of the ``Invite(EmbargoEvent)`` that proposed
-            the embargo (RF-08-001, ADR-0180).
-        target: The ``VulnerabilityCase`` (or its URI) the embargo was
+        embargo: The ``as_EmbargoEvent`` being activated, carried inline
+            with its terms unchanged and its ``status`` set to ``ACTIVE``.
+        in_reply_to: The id of the proposer's own ``Invite(EmbargoEvent)``
+            (RF-08-001, ADR-0199).
+        context: The ``VulnerabilityCase`` (or its URI) the embargo was
             proposed for.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``, ``context``).
+            (e.g. ``actor``, ``to``).
 
     Returns:
-        An ``as_Reject`` whose ``object_`` is the embargo event.
+        An ``as_Update`` whose ``object_`` is the embargo event.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    return build_activity(
+    return _owner_embargo_decision(
+        "activate_embargo_activity",
+        _ActivateEmbargoActivity,
+        EmbargoRegisterStatus.ACTIVE,
+        embargo,
+        in_reply_to,
+        context,
+        at,
+        kwargs,
+    )
+
+
+def reject_embargo_proposal_activity(
+    embargo: as_EmbargoEvent,
+    in_reply_to: str,
+    context: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
+    **kwargs,
+) -> as_Update:
+    """Build an Update(EmbargoEvent{status: REJECTED})[context=VulnerabilityCase].
+
+    The case owner's rejection of a proposed embargo (ER, EJ; ADR-0199):
+    the receiver rejects the embargo's register entry and writes no
+    consent.  Distinct from :func:`em_reject_embargo_activity`, the
+    sender's own refusal of an Invite.  Only the case owner sends it.
+
+    Args:
+        embargo: The ``as_EmbargoEvent`` being rejected, carried inline
+            with its terms unchanged and its ``status`` set to ``REJECTED``.
+        in_reply_to: The id of the proposer's own ``Invite(EmbargoEvent)``
+            (RF-08-001, ADR-0199).
+        context: The ``VulnerabilityCase`` (or its URI) the embargo was
+            proposed for.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``).
+
+    Returns:
+        An ``as_Update`` whose ``object_`` is the embargo event.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    return _owner_embargo_decision(
         "reject_embargo_proposal_activity",
         _RejectEmbargoProposalActivity,
+        EmbargoRegisterStatus.REJECTED,
+        embargo,
+        in_reply_to,
+        context,
         at,
-        lambda: {
-            "object_": embargo,
-            "target": case_target_ref(target),
-            "in_reply_to": in_reply_to,
-            **kwargs,
-        },
+        kwargs,
     )
 
 

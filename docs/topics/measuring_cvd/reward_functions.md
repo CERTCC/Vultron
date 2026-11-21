@@ -38,7 +38,7 @@ The table below gives each path preference, its measure, and the events that the
 | Preference | Measure | For | Events it reads |
 |---|---|---|---|
 | A participant answers an embargo invitation before its RSVP deadline | Invitations answered before they time out, out of those invitations and the invitations that time out at their RSVP deadline, not counting the invitations that the case's close times out before their deadline | Each participant | The embargo `Invite(EmbargoEvent)`, the participant's `Accept` or `Reject`, the CASE_MANAGER's `Update(EmbargoConsent)`, and the case-close entry |
-| A case revises its embargo few times | The number of embargo revisions that the Case Owner activates, not counting the replacement of a default embargo | The case | The revision proposal's `Invite(EmbargoEvent)` and the Case Owner's `Add(EmbargoEvent)` that activates it |
+| A case revises its embargo few times | The number of embargo revisions that the Case Owner activates, not counting the replacement of a default embargo | The case | The revision proposal's `Invite(EmbargoEvent)` and the Case Owner's `Update(EmbargoEvent)` that activates it |
 | An embargo is as short as the fixes allow | The embargo duration, divided by the time until the last vendor's fix is ready | The case | Embargo start ($\evE$), embargo exit ($\evEx$), and fix readiness ($\evF_i$) of each vendor |
 | A report is judged correctly | Correct validation decisions out of the decisions whose correctness is known | Each participant | Report validation ($\evVa_i$), the participant's status update to Invalid, and fix readiness ($\evF_i$) |
 
@@ -98,9 +98,9 @@ A participant with no counted invitations has no ratio.
 A revision is a proposal to change the embargo in force, for example to move its end time.
 The CASE_MANAGER commits each revision proposal as a ledger entry (EP-09-001).
 The participants answer the revision, but their answers are only their own consent.
-The Case Owner decides the revision: its `Add(EmbargoEvent)` activates the revision, and the activated revision replaces the embargo in force (EP-09-005).
+The Case Owner decides the revision: its `Update(EmbargoEvent)` setting `status` to `ACTIVE` activates the revision, and the activated revision replaces the embargo in force (EP-09-005).
 
-For the case, the measure is the number of the Case Owner's `Add(EmbargoEvent)` entries that activate a revision while an embargo is in force.
+For the case, the measure is the number of the Case Owner's activation entries that activate a revision while an embargo is in force.
 The revision proposals that the Case Owner did not activate are a second, separate count.
 Each activation names the proposal that it activates, and the proposal entry names the participant that proposed it.
 Thus the count can also be split by the proposing participant.

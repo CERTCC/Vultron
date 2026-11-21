@@ -137,7 +137,8 @@ def format_pattern(pattern: ActivityPattern) -> str:
     Object types are rendered as the pattern names them, which is the type
     the sender emits (Annex C), and the form a pattern requires of its object
     (SE-01-009) is written beside the type (:func:`_formed`), so two patterns
-    that differ only in form render apart.
+    that differ only in form render apart.  So is the ``status`` a pattern
+    requires its object to set (ADR-0199), in braces after the type.
 
     Examples::
 
@@ -147,14 +148,21 @@ def format_pattern(pattern: ActivityPattern) -> str:
         Remove(Note)[origin=VulnerabilityCase]
         Invite(VulnerabilityCase preview)[target=Actor]
         Invite(whole VulnerabilityCase)[target=Actor]
+        Update(EmbargoEvent{status: ACTIVE})[context=VulnerabilityCase]
     """
     parts: list[str] = []
     if pattern.object_ is not None:
         if isinstance(pattern.object_, ActivityPattern):
             parts.append(f"({format_pattern(pattern.object_)})")
         else:
+            status = (
+                f"{{status: {pattern.object_status}}}"
+                if pattern.object_status is not None
+                else ""
+            )
             parts.append(
-                f"({_formed(pattern.object_form, str(pattern.object_))})"
+                f"({_formed(pattern.object_form, str(pattern.object_))}"
+                f"{status})"
             )
 
     qualifiers: list[str] = []

@@ -51,8 +51,8 @@ flowchart TB
         EmRejectEmbargo["Refuse the revision<br/>Reject(Invite(EmbargoEvent))"]
     end
     subgraph Case Owner decides
-        ActivateEmbargo["Embargo Revision Acceptance (EC)<br/>Add(EmbargoEvent)[target=VulnerabilityCase]"]
-        RejectEmbargoProposal["Embargo Revision Rejection (EJ)<br/>Reject(EmbargoEvent)[target=VulnerabilityCase]"]
+        ActivateEmbargo["Embargo Revision Acceptance (EC)<br/>Update(EmbargoEvent{status: ACTIVE})"]
+        RejectEmbargoProposal["Embargo Revision Rejection (EJ)<br/>Update(EmbargoEvent{status: REJECTED})"]
     end
     subgraph as:Remove
         RemoveEmbargoFromCase["Embargo Termination (ET)<br/>Remove(EmbargoEvent)"]
@@ -98,8 +98,9 @@ An initial proposal, Embargo Proposal (EP), uses the same activity.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/refuse-embargo-revision.md" %}
 
-3. When you judge that the revision has carried, send Embargo Revision Acceptance (EC), `Add(EmbargoEvent)`, as Case Owner, with the revised `EmbargoEvent` as its `object` and the case as its `target`.
-   Name the revision's `Invite(EmbargoEvent)` in `inReplyTo`.
+3. When you judge that the revision has carried, send Embargo Revision Acceptance (EC), `Update(EmbargoEvent{status: ACTIVE})`, as Case Owner, with the revised `EmbargoEvent` as its `object`, its `status` set to `ACTIVE`, and the case as its `context`.
+   Keep the terms of the revision as proposed, because the CASE_MANAGER refuses an `Update` that changes a term.
+   Name the proposer's own `Invite(EmbargoEvent)` for the revision in `inReplyTo`.
    Then send `Announce(EmbargoEvent)`.
    The revision replaces the active embargo.
    Your own consent to the revision is recorded too.
@@ -113,7 +114,7 @@ A revision uses the same activities as an initial proposal.
 The receiver uses the EM state of the case to distinguish a revision from an initial proposal.
 A proposal that arrives while the embargo is active is a revision (MSM-02).
 
-To keep the current terms, send Embargo Revision Rejection (EJ), `Reject(EmbargoEvent)`, with the same `object`, `target` and `inReplyTo` as Case Owner instead.
+To keep the current terms, send Embargo Revision Rejection (EJ), `Update(EmbargoEvent{status: REJECTED})`, with the same `context` and `inReplyTo` as Case Owner instead.
 The case returns to `EM.ACTIVE` under the original terms.
 The consent of every participant stays the same.
 The embargo does not lapse because a revision failed.
@@ -241,8 +242,8 @@ The trigger refuses the withdrawal in three cases:
 | What you sent | What to confirm |
 |---|---|
 | `Invite(EmbargoEvent)` on an active embargo | The case `em_state` is `REVISE`. |
-| `Add(EmbargoEvent)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE` and the active embargo carries the new terms. |
-| `Reject(EmbargoEvent)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE` and the terms are unchanged. |
+| `Update(EmbargoEvent{status: ACTIVE})`, as Case Owner | The case `em_state` is `ACTIVE` and the active embargo carries the new terms. |
+| `Update(EmbargoEvent{status: REJECTED})`, as Case Owner | The case `em_state` is `ACTIVE` and the terms are unchanged. |
 | `Reject(Invite(EmbargoEvent))` on a revision | Your consent row for the revision is `DECLINED`. The case `em_state` is still `REVISE`. |
 | `Remove(EmbargoEvent)` | Once the CASE_MANAGER's ledger entry arrives, the case `em_state` is `EXITED` and no embargo is active. |
 | `Leave(EmbargoEvent)` | Once the CASE_MANAGER's ledger entry arrives, your consent row for the embargo in force is `DECLINED`. The case `em_state` does not change. |

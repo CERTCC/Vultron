@@ -22,7 +22,7 @@ clear, EMB-02-002; an owner that has not declined it, MSM-07-037), decides
 the EP-05-001 arm, and returns an :class:`ActivationDecision`: the entries
 the activation commits, in order, and what each changes.  It writes nothing.
 
-- The owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` is one entry, and it is
+- The owner's ``Update(EmbargoEvent{status: ACTIVE})`` is one entry, and it is
   the whole ``ACTIVATE`` register step, the ``SUPERSEDE`` of the embargo in
   force included: :attr:`ActivationDecision.step`.  The same activity states
   the owner's agreement, so its ``AGREED`` row

@@ -48,6 +48,13 @@ class _StagingStore(SqliteDataLayer):
     activity itself is read only from the copy staged here: the receiver holds
     none under its sender's id (DL-06-006), and the read that rebuilds it
     resolves its references through the store that returned it.
+
+    So is an object :meth:`read_as_received` names: the object of an
+    ``Update`` that a registered pattern reads by the ``status`` it sets,
+    such as the Case Owner's decision on an embargo (ADR-0199).  The held
+    copy does not carry that status, so routing and the handler read the
+    change as it arrived.  The receiver's own store is never written
+    (DL-06-006), and the handler decides whether the change is admitted.
     """
 
     def __init__(self, held: DataLayer, activity_id: str) -> None:
@@ -61,12 +68,21 @@ class _StagingStore(SqliteDataLayer):
         )
         self._held = held
         self._activity_id = activity_id
+        self._as_received: set[str] = set()
+
+    def read_as_received(self, object_id: str) -> None:
+        """Read *object_id* from the copy staged here, not the held one."""
+        self._as_received.add(object_id)
 
     def read(
         self, object_id: str, raise_on_missing: bool = False
     ) -> PersistableModel | None:
-        """Read from the receiver's store first, except for the activity."""
-        if object_id != self._activity_id:
+        """Read from the receiver's store first, except for the activity
+        and any object :meth:`read_as_received` names."""
+        if (
+            object_id != self._activity_id
+            and object_id not in self._as_received
+        ):
             held = self._held.read(object_id)
             if held is not None:
                 return held

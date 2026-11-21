@@ -154,7 +154,7 @@ def test_a_slash_spelled_owner_reaches_its_case_owner_records():
     reject = reject_embargo_proposal_activity(
         cast(as_EmbargoEvent, dl.read(revision_id)),
         in_reply_to=SEEDED_PROPOSAL_ID,
-        target=case.id_,
+        context=case.id_,
         actor=_VENDOR_AS_WRITTEN,
         to=[_CASE_ACTOR],
         at=authored_at(),

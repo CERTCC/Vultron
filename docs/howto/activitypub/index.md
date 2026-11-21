@@ -104,7 +104,7 @@ An embargo is a Vultron `EmbargoEvent`, a subtype of `as:Event`: it is sent as `
 A receiver does not accept a plain `as:Event` as an embargo.
 
 The same verb carries different protocol messages depending on its object.
-`Accept(Offer(VulnerabilityReport))` is Report Valid (RV); `Accept(Invite(EmbargoEvent))` is a participant's consent to embargo terms, while `Add(EmbargoEvent)` is Embargo Proposal Acceptance (EA); `Accept(Invite(VulnerabilityCase preview))` is an actor joining a case.
+`Accept(Offer(VulnerabilityReport))` is Report Valid (RV); `Accept(Invite(EmbargoEvent))` is a participant's consent to embargo terms, while `Update(EmbargoEvent)` setting `status` to `ACTIVE` is Embargo Proposal Acceptance (EA); `Accept(Invite(VulnerabilityCase preview))` is an actor joining a case.
 Read the object before the verb.
 
 <div class="grid cards" markdown>

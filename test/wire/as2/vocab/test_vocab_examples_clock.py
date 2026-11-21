@@ -28,6 +28,7 @@ import pytest
 from pydantic import BaseModel
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
@@ -49,7 +50,9 @@ def test_embargo_examples_equal_across_minute_boundary(
     activity = builder()
     expected = examples.embargo_event()
 
-    assert activity.object_ == expected
+    # The owner's decisions carry the embargo with its status set (ADR-0199).
+    assert isinstance(activity.object_, EmbargoEvent)
+    assert activity.object_.changed_terms(expected) == ()
 
 
 @pytest.mark.parametrize(

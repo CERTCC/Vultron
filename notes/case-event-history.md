@@ -59,10 +59,11 @@ These rules live in `vultron/measure/history/` (`derive.py`, `snapshot.py`).
 - **Read the case's public state from case statuses only.** A case status nested in
   a participant status is that participant's report; adoption is the event
   (CEH-03-012).
-- **Activation is the owner's consent.** The Case Owner's `Add(EmbargoEvent)` makes
-  its own row `AGREED`, and a revision ending no later carries every signatory over,
-  so derive both from the activation entry rather than from a later snapshot that
-  shows the row (CM-10-001, `EmbargoLifecycle` activation).
+- **Activation is the owner's consent.** The Case Owner's activating
+  `Update(EmbargoEvent)` makes its own row `AGREED`, and a revision ending no
+  later carries every signatory over, so derive both from the activation entry
+  rather than from a later snapshot that shows the row (CM-10-001,
+  `EmbargoLifecycle` activation).
 - **The creation sequence is genesis plus the CASE_MANAGER's unbroken run after it.**
   Its events carry the seated-at-creation label (CM-14-001, CEH-03-011).
 - **Read the case's EM from the register the walk rebuilds.** The walk keeps each

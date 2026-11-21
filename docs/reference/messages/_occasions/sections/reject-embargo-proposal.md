@@ -7,7 +7,7 @@ Rejects the proposal for the case. The case has no embargo once no other proposa
 === "Details"
 
     - **When…** the Case Owner decides to reject a proposed embargo for a case with no active embargo
-    - **Send:** `Reject(EmbargoEvent)[target=VulnerabilityCase]`
+    - **Send:** `Update(EmbargoEvent{status: REJECTED})[context=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the Case Owner
     - **Distinguished by:** EM state `PROPOSED`

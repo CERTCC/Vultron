@@ -88,13 +88,13 @@ class TestEmbargoTermRevise:
     def test_owner_accept_of_embargo_activates_it_at_the_case_manager(
         self, make_payload
     ):
-        """The owner's Add(EmbargoEvent) activates the proposal (ADR-0122)."""
+        """The owner's Update(EmbargoEvent{status: ACTIVE}) activates the proposal (ADR-0122)."""
         dl, case, embargo = self._owner_activation_case(proposed=True)
 
         activity = activate_embargo_activity(
             embargo,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=make(
+            context=make(
                 as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case.id_
             ),
             actor=_OWNER,
@@ -132,7 +132,7 @@ class TestEmbargoTermRevise:
         activity = activate_embargo_activity(
             embargo,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=make(
+            context=make(
                 as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case.id_
             ),
             actor=_OWNER,

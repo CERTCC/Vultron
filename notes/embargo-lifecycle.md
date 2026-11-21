@@ -179,7 +179,7 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   consent to `Accept`/`Reject(Invite(EmbargoEvent))` — the owner's included —
   and move no register entry (MSM-07-011, MSM-07-013).
 - `activate_embargo` / `reject_embargo_proposal` apply the owner's
-  `Add`/`Reject(EmbargoEvent)[target=VulnerabilityCase]` (MSM-07-008, MSM-07-009).
+  `Update(EmbargoEvent)` setting its status (MSM-07-008, MSM-07-009).
 - No operation branches on whether the sender is the owner. The accept and
   reject triggers pick by actor: an owner sends its decision, anyone else its
   consent. The one exception is an owner whose row reads `DECLINED`:
@@ -571,7 +571,7 @@ availability diversions for an `Accept`, `IsOpenEmbargoProposalNode`,
 `OwnerMayActivateEmbargoNode`): once committed, a failing replica apply blocks
 its persist (SYNC-12-004) and stalls every later entry (SYNC-14-001).
 
-**The owner's `Reject(EmbargoEvent)` decides one proposal**; EM stays
+**The owner's `Update(EmbargoEvent{status: REJECTED})` decides one proposal**; EM stays
 `PROPOSED`/`REVISE` while another is open (EP-08-003). Rejecting the last open
 revision after P/X/A rejects it and then, in the same act, runs the terminate
 path (ET), so the prior terms do not stand when the act ends (EMB-04-002,
