@@ -71,13 +71,15 @@ EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
 PRIOR_EMBARGO_ID = f"{CASE_ID}/embargo_events/e0"
 
 
-def _embargo_snapshot() -> dict[str, Any]:
+def _embargo_snapshot(status: str = "ACTIVE") -> dict[str, Any]:
+    """The embargo the owner's Update carries, its status set (ADR-0199)."""
     return {
         "type": "EmbargoEvent",
         "published": "2026-01-01T00:00:00+00:00",
         "id": EMBARGO_ID,
         "context": CASE_ID,
         "endTime": (now_utc() + timedelta(days=60)).isoformat(),
+        "status": status,
     }
 
 
@@ -118,7 +120,7 @@ def _seed(
 
 
 def _apply(bridge, embargo: Any, *, accept: bool = True):
-    """Replay the owner's Add (or Reject) of *embargo* on the replica."""
+    """Replay the owner's activating (or rejecting) Update of *embargo*."""
     entry = _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -131,11 +133,10 @@ def _apply(bridge, embargo: Any, *, accept: bool = True):
             ),
             payload_snapshot={
                 "id": "https://example.org/activities/owner-decision",
-                "type": "Add" if accept else "Reject",
+                "type": "Update",
                 "actor": OWNER_ACTOR_ID,
                 "context": CASE_ID,
                 "object": embargo,
-                "target": CASE_ID,
             },
             prev_log_hash="0" * 64,
             received_at=ACT_AT,
@@ -174,8 +175,11 @@ def test_the_entry_activates_the_embargo_on_the_replica(
     case = _case(datalayer)
     assert case.current_status.em.state == EM.ACTIVE
     assert case.active_embargo_id == EMBARGO_ID
-    # Stored from the inline copy the entry carries (EMB-18-003).
-    assert isinstance(datalayer.read(EMBARGO_ID), EmbargoEvent)
+    # Stored from the inline copy the entry carries (EMB-18-003), as its
+    # terms alone: the Update's status is register state (ADR-0202).
+    held = datalayer.read(EMBARGO_ID)
+    assert isinstance(held, EmbargoEvent)
+    assert held.status == "PROPOSED"
 
 
 @pytest.mark.spec("SYNC-12-003")
@@ -328,7 +332,7 @@ def test_the_rejection_entry_rejects_the_proposal_on_the_replica(
 ):
     _seed(datalayer, em_before, owner_participant=True)
 
-    result = _apply(bridge, _embargo_snapshot(), accept=False)
+    result = _apply(bridge, _embargo_snapshot("REJECTED"), accept=False)
 
     assert result.status == Status.SUCCESS
     case = _case(datalayer)
@@ -343,22 +347,22 @@ def test_the_rejection_entry_rejects_the_proposal_on_the_replica(
 @pytest.mark.spec("SYNC-12-003")
 def test_a_redelivered_rejection_is_a_no_op(bridge, datalayer):
     _seed(datalayer, EM.PROPOSED)
-    assert _apply(bridge, _embargo_snapshot(), accept=False).status == (
-        Status.SUCCESS
-    )
+    assert _apply(
+        bridge, _embargo_snapshot("REJECTED"), accept=False
+    ).status == (Status.SUCCESS)
     before = _case(datalayer).model_dump()
 
-    assert _apply(bridge, _embargo_snapshot(), accept=False).status == (
-        Status.SUCCESS
-    )
+    assert _apply(
+        bridge, _embargo_snapshot("REJECTED"), accept=False
+    ).status == (Status.SUCCESS)
     assert _case(datalayer).model_dump() == before
 
 
 @pytest.mark.spec("SYNC-12-001")
 def test_a_replica_without_the_case_skips_the_rejection(bridge, datalayer):
-    assert _apply(bridge, _embargo_snapshot(), accept=False).status == (
-        Status.SUCCESS
-    )
+    assert _apply(
+        bridge, _embargo_snapshot("REJECTED"), accept=False
+    ).status == (Status.SUCCESS)
     assert datalayer.read(EMBARGO_ID) is None
 
 

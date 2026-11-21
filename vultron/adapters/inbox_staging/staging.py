@@ -19,6 +19,7 @@ and holds a deferred activity for replay on the activity's one
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import functools
 import json
 import logging
 from collections.abc import Callable, Sequence
@@ -58,6 +59,7 @@ from vultron.errors import (
     VultronValidationError,
     VultronWiringError,
 )
+from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.parser import parse_received_body
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.typed_reference import (
@@ -189,15 +191,36 @@ def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
         )
 
 
+@functools.cache
+def _status_read_types() -> frozenset[str]:
+    """The object types whose ``Update`` a registered pattern reads by status.
+
+    Derived from the registry, so a pattern that reads the ``status`` an
+    ``Update``'s object sets (``ActivityPattern.object_status``) is the one
+    place that decides which carried objects routing must see as sent
+    (ADR-0199).
+    """
+    return frozenset(
+        str(entry.pattern.object_)
+        for entry in SEMANTIC_REGISTRY
+        if entry.pattern is not None
+        and entry.pattern.activity_ == "Update"
+        and entry.pattern.object_status is not None
+    )
+
+
 def _updated_object_id(
     activity_row: dict[str, Any], inline_rows: Sequence[dict[str, Any]]
 ) -> str | None:
-    """The id of the inline object an ``Update`` carries, or ``None``.
+    """The id of the inline object an ``Update`` sets the status of, or ``None``.
 
-    An ``Update`` states its object as its sender changed it (AS2 Vocabulary
-    ``Update``), so the staged copy, not the receiver's held one, is the
-    object the activity names (ADR-0199).  ``None`` for any other verb, or
-    when the ``Update`` carried no inline object staged here.
+    The Case Owner decides an embargo with an ``Update`` that sets its
+    ``status`` (ADR-0199): the status is the message, and the copy the
+    receiver holds does not carry it.  So for an ``Update`` whose object is
+    of a type a registered pattern reads by status, the staged copy, not the
+    held one, is the object routing reads; the handler compares it with the
+    held record.  ``None`` for any other activity, any other object type, or
+    an ``Update`` that carried no inline object staged here.
     """
     if activity_row.get("type_") != "Update":
         return None
@@ -205,8 +228,15 @@ def _updated_object_id(
     object_id = data.get("object_") if isinstance(data, dict) else None
     if not isinstance(object_id, str):
         return None
-    staged = {row.get("id_") for row in inline_rows}
-    return object_id if object_id in staged else None
+    return next(
+        (
+            object_id
+            for row in inline_rows
+            if row.get("id_") == object_id
+            and row.get("type_") in _status_read_types()
+        ),
+        None,
+    )
 
 
 class InlineObjectStaging:

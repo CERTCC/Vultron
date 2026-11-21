@@ -29,7 +29,9 @@ from test.support.future_dates import FAR_FUTURE
 from test.support.objects import authored_at, make
 from vultron.core.models.base import CoreObject
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.wire.as2.factories.embargo import em_propose_embargo_activity
 from vultron.wire.as2.parser import parse_activity
 
@@ -232,3 +234,71 @@ def test_an_embargo_over_90_days_carries_a_justification() -> None:
         end_time=start + timedelta(days=120),
     )
     assert "justification" in type(event).model_fields
+
+
+# ---------------------------------------------------------------------------
+# changed_terms: an Update of an embargo changes its register state only
+# (ADR-0199, ADR-0202)
+# ---------------------------------------------------------------------------
+
+
+def _held_terms() -> EmbargoEvent:
+    return make(
+        EmbargoEvent,
+        id_="https://example.org/cases/c1/embargo_events/terms",
+        context=_CONTEXT,
+        end_time=_FUTURE_DT,
+    )
+
+
+@pytest.mark.spec("VAM-05-010")
+@pytest.mark.parametrize(
+    "status",
+    [
+        EmbargoRegisterStatus.ACTIVE,
+        EmbargoRegisterStatus.REJECTED,
+        EmbargoRegisterStatus.SUPERSEDED,
+    ],
+)
+def test_an_update_setting_only_the_status_changes_no_term(status) -> None:
+    held = _held_terms()
+
+    assert held.with_register_state(status).changed_terms(held) == ()
+
+
+def test_register_state_is_no_term() -> None:
+    """``replaces`` and ``termination`` are register state, not terms.
+
+    The receiver decides the register step from its own register, so the
+    held copy of a revision that replaced another, and a termination the
+    ``Update`` carries, are both still the same terms (ADR-0202).
+    """
+    held = _held_terms()
+    replaced = held.with_register_state(
+        EmbargoRegisterStatus.ACTIVE,
+        replaces="https://example.org/cases/c1/embargo_events/prior",
+    )
+    terminated = held.with_register_state(
+        EmbargoRegisterStatus.TERMINATED,
+        termination=EmbargoTermination.from_cause(None),
+    )
+
+    assert terminated.changed_terms(replaced) == ()
+
+
+@pytest.mark.spec("VAM-05-010")
+@pytest.mark.parametrize(
+    ("change", "field"),
+    [
+        ({"end_time": _FUTURE_DT + timedelta(days=1)}, "end_time"),
+        ({"start_time": _FUTURE_DT - timedelta(days=1)}, "start_time"),
+        ({"name": "Other terms"}, "name"),
+    ],
+)
+def test_an_update_changing_a_term_names_it(change, field) -> None:
+    held = _held_terms()
+    changed = EmbargoEvent.model_validate(
+        {**held.model_dump(), **change, "status": EmbargoRegisterStatus.ACTIVE}
+    )
+
+    assert changed.changed_terms(held) == (field,)

@@ -227,7 +227,9 @@ def opening(t: CaseTranslation) -> None:
             # (ADR-0199); the case is the entry's context.
             activity_type="Update",
             actor=t.ids.coordinator,
-            # Validated as the embargo it activates, its status set.
+            # Validated as the embargo it activates, its status set.  Not
+            # with_register_state(EmbargoRegisterStatus.ACTIVE): a connector
+            # may not import vultron.core.states (ARCH-05-002).
             object_=EmbargoEvent.model_validate(
                 {**t.embargo.model_dump(), "status": "ACTIVE"}
             ),

@@ -25,7 +25,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.primitives import same_actor_id
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
@@ -263,7 +263,12 @@ class _EmbargoMixin:
         the id.  An Invite with no other author is the proposer's own, as is
         an id this actor holds no activity for: the owner's open-proposal
         record then names the proposal entry it copied, whose activity is the
-        proposer's Invite (EP-09-001).
+        proposer's Invite (EP-09-001).  The ledger readers name the proposal
+        from committed snapshots (``embargo_proposal``); this reads the one
+        Invite the owner holds.
+
+        Raises:
+            VultronValidationError: a relayed Invite names no request.
         """
         try:
             invite = read_held_as_received(
@@ -274,8 +279,17 @@ class _EmbargoMixin:
         actor = _as_id(getattr(invite, "actor", None))
         attributed = _as_id(getattr(invite, "attributed_to", None))
         request = _as_id(getattr(invite, "in_reply_to", None))
-        relayed = attributed and actor and not same_actor_id(attributed, actor)
-        return request if relayed and request else proposal_id
+        if not (attributed and actor) or same_actor_id(attributed, actor):
+            return proposal_id
+        if not request:
+            # A relay names the request it carries out (CM-24-020), so one
+            # that names none cannot say which proposal is decided.
+            raise VultronValidationError(
+                f"relayed Invite '{proposal_id}' names its proposer"
+                f" '{attributed}' but no request in inReplyTo (CM-24-020):"
+                " the proposal the decision answers is unknown"
+            )
+        return request
 
     def activate_embargo(
         self,

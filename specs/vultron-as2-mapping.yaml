@@ -1265,7 +1265,9 @@ groups:
       `ActivateEmbargoOnCasePattern` uses `TAtype.UPDATE`, `VOtype.EMBARGO_EVENT`,
       `object_status=ACTIVE` and `context_=VULNERABILITY_CASE`.
       `test/architecture/test_response_in_reply_to.py` confirms the activity cannot be
-      built without `inReplyTo`.
+      built without `inReplyTo`, and `TestOwnerEmbargoDecision` in
+      `test/adapters/driven/trigger_activity_adapter/test_embargo.py` confirms it names
+      the proposer's own Invite, not the CASE_MANAGER's relay.
     adr:
     - ADR-0122
     - ADR-0199
@@ -1295,7 +1297,10 @@ groups:
       `_instances.py` confirms `RejectEmbargoProposalOnCasePattern` uses
       `TAtype.UPDATE`, `VOtype.EMBARGO_EVENT`, `object_status=REJECTED` and
       `context_=VULNERABILITY_CASE`. `test/architecture/test_response_in_reply_to.py`
-      confirms the activity cannot be built without `inReplyTo`.
+      confirms the activity cannot be built without `inReplyTo`, and
+      `TestOwnerEmbargoDecision` in
+      `test/adapters/driven/trigger_activity_adapter/test_embargo.py` confirms it names
+      the proposer's own Invite.
     adr:
     - ADR-0122
     - ADR-0199

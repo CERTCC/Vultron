@@ -34,13 +34,6 @@ _S = EmbargoRegisterStatus
 #: Statuses an embargo reaches only by having been ``ACTIVE``.
 _WAS_ACTIVE = frozenset({_S.ACTIVE, _S.SUPERSEDED, _S.TERMINATED})
 
-#: What an ``Update`` of an embargo setting a status may change besides the
-#: status: its termination when it ends, and nothing else (ADR-0199,
-#: ADR-0203).  A status not listed changes the status alone.
-_UPDATE_MAY_SET: dict[EmbargoRegisterStatus, frozenset[str]] = {
-    _S.TERMINATED: frozenset({"termination"}),
-}
-
 
 class EmbargoEvent(CoreObject):
     """Domain representation of an EmbargoEvent.
@@ -135,18 +128,19 @@ class EmbargoEvent(CoreObject):
         )
 
     def changed_terms(self, held: EmbargoEvent) -> tuple[str, ...]:
-        """The fields this embargo, as an ``Update`` carries it, changes on *held*.
+        """The terms this embargo, as an ``Update`` carries it, changes on *held*.
 
-        An ``Update`` of an embargo changes its ``status``, and its
-        ``termination`` when it ends; its terms change only by a revision
-        proposal (ADR-0199).  So every other field this copy states must
-        equal *held*'s, the record the receiver holds for the embargo, and
-        the names of those that differ are returned, sorted: empty when the
-        ``Update`` changes nothing it may not.
+        An ``Update`` of an embargo changes its register state: its
+        ``status``, and its ``termination`` when it ends (ADR-0199,
+        ADR-0203).  Its terms change only by a revision proposal, so every
+        other field must equal *held*'s, the record the receiver holds.  The
+        register state is compared on neither side: the receiver decides the
+        register step, ``replaces`` included, from its own register
+        (ADR-0202).  Returns the names of the terms that differ, sorted:
+        empty when the ``Update`` changes no term.
         """
-        ignored = {"status", *_UPDATE_MAY_SET.get(self.status, frozenset())}
-        mine = self.model_dump(exclude=ignored)
-        theirs = held.model_dump(exclude=ignored)
+        mine = self.with_register_state().model_dump()
+        theirs = held.with_register_state().model_dump()
         return tuple(
             sorted(
                 name

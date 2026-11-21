@@ -49,12 +49,12 @@ class _StagingStore(SqliteDataLayer):
     none under its sender's id (DL-06-006), and the read that rebuilds it
     resolves its references through the store that returned it.
 
-    So is the object of an ``Update``, once :meth:`read_as_received` names
-    it: AS2's ``Update`` carries the object as its sender changed it, so the
-    copy the receiver holds is not the object the ``Update`` states, and
-    routing and the handler read the change as it arrived (ADR-0199).  The
-    receiver's own store is never written (DL-06-006), and the handler
-    decides whether the change is admitted.
+    So is an object :meth:`read_as_received` names: the object of an
+    ``Update`` that a registered pattern reads by the ``status`` it sets,
+    such as the Case Owner's decision on an embargo (ADR-0199).  The held
+    copy does not carry that status, so routing and the handler read the
+    change as it arrived.  The receiver's own store is never written
+    (DL-06-006), and the handler decides whether the change is admitted.
     """
 
     def __init__(self, held: DataLayer, activity_id: str) -> None:

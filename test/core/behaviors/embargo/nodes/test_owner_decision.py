@@ -43,6 +43,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.behaviors.act_key_scope import with_act_keys
+from vultron.core.behaviors.act_keys import (
+    CASE_ID as CASE_ID_KEY,
+    EMBARGO as EMBARGO_KEY,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes import (
@@ -50,6 +55,7 @@ from vultron.core.behaviors.embargo.nodes import (
     CommitAndApplyEmbargoActivationNode,
     IsOpenEmbargoProposalNode,
     OwnerMayActivateEmbargoNode,
+    OwnerUpdateKeepsEmbargoTermsNode,
     RejectEmbargoProposalLifecycleNode,
     SendOwnerEmbargoDecisionNode,
 )
@@ -62,6 +68,7 @@ from vultron.core.models.note import VultronNote
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycleResult
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -189,6 +196,91 @@ class TestIsOpenEmbargoProposalNode:
         )
 
         assert _tick(node) is Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# OwnerUpdateKeepsEmbargoTermsNode
+# ---------------------------------------------------------------------------
+
+
+def _terms_guard(case_id: str, carried: as_EmbargoEvent) -> Status:
+    """Tick the guard with *carried* as the Update's embargo."""
+    node = with_act_keys(
+        OwnerUpdateKeepsEmbargoTermsNode(),
+        {CASE_ID_KEY: case_id, EMBARGO_KEY: carried},
+    )
+    status = _tick(node)
+    return status
+
+
+class TestOwnerUpdateKeepsEmbargoTermsNode:
+    @pytest.mark.spec("VAM-05-010")
+    def test_an_update_setting_only_the_status_passes(
+        self, dl: SqliteDataLayer
+    ):
+        case, _, open_id, _ = _case_with_owner(
+            dl, "terms-ok", em_state=EM.ACTIVE
+        )
+        setup_blackboard(dl, actor_id=MANAGER)
+        held = case.registered_embargo(open_id)
+        assert held is not None
+
+        assert (
+            _terms_guard(
+                case.id_,
+                held.with_register_state(EmbargoRegisterStatus.ACTIVE),
+            )
+            is Status.SUCCESS
+        )
+
+    @pytest.mark.spec("VAM-05-010")
+    def test_an_update_changing_a_term_fails_naming_it(
+        self, dl: SqliteDataLayer
+    ):
+        case, _, open_id, _ = _case_with_owner(
+            dl, "terms-changed", em_state=EM.ACTIVE
+        )
+        setup_blackboard(dl, actor_id=MANAGER)
+        held = case.registered_embargo(open_id)
+        assert held is not None
+        changed = as_EmbargoEvent.model_validate(
+            {
+                **held.model_dump(),
+                "end_time": days_from_now(200),
+                "status": EmbargoRegisterStatus.ACTIVE,
+            }
+        )
+
+        assert _terms_guard(case.id_, changed) is Status.FAILURE
+
+    def test_an_embargo_off_the_register_fails(self, dl: SqliteDataLayer):
+        """No register copy to compare with: nothing the Update may change."""
+        case, _, _, _ = _case_with_owner(
+            dl, "terms-off-register", em_state=EM.ACTIVE
+        )
+        setup_blackboard(dl, actor_id=MANAGER)
+        stranger = make(
+            as_EmbargoEvent,
+            id_=f"{case.id_}/embargo_events/never-proposed",
+            context=case.id_,
+            end_time=days_from_now(30),
+        ).with_register_state(EmbargoRegisterStatus.ACTIVE)
+
+        assert _terms_guard(case.id_, stranger) is Status.FAILURE
+
+    def test_a_missing_case_fails(self, dl: SqliteDataLayer):
+        setup_blackboard(dl, actor_id=MANAGER)
+        carried = make(
+            as_EmbargoEvent,
+            id_="https://example.org/cases/missing/embargo_events/e",
+            context="https://example.org/cases/missing",
+            end_time=days_from_now(30),
+        )
+
+        assert (
+            _terms_guard("https://example.org/cases/missing", carried)
+            is Status.FAILURE
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -123,7 +123,7 @@ def _propose(net: LedgerNetwork, suffix: str, days: int) -> str:
 def _owner_decides(
     net: LedgerNetwork, embargo_id: str, *, accept: bool = True
 ) -> Any:
-    """The owner sends ``Add`` or ``Update(EmbargoEvent{status: REJECTED})``.
+    """The owner sends its ``Update(EmbargoEvent)`` setting the status.
 
     It first receives the relayed Invites, so its store holds the embargo and
     the Invite its decision names in ``inReplyTo`` (ADR-0180).
@@ -141,12 +141,12 @@ def _owner_decides(
 
 
 def _owner_activates(net: LedgerNetwork, embargo_id: str) -> Any:
-    """The owner sends ``Update(EmbargoEvent{status: ACTIVE})`` (ADR-0180)."""
+    """The owner sends ``Update(EmbargoEvent{status: ACTIVE})`` (ADR-0199)."""
     return _owner_decides(net, embargo_id)
 
 
 def _owner_rejects(net: LedgerNetwork, embargo_id: str) -> Any:
-    """The owner sends ``Update(EmbargoEvent{status: REJECTED})`` (ADR-0122)."""
+    """The owner sends ``Update(EmbargoEvent{status: REJECTED})`` (ADR-0199)."""
     return _owner_decides(net, embargo_id, accept=False)
 
 

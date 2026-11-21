@@ -55,10 +55,7 @@ from vultron.core.models.embargo_apply import (
 from vultron.core.models.embargo_consent_move import owner_agreement
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.services.carried_embargo import (
-    carried_entry_embargo,
-    create_held_embargo,
-)
+from vultron.core.services.carried_embargo import carried_entry_embargo
 from vultron.errors import VultronError
 
 #: Ledger ``semantic_type`` of the case owner's committed activation.
@@ -139,8 +136,9 @@ class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
         status = super().update()
         if status == Status.SUCCESS and pending is not None:
             # The Update carries the embargo with its status set; the held
-            # record keeps its terms alone (ADR-0202).
-            create_held_embargo(self.datalayer, pending)
+            # record keeps its terms alone (ADR-0202).  A save, so a record
+            # stored meanwhile is written over with the same terms.
+            self.datalayer.save(pending.with_register_state())
         return status
 
     def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:

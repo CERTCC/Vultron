@@ -24,6 +24,7 @@ from test.support.received import archive_received
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
+    VultronValidationError,
 )
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -656,6 +657,25 @@ class TestOwnerEmbargoDecision:
         _, body, _ = self._build(adapter, dl, method, proposal_id=relay.id_)
 
         assert body["inReplyTo"] == proposers_invite
+
+    @pytest.mark.spec("CM-24-020")
+    def test_a_relay_naming_no_request_is_refused(
+        self, adapter, dl, method, status
+    ):
+        """A relay without ``inReplyTo`` cannot say which proposal it carries."""
+        embargo = _make_embargo(dl)
+        relay = em_propose_embargo_activity(
+            embargo,
+            context=_CASE_ID,
+            actor=_PEER,
+            to=[_ACTOR],
+            attributed_to=_PROPOSER,
+            at=authored_at(),
+        )
+        archive_received(dl, relay)
+
+        with pytest.raises(VultronValidationError, match="CM-24-020"):
+            self._build(adapter, dl, method, proposal_id=relay.id_)
 
     @pytest.mark.spec("RF-08-001")
     def test_names_a_held_invite_with_no_other_author_itself(

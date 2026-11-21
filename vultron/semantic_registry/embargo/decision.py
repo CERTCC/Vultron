@@ -46,8 +46,8 @@ from vultron.wire.as2.vocab.activities.embargo import (
 )
 
 ENTRIES: list[SemanticEntry] = [
-    # The Case Owner's decision for the case (ADR-0122, ADR-0180): Add/Reject
-    # of the EmbargoEvent itself, never of the Invite that proposed it.  It
+    # The Case Owner's decision for the case (ADR-0122, ADR-0199): an Update
+    # of the EmbargoEvent's status, never an answer to the Invite.  It
     # carries EA, EC, ER and EJ, told apart by the case's EM state (MSM-02).
     SemanticEntry(
         semantics=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,

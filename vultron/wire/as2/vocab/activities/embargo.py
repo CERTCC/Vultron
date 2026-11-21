@@ -141,6 +141,9 @@ class _OwnerEmbargoDecisionMixin(as_Update):
     in_reply_to: NonEmptyString = Field(default=...)
 
 
+# Each decision names ``as_Update`` again after the shared base, so the docs
+# ratchet that reads a class's verb from its last ``as_`` base finds it
+# (``test/architecture/test_docs_activity_verbs.py``).
 class _ActivateEmbargoActivity(_OwnerEmbargoDecisionMixin, as_Update):
     """The case owner activates a proposed embargo on the case (EA, EC).
 

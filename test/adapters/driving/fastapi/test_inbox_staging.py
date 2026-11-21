@@ -194,6 +194,34 @@ def test_the_object_of_an_update_routes_as_carried(dl):
     assert stored.status == "PROPOSED"
 
 
+@pytest.mark.spec("IO-03-008")
+def test_the_object_of_another_update_routes_as_held(dl):
+    """Only an Update a pattern reads by status routes its object as carried.
+
+    No pattern reads an ``Update(EmbargoConsent)`` by status, so the row the
+    receiver holds is the one routing sees, as for any other activity.
+    """
+    from vultron.core.models.embargo_consent import EmbargoConsent
+    from vultron.wire.as2.vocab.examples import embargo as examples
+
+    update = examples.update_embargo_consent()
+    carried = update.object_
+    assert isinstance(carried, EmbargoConsent)
+    held = EmbargoConsent.model_validate(
+        {**carried.model_dump(), "state": "INVITED"}
+    )
+    dl.create(held)
+
+    routed = _routed(
+        dl,
+        signed_body(
+            update.model_dump(mode="json", by_alias=True, exclude_none=True)
+        ),
+    )
+
+    assert getattr(routed.object_, "state", None) == "INVITED"
+
+
 @pytest.mark.spec("IO-03-004", "CBT-03-001", "DL-06-006", "VM-08-002")
 @pytest.mark.spec("IO-03-009")
 def test_deferred_activity_replays_with_its_inline_object(dl):

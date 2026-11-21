@@ -1470,17 +1470,27 @@ def test_an_embargo_update_stating_no_status_matches_nothing() -> None:
 
 
 @pytest.mark.spec("VAM-05-008")
-def test_a_status_pattern_reads_no_status_off_a_bare_embargo_id() -> None:
-    """A bare embargo id carries no status, so no decision pattern takes it."""
-    import vultron.wire.as2.vocab.examples.embargo as examples
+@pytest.mark.spec("MV-10-011")
+def test_a_status_pattern_reads_no_status_off_a_typed_reference() -> None:
+    """A typed reference names an embargo by type but states no status.
 
-    update = examples.activate_embargo()
-    from vultron.core.models.embargo_event import EmbargoEvent
+    It satisfies the pattern's type, as a reference does (MV-10-011), so
+    only ``object_status`` refuses it: the decision must carry the embargo
+    with its status set (VAM-05-010).
+    """
+    body = _embargo_update_body("ACTIVE")
+    body["object"] = {"id": body["object"]["id"], "type": "EmbargoEvent"}
+    activity = parse_activity(body)
+    assert isinstance(getattr(activity, "object_", None), as_TypedReference)
+    type_only = ActivityPattern(
+        activity_=ActivateEmbargoOnCasePattern.activity_,
+        object_=ActivateEmbargoOnCasePattern.object_,
+        context_=ActivateEmbargoOnCasePattern.context_,
+    )
 
-    assert isinstance(update.object_, EmbargoEvent)
-    bare = update.model_copy(update={"object_": update.object_.id_})
-
-    assert not ActivateEmbargoOnCasePattern.match(bare)
+    assert type_only.match(activity)
+    assert not ActivateEmbargoOnCasePattern.match(activity)
+    assert not RejectEmbargoProposalOnCasePattern.match(activity)
 
 
 def test_object_status_needs_a_non_activity_object_type() -> None:

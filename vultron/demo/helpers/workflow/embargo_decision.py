@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The case owner's decision on a proposed embargo (ADR-0122, ADR-0180)."""
+"""The case owner's decision on a proposed embargo (ADR-0122, ADR-0199)."""
 
 import logging
 
