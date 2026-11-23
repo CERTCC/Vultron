@@ -443,7 +443,7 @@ dev = [
     # Lift it once a pytest-xdist release carries both #1388 (the fix) and #1402
     # (the fix for #1388's late-deselection crash, #1399);
     # `test/test_xdist_loadgroup.py` decides.
-    "pytest>=9.1.1,<9.2",
+    "pytest>=9.1.1,<9.3",
     "pytest-timeout>=0.5",
     "pytest-xdist>=3.8.0",
     "ruff>=0.16.9",
